@@ -574,6 +574,21 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         new RootObjectMapper.Builder("_doc").mergeWith(atLimit, mergeContextAtLimit); // must not throw
     }
 
+    /**
+     * Pins that deduplicating builders while building assumes all features are supported.
+     */
+    public void testBuildAssumesAllFeatures() {
+        FeatureProbeFieldMapper.Builder probe = new FeatureProbeFieldMapper.Builder("p");
+        RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc");
+        root.add(probe);
+        root.add(probe);
+
+        RootObjectMapper mapper = root.build(MapperBuilderContext.root(false, false));
+
+        assertThat(probe.featureSeen(), equalTo("true"));
+        assertThat(((FeatureProbeFieldMapper) mapper.getMapper("p")).featureSeen(), equalTo("true"));
+    }
+
     private TextFieldMapper.Builder createTextKeywordMultiField(String name, String multiFieldName) {
         TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, defaultIndexSettings(), createDefaultIndexAnalyzers(), false);
         builder.multiFieldsBuilder.add(new KeywordFieldMapper.Builder(multiFieldName, INDEX_SETTINGS));

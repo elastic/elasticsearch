@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Checks that the {@link MapperService} merge paths pass the cluster feature predicate to {@link MapperMergeContext}.
@@ -54,6 +55,18 @@ public class MergeFeaturePredicateTests extends MapperServiceTestCase {
         merge(mapperService, MergeReason.MAPPING_RECOVERY, probesAtEveryLevel(null));
 
         assertProbesAtEveryLevel(mapperService, "true");
+    }
+
+    public void testDedupMergeUseClusterFeatures() throws IOException {
+        MapperService mapperService = probeService(new AtomicBoolean(false), null);
+        merge(mapperService, MergeReason.MAPPING_UPDATE, probesAtEveryLevel(null));
+
+        // obj.p is defined twice, so only the dedup merge sets feature_seen
+        assertThat(featureSeen(mapperService, "obj.p"), equalTo("false"));
+        // probes without duplicates are not merged, which shows the value above comes from dedup
+        assertThat(featureSeen(mapperService, "p"), nullValue());
+        assertThat(featureSeen(mapperService, "n.p"), nullValue());
+        assertThat(featureSeen(mapperService, "k.p"), nullValue());
     }
 
     public void testIsNoOpUpdateUsesClusterFeatures() throws IOException {
@@ -111,7 +124,7 @@ public class MergeFeaturePredicateTests extends MapperServiceTestCase {
     }
 
     /**
-     * Defines the probe at the root, in an object, and in a nested field.
+     * Defines the probe at the root, in an object, in a nested field, and as a multi-field.
      */
     private static XContentBuilder probesAtEveryLevel(@Nullable String featureSeen) throws IOException {
         return mapping(b -> {
@@ -121,6 +134,9 @@ public class MergeFeaturePredicateTests extends MapperServiceTestCase {
             b.endObject().endObject();
             addProbeField(b, "obj.p", featureSeen);
             b.startObject("n").field("type", "nested").startObject("properties");
+            addProbeField(b, "p", featureSeen);
+            b.endObject().endObject();
+            b.startObject("k").field("type", "keyword").startObject("fields");
             addProbeField(b, "p", featureSeen);
             b.endObject().endObject();
         });
@@ -147,6 +163,7 @@ public class MergeFeaturePredicateTests extends MapperServiceTestCase {
         assertThat(featureSeen(mapperService, "p"), equalTo(expected));
         assertThat(featureSeen(mapperService, "obj.p"), equalTo(expected));
         assertThat(featureSeen(mapperService, "n.p"), equalTo(expected));
+        assertThat(featureSeen(mapperService, "k.p"), equalTo(expected));
     }
 
     private static String featureSeen(MapperService mapperService, String path) {

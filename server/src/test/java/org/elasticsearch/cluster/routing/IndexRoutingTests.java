@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -41,6 +42,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -520,6 +522,101 @@ public class IndexRoutingTests extends ESTestCase {
             case 3 -> indexRouting.getShard(id, routing);
             default -> throw new AssertionError("invalid option");
         };
+    }
+
+    public void testHashInIdGeneratedIdsRouteConsistently() {
+        for (int shards = 1; shards <= 8; shards++) {
+            IndexRouting indexRouting = IndexRouting.fromIndexMetadata(hashInIdMetadata(shards, true));
+            Set<Integer> shardsHit = new HashSet<>();
+            for (int i = 0; i < 200; i++) {
+                IndexRequest req = new IndexRequest();
+                indexRouting.preProcess(req);
+                assertThat(req.id().length(), equalTo(26));
+                int shard = indexRouting.indexShard(req);
+                assertThat(indexRouting.getShard(req.id(), null), equalTo(shard));
+                assertThat(indexRouting.deleteShard(req.id(), null), equalTo(shard));
+                assertThat(indexRouting.updateShard(req.id(), null), equalTo(shard));
+                shardsHit.add(shard);
+            }
+            assertThat(shardsHit, hasSize(shards));
+        }
+    }
+
+    public void testHashInIdBulkTargetShard() {
+        int shards = between(1, 16);
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(hashInIdMetadata(shards, true));
+        assertTrue(indexRouting.supportsBulkTargetShard());
+        for (int target = 0; target < shards; target++) {
+            IndexRouting bulkRouting = indexRouting.forBulkTargetShard(target);
+            for (int i = 0; i < 20; i++) {
+                IndexRequest req = new IndexRequest();
+                bulkRouting.preProcess(req);
+                assertThat(bulkRouting.indexShard(req), equalTo(target));
+                assertThat(shardIdFromSimple(indexRouting, req.id(), null), equalTo(target));
+            }
+        }
+    }
+
+    public void testHashInIdClientIdAndRoutingMatchUnpartitioned() {
+        int shards = between(1, 16);
+        IndexRouting hashInId = IndexRouting.fromIndexMetadata(hashInIdMetadata(shards, true));
+        IndexRouting unpartitioned = IndexRouting.fromIndexMetadata(hashInIdMetadata(shards, false));
+        assertFalse(unpartitioned.supportsBulkTargetShard());
+        assertSame(unpartitioned, unpartitioned.forBulkTargetShard(between(0, shards - 1)));
+        for (int i = 0; i < 100; i++) {
+            String id = randomAlphaOfLength(randomValueOtherThan(26, () -> between(1, 40)));
+            IndexRequest req = new IndexRequest().id(id);
+            hashInId.preProcess(req);
+            assertThat(req.id(), equalTo(id));
+            assertThat(hashInId.indexShard(req), equalTo(unpartitioned.indexShard(req)));
+            assertThat(shardIdFromSimple(hashInId, id, null), equalTo(shardIdFromSimple(unpartitioned, id, null)));
+
+            IndexRequest generated = new IndexRequest();
+            hashInId.preProcess(generated);
+            String anyId = randomBoolean() ? id : generated.id();
+            String routing = randomAlphaOfLength(between(1, 40));
+            assertThat(shardIdFromSimple(hashInId, anyId, routing), equalTo(shardIdFromSimple(unpartitioned, anyId, routing)));
+            List<Integer> hashInIdSearchShards = new ArrayList<>();
+            hashInId.collectSearchShards(routing, hashInIdSearchShards::add);
+            List<Integer> unpartitionedSearchShards = new ArrayList<>();
+            unpartitioned.collectSearchShards(routing, unpartitionedSearchShards::add);
+            assertThat(hashInIdSearchShards, equalTo(unpartitionedSearchShards));
+        }
+    }
+
+    public void testHashInIdRoutesBase64IdsByEmbeddedHash() {
+        int shards = between(2, 16);
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(hashInIdMetadata(shards, true));
+        RoutingFunction routingFunction = RoutingFunction.moduloNumberOfShards(shards);
+        String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        for (int i = 0; i < 500; i++) {
+            char[] chars = new char[26];
+            for (int c = 0; c < chars.length; c++) {
+                chars[c] = alphabet.charAt(between(0, alphabet.length() - 1));
+            }
+            if (randomBoolean()) {
+                chars[between(0, chars.length - 1)] = randomFrom('+', '/', '=', '.', '\u00e9', '\u0100');
+            }
+            String id = new String(chars);
+            byte[] decoded;
+            try {
+                decoded = Base64.getUrlDecoder().decode(id);
+            } catch (IllegalArgumentException e) {
+                decoded = null;
+            }
+            int hash = decoded != null && decoded.length == 19
+                ? ByteUtils.readIntLE(decoded, decoded.length - 9)
+                : Murmur3HashFunction.hash(id);
+            assertThat(id, shardIdFromSimple(indexRouting, id, null), equalTo(routingFunction.shardNum(hash)));
+        }
+    }
+
+    private static IndexMetadata hashInIdMetadata(int shards, boolean hashInId) {
+        return IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_HASH_IN_ID.getKey(), hashInId))
+            .numberOfShards(shards)
+            .numberOfReplicas(1)
+            .build();
     }
 
     public void testRoutingAllowsId() {

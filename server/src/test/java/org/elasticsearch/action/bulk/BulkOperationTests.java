@@ -45,6 +45,10 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -80,6 +84,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -93,6 +98,9 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -109,6 +117,8 @@ public class BulkOperationTests extends ESTestCase {
     private final String fsDataStreamName = "my_failure_store_data_stream";
     private final String fsRolloverDataStreamName = "my_failure_store_to_be_rolled_over_data_stream";
     private final String fsBySettingsDataStreamName = "my_failure_store_enabled_by_setting_data_stream";
+    private final String localNodeId = randomAlphaOfLength(10);
+    private final String otherNodeId = "other_node";
 
     private final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
         .settings(
@@ -116,6 +126,16 @@ public class BulkOperationTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .build()
+        )
+        .build();
+    private final IndexMetadata hashInIdIndexMetadata = IndexMetadata.builder("my_hash_in_id_index")
+        .settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.INDEX_ROUTING_HASH_IN_ID.getKey(), true)
                 .build()
         )
         .build();
@@ -372,7 +392,8 @@ public class BulkOperationTests extends ESTestCase {
                 new FailureStoreDocumentConverter(),
                 DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
                 true,
-                batchEnabled
+                batchEnabled,
+                BulkRoutingPolicy.PER_DOCUMENT
             ).run()
         );
 
@@ -505,6 +526,32 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find failed item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("test")));
+    }
+
+    public void testPerBulkRoutingSendsAutoIdBulkToOneShard() {
+        ClusterState state = hashInIdIndexState(localNodeId, otherNodeId, localNodeId, otherNodeId);
+        List<BulkShardRequest> shardRequests = routeAutoIdBulk(state, BulkRoutingPolicy.PER_BULK, 50);
+        assertThat(shardRequests, hasSize(1));
+        assertThat(shardRequests.get(0).items().length, equalTo(50));
+    }
+
+    public void testLocalRoutingSendsAutoIdBulkToLocalPrimary() {
+        ClusterState state = hashInIdIndexState(localNodeId, otherNodeId, localNodeId, otherNodeId);
+        List<BulkShardRequest> shardRequests = routeAutoIdBulk(state, BulkRoutingPolicy.LOCAL, 50);
+        assertThat(shardRequests, hasSize(1));
+        assertThat(shardRequests.get(0).shardId().id(), is(oneOf(0, 2)));
+    }
+
+    public void testLocalRoutingWithoutLocalPrimarySendsAutoIdBulkToOneShard() {
+        ClusterState state = hashInIdIndexState(otherNodeId, otherNodeId, otherNodeId, otherNodeId);
+        List<BulkShardRequest> shardRequests = routeAutoIdBulk(state, BulkRoutingPolicy.LOCAL, 50);
+        assertThat(shardRequests, hasSize(1));
+    }
+
+    public void testPerDocumentRoutingSpreadsAutoIdBulkAcrossShards() {
+        ClusterState state = hashInIdIndexState(localNodeId, otherNodeId, localNodeId, otherNodeId);
+        List<BulkShardRequest> shardRequests = routeAutoIdBulk(state, BulkRoutingPolicy.PER_DOCUMENT, 50);
+        assertThat(shardRequests.size(), greaterThan(1));
     }
 
     /**
@@ -1428,6 +1475,47 @@ public class BulkOperationTests extends ESTestCase {
         };
     }
 
+    private ClusterState hashInIdIndexState(String... primaryNodeIds) {
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(hashInIdIndexMetadata.getIndex());
+        for (int shard = 0; shard < primaryNodeIds.length; shard++) {
+            ShardId shardId = new ShardId(hashInIdIndexMetadata.getIndex(), shard);
+            indexRoutingTable.addShard(TestShardRouting.newShardRouting(shardId, primaryNodeIds[shard], true, ShardRoutingState.STARTED));
+        }
+        return ClusterState.builder(clusterState)
+            .putProjectMetadata(ProjectMetadata.builder(clusterState.metadata().getProject(projectId)).put(hashInIdIndexMetadata, false))
+            .putRoutingTable(projectId, RoutingTable.builder().add(indexRoutingTable).build())
+            .build();
+    }
+
+    private List<BulkShardRequest> routeAutoIdBulk(ClusterState state, BulkRoutingPolicy bulkRoutingPolicy, int docs) {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < docs; i++) {
+            bulkRequest.add(new IndexRequest(hashInIdIndexMetadata.getIndex().getName()).source(Map.of("key", i)));
+        }
+        List<BulkShardRequest> shardRequests = new CopyOnWriteArrayList<>();
+        NodeClient client = getNodeClient((request, listener) -> {
+            shardRequests.add(request);
+            acceptAllShardWrites().accept(request, listener);
+        });
+        BulkResponse response = safeAwait(
+            l -> newBulkOperation(
+                state,
+                client,
+                bulkRequest,
+                new AtomicArray<>(bulkRequest.numberOfActions()),
+                mockObserver(state),
+                l,
+                new FailureStoreDocumentConverter(),
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                true,
+                new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings()),
+                bulkRoutingPolicy
+            ).run()
+        );
+        assertThat(response.hasFailures(), is(false));
+        return shardRequests;
+    }
+
     private BulkOperation newBulkOperation(NodeClient client, BulkRequest request, ActionListener<BulkResponse> listener) {
         return newBulkOperation(
             clusterState,
@@ -1518,7 +1606,8 @@ public class BulkOperationTests extends ESTestCase {
             failureStoreDocumentConverter,
             dataStreamFailureStoreSettings,
             failureStoreNodeFeatureEnabled,
-            new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings())
+            new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings()),
+            BulkRoutingPolicy.PER_DOCUMENT
         );
     }
 
@@ -1532,7 +1621,8 @@ public class BulkOperationTests extends ESTestCase {
         FailureStoreDocumentConverter failureStoreDocumentConverter,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         boolean failureStoreNodeFeatureEnabled,
-        BatchIndexingEnabled batchIndexingEnabled
+        BatchIndexingEnabled batchIndexingEnabled,
+        BulkRoutingPolicy bulkRoutingPolicy
     ) {
         // Time provision
         long timeZero = TimeUnit.MILLISECONDS.toNanos(randomMillisUpToYear9999() - TimeUnit.DAYS.toMillis(1));
@@ -1545,7 +1635,7 @@ public class BulkOperationTests extends ESTestCase {
 
         // Mocks
         final DiscoveryNode mockNode = mock(DiscoveryNode.class);
-        when(mockNode.getId()).thenReturn(randomAlphaOfLength(10));
+        when(mockNode.getId()).thenReturn(localNodeId);
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
         when(clusterService.localNode()).thenReturn(mockNode);
@@ -1569,7 +1659,8 @@ public class BulkOperationTests extends ESTestCase {
             FailureStoreMetrics.NOOP,
             dataStreamFailureStoreSettings,
             failureStoreNodeFeatureEnabled,
-            batchIndexingEnabled
+            batchIndexingEnabled,
+            bulkRoutingPolicy
         );
     }
 

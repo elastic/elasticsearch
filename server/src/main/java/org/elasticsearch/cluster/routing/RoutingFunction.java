@@ -13,6 +13,8 @@ package org.elasticsearch.cluster.routing;
 public sealed interface RoutingFunction permits RoutingFunction.ModuloRoutingFunction, RoutingFunction.LegacyRoutingFunction {
     int shardNum(int hash);
 
+    int hashForShard(int shardId, int random);
+
     /// Converts a hash into a shard number using modulo operation.
     static RoutingFunction moduloNumberOfShards(int numberOfShards) {
         return new ModuloRoutingFunction(numberOfShards);
@@ -28,12 +30,24 @@ public sealed interface RoutingFunction permits RoutingFunction.ModuloRoutingFun
         public int shardNum(int hash) {
             return Math.floorMod(hash, numberOfShards);
         }
+
+        @Override
+        public int hashForShard(int shardId, int random) {
+            return shardId + numberOfShards * Math.floorMod(random, Integer.MAX_VALUE / numberOfShards);
+        }
     }
 
     record LegacyRoutingFunction(int routingNumShards, int routingFactor) implements RoutingFunction {
         @Override
         public int shardNum(int hash) {
             return Math.floorMod(hash, routingNumShards) / routingFactor;
+        }
+
+        @Override
+        public int hashForShard(int shardId, int random) {
+            int low = Math.floorMod(random, routingFactor);
+            int high = Math.floorMod(Math.floorDiv(random, routingFactor), Integer.MAX_VALUE / routingNumShards);
+            return shardId * routingFactor + low + routingNumShards * high;
         }
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
@@ -97,6 +98,9 @@ public abstract sealed class IndexRouting {
         }
         if (metadata.isRoutingPartitionedIndex()) {
             return new Partitioned(metadata, routingFunction, reshardingMetadata);
+        }
+        if (IndexMetadata.INDEX_ROUTING_HASH_IN_ID.get(metadata.getSettings())) {
+            return new HashInId(metadata, routingFunction, reshardingMetadata, OptionalInt.empty());
         }
         return new Unpartitioned(metadata, routingFunction, reshardingMetadata);
     }
@@ -229,6 +233,14 @@ public abstract sealed class IndexRouting {
      * in the index.
      */
     public abstract void collectSearchShards(String routing, IntConsumer consumer);
+
+    public boolean supportsBulkTargetShard() {
+        return false;
+    }
+
+    public IndexRouting forBulkTargetShard(int shardId) {
+        return this;
+    }
 
     public static boolean shouldUseShardCountModRouting(final IndexVersion creationVersion) {
         return creationVersion.onOrAfter(IndexVersions.MOD_ROUTING_FUNCTION);
@@ -401,6 +413,108 @@ public abstract sealed class IndexRouting {
         @Override
         public void collectSearchShards(String routing, IntConsumer consumer) {
             consumer.accept(rerouteSearchIfResharding(routingFunction.shardNum(effectiveRoutingToHash(routing))));
+        }
+    }
+
+    private static final class HashInId extends IdAndRoutingOnly {
+        private static final int ID_WITH_HASH_LENGTH = 26;
+        private static final int HASH_OFFSET = 10;
+
+        private final IndexMetadata metadata;
+        private final IndexReshardingMetadata reshardingMetadata;
+        private final OptionalInt fixedHash;
+
+        HashInId(
+            IndexMetadata metadata,
+            RoutingFunction routingFunction,
+            IndexReshardingMetadata reshardingMetadata,
+            OptionalInt fixedHash
+        ) {
+            super(metadata, routingFunction, reshardingMetadata);
+            this.metadata = metadata;
+            this.reshardingMetadata = reshardingMetadata;
+            this.fixedHash = fixedHash;
+        }
+
+        @Override
+        public void preProcess(IndexRequest indexRequest) {
+            if (indexRequest.id() == null) {
+                indexRequest.autoGenerateTimeBasedId(fixedHash.isPresent() ? fixedHash : OptionalInt.of(Randomness.get().nextInt()));
+            } else {
+                super.preProcess(indexRequest);
+            }
+        }
+
+        @Override
+        protected int shardId(String id, @Nullable String routing) {
+            if (routing != null) {
+                return routingFunction.shardNum(effectiveRoutingToHash(routing));
+            }
+            if (hasEmbeddedHash(id)) {
+                return routingFunction.shardNum(embeddedHash(id));
+            }
+            return routingFunction.shardNum(effectiveRoutingToHash(id));
+        }
+
+        @Override
+        public void collectSearchShards(String routing, IntConsumer consumer) {
+            consumer.accept(rerouteSearchIfResharding(routingFunction.shardNum(effectiveRoutingToHash(routing))));
+        }
+
+        @Override
+        public boolean supportsBulkTargetShard() {
+            return true;
+        }
+
+        @Override
+        public IndexRouting forBulkTargetShard(int shardId) {
+            int hash = routingFunction.hashForShard(shardId, Randomness.get().nextInt());
+            return new HashInId(metadata, routingFunction, reshardingMetadata, OptionalInt.of(hash));
+        }
+
+        private static boolean hasEmbeddedHash(String id) {
+            if (id.length() != ID_WITH_HASH_LENGTH) {
+                return false;
+            }
+            for (int i = 0; i < ID_WITH_HASH_LENGTH; i++) {
+                if (base64UrlValue(id.charAt(i)) < 0) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static int embeddedHash(String id) {
+            return decodedByte(id, HASH_OFFSET) | decodedByte(id, HASH_OFFSET + 1) << 8 | decodedByte(id, HASH_OFFSET + 2) << 16
+                | decodedByte(id, HASH_OFFSET + 3) << 24;
+        }
+
+        private static int decodedByte(String id, int index) {
+            int offset = index / 3 * 4;
+            int bits = 0;
+            for (int i = offset; i < offset + 4; i++) {
+                bits = bits << 6 | base64UrlValue(id.charAt(i));
+            }
+            return bits >>> (16 - 8 * (index % 3)) & 0xFF;
+        }
+
+        private static int base64UrlValue(char c) {
+            if (c >= 'A' && c <= 'Z') {
+                return c - 'A';
+            }
+            if (c >= 'a' && c <= 'z') {
+                return c - 'a' + 26;
+            }
+            if (c >= '0' && c <= '9') {
+                return c - '0' + 52;
+            }
+            if (c == '-') {
+                return 62;
+            }
+            if (c == '_') {
+                return 63;
+            }
+            return -1;
         }
     }
 

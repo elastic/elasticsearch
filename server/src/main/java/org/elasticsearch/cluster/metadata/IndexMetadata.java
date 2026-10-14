@@ -251,6 +251,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope
     );
 
+    public static final Setting<Boolean> INDEX_ROUTING_HASH_IN_ID = Setting.boolSetting(
+        "index.routing.hash_in_id",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     @SuppressWarnings("Convert2Diamond") // since some IntelliJs mysteriously report an error if an <Integer> is replaced with <> here:
     public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING = Setting.intSetting(
         "index.number_of_routing_shards",

@@ -299,6 +299,12 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS)
                     .privileges("create_view")
                     .build(),
+                // Nightshift source views. Kibana creates, updates and deletes them as the Kibana system user, so end users
+                // need no write privileges on them and cannot let a view drift from its saved object. Reads run as the user.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.NIGHTSHIFT_SOURCE_VIEWS)
+                    .privileges("create_view", "delete_view")
+                    .build(),
                 // "Alerts as data" public index aliases used in Security Solution,
                 // Observability, etc.
                 // Kibana system user uses them to read / write alerts.

@@ -45,7 +45,7 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
         try (LongBytesRefBlockHash hash = newHash()) {
             int numPages = between(1, 5);
             for (int i = 0; i < numPages; i++) {
-                int positionCount = between(1, 20);
+                int positionCount = between(1, 100);
                 final BytesRefBlock bytes;
                 if (randomBoolean()) {
                     bytes = randomOrdinalBytes(positionCount);
@@ -53,7 +53,7 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
                     bytes = randomBytes(positionCount);
                 }
                 try (bytes; LongBlock longs = randomLongs(positionCount)) {
-                    add(hash, bytes.asOrdinals() != null, ordsAndKeys -> assertGroupIdsMatchKeys(ordsAndKeys, longs, bytes), longs, bytes);
+                    add(hash, hasDenseOrdinals(bytes), ordsAndKeys -> assertGroupIdsMatchKeys(ordsAndKeys, longs, bytes), longs, bytes);
                 }
             }
         }
@@ -63,7 +63,7 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
         try (LongBytesRefBlockHash hash = newHash()) {
             int numPages = between(1, 5);
             for (int i = 0; i < numPages; i++) {
-                int positionCount = between(1, 20);
+                int positionCount = between(1, 100);
                 final BytesRefBlock bytes;
                 if (randomBoolean()) {
                     bytes = randomOrdinalBytes(positionCount);
@@ -71,7 +71,7 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
                     bytes = randomBytes(positionCount);
                 }
                 try (bytes; LongBlock longs = randomLongs(positionCount)) {
-                    add(hash, bytes.asOrdinals() != null, ordsAndKeys -> assertGroupIdsMatchKeys(ordsAndKeys, longs, bytes), longs, bytes);
+                    add(hash, hasDenseOrdinals(bytes), ordsAndKeys -> assertGroupIdsMatchKeys(ordsAndKeys, longs, bytes), longs, bytes);
                 }
             }
             final int numKeys = hash.numKeys();
@@ -114,12 +114,17 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
                         }
                     }
                     assertThat(position, equalTo(positionCount));
-                    long expectedLookups = bytes.asOrdinals() != null ? lookupsBefore + 1 : lookupsBefore;
+                    long expectedLookups = hasDenseOrdinals(bytes) ? lookupsBefore + 1 : lookupsBefore;
                     assertThat(hash.ordinalLookups(), equalTo(expectedLookups));
                 }
             }
             assertThat(hash.numKeys(), equalTo(numKeys));
         }
+    }
+
+    private static boolean hasDenseOrdinals(BytesRefBlock bytes) {
+        OrdinalBytesRefBlock ordinals = bytes.asOrdinals();
+        return ordinals != null && ordinals.isDense();
     }
 
     private static void add(LongBytesRefBlockHash hash, boolean expectOrdinals, Consumer<OrdsAndKeys> callback, Block... values) {

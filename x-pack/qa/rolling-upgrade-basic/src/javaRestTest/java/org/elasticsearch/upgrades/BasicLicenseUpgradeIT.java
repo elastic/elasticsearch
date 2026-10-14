@@ -26,7 +26,7 @@ public class BasicLicenseUpgradeIT extends ParameterizedRollingUpgradeTestCase {
     private static ElasticsearchCluster buildCluster() {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(getOldClusterVersion(), isOldClusterDetachedVersion())
+            .version(getOldClusterVersion())
             .nodes(NODE_NUM)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.ml.enabled", "false")

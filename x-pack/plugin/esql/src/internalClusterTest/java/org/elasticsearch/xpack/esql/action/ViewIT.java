@@ -27,6 +27,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -212,6 +213,7 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         prepareIndex("index1").setSource("f1", 42).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertAcked(createView("piped-ok", "FROM index1 | KEEP f1"));
         assertAcked(createView("piped-missing", "FROM missing | KEEP f1"));
+        assertAcked(createView("bare-missing", "FROM missing"));
         assertAcked(createView("outer", "FROM inner | KEEP f1"));
         assertAcked(createView("inner", "FROM missing"));
 
@@ -227,8 +229,28 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         );
         expectThrows(
             VerificationException.class,
+            containsString("Unknown index [missing] referenced by view [bare-missing]"),
+            () -> run("FROM bare-missing").close()
+        );
+        expectThrows(
+            VerificationException.class,
             containsString("Unknown index [missing] referenced by view [outer -> inner]"),
             () -> run("FROM index1, outer").close()
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [missing] referenced by view [piped-missing]"),
+            () -> run("SET wildcards_match_views=true; FROM piped-miss*").close()
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [missing] referenced by view [piped-missing]"),
+            () -> run("FROM index1 | WHERE f1 IN (FROM piped-missing | KEEP f1)").close()
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [missing] referenced by view [piped-missing]"),
+            () -> run("FROM missing, piped-missing").close()
         );
 
         VerificationException e = expectThrows(VerificationException.class, () -> run("FROM missing, piped-ok").close());

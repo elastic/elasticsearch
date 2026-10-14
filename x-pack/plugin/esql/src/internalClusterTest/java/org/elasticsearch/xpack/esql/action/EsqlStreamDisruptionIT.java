@@ -80,8 +80,8 @@ import static org.hamcrest.Matchers.in;
 
 /**
  * Integration tests for the ES|QL streaming API under network disruption.
- * Tests the fault-before-first-page regime (non-200 HTTP status and a single NDJSON error line) and
- * the fault-after-first-page regime (HTTP 200, at least one values line, and an error as the last
+ * Tests the fault-before-first-page case (non-200 HTTP status and a single NDJSON error line) and
+ * the fault-after-first-page case (HTTP 200, at least one values line, and an error as the last
  * NDJSON line). The response is only sent once the first page arrives, so a 200 response never ends
  * in an error with no values lines.
  *

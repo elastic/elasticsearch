@@ -1,5 +1,5 @@
 ---
-description: Syntax for KQL field, range, wildcard, and boolean filters.
+description: Look up KQL syntax and examples for filtering by field value, range, wildcard, and boolean condition, and for querying nested fields.
 mapped_pages:
   - https://www.elastic.co/guide/en/kibana/current/kuery-query.html
 ---

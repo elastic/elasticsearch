@@ -12,10 +12,10 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
-import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.codec.vectors.VectorWriteHints;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
@@ -57,13 +57,9 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     public static final int VERSION_CURRENT = VERSION_NO_DIRECT_IO;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
-    private static final AbstractFlatVectorsFormat float32VectorFormat = new ES93Lucene99FlatVectorsFormat(
-        ES93GenericFlatVectorScorer.INSTANCE
-    );
-    private static final AbstractFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
-        ES93GenericFlatVectorScorer.INSTANCE
-    );
-    private static final Map<String, AbstractFlatVectorsFormat> supportedFormats = Map.of(
+    private static final FlatVectorsFormat float32VectorFormat = new ES93Lucene99FlatVectorsFormat(ES93GenericFlatVectorScorer.INSTANCE);
+    private static final FlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(ES93GenericFlatVectorScorer.INSTANCE);
+    private static final Map<String, FlatVectorsFormat> supportedFormats = Map.of(
         float32VectorFormat.getName(),
         float32VectorFormat,
         bfloat16VectorFormat.getName(),
@@ -92,7 +88,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     private final IvfSegmentConfig.AshConfig ashConfig;
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
-    private final AbstractFlatVectorsFormat rawVectorFormat;
+    private final FlatVectorsFormat rawVectorFormat;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
     private final int flatVectorThreshold;

@@ -311,7 +311,7 @@ public class KnnIndexer {
     }
 
     /** A mapping holding only the vector field, as a disk BBQ field with the given {@code on_disk_rescore}. */
-    static MappingLookup vectorFieldMapping(boolean onDiskRescore) {
+    private static MappingLookup vectorFieldMapping(boolean onDiskRescore) {
         Map<String, Object> indexOptions = new HashMap<>(Map.of("on_disk_rescore", onDiskRescore));
         FieldMapper mapper = new DenseVectorFieldMapper.Builder(
             VECTOR_FIELD,

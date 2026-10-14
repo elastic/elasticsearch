@@ -231,8 +231,8 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
 
     /**
      * Columnar drops the {@code dynamic:false} unmapped fields at index time, so {@code LOAD_ALL} only surfaces the mapped
-     * {@code value} plus the {@code salary} that {@code SORT} references (as null); the default {@code @timestamp} column is dropped.
-     * The FLS-denied {@code value} and {@code org} still never appear for the restricted user.
+     * {@code value}, the {@code salary} that {@code SORT} references and an {@code _unmapped_fields} column, both null; the default
+     * {@code @timestamp} column is dropped. The FLS-denied {@code value} and {@code org} still never appear for the restricted user.
      */
     @Override
     public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
@@ -253,21 +253,28 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
                     "columns",
                     List.of(
                         matchesMap().entry("name", "value").entry("type", "double"),
-                        matchesMap().entry("name", "salary").entry("type", "keyword")
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "_unmapped_fields").entry("type", "_source")
                     )
                 )
         );
         @SuppressWarnings("unchecked")
         List<List<Object>> adminValues = (List<List<Object>>) adminMap.get("values");
-        assertThat(adminValues, containsInAnyOrder(Arrays.asList(10.0, null), Arrays.asList(20.0, null)));
+        assertThat(adminValues, containsInAnyOrder(Arrays.asList(10.0, null, null), Arrays.asList(20.0, null, null)));
 
         Response restrictedResp = runESQLCommand("fls_deny_value_org_user", query);
         assertOK(restrictedResp);
         assertMap(
             entityAsMap(restrictedResp),
             matchesMap().extraOk()
-                .entry("columns", List.of(matchesMap().entry("name", "salary").entry("type", "keyword")))
-                .entry("values", List.of(Arrays.asList((Object) null), Arrays.asList((Object) null)))
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "salary").entry("type", "keyword"),
+                        matchesMap().entry("name", "_unmapped_fields").entry("type", "_source")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(null, null), Arrays.asList(null, null)))
         );
     }
 

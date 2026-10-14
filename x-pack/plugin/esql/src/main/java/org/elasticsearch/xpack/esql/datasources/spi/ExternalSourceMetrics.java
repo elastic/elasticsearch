@@ -869,9 +869,10 @@ public final class ExternalSourceMetrics {
      * Records the CPU consumed by one successful external-source query, broken down by component.
      * Clamps negative values to zero. Skips zero-valued components to avoid noise.
      * <p>
-     * All four components are real per-thread CPU time (via {@code ThreadMXBean#getCurrentThreadCpuTime}),
-     * matching the components of the Serverless billing formula; exact alignment with the billing
-     * signal may drift as the formula evolves. {@code planning} comes from
+     * The components match those of the Serverless billing formula; exact alignment with the billing
+     * signal may drift as the formula evolves. {@code execution} is the driver run-loop time
+     * ({@code System.nanoTime} while the driver is scheduled). {@code read}, {@code splitDiscovery} and
+     * {@code planning} are real per-thread CPU time (via {@code ThreadCpuTimer}); {@code planning} comes from
      * {@code EsqlQueryProfile#planningCpuNanos}, which only covers the work metered by {@code PlanningCpuTracker}.
      * <p>
      * Best-effort (self-guarded).

@@ -22,12 +22,6 @@ interface MutedEntry {
   tasks?: string[];
 }
 
-interface NormalizedMute {
-  className: string;
-  method?: string;
-  tasks?: string[];
-}
-
 export function parseMutedEntries(yamlText: string): MutedEntry[] {
   if (yamlText.trim() === "") return [];
   const parsed = parse(yamlText) as RawMutedTestsFile | null;
@@ -63,7 +57,7 @@ function normalizeTasks(tasks?: string[]): string[] | undefined {
   return [...new Set(tasks)].sort();
 }
 
-function normalizeMutedEntries(entries: MutedEntry[]): NormalizedMute[] {
+function normalizeMutedEntries(entries: MutedEntry[]): MutedEntry[] {
   const byKey = new Map<string, { className: string; method?: string; global: boolean; tasks: Set<string> }>();
 
   for (const entry of entries) {

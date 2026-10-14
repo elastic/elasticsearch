@@ -6040,7 +6040,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * valid date for 2021-02-30 when reading from CSV.
      */
     public void testCalendarInvalidCellStaysUnreadableAsDateNanos() throws Exception {
-        for (String cell : List.of("2021-02-30T10:00:00", "2021-02-30 10:00:00", "2021-04-31 10:00:00.5", "2021-01-01 24:00:00")) {
+        for (String cell : List.of("2021-02-30T10:00:00", "2021-02-30 10:00:00", "2021-04-31 10:00:00.5")) {
             StorageObject object = createStorageObject(cell + "\n");
             List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATE_NANOS));
             CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
@@ -6056,6 +6056,41 @@ public class CsvFormatReaderTests extends ESTestCase {
                 assertTrue(cell + " must stay unreadable as date_nanos, not clamp to a real date", page.getBlock(0).isNull(0));
                 page.releaseBlocks();
             }
+        }
+    }
+
+    /**
+     * Hour 24 is a KNOWN DIVERGENCE, not a refusal this change wants. It is pinned here so that it is
+     * recorded rather than discovered: {@code 2021-01-01 24:00:00} is a valid ISO-8601 spelling of the
+     * following midnight, and both reference engines read it that way, measured on this change with
+     * {@code TZ=UTC} over a one-cell CSV:
+     * <ul>
+     *   <li>{@code clickhouse local} with {@code ts DateTime64(9, 'UTC')} returns
+     *       {@code 2021-01-02 00:00:00.000000000}</li>
+     *   <li>{@code duckdb} with {@code read_csv(..., columns={'ts':'TIMESTAMP_NS'})} returns
+     *       {@code 2021-01-02 00:00:00}</li>
+     * </ul>
+     * ES|QL nulls it instead, before and after this change and for two independent reasons: the template
+     * asks {@code LocalDateTime.of}, which rejects hour 24, and the ISO stage below it requires the
+     * {@code T} separator. So this is neither caused nor fixed here, and it is deliberately not grouped
+     * with the calendar-invalid cells above — {@code 2021-02-30} is a date no engine accepts (both
+     * error on it, re-measured the same way), whereas this is a date they both accept and we do not.
+     */
+    public void testHour24CellNullsUnderDateNanosAsAKnownDivergence() throws Exception {
+        StorageObject object = createStorageObject("2021-01-01 24:00:00\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATE_NANOS));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "error_mode", "null_field")
+        );
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertTrue("hour 24 nulls under date_nanos -- a divergence from both engines, pinned not endorsed", page.getBlock(0).isNull(0));
+            page.releaseBlocks();
         }
     }
 
@@ -6102,6 +6137,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2021-01-01 10:00:00Z"));
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("2021-01-01 10:00:00+02:00"));
+        // The suffix is stripped only for a cell whose separator is a space, so that an ordinary ISO cell --
+        // which reaches this stage on every no-format date_nanos read -- misses without allocating. Both forms
+        // below have to stay misses whichever order those two checks run in, and a cell too short to hold a
+        // separator must not reach the strip at all.
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("2021-01-01T10:00:00Z"));
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeNanos("Z"));
     }
 
     public void testFastPathSpaceSeparatedNoFraction() {

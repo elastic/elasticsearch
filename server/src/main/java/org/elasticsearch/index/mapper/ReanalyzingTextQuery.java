@@ -294,29 +294,43 @@ public final class ReanalyzingTextQuery extends Query {
     private final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
     private final boolean scansEveryDocument;
+    private final boolean valuesSpellTheirTokens;
 
     public ReanalyzingTextQuery(
         Query in,
         IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
         Analyzer indexAnalyzer
     ) {
-        this(in, valueFetcherProvider, indexAnalyzer, false);
+        this(in, valueFetcherProvider, indexAnalyzer, false, false);
     }
 
-    /**
-     * @param scansEveryDocument whether the field indexes no terms, leaving no postings to narrow the documents read
-     *                           or to weigh a term
-     */
     public ReanalyzingTextQuery(
         Query in,
         IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
         Analyzer indexAnalyzer,
         boolean scansEveryDocument
     ) {
+        this(in, valueFetcherProvider, indexAnalyzer, scansEveryDocument, false);
+    }
+
+    /**
+     * @param scansEveryDocument     whether the field indexes no terms, leaving no postings to narrow the documents
+     *                               read or to weigh a term
+     * @param valuesSpellTheirTokens whether the values of this field spell the tokens they hold, which lets a
+     *                               document be ruled out by reading its values rather than analyzing them
+     */
+    public ReanalyzingTextQuery(
+        Query in,
+        IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
+        Analyzer indexAnalyzer,
+        boolean scansEveryDocument,
+        boolean valuesSpellTheirTokens
+    ) {
         this.in = in;
         this.valueFetcherProvider = valueFetcherProvider;
         this.indexAnalyzer = indexAnalyzer;
         this.scansEveryDocument = scansEveryDocument;
+        this.valuesSpellTheirTokens = valuesSpellTheirTokens;
     }
 
     public Query getQuery() {
@@ -337,7 +351,9 @@ public final class ReanalyzingTextQuery extends Query {
         // We intentionally do not compare the value fetcher or analyzer, as they
         // do not typically implement equals() themselves, and the inner
         // Query is sufficient to establish identity.
-        return Objects.equals(in, that.in) && scansEveryDocument == that.scansEveryDocument;
+        return Objects.equals(in, that.in)
+            && scansEveryDocument == that.scansEveryDocument
+            && valuesSpellTheirTokens == that.valuesSpellTheirTokens;
     }
 
     @Override
@@ -345,7 +361,7 @@ public final class ReanalyzingTextQuery extends Query {
         // We intentionally do not hash the value fetcher or analyzer, as they
         // do not typically implement hashCode() themselves, and the inner
         // Query is sufficient to establish identity.
-        return 31 * Objects.hash(in, scansEveryDocument) + classHash();
+        return 31 * Objects.hash(in, scansEveryDocument, valuesSpellTheirTokens) + classHash();
     }
 
     @Override
@@ -358,14 +374,19 @@ public final class ReanalyzingTextQuery extends Query {
         // A term the index does not hold rewrites away, so where it holds none the query is left as it is.
         Query inRewritten = scansEveryDocument ? in : in.rewrite(searcher);
         if (inRewritten != in) {
-            return new ReanalyzingTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer, scansEveryDocument);
+            return new ReanalyzingTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesSpellTheirTokens);
         } else if (in instanceof ConstantScoreQuery) {
             Query sub = ((ConstantScoreQuery) in).getQuery();
-            return new ConstantScoreQuery(new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument));
+            return new ConstantScoreQuery(
+                new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesSpellTheirTokens)
+            );
         } else if (in instanceof BoostQuery) {
             Query sub = ((BoostQuery) in).getQuery();
             float boost = ((BoostQuery) in).getBoost();
-            return new BoostQuery(new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument), boost);
+            return new BoostQuery(
+                new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesSpellTheirTokens),
+                boost
+            );
         } else if (in instanceof MatchNoDocsQuery) {
             return in; // e.g. empty phrase query
         }
@@ -602,6 +623,8 @@ public final class ReanalyzingTextQuery extends Query {
         private final float maxFreq;
         private final MemoryIndexEntry cacheEntry = new MemoryIndexEntry();
         private final Term[] walkablePhrase;
+        /** What the values must spell for this query, read from their bytes before any of them is analyzed. */
+        private final CandidateValues candidates;
         private int valuesDocID = -1;
         private List<Object> values;
 
@@ -624,6 +647,9 @@ public final class ReanalyzingTextQuery extends Query {
             this.query = query;
             this.maxFreq = maxFreq;
             this.walkablePhrase = walkablePhrase(query);
+            // Only where nothing narrows the documents read is there anything to rule out: elsewhere the postings
+            // of the field's own terms have done it already.
+            this.candidates = scansEveryDocument && valuesSpellTheirTokens ? CandidateValues.of(query, field) : CandidateValues.ANY;
             twoPhase = new TwoPhaseIterator(approximation) {
 
                 @Override
@@ -704,6 +730,11 @@ public final class ReanalyzingTextQuery extends Query {
         }
 
         private float computeFreq() throws IOException {
+            if (candidates.reads() && candidates.mayHold(values()) == false) {
+                // The values spell none of the terms this query cannot be answered without, so analyzing them
+                // would answer no, as it does for the documents the postings of an indexed field leave out.
+                return 0;
+            }
             if (scansEveryDocument && walkablePhrase != null) {
                 // One clause, so holding the phrase counts once however often the document holds it, and the walk
                 // stops at the first one.

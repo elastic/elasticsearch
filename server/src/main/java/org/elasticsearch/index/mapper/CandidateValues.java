@@ -226,9 +226,10 @@ public final class CandidateValues {
         return false;
     }
 
-    // TODO: answer where a term sits between two token boundaries, which for an analyzer whose tokens are
-    // delimited runs of their input is the token itself. A value could then be answered yes without being
-    // analyzed, which asks this for three answers rather than two.
+    // TODO: read the characters either side of a match. For an analyzer whose tokens are delimited runs of their
+    // input, a match between two boundaries is the token itself, so a value could be answered yes without being
+    // analyzed, which asks this for three answers rather than two; and a match whose neighbour continues a token
+    // is no match at all, which rules out a candidate before its bytes are compared.
     private static boolean someNeedleMayBeHeld(BytesRef value, Clause clause) {
         for (BytesRef needle : clause.needles()) {
             if (ESVectorUtil.mayContainIgnoringAsciiCase(

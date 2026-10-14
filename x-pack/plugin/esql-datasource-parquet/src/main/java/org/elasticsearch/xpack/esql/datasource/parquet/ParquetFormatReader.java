@@ -3501,8 +3501,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * drop legitimate null rows for {@code OPTIONAL} columns.
      */
     private List<Attribute> convertParquetSchemaToAttributes(MessageType schema) {
-        // The attributes are charged as they are built and released on return, so a declared read, which the width cap
-        // does not bound, still trips the breaker part-way through a footer with millions of leaves.
+        // The attributes are charged as they are built and released on return. A declared read is bounded
+        // at 100,000 columns by the planner probe, but still trips the breaker part-way through a footer
+        // with millions of leaves before collectAttributes truncates it.
         try (SchemaBudget budget = new SchemaBudget(blockFactory.breaker())) {
             List<Attribute> attributes = new ArrayList<>();
             for (Type field : schema.getFields()) {

@@ -31,8 +31,8 @@ breaking:
     `esql.external.schema_max_fields` allows, reached under `first_file_wins` behind a narrower
     first file, is now read rather than refused. A Parquet file in that position was already read
     by a query that projects columns; a query that materialises no column from it is no longer
-    refused either. In the other direction, a dataset that declares its columns over a CSV, TSV or
-    NDJSON file with more columns than `esql.external.schema_max_fields` can be set to — 100,000 —
-    is now refused, where the header or sample it read was previously unbounded. Affects
+    refused either. In the other direction, a dataset that declares its columns over a CSV or TSV
+    file whose header has more columns than `esql.external.schema_max_fields` can be set to — 100,000 —
+    is now refused, where the header it read was previously unbounded. Affects
     deployments where ES|QL federation is enabled.
   notable: false

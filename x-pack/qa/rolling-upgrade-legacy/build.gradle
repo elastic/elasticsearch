@@ -11,20 +11,12 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
-apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation testArtifact(project(':server'))
   testImplementation testArtifact(project(xpackModule('core')))
   testImplementation project(':x-pack:qa')
-  testImplementation project(':modules:reindex')
   testImplementation testArtifact(project(xpackModule('inference')))
-}
-
-restResources {
-  restApi {
-    include '*'
-  }
 }
 
 tasks.named("forbiddenPatterns").configure {

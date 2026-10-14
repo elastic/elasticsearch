@@ -288,6 +288,17 @@ public class FooterByteCacheTests extends ESTestCase {
         assertEquals(TimeValue.timeValueMinutes(18), configured.expireAfterWrite());
     }
 
+    public void testWriteCapSaturatesOnLargeTtl() {
+        // 20000 days exceeds Long.MAX_VALUE / WRITE_CAP_MULTIPLIER nanoseconds;
+        // without the saturation guard, WRITE_CAP_MULTIPLIER * ttl_nanos wraps negative.
+        FooterByteCache large = new FooterByteCache(1024 * 1024, 512 * 1024, TimeValue.timeValueDays(20000));
+        assertEquals(Long.MAX_VALUE, large.expireAfterWrite().nanos());
+        // Boundary: exactly Long.MAX_VALUE / WRITE_CAP_MULTIPLIER nanos does not saturate.
+        long boundaryNanos = Long.MAX_VALUE / FooterByteCache.WRITE_CAP_MULTIPLIER;
+        FooterByteCache boundary = new FooterByteCache(1024 * 1024, 512 * 1024, TimeValue.timeValueNanos(boundaryNanos));
+        assertEquals(boundaryNanos * FooterByteCache.WRITE_CAP_MULTIPLIER, boundary.expireAfterWrite().nanos());
+    }
+
     public void testFromSettingsClampsMaxEntryToBudgetFraction() {
         // The budget is heap-relative, so a fixed 2 MiB entry ceiling would let one entry evict
         // nearly the whole cache on a small heap. Entries are capped at a quarter of the budget.

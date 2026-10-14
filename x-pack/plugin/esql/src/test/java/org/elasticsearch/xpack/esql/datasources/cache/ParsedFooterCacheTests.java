@@ -508,6 +508,21 @@ public class ParsedFooterCacheTests extends ESTestCase {
         assertEquals(TimeValue.timeValueMinutes(18), configured.expireAfterWrite());
     }
 
+    public void testWriteCapSaturatesOnLargeTtl() {
+        // 20000 days exceeds Long.MAX_VALUE / WRITE_CAP_MULTIPLIER nanoseconds;
+        // without the saturation guard, WRITE_CAP_MULTIPLIER * ttl_nanos wraps negative.
+        ParsedFooterCache<String> large = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, TimeValue.timeValueDays(20000), ignored -> ENTRY_WEIGHT);
+        assertEquals(Long.MAX_VALUE, large.expireAfterWrite().nanos());
+        // Boundary: exactly Long.MAX_VALUE / WRITE_CAP_MULTIPLIER nanos does not saturate.
+        long boundaryNanos = Long.MAX_VALUE / FooterByteCache.WRITE_CAP_MULTIPLIER;
+        ParsedFooterCache<String> boundary = new ParsedFooterCache<>(
+            8 * ENTRY_WEIGHT,
+            TimeValue.timeValueNanos(boundaryNanos),
+            ignored -> ENTRY_WEIGHT
+        );
+        assertEquals(boundaryNanos * FooterByteCache.WRITE_CAP_MULTIPLIER, boundary.expireAfterWrite().nanos());
+    }
+
     public void testFromSettingsReadsCoalesceSetting() {
         FooterByteCache.Key k = key("file.parquet", 1000);
         ParsedFooterCache<String> coalescing = ParsedFooterCache.fromSettings(Settings.EMPTY, ignored -> ENTRY_WEIGHT);

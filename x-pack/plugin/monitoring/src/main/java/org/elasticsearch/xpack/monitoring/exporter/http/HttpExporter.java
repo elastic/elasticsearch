@@ -293,7 +293,7 @@ public class HttpExporter extends Exporter {
                     throw new SettingsException("headers must have values, missing for setting [" + fullSetting + "]");
                 }
             }
-        }, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+        }, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated),
         HTTP_TYPE_DEPENDENCY
     );
     /**

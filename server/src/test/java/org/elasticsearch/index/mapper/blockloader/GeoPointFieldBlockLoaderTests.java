@@ -11,11 +11,12 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 
 import java.nio.ByteOrder;
 import java.util.Comparator;
@@ -69,10 +70,10 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             return exactValuesFromSource(values, nullValue, false);
         }
 
-        // LogsDB defaults index.mapping.synthetic_source_keep to "arrays". Objects that are elements of an array are then stored whole in
-        // _ignored_source, so a field below such an object is loaded with its exact original value, in source order.
+        // Once the mapping has the index.mapping.synthetic_source_keep to "arrays" and the field ancestor is an array
+        // we have to mime what DocumentParser does, which means grab the original value from _ignored_source.
         // Multi fields are not affected since they are indexed in their own doc values.
-        if (params.indexMode() == IndexMode.LOGSDB
+        if (isMappingKeepingOriginalSourceForArrays(getSettingsForParams().build())
             && testContext.isMultifield() == false
             && hasArrayAncestor(runner.mapDoc(), runner.fieldName())) {
             return exactValuesFromSource(values, nullValue, false);
@@ -85,6 +86,10 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
 
         // synthetic source is enabled, but no doc_values are present, so fallback to ignored source
         return exactValuesFromSource(values, nullValue, false);
+    }
+
+    private boolean isMappingKeepingOriginalSourceForArrays(Settings settings) {
+        return Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.get(settings) == Mapper.SourceKeepMode.ARRAYS;
     }
 
     /**

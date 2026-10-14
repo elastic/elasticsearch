@@ -42,9 +42,9 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintUnion;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintUnset;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintWithPromoted;
 
 /**
  * Across-series reduction such as {@code topk}.
@@ -128,7 +128,7 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
      * Translates an {@link AcrossSeriesReduction} ({@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio}):
      * collapses the child to one row per series, then keeps rows within each step and partition: ranked by value
      * for the order-statistic functions, or an approximate ratio for {@code limit_ratio}.
-     * A {@code by} clause only partitions the reduction; it does not change the output schema.
+     * A {@code by} clause only partitions the reduction; it does not change the exposed labels.
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
@@ -140,30 +140,36 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         // by; the partition labels must be exposed to rank within them. limit_ratio is membership-neutral:
         // its sampling key is solely the input vector's identity, so outer partitions are neither required
         // from the child nor materialized below.
-        List<String> partitions = TranslationContext.mapFinite(groupings());
+        List<String> partitions = TranslationContext.asPromotedLabels(groupings());
         boolean isLimitRatio = definition() == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO;
+        // The child requirement already carries the partitions alongside the whole metadata.
         TranslationSchema childRequired = isLimitRatio
-            ? union(context.required(), open())
-            : union(union(context.required(), open()), finite(partitions));
+            ? newConstraintUnion(context.required(), newConstraintUnset())
+            : newConstraintUnion(newConstraintUnion(context.required(), newConstraintUnset()), newConstraintWithPromoted(partitions));
         IntermediateResult childResult = context.withRequired(childRequired).translate(child());
         if (childResult.kind().constant) {
             if (isLimitRatio) {
                 // A constant vector's empty label set is a valid identity: sample it directly with an
                 // empty key set, without introducing an aggregation.
                 LogicalPlan sampled = emitLimitRatioFilter(childResult);
-                return childResult.with(sampled, childResult.schema(), childResult.value());
+                return childResult.with(sampled, childResult.value());
             }
             return childResult;
         }
 
-        var schema = isLimitRatio ? childResult.schema() : union(childResult.schema(), finite(partitions));
+        // Group by the child's labels - the ones the relation stores for a raw child, what an aggregated child delivers -
+        // plus the partitions, which null-fill when the child lacks them. limit_ratio keeps the child's labels only.
+        TranslationSchema childLabels = childResult.kind().afterInitialAggregation
+            ? TranslationContext.newConstraintDeliveredBy(childResult)
+            : context.newConstraintForCollapse(childResult, childRequired);
+        TranslationSchema requirement = isLimitRatio ? childLabels : newConstraintUnion(childLabels, newConstraintWithPromoted(partitions));
 
         var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, childResult.step(), context.configuration());
         IntermediateResult aggregated = childResult.kind().afterInitialAggregation
-            ? context.regroup(childResult, schema, false, childResult.value())
-            : context.collapse(childResult, schema, childResult.value());
+            ? childResult.withRegroup(context, requirement, false, childResult.value())
+            : childResult.withCollapse(context, requirement, childResult.value());
         LogicalPlan result = isLimitRatio ? emitLimitRatioFilter(aggregated) : emitTopNBy(context, aggregated, partitions, promqlCtx);
-        return aggregated.with(result, aggregated.schema(), aggregated.value());
+        return aggregated.with(result, aggregated.value());
     }
 
     /** Ranks the already-collapsed per-series rows and keeps the top {@code k} within each step and partition. */
@@ -205,9 +211,10 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             // underneath -- packed label sets when the schema packs labels away (for example
             // sum without), else the grain label columns. Packings hold only dimensions, never
             // the step, so the identity is stable across steps.
+            TranslationSchema delivered = TranslationContext.newConstraintDeliveredBy(table);
             var resolvedSkips = new ArrayList<Set<String>>();
-            for (Set<String> skip : TranslationContext.finestFirst(table.schema().skips())) {
-                Attribute packing = table.packed(skip);
+            for (Set<String> skip : TranslationContext.finestFirst(delivered.skips())) {
+                Attribute packing = TranslationContext.find(table.plan().output(), TranslationContext.asMetadataLabel(skip));
                 if (packing != null) {
                     addIfMissing(keys, packing);
                     resolvedSkips.add(skip);
@@ -216,13 +223,12 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             // A finite label carried inside any packing adds no identity: the packing already
             // determines it (for example pod inside _timeseries$region). The surviving labels
             // sort by name so grouping-key order cannot change the hashed bytes.
-            table.schema()
-                .labels()
+            delivered.labels()
                 .stream()
                 .filter(label -> resolvedSkips.stream().allMatch(skip -> skip.contains(label)))
                 .sorted()
                 .forEach(label -> {
-                    Attribute carrier = table.label(label);
+                    Attribute carrier = TranslationContext.find(table.plan().output(), label);
                     // Guaranteed by emitRegroup, which resolves every schema label (null-filling missing ones).
                     assert carrier != null : "invariant: grouping label [" + label + "] must be carried by the input";
                     addIfMissing(keys, carrier);
@@ -265,7 +271,7 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         if (grouping() == AcrossSeriesAggregate.Grouping.BY) {
             var nulls = new ArrayList<Alias>();
             for (String partition : partitions) {
-                Attribute carrier = table.label(partition);
+                Attribute carrier = TranslationContext.find(table.plan().output(), partition);
                 if (carrier == null) {
                     // a partition label absent from every series ranks as one partition, like Prometheus
                     nulls.add(TranslationContext.emitNullExpression(TranslationContext.mapToRef(partition)));

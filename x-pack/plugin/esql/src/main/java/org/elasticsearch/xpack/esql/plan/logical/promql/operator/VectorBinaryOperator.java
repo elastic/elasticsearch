@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -55,10 +54,8 @@ import static org.elasticsearch.xpack.esql.expression.function.aggregate.Aggrega
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType.SCALAR;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.getType;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.intersect;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintUnion;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.newConstraintWithPromoted;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch.Joining;
 
 public abstract sealed class VectorBinaryOperator extends BinaryPlan implements PromqlPlan permits VectorBinarySet, VectorBinaryComparison,
@@ -135,7 +132,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         }
         Set<String> outputLabels;
         // Labels the translation guarantees as result columns even when no operand declares them as attributes (an
-        // operand can be opaque - its identity packed into `_timeseries` - and the translation materializes or
+        // operand can be opaque - its identity carried as `_timeseries` metadata - and the translation materializes or
         // null-fills the columns): the match keys named by on(...) and the group modifier labels. Ones that resolve
         // against neither operand are declared as synthesized references.
         Set<String> guaranteed = new HashSet<>();
@@ -202,17 +199,13 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         if (match != VectorMatch.NONE || PromqlPlan.returnsScalar(left()) || PromqlPlan.returnsScalar(right())) {
             return false;
         }
-        List<Attribute> leftAttrs = left().output();
-        List<Attribute> rightAttrs = right().output();
-        if (hasPackedLabels(leftAttrs) || hasPackedLabels(rightAttrs)) {
+        if (PromqlPlan.maybeRequiresUnset(left())) {
             return false;
         }
-        return extractLabelNames(leftAttrs).equals(extractLabelNames(rightAttrs)) == false;
-    }
-
-    /** Whether the operand carries a packed {@code _timeseries} column, i.e. does not name every label it exposes. */
-    private static boolean hasPackedLabels(List<Attribute> attrs) {
-        return attrs.stream().anyMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
+        if (PromqlPlan.maybeRequiresUnset(right())) {
+            return false;
+        }
+        return extractLabelNames(left().output()).equals(extractLabelNames(right().output())) == false;
     }
 
     private Set<String> extractLabelNames(List<Attribute> attrs) {
@@ -311,7 +304,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         IntermediateResult left = context.translate(left());
         Expression leftExpr = new ToDouble(left.value().source(), left.value());
         if (this instanceof VectorBinaryComparison comp && comp.filterMode()) {
-            return left.with(left.plan(), left.schema(), leftExpr);
+            return left.with(left.plan(), leftExpr);
         }
 
         IntermediateResult right = context.translate(right());
@@ -327,18 +320,19 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             plan = left.kind().afterInitialAggregation ? left.plan() : right.plan();
             filter = combineAndNullable(Arrays.asList(left.pendingFilter(), right.pendingFilter()));
         }
-        TranslationSchema shape = left.schema().equals(TranslationSchema.EMPTY) == false ? left.schema() : right.schema();
+        // Both operands translated under the same requirement, so the composed plan carries it; whatever labels
+        // the parent needs it reads off the composed plan.
         Kind kind = left.kind().afterInitialAggregation || right.kind().afterInitialAggregation
             ? Kind.AFTER_INITIAL_AGGREGATE
             : Kind.BEFORE_INITIAL_AGGREGATE;
-        IntermediateResult result = new IntermediateResult(plan, shape, null, left.step(), filter, kind);
-        return context.eval(result, binaryExpr);
+        IntermediateResult result = new IntermediateResult(plan, null, left.step(), filter, kind);
+        return result.withEval(context, binaryExpr);
     }
 
     /**
      * Translates a vector-matched join operator into an {@link InnerJoin}: each operand becomes an independent series
      * pipeline, joined on shared {@code step} + label keys, and the result value is computed on the joined rows.
-     * The operands compile against the labels the join requires, like any other schema push-down: a required label
+     * The operands compile against the labels the join requires, like any other requirement push-down: a required label
      * comes back as a concrete column wherever the operand can carry it, and a label the operand dropped stays
      * absent and null-fills at the join.
      * <p>
@@ -350,24 +344,24 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * from an operand.
      */
     public IntermediateResult translateJoin(TranslationContext context) {
-        // A join result is finite: its label set is the operator schema plus whatever the enclosing translation asks
-        // for by name (null-filled when the match dropped it). Packed columns stop here as they do at a `by`.
-        TranslationSchema schema = union(finite(TranslationContext.mapFinite(output())), finite(context.required().labels()));
+        // PromqlCommand#verify admits a join only over operands with concrete label sets ("vector matching requires operands
+        // with concrete label sets", #157669): neither carries a _timeseries column, so every match key label is a column.
+        assert PromqlPlan.maybeRequiresUnset(left()) == false && PromqlPlan.maybeRequiresUnset(right()) == false
+            : "invariant: a join needs operands with concrete label sets [" + sourceText() + "]";
+        // TODO: once the verifier admits operands with a _timeseries column (#157669), carry it through the join and key
+        // ignoring(...) on it. Until then a join result has the operator's labels plus whatever the enclosing translation
+        // asks for by name (null-filled when the match dropped it).
+        TranslationSchema schema = newConstraintUnion(
+            newConstraintWithPromoted(TranslationContext.asPromotedLabels(output())),
+            newConstraintWithPromoted(context.required().labels())
+        );
         TranslationSchema childSchema = schema;
         VectorMatch match = match();
         if (match.filter() == VectorMatch.Filter.ON) {
-            childSchema = union(childSchema, finite(match.filterLabels()));
-        } else if (match.filter() == VectorMatch.Filter.IGNORING) {
-            // The key is each operand's own label set minus the ignored labels: a packed column for an opaque operand.
-            childSchema = union(childSchema, open(match.filterLabels()));
-        } else {
-            // No on/ignoring: the key is each operand's whole label set. The verifier admits only operands with
-            // concrete label sets here, so the operator's declared output already names every label of both sides
-            // and the schema needs no widening.
-            assert match.filter() == VectorMatch.Filter.NONE : "unexpected vector match filter " + match.filter();
-            assert hasPackedLabels(left().output()) == false && hasPackedLabels(right().output()) == false
-                : "invariant: an unmatched join needs operands with concrete label sets [" + sourceText() + "]";
+            childSchema = newConstraintUnion(childSchema, newConstraintWithPromoted(match.filterLabels()));
         }
+        // Without on(...), the key is each operand's own label set (minus any ignored labels), which its declared output
+        // already names: the schema needs no widening.
         TranslationContext childTranslation = context.withRequired(childSchema);
         List<Attribute> declared = output();
         IntermediateResult left = childTranslation.translateIntermediate(left(), new NameId(), new NameId());
@@ -382,7 +376,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
         LogicalPlan join = emitJoin(context.cmd(), probe, build, keyLabels(left, right));
         List<NamedExpression> output = bindOutput(schema, declared, probe, build);
-        return bindResult(context, schema, leftValue, rightValue, probe.step(), join, output);
+        return bindResult(context, leftValue, rightValue, probe.step(), join, output);
     }
 
     /**
@@ -396,8 +390,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         if (match.filter() == VectorMatch.Filter.ON) {
             return List.copyOf(match.filterLabels());
         }
-        var names = new TreeSet<>(left.schema().labels());
-        names.addAll(right.schema().labels());
+        var names = new TreeSet<>(TranslationContext.newConstraintDeliveredBy(left).labels());
+        names.addAll(TranslationContext.newConstraintDeliveredBy(right).labels());
         names.removeAll(match.filterLabels());
         return List.copyOf(names);
     }
@@ -408,7 +402,6 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      */
     private IntermediateResult bindResult(
         TranslationContext context,
-        TranslationSchema schema,
         Expression leftValue,
         Expression rightValue,
         Attribute step,
@@ -438,7 +431,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         output.forEach(column -> projected.add(column.toAttribute()));
         plan = new Project(cmd.source(), plan, projected);
 
-        return new IntermediateResult(plan, schema, valueAlias.toAttribute(), stepAlias.toAttribute(), null, Kind.AFTER_INITIAL_AGGREGATE);
+        return new IntermediateResult(plan, valueAlias.toAttribute(), stepAlias.toAttribute(), null, Kind.AFTER_INITIAL_AGGREGATE);
     }
 
     /**
@@ -454,7 +447,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             .transformExpressionsDown(Expression.class, e -> reidExpr(renamed(e, cmd.valueColumnName(), valueName), ids));
         Expression value = reidExpr(renamed(input.valueColumn(), cmd.valueColumnName(), valueName), ids);
         Attribute step = (Attribute) reidExpr(input.step(), ids);
-        return new IntermediateResult(plan, input.schema(), value, step, input.pendingFilter(), input.kind());
+        return new IntermediateResult(plan, value, step, input.pendingFilter(), input.kind());
     }
 
     /** The inner join of the two operands on step plus the packed match key. */
@@ -485,7 +478,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         List<Attribute> fields = new ArrayList<>();
         fields.add(build.valueColumn());
         for (String name : match.groupingLabels()) {
-            Attribute field = build.label(name);
+            Attribute field = TranslationContext.find(build.plan().output(), name);
             if (field != null) {
                 fields.add(field);
             }
@@ -495,7 +488,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
     /** One side's plan with its match key defined and packed next to step; step alone when the key is empty. */
     private Input emitInput(PromqlCommand cmd, IntermediateResult input, List<String> keyLabels) {
-        List<NamedExpression> key = joinKey(input, keyLabels);
+        List<NamedExpression> key = matchKey(input, keyLabels);
         List<Alias> nullFills = defined(key);
         LogicalPlan plan = nullFills.isEmpty() ? input.plan() : new Eval(cmd.source(), input.plan(), nullFills);
         if (key.isEmpty()) {
@@ -506,22 +499,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         return new Input(new PackDims(cmd.source(), plan, keyColumns, packed), List.of(input.step(), packed));
     }
 
-    /**
-     * The operand's match key columns: its packed columns surviving the ignored labels (an opaque operand under
-     * ignoring), then the shared key labels, each as the operand's own column or a null where it lacks the label.
-     */
-    private List<NamedExpression> joinKey(IntermediateResult input, List<String> keyLabels) {
+    /** The operand's match key columns: each key label as the operand's own column, or a null where it lacks the label. */
+    private static List<NamedExpression> matchKey(IntermediateResult input, List<String> keyLabels) {
         var key = new ArrayList<NamedExpression>();
-        if (match.filter() != VectorMatch.Filter.ON) {
-            TranslationSchema surviving = intersect(input.schema(), match.filterLabels());
-            for (Set<String> skip : TranslationContext.finestFirst(surviving.skips())) {
-                Attribute packed = input.packed(skip);
-                assert packed != null : "invariant: packing " + skip + " must be carried by the operand";
-                key.add(packed);
-            }
-        }
         for (String name : keyLabels) {
-            Attribute attribute = input.label(name);
+            Attribute attribute = TranslationContext.find(input.plan().output(), name);
             key.add(attribute != null ? attribute : TranslationContext.emitNullExpression(TranslationContext.mapToRef(name)));
         }
         return key;
@@ -545,7 +527,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             }
             // Null-fill under the operator's own attribute when the carrying operand lacks the label, so the command
             // projection binds it by identity.
-            Attribute attribute = match.groupingLabels().contains(name) ? build.label(name) : probe.label(name);
+            Attribute attribute = match.groupingLabels().contains(name)
+                ? TranslationContext.find(build.plan().output(), name)
+                : TranslationContext.find(probe.plan().output(), name);
             output.add(attribute != null ? attribute : TranslationContext.emitNullExpression(declaredAttr));
         }
         return output;

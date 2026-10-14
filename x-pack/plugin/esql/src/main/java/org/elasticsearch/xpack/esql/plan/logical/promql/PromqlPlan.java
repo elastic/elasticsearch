@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
@@ -38,8 +39,9 @@ public interface PromqlPlan {
     /**
      * Translates this node into an ES|QL plan. {@code translation} carries what the enclosing node
      * {@link TranslationContext#required() requires} of this node's labels and the shared services: recursion into the child
-     * under a requirement, and the aggregation and {@link TranslationContext#eval eval} helpers
-     * every node composes its result from. Each node owns its translation the way it owns its {@link #output()}.
+     * under a requirement, and the constraints ({@code newConstraint*}) a node aggregates by. A node composes its result
+     * with the {@code with*} operations of {@link TranslationContext.IntermediateResult}. Each node owns its translation the
+     * way it owns its {@link #output()}.
      */
     TranslationContext.IntermediateResult translate(TranslationContext translation);
 
@@ -90,6 +92,16 @@ public interface PromqlPlan {
      */
     static boolean returnsScalar(LogicalPlan plan) {
         return plan.resolved() && getType(plan) == PromqlDataType.SCALAR;
+    }
+
+    /**
+     * Whether the plan's declared output carries a {@code _timeseries} column: labels it does not name, which a node dropping
+     * labels may have to unset from that column rather than drop a column of its own. A declared output carries the plain
+     * {@code _timeseries} only; the {@code _timeseries$...} columns exist in translated plans alone, so the exact name is the
+     * whole check.
+     */
+    static boolean maybeRequiresUnset(LogicalPlan plan) {
+        return plan.output().stream().anyMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
     }
 
     /**

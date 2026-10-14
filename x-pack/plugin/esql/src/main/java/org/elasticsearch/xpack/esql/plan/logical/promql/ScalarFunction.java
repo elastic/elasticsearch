@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 
 import java.io.IOException;
 import java.util.List;
@@ -115,6 +116,6 @@ public final class ScalarFunction extends LeafPlan implements PromqlPlan {
         var function = buildEsqlFunction(
             new PromqlContext(context.cmd().timestamp(), null, context.cmd().stepAttribute(), context.configuration())
         );
-        return new IntermediateResult(context.cmd().child(), TranslationSchema.EMPTY, function, context.stepAttr());
+        return new IntermediateResult(context.cmd().child(), function, context.stepAttr(), null, Kind.BEFORE_INITIAL_AGGREGATE);
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -23,6 +24,8 @@ import org.hamcrest.Matcher;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
@@ -98,5 +101,22 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         Alias bucketAlias = as(stepEval.fields().getFirst(), Alias.class);
         assertThat(bucketAlias.id(), equalTo(stepInTsAgg.id()));
         assertThat(bucketAlias.id(), equalTo(step.id()));
+    }
+
+    /**
+     * The columns the per-series aggregates of {@code plan} carry: everything they group by or output, plus the dimensions
+     * they pack.
+     */
+    protected static List<String> seriesColumns(LogicalPlan plan) {
+        return plan.collect(TimeSeriesAggregate.class)
+            .stream()
+            .flatMap(
+                aggregate -> Stream.concat(
+                    Stream.concat(aggregate.groupings().stream(), aggregate.aggregates().stream()),
+                    packedDims(aggregate.aggregates()).stream()
+                )
+            )
+            .map(Expressions::name)
+            .toList();
     }
 }

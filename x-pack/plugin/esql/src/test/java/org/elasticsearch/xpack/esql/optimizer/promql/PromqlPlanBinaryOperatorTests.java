@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -55,6 +57,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -498,6 +501,23 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(keyedLabels(join.right()), containsInAnyOrder("cluster"));
     }
 
+    public void testVectorMatchIgnoringKeysOnNamedLabels() {
+        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        // Both operands name their labels, so the key is their labels minus the ignored one, and no _timeseries is loaded.
+        var plan = planPromql(
+            "PROMQL index=k8s step=5m result=(sum by (cluster, pod) (network.eth0.tx) "
+                + "/ ignoring (pod) sum by (cluster, pod) (network.eth0.rx))",
+            false
+        );
+        var joins = plan.collect(InnerJoin.class);
+        assertThat(joins, hasSize(1));
+        assertThat(keyedLabels(joins.getFirst().left()), containsInAnyOrder("cluster"));
+        assertThat(keyedLabels(joins.getFirst().right()), containsInAnyOrder("cluster"));
+        List<TimeSeriesWithout> loaded = new ArrayList<>();
+        plan.forEachExpressionDown(TimeSeriesWithout.class, loaded::add);
+        assertThat(loaded, empty());
+    }
+
     public void testNestedVectorMatchUsesCurrentOperandLabels() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         var plan = planPromql(
@@ -744,6 +764,16 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         );
         assertThat(outputNames("sum without (pod) (sum by (pod) (requests) / sum by (pod) (errors))"), equalTo(List.of("result", "step")));
         assertThat(outputNames("count without (cluster) (sum(requests) + sum(errors))"), equalTo(List.of("result", "step")));
+    }
+
+    /**
+     * Operands over one label set fuse into one aggregate, which keeps each operand's value next to the result. A
+     * {@code without} over it regroups by the labels only: the operand values feed the result and are never packed.
+     */
+    public void testWithoutOverAFusedBinaryOperatorPacksOnlyLabels() {
+        LogicalPlan plan = planMetricNameIndex("sum without (pod) (sum by (pod, cluster) (requests) / sum by (pod, cluster) (errors))");
+        PackDims regroup = plan.collect(PackDims.class).getFirst();
+        assertThat(regroup.dims().stream().map(Attribute::name).toList(), equalTo(List.of("cluster")));
     }
 
     private List<String> outputNames(String promql) {

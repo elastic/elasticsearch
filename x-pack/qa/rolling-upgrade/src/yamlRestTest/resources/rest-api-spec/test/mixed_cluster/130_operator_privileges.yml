@@ -10,6 +10,10 @@
           path: /_cluster/voting_config_exclusions
           capabilities: [ plain_text_empty_response ]
 
+  - skip:
+      cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+      reason: "Verifies operator privilege routing across upgraded nodes — must run exactly once"
+
   # The default user ("test_user") is an operator, so this works
   - do:
       cluster.delete_voting_config_exclusions: { }

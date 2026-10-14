@@ -1334,7 +1334,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     }
 
     /**
-     * U6: {@code waitForReady} is not done at the park check; a side thread completes it so
+     * {@code waitForReady} is not done at the park check; a side thread completes it so
      * {@code addListener} often runs the resume inline. Must not fail as overlapping drain run.
      */
     public void testAlreadyDoneParkDoesNotFailAsOverlap() throws Exception {
@@ -1343,7 +1343,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
             AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
             Page page = createTestPage(1, 10);
             SubscribableListener<Void> ready = new SubscribableListener<>();
-            Thread completer = new Thread(() -> ready.onResponse(null), "u6-drain-complete");
+            Thread completer = new Thread(() -> ready.onResponse(null), "park-drain-complete");
             completer.setDaemon(true);
             AtomicBoolean completerStarted = new AtomicBoolean();
             CloseableIterator<Page> parked = new CloseableIterator<>() {
@@ -1403,7 +1403,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     }
 
     /**
-     * U7: racing a waitForReady resume with further parks still completes the drain once.
+     * Racing a waitForReady resume with further parks still completes the drain once.
      */
     public void testCompleteDrainFiresOnceWithParkResume() throws Exception {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
@@ -1464,7 +1464,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     }
 
     /**
-     * U7: {@code completeDrain}/{@code failDrain} CAS, not a double {@code onResponse} on
+     * {@code completeDrain}/{@code failDrain} CAS, not a double {@code onResponse} on
      * {@code SubscribableListener} (that is a no-op and never reaches {@code completeDrain}).
      */
     public void testCompleteDrainAndFailDrainOnceFromTwoThreads() throws Exception {

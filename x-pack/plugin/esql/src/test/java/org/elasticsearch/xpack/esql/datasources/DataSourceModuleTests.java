@@ -864,7 +864,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * On release builds the text-format codec surface is gated to {uncompressed, gzip, zstd}: bzip2, snappy,
      * lz4, and brotli must be rejected at extension-resolution time on every text format (CSV/TSV/NDJSON) with
-     * a message that names the supported set, while gzip and zstd still resolve. See elastic/esql-planning#938.
+    * a message that names the supported set, while gzip and zstd still resolve.
      */
     public void testTextCodecsRejectedOnReleaseBuilds() {
         assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());
@@ -906,7 +906,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
     /**
      * On snapshot builds the codec gate is bypassed: every registered codec — including bzip2, snappy, lz4, and
-     * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats. See elastic/esql-planning#938.
+    * brotli — resolves to a {@code CompressionDelegatingFormatReader} for text formats.
      */
     public void testTextCodecsAllowedOnSnapshotBuilds() {
         assumeTrue("release builds gate the text-format codec surface", Build.current().isSnapshot());
@@ -1105,7 +1105,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * On release builds, an explicit {@code format} over a codec outside the GA text-format surface
      * (bzip2, snappy, lz4, brotli) must be rejected the same way the extension-inferred path already is —
-     * not silently accepted while misreading the compressed bytes. See elastic/esql-planning#938.
+    * not silently accepted while misreading the compressed bytes.
      */
     public void testExplicitFormatRejectsNonGaCodecsOnReleaseBuilds() {
         assumeFalse("snapshot builds allow all registered codecs", Build.current().isSnapshot());

@@ -1306,7 +1306,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             assertTrue("gated chunk parser never reached", gatedReached.await(30, TimeUnit.SECONDS));
             Thread.sleep(200);
             assertFalse("tryAdvanceOrPark drain wrongly concluded EOF at a mid-stream POISON gap", done.isDone());
-            assertFalse("gated mid-stream must not look exhausted", it.isExhausted());
 
             gate.countDown();
             List<String> rows = done.actionGet(TimeValue.timeValueSeconds(30));
@@ -1333,7 +1332,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * Parallelism 2 is required: 1 falls back to a sequential read.
      */
     public void testPoisonPutInterruptExitsOnClose() throws Exception {
-        int pageQueueCapacity = 16;
+        int pageQueueCapacity = StreamingParallelParsingCoordinator.StreamingParallelIterator.PAGE_QUEUE_CAPACITY;
         List<Thread> poolThreads = new CopyOnWriteArrayList<>();
         ExecutorService executor = Executors.newFixedThreadPool(6, runnable -> {
             Thread thread = new Thread(runnable);

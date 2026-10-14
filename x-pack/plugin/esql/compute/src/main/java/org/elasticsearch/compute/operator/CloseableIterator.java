@@ -58,11 +58,12 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
 
     /**
      * True when a null {@link #tryAdvance()} after a done {@link #waitForReady()} is terminal EOF.
-     * Call only in that window. The default is {@code true}: synchronous iterators already used
-     * {@link #hasNext()} inside {@link #tryAdvance()}, so a null return is EOF. Async iterators
-     * must override this. Do not implement as {@code hasNext() == false}: wrappers would start
-     * I/O. Every {@link #waitForReady()} override must override this; a forgotten override is
-     * silent EOF at the outer wrapper.
+     * Call only in that window, and only from the consumer thread — same as {@link #tryAdvance()}.
+     * Some implementations mutate consumer-only state (for example skipping POISON markers).
+     * The default is {@code true}: synchronous iterators already used {@link #hasNext()} inside
+     * {@link #tryAdvance()}, so a null return is EOF. Async iterators must override this. Do not
+     * implement as {@code hasNext() == false}: wrappers would start I/O. Every {@link #waitForReady()}
+     * override must override this; a forgotten override is silent EOF at the outer wrapper.
      */
     default boolean isExhausted() {
         return true;

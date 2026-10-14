@@ -574,6 +574,8 @@ public final class StreamingParallelParsingCoordinator {
     static final class StreamingParallelIterator implements CloseableIterator<Page> {
 
         private static final Page POISON = new Page(0);
+        /** Capacity of each {@link #pageQueues} slot. Parsers block in {@code put} once this many pages sit undrained. */
+        static final int PAGE_QUEUE_CAPACITY = 16;
         private static final String GROW_BUFFER_BREAKER_LABEL = "streaming-parse-grow-buffer";
         /** Value of {@code buffersAllocated} once {@link #close()} has refunded it; a count can never be negative. */
         private static final int POOL_CLOSED_MARKER = -1;
@@ -947,7 +949,7 @@ public final class StreamingParallelParsingCoordinator {
             ArrayBlockingQueue<Page>[] queues = (ArrayBlockingQueue<Page>[]) new ArrayBlockingQueue<?>[pageQueueRingSize];
             this.pageQueues = queues;
             for (int i = 0; i < pageQueueRingSize; i++) {
-                pageQueues[i] = new ArrayBlockingQueue<>(16);
+                pageQueues[i] = new ArrayBlockingQueue<>(PAGE_QUEUE_CAPACITY);
             }
 
             // One-task-per-chunk model: the segmentator counts as one outstanding task, plus one per
@@ -2047,7 +2049,7 @@ public final class StreamingParallelParsingCoordinator {
          * is empty AND the chunk for {@code slot} hasn't finished producing. The signal here is what
          * transitions the listener from pending to fired — without it the consumer would park
          * indefinitely while pages accumulate in the queue. The post-publish signal is also necessary
-         * for the case where the parser fills {@code pageQueues[slot]} to its capacity (16 pages):
+         * for the case where the parser fills {@code pageQueues[slot]} to {@link #PAGE_QUEUE_CAPACITY}:
          * {@code queue.put} would block, and if the consumer hasn't been woken to start draining there
          * is no one to free a slot. Signaling on every page put (one cheap {@code AtomicReference.getAndSet})
          * is the simplest correct choice; consolidating to "signal only on 0→1 transitions" is a valid
@@ -2067,6 +2069,11 @@ public final class StreamingParallelParsingCoordinator {
          * chunks emitting zero pages), the POISON signal is what unblocks the consumer to advance
          * {@code currentChunk} and release a dispatchPermit. Without this signal a healthy parse can
          * stall after the last chunk in a slot.
+         * <p>
+         * {@link InterruptedException} during {@code queue.put} is retried while the iterator is
+         * open. Once {@link #closed}, the put is skipped: close drains remaining slot pages, so a
+         * stuck put would never complete. An iterator abandoned without {@code close()} can pin
+         * the parser in {@code queue.put} until the slot drains — a caller leak, not this loop.
          */
         private void putPoisonAndSignal(ArrayBlockingQueue<Page> queue) {
             boolean interrupted = false;
@@ -2182,6 +2189,9 @@ public final class StreamingParallelParsingCoordinator {
             return takeNextPage();
         }
 
+        /**
+         * Consumer-thread only: may skip POISON and mutate {@code currentChunk}/{@code dispatchPermits}.
+         */
         @Override
         public boolean isExhausted() {
             checkError();
@@ -2241,7 +2251,8 @@ public final class StreamingParallelParsingCoordinator {
          * consumer's slot, advancing {@link #currentChunk} and releasing one {@link #dispatchPermits}
          * permit per marker — identical accounting to {@link #takeNextPage()}'s POISON branch. Stops at
          * the first real page, an empty slot, or once no chunk is dispatched for the slot. Only ever
-         * called on the single consumer thread (via {@link #waitForReady()} / {@link #hasNext()}), so the
+         * called on the single consumer thread (via {@link #waitForReady()} / {@link #hasNext()} /
+         * {@link #isExhausted()}), so the
          * unsynchronized peek/poll/advance is safe: producers only append to the tail and never advance
          * {@code currentChunk}. Releasing the permit here (rather than deferring to {@code takeNextPage})
          * keeps the segmentator unblocked even when the async drain parks across the inter-chunk gap.

@@ -13,6 +13,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.concurrent.Executor;
@@ -34,6 +36,8 @@ import java.util.function.Consumer;
  * exits promptly whichever signal it was parked on.
  */
 public final class ExternalSourceDrainUtils {
+
+    private static final Logger logger = LogManager.getLogger(ExternalSourceDrainUtils.class);
 
     /** Bound on the ready-but-not-exhausted retry. Cap then park; never declare EOF from the cap. */
     static final int TRY_ADVANCE_OR_PARK_MAX_RETRIES = 64;
@@ -120,6 +124,8 @@ public final class ExternalSourceDrainUtils {
      * A done {@code waitForReady()} is not EOF: retry {@code tryAdvance} until
      * {@link CloseableIterator#isExhausted()} or the listener is not done. After
      * {@value #TRY_ADVANCE_OR_PARK_MAX_RETRIES} retries this parks rather than declaring EOF.
+     * A park on a done listener may complete inline; the continuation is submitted to the
+     * executor, not run on this stack.
      */
     static Page tryAdvanceOrPark(CloseableIterator<Page> pages, Holder<SubscribableListener<Void>> blockedOn) {
         for (int i = 0; i < TRY_ADVANCE_OR_PARK_MAX_RETRIES; i++) {
@@ -136,6 +142,11 @@ public final class ExternalSourceDrainUtils {
                 return null;
             }
         }
+        logger.debug(
+            "tryAdvanceOrPark retry cap: waitForReady still done and not exhausted after [{}] retries; parking",
+            TRY_ADVANCE_OR_PARK_MAX_RETRIES
+        );
+        assert false : "tryAdvanceOrPark retry cap: waitForReady still done and not exhausted";
         blockedOn.set(pages.waitForReady());
         return null;
     }

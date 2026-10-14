@@ -1240,8 +1240,11 @@ public final class ParallelParsingCoordinator {
 
         @Override
         public boolean isExhausted() {
+            if (closed) {
+                return true;
+            }
             checkError();
-            return closed || (remainingSegments.get() == 0 && sharedQueue.isEmpty() && buffered == null);
+            return remainingSegments.get() == 0 && sharedQueue.isEmpty() && buffered == null;
         }
 
         /**

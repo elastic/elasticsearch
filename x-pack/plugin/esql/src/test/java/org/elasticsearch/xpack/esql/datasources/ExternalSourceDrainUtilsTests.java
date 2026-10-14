@@ -16,13 +16,16 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.PageRowLimitingIterator;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -1602,6 +1605,40 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
                 } catch (Exception ignored) {}
             }
         };
+    }
+
+    /**
+     * Guard: a forgotten {@code isExhausted} on a {@code waitForReady} override is silent drain EOF.
+     */
+    public void testWaitForReadyOverridesAlsoDeclareIsExhausted() throws Exception {
+        Class<?>[] production = {
+            StreamingParallelParsingCoordinator.StreamingParallelIterator.class,
+            SchemaAdaptingIterator.class,
+            VirtualColumnIterator.class,
+            StatsCapturingIterator.class,
+            PageRowLimitingIterator.class,
+            Class.forName("org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator$AsReadyParallelIterator"),
+            Class.forName("org.elasticsearch.xpack.esql.datasources.spi.NullSpliceRowPositionStrategy$NullSplicingIterator"), };
+        for (Class<?> clazz : production) {
+            assertWaitForReadyOverrideDeclaresIsExhausted(clazz);
+        }
+    }
+
+    private static void assertWaitForReadyOverrideDeclaresIsExhausted(Class<?> clazz) {
+        boolean waitForReady = false;
+        boolean isExhausted = false;
+        for (Method method : clazz.getMethods()) {
+            if (method.getDeclaringClass() != clazz || method.getParameterCount() != 0) {
+                continue;
+            }
+            if ("waitForReady".equals(method.getName())) {
+                waitForReady = true;
+            } else if ("isExhausted".equals(method.getName())) {
+                isExhausted = true;
+            }
+        }
+        assertTrue(clazz.getName() + " must override waitForReady", waitForReady);
+        assertTrue(clazz.getName() + " overrides waitForReady without isExhausted", isExhausted);
     }
 
     private static void closeQuietly(CloseableIterator<?> iterator) {

@@ -2724,6 +2724,15 @@ public class EsqlCapabilities {
         ESQL_WITHOUT_GROUPING,
 
         /**
+         * The {@code WITHOUT(...)} grouping column is named {@code _timeseries} from resolution onward, so a
+         * {@code FROM idx, (TS ... BY WITHOUT(...))} union surfaces it as {@code _timeseries} — the same name a lone
+         * TS query shows — instead of the parser's sourceText name, which changed mid-plan when the grouping was
+         * lowered and failed the post-optimization merge consistency check. Gates the affected csv-spec test so
+         * mixed-version clusters skip it on older nodes that still surface the sourceText name.
+         */
+        TS_WITHOUT_GROUPING_NAMED_AT_RESOLUTION,
+
+        /**
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,

@@ -618,7 +618,8 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     /**
      * The narrowing is total below the epoch too, and this is where the declared read deliberately parts from
      * {@code ::datetime}. {@code date} represents a pre-1970 instant exactly; the 1970 floor
-     * {@link DateUtils#toMilliSeconds} enforces belongs to {@code date_nanos}, whose epoch-nanos start there. Borrowing
+     * {@link DateUtils#toMilliSeconds} enforces is the floor the {@code date_nanos} field mapper enforces at ingest
+     * ({@link DateUtils#toLong}). Borrowing
      * it made a pre-1970 {@code TIMESTAMP(MICROS)} parquet column fail the whole read under the default error mode,
      * while the same column read correctly with no declaration at all.
      *

@@ -4387,8 +4387,8 @@ public class EsqlCapabilities {
          * {@code TIMESTAMP(MICROS)} or {@code TIMESTAMP(NANOS)} — narrows to epoch millis for any instant
          * a signed epoch-nanosecond long can hold (1677-09-21 to 2262-04-11), including before 1970. Older nodes
          * borrowed {@code date_nanos}' own 1970 floor and failed the read under the default error mode,
-         * while the same column
-         * read correctly with no declaration at all. Gates the csv-spec case asserting the pre-1970 instant, which
+         * while the same column read correctly with no declaration at all. Gates the csv-spec case asserting
+         * the pre-1970 instant, which
          * such nodes still fail.
          */
         DATASET_DECLARED_DATE_NARROWS_BELOW_THE_EPOCH,

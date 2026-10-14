@@ -379,7 +379,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // A trailing `Z` is accepted here and nowhere else: the template already reads the fields as UTC, so the
         // suffix adds no information, and taking it here is what lets the date_nanos ladder stop before the lenient
         // JDK resolver. The millisecond entry point keeps refusing it, which its own suite pins.
-        String value = raw.endsWith("Z") ? raw.substring(0, raw.length() - 1) : raw;
+        //
+        // The separator is tested before the suffix is stripped, which is the opposite of the obvious order and is
+        // the point: this stage sits above the ISO stage on the date_nanos ladder, so EVERY `...Z` cell in an
+        // ordinary ISO file reaches it. Stripping first allocated a String per such cell only to miss one line
+        // below at the separator check. A cell too short to hold a separator cannot match the template either.
+        String value = raw.length() > 10 && raw.charAt(10) == ' ' && raw.endsWith("Z") ? raw.substring(0, raw.length() - 1) : raw;
         long nanoOfSecond = spaceSeparatedNanoOfSecond(value, 9);
         if (nanoOfSecond == FAST_PATH_MISS) {
             return FAST_PATH_MISS;
@@ -391,10 +396,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         try {
             long nanos = Math.addExact(Math.multiplyExact(seconds, 1_000_000_000L), nanoOfSecond);
             // The date_nanos domain, which this stage has to enforce itself before the general DateUtils.toLong
-            // path. Only the floor needs a test: Long.MAX_VALUE nanoseconds IS
-            // 2262-04-11T23:47:16.854775807, the top of the domain, so the exact arithmetic above already rejects
-            // anything past it. A pre-1970 instant has no nanosecond representation, so it falls through and the
-            // general parser reports the cell rather than this stage emitting a negative nanos long.
+            // path. Only the floor needs a test: Long.MAX_VALUE nanoseconds IS 2262-04-11T23:47:16.854775807, the
+            // top of the domain, so the exact arithmetic above already rejects anything past it. A pre-1970 instant
+            // has no nanosecond representation, so it falls through and the general parser reports the cell rather
+            // than this stage emitting a negative nanos long.
             return nanos < 0 ? FAST_PATH_MISS : nanos;
         } catch (ArithmeticException e) {
             return FAST_PATH_MISS;

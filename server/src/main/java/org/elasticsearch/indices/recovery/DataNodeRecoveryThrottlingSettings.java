@@ -165,7 +165,7 @@ public final class DataNodeRecoveryThrottlingSettings {
         INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
     );
 
-    /// The source (outgoing) side settings that jointly determine the limit computed by [#watchOutgoingRecoveryLimit].
+    /// The source (outgoing) side settings that jointly determine the max outgoing recovery limit (See [#watchOutgoingRecoveryLimit]).
     private static final List<Setting<?>> OUTGOING_RECOVERY_LIMIT_SETTINGS = List.of(
         INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
         INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
@@ -180,13 +180,17 @@ public final class DataNodeRecoveryThrottlingSettings {
     ///                                          never more than `maxConcurrentRecoveries`.
     public record IncomingRecoveryLimits(int maxConcurrentRecoveries, int maxConcurrentRelocationRecoveries) {
 
-        /// The limits when the incoming throttle settings are not registered, i.e. recoveries are not throttled by the data node.
         public static final IncomingRecoveryLimits UNBOUNDED = new IncomingRecoveryLimits(Integer.MAX_VALUE, Integer.MAX_VALUE);
 
         public IncomingRecoveryLimits {
-            assert maxConcurrentRecoveries > 0 : "max concurrent recoveries must be positive but was " + maxConcurrentRecoveries;
-            assert maxConcurrentRelocationRecoveries > 0 && maxConcurrentRelocationRecoveries <= maxConcurrentRecoveries
-                : "invalid max concurrent relocation recoveries " + maxConcurrentRelocationRecoveries + " for " + maxConcurrentRecoveries;
+            assert maxConcurrentRecoveries > 0 : "maxConcurrentRecoveries must be positive but was " + maxConcurrentRecoveries;
+            assert maxConcurrentRelocationRecoveries > 0
+                : "maxConcurrentRelocationRecoveries must be positive but was " + maxConcurrentRelocationRecoveries;
+            assert maxConcurrentRelocationRecoveries <= maxConcurrentRecoveries
+                : "maxConcurrentRelocationRecoveries: "
+                    + maxConcurrentRelocationRecoveries
+                    + " cannot be higher than maxConcurrentRecoveries: "
+                    + maxConcurrentRecoveries;
         }
     }
 
@@ -230,11 +234,11 @@ public final class DataNodeRecoveryThrottlingSettings {
 
     /// Calls `consumer` with the node's current effective max concurrent outgoing recoveries, then again whenever a cluster
     /// settings update changes any of the outgoing throttle settings. The settings are watched as a group, so that an update
-    /// changing both of them is applied atomically.
+    /// changing both of them is applied atomically. See  that enforces those limits.
     ///
-    /// The limit takes the heap-based throttle into account, so it only applies to stateless primary relocations for now
-    /// (see [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING]). [PeerRecoverySourceService]
-    /// applies [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING] separately.
+    /// The limit takes the heap-based throttle (see [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING])
+    /// into account, so it only applies to stateless primary relocations (`StatelessPrimaryRelocationSourceService`) for
+    /// now. [PeerRecoverySourceService] applies [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING] separately.
     ///
     /// If the outgoing throttle settings are not registered (see the class documentation), `consumer` is called once with
     /// [Integer#MAX_VALUE].

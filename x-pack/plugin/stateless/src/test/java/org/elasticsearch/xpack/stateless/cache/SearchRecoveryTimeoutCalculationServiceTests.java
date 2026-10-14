@@ -83,25 +83,6 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
 
     private static SearchRecoveryTimeoutCalculationService newCalculationService(
         ThreadPool threadPool,
-        Settings settings,
-        long cacheSize,
-        int maxConcurrentRelocationRecoveries
-    ) {
-        return newCalculationService(
-            threadPool,
-            Settings.builder()
-                .put(settings)
-                .put(
-                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
-                    maxConcurrentRelocationRecoveries
-                )
-                .build(),
-            cacheSize
-        );
-    }
-
-    private static SearchRecoveryTimeoutCalculationService newCalculationService(
-        ThreadPool threadPool,
         ClusterSettings clusterSettings,
         long cacheSize
     ) {
@@ -760,13 +741,16 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
             )
         ) {
+            final int maxConcurrentRelocationRecoveries = randomIntBetween(1, 8);
             final var settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.5)
+                .put(
+                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                    maxConcurrentRelocationRecoveries
+                )
                 .build();
-
-            final int maxConcurrentRelocationRecoveries = randomIntBetween(1, 8);
-            final var service = newCalculationService(threadPool, settings, 1000L, maxConcurrentRelocationRecoveries);
+            final var service = newCalculationService(threadPool, settings, 1000L);
 
             final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
@@ -878,14 +862,17 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             )
         ) {
             // grace cap=10s, factor=0.1 keeps equal-share (8000 / 3 × 0.1 ~ 267ms), which will be below data-volume
+            final int maxConcurrentRelocationRecoveries = randomIntBetween(1, 6);
             final var settings = Settings.builder()
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.1)
+                .put(
+                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                    maxConcurrentRelocationRecoveries
+                )
                 .build();
-
-            final int maxConcurrentRelocationRecoveries = randomIntBetween(1, 6);
             // cacheSize=1000, default cacheRatio=0.5 so warmingCacheBytes = 500
-            final var service = newCalculationService(threadPool, settings, 1000L, maxConcurrentRelocationRecoveries);
+            final var service = newCalculationService(threadPool, settings, 1000L);
 
             final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
@@ -995,7 +982,17 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 { 5, 1600, 3375, 3200, 5400 },
                 { Integer.MAX_VALUE, 1600, 3375, 3200, 5400 } };
             for (final var testCase : cases) {
-                final var service = newCalculationService(threadPool, settings, 1000L, Math.toIntExact(testCase[0]));
+                final var service = newCalculationService(
+                    threadPool,
+                    Settings.builder()
+                        .put(settings)
+                        .put(
+                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                            testCase[0]
+                        )
+                        .build(),
+                    1000L
+                );
                 assertThat(service.searchRecoveryTimeout(state, mockIndexShard(self), 0L).timeout().millis(), equalTo(testCase[1]));
                 assertThat(service.searchRecoveryTimeout(state, mockIndexShard(other), 0L).timeout().millis(), equalTo(testCase[2]));
                 assertThat(service.searchRecoveryTimeout(state, mockIndexShard(self), 100L).timeout().millis(), equalTo(testCase[3]));

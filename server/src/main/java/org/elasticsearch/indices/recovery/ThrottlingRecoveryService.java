@@ -74,7 +74,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private final ClusterService clusterService;
     private final RecoverySchedulingListener schedulingListener;
     private final RecoveryGateMonitor recoveryGateMonitor;
-    /// The node's max heap, used to compute the heap-based throttling limit.
     private final ByteSizeValue maxHeap;
     private final AtomicReference<BlockedState> blockedState = new AtomicReference<>();
 
@@ -602,11 +601,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Not thread-safe. All access must be performed while holding the enclosing [ThrottlingRecoveryService] instance lock.
     private static class RecoveriesThrottle {
 
-        /// The effective limits on running recoveries. Set in [ThrottlingRecoveryService#doStart], so before the service can be accessed.
+        /// The effective limits on running recoveries.
         private IncomingRecoveryLimits limits;
 
         /// The number of concurrent recoveries currently running, including recoveries from unassigned + relocations.
-        /// Must not exceed [IncomingRecoveryLimits#maxConcurrentRecoveries].
         private int runningRecoveries = 0;
 
         /// The number of concurrent relocation recoveries currently running.

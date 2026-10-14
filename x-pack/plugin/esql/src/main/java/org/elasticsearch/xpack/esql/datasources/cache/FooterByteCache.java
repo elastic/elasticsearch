@@ -26,11 +26,13 @@ import java.util.concurrent.ExecutionException;
  *   <li>Thundering-herd protection via {@link Cache#computeIfAbsent} — concurrent callers for the
  *       same key coalesce into a single load; exactly one thread performs I/O while others wait
  *       for the result</li>
- *   <li>Time-based expiration via {@link CacheBuilder#setExpireAfterAccess} — an entry expires the
- *       configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) after it was last read, so a
- *       working set that keeps being read keeps its entries and one stored together no longer expires
- *       together. The clock releases what nothing is using; which version of an object an entry belongs to
- *       is the key's question, not the clock's — see {@link Key}.</li>
+ *   <li>Time-based expiration via two clocks. The primary clock ({@link CacheBuilder#setExpireAfterAccess})
+ *       expires an entry the configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) after it
+ *       was last read — a working set that keeps being read keeps its entries, and one stored together no
+ *       longer expires together. A write cap (six times the access TTL) forces expiry at most
+ *       {@code 6 × TTL} after an entry was written, regardless of reads. The cap bounds how long a stale
+ *       footer (one for a same-length overwritten object) may be served; the access clock is the normal
+ *       release path — see {@link Key}.</li>
  * </ul>
  *
  * <h2>Why one instance per root format reader instead of per-query?</h2>
@@ -51,16 +53,17 @@ import java.util.concurrent.ExecutionException;
  * reader ({@code withConfig}, {@code withPushedFilter}, ...) shares the root's instance via its
  * copy constructor, so all concurrent queries on a node coalesce on one cache. When a
  * query-scoped context is introduced into the format reader API, this cache should migrate to an
- * instance held by that context. Until then nothing bounds cross-query staleness, because the key names
- * the object rather than the version of it — see the next section.
+ * instance held by that context. Until then cross-query staleness is bounded by the write cap
+ * (six times {@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) rather than by the key — see
+ * the next section.
  *
  * <h2>Cache key design</h2>
  * The key is {@code (storageIdentity, path, fileLength)}. It names the object, not the version of it, so
  * two versions of an object at the same byte length share an entry and the earlier one's footer answers for
- * the later. That is a property of the key and it is tracked as elastic/esql-planning#2094. The clock above
- * is not a substitute for fixing it: a timer cannot tell an object that changed from one that did not, so
- * bounding this with expiry means discarding every cached footer on a timer to catch the few that moved,
- * which is what the access clock stops doing.
+ * the later. That is a property of the key and it is tracked as elastic/esql-planning#2094. The write cap
+ * above bounds staleness at {@code 6 × TTL}: every entry is force-expired by then whether or not it is
+ * still being read, discarding footers that did not move alongside the ones that did. The fix belongs in
+ * the key (see #2094).
  * <p>
  * A version component was once rejected on cost: range splits come from
  * {@code StorageProvider.newObject(path, length)} with no modification time in hand, and calling
@@ -145,6 +148,7 @@ public class FooterByteCache {
         this.cache = CacheBuilder.<Key, byte[]>builder()
             .setMaximumWeight(maxBytes)
             .setExpireAfterAccess(expireAfterAccess)
+            .setExpireAfterWrite(TimeValue.timeValueNanos(expireAfterAccess.nanos() * 6L))
             .weigher((key, value) -> value.length)
             .build();
     }

@@ -62,10 +62,11 @@ import java.util.function.ToLongFunction;
  *       {@code FormatReaderRegistry} builds from node {@code Settings}) and shared by every
  *       derived reader via the reader copy constructors, exactly like the paired
  *       {@link FooterByteCache} (see its class Javadoc for why not per-query).</li>
- *   <li>Access-based TTL: the same value as the paired {@link FooterByteCache}. An entry is released a TTL
- *       after the last read of it, so a working set stored together no longer expires together. Unlike the
- *       byte cache, a store here does NOT imply a storage read — an entry can be evicted while its bytes
- *       survive and a reparse refills it from those bytes.</li>
+ *   <li>Two-clock expiry: same policy as the paired {@link FooterByteCache}. An access clock releases
+ *       an entry a TTL after the last read of it (working set stays hot); a write cap (six times the
+ *       access TTL) force-expires every entry at most {@code 6 × TTL} after it was written, bounding
+ *       staleness. Unlike the byte cache, a store here does NOT imply a storage read — an entry can be
+ *       evicted while its bytes survive and a reparse refills it from those bytes.</li>
  *   <li>Byte-weighted LRU eviction: parsed metadata structures do not expose an exact byte
  *       size, so each format supplies a structural estimator (row groups × columns for Parquet,
  *       the analogous stripe shape for ORC) against a heap-relative budget
@@ -167,6 +168,7 @@ public final class ParsedFooterCache<T> {
         this.cache = CacheBuilder.<FooterByteCache.Key, Weighted<T>>builder()
             .setMaximumWeight(maxWeightBytes)
             .setExpireAfterAccess(expireAfterAccess)
+            .setExpireAfterWrite(TimeValue.timeValueNanos(expireAfterAccess.nanos() * 6L))
             .weigher((key, value) -> value.weight())
             .build();
     }

@@ -258,10 +258,13 @@ public final class ExternalSourceCacheSettings {
      * no longer age out together: a reader that answers from the parsed cache does not read bytes, so a
      * parsed entry can be renewed while its bytes go cold.
      * <p>
-     * It does not bound how stale a footer may be. Footer keys are {@code (storageIdentity, path,
-     * fileLength)} and name the object rather than the version of it, so an object overwritten in place at
-     * the same byte length is served the earlier version's footer however this is set, and no other lever
-     * reaches these two caches. The fix belongs in the key rather than here (see {@link FooterByteCache}).
+     * It does not precisely bound how stale a footer may be — footer keys are {@code (storageIdentity,
+     * path, fileLength)} and name the object rather than the version of it — but both caches carry a
+     * write cap of six times this TTL, so an entry is force-expired at most {@code 6 × TTL} after it was
+     * written regardless of how often it is read. Lowering this setting therefore shortens the staleness
+     * window proportionally. The precise fix belongs in the key rather than the clock (see
+     * {@link FooterByteCache} and elastic/esql-planning#2094).
+     * <p>
      * One case the access clock narrows without closing: a query whose phases span more than this interval
      * on one key, or whose entry is evicted against the byte budget between phases, re-reads the footer
      * between resolution, split discovery and execution, and a same-length rewrite in between gives two
@@ -269,9 +272,8 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * {@code ExternalSourceCacheService} makes the opposite choice for the stores it owns, and deliberately:
      * its schema and dataset-aggregate keys carry the file's modification time, so identity already answers
-     * freshness there and the write clock is left to bound reuse alone. Here the key cannot answer
-     * freshness, so counting from the write bounds nothing that matters while discarding footers in active
-     * use.
+     * freshness there and a write clock bounds only reuse. Here the key cannot answer freshness, and the
+     * write cap is the staleness ceiling.
      */
     public static final Setting<TimeValue> FOOTER_CACHE_TTL = Setting.positiveTimeSetting(
         "esql.external.cache.footer.ttl",

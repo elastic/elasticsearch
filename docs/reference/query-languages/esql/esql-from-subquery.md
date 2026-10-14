@@ -224,6 +224,11 @@ If you only have the directive within the subquery, null values will be returned
 :::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_metadata_inner.md
 :::
 
+{applies_to}`stack: ga 9.6` `_class` and `_name` do not follow this rule. The outer `FROM` answers them for each subquery on its own. `_class` is `subquery`. `_name` is `null`, because a subquery has no name. You do not need the directive inside the subquery. If the subquery body also declares `_class` or `_name`, the outer values replace them.
+
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_class_and_name.md
+:::
+
 ## Limitations [esql-from-subquery-limitations]
 
 :::{include} _snippets/common/subquery_limitations.md
@@ -232,7 +237,7 @@ If you only have the directive within the subquery, null values will be returned
 ## Related pages
 
 * [ES|QL subqueries](/reference/query-languages/esql/esql-subquery.md): canonical definition, supported commands, and links to both subquery usage contexts.
-* [Use subqueries in a `WHERE` command](/reference/query-languages/esql/esql-in-subquery.md): filter rows using subqueries with `IN` and `NOT IN`.
+* [Use subqueries with `IN` and `NOT IN`](/reference/query-languages/esql/esql-in-subquery.md): filter or evaluate rows using subqueries with `IN` and `NOT IN`.
 * [Define virtual indices using ES|QL views](/reference/query-languages/esql/esql-views.md): the closest alternative to subqueries in `FROM`, with a persisted, named definition.
 * [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions.
 * [`FORK` command](/reference/query-languages/esql/commands/fork.md): the other branching construct in ES|QL, which shares the same branching limits.

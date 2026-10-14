@@ -175,6 +175,22 @@ public class AuthorizationUtilsTests extends ESTestCase {
         assertSwitchBasedOnOriginAndExecute(TASKS_ORIGIN, InternalUsers.XPACK_USER, randomTransportVersion());
     }
 
+    public void testSwitchWithEnrichOrigin() throws Exception {
+        // New nodes: ENRICH_ORIGIN maps to the dedicated _enrich user
+        assertSwitchBasedOnOriginAndExecute(
+            ClientHelper.ENRICH_ORIGIN,
+            InternalUsers.ENRICH_USER,
+            TransportVersionUtils.randomVersionSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER)
+        );
+
+        // Old nodes: fall back to _xpack so they can decode it
+        assertSwitchBasedOnOriginAndExecute(
+            ClientHelper.ENRICH_ORIGIN,
+            InternalUsers.XPACK_USER,
+            TransportVersionUtils.randomVersionNotSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER)
+        );
+    }
+
     private void assertSwitchBasedOnOriginAndExecute(String origin, User user, TransportVersion version) throws Exception {
         SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         final String headerName = randomAlphaOfLengthBetween(4, 16);

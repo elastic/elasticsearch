@@ -58,6 +58,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.injection.guice.Injector;
@@ -75,6 +76,7 @@ import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -254,6 +256,8 @@ public class Node implements Closeable {
         injector.getInstance(NodeMetrics.class).start();
         injector.getInstance(IndicesMetrics.class).start();
         injector.getInstance(AnalyzerMetrics.class).start();
+        injector.getInstance(SnapshotMetrics.class).start();
+        injector.getInstance(RecoveryMetricsCollector.class).start();
         injector.getInstance(HealthPeriodicLogger.class).start();
         injector.getInstance(PersistentTaskLifecycleManager.class).start();
         nodeService.getMonitorService().start();
@@ -457,6 +461,8 @@ public class Node implements Closeable {
         stopIfStarted(NodeMetrics.class);
         stopIfStarted(IndicesMetrics.class);
         stopIfStarted(AnalyzerMetrics.class);
+        stopIfStarted(SnapshotMetrics.class);
+        stopIfStarted(RecoveryMetricsCollector.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -531,6 +537,8 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(NodeMetrics.class));
         toClose.add(injector.getInstance(IndicesMetrics.class));
         toClose.add(injector.getInstance(AnalyzerMetrics.class));
+        toClose.add(injector.getInstance(SnapshotMetrics.class));
+        toClose.add(injector.getInstance(RecoveryMetricsCollector.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }

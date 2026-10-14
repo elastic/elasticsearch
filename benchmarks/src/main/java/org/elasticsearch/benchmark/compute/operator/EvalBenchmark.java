@@ -48,6 +48,8 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
@@ -90,10 +92,12 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -437,6 +441,22 @@ public class EvalBenchmark {
                 checkRoundTo4Expected(this, actual);
             }
         },
+        /**
+         * {@code CASE(f % 4 == 0, f + 1, f % 4 == 1, f + 2, f % 4 == 2, f + 3, f + 4)}. Neither the conditions nor the
+         * values are safe to evaluate eagerly, so every arm after the first runs on a filtered page, and the arms
+         * are balanced so each one selects a quarter of the rows.
+         */
+        CASE_4_LAZY_BALANCED("case_4_lazy_balanced") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return case4LazyBalancedEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkCase4LazyBalancedExpected(this, actual);
+            }
+        },
         ROUND_TO_2("round_to_2") {
             @Override
             ExpressionEvaluator evaluator() {
@@ -567,6 +587,28 @@ public class EvalBenchmark {
             @Override
             void checkExpected(Page actual) {
                 checkToUpperExpected(this, actual, true);
+            }
+        },
+        TO_BASE64("to_base64") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return toBase64Evaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkBase64Expected(this, actual, BASE64_SMALL_TEXT, true);
+            }
+        },
+        FROM_BASE64("from_base64") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return fromBase64Evaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkBase64Expected(this, actual, BASE64_SMALL_TEXT, false);
             }
         },
         TSTEP_5_EQUAL("tstep(5)") {
@@ -756,12 +798,13 @@ public class EvalBenchmark {
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static final FoldContext FOLD_CONTEXT = FoldContext.small();
 
     private static final int BLOCK_LENGTH = 8 * 1024;
+    private static final String BASE64_SMALL_TEXT = "benchmark-value";
     private static final long TBUCKET_RANGE_START_MILLIS = Instant.parse("2024-01-01T00:00:00Z").toEpochMilli();
     private static final long TBUCKET_RANGE_END_MILLIS = Instant.parse("2024-01-03T00:00:00Z").toEpochMilli();
     private static final ReplaceDateTruncBucketWithRoundTo REWRITE_RULE = new ReplaceDateTruncBucketWithRoundTo();
@@ -1068,6 +1111,25 @@ public class EvalBenchmark {
         return evaluator;
     }
 
+    private static ExpressionEvaluator case4LazyBalancedEvaluator() {
+        FieldAttribute f = longField();
+        Expression four = new Literal(Source.EMPTY, 4L, DataType.LONG);
+        Expression mod = new Mod(Source.EMPTY, f, four);
+        List<Expression> arms = new ArrayList<>();
+        for (int k = 0; k < 3; k++) {
+            arms.add(new Equals(Source.EMPTY, mod, new Literal(Source.EMPTY, (long) k, DataType.LONG)));
+            arms.add(new Add(Source.EMPTY, f, new Literal(Source.EMPTY, (long) k + 1, DataType.LONG), configuration()));
+        }
+        arms.add(new Add(Source.EMPTY, f, new Literal(Source.EMPTY, 4L, DataType.LONG), configuration()));
+        ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+            FOLD_CONTEXT,
+            new Case(Source.EMPTY, arms.get(0), arms.subList(1, arms.size())),
+            layout(f)
+        ).get(driverContext);
+        assertEvaluatorContains(evaluator, "CaseLazyEvaluator");
+        return evaluator;
+    }
+
     private static ExpressionEvaluator roundTo2Evaluator() {
         FieldAttribute f = longField();
         ExpressionEvaluator evaluator = EvalMapper.toEvaluator(FOLD_CONTEXT, new RoundTo(Source.EMPTY, f, List.of(b(), kb())), layout(f))
@@ -1108,6 +1170,16 @@ public class EvalBenchmark {
         FieldAttribute keywordField = keywordField();
         ToUpper toUpper = new ToUpper(Source.EMPTY, keywordField, configuration());
         return EvalMapper.toEvaluator(FOLD_CONTEXT, toUpper, layout(keywordField)).get(driverContext);
+    }
+
+    private static ExpressionEvaluator toBase64Evaluator() {
+        FieldAttribute keywordField = keywordField();
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new ToBase64(Source.EMPTY, keywordField), layout(keywordField)).get(driverContext);
+    }
+
+    private static ExpressionEvaluator fromBase64Evaluator() {
+        FieldAttribute keywordField = keywordField();
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, new FromBase64(Source.EMPTY, keywordField), layout(keywordField)).get(driverContext);
     }
 
     private static void assertEvaluatorContains(ExpressionEvaluator evaluator, String requiredSubstring) {
@@ -1529,6 +1601,17 @@ public class EvalBenchmark {
         }
     }
 
+    private static void checkCase4LazyBalancedExpected(Operation operation, Page actual) {
+        LongVector f = actual.<LongBlock>getBlock(0).asVector();
+        LongVector result = actual.<LongBlock>getBlock(1).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            long expected = f.getLong(i) + 1 + (f.getLong(i) % 4);
+            if (result.getLong(i) != expected) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+            }
+        }
+    }
+
     private static void checkRoundTo3Expected(Operation operation, Page actual) {
         long b = 1;
         long kb = ByteSizeUnit.KB.toBytes(1);
@@ -1597,6 +1680,12 @@ public class EvalBenchmark {
         checkBytes(operation.id(), actual, expectOrds, new BytesRef[] { new BytesRef("FOO"), new BytesRef("BAR") });
     }
 
+    private static void checkBase64Expected(Operation operation, Page actual, String text, boolean encode) {
+        byte[] raw = text.getBytes(StandardCharsets.UTF_8);
+        BytesRef expected = encode ? new BytesRef(Base64.getEncoder().encodeToString(raw)) : new BytesRef(raw);
+        checkBytes(operation.id(), actual, false, new BytesRef[] { expected, expected });
+    }
+
     private static void checkBytes(String operation, Page actual, boolean expectOrds, BytesRef[] expectedVals) {
         BytesRef scratch = new BytesRef();
         BytesRefVector v = actual.<BytesRefBlock>getBlock(1).asVector();
@@ -1628,6 +1717,13 @@ public class EvalBenchmark {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.appendLong(i * 100_000);
+                }
+                yield new Page(builder.build());
+            }
+            case CASE_4_LAZY_BALANCED -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendLong(i);
                 }
                 yield new Page(builder.build());
             }
@@ -1788,6 +1884,10 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build().asBlock());
             }
+            case TO_BASE64 -> base64Page(new BytesRef(BASE64_SMALL_TEXT));
+            case FROM_BASE64 -> base64Page(
+                new BytesRef(Base64.getEncoder().encodeToString(BASE64_SMALL_TEXT.getBytes(StandardCharsets.UTF_8)))
+            );
             case MV_LIKE_PREFIX_SINGLE, MV_LIKE_GENERAL_SINGLE -> {
                 // Single-valued, vector-backed keyword block: the pattern ("f*" / "f?o*") matches "foo" at even positions.
                 var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
@@ -1821,6 +1921,14 @@ public class EvalBenchmark {
                 yield new Page(new OrdinalBytesRefVector(ordinals.build(), bytes.build()).asBlock());
             }
         };
+    }
+
+    private static Page base64Page(BytesRef value) {
+        var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            builder.appendBytesRef(value);
+        }
+        return new Page(builder.build().asBlock());
     }
 
     private static Page bucketPage() {

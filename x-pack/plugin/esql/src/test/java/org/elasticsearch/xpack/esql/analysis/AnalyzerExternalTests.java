@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -47,6 +46,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.not;
  * The {@code Analyzer} itself never parses {@code FROM <dataset>} — that rewrite happens earlier, in
  * {@code DatasetRewriter}, which turns the {@code UnresolvedRelation} for a registered dataset into the same
  * {@code UnresolvedExternalRelation} the (internal-only, snapshot-gated) {@code EXTERNAL} command produces. These
- * tests drive that same production pipeline: parse the query, run {@code DatasetRewriter.rewriteUnsecured} against a
+ * tests drive that same production pipeline: parse the query, run {@code EsqlTestUtils.rewriteDatasetsUnsecured} against a
  * single-dataset {@code ProjectMetadata}, then analyze — {@code EXTERNAL} itself is no longer part of the surface
  * these tests exercise; it remains only as the internal rewrite target.
  */
@@ -174,6 +174,22 @@ public class AnalyzerExternalTests extends ESTestCase {
         Filter filter = as(limit.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(MatchPhrase.class));
         assertThat(filter.child(), instanceOf(ExternalRelation.class));
+    }
+
+    public void testScoreAggregationWithFullTextFilterRejected() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        String from = "FROM " + DATASET_NAME + " METADATA _score ";
+        String message = "cannot use _score aggregations with a WHERE filter in a STATS command";
+        datasetError(external(), S3_PATH, from + "| STATS c = MAX(_score) WHERE MATCH(first_name, \"foo\")", containsString(message));
+        datasetError(
+            external(),
+            S3_PATH,
+            from + "| STATS c = WEIGHTED_AVG(emp_no, _score) WHERE MATCH(first_name, \"foo\")",
+            containsString(message)
+        );
+        // Filtering before the STATS is fine: the aggregation sees the score the match contributed.
+        analyzeDataset(external(), S3_PATH, from + "| WHERE MATCH(first_name, \"foo\") | STATS c = MAX(_score)");
     }
 
     /**
@@ -710,7 +726,7 @@ public class AnalyzerExternalTests extends ESTestCase {
      * {@code DatasetRewriter} produces in production, and analyzes the result with {@code testAnalyzer}.
      */
     private static LogicalPlan analyzeDataset(TestAnalyzer testAnalyzer, String resource, String query) {
-        LogicalPlan rewritten = DatasetRewriter.rewriteUnsecured(
+        LogicalPlan rewritten = rewriteDatasetsUnsecured(
             TEST_PARSER.parseQuery(query),
             datasetProject(resource),
             TestIndexNameExpressionResolver.newInstance(),

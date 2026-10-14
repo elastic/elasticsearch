@@ -104,6 +104,32 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
         );
     }
 
+    public void testFromMap_NullRateLimit_UsesDefaultValue() {
+        var map = buildCommonServiceSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), null);
+        map.put(RateLimitSettings.FIELD_NAME, null);
+
+        var serviceSettings = fromMap(map, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(
+            serviceSettings,
+            is(createServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
+    }
+
+    public void testFromMap_NullRequestsPerMinute_UsesDefaultValue() {
+        var map = buildCommonServiceSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), null);
+        var rateLimitMap = new HashMap<String, Object>();
+        rateLimitMap.put(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, null);
+        map.put(RateLimitSettings.FIELD_NAME, rateLimitMap);
+
+        var serviceSettings = fromMap(map, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(
+            serviceSettings,
+            is(createServiceSettings(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
+    }
+
     public void testFromMap_RateLimitOmitted_UsesDefault() {
         var serviceSettings = fromMap(
             buildCommonServiceSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), null),
@@ -164,6 +190,32 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
         var settingsMap = new HashMap<String, Object>();
         settingsMap.put(RateLimitSettings.FIELD_NAME, null);
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                createServiceSettings(
+                    INITIAL_TEST_REGION,
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_PROVIDER,
+                    new RateLimitSettings(DEFAULT_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_NullRequestsPerMinute_RevertsToDefault() {
+        var originalServiceSettings = createServiceSettings(
+            INITIAL_TEST_REGION,
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROVIDER,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var rateLimitMap = new HashMap<String, Object>();
+        rateLimitMap.put(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, null);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, rateLimitMap))
+        );
 
         assertThat(
             updatedServiceSettings,

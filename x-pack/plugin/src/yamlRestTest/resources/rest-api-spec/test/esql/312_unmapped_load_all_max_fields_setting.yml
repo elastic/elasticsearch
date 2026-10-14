@@ -1,0 +1,144 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, warnings ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_max_fields_setting, optional_fields_load_all_single_source_column ]
+      reason: >
+        The cluster setting esql.query.unmapped_fields.load_all_max_fields downgrades LOAD_ALL to LOAD when it is 0. Older nodes
+        reject the setting as unknown, so this file cannot run against them. The _unmapped_fields column is only produced on nodes
+        with the single-column layout.
+
+  - do:
+      indices.create:
+        index: la_cfg
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_cfg", "_id": "1" } }
+          - { "id": "1", "f1": "a", "f2": "b", "f3": "c", "f4": "d", "f5": "e" }
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            esql.query.unmapped_fields.load_all_max_fields: null
+
+  - do:
+      indices.delete:
+        index: la_cfg
+        ignore_unavailable: true
+
+---
+'by default every discovered field is in the single _unmapped_fields column':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0.0: "1" }
+  - match: { values.0.1: { f1: a, f2: b, f3: c, f4: d, f5: e } }
+
+---
+'a lowered limit does not truncate the single column, and a raised one changes nothing':
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            esql.query.unmapped_fields.load_all_max_fields: 3
+
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { values.0.1: { f1: a, f2: b, f3: c, f4: d, f5: e } }
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            esql.query.unmapped_fields.load_all_max_fields: 5
+
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { values.0.1: { f1: a, f2: b, f3: c, f4: d, f5: e } }
+
+---
+'a limit of 0 makes LOAD_ALL behave like LOAD':
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            esql.query.unmapped_fields.load_all_max_fields: 0
+
+  # Nothing is discovered, and there is nothing to warn about either.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: id }
+
+  # A field the query names is still loaded from _source, as with LOAD.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | KEEP id, f1 | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.1.name: f1 }
+  - match: { values.0: [ "1", "a" ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM la_cfg | KEEP id, f1 | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { values.0: [ "1", "a" ] }
+
+---
+'the limit has to be between 0 and 100000':
+  - do:
+      catch: bad_request
+      cluster.put_settings:
+        body:
+          persistent:
+            esql.query.unmapped_fields.load_all_max_fields: -1
+
+  - do:
+      catch: bad_request
+      cluster.put_settings:
+        body:
+          persistent:
+            esql.query.unmapped_fields.load_all_max_fields: 100001
+
+---
+'a query column named _unmapped_fields wins over the discovered fields':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | EVAL _unmapped_fields = "mine" | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: keyword }
+  - match: { values.0: [ "1", "mine" ] }

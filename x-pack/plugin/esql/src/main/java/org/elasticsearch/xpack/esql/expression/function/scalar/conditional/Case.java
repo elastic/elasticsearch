@@ -11,9 +11,11 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.ToMask;
@@ -41,10 +43,11 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -54,12 +57,28 @@ public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Case.class)
         .unaryVariadic(Case::new)
-        .capabilities("flattened")
+        // A one value list condition is single valued, so it picks a branch like a plain boolean.
+        // A multivalued one warns even when the CASE is only partially folded, and reports the
+        // same message the other functions use.
+        .capabilities(
+            "flattened",
+            "single_value_list_condition",
+            "partial_fold_multivalue_warning",
+            "standard_multivalue_message",
+            "multivalue_warning_names_function"
+        )
         .name("case");
 
+    private static final String MULTIVALUE_CONDITION_MESSAGE = "single-value function encountered multi-value";
+
     record Condition(Expression condition, Expression value) {
-        ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator) {
-            return new ConditionEvaluatorSupplier(condition.source(), toEvaluator.apply(condition), toEvaluator.apply(value));
+        /**
+         * @param caseSource the source of the enclosing {@code CASE}, which multivalue warnings
+         *                   are reported against so that they name the function rather than one
+         *                   of its arguments
+         */
+        ConditionEvaluatorSupplier toEvaluator(ToEvaluator toEvaluator, Source caseSource) {
+            return new ConditionEvaluatorSupplier(caseSource, toEvaluator.apply(condition), toEvaluator.apply(value));
         }
     }
 
@@ -270,46 +289,126 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public boolean foldable() {
-        for (Condition condition : conditions) {
-            if (condition.condition.foldable() == false) {
-                return false;
-            }
-            /* Given the current condition is foldable,
-                if we have already folded the condition into a Literal
-                    If True, Case is foldable if the value is foldable
-                    If False, Case is foldable if the rest of the conditions are foldable
-                Otherwise
-                    if the value is foldable and the rest of the conditions are foldable, Case is foldable
-             */
-            if (condition.condition instanceof Literal literal) {
-                if (Boolean.TRUE.equals(literal.value())) {
-                    // The condition is literally TRUE, so only the matching value needs to be foldable.
-                    return condition.value.foldable();
-                } else {
-                    continue;
+        // Nested CASE values are walked here rather than recursed into, so a deep
+        // CASE(true, CASE(true, ...), ...) cannot overflow the stack.
+        Deque<Case> nested = null;
+        Case current = this;
+        while (current != null) {
+            Expression takenValue = null;
+            for (Condition condition : current.conditions) {
+                if (condition.condition.foldable() == false) {
+                    return false;
+                }
+                /* Given the current condition is foldable,
+                    if we have already folded the condition into a Literal
+                        If True, Case is foldable if the value is foldable
+                        If False, Case is foldable if the rest of the conditions are foldable
+                    Otherwise
+                        if the value is foldable and the rest of the conditions are foldable, Case is foldable
+                 */
+                if (condition.condition instanceof Literal literal) {
+                    if (isTrue(literal.value())) {
+                        // The condition is literally TRUE, so only the matching value needs to be foldable.
+                        takenValue = condition.value;
+                        break;
+                    } else {
+                        continue;
+                    }
+                }
+                if (condition.value instanceof Case c) {
+                    nested = defer(nested, c);
+                } else if (condition.value.foldable() == false) {
+                    return false;
                 }
             }
-            if (condition.value.foldable() == false) {
+            Expression last = takenValue == null ? current.elseValue : takenValue;
+            if (last instanceof Case c) {
+                nested = defer(nested, c);
+            } else if (last.foldable() == false) {
                 return false;
             }
+            current = nested == null || nested.isEmpty() ? null : nested.pop();
         }
-        return elseValue.foldable();
+        return true;
+    }
+
+    private static Deque<Case> defer(Deque<Case> nested, Case c) {
+        if (nested == null) {
+            nested = new ArrayDeque<>();
+        }
+        nested.push(c);
+        return nested;
     }
 
     @Override
     public Object fold(FoldContext ctx) {
-        DataType type = dataType();
-        if (type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION) {
-            // These can't be managed by evaluators, we have to fold them manually.
-            // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
-            for (Condition condition : conditions) {
-                if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
-                    return condition.value.fold(ctx);
-                }
-            }
-            return elseValue.fold(ctx);
+        // Walk nested CASE along the taken branch so CASE(true, CASE(true, ...), ...)
+        // cannot overflow the stack.
+        Expression remaining = this;
+        while (remaining instanceof Case current) {
+            remaining = takenBranch(ctx, current);
         }
-        return super.fold(ctx);
+        return remaining.fold(ctx);
+    }
+
+    /**
+     * {@link PlannerUtils#toElementType} rejects these types, so they can't go in a
+     * {@link Block} and there is no evaluator to fold them with.
+     */
+    private static boolean hasNoEvaluator(Case c) {
+        DataType type = c.dataType();
+        return type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION;
+    }
+
+    /**
+     * Is this the {@code true} the evaluator sees? {@code CaseLazyEvaluator#eval} reads the value
+     * out of the Block, so a one value list is single valued and counts, while more than one is
+     * multivalued and is treated as false.
+     */
+    private static boolean isTrue(Object value) {
+        if (value instanceof List<?> values) {
+            return values.size() == 1 && Boolean.TRUE.equals(values.getFirst());
+        }
+        return Boolean.TRUE.equals(value);
+    }
+
+    private static Expression takenBranch(FoldContext ctx, Case current) {
+        for (Condition condition : current.conditions) {
+            Object folded = condition.condition.fold(ctx);
+            warnIfMultivaluedCondition(current, folded);
+            if (isTrue(folded)) {
+                return condition.value;
+            }
+        }
+        return current.elseValue;
+    }
+
+    /**
+     * The two warnings {@link Warnings#registerException} raises for a multivalued condition.
+     * Planning drops such a condition without building an evaluator, in {@link #takenBranch} and
+     * in {@link #partiallyFold}, so the warning the evaluator would have raised has to come from
+     * here instead. Types with no evaluator have never warned and still don't.
+     * <p>
+     *     There is no {@link DriverContext} to collect these, so they go straight to the response
+     *     headers, like {@code SpatialGridFunction#foldWarningConsumer}. Keep the text in step
+     *     with {@link Warnings}, including the 20 from its {@code MAX_ADDED_WARNINGS}, or a
+     *     planned CASE warns differently from an evaluated one.
+     * </p>
+     */
+    private static void warnIfMultivaluedCondition(Case c, Object folded) {
+        if (folded instanceof List<?> values && values.size() > 1 && hasNoEvaluator(c) == false) {
+            Source source = c.source();
+            String location = source.viewName() == null
+                ? format("Line {}:{}: ", source.lineNumber(), source.columnNumber())
+                : format("Line {}:{} (in view [{}]): ", source.lineNumber(), source.columnNumber(), source.viewName());
+            HeaderWarning.addWarning(
+                "{}evaluation of [{}] failed, treating result as false. Only first {} failures recorded.",
+                location,
+                source.text(),
+                20
+            );
+            HeaderWarning.addWarning(location + IllegalArgumentException.class.getName() + ": " + MULTIVALUE_CONDITION_MESSAGE);
+        }
     }
 
     /**
@@ -340,10 +439,12 @@ public final class Case extends EsqlScalarFunction {
                 continue;
             }
             modified = true;
-            if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
+            Object folded = condition.condition.fold(ctx);
+            warnIfMultivaluedCondition(this, folded);
+            if (isTrue(folded)) {
                 /*
                  * `fold` can make four things here:
-                 * 1. `TRUE`
+                 * 1. `TRUE`, or a one element list holding it, which is single valued
                  * 2. `FALSE`
                  * 3. null
                  * 4. A list with more than one `TRUE` or `FALSE` in it.
@@ -394,7 +495,7 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream().map(c -> c.toEvaluator(toEvaluator)).toList();
+        List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream().map(c -> c.toEvaluator(toEvaluator, source())).toList();
         ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
         ElementType resultType = PlannerUtils.toElementType(dataType());
 
@@ -425,7 +526,9 @@ public final class Case extends EsqlScalarFunction {
                  */
                 driverContext.createWarningsTreatedAsFalse(conditionSource),
                 condition.get(driverContext),
-                value.get(driverContext)
+                condition.eagerEvalSafeInLazy(),
+                value.get(driverContext),
+                value.eagerEvalSafeInLazy()
             );
         }
 
@@ -435,9 +538,24 @@ public final class Case extends EsqlScalarFunction {
         }
     }
 
-    record ConditionEvaluator(Warnings conditionWarnings, ExpressionEvaluator condition, ExpressionEvaluator value) implements Releasable {
+    /**
+     * A single {@code condition, value} arm of a {@code CASE}.
+     * <p>
+     *     {@code conditionEagerEvalSafe} and {@code valueEagerEvalSafe} carry
+     *     {@link ExpressionEvaluator.Factory#eagerEvalSafeInLazy()} over to evaluation time. When
+     *     {@code true} the {@link CaseLazyEvaluator} runs the child over the whole {@link Page} and
+     *     just reads the positions it needs, instead of first filtering the page down to those positions.
+     * </p>
+     */
+    record ConditionEvaluator(
+        Warnings conditionWarnings,
+        ExpressionEvaluator condition,
+        boolean conditionEagerEvalSafe,
+        ExpressionEvaluator value,
+        boolean valueEagerEvalSafe
+    ) implements Releasable {
 
-        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConditionEvaluator.class);
 
         @Override
         public void close() {
@@ -450,7 +568,7 @@ public final class Case extends EsqlScalarFunction {
         }
 
         public void registerMultivalue() {
-            conditionWarnings.registerException(new IllegalArgumentException("CASE expects a single-valued boolean"));
+            conditionWarnings.registerException(IllegalArgumentException.class, MULTIVALUE_CONDITION_MESSAGE);
         }
 
         public long baseRamBytesUsed() {
@@ -472,7 +590,13 @@ public final class Case extends EsqlScalarFunction {
                     conditions.add(cond.apply(context));
                 }
                 elseValue = elseValueFactory.get(context);
-                ExpressionEvaluator result = new CaseLazyEvaluator(context.blockFactory(), resultType, conditions, elseValue);
+                ExpressionEvaluator result = new CaseLazyEvaluator(
+                    context.blockFactory(),
+                    resultType,
+                    conditions,
+                    elseValue,
+                    elseValueFactory.eagerEvalSafeInLazy()
+                );
                 conditions = null;
                 elseValue = null;
                 return result;
@@ -487,62 +611,246 @@ public final class Case extends EsqlScalarFunction {
         }
     }
 
-    private record CaseLazyEvaluator(
-        BlockFactory blockFactory,
-        ElementType resultType,
-        List<ConditionEvaluator> conditions,
-        ExpressionEvaluator elseVal
-    ) implements ExpressionEvaluator {
+    /**
+     * Evaluates {@code CASE} lazily, one <strong>arm</strong> at a time rather than one position at a time.
+     * <p>
+     *     An arm is one {@code condition, value} pair of the {@code CASE}, the branch that is taken when
+     *     that condition is the first one to be {@code true}. The trailing else value is the final arm,
+     *     taken when no condition matched. So {@code CASE(a, x, b, y, z)} has three arms: {@code a -> x},
+     *     {@code b -> y} and the else arm {@code z}.
+     * </p>
+     * <p>
+     *     Laziness is required for correctness: a condition may only be evaluated for the positions
+     *     where all previous conditions were not {@code true}, and a value may only be evaluated for
+     *     the positions where its condition is the first {@code true} one. Otherwise we’d emit
+     *     warnings (or do expensive work) for positions whose result never uses that arm.
+     * </p>
+     * <p>
+     *     We keep an ascending array of the positions that are still unresolved. For each arm we
+     *     evaluate the condition either on the whole page, when every position is still unresolved
+     *     or when the condition is {@link ExpressionEvaluator.Factory#eagerEvalSafeInLazy() safe to
+     *     evaluate eagerly}, or on the page {@link Page#filter filtered} down to the unresolved
+     *     positions. The matching positions are then removed from the unresolved set and the arm’s
+     *     value is evaluated the same way, either on the whole page or on the page filtered to just
+     *     those positions. Finally the per-arm result blocks are scattered back into a single block
+     *     in page order. Because filtering preserves order, the index of a position inside a filtered
+     *     arm block is just the number of earlier positions that landed in the same arm.
+     * </p>
+     * <p>
+     *     This costs at most one {@link Page#filter} per arm rather than one per position, and no
+     *     filtering at all for eager-safe children like literals and field loads.
+     * </p>
+     */
+    private static final class CaseLazyEvaluator implements ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
 
+        private final BlockFactory blockFactory;
+        private final ElementType resultType;
+        private final List<ConditionEvaluator> conditions;
+        private final ExpressionEvaluator elseVal;
+        private final boolean elseEagerEvalSafe;
+
+        /*
+         * Per-position scratch space, allocated lazily and grown to the largest page seen so
+         * we don't allocate four fresh arrays for every page. An evaluator is only ever used
+         * by a single driver at a time and eval is not re-entrant, so reusing these is safe.
+         * Their contents are never read before being written within an eval call.
+         */
+        private int[] armOf = new int[0];
+        private int[] remaining = new int[0];
+        private int[] matched = new int[0];
+        private int[] nextRemaining = new int[0];
+
+        CaseLazyEvaluator(
+            BlockFactory blockFactory,
+            ElementType resultType,
+            List<ConditionEvaluator> conditions,
+            ExpressionEvaluator elseVal,
+            boolean elseEagerEvalSafe
+        ) {
+            this.blockFactory = blockFactory;
+            this.resultType = resultType;
+            this.conditions = conditions;
+            this.elseVal = elseVal;
+            this.elseEagerEvalSafe = elseEagerEvalSafe;
+        }
+
         @Override
         public Block eval(Page page) {
-            /*
-             * We have to evaluate lazily so any errors or warnings that would be
-             * produced by the right hand side are avoided. And so if anything
-             * on the right hand side is slow we skip it.
-             *
-             * And it'd be good if that lazy evaluation were fast. But this
-             * implementation isn’t . It’s fairly simple - running position at
-             * a time - but it’s not at all fast.
-             */
             int positionCount = page.getPositionCount();
-            try (Block.Builder result = resultType.newBlockBuilder(positionCount, blockFactory)) {
-                position: for (int p = 0; p < positionCount; p++) {
-                    int[] positions = new int[] { p };
-                    Page limited = new Page(
-                        1,
-                        IntStream.range(0, page.getBlockCount())
-                            .mapToObj(b -> page.getBlock(b).filter(false, positions))
-                            .toArray(Block[]::new)
-                    );
-                    try (Releasable ignored = limited::releaseBlocks) {
-                        for (ConditionEvaluator condition : conditions) {
-                            try (BooleanBlock b = (BooleanBlock) condition.condition.eval(limited)) {
-                                if (b.isNull(0)) {
-                                    continue;
+            int armCount = conditions.size() + 1;
+            /*
+             * arms[i] holds the block produced by the value of condition i, arms[armCount - 1]
+             * the block produced by the else value. Arms that no position selected stay null.
+             * armEvaluatedOnFullPage[i] is true when arms[i] was evaluated on the whole page,
+             * so position p lives at index p in the block. Otherwise the block only contains
+             * the positions that selected the arm, in ascending order.
+             */
+            Block[] arms = new Block[armCount];
+            boolean[] armEvaluatedOnFullPage = new boolean[armCount];
+            if (armOf.length < positionCount) {
+                armOf = new int[positionCount];
+                remaining = new int[positionCount];
+                matched = new int[positionCount];
+                nextRemaining = new int[positionCount];
+            }
+            int[] armOf = this.armOf;
+            int[] remaining = this.remaining;
+            int[] matched = this.matched;
+            int[] nextRemaining = this.nextRemaining;
+            for (int p = 0; p < positionCount; p++) {
+                remaining[p] = p;
+            }
+            int remainingCount = positionCount;
+            try {
+                for (int arm = 0; arm < conditions.size() && remainingCount > 0; arm++) {
+                    ConditionEvaluator condition = conditions.get(arm);
+                    boolean fullPage = remainingCount == positionCount || condition.conditionEagerEvalSafe();
+                    // TODO filter only the channels the child reads; filtering every block copies columns the arm never looks at
+                    Page conditionPage = fullPage ? page : page.filter(false, remaining, 0, remainingCount);
+                    int matchedCount = 0;
+                    int nextRemainingCount = 0;
+                    boolean sawMultivalue = false;
+                    try (BooleanBlock b = (BooleanBlock) condition.condition.eval(conditionPage)) {
+                        BooleanVector v = b.asVector();
+                        if (v != null) {
+                            // Fast path: no nulls or multivalues to check for.
+                            for (int j = 0; j < remainingCount; j++) {
+                                int p = remaining[j];
+                                if (v.getBoolean(fullPage ? p : j)) {
+                                    matched[matchedCount++] = p;
+                                } else {
+                                    nextRemaining[nextRemainingCount++] = p;
                                 }
-                                if (b.getValueCount(0) > 1) {
-                                    condition.registerMultivalue();
-                                    continue;
+                            }
+                        } else {
+                            for (int j = 0; j < remainingCount; j++) {
+                                int p = remaining[j];
+                                int idx = fullPage ? p : j;
+                                boolean selected;
+                                if (b.isNull(idx)) {
+                                    selected = false;
+                                } else if (b.getValueCount(idx) > 1) {
+                                    sawMultivalue = true;
+                                    selected = false;
+                                } else {
+                                    selected = b.getBoolean(b.getFirstValueIndex(idx));
                                 }
-                                if (false == b.getBoolean(b.getFirstValueIndex(0))) {
-                                    continue;
-                                }
-                                try (Block values = condition.value.eval(limited)) {
-                                    result.copyFrom(values, 0, 1);
-                                    continue position;
+                                if (selected) {
+                                    matched[matchedCount++] = p;
+                                } else {
+                                    nextRemaining[nextRemainingCount++] = p;
                                 }
                             }
                         }
-                        try (Block values = elseVal.eval(limited)) {
-                            result.copyFrom(values, 0, 1);
+                    } finally {
+                        if (conditionPage != page) {
+                            conditionPage.releaseBlocks();
                         }
                     }
+                    if (sawMultivalue) {
+                        condition.registerMultivalue();
+                    }
+                    if (matchedCount > 0) {
+                        boolean valueFullPage = matchedCount == positionCount || condition.valueEagerEvalSafe();
+                        arms[arm] = evalArm(page, condition.value, valueFullPage, matched, matchedCount);
+                        armEvaluatedOnFullPage[arm] = valueFullPage;
+                        for (int j = 0; j < matchedCount; j++) {
+                            armOf[matched[j]] = arm;
+                        }
+                    }
+                    int[] tmp = remaining;
+                    remaining = nextRemaining;
+                    nextRemaining = tmp;
+                    remainingCount = nextRemainingCount;
                 }
-                return result.build();
+                if (remainingCount > 0) {
+                    int arm = armCount - 1;
+                    boolean elseFullPage = remainingCount == positionCount || elseEagerEvalSafe;
+                    arms[arm] = evalArm(page, elseVal, elseFullPage, remaining, remainingCount);
+                    armEvaluatedOnFullPage[arm] = elseFullPage;
+                    for (int j = 0; j < remainingCount; j++) {
+                        armOf[remaining[j]] = arm;
+                    }
+                }
+
+                /*
+                 * If a single arm was selected then it must have been selected by every position
+                 * and, because nothing was resolved before it, evaluated on the whole page. So
+                 * we can hand its block back directly without copying.
+                 */
+                int onlyArm = -1;
+                int selectedArms = 0;
+                for (int arm = 0; arm < armCount; arm++) {
+                    if (arms[arm] != null) {
+                        onlyArm = arm;
+                        selectedArms++;
+                    }
+                }
+                if (selectedArms == 1 && armEvaluatedOnFullPage[onlyArm]) {
+                    Block result = arms[onlyArm];
+                    arms[onlyArm] = null;
+                    return result;
+                }
+
+                /*
+                 * Scatter the arm blocks back into page order, copying each run of consecutive
+                 * positions that picked the same arm with a single copyFrom. cursor[arm] tracks how
+                 * far we've read into an arm block that was evaluated on a filtered page.
+                 */
+                int[] cursor = new int[armCount];
+                try (Block.Builder result = resultType.newBlockBuilder(positionCount, blockFactory)) {
+                    int p = 0;
+                    while (p < positionCount) {
+                        int arm = armOf[p];
+                        int end = p + 1;
+                        while (end < positionCount && armOf[end] == arm) {
+                            end++;
+                        }
+                        int length = end - p;
+                        if (armEvaluatedOnFullPage[arm]) {
+                            result.copyFrom(arms[arm], p, end);
+                        } else {
+                            result.copyFrom(arms[arm], cursor[arm], cursor[arm] + length);
+                            cursor[arm] += length;
+                        }
+                        p = end;
+                    }
+                    return result.build();
+                }
+            } finally {
+                Releasables.closeExpectNoException(arms);
             }
+        }
+
+        /**
+         * Evaluate an arm’s value for the {@code selectedCount} positions in {@code selected}. When
+         * {@code fullPage} is set the value is evaluated on the whole page, which the caller does for
+         * eager-safe values and for values that every position selected. Otherwise it is evaluated on
+         * the page filtered down to just the selected positions so that the value never sees, and never
+         * warns about, positions that another arm resolved.
+         */
+        private static Block evalArm(Page page, ExpressionEvaluator value, boolean fullPage, int[] selected, int selectedCount) {
+            Block result;
+            if (fullPage) {
+                result = value.eval(page);
+            } else {
+                // TODO filter only the channels the child reads; filtering every block copies columns the arm never looks at
+                Page valuePage = page.filter(false, selected, 0, selectedCount);
+                try {
+                    result = value.eval(valuePage);
+                } finally {
+                    valuePage.releaseBlocks();
+                }
+            }
+            assert result.getPositionCount() == (fullPage ? page.getPositionCount() : selectedCount)
+                : "arm produced ["
+                    + result.getPositionCount()
+                    + "] positions, expected ["
+                    + (fullPage ? page.getPositionCount() : selectedCount)
+                    + "]";
+            return result;
         }
 
         @Override
@@ -599,7 +907,7 @@ public final class Case extends EsqlScalarFunction {
         ExpressionEvaluator elseVal
     ) implements ExpressionEvaluator {
 
-        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseEagerEvaluator.class);
 
         @Override
         public Block eval(Page page) {

@@ -207,10 +207,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 // Until the inference filter is made columnar-aware (reading field values directly from ESCF columns
                 // and writing results back into the batch), materialize every item to inline JSON up front. This makes
                 // the filter's source reads correct and causes the primary to use the sequential path with the
-                // correctly-enriched source. ensureInlineSources is a no-op when no batch is attached, so there is no
-                // overhead for non-batch requests.
+                // correctly-enriched source. This is a no-op when no batch is attached.
                 try {
-                    BulkShardBatch.ensureInlineSources(bulkShardRequest);
+                    BulkShardBatch shardBatch = bulkShardRequest.getBulkShardBatch();
+                    if (shardBatch != null) {
+                        for (BulkItemRequest item : bulkShardRequest.items()) {
+                            ((IndexRequest) item.request()).indexSource().ensureInlineSource();
+                        }
+                        bulkShardRequest.setBulkShardBatch(null);
+                    }
                 } catch (IOException e) {
                     listener.onFailure(e);
                     return;

@@ -14,8 +14,10 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -45,9 +47,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -720,6 +724,87 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat("but by the same format, so one reader serves both", idFormat.getName(), equalTo(otherFormat.getName()));
         assertThat(((ES819TSDBDocValuesFormat) idFormat).binaryBlockCountThreshold(), equalTo(128));
         assertThat(((ES819TSDBDocValuesFormat) otherFormat).binaryBlockCountThreshold(), equalTo(8096));
+    }
+
+    /**
+     * A vectordb index reads its keyword and text columns a few documents at a time, so their chunks are cut at
+     * one block of values rather than the thousands a scanned column is written in. Each field keeps its own
+     * policies: text still has no dictionary, keyword still has one.
+     */
+    public void testVectorDbColumnarStringColumnsUseSmallChunks() throws IOException {
+        assumeTrue("vectordb_columnar must be enabled", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            IndexMode.VECTORDB_COLUMNAR,
+            randomColumnarEligibleIndexVersion(),
+            true
+        );
+        for (String field : List.of("category", "body")) {
+            assertThat(field, supplier.getDocValuesFormatForField(field), instanceOf(ColumNARDocValuesFormat.class));
+            final StringColumnOptions.Sizes sizes = supplier.resolveStringColumnOptions(field, ColumnarFieldType.STRING).sizes();
+            assertThat(field, sizes.plainChunks(), equalTo(new ChunkBounds(128 * 1024, 128)));
+            assertThat(field, sizes.escapeChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
+            assertThat(field, sizes.compressedOrdinalBlockSize(), equalTo(512));
+            assertThat(field, sizes.valuesPerBlock(), equalTo(StringColumnOptions.DEFAULT_VALUES_PER_BLOCK));
+        }
+        assertEquals(DictionaryPolicy.NONE, supplier.resolveStringColumnOptions("body", ColumnarFieldType.STRING).dictionary());
+        assertEquals(
+            StringColumnOptions.DEFAULT_DICTIONARY,
+            supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).dictionary()
+        );
+    }
+
+    public void testStringColumnOptionsKeepEachFieldsFramingInEveryColumnarMode() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR));
+        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            modes.add(IndexMode.VECTORDB_COLUMNAR);
+        }
+        final String mapping = """
+            {
+                "properties": {
+                    "category": { "type": "keyword" },
+                    "host": { "type": "keyword", "doc_values": { "multi_value": false } },
+                    "body": { "type": "text" }
+                }
+            }
+            """;
+        for (IndexMode mode : modes) {
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), mode)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, randomColumnarEligibleIndexVersion())
+                .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
+                .build();
+            final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings, "test");
+            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            final PerFieldFormatSupplier supplier = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+            for (String field : List.of("category", "host", "body")) {
+                assertThat(
+                    "mode=" + mode + " " + field,
+                    supplier.getDocValuesFormatForField(field),
+                    instanceOf(ColumNARDocValuesFormat.class)
+                );
+            }
+            assertFalse("mode=" + mode, supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).singleValued());
+            assertTrue("mode=" + mode, supplier.resolveStringColumnOptions("host", ColumnarFieldType.STRING).singleValued());
+            assertFalse("mode=" + mode, supplier.resolveStringColumnOptions("body", ColumnarFieldType.STRING).singleValued());
+        }
+    }
+
+    public void testStringColumnOptionsAreNotGuessedForAFieldWithoutThem() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            randomColumnarEligibleIndexVersion(),
+            true
+        );
+        for (String field : List.of("unmapped", "size")) {
+            final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> supplier.resolveStringColumnOptions(field, ColumnarFieldType.STRING)
+            );
+            assertThat(e.getMessage(), containsString("field [" + field + "]"));
+        }
     }
 
     private static IndexMode randomColumnarMode() {

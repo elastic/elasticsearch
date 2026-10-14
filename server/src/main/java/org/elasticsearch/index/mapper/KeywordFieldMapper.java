@@ -1391,7 +1391,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 if (usesBinaryDocValues()) {
-                    return binaryQueries().wildcard(name(), value, caseInsensitive);
+                    return binaryQueries().wildcard(name(), value, caseInsensitive, context.getCircuitBreaker());
                 }
 
                 if (caseInsensitive == false) {
@@ -1403,7 +1403,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
-                return new StringScriptFieldWildcardQuery(new Script(""), leafFactory, name(), value, caseInsensitive);
+                return new StringScriptFieldWildcardQuery(
+                    new Script(""),
+                    leafFactory,
+                    name(),
+                    value,
+                    caseInsensitive,
+                    context.getCircuitBreaker()
+                );
             }
         }
 
@@ -1420,7 +1427,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 if (usesBinaryDocValues()) {
-                    return binaryQueries().wildcard(name(), value, false);
+                    return binaryQueries().wildcard(name(), value, false, context.getCircuitBreaker());
                 } else {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
@@ -1642,7 +1649,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         // A keyword column is where a dictionary pays: its values repeat, and the terms are short enough that
         // a bounded dictionary covers much of the column.
         return switch (fieldType().diskFormat()) {
-            case BINARY_COLUMNAR_PAYLOAD, BINARY_COLUMNAR_SINGLE_VALUE -> StringColumnOptions.DEFAULT;
+            case BINARY_COLUMNAR_PAYLOAD -> StringColumnOptions.DEFAULT;
+            case BINARY_COLUMNAR_SINGLE_VALUE -> StringColumnOptions.DEFAULT.withSingleValued(true);
             case NONE, SORTED_SET, BINARY_SEPARATE_COUNT, BINARY_ARRAY_ORDER_INLINE_NULL -> null;
         };
     }
@@ -1821,6 +1829,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             // The documents that carry the field but indexed nothing under it, and so need its index options stated separately.
             final FixedBitSet valuelessDocs = columnar && payloadTypeWhenValueless != null ? new FixedBitSet(docCount) : null;
             final boolean strictColumnar = indexSettings.getMode().isStrictColumnar();
+            // Tracks which docs the cursor visited (had ≥1 element). Allocated only for required fields
+            // so the post-loop scan can detect docs with empty arrays (cursor never visits those docs).
+            final FixedBitSet docVisited = isNullable() == false && binaryDvs != null ? new FixedBitSet(docCount) : null;
 
             while (true) {
                 final int nextDoc = cursor.nextDoc();
@@ -1835,7 +1846,21 @@ public final class KeywordFieldMapper extends FieldMapper {
                         // null_value substitution turns the null into a value, which is why this also asks that nothing was
                         // produced.
                         final boolean bareNull = strictColumnar && hasNonNull == false && source.isNull(currentDoc);
-                        if (columnar) {
+                        // An all-null array (hasNonNull==false, not a bare scalar null) with nullability=false is a
+                        // violation that mapColumnBatch's hasNullOrAbsentDoc() did not catch — it only detects scalar
+                        // nulls and absent docs, not array columns whose every element is null.
+                        if (isNullable() == false && hasNonNull == false && bareNull == false) {
+                            if (onFailureBehavior() == DocValuesParameter.Values.OnFailure.IGNORE) {
+                                ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
+                            } else {
+                                throw new UnsupportedOperationException(
+                                    "mapColumnBatch: nullability=false field [" + fullPath() + "] has an all-null array value"
+                                );
+                            }
+                            if (columnar) {
+                                payload.reset();
+                            }
+                        } else if (columnar) {
                             if (bareNull == false) {
                                 // An all-null document is a payload like any other, which is why no companion count
                                 // column is emitted alongside.
@@ -1865,6 +1890,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                     currentDoc = nextDoc;
                     ignoredThisDoc = false;
+                    if (docVisited != null) {
+                        docVisited.set(currentDoc);
+                    }
                 }
 
                 BytesRef binaryValue = cursor.value();
@@ -1931,6 +1959,24 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             }
 
+            // Post-loop: enforce nullability for docs whose cursor was never visited because they had an
+            // empty array (0 elements). hasNullOrAbsentDoc() only catches scalar nulls and absent docs;
+            // an empty array is a distinct case — it is present and non-null in the ESCF column but has
+            // no cursor visits, leaving docVisited unset for that doc.
+            if (docVisited != null) {
+                for (int d = 0; d < docCount; d++) {
+                    if (docVisited.get(d) == false && source.isPresent(d) && source.isNull(d) == false) {
+                        if (onFailureBehavior() == DocValuesParameter.Values.OnFailure.IGNORE) {
+                            ctx.addIgnoredFieldColumnar(d, fullPath());
+                        } else {
+                            throw new UnsupportedOperationException(
+                                "mapColumnBatch: nullability=false field [" + fullPath() + "] has an empty array value"
+                            );
+                        }
+                    }
+                }
+            }
+
             // Attach output columns. Terms, binary-dv blob, and counts are each emitted independently.
             // Without the codec, all-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled;
             // a columnar field writes a payload for every shape and emits no counts column at all.
@@ -1990,7 +2036,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         // column's serialization; they get a column of their own. BINARY_COLUMNAR_SINGLE_VALUE writes raw
         // bytes, which are the same bytes as the terms column, so it shares emitSharedColumn below.
         final boolean columnarPayload = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD;
-        final boolean columnarSingleValue = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_SINGLE_VALUE;
         // SORTED_SET doc values share the fieldType column with terms (the frozen fieldType carries both features).
         final boolean sortedSetDvs = emitDvs && fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.SORTED_SET;
         final boolean multiValue = docValuesParameters().multiValue();
@@ -2013,22 +2058,37 @@ public final class KeywordFieldMapper extends FieldMapper {
             boolean valueSeenThisDoc = false;
             boolean ignoredThisDoc = false;
             int elementsThisDoc = 0;
+            boolean nullElementSeenThisDoc = false;
             while (true) {
                 final int nextDoc = cursor.nextDoc();
-                if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
-                    break;
-                }
                 if (nextDoc != currentDoc) {
+                    // An all-null array (nullElementSeenThisDoc==true, valueSeenThisDoc==false) with
+                    // nullability=false is not caught by hasNullOrAbsentDoc(), which only detects scalar
+                    // nulls/absent docs; enforce it here at the doc boundary.
+                    if (currentDoc >= 0 && nullElementSeenThisDoc && valueSeenThisDoc == false && isNullable() == false) {
+                        if (onFailureBehavior() == DocValuesParameter.Values.OnFailure.IGNORE) {
+                            ctx.addIgnoredFieldColumnar(currentDoc, fullPath());
+                        } else {
+                            throw new UnsupportedOperationException(
+                                "mapColumnBatch: nullability=false field [" + fullPath() + "] has an all-null array value"
+                            );
+                        }
+                    }
+                    if (nextDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                        break;
+                    }
                     currentDoc = nextDoc;
                     valueSeenThisDoc = false;
                     ignoredThisDoc = false;
                     elementsThisDoc = 0;
+                    nullElementSeenThisDoc = false;
                 }
                 BytesRef binaryValue = cursor.value();
                 if (binaryValue == null) {
                     if (nullValueBytes != null) {
                         binaryValue = nullValueBytes;  // substitute, fall through to normal processing
                     } else {
+                        nullElementSeenThisDoc = true;
                         continue;  // null without null_value -> absent (row-path parity)
                     }
                 }
@@ -2106,13 +2166,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
                     }
                     if (emitDvs && columnarPayload == false && sortedSetDvs == false) {
-                        ctx.addColumn(
-                            LuceneBinaryColumn.of(
-                                data,
-                                fieldType().name(),
-                                columnarSingleValue ? SingleValuedColumnarBinaryDocValuesField.TYPE : BinaryDocValuesField.TYPE
-                            )
-                        );
+                        ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
                     }
                 }
                 // A columnar field's doc values are framed, so they are a column of their own rather than a second wrapper
@@ -2303,10 +2357,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     binaryValue,
                     MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                 );
-                case BINARY_COLUMNAR_SINGLE_VALUE ->
-                    // Single-valued columnar field: raw bytes, no payload framing. The FieldType attribute
-                    // flows into FieldInfo so the codec producer returns the value directly.
-                    context.doc().add(new SingleValuedColumnarBinaryDocValuesField(fieldType().name(), binaryValue));
+                case BINARY_COLUMNAR_SINGLE_VALUE -> context.doc().add(new BinaryDocValuesField(fieldType().name(), binaryValue));
                 case NONE, SORTED_SET -> throw new AssertionError(
                     "field [" + fieldType().name() + "] uses binary doc values but resolved to layout [" + fieldType().diskFormat() + "]"
                 );

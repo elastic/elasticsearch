@@ -39,12 +39,12 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.internal.LeafExecutionScope;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +87,7 @@ public abstract class LuceneOperator extends SourceOperator {
     private final LuceneSliceQueue sliceQueue;
 
     private final Set<String> processedQueries = new TreeSet<>();
-    private final Set<String> processedShards = new HashSet<>();
+    private final Set<String> processedShards = new TreeSet<>();
 
     protected LuceneSlice currentSlice;
     private int sliceIndex;
@@ -270,11 +270,18 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final void close() {
+        releaseCurrentScorer();
         refCounteds.iterable().forEach(RefCounted::decRef);
         additionalClose();
     }
 
     protected void additionalClose() { /* Override this method to add any additional cleanup logic if needed */ }
+
+    private void releaseCurrentScorer() {
+        if (currentScorer != null) {
+            currentScorer.releaseExecutionMemory();
+        }
+    }
 
     LuceneScorer getCurrentOrLoadNextScorer() {
         if (doneCollecting) {
@@ -287,6 +294,7 @@ public abstract class LuceneOperator extends SourceOperator {
                     sliceIndex = 0;
                     currentSlice = sliceQueue.nextSlice(currentSlice);
                     if (currentSlice == null) {
+                        releaseCurrentScorer();
                         doneCollecting = true;
                         return null;
                     }
@@ -302,6 +310,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 ) {
                     final Weight weight = currentSlice.weight();
                     processedQueries.add(Status.queryString(weight.getQuery()));
+                    releaseCurrentScorer();
                     currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
                     sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
                     if (sliceBlocked == null || sliceBlocked.isDone()) {
@@ -420,6 +429,7 @@ public abstract class LuceneOperator extends SourceOperator {
         private final Weight weight;
         private final LeafReaderContext leafReaderContext;
         private final List<Object> tags;
+        private final LeafExecutionScope executionScope = new LeafExecutionScope();
 
         private BulkScorer bulkScorer;
         private int position;
@@ -436,11 +446,18 @@ public abstract class LuceneOperator extends SourceOperator {
 
         private void reinitialize() {
             this.executingThread = Thread.currentThread();
+            // the previous bulk scorer, if any, is dropped here
+            releaseExecutionMemory();
             try {
-                this.bulkScorer = weight.bulkScorer(leafReaderContext);
+                this.bulkScorer = executionScope.capture(() -> weight.bulkScorer(leafReaderContext));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
+        }
+
+        /** Releases the execution memory that building the bulk scorer charged to the request circuit breaker. */
+        void releaseExecutionMemory() {
+            executionScope.release();
         }
 
         void scoreNextRange(LeafCollector collector, Bits acceptDocs, int numDocs) throws IOException {
@@ -547,8 +564,8 @@ public abstract class LuceneOperator extends SourceOperator {
         );
 
         private final int processedSlices;
-        private final Set<String> processedQueries;
-        private final Set<String> processedShards;
+        private final List<String> processedQueries;
+        private final List<String> processedShards;
         private final long processNanos;
         private final int totalSlices;
         private final int pagesEmitted;
@@ -579,9 +596,9 @@ public abstract class LuceneOperator extends SourceOperator {
 
         protected Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
-            processedQueries = operator.processedQueries;
+            processedQueries = List.copyOf(operator.processedQueries);
             processNanos = operator.processingNanos;
-            processedShards = new TreeSet<>(operator.processedShards);
+            processedShards = List.copyOf(operator.processedShards);
             sliceIndex = operator.sliceIndex;
             totalSlices = operator.sliceQueue.totalSlices();
             LuceneSlice slice = operator.currentSlice;
@@ -608,8 +625,8 @@ public abstract class LuceneOperator extends SourceOperator {
 
         Status(
             int processedSlices,
-            Set<String> processedQueries,
-            Set<String> processedShards,
+            List<String> processedQueries,
+            List<String> processedShards,
             long processNanos,
             int sliceIndex,
             int totalSlices,
@@ -640,8 +657,8 @@ public abstract class LuceneOperator extends SourceOperator {
 
         Status(StreamInput in) throws IOException {
             processedSlices = in.readVInt();
-            processedQueries = in.readCollectionAsSet(StreamInput::readString);
-            processedShards = in.readCollectionAsSet(StreamInput::readString);
+            processedQueries = in.readCollectionAsImmutableList(StreamInput::readString);
+            processedShards = in.readCollectionAsImmutableList(StreamInput::readString);
             processNanos = in.readVLong();
             sliceIndex = in.readVInt();
             totalSlices = in.readVInt();
@@ -704,11 +721,11 @@ public abstract class LuceneOperator extends SourceOperator {
             return processedSlices;
         }
 
-        public Set<String> processedQueries() {
+        public List<String> processedQueries() {
             return processedQueries;
         }
 
-        public Set<String> processedShards() {
+        public List<String> processedShards() {
             return processedShards;
         }
 

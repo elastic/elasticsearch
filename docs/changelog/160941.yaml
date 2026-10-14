@@ -1,0 +1,7 @@
+pr: 160941
+summary: Support field collapse on keyword fields with binary doc values, as used
+  by columnar index modes
+area: Search
+type: bug
+issues:
+ - 158753

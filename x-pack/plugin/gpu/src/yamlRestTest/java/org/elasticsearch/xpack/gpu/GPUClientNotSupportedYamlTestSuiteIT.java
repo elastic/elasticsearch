@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.gpu;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -42,7 +43,7 @@ public class GPUClientNotSupportedYamlTestSuiteIT extends ESClientYamlSuiteTestC
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(gpuNotSupportedRule).around(cluster);
 
-    public GPUClientNotSupportedYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public GPUClientNotSupportedYamlTestSuiteIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

@@ -57,6 +57,7 @@ public class DatasetPutStaleParentIT extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(2))
+            .put("xpack.license.self_generated.type", "trial")
             .build();
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -47,7 +49,7 @@ import static org.mockito.Mockito.when;
 public class AsyncConnectorSourceOperatorFactorySplitTests extends ESTestCase {
 
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testExternalSplitsPassedFromSliceQueue() throws Exception {
@@ -185,6 +187,53 @@ public class AsyncConnectorSourceOperatorFactorySplitTests extends ESTestCase {
         assertEquals("addAsyncAction should be called exactly once", 1, addCount.get());
         assertEquals("removeAsyncAction should be called exactly once after all splits", 1, removeCount.get());
         assertEquals(2, receivedSplits.size());
+    }
+
+    /**
+     * Sibling of AESOF's park-with-page release: {@code next()} can block after hasNext() and
+     * after the pre-next remaining check. If the observed limiter hits 0 during that next(),
+     * the popped page must be released, not added.
+     */
+    public void testObservedLimiterReleasesPagePoppedAfterRemainingZero() throws Exception {
+        CountDownLatch enteredSecondNext = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
+        AtomicInteger nextCalls = new AtomicInteger();
+        LatchedTwoPageConnector connector = new LatchedTwoPageConnector(nextCalls, enteredSecondNext, proceed);
+        QueryRequest baseRequest = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-leftover"));
+        try {
+            AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(connector, baseRequest, 10, pool);
+            Limiter observed = new Limiter(100);
+            factory.setObservedLimiter(observed);
+
+            DriverContext ctx = mockDriverContext();
+            SourceOperator operator = factory.get(ctx);
+            assertTrue(enteredSecondNext.await(30, TimeUnit.SECONDS));
+            observed.tryAccumulateHits(observed.remaining());
+            proceed.countDown();
+
+            int rows = 0;
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    rows += page.getPositionCount();
+                    page.releaseBlocks();
+                    continue;
+                }
+                if (System.nanoTime() > deadline) {
+                    throw new AssertionError("timed out draining operator");
+                }
+                Thread.yield();
+            }
+            operator.close();
+            assertEquals(2, nextCalls.get());
+            assertEquals("leftover second page must be released, not delivered", 1, rows);
+        } finally {
+            proceed.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
     }
 
     /**
@@ -426,6 +475,60 @@ public class AsyncConnectorSourceOperatorFactorySplitTests extends ESTestCase {
             @Override
             public void close() {}
         };
+    }
+
+    /**
+     * Connector whose second {@code next()} blocks until the test drains remaining to 0.
+     */
+    private static class LatchedTwoPageConnector implements Connector {
+        private final AtomicInteger nextCalls;
+        private final CountDownLatch enteredSecondNext;
+        private final CountDownLatch proceed;
+
+        LatchedTwoPageConnector(AtomicInteger nextCalls, CountDownLatch enteredSecondNext, CountDownLatch proceed) {
+            this.nextCalls = nextCalls;
+            this.enteredSecondNext = enteredSecondNext;
+            this.proceed = proceed;
+        }
+
+        @Override
+        public ResultCursor execute(QueryRequest request, Split split) {
+            return new ResultCursor() {
+                private int remaining = 2;
+
+                @Override
+                public boolean hasNext() {
+                    return remaining > 0;
+                }
+
+                @Override
+                public Page next() {
+                    if (remaining <= 0) {
+                        throw new NoSuchElementException();
+                    }
+                    int n = nextCalls.incrementAndGet();
+                    if (n == 2) {
+                        enteredSecondNext.countDown();
+                        try {
+                            if (proceed.await(30, TimeUnit.SECONDS) == false) {
+                                throw new AssertionError("timed out waiting to proceed");
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException(e);
+                        }
+                    }
+                    remaining--;
+                    return createTestPage();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public void close() {}
     }
 
     /**

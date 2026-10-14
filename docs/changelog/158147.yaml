@@ -1,0 +1,6 @@
+pr: 158147
+summary: Fix dis_max double-charging the request breaker
+area: Search
+type: bug
+issues:
+ - 158145

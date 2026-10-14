@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
@@ -96,6 +97,46 @@ public class PageRowLimitingIteratorTests extends ComputeTestCase {
                 }
             }
             assertEquals(10, totalRows);
+        }
+    }
+
+    public void testWaitForReadyIsDoneAfterLocalLimitWithoutAskingDelegate() throws IOException {
+        SubscribableListener<Void> blocked = new SubscribableListener<>();
+        AtomicBoolean waitForReadyOnDelegate = new AtomicBoolean();
+        CloseableIterator<Page> delegate = new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                throw new AssertionError("drain must not call hasNext after the row limit");
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public SubscribableListener<Void> waitForReady() {
+                waitForReadyOnDelegate.set(true);
+                return blocked;
+            }
+
+            @Override
+            public Page tryAdvance() {
+                return page(100);
+            }
+
+            @Override
+            public void close() {}
+        };
+
+        try (var iter = new PageRowLimitingIterator(delegate, 50)) {
+            try (Page p = iter.tryAdvance()) {
+                assertEquals(50, p.getPositionCount());
+            }
+            assertTrue("local LIMIT is EOF; drain must not park on the delegate GET", iter.waitForReady().isDone());
+            assertNull(iter.tryAdvance());
+            assertFalse(waitForReadyOnDelegate.get());
+            assertFalse(blocked.isDone());
         }
     }
 

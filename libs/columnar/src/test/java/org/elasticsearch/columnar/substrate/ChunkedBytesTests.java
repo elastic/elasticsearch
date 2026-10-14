@@ -306,7 +306,9 @@ public class ChunkedBytesTests extends ESTestCase {
         }
         try (Directory dir = newDirectory()) {
             writeStream(dir, ChunkCodec.ZSTD, 1024, values, new long[values.size() + 1]);
-            assertArrayEquals(new String[] { "chunks.bin", "chunks.nav" }, dir.listAll());
+            // newDirectory() may return a MockDirectoryWrapper that adds a synthetic "extra0" file, which is not ours
+            final String[] files = Arrays.stream(dir.listAll()).filter(name -> name.startsWith("extra") == false).toArray(String[]::new);
+            assertArrayEquals(new String[] { "chunks.bin", "chunks.nav" }, files);
         }
     }
 

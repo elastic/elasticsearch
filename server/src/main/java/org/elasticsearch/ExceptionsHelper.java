@@ -504,6 +504,7 @@ public final class ExceptionsHelper {
     public static boolean isNodeOrShardUnavailableTypeException(Throwable t) {
         return (t instanceof org.elasticsearch.action.NoShardAvailableActionException
             || t instanceof org.elasticsearch.action.UnavailableShardsException
+            || t instanceof org.elasticsearch.snapshots.ShardRestoringException
             || t instanceof org.elasticsearch.node.NodeClosedException
             || t instanceof org.elasticsearch.transport.NodeDisconnectedException
             || t instanceof org.elasticsearch.discovery.MasterNotDiscoveredException

@@ -639,7 +639,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             .stream()
             .filter(shard -> subjectShards.contains(shard.shardId()))
             .filter(
-                shard -> allocation.routingNodes().stream().anyMatch(node -> deciders.canAllocate(shard, node, allocation) != Decision.NO)
+                shard -> allocation.routingNodes()
+                    .stream()
+                    .anyMatch(node -> deciders.canAllocate(shard, node, allocation).type() != Decision.Type.NO)
             )
             .toList();
         return new AllocatableShards(

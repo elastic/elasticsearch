@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.stateless.engine;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.function.LongSupplier;
@@ -54,7 +53,7 @@ public record HollowShardsMetrics(
             HOLLOWABLE_SHARDS_TOTAL,
             "Amount of the current hollowable shards on the node",
             "count",
-            () -> new LongWithAttributes(amountOfHollowableShardsSupplier.getAsLong())
+            amountOfHollowableShardsSupplier
         );
         return new HollowShardsMetrics(meterRegistry, hollowSuccessCounter, unhollowSuccessCounter, hollowTime, unhollowTime, hollowShards);
     }

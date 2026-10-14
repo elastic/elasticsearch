@@ -1,0 +1,1 @@
+FROM (FROM employees_all | WHERE emp_no == 10001), (FROM employees_all | WHERE emp_no == 10002)

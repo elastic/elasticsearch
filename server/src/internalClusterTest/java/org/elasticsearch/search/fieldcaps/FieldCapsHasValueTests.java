@@ -194,7 +194,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
     public void testUnmappedFieldsWithValueAfterRestart() throws Exception {
         prepareIndex(INDEX1).setSource("unmapped", "unmapped-text").get();
         internalCluster().fullRestart();
-        ensureGreen(INDEX1);
+        ensureGreen(INDEX1, INDEX2, INDEX3);
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps()
             .setFields("*")
@@ -330,7 +330,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
         assertEquals(1, objectTypeField.size());
         assertThat(objectTypeField, Matchers.hasKey("object"));
         assertEquals(
-            new FieldCapabilitiesBuilder("object", "object").isSearchable(false).isAggregatable(false).build(),
+            new FieldCapabilitiesBuilder("object", "object").isSearchable(false).isAggregatable(false).isPassthrough(false).build(),
             objectTypeField.get("object")
         );
         // Check the capabilities for the 'object.sub_field' field.

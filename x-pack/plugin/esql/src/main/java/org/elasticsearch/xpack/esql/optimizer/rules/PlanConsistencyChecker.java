@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -58,9 +59,10 @@ public class PlanConsistencyChecker {
             checkMissing(p, p.references(), p.inputSet(), "missing references", failures);
         }
 
-        var outputAttributeNames = Sets.<String>newHashSetWithExpectedSize(p.output().size());
-        var outputAttributeIds = Sets.<NameId>newHashSetWithExpectedSize(p.output().size());
-        for (Attribute outputAttr : p.output()) {
+        List<Attribute> output = p.output();
+        var outputAttributeNames = Sets.<String>newHashSetWithExpectedSize(output.size());
+        var outputAttributeIds = Sets.<NameId>newHashSetWithExpectedSize(output.size());
+        for (Attribute outputAttr : output) {
             if (outputAttributeNames.add(outputAttr.name()) == false || outputAttributeIds.add(outputAttr.id()) == false) {
                 failures.add(
                     fail(p, "Plan [{}] optimized incorrectly due to duplicate output attribute {}", p.nodeString(), outputAttr.toString())

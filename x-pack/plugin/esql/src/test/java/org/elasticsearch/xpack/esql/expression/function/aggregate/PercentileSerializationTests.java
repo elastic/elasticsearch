@@ -22,7 +22,15 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
         Expression field = randomChild();
         Expression percentile = randomChild();
         double tDigestStateCompression = randomDouble();
-        return new Percentile(source, field, Literal.TRUE, AggregateFunction.NO_WINDOW, percentile, tDigestStateCompression);
+        return new Percentile(
+            source,
+            field,
+            Literal.TRUE,
+            AggregateFunction.NO_WINDOW,
+            percentile,
+            tDigestStateCompression,
+            randomBoolean()
+        );
     }
 
     @Override
@@ -31,12 +39,22 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
         Expression field = instance.field();
         Expression percentile = instance.percentile();
         double tDigestStateCompression = instance.tDigestStateCompression();
-        switch (between(0, 2)) {
+        boolean allowNonFinite = instance.allowNonFinite();
+        switch (between(0, 3)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> percentile = randomValueOtherThan(percentile, AbstractExpressionSerializationTests::randomChild);
             case 2 -> tDigestStateCompression = randomValueOtherThan(tDigestStateCompression, ESTestCase::randomDouble);
+            case 3 -> allowNonFinite = allowNonFinite == false;
         }
-        return new Percentile(source, field, Literal.TRUE, AggregateFunction.NO_WINDOW, percentile, tDigestStateCompression);
+        return new Percentile(
+            source,
+            field,
+            Literal.TRUE,
+            AggregateFunction.NO_WINDOW,
+            percentile,
+            tDigestStateCompression,
+            allowNonFinite
+        );
     }
 
 }

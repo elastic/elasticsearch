@@ -73,6 +73,8 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
@@ -133,7 +135,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     projectId,
                     n,
                     Decision.Type.NO,
-                    "index has a preference for tiers [data_warm,data_cold], "
+                    "index has a preference for tiers [data_warm, data_cold], "
                         + "but no nodes for any of those tiers are available in the cluster"
                 );
             }
@@ -155,7 +157,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     projectId,
                     n,
                     Decision.Type.NO,
-                    "index has a preference for tiers [data_warm,data_cold] and node does not meet the required [data_cold] tier"
+                    "index has a preference for tiers [data_warm, data_cold] and node does not meet the required [data_cold] tier"
                 );
             }
 
@@ -164,7 +166,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 projectId,
                 COLD_NODE,
                 Decision.Type.YES,
-                "index has a preference for tiers [data_warm,data_cold] and node has tier [data_cold]"
+                "index has a preference for tiers [data_warm, data_cold] and node has tier [data_cold]"
             );
         }
 
@@ -185,7 +187,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     projectId,
                     node,
                     Decision.Type.NO,
-                    "index has a preference for tiers [data_cold,data_warm] and node does not meet the required [data_warm] tier"
+                    "index has a preference for tiers [data_cold, data_warm] and node does not meet the required [data_warm] tier"
                 );
             }
 
@@ -194,7 +196,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 projectId,
                 WARM_NODE,
                 Decision.Type.YES,
-                "index has a preference for tiers [data_cold,data_warm] and node has tier [data_warm]"
+                "index has a preference for tiers [data_cold, data_warm] and node has tier [data_warm]"
             );
         }
 
@@ -230,7 +232,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     Decision.Type.NO,
                     org.elasticsearch.core.Strings.format(
                         "index has a preference for tiers [%s], but no nodes for any of those tiers are available in the cluster",
-                        tierPreference
+                        tierPreference.replace(",", ", ")
                     )
                 );
             }
@@ -971,24 +973,39 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         String explanationMessage
     ) {
         final var allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
-        allocation.debugDecision(true);
-
         final var routingNode = RoutingNodesHelper.routingNode(node.getId(), node, shard);
-        {
-            final var decision = DataTierAllocationDecider.INSTANCE.canAllocate(shard, routingNode, allocation);
-            assertThat(routingNode.toString(), decision.type(), equalTo(decisionType));
-            assertThat(routingNode.toString(), decision.getExplanation(), containsString(explanationMessage));
+        final var indexMetadata = allocation.metadata().getProject(projectId).getIndexSafe(shard.index());
+
+        if (decisionType == Decision.Type.NO) {
+            // Without debug there is no explanation, but the decision must still carry the decider's label
+            final var noExplanation = isNoDecisionWithNoExplanation(DataTierAllocationDecider.NAME);
+            assertThat(
+                routingNode.toString(),
+                DataTierAllocationDecider.INSTANCE.canAllocate(shard, routingNode, allocation),
+                noExplanation
+            );
+            assertThat(
+                routingNode.toString(),
+                DataTierAllocationDecider.INSTANCE.canRemain(indexMetadata, shard, routingNode, allocation),
+                noExplanation
+            );
         }
 
-        {
-            final var decision = DataTierAllocationDecider.INSTANCE.canRemain(
-                allocation.metadata().getProject(projectId).getIndexSafe(shard.index()),
-                shard,
-                routingNode,
-                allocation
+        allocation.debugDecision(true);
+        final var canAllocate = DataTierAllocationDecider.INSTANCE.canAllocate(shard, routingNode, allocation);
+        final var canRemain = DataTierAllocationDecider.INSTANCE.canRemain(indexMetadata, shard, routingNode, allocation);
+        if (decisionType == Decision.Type.NO) {
+            final var withExplanation = isNoDecisionWithExplanationMatching(
+                DataTierAllocationDecider.NAME,
+                containsString(explanationMessage)
             );
-            assertThat(routingNode.toString(), decision.type(), equalTo(decisionType));
-            assertThat(routingNode.toString(), decision.getExplanation(), containsString(explanationMessage));
+            assertThat(routingNode.toString(), canAllocate, withExplanation);
+            assertThat(routingNode.toString(), canRemain, withExplanation);
+        } else {
+            for (var decision : List.of(canAllocate, canRemain)) {
+                assertThat(routingNode.toString(), decision.type(), equalTo(decisionType));
+                assertThat(routingNode.toString(), decision.getExplanation(), containsString(explanationMessage));
+            }
         }
     }
 

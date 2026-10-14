@@ -28,6 +28,7 @@ import javax.annotation.processing.Filer;
 import javax.lang.model.element.TypeElement;
 
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Object;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_boolean;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
 
 /**
@@ -42,6 +43,8 @@ class ProviderClassWriter {
     private static final ClassDesc CD_LibraryProvider = ClassDesc.of(LibraryProvider.class.getName());
     private static final ClassDesc CD_Platform = ClassDesc.of(Platform.class.getName());
     private static final MethodTypeDesc MTD_Platform_current = MethodTypeDesc.of(CD_Platform);
+    private static final String AVAILABLE_ON_CURRENT_PLATFORM = "availableOnCurrentPlatform";
+    private static final MethodTypeDesc MTD_boolean = MethodTypeDesc.of(CD_boolean);
 
     private final Filer filer;
     private final int classFileVersion;
@@ -90,25 +93,39 @@ class ProviderClassWriter {
                 });
             });
 
+            // public boolean availableOnCurrentPlatform() { ... }
+            cb.withMethodBody(AVAILABLE_ON_CURRENT_PLATFORM, MTD_boolean, ClassFile.ACC_PUBLIC, code -> {
+                if (model.unavailableOn().isEmpty() == false) {
+                    // Platform p = Platform.current();
+                    code.invokestatic(CD_Platform, "current", MTD_Platform_current);
+                    code.astore(1);
+                    for (String platformName : model.unavailableOn()) {
+                        // if (p == Platform.<platformName>) return false;
+                        Label skip = code.newLabel();
+                        code.aload(1);
+                        code.getstatic(CD_Platform, platformName, CD_Platform);
+                        code.if_acmpne(skip);
+                        code.iconst_0();
+                        code.ireturn();
+                        code.labelBinding(skip);
+                    }
+                }
+                code.iconst_1();
+                code.ireturn();
+            });
+
             // public T load() { ... }
             cb.withMethod("load", MethodTypeDesc.of(CD_Object), ClassFile.ACC_PUBLIC, mb -> {
                 mb.with(SignatureAttribute.of(MethodSignature.of(ClassTypeSig.of(interfaceDesc))));
                 mb.withCode(code -> {
-                    if (model.unavailableOn().isEmpty() == false) {
-                        // Platform p = Platform.current();
-                        code.invokestatic(CD_Platform, "current", MTD_Platform_current);
-                        code.astore(1);
-                        for (String platformName : model.unavailableOn()) {
-                            // if (p == Platform.<platformName>) return null;
-                            Label skip = code.newLabel();
-                            code.aload(1);
-                            code.getstatic(CD_Platform, platformName, CD_Platform);
-                            code.if_acmpne(skip);
-                            code.aconst_null();
-                            code.areturn();
-                            code.labelBinding(skip);
-                        }
-                    }
+                    // if (availableOnCurrentPlatform() == false) return null;
+                    Label available = code.newLabel();
+                    code.aload(0);
+                    code.invokevirtual(providerDesc, AVAILABLE_ON_CURRENT_PLATFORM, MTD_boolean);
+                    code.ifne(available);
+                    code.aconst_null();
+                    code.areturn();
+                    code.labelBinding(available);
                     // return new $Impl();
                     code.new_(implDesc);
                     code.dup();

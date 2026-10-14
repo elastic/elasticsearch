@@ -52,12 +52,19 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
             )
         );
 
-        // shardHeapUsageBytes already includes postings. Hosted-shards keeps each node's own postings. Total heap replaces those with the
-        // largest index-node postings value, which is node-b's 17 bytes.
-        // node-a hosted = 10 shard (incl. 5 postings) + 100 index = 110
-        // node-a total = 1000 non-shard + (10 - 5) shard + 100 index + 17 max postings = 1122
-        // node-b hosted = 20 + 200 = 220
-        // node-b total = 1000 + (20 - 17) + 200 + 17 = 1220
+        // Each ShardAndIndexHeapUsage is (shard heap, index heap, postings). The postings are already included in the shard heap.
+        // Node A is (10, 100, 5): 10 bytes of shard heap, of which 5 are postings, plus 100 bytes of index heap.
+        // Node B is (20, 200, 17): 20 bytes of shard heap, of which 17 are postings, plus 200 bytes of index heap.
+        //
+        // Hosted-shards heap keeps whatever postings that node actually has:
+        // node A = 10 + 100 = 110
+        // node B = 20 + 200 = 220
+        //
+        // The indexing-node total does not use each node's own postings. It uses the larger of the two, which is node B's 17.
+        // The local postings are taken back out of the shard heap first, so they are not counted twice:
+        // node A = 1000 non-shard + (10 - 5) shard + 100 index + 17 max postings = 1122
+        // node B = 1000 non-shard + (20 - 17) shard + 200 index + 17 max postings = 1220
+        // Node B's total is 1000 + 220 because its own postings are already the maximum.
         assertThat(result.maxPostingsHeapUsage(), equalTo(17L));
         assertThat(result.nodeHeapEstimates().get("node-a"), equalTo(new NodeHeapEstimates(1_122L, 110L, nonShardHeapUsage)));
         assertThat(result.nodeHeapEstimates().get("node-b"), equalTo(new NodeHeapEstimates(1_220L, 220L, nonShardHeapUsage)));

@@ -35,10 +35,11 @@ public final class NodeHeapUsageCalculator {
      * because every shard of an index shares the same mapping infrastructure.
      * {@code nonShardHeapUsage} is the overhead that does not follow shard moves, and it is added only on indexing nodes.
      * <p>
-     * Indexing node heap totals all use the largest postings sum found on any indexing node, so each of those nodes is charged at least as much as
-     * the heaviest one. Search node postings are left out of that maximum since search nodes hold replicas of the same shards and would otherwise
-     * raise every indexing node's total. Search nodes themselves publish hosted-shards heap only, with their total and non-shard values intentionally left unmodelled as
-     * {@code 0}. Shards that are still initializing are skipped, because finishing an in-flight recovery is the simulator's job.
+     * Indexing node heap totals all use the largest postings sum found on any indexing node, so each of those nodes is charged at least as
+     * much as the heaviest one. Search node postings are left out of that maximum since search nodes hold replicas of the same shards
+     * and would otherwise raise every indexing node's total. Search nodes themselves publish hosted-shards heap only, with their total
+     * and non-shard values intentionally left unmodelled as {@code 0}. Shards that are still initializing are skipped, because finishing
+     * an in-flight recovery is the simulator's job.
      *
      * @param clusterState             routing table that says which shards sit on which nodes
      * @param nonShardHeapUsage        per-node overhead that does not move with shard placement, applicable to indexing nodes only

@@ -91,7 +91,8 @@ public class LogicalOptimizerContextTests extends ESTestCase {
             randomIntBetween(-1, 127),
             randomIntBetween(1, 50),
             randomIntBetween(1, 20),
-            randomIntBetween(1, 20)
+            randomIntBetween(1, 20),
+            randomIntBetween(1, 100_000)
         );
     }
 }

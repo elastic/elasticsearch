@@ -125,8 +125,6 @@ public final class DataSourceCounters {
         }
 
         // ---- per-component CPU counters (ns) ----
-        // Note: execution, read, and split_discovery are real per-thread CPU time; planning is wall
-        // time. The total therefore mixes the two measurement kinds.
         long cpuTotal = 0;
         for (int i = 0; i < DataSourceUsageAccumulator.CPU_COMPONENT_COUNT; i++) {
             long v = acc.queryCpuNanos(i);

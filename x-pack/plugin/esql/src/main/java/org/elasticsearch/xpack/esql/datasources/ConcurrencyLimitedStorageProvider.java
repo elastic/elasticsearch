@@ -59,9 +59,15 @@ class ConcurrencyLimitedStorageProvider extends DelegatingStorageProvider {
 
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        return listObjects(prefix, "", recursive);
+    }
+
+    /** One permit per listing either way; the prefix only narrows what the delegate returns. */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
         limiter.acquireChecked();
         try {
-            StorageIterator delegateIterator = delegate.listObjects(prefix, recursive);
+            StorageIterator delegateIterator = delegate.listObjects(prefix, namePrefix, recursive);
             return new ConcurrencyLimitedStorageIterator(delegateIterator, limiter);
         } catch (Exception e) {
             limiter.release();

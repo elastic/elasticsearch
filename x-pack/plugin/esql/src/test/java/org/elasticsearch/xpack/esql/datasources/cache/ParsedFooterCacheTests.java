@@ -81,13 +81,13 @@ public class ParsedFooterCacheTests extends ESTestCase {
      * span more than twice the TTL, so under a write clock the entry would be gone by the last one.
      */
     public void testReadingAnEntryRenewsIt() {
-        TimeValue ttl = TimeValue.timeValueMillis(400);
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
         ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
         FooterByteCache.Key k = key("file.parquet", 1000);
 
         shortLived.put(k, "footer");
         assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(k));
-        long readUntil = System.nanoTime() + TimeValue.timeValueMillis(1000).nanos();
+        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(5).nanos();
         while (System.nanoTime() < readUntil) {
             assertEquals("an entry read at least once per TTL is still served past one TTL", "footer", shortLived.get(k));
             safeSleep(50);
@@ -95,11 +95,38 @@ public class ParsedFooterCacheTests extends ESTestCase {
     }
 
     /**
+     * The two caches take the same TTL but do not age out together, and this pins that rather than leaving
+     * it to a javadoc. A reader that answers from the parsed cache does not touch the bytes, so renewing the
+     * parsed entry alone lets its byte entry go cold. Sharing the TTL value is not co-expiry.
+     */
+    public void testRenewingTheParsedEntryDoesNotRenewItsBytes() {
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
+        ParsedFooterCache<String> parsed = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        FooterByteCache bytes = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
+        FooterByteCache.Key k = key("file.parquet", 1000);
+        byte[] tail = randomByteArrayOfLength(64);
+
+        parsed.put(k, "footer");
+        bytes.put(k, tail);
+        assertNotNull("both entries must be stored, or the assertions below pass vacuously", parsed.get(k));
+        assertNotNull(bytes.get(k));
+
+        // Read only the parsed side, as a reader answering from the parsed cache does.
+        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(5).nanos();
+        while (System.nanoTime() < readUntil) {
+            assertEquals("the parsed entry is renewed by its own reads", "footer", parsed.get(k));
+            safeSleep(100);
+        }
+
+        assertNull("its bytes were not read, so they are released on their own clock", bytes.get(k));
+    }
+
+    /**
      * The clock still releases a parsed footer nothing is reading. Without this the test above would pass on
      * a cache with no clock at all.
      */
     public void testAnEntryNobodyReadsExpires() {
-        TimeValue ttl = TimeValue.timeValueMillis(400);
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
         ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
         FooterByteCache.Key k = key("file.parquet", 1000);
 

@@ -51,8 +51,8 @@ import java.util.concurrent.ExecutionException;
  * reader ({@code withConfig}, {@code withPushedFilter}, ...) shares the root's instance via its
  * copy constructor, so all concurrent queries on a node coalesce on one cache. When a
  * query-scoped context is introduced into the format reader API, this cache should migrate to an
- * instance held by that context. Until then, cross-query staleness is bounded by the version in the key
- * rather than by the clock.
+ * instance held by that context. Until then nothing bounds cross-query staleness, because the key names
+ * the object rather than the version of it — see the next section.
  *
  * <h2>Cache key design</h2>
  * The key is {@code (storageIdentity, path, fileLength)}. It names the object, not the version of it, so
@@ -151,8 +151,8 @@ public class FooterByteCache {
 
     /**
      * The expire-after-access TTL this cache was built with. The paired {@link ParsedFooterCache} is
-     * constructed with the same value so the byte and parsed caches age out on the same clock, and a parse
-     * is not held past the bytes it came from.
+     * constructed with the same value, but the two no longer age out together: a reader that answers from
+     * the parsed cache does not read bytes, so a parsed entry can be renewed while its bytes go cold.
      */
     public TimeValue expireAfterAccess() {
         return expireAfterAccess;

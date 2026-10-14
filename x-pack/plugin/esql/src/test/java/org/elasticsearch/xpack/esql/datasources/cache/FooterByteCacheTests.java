@@ -202,14 +202,14 @@ public class FooterByteCacheTests extends ESTestCase {
      * one TTL later however hard the dashboard is still using it.
      */
     public void testReadingAnEntryRenewsIt() {
-        TimeValue ttl = TimeValue.timeValueMillis(400);
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
         FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
         FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         byte[] data = randomByteArrayOfLength(64);
 
         shortLived.put(key, data);
         assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(key));
-        long readUntil = System.nanoTime() + TimeValue.timeValueMillis(1000).nanos();
+        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(5).nanos();
         while (System.nanoTime() < readUntil) {
             assertArrayEquals("an entry read at least once per TTL is still served past one TTL", data, shortLived.get(key));
             safeSleep(50);
@@ -221,7 +221,7 @@ public class FooterByteCacheTests extends ESTestCase {
      * with no clock at all, and the TTL would have stopped bounding anything.
      */
     public void testAnEntryNobodyReadsExpires() {
-        TimeValue ttl = TimeValue.timeValueMillis(400);
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
         FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
         FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
 

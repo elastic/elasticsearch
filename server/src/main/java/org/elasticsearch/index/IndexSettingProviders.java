@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 
 import java.time.Instant;
@@ -94,9 +95,47 @@ public final class IndexSettingProviders {
         List<CompressedXContent> combinedTemplateMappings,
         IndexVersion indexVersion
     ) {
+        return collectAdditionalSettings(
+            providers,
+            indexName,
+            dataStreamName,
+            templateIndexMode,
+            registryInstalledTemplate,
+            projectMetadata,
+            resolvedAt,
+            indexTemplateAndCreateRequestSettings,
+            combinedTemplateMappings,
+            indexVersion,
+            null
+        );
+    }
+
+    /**
+     * Runs all the given providers and collects the settings they contribute. Every component that needs to know which settings an
+     * index will end up with should go through this method, so they all agree with what {@link MetadataCreateIndexService} does when
+     * the index is actually created.
+     *
+     * @throws IllegalArgumentException if two providers contribute the same setting, or a provider sets the index created version
+     */
+    public static AdditionalSettings collectAdditionalSettings(
+        Collection<IndexSettingProvider> providers,
+        String indexName,
+        @Nullable String dataStreamName,
+        @Nullable IndexMode templateIndexMode,
+        boolean registryInstalledTemplate,
+        ProjectMetadata projectMetadata,
+        Instant resolvedAt,
+        Settings indexTemplateAndCreateRequestSettings,
+        List<CompressedXContent> combinedTemplateMappings,
+        IndexVersion indexVersion,
+        Set<String> settingSubset
+    ) {
         Settings.Builder additionalSettings = Settings.builder();
         Set<String> overrulingSettings = new HashSet<>();
         for (IndexSettingProvider provider : providers) {
+            if (settingSubset != null && Sets.intersection(settingSubset, provider.influencedSettings()).isEmpty()) {
+                continue;
+            }
             Settings.Builder builder = Settings.builder();
             provider.provideAdditionalSettings(
                 indexName,

@@ -323,10 +323,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private static final DateFormatter ISO_DATETIME_FAST_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
 
     /**
-     * Sentinel returned by {@link #tryParseSpaceSeparatedDatetimeMillis(String)} when the input
-     * does not match the supported space-separated template. {@link Long#MIN_VALUE} is chosen
-     * because it cannot be produced by a legal {@code YYYY-MM-DD HH:MM:SS} value (the
-     * {@link LocalDateTime} range tops out billions of years before that millisecond).
+     * Sentinel returned when a space-separated parse attempt does not match or is out of range.
+     * Returned by {@link #tryParseSpaceSeparatedDatetimeMillis(String)},
+     * {@link #tryParseSpaceSeparatedDatetimeNanos(String)}, their helpers, and checked by the inferrer.
+     * {@link Long#MIN_VALUE} is safe for millis because {@link LocalDateTime} range tops out billions
+     * of years before that millisecond; safe for nanos because the floor check turns every negative
+     * value into a miss before it can reach this sentinel.
      */
     static final long FAST_PATH_MISS = Long.MIN_VALUE;
 

@@ -442,8 +442,8 @@ public class CsvSchemaInferrerTests extends ESTestCase {
      * regardless of range, so the column stays {@code date_nanos}.
      * <p>
      * Space-separated out-of-window values are handled differently: the space path checks the range
-     * (via {@link CsvFormatReader#tryParseSpaceSeparatedDatetimeNanos}) and a miss does not force the
-     * column — see {@link #testEveryUndecodableDialectKeepsAColumnOffTheNanosRail}.
+     * (via {@link CsvFormatReader#tryParseSpaceSeparatedDatetimeNanos}) and a miss keeps the column
+     * off the rail, in either row order — see {@link #testEveryUndecodableDialectKeepsAColumnOffTheNanosRail}.
      */
     public void testOutOfWindowValueInDateNanosColumnStaysDateNanosBothOrders() {
         String nanos = "2023-10-23T12:15:03.360103847Z";

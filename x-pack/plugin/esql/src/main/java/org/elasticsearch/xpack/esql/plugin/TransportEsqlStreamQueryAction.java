@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -253,6 +254,19 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 PlanTimeProfile planTimeProfile,
                 ActionListener<Result> resultListener
             ) {
+                run(role, plan, configuration, foldCtx, planTimeProfile, null, resultListener);
+            }
+
+            @Override
+            public void run(
+                Role role,
+                PhysicalPlan plan,
+                Configuration configuration,
+                FoldContext foldCtx,
+                PlanTimeProfile planTimeProfile,
+                ByteSizeValue maxCollectedBytes,
+                ActionListener<Result> resultListener
+            ) {
                 if (QuerySettings.UNMAPPED_FIELDS.get(configuration.resolvedSettings()).loadsAllUnmappedFields()) {
                     throw new IllegalArgumentException("[unmapped_fields=LOAD_ALL] cannot be used with [streaming=true]");
                 }
@@ -266,6 +280,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         foldCtx,
                         executionInfo,
                         planTimeProfile,
+                        maxCollectedBytes,
                         resultListener
                     );
                     return;

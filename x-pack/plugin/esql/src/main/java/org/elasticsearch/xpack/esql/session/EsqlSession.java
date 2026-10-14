@@ -224,6 +224,27 @@ public class EsqlSession {
             ActionListener<Result> listener
         );
 
+        /**
+         * Like {@link #run(Role, PhysicalPlan, Configuration, FoldContext, PlanTimeProfile, ActionListener)}, but the run
+         * should fail as soon as the result pages it collects exceed {@code maxCollectedBytes}. Used for sub-plans whose
+         * result is materialized into a local relation, so an oversized result fails without reading the whole input.
+         * Runners that cannot enforce the limit while executing may ignore it; the session still checks the complete
+         * result afterwards.
+         *
+         * @param maxCollectedBytes limit on the collected result pages, or {@code null} for no limit
+         */
+        default void run(
+            Role role,
+            PhysicalPlan plan,
+            Configuration configuration,
+            FoldContext foldContext,
+            PlanTimeProfile planTimeProfile,
+            ByteSizeValue maxCollectedBytes,
+            ActionListener<Result> listener
+        ) {
+            run(role, plan, configuration, foldContext, planTimeProfile, listener);
+        }
+
         default void columnMetadata(Map<NameId, Map<String, Object>> columnMetadata) {}
     }
 
@@ -758,9 +779,32 @@ public class EsqlSession {
             ? createExplainListener(listener, optimizedPlan, planTimeProfile, configuration, planRunner)
             : listener;
 
-        PlanRunner executionRunner = explainContext != null
-            ? (role, plan, cfg, foldCtx, profile, l) -> planRunner.run(PlanRunner.Role.INTERMEDIATE, plan, cfg, foldCtx, profile, l)
-            : planRunner;
+        PlanRunner executionRunner = explainContext != null ? new PlanRunner() {
+            @Override
+            public void run(
+                Role role,
+                PhysicalPlan plan,
+                Configuration cfg,
+                FoldContext foldCtx,
+                PlanTimeProfile profile,
+                ActionListener<Result> l
+            ) {
+                planRunner.run(Role.INTERMEDIATE, plan, cfg, foldCtx, profile, l);
+            }
+
+            @Override
+            public void run(
+                Role role,
+                PhysicalPlan plan,
+                Configuration cfg,
+                FoldContext foldCtx,
+                PlanTimeProfile profile,
+                ByteSizeValue maxCollectedBytes,
+                ActionListener<Result> l
+            ) {
+                planRunner.run(Role.INTERMEDIATE, plan, cfg, foldCtx, profile, maxCollectedBytes, l);
+            }
+        } : planRunner;
 
         // Always use the same execution path - executeSubPlans handles both simple queries and those with subplans
         executeSubPlans(
@@ -1188,13 +1232,15 @@ public class EsqlSession {
      * @param subPlan     first subplan that needs to be executed
      * @param newMainPlan callback to build the new main plan based on the subplan results
      * @param cleanup     callback to release any resources hold by the subplan results
+     * @param maxCollectedBytes limit enforced while the subplan runs, or {@code null} to only check the complete result
      */
     private record SubPlanAndCallback(
         LogicalPlan subPlan,
         java.util.function.Function<Result, LogicalPlan> newMainPlan,
         Runnable cleanup,
         boolean isSubqueryJoinSubPlan,
-        boolean isApproximationCalibration
+        boolean isApproximationCalibration,
+        ByteSizeValue maxCollectedBytes
     ) {};
 
     private SubPlanAndCallback firstSubPlan(
@@ -1228,7 +1274,13 @@ public class EsqlSession {
                     localRelationPage
                 );
                 return replaceSubPlanResult(mainPlan, subPlan, resultWrapper, context);
-            }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
+            },
+                () -> releaseLocalRelationBlocks(localRelationPage),
+                true,
+                false,
+                // A JOIN subquery materializes raw rows, so fail as soon as they exceed the local relation limit.
+                subPlanJoin instanceof SubqueryLookupJoin ? plannerSettings.intermediateLocalRelationMaxSize() : null
+            );
         } else if (firstJoin instanceof InlineJoin) {
             InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
             if (subPlans != null) {
@@ -1238,7 +1290,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false, null);
             }
         }
 
@@ -1254,7 +1306,8 @@ public class EsqlSession {
                     result -> approximation.get().newMainPlan(mainPlan, result),
                     () -> {},
                     false,
-                    true
+                    true,
+                    null
                 );
             }
         }
@@ -1347,6 +1400,7 @@ public class EsqlSession {
             configuration,
             foldContext,
             planTimeProfile,
+            subPlan.maxCollectedBytes(),
             listener.delegateFailureAndWrap((next, result) -> {
                 // Approximation subplans (to get the sample probability) may approximate internally to estimate
                 // the result count. This does not affect whether the final result is approximate or not.

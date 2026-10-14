@@ -167,6 +167,47 @@ public class AmazonBedrockCompletionStreamingProcessorTests extends ESTestCase {
         }));
     }
 
+    /**
+     * The request can fail (e.g. a Bedrock ValidationException) before the upstream ever subscribes. The error must still reach the
+     * downstream when it requests data, otherwise the stream hangs.
+     */
+    public void testOnErrorBeforeUpstreamSubscribesIsDeliveredOnRequest() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        processor.onError(expectedError);
+
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+
+        sub.getValue().request(1);
+        verify(downstream, times(1)).onError(assertArg(e -> {
+            assertThat(e, isA(ElasticsearchException.class));
+            assertThat(e.getCause(), is(expectedError));
+        }));
+    }
+
+    /**
+     * Once pending demand has been forwarded to the upstream, an error must still be delivered to the downstream.
+     */
+    public void testOnErrorAfterDemandForwardedUpstreamIsDelivered() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        sub.getValue().request(1);
+
+        processor.onSubscribe(mock(Flow.Subscription.class));
+        processor.onError(expectedError);
+
+        verify(downstream, times(1)).onError(assertArg(e -> {
+            assertThat(e, isA(ElasticsearchException.class));
+            assertThat(e.getCause(), is(expectedError));
+        }));
+    }
+
     public void verifyCompleteBeforeRequest() {
         processor.onComplete();
 

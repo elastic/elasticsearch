@@ -77,8 +77,10 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
                 amazonBedrockRuntimeException
             )
         );
-        if (isDone.compareAndSet(false, true) && checkAndResetDemand() && onErrorCalled.compareAndSet(false, true)) {
-            runOnUtilityThreadPool(() -> downstream.onError(amazonBedrockRuntimeException));
+        // Errors are not subject to backpressure, so deliver as soon as a downstream exists regardless of the demand counter, which is
+        // zeroed when pending requests are forwarded upstream. If there is no downstream yet, StreamSubscription#request delivers it.
+        if (isDone.compareAndSet(false, true) && downstream != null && onErrorCalled.compareAndSet(false, true)) {
+            runOnUtilityThreadPool(() -> downstream.onError(error.get()));
         }
     }
 
@@ -114,7 +116,11 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
                     return sum >= 0 ? sum : Long.MAX_VALUE;
                 });
                 if (upstream == null) {
-                    // wait for upstream to subscribe before forwarding request
+                    // the request may have failed before the upstream ever subscribed, in which case nothing else will signal the error
+                    if (error.get() != null && onErrorCalled.compareAndSet(false, true)) {
+                        downstream.onError(error.get());
+                    }
+                    // otherwise wait for upstream to subscribe before forwarding request
                     return;
                 }
                 if (upstreamIsRunning()) {

@@ -91,7 +91,9 @@ import java.util.function.IntFunction;
  *       including below the epoch, where {@code ::datetime} nulls the value instead, because that
  *       bound belongs to {@code date_nanos} and not to {@code date}. This is what lets an annotated
  *       {@code TIMESTAMP(MICROS|NANOS)} column (which infers as {@code date_nanos}) be declared
- *       {@code date}, the conventional dashboard type, within the date_nanos-representable range (roughly 1677–2262).
+ *       {@code date}, the conventional dashboard type, for any instant a signed epoch-nanosecond long can hold
+ *       (1677-09-21 to 2262-04-11): a {@code TIMESTAMP(NANOS)} value always does, and a {@code TIMESTAMP(MICROS)}
+ *       value outside that range is nulled on read before the narrowing runs.
  *       Numeric sources follow the unit rule below
  *       ({@code date} = millis when no format is declared; a {@code double} rounds to the nearest
  *       milli, the {@code ::datetime} semantic);</li>

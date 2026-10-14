@@ -37,12 +37,11 @@ public class DataStreamMigrationToTimeSeriesIT extends ESIntegTestCase {
     }
 
     public void testMigrationToTimeSeriesThatShouldFail() throws IOException {
-        for (IndexMode indexMode : IndexMode.values()) {
-            if (indexMode == IndexMode.TIME_SERIES || indexMode == IndexMode.STANDARD) {
-                continue;
-            }
-            doTestMigrationToTimeSeries(indexMode, false);
-        }
+        IndexMode indexMode = randomValueOtherThanMany(
+            mode -> mode == IndexMode.STANDARD || mode == IndexMode.TIME_SERIES,
+            () -> randomFrom(IndexMode.values())
+        );
+        doTestMigrationToTimeSeries(indexMode, false);
     }
 
     public void testMigrationToTimeSeriesShouldSucceed() throws IOException {

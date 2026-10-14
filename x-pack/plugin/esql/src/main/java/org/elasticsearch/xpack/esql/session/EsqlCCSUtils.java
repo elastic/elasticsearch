@@ -283,8 +283,9 @@ public class EsqlCCSUtils {
         }
     }
 
-    private static String unknownIndexError(String indexExpression, IndexViewOrigins indexViewOrigins) {
-        return Strings.format("Unknown index [%s]", indexExpression) + indexViewOrigins.describe(indexExpression);
+    static String unknownIndexError(String indexExpression, IndexViewOrigins indexViewOrigins) {
+        String error = Strings.format("Unknown index [%s]", indexExpression);
+        return indexViewOrigins.describe(indexExpression).map(views -> error + " " + views).orElse(error);
     }
 
     // visible for testing

@@ -132,6 +132,10 @@ gradlePlugin {
       id = 'elasticsearch.native-library-build'
       implementationClass = 'org.elasticsearch.gradle.internal.nativelibs.NativeLibraryBuildPlugin'
     }
+    nativeLibraryCollection {
+      id = 'elasticsearch.native-library-collection'
+      implementationClass = 'org.elasticsearch.gradle.internal.nativelibs.NativeLibraryCollectionPlugin'
+    }
     javaToolChainPlugin {
       id = 'elasticsearch.java-toolchain'
       implementationClass = 'org.elasticsearch.gradle.internal.toolchain.JavaToolChainResolverPlugin'

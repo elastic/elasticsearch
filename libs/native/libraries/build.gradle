@@ -10,11 +10,17 @@
 import org.elasticsearch.gradle.transform.UnzipTransform
 
 apply plugin: 'base'
+apply plugin: 'elasticsearch.native-library-collection'
 
 configurations {
   // Internal configuration: declares + resolves the per-platform binary distributions pulled from
   // the elasticsearch-native repository. Used only as input to `extractLibs`; never published.
+  //
+  // The libraries inherited from `nativeLibraryProjects` carry no version: each project resolves
+  // its own by the hash of its sources, downloading the published artifact for that hash or
+  // building it when none exists.
   libs {
+    extendsFrom configurations.nativeLibraryProjects
     attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
     canBeConsumed = false
   }
@@ -74,11 +80,6 @@ dependencies {
     libs "org.elasticsearch:libzstd:${zstdVersion}:linux-x86-64"
     libs "org.elasticsearch:libzstd:${zstdVersion}:windows-x86-64"
   }
-
-  // vec and libsimdjson carry no version here: each project resolves its own library by the hash of
-  // its sources, downloading the published artifact for that hash or building it when none exists.
-  libs project(path: ':libs:simdvec', configuration: 'nativeLibraryElements')
-  libs project(path: ':libs:simdjson', configuration: 'nativeLibraryElements')
 }
 
 def extractLibs = tasks.register('extractLibs', Copy) {

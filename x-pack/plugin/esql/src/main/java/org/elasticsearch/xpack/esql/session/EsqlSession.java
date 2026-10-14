@@ -65,7 +65,6 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
-import org.elasticsearch.xpack.esql.analysis.UnmappedFieldsOrdering;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.anonymizer.PlanAnonymizer;
@@ -345,8 +344,6 @@ public class EsqlSession {
     }
 
     private volatile PlanSnapshot planSnapshot = PlanSnapshot.EMPTY;
-    // Coordinator-only: where the fields discovered from _source belong in the output. Null unless unmapped_fields="LOAD_ALL".
-    private volatile UnmappedFieldsOrdering unmappedFieldsOrdering;
 
     public EsqlSession(
         String sessionId,
@@ -634,10 +631,11 @@ public class EsqlSession {
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);
-                    // Flag external-source usage on the shared telemetry so the coordinator emits
-                    // external-source-scoped operational metrics only for queries that scanned one.
+                    // Flag external-source usage on the execution info so the coordinator emits external-source-scoped
+                    // operational metrics and query metering for any query whose analyzed plan references one, even if
+                    // nothing ends up being scanned.
                     if (plan.anyMatch(ExternalRelation.class::isInstance)) {
-                        planTelemetry.externalSource(true);
+                        executionInfo.markExternalSource();
                         recordExternalRelations(plan, planTelemetry);
                     }
 
@@ -701,13 +699,13 @@ public class EsqlSession {
                             Result inner = withAdditionalData.inner();
                             TransportVersion resultVersion = withAdditionalData.minimumVersion();
                             if (ExpandUnmappedFieldsPostProcessor.hasUnmappedFields(inner.schema())) {
-                                // Under SET unmapped_fields="LOAD_ALL" the expansion is a CPU-heavy scan over every row of
+                                // Under SET unmapped_fields="LOAD_ALL" the flattening is a CPU-heavy scan over every row of
                                 // every result page. This continuation runs on whichever thread completed the compute result
                                 // (the esql_worker pool, or the search pool when a data node completes it last), so a large
-                                // expansion could hog the wrong pool. Dispatch it to the esql_worker pool, which is designated
+                                // flattening could hog the wrong pool. Dispatch it to the esql_worker pool, which is designated
                                 // for CPU-bound ES|QL work. See https://github.com/elastic/elasticsearch/issues/160286.
                                 // wrapReleasing releases the buffered pages if esql_worker rejects the task (e.g. shutting
-                                // down); expand() releases them itself once it runs, and page release is idempotent.
+                                // down); flatten() releases them itself once it runs, and page release is idempotent.
                                 threadPool.executor(EsqlPlugin.computePool())
                                     .execute(
                                         ActionRunnable.wrapReleasing(
@@ -715,9 +713,8 @@ public class EsqlSession {
                                             () -> Releasables.closeExpectNoException(inner.pages()),
                                             ll -> ll.onResponse(
                                                 new Versioned<>(
-                                                    ExpandUnmappedFieldsPostProcessor.expand(
+                                                    ExpandUnmappedFieldsPostProcessor.flatten(
                                                         inner,
-                                                        unmappedFieldsOrdering,
                                                         blockFactory,
                                                         plannerSettings,
                                                         cancellation
@@ -728,7 +725,7 @@ public class EsqlSession {
                                         )
                                     );
                             } else {
-                                // No LOAD_ALL expansion to do: expand() would return the result unchanged, so pass it through inline
+                                // No LOAD_ALL flattening to do: flatten() would return the result unchanged, so pass it through inline
                                 // and avoid both the needless scan and an unnecessary thread hop.
                                 l.onResponse(new Versioned<>(inner, resultVersion));
                             }
@@ -3021,7 +3018,6 @@ public class EsqlSession {
             // data streams; that relation is analyzed in turn to resolve its fields.
             plan = analyzer.analyze(ExemplarsRewriter.exemplarsQuery(plan, r.exemplarsResolution(), exemplarsSettings));
         }
-        unmappedFieldsOrdering = analyzer.unmappedFieldsOrdering();
         plan.setAnalyzed();
         return plan;
     }

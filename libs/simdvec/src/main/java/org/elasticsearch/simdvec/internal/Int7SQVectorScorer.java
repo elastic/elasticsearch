@@ -36,7 +36,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     final MemorySegment query;
     final float scoreCorrectionConstant;
     final float queryCorrection;
-    final FixedSizeScratch scratch;
+    final FixedSizeSegmentScratch scratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
@@ -75,7 +75,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         this.query = MemorySegment.ofArray(queryVector);
         this.queryCorrection = queryCorrection;
         this.scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
-        this.scratch = new FixedSizeScratch(vectorPitch);
+        this.scratch = new FixedSizeSegmentScratch(vectorPitch);
     }
 
     static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {

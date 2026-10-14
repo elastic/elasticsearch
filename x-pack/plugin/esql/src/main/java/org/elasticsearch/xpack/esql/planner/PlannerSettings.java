@@ -222,16 +222,8 @@ public class PlannerSettings {
     );
 
     /**
-     * Maximum number of fields {@code SET unmapped_fields="LOAD_ALL"} expands {@code _source} into. Every distinct leaf of the result
-     * rows would otherwise become a column, and merely collecting the names of a wide or heterogeneous index can exhaust the
-     * coordinator's heap. The alphabetically first fields are kept and a warning is added when there were more. The default matches the
-     * default of {@code index.mapping.total_fields.limit}, but the two are deliberately not tied: that setting is per index, and it is
-     * ambiguous which index's limit would apply to a query over several.
-     * <p>
-     * {@code 0} discovers nothing, which makes {@code LOAD_ALL} behave exactly like {@code LOAD}: such a query is analyzed as a
-     * {@code LOAD} one. More than 100k fields is no sensible limit and must be a misconfiguration.
-     * <p>
-     * Registered only where the capability for it is enabled, so that a setting without effect is not exposed.
+     * Only {@code 0} has an effect: it makes {@code SET unmapped_fields="LOAD_ALL"} discover nothing, so the query is analyzed as
+     * {@code LOAD}. Registered only where its capability is enabled, so that a setting without effect is not exposed.
      */
     public static final Setting<Integer> LOAD_ALL_MAX_FIELDS = Setting.intSetting(
         "esql.query.unmapped_fields.load_all_max_fields",

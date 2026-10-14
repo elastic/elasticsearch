@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -18,6 +19,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 
 import java.io.IOException;
@@ -54,14 +57,21 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.lessThan;
@@ -247,7 +257,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A Spark _SUCCESS marker at the same prefix level must not appear in the expansion result.
-     * Hidden-file convention: objects whose name begins with '_' are excluded (esql-planning#1544).
+     * Hidden-file convention: objects whose name begins with '_' are excluded.
      */
     public void testExpandGlobExcludesUnderscorePrefixedMarker() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -268,7 +278,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A .crc sidecar file must not appear in the expansion result.
-     * Hidden-file convention: objects whose name begins with '.' are excluded (esql-planning#1544).
+     * Hidden-file convention: objects whose name begins with '.' are excluded.
      */
     public void testExpandGlobExcludesDotPrefixedSidecar() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -287,7 +297,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A _metadata file must not appear in the expansion result.
-     * Hidden-file convention: objects whose name begins with '_' are excluded (esql-planning#1544).
+     * Hidden-file convention: objects whose name begins with '_' are excluded.
      */
     public void testExpandGlobExcludesMetadataFile() throws IOException {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/_metadata", 512), entry("s3://bucket/data/file1.parquet", 100));
@@ -303,7 +313,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A zero-byte directory placeholder key (ending in '/') must not appear in the expansion result.
-     * Object stores create these when the S3 console creates a "folder" (esql-planning#1544).
+     * Object stores create these when the S3 console creates a "folder".
      */
     @SuppressWarnings("RegexpMultiline")
     public void testExpandGlobExcludesZeroByteDirectoryPlaceholder() throws IOException {
@@ -373,7 +383,7 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * Mixed non-data objects (_SUCCESS marker, .crc sidecars, zero-byte placeholder) alongside real
      * Parquet data files: only the data files must be returned, exactly as Hive/Spark/Trino behave
-     * on the same prefix (esql-planning#1544).
+     * on the same prefix.
      */
     public void testExpandGlobExcludesAllNonDataObjectsFromCleanPrefix() throws IOException {
         List<StorageEntry> listing = List.of(
@@ -823,7 +833,7 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * End-to-end: an IN over a Hive-escaped partition folder lists it. Folders `category=login/` and the escaped
      * `category=ns%3Aclick/` (Spark's on-disk spelling of value `ns:click`); `WHERE category IN ("login","ns:click")`
-     * must list both, not silently drop the escaped one. Red before the escape-spelling fix (esql-planning#1176).
+     * must list both, not silently drop the escaped one. Red before the escape-spelling fix.
      */
     public void testInListMatchesHiveEscapedFolder() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
@@ -2022,7 +2032,7 @@ public class GlobExpanderTests extends ESTestCase {
      * A single glob with an IN-list mixing single- and multi-digit values on a zero-padded partition. `month=11`
      * matches the rewrite so the listing is non-empty and the empty-fallback never fires; without the zero-padded
      * spelling in the brace, `month=06` is silently dropped even though the row filter would keep it. (Same wrong-data
-     * class as the human-reviewed comma bug, single-glob form; esql-planning#1176.)
+     * class as the human-reviewed comma bug, single-glob form.)
      */
     public void testInListMixedDigitValuesMatchZeroPaddedFolders() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
@@ -3632,7 +3642,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
     }
 
-    // -- `**` glob: partition-pruned listing walk (esql-planning#1173) --
+    // -- `**` glob: partition-pruned listing walk --
 
     /** The 4-file {@code year=/month=/} Hive tree under {@code s3://bucket/data/}, years x months = {2024,2025} x {01,06}. */
     private static TreeStubProvider hiveTree() {
@@ -3940,7 +3950,7 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The headline case of esql-planning#1173: on a bare {@code **} glob a partition-column filter must narrow the
+     * The headline case: on a bare {@code **} glob a partition-column filter must narrow the
      * enumeration itself — non-matching folders are never listed, not merely left unread.
      */
     public void testGlobstarPartitionHintNarrowsTheListing() throws IOException {
@@ -4163,7 +4173,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
     }
 
-    /** The LIST request counts esql-planning#1173 asks for: equality prunes with one probe and one survivor chain. */
+    /** The LIST request counts asks for: equality prunes with one probe and one survivor chain. */
     public void testGlobstarEqualityHintListRequestCount() throws IOException {
         TreeStubProvider provider = hiveTree();
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
@@ -4580,7 +4590,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * The walk is a new hint channel into the listing: on a walk-eligible pattern, partition hints change which files
-     * a path lists and must join the cache key, or a filtered query poisons the cache (the esql-planning#1174 class).
+    * a path lists and must join the cache key, or a filtered query poisons the cache (the class).
      */
     public void testListingCacheDiscriminatorReflectsPartitionHintsOnGlobstar() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
@@ -5146,6 +5156,194 @@ public class GlobExpanderTests extends ESTestCase {
         submitted.forEach(Runnable::run);
 
         expectThrows(TaskCancelledException.class, future::actionGet);
+    }
+
+    private static void burnCpu(long nanos) {
+        long start = ThreadCpuTimer.currentNanos();
+        while (ThreadCpuTimer.elapsedNanos(start) < nanos) {
+            Thread.onSpinWait();
+        }
+    }
+
+    /**
+     * A concurrency above the folder count never exhausts the permits, so no release dispatches a continuation onto the
+     * fan-out executor, whose threads a test may hold.
+     */
+    private static void expandTwoFolders(TreeStubProvider provider, Executor fanOutExecutor, ActionListener<FileList> listener) {
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        GlobExpander.expandAsync(
+            pattern,
+            provider,
+            null,
+            HIVE_ON,
+            MAX,
+            MAX,
+            MAX,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE,
+            16,
+            () -> false,
+            fanOutExecutor,
+            listener
+        );
+    }
+
+    /**
+     * The calling thread lists the slots, dispatches the drains and only then unwinds out of its planning CPU
+     * measurement, so the listing can complete and planning finish first. The slot listing CPU must be committed
+     * before the drains are dispatched, or it is dropped from the frozen total. The drains run unmetered, so the
+     * total is the calling thread's alone.
+     */
+    public void testFanOutCommitsSlotListingPlanningCpuBeforeDispatchingDrains() throws Exception {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        CountDownLatch finished = new CountDownLatch(1);
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(entry("s3://bucket/data/d1/a.parquet", 10), entry("s3://bucket/data/d2/b.parquet", 10))
+        ) {
+            @Override
+            public StorageChildren listChildren(StoragePath prefix, int limit) {
+                burnCpu(burnNanos);
+                return super.listChildren(prefix, limit);
+            }
+        };
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        PlainActionFuture<FileList> future = new PlainActionFuture<>();
+        Thread caller = new Thread(() -> tracker.meteredCpu(() -> {
+            expandTwoFolders(provider, pool::execute, future);
+            // Holds the measurement open, as a slow unwind would, until planning has finished.
+            safeAwait(finished);
+        }));
+        caller.start();
+        try {
+            assertEquals(2, future.actionGet(30, TimeUnit.SECONDS).fileCount());
+            assertThat(tracker.finish(), greaterThanOrEqualTo(burnNanos));
+        } finally {
+            finished.countDown();
+            caller.join();
+            terminate(pool);
+        }
+    }
+
+    /**
+     * A folder drain releases its permit while its planning CPU measurement is still open, so the listing can complete
+     * and planning finish before that measurement settles. Each drain's listing CPU must be committed before the
+     * release, or it is dropped from the frozen total.
+     */
+    public void testFolderDrainCommitsPlanningCpuBeforeReleasingItsPermit() {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        CountDownLatch finished = new CountDownLatch(1);
+        TreeStubProvider provider = new TreeStubProvider(
+            List.of(entry("s3://bucket/data/d1/a.parquet", 10), entry("s3://bucket/data/d2/b.parquet", 10))
+        ) {
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+                burnCpu(burnNanos);
+                return super.listObjects(prefix, recursive);
+            }
+        };
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            PlainActionFuture<FileList> future = new PlainActionFuture<>();
+            expandTwoFolders(provider, command -> pool.execute(() -> tracker.meteredCpu(() -> {
+                command.run();
+                // Holds the measurement open past the permit release, as a slow unwind would, until planning has finished.
+                safeAwait(finished);
+            })), future);
+            assertEquals(2, future.actionGet(30, TimeUnit.SECONDS).fileCount());
+            assertThat(tracker.finish(), greaterThanOrEqualTo(2 * burnNanos));
+        } finally {
+            finished.countDown();
+            terminate(pool);
+        }
+    }
+
+    /**
+     * A root-level file is matched inline on the calling thread, and a drain can complete the listing and finish planning
+     * before that thread's measurement settles. Here the file comes before two folders and two slots run at a time, so
+     * the slot loop on the calling thread usually ends when the permits run out after the second folder dispatch: the
+     * file's planning CPU must be committed by then, or it is dropped from the frozen total.
+     */
+    public void testFileSlotBeforeFoldersCommitsPlanningCpuBeforeTheLoopEnds() {
+        assertFileSlotPlanningCpuCommitted(
+            2,
+            List.of(
+                entry("s3://bucket/data/c.parquet", 10),
+                entry("s3://bucket/data/d1/a.parquet", 10),
+                entry("s3://bucket/data/d2/b.parquet", 10)
+            )
+        );
+    }
+
+    /**
+     * As {@link #testFileSlotBeforeFoldersCommitsPlanningCpuBeforeTheLoopEnds}, but the file comes after the folders, so
+     * the slot loop ends when the slots run out.
+     */
+    public void testFileSlotAfterFoldersCommitsPlanningCpuBeforeTheLoopEnds() {
+        assertFileSlotPlanningCpuCommitted(
+            16,
+            List.of(
+                entry("s3://bucket/data/d1/a.parquet", 10),
+                entry("s3://bucket/data/d2/b.parquet", 10),
+                entry("s3://bucket/data/e.parquet", 10)
+            )
+        );
+    }
+
+    private void assertFileSlotPlanningCpuCommitted(int concurrency, List<StorageEntry> entries) {
+        assumeTrue("thread CPU time unsupported", ThreadCpuTimer.currentNanos() >= 0);
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(50);
+        PlanningCpuTracker tracker = new PlanningCpuTracker();
+        CountDownLatch finished = new CountDownLatch(1);
+        TreeStubProvider provider = new TreeStubProvider(entries);
+        AtomicReference<Thread> callerThread = new AtomicReference<>();
+        AtomicInteger callerReserves = new AtomicInteger();
+        AtomicLong committedBeforeBurn = new AtomicLong();
+        // Building the slots reserves nothing, so the calling thread's first reserve is the file slot's.
+        PlanningMemory memory = bytes -> {
+            if (Thread.currentThread() == callerThread.get() && callerReserves.getAndIncrement() == 0) {
+                committedBeforeBurn.set(tracker.cpuNanos());
+                burnCpu(burnNanos);
+            }
+        };
+        @SuppressWarnings("RegexpMultiline")
+        String pattern = "s3://bucket/data/**/*.parquet";
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        PlainActionFuture<FileList> future = new PlainActionFuture<>();
+        Thread caller = new Thread(() -> tracker.meteredCpu(() -> {
+            GlobExpander.expandAsync(
+                pattern,
+                provider,
+                null,
+                HIVE_ON,
+                MAX,
+                MAX,
+                MAX,
+                ListingExtents.UNBOUNDED,
+                memory,
+                concurrency,
+                () -> false,
+                pool::execute,
+                future
+            );
+            // Holds the measurement open, as a slow unwind would, until planning has finished.
+            safeAwait(finished);
+        }));
+        callerThread.set(caller);
+        caller.start();
+        try {
+            assertEquals(3, future.actionGet(30, TimeUnit.SECONDS).fileCount());
+            assertThat("the file slot must be matched on the calling thread", callerReserves.get(), greaterThan(0));
+            assertThat(tracker.finish() - committedBeforeBurn.get(), greaterThanOrEqualTo(burnNanos));
+        } finally {
+            finished.countDown();
+            safeJoin(caller);
+            terminate(pool);
+        }
     }
 
     /**

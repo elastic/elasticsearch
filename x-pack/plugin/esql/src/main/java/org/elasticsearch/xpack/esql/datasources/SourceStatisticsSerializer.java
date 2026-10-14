@@ -165,7 +165,7 @@ public final class SourceStatisticsSerializer {
      * is decided by how the schema was produced, consulted while reading. Reintroducing it here would put that
      * read back for every plan in the upgrade window.
      */
-    public static boolean conversionMayNarrowOrIsUnstamped(Map<String, Object> sourceMetadata) {
+    static boolean conversionMayNarrowOrIsUnstamped(Map<String, Object> sourceMetadata) {
         return conversionNarrowingStamped(sourceMetadata) == false || conversionMayNarrow(sourceMetadata);
     }
 
@@ -177,8 +177,7 @@ public final class SourceStatisticsSerializer {
      * whether the filter reaches the reader, whether field extraction is deferred, and whether the operator factory
      * enables it - and they have to agree, because each moves the page away from the point where a failing row is
      * dropped. Two are plan-time and one is execution-time, so a second copy shows up as a plan the factory cannot
-     * honour. It was spelled out at all three sites once, and {@code PushFiltersToSource} then grew a third term of
-     * its own, which is how copies start to diverge.
+     * honour. Three copies of it drift: one of them grows a term the others do not, and nothing fails.
      */
     public static boolean dropsRowsOnConversionFailure(ErrorPolicy errorPolicy, Map<String, Object> sourceMetadata) {
         return errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW && conversionMayNarrowOrIsUnstamped(sourceMetadata);

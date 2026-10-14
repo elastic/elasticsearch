@@ -1754,6 +1754,10 @@ public class ExternalSourceResolver {
      * Every rail passes through here, so no rail can be left answering from provenance.
      * Written on every resolve, true or false, so a data node can tell "this coordinator says no" from "this
      * coordinator never said" - the second is a pre-stamp plan and is read conservatively.
+     * <p>
+     * Costs one pass over the files already resolved, times the read schema's width, once per query at plan time on
+     * the coordinator - the same shape the resolve just walked to build {@code schemaMap}, and it short-circuits on
+     * the first column that can narrow. Nothing here is per row, per page or per split.
      */
     static ExternalSourceResolution.ResolvedSource stampConversionMayNarrow(ExternalSourceResolution.ResolvedSource source) {
         Map<String, Object> current = source.metadata().sourceMetadata();

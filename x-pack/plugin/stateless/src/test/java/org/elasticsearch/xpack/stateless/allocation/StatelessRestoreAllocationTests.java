@@ -118,6 +118,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
 
     private AllocationService service(
         SnapshotRestoreAllocationDecider restoreDecider,
+        SnapshotRestoreDiskPressure pressure,
         AtomicReference<ClusterInfo> info,
         AtomicReference<SnapshotShardSizeInfo> sizes
     ) {
@@ -132,12 +133,13 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
             MeterRegistry.NOOP,
             clusterSettings
         );
-        service.setExistingShardsAllocators(Map.of("stateless", new StatelessExistingShardsAllocator()));
+        service.setExistingShardsAllocators(Map.of("stateless", new StatelessExistingShardsAllocator(pressure)));
         return service;
     }
 
     private AllocationService service(AtomicReference<ClusterInfo> info, AtomicReference<SnapshotShardSizeInfo> sizes) {
-        return service(restoreDecider().decider(), info, sizes);
+        var restore = restoreDecider();
+        return service(restore.decider(), restore.pressure(), info, sizes);
     }
 
     private static ShardRouting primary(ClusterState state, String index) {
@@ -179,7 +181,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         // free 70 - 1: shard 50 leaves less than 20 GiB indexing reserve
         var info = new AtomicReference<>(info(70 * GB - 1));
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
-        var service = service(restore.decider(), info, sizes);
+        var service = service(restore.decider(), restore.pressure(), info, sizes);
 
         state = service.reroute(state, "disk tight", ActionListener.noop());
         assertTrue(primary(state, "index-0").unassigned());
@@ -198,7 +200,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         var restore = restoreDecider();
         var info = new AtomicReference<>(ClusterInfo.EMPTY);
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
-        var service = service(restore.decider(), info, sizes);
+        var service = service(restore.decider(), restore.pressure(), info, sizes);
 
         state = service.reroute(state, "no disk stats", ActionListener.noop());
         assertTrue(primary(state, "index-0").unassigned());
@@ -213,7 +215,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         var restore = restoreDecider();
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
         var info = new AtomicReference<>(info(70 * GB));
-        var service = service(restore.decider(), info, sizes);
+        var service = service(restore.decider(), restore.pressure(), info, sizes);
 
         state = service.reroute(state, "initial", ActionListener.noop());
         assertEquals(1, state.routingTable().allShards().filter(ShardRouting::initializing).toList().size());
@@ -233,7 +235,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         var restore = restoreDecider();
         var info = new AtomicReference<>(info(70 * GB - 1));
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
-        var service = service(restore.decider(), info, sizes);
+        var service = service(restore.decider(), restore.pressure(), info, sizes);
 
         state = service.reroute(state, "both tight", ActionListener.noop());
         assertEquals(2, state.getRoutingNodes().unassigned().size());
@@ -247,7 +249,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         var restore = restoreDecider();
         var info = new AtomicReference<>(info(70 * GB - 1));
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
-        var service = service(restore.decider(), info, sizes);
+        var service = service(restore.decider(), restore.pressure(), info, sizes);
 
         assertEquals(0L, restore.pressure().unmetTotalDiskBytes());
         var decision = service.explainShardAllocation(primary(state, "index-0"), state, RoutingAllocation.DebugMode.ON);
@@ -260,7 +262,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         var restore = restoreDecider();
         var info = new AtomicReference<>(info(70 * GB - 1));
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
-        var service = service(restore.decider(), info, sizes);
+        var service = service(restore.decider(), restore.pressure(), info, sizes);
 
         state = service.reroute(state, "first restore throttled", ActionListener.noop());
         assertEquals(2L, restore.pressure().unmetTotalDiskBytes());
@@ -278,7 +280,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         var restore = restoreDecider();
         var sizeInfo = new AtomicReference<>(SnapshotShardSizeInfo.EMPTY);
         var info = new AtomicReference<>(info(70 * GB - 1));
-        var service = service(restore.decider(), info, sizeInfo);
+        var service = service(restore.decider(), restore.pressure(), info, sizeInfo);
 
         state = service.reroute(state, "size unknown", ActionListener.noop());
         assertTrue(primary(state, "index-0").unassigned());

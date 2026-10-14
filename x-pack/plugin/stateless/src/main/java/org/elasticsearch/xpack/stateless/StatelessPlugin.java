@@ -2098,7 +2098,7 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
-        return Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator());
+        return Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator(snapshotRestoreDiskPressure));
     }
 
     @Override

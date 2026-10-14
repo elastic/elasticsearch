@@ -18,12 +18,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.stateless.IndexingDiskController;
 import org.elasticsearch.xpack.stateless.SnapshotRestoreDiskPressure;
-
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * Prevents snapshot restores from being admitted without space for their local files and a node-wide reserve.
@@ -32,7 +28,9 @@ import java.util.Set;
  * ({@link RoutingAllocation#isReconciling()}), so autoscaling sees THROTTLEd restores. Simulations and explain
  * must not write — explain uses an immutable allocation with {@code isSimulating() == false}, so
  * {@code !isSimulating()} is not a safe write gate.
- * Entries are cleared when a shard fits (YES) or is no longer an unassigned snapshot primary.
+ * This decider clears an entry when a shard fits (YES) or its size is permanently unavailable.
+ * Stale entries for cancelled restores are dropped by {@link StatelessExistingShardsAllocator#beforeAllocation}
+ * via {@link SnapshotRestoreDiskPressure#retainOnly}.
  */
 public class SnapshotRestoreAllocationDecider extends AllocationDecider {
     private static final String NAME = "stateless_snapshot_restore_storage";
@@ -47,9 +45,6 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shard, RoutingNode node, RoutingAllocation allocation) {
-        if (allocation.isReconciling()) {
-            pruneStaleUnmetShortfalls(allocation);
-        }
         if (shard.primary() == false
             || shard.unassigned() == false
             || shard.recoverySource().getType() != RecoverySource.Type.SNAPSHOT
@@ -111,17 +106,5 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             shardSize,
             indexingReservedBytes
         );
-    }
-
-    private void pruneStaleUnmetShortfalls(RoutingAllocation allocation) {
-        Set<ShardId> live = new HashSet<>();
-        for (ShardRouting unassigned : allocation.routingNodes().unassigned()) {
-            if (unassigned.primary()
-                && unassigned.recoverySource() != null
-                && unassigned.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-                live.add(unassigned.shardId());
-            }
-        }
-        diskPressure.retainOnly(live);
     }
 }

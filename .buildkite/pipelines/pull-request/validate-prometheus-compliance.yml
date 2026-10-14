@@ -4,7 +4,7 @@ config:
   auto-retry: false
   allow-labels: ":StorageEngine/PromQL"
 env:
-  PROMCHECK_VER: "0.9.2+prometheus-3.13.1"
+  PROMCHECK_VER: "0.9.3+prometheus-3.13.1"
   PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
 steps:
   - label: validate-prometheus-compliance

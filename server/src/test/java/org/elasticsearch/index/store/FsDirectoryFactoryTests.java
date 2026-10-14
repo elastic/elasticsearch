@@ -435,8 +435,9 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 mapping::get
             )
         ) {
+            byte[] data = randomByteArrayOfLength(8192);
             try (IndexOutput out = dir.createOutput("_0.vec", IOContext.DEFAULT)) {
-                out.writeBytes(new byte[8192], 8192);
+                out.writeBytes(data, data.length);
             }
             directOpens.set(0);
             try (IndexInput search = dir.openInput("_0.vec", searchRead)) {
@@ -445,16 +446,17 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 mapping.set(vectorField(true, true));
                 try (IndexInput rescore = dir.openInput("_0.vec", searchRead); IndexInput merge = dir.openInput("_0.vec", mergeStream)) {
                     assertEquals("on: the next search and merge read with direct I/O", 2, directOpens.get());
-                    rescore.readByte();
-                    merge.readByte();
+                    // each input reads the file, whichever way it was opened
+                    assertEquals(data[0], rescore.readByte());
+                    assertEquals(data[0], merge.readByte());
                 }
-                search.readByte();
+                assertEquals("the input opened before the update still reads", data[0], search.readByte());
 
                 mapping.set(vectorField(false, false));
                 try (IndexInput rescore = dir.openInput("_0.vec", searchRead); IndexInput merge = dir.openInput("_0.vec", mergeStream)) {
                     assertEquals("off again: no new direct open", 2, directOpens.get());
-                    rescore.readByte();
-                    merge.readByte();
+                    assertEquals(data[0], rescore.readByte());
+                    assertEquals(data[0], merge.readByte());
                 }
             }
         }

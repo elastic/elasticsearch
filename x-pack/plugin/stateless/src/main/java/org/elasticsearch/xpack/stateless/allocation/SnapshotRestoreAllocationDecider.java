@@ -28,8 +28,10 @@ import java.util.Set;
 /**
  * Prevents snapshot restores from being admitted without space for their local files and a node-wide reserve.
  * <p>
- * During live (non-simulation) allocation, records disk shortfalls on {@link SnapshotRestoreDiskPressure} for
- * restore shards that were THROTTLEd so autoscaling can raise indexing memory demand. Simulations do not write.
+ * Records disk shortfalls on {@link SnapshotRestoreDiskPressure} only while reconciling a desired balance
+ * ({@link RoutingAllocation#isReconciling()}), so autoscaling sees THROTTLEd restores. Simulations and explain
+ * must not write — explain uses an immutable allocation with {@code isSimulating() == false}, so
+ * {@code !isSimulating()} is not a safe write gate.
  * Entries are cleared when a shard fits (YES) or is no longer an unassigned snapshot primary.
  */
 public class SnapshotRestoreAllocationDecider extends AllocationDecider {
@@ -45,8 +47,7 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shard, RoutingNode node, RoutingAllocation allocation) {
-        final boolean live = allocation.isSimulating() == false;
-        if (live) {
+        if (allocation.isReconciling()) {
             pruneStaleUnmetShortfalls(allocation);
         }
         if (shard.primary() == false
@@ -64,15 +65,18 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             );
         }
         if (shardSize == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE) {
-            if (live) {
+            if (allocation.isReconciling()) {
                 diskPressure.clear(shard.shardId());
             }
             return allocation.decision(Decision.NO, NAME, "snapshot shard size is permanently unavailable");
         }
         var disk = allocation.clusterInfo().getNodeMostAvailableDiskUsages().get(node.nodeId());
         if (disk == null) {
-            var missingDiskDecision = allocation.isSimulating() ? Decision.NOT_PREFERRED : Decision.THROTTLE;
-            return allocation.decision(missingDiskDecision, NAME, "node disk information is unavailable");
+            return allocation.decision(
+                allocation.isSimulating() ? Decision.NOT_PREFERRED : Decision.THROTTLE,
+                NAME,
+                "node disk information is unavailable"
+            );
         }
         // freeBytes does not yet reflect space that initializing shards on this node will occupy once
         // recovery finishes. Do not credit relocating-away shards: their files still use disk until deleted.
@@ -89,7 +93,7 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
         long freeAfterRestore = disk.freeBytes() - committed - shardSize;
         long indexingReservedBytes = indexingReservedDisk.calculateValue(ByteSizeValue.ofBytes(disk.totalBytes()), null).getBytes();
         boolean fits = freeAfterRestore >= indexingReservedBytes;
-        if (live) {
+        if (allocation.isReconciling()) {
             if (fits) {
                 diskPressure.clear(shard.shardId());
             } else {

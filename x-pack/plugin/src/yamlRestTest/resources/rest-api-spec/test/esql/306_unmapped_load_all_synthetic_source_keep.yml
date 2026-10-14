@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
       reason: >
         index.mapping.synthetic_source_keep controls how faithfully synthetic source rebuilds a MAPPED
         field: with "none" an array comes back sorted and deduplicated from doc values, with "arrays"
@@ -102,12 +102,12 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keep_none | KEEP id, m_arr, u_arr*, u_obj.* | LIMIT 5'
-  - length: { columns: 4 }
+  - length: { columns: 3 }
   - match: { columns.1.name: m_arr }
   - match: { columns.1.type: keyword }
-  - match: { columns.2.name: u_arr }
-  - match: { columns.3.name: u_obj.k }
-  - match: { values.0: [ "1", [ "a", "z" ], [ "z", "a", "z" ], [ "y", "x" ] ] }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.2.type: _source }
+  - match: { values.0: [ "1", [ "a", "z" ], { u_arr: [ "z", "a", "z" ], u_obj.k: [ "y", "x" ] } ] }
 
 ---
 'synthetic_source_keep=arrays does not change what LOAD_ALL sees':
@@ -115,8 +115,8 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keep_arrays | KEEP id, m_arr, u_arr*, u_obj.* | LIMIT 5'
-  - length: { columns: 4 }
-  - match: { values.0: [ "1", [ "a", "z" ], [ "z", "a", "z" ], [ "y", "x" ] ] }
+  - length: { columns: 3 }
+  - match: { values.0: [ "1", [ "a", "z" ], { u_arr: [ "z", "a", "z" ], u_obj.k: [ "y", "x" ] } ] }
 
 ---
 'field-level synthetic_source_keep=all does not change what LOAD_ALL sees':
@@ -124,8 +124,8 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keep_field_all | KEEP id, m_arr, u_arr*, u_obj.* | LIMIT 5'
-  - length: { columns: 4 }
-  - match: { values.0: [ "1", [ "a", "z" ], [ "z", "a", "z" ], [ "y", "x" ] ] }
+  - length: { columns: 3 }
+  - match: { values.0: [ "1", [ "a", "z" ], { u_arr: [ "z", "a", "z" ], u_obj.k: [ "y", "x" ] } ] }
 
 ---
 'all three keep modes agree in one query':
@@ -133,8 +133,8 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_keep_* METADATA _index | KEEP _index, m_arr, u_arr*, u_obj.* | SORT _index | LIMIT 5'
-  - length: { columns: 4 }
+  - length: { columns: 3 }
   - length: { values: 3 }
-  - match: { values.0: [ "la_keep_arrays", [ "a", "z" ], [ "z", "a", "z" ], [ "y", "x" ] ] }
-  - match: { values.1: [ "la_keep_field_all", [ "a", "z" ], [ "z", "a", "z" ], [ "y", "x" ] ] }
-  - match: { values.2: [ "la_keep_none", [ "a", "z" ], [ "z", "a", "z" ], [ "y", "x" ] ] }
+  - match: { values.0: [ "la_keep_arrays", [ "a", "z" ], { u_arr: [ "z", "a", "z" ], u_obj.k: [ "y", "x" ] } ] }
+  - match: { values.1: [ "la_keep_field_all", [ "a", "z" ], { u_arr: [ "z", "a", "z" ], u_obj.k: [ "y", "x" ] } ] }
+  - match: { values.2: [ "la_keep_none", [ "a", "z" ], { u_arr: [ "z", "a", "z" ], u_obj.k: [ "y", "x" ] } ] }

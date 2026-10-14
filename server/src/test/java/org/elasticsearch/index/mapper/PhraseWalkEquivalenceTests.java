@@ -24,6 +24,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -112,7 +114,7 @@ public class PhraseWalkEquivalenceTests extends ESTestCase {
         }
     };
 
-    private float memoryIndexFreq(List<Object> values, PhraseQuery query, Analyzer analyzer) {
+    private float memoryIndexFreq(List<Object> values, Query query, Analyzer analyzer) {
         final MemoryIndex index = new MemoryIndex(true, false);
         index.setSimilarity(FREQ);
         for (Object value : values) {
@@ -123,6 +125,33 @@ public class PhraseWalkEquivalenceTests extends ESTestCase {
 
     public void testWalkReportsTheSameFrequency() throws IOException {
         check(new WhitespaceAnalyzer(), "whitespace");
+    }
+
+    /**
+     * A term is walked as the phrase of one it is, and reports what an index of the same values reports for it. Its
+     * frequency is the score where the field indexes terms, and the clause it answers where the field indexes none.
+     */
+    public void testATermReportsTheSameFrequency() throws IOException {
+        final Analyzer analyzer = new NamedAnalyzer("test", AnalyzerScope.INDEX, new WhitespaceAnalyzer(), 0);
+        for (int iter = 0; iter < 1000; iter++) {
+            final List<Object> values = new ArrayList<>();
+            for (int value = 0; value < randomIntBetween(1, 3); value++) {
+                final StringBuilder text = new StringBuilder();
+                for (int word = 0; word < randomIntBetween(1, 12); word++) {
+                    text.append(randomFrom(WORDS)).append(' ');
+                }
+                values.add(text.toString().trim());
+            }
+            final Term term = new Term(FIELD, randomFrom(WORDS));
+            final Term[] walkable = ReanalyzingTextQuery.walkablePhrase(new TermQuery(term));
+            assertNotNull("a term is walkable", walkable);
+            assertArrayEquals(new Term[] { term }, walkable);
+            assertEquals(
+                "values=" + values + " term=" + term,
+                (int) memoryIndexFreq(values, new TermQuery(term), analyzer),
+                ReanalyzingTextQuery.walkPhraseFreq(walkable, FIELD, analyzer, values)
+            );
+        }
     }
 
     public void testWalkReportsTheSameFrequencyWithPositionGaps() throws IOException {

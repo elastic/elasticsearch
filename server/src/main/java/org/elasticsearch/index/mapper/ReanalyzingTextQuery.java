@@ -173,10 +173,14 @@ public final class ReanalyzingTextQuery extends Query {
     }
 
     /**
-     * The terms of a phrase that can be confirmed by walking a document's values rather than indexing them, or null
-     * where it cannot: anything but an exact phrase, whose terms sit at consecutive positions, on one field.
+     * The terms that can be confirmed by walking a document's values rather than indexing them, or null where they
+     * cannot: a term is one of them, since a term is a phrase of one, and so is an exact phrase whose terms sit at
+     * consecutive positions on one field. Anything else is not.
      */
     static Term[] walkablePhrase(Query query) {
+        if (query instanceof TermQuery term) {
+            return new Term[] { term.getTerm() };
+        }
         if (query instanceof PhraseQuery phrase && phrase.getSlop() == 0) {
             final Term[] terms = phrase.getTerms();
             final int[] positions = phrase.getPositions();

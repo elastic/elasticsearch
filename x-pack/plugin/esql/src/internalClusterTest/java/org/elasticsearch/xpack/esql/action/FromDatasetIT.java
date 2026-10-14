@@ -551,7 +551,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     docs.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties))
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties)),
+                    null
                 )
             )
         );
@@ -604,7 +605,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -655,7 +657,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     fixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -707,7 +710,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -750,7 +754,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -881,7 +886,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     file.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv", "header_row", false)),
-                    new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties))
+                    new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties)),
+                    null
                 )
             )
         );
@@ -912,7 +918,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -951,7 +958,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -988,7 +996,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvDateFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1022,7 +1031,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvDateFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1059,7 +1069,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvDateFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv", "datetime_format", "yyyy-MM-dd")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1093,7 +1104,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     isoFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1127,7 +1139,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1158,7 +1171,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     ndjsonDateFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "ndjson")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1192,7 +1206,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvDateFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1238,7 +1253,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     gz.toUri().toString(),
                     null,
                     new HashMap<>(),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1316,7 +1332,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "*.csv.gz",
                     null,
                     new HashMap<>(Map.of("header_row", false)),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1368,7 +1385,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     gz.toUri().toString(),
                     null,
                     new HashMap<>(settings),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1403,7 +1421,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1440,7 +1459,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     noExt.toUri().toString(),
                     null,
                     new HashMap<>(),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1481,7 +1501,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     noExt.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1509,7 +1530,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     noExt.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet", "schema_resolution", "first_file_wins")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1543,7 +1565,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     ndjsonFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "ndjson")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1582,7 +1605,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     ndjsonFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "ndjson")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1642,7 +1666,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     dir.toUri() + "*.parquet",
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1763,7 +1788,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1799,7 +1825,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1839,7 +1866,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1884,7 +1912,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -1990,7 +2019,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, "local_ds", parquet.toUri().toString(), null, settings, mapping)
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, "local_ds", parquet.toUri().toString(), null, settings, mapping, null)
             )
         );
     }
@@ -2081,7 +2110,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csv.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv", "error_mode", "fail_fast")),
-                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, csvProps))
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, csvProps)),
+                    null
                 )
             )
         );
@@ -2123,7 +2153,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     failFast.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "ndjson", "error_mode", "fail_fast")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2147,7 +2178,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     permissive.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "ndjson", "error_mode", "null_field")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2205,7 +2237,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvDateFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, csvProps))
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, csvProps)),
+                    null
                 )
             )
         );
@@ -2225,7 +2258,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, pqProps))
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, pqProps)),
+                    null
                 )
             )
         );
@@ -2259,7 +2293,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     // The shared fixture's second row holds an uncoercible token; this test reads only the good row,
                     // so tolerate the bad one with null_field (the default is fail_fast) — keeps both legs symmetric.
                     new HashMap<>(Map.of("format", "csv", "error_mode", "null_field")),
-                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, csvProps))
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, csvProps)),
+                    null
                 )
             )
         );
@@ -2279,7 +2314,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet", "error_mode", "null_field")),
-                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, pqProps))
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, pqProps)),
+                    null
                 )
             )
         );
@@ -2312,7 +2348,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet", "error_mode", "fail_fast")),
-                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, props))
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, props)),
+                    null
                 )
             )
         );
@@ -2385,7 +2422,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2421,7 +2459,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2453,7 +2492,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2484,7 +2524,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2522,7 +2563,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     // Row 2 carries strings that cannot coerce to the declared long/double/ip; the test asserts they
                     // null and the query succeeds, which is null_field (opt-in) behavior — the default is fail_fast.
                     new HashMap<>(Map.of("format", "parquet", "error_mode", "null_field")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2604,7 +2646,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     dir.toUri() + "*.parquet",
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2635,7 +2678,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2661,7 +2705,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2742,7 +2787,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2774,7 +2820,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2808,7 +2855,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2844,7 +2892,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csvFixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2889,7 +2938,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     ndjson.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "ndjson")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2936,7 +2986,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     ndjson.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -2975,7 +3026,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     ndjson.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -3015,7 +3067,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     ndjson.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
-                    mappingDynamic
+                    mappingDynamic,
+                    null
                 )
             )
         );
@@ -3037,7 +3090,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     ndjson.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
-                    mappingStrict
+                    mappingStrict,
+                    null
                 )
             )
         );
@@ -3090,7 +3144,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     csv.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv", "header_row", false, "schema_sample_size", 1)),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -3124,7 +3179,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -3265,7 +3321,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "*.parquet",
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -3313,7 +3370,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "*.parquet",
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    null // inferred: no declared mapping, the column reads back as datetime
+                    null, // inferred: no declared mapping, the column reads back as datetime
+                    null
                 )
             )
         );
@@ -3387,7 +3445,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -3419,7 +3478,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -3454,7 +3514,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -3550,7 +3611,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -3586,6 +3648,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
+                    null,
                     null
                 )
             )
@@ -3628,6 +3691,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     parquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
+                    null,
                     null
                 )
             )
@@ -3649,6 +3713,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     longParquet.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
+                    null,
                     null
                 )
             )
@@ -3672,7 +3737,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     location,
                     null,
                     new HashMap<>(Map.of("format", format)),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -3703,7 +3769,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     location,
                     null,
                     new HashMap<>(Map.of("format", format)),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -4076,6 +4143,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     file.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
+                    null,
                     null
                 )
             )
@@ -4312,7 +4380,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     file.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties))
+                    new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties)),
+                    null
                 )
             )
         );
@@ -4426,7 +4495,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     file.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -4523,7 +4593,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     realClickBenchLocal.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -4621,7 +4692,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     realClickBenchNdjsonLocal.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "ndjson")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -4855,7 +4927,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     location,
                     null,
                     settings,
-                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props))
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props)),
+                    null
                 )
             )
         );
@@ -4931,7 +5004,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     file.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties))
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties)),
+                    null
                 )
             )
         );
@@ -4972,7 +5046,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     file.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties))
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties)),
+                    null
                 )
             )
         );
@@ -5056,7 +5131,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "*.csv",
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -5093,7 +5169,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "*.csv",
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -5136,7 +5213,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "*.csv",
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -5173,7 +5251,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "*.tsv",
                     null,
                     new HashMap<>(Map.of("format", "tsv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -5204,7 +5283,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "*.tsv",
                     null,
                     new HashMap<>(Map.of("format", "tsv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -5234,7 +5314,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "*.tsv",
                     null,
                     new HashMap<>(Map.of("format", "tsv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -5271,7 +5352,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "*.ndjson",
                     null,
                     new HashMap<>(Map.of("format", "ndjson")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -5310,7 +5392,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "*.csv",
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -5345,7 +5428,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "*.csv",
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -6131,7 +6215,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "**/*.csv",
                     null,
                     new HashMap<>(Map.of("format", "csv", "partition_detection", "none")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -6170,7 +6255,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "**/*.csv",
                     null,
                     new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -6198,7 +6284,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "**/*.csv",
                     null,
                     new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
-                    pathMapping
+                    pathMapping,
+                    null
                 )
             )
         );
@@ -6235,7 +6322,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "**/*.csv",
                     null,
                     new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
-                    strictMapping
+                    strictMapping,
+                    null
                 )
             )
         );
@@ -6273,7 +6361,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     root.toUri() + "**/*.csv",
                     null,
                     new HashMap<>(Map.of("format", "csv", "partition_detection", "hive")),
-                    collidingMapping
+                    collidingMapping,
+                    null
                 )
             )
         );
@@ -6406,11 +6495,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
-        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
+        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings), null);
     }
 
     private static PutDataSourceAction.Request putLocalFileDataSourceRequest() {
-        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, FILE_DS, "local", null, new HashMap<>());
+        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, FILE_DS, "local", null, new HashMap<>(), null);
     }
 
     /**
@@ -6608,7 +6697,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     fixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", format)),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );
@@ -7170,7 +7260,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     StoragePath.fileUri(dir) + "/*." + format,
                     null,
                     settings,
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );

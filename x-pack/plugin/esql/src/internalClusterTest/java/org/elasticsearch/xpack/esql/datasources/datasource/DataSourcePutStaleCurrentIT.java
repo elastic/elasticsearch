@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -124,7 +125,7 @@ public class DataSourcePutStaleCurrentIT extends ESIntegTestCase {
     }
 
     private static PutDataSourceAction.Request request(String name, Map<String, Object> settings) {
-        return new PutDataSourceAction.Request(TIMEOUT, SHORT_ACK, name, "test_requires_secret", null, new HashMap<>(settings));
+        return new PutDataSourceAction.Request(TIMEOUT, SHORT_ACK, name, "test_requires_secret", null, new HashMap<>(settings), Set.of());
     }
 
     private static Object decryptSecret(DataSourceSetting secret) {

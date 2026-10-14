@@ -174,7 +174,8 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
                     "secret_src",
                     "test",
                     null,
-                    new HashMap<>(Map.of(SECRET_KEY, SECRET_VALUE))
+                    new HashMap<>(Map.of(SECRET_KEY, SECRET_VALUE)),
+                    null
                 )
             )
         );

@@ -262,7 +262,8 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
                     "secret_src",
                     "test",
                     null,
-                    new HashMap<>(Map.of(SECRET_KEY, secretValue))
+                    new HashMap<>(Map.of(SECRET_KEY, secretValue)),
+                    null
                 )
             )
         );
@@ -368,7 +369,8 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
                     "secret_src",
                     "test",
                     null,
-                    new HashMap<>(Map.of(SECRET_KEY, wrongSecret))
+                    new HashMap<>(Map.of(SECRET_KEY, wrongSecret)),
+                    null
                 )
             )
         );
@@ -430,7 +432,8 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
                     "secret_src",
                     "test",
                     null,
-                    new HashMap<>(Map.of(SECRET_KEY, secretValue))
+                    new HashMap<>(Map.of(SECRET_KEY, secretValue)),
+                    null
                 )
             )
         );
@@ -489,7 +492,8 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
                     "secret_src",
                     "test",
                     null,
-                    new HashMap<>(Map.of(SECRET_KEY, secretValue))
+                    new HashMap<>(Map.of(SECRET_KEY, secretValue)),
+                    null
                 )
             )
         );

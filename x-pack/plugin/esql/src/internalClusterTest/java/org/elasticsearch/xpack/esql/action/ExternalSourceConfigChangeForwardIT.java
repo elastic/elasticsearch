@@ -95,7 +95,7 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
         assertAcked(
             client(coord).execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_fwd", "test", null, new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_fwd", "test", null, new HashMap<>(), null)
             )
         );
         collectAllMeters();
@@ -131,7 +131,7 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
                 Exception.class,
                 () -> client(coord).execute(
                     PutDataSourceAction.INSTANCE,
-                    new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_fwd_max", "test", null, new HashMap<>())
+                    new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_fwd_max", "test", null, new HashMap<>(), null)
                 ).actionGet(TIMEOUT)
             );
             collectAllMeters();

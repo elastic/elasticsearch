@@ -731,7 +731,8 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             "bad_ds",
             "unknown-type",
             null,
-            new HashMap<>()
+            new HashMap<>(),
+            null
         );
         ExecutionException err = expectThrows(ExecutionException.class, () -> client().execute(PutDataSourceAction.INSTANCE, req).get());
         assertThat(err.getCause(), instanceOf(IllegalArgumentException.class));
@@ -932,11 +933,19 @@ public class DataSourceCrudIT extends ESIntegTestCase {
     }
 
     static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
-        return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test", null, new HashMap<>(settings));
+        return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test", null, new HashMap<>(settings), null);
     }
 
     private static PutDataSourceAction.Request requiredSecretDataSourceRequest(String name, Map<String, Object> settings) {
-        return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test_requires_secret", null, new HashMap<>(settings));
+        return new PutDataSourceAction.Request(
+            TEST_TIMEOUT,
+            TEST_TIMEOUT,
+            name,
+            "test_requires_secret",
+            null,
+            new HashMap<>(settings),
+            null
+        );
     }
 
     /** Decrypts a secret setting's carrier using the test encryption key from {@link TestEncryptionServicePlugin}. */

@@ -243,7 +243,7 @@ public abstract class AbstractExternalReadConfigParityIT extends AbstractExterna
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, SRC, uri, null, settings, mapping)
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, SRC, uri, null, settings, mapping, null)
             )
         );
         datasets.add(name);

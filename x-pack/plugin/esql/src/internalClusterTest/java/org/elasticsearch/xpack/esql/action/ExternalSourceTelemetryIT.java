@@ -241,7 +241,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds", "test", null, new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds", "test", null, new HashMap<>(), null)
             )
         );
         // Glob resource so resolution takes the multi-file discovery path.
@@ -402,7 +402,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds", "test", null, new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds", "test", null, new HashMap<>(), null)
             )
         );
         assertAcked(
@@ -486,7 +486,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_bad_row", "test", null, new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_bad_row", "test", null, new HashMap<>(), null)
             )
         );
         assertAcked(
@@ -547,7 +547,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_fmt", "test", null, new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_fmt", "test", null, new HashMap<>(), null)
             )
         );
         assertAcked(
@@ -634,7 +634,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_client", "test", null, new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_client", "test", null, new HashMap<>(), null)
             )
         );
         for (String name : List.of("ok", "bad")) {
@@ -723,7 +723,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_dup_header", "test", null, new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_dup_header", "test", null, new HashMap<>(), null)
             )
         );
         assertAcked(
@@ -787,7 +787,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds", "local", null, new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds", "local", null, new HashMap<>(), null)
             )
         );
         assertAcked(
@@ -870,7 +870,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_crud", "test", "first", new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_crud", "test", "first", new HashMap<>(), null)
             )
         );
         assertAcked(
@@ -890,7 +890,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_crud", "test", "second", new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_crud", "test", "second", new HashMap<>(), null)
             )
         );
         assertAcked(
@@ -935,7 +935,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             Exception.class,
             () -> client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_crud", "no_such_type", null, new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_crud", "no_such_type", null, new HashMap<>(), null)
             ).actionGet(TIMEOUT)
         );
 
@@ -1040,7 +1040,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                 Exception.class,
                 () -> client().execute(
                     PutDataSourceAction.INSTANCE,
-                    new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_max", "test", null, new HashMap<>())
+                    new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_max", "test", null, new HashMap<>(), null)
                 ).actionGet(TIMEOUT)
             );
             collectAllMeters();
@@ -1079,7 +1079,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_iae", "test", null, new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_iae", "test", null, new HashMap<>(), null)
             )
         );
 
@@ -1101,7 +1101,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                     resource,
                     null,
                     new HashMap<>(Map.of("format", "csv")),
-                    mapping
+                    mapping,
+                    null
                 )
             ).actionGet(TIMEOUT)
         );
@@ -1132,7 +1133,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_dep", "test", null, new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_dep", "test", null, new HashMap<>(), null)
             )
         );
         assertAcked(
@@ -1194,7 +1195,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_cpu", "test", null, new HashMap<>())
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_cpu", "test", null, new HashMap<>(), null)
             )
         );
         assertAcked(

@@ -99,7 +99,8 @@ public class ExternalParquetCoercionWarningFloodIT extends AbstractExternalDataS
                     globUri(dir, "*.parquet"),
                     null,
                     new HashMap<>(Map.of("error_mode", "null_field")),
-                    mapping
+                    mapping,
+                    null
                 )
             )
         );

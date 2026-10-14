@@ -213,7 +213,7 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings))
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings), Set.of())
             )
         );
         registeredDataSources.add(name);
@@ -250,7 +250,15 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
             assertAcked(
                 client().execute(
                     PutDataSourceAction.INSTANCE,
-                    new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, SHARED_LOCAL_FILE_DATA_SOURCE, "local", null, new HashMap<>())
+                    new PutDataSourceAction.Request(
+                        TIMEOUT,
+                        TIMEOUT,
+                        SHARED_LOCAL_FILE_DATA_SOURCE,
+                        "local",
+                        null,
+                        new HashMap<>(),
+                        Set.of()
+                    )
                 )
             );
             registeredDataSources.add(SHARED_LOCAL_FILE_DATA_SOURCE);
@@ -285,7 +293,8 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
                     resourceUri,
                     null,
                     new HashMap<>(settings),
-                    mapping
+                    mapping,
+                    Set.of()
                 )
             )
         );
@@ -320,7 +329,8 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
                     resourceUri,
                     null,
                     new HashMap<>(settings),
-                    mapping
+                    mapping,
+                    Set.of()
                 )
             )
         );

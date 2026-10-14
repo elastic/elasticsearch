@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -432,6 +433,178 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
 
     private LogicalPlan externalPlan(String query) {
         return datasetPlan(query, DATASET_NAME, S3_RESOURCE, externalSchema());
+    }
+
+    /**
+     * A key derived from a key the mapping guarantees single-valued is recomputed above the aggregate: {@code emp_no} holds at most
+     * one value, so {@code emp_no + 1} cannot add groups and cannot differ between rows of a group.
+     */
+    public void testPrunesDerivedGroupingOfSingleValuedField() {
+        var plan = planWithSingleValuedFields("""
+            FROM test
+            | EVAL next = emp_no + 1
+            | STATS c = COUNT(*) BY emp_no, next
+            """, Set.of("emp_no"));
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("c", "emp_no", "next"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("next"));
+
+        var aggregate = rewrittenAggregate(eval);
+        assertThat(Expressions.names(aggregate.groupings()), contains("emp_no"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "emp_no"));
+        as(aggregate.child(), EsRelation.class);
+    }
+
+    public void testPrunesInlineDerivedGroupingOfSingleValuedField() {
+        var plan = planWithSingleValuedFields("""
+            FROM test
+            | STATS c = COUNT(*) BY emp_no, emp_no - 1
+            """, Set.of("emp_no"));
+
+        var aggregate = rewrittenAggregate(as(rewrittenProject(plan).child(), Eval.class));
+        assertThat(Expressions.names(aggregate.groupings()), contains("emp_no"));
+    }
+
+    public void testPrunesChainedDerivedGroupings() {
+        var plan = planWithSingleValuedFields("""
+            FROM test
+            | EVAL a = emp_no + 1
+            | EVAL b = -a
+            | STATS c = COUNT(*) BY emp_no, a, b
+            """, Set.of("emp_no"));
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("c", "emp_no", "a", "b"));
+        var aggregate = rewrittenAggregate(as(project.child(), Eval.class));
+        assertThat(Expressions.names(aggregate.groupings()), contains("emp_no"));
+    }
+
+    /** A key read from several single-valued keys: all of them stay in the aggregate. */
+    public void testPrunesDerivedGroupingOfSeveralSingleValuedFields() {
+        var plan = planWithSingleValuedFields("""
+            FROM test
+            | EVAL total = emp_no + languages
+            | STATS c = COUNT(*) BY emp_no, languages, total
+            """, Set.of("emp_no", "languages"));
+
+        var aggregate = rewrittenAggregate(as(rewrittenProject(plan).child(), Eval.class));
+        assertThat(Expressions.names(aggregate.groupings()), contains("emp_no", "languages"));
+    }
+
+    /** The key is recomputed from the name the aggregate outputs for the renamed column, not the name it had below. */
+    public void testPrunesDerivedGroupingOfRenamedSingleValuedField() {
+        var plan = planWithSingleValuedFields("""
+            FROM test
+            | RENAME emp_no AS id
+            | EVAL next = id + 1
+            | STATS c = COUNT(*) BY id, next
+            """, Set.of("emp_no"));
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("c", "id", "next"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("next"));
+        assertThat(Expressions.names(eval.fields().get(0).child().references()), contains("id"));
+    }
+
+    /** No mapping guarantee, no proof: the key stays even though the same query is pruned above for a guaranteed field. */
+    public void testDoesNotPruneDerivedGroupingOfUnguaranteedField() {
+        var plan = planWithSingleValuedFields("""
+            FROM test
+            | EVAL next = emp_no + 1
+            | STATS c = COUNT(*) BY emp_no, next
+            """, Set.of("languages"));
+
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("emp_no", "next"));
+    }
+
+    public void testDoesNotPruneDerivedGroupingWhenOneInputIsUnguaranteed() {
+        var plan = planWithSingleValuedFields("""
+            FROM test
+            | EVAL total = emp_no + languages
+            | STATS c = COUNT(*) BY emp_no, languages, total
+            """, Set.of("emp_no"));
+
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("emp_no", "languages", "total"));
+    }
+
+    /** Only integral {@code +}, {@code -} and unary {@code -} are recomputed, even over a guaranteed field. */
+    public void testDoesNotPruneUnlistedFunctionOfSingleValuedField() {
+        var plan = planWithSingleValuedFields("""
+            FROM test
+            | EVAL twice = emp_no * 2
+            | STATS c = COUNT(*) BY emp_no, twice
+            """, Set.of("emp_no"));
+
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("emp_no", "twice"));
+    }
+
+    public void testDoesNotPruneFloatingPointDerivedGrouping() {
+        var plan = planWithSingleValuedFields("""
+            FROM test
+            | EVAL shifted = emp_no + 1.5
+            | STATS c = COUNT(*) BY emp_no, shifted
+            """, Set.of("emp_no"));
+
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("emp_no", "shifted"));
+    }
+
+    /** A key reduced to one value by {@code MV_MIN} is proven by the plan, so no mapping guarantee is needed. */
+    public void testPrunesDerivedGroupingOfMultivalueReducedKey() {
+        var plan = plan("""
+            FROM test
+            | EVAL smallest = MV_MIN(languages)
+            | EVAL next = smallest + 1
+            | STATS c = COUNT(*) BY smallest, next
+            """);
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("c", "smallest", "next"));
+        var aggregate = rewrittenAggregate(as(project.child(), Eval.class));
+        assertThat(Expressions.names(aggregate.groupings()), contains("smallest"));
+    }
+
+    /** The derived key is still read by an aggregate function, so its field stays below the aggregate. */
+    public void testKeepsEvalFieldReadByAggregateFunction() {
+        var plan = planWithSingleValuedFields("""
+            FROM test
+            | EVAL next = emp_no + 1
+            | STATS total = SUM(next) BY emp_no, next
+            """, Set.of("emp_no"));
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("total", "emp_no", "next"));
+        var aggregate = rewrittenAggregate(as(project.child(), Eval.class));
+        assertThat(Expressions.names(aggregate.groupings()), contains("emp_no"));
+        assertThat(Expressions.names(as(aggregate.child(), Eval.class).fields()), contains("next"));
+    }
+
+    /** A chain longer than the parser allows is left alone, and following it does not overflow the stack. */
+    public void testLongChainOverSingleValuedFieldIsLeftAlone() {
+        StringBuilder query = new StringBuilder("FROM test | EVAL a0 = emp_no + 1");
+        for (int i = 1; i < DEEP_ALIASES * 50; i++) {
+            query.append(", a").append(i).append(" = a").append(i - 1).append(" + 1");
+        }
+        query.append(" | STATS c = COUNT(*) BY emp_no, a").append(DEEP_ALIASES * 50 - 1);
+        LogicalPlan analyzed = defaultAnalyzer().query(query.toString())
+            .transformUp(EsRelation.class, r -> r.withSingleValuedFields(Set.of("emp_no")));
+
+        LogicalPlan result = applyOnSmallStack(analyzed);
+
+        assertThat(groupingNames(result), hasSize(2));
+    }
+
+    private LogicalPlan planWithSingleValuedFields(String query, Set<String> singleValuedFields) {
+        return logicalOptimizer.optimize(
+            defaultAnalyzer().query(query).transformUp(EsRelation.class, relation -> relation.withSingleValuedFields(singleValuedFields))
+        );
     }
 
     private LogicalPlan analyzedExternalPlan(String query) {

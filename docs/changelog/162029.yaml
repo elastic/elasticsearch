@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 161465
+pr: 162029
+summary: Flatten external resolution
+type: bug

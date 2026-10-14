@@ -592,9 +592,10 @@ curl -X POST "${ELASTICSEARCH_URL}/_bulk" \
 
 ::::
 
-Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. Use `METADATA _name` to see where each row came from:
+Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. To see where each row came from, request a metadata column:
 
-{applies_to}`stack: experimental 9.6+` `_name` is available from 9.6. On 9.5, use `METADATA _index`, which returns the dataset name for dataset rows in that version.
+- {applies_to}`stack: experimental 9.6+` Use `METADATA _name`, which returns the dataset name for dataset rows and the index name for index rows.
+- {applies_to}`stack: experimental =9.5` Use `METADATA _index`, which returns the dataset name for dataset rows.
 
 ::::{tab-set}
 :group: surface

@@ -146,7 +146,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT);
+        Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         assertEquals(1, searcher.getIndexReader().maxDoc());
 
         node.close();
@@ -177,7 +177,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT);
+        Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         assertEquals(1, searcher.getIndexReader().maxDoc());
 
         Query query = LongPoint.newRangeQuery("foo", 0, 5);
@@ -215,7 +215,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT);
+        Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         assertEquals(1, searcher.getIndexReader().maxDoc());
 
         node.close();
@@ -252,7 +252,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT);
+        Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         assertEquals(1, searcher.getIndexReader().maxDoc());
 
         node.close();

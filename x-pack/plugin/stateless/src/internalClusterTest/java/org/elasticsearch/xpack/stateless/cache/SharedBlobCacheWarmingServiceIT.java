@@ -1240,7 +1240,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         assertNotNull(indexShard);
         Collections.shuffle(returnedIds, random());
         final var idsToLookup = returnedIds.subList(10, randomIntBetween(10, 100));
-        try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+        try (Engine.Searcher searcher = indexShard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             for (var id : idsToLookup) {
                 assertNotNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
             }

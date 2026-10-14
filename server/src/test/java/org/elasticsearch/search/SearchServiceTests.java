@@ -576,7 +576,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(true);
         try {
             recoverShardFromStore(indexShard);
-            try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 CircuitBreaker cb = createQueryConstructionBreaker("100mb");
                 SearchExecutionContext context = new SearchExecutionContext(
                     createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
@@ -609,7 +609,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(true);
         try {
             recoverShardFromStore(indexShard);
-            try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 CircuitBreaker cb = createQueryConstructionBreaker("1kb");
                 SearchExecutionContext context = new SearchExecutionContext(
                     createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
@@ -636,7 +636,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(true);
         try {
             recoverShardFromStore(indexShard);
-            try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 CircuitBreaker cb = createQueryConstructionBreaker("100mb");
                 SearchExecutionContext context = new SearchExecutionContext(
                     createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
@@ -696,7 +696,7 @@ public class SearchServiceTests extends IndexShardTestCase {
             recoverShardFromStore(indexShard);
             assertTrue(indexDoc(indexShard, "_doc", "id", "{\"field\":\"value\", \"@timestamp\":\"2025-12-09\"}").isCreated());
             assertTrue(indexShard.refresh("test").refreshed());
-            try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
                     (mappedFieldType, fieldDataContext) -> indexFieldData,
                     searcher

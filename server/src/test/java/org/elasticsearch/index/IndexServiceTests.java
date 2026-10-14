@@ -327,7 +327,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
             // we are running on updateMetadata if the interval changes
-            try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            try (Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
                 assertEquals(1, search.totalHits.value());
             }
@@ -341,7 +341,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(refreshTask.isClosed());
         assertBusy(() -> {
             // this one becomes visible due to the force refresh we are running on updateMetadata if the interval changes
-            try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            try (Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
                 assertEquals(2, search.totalHits.value());
             }
@@ -349,7 +349,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         prepareIndex("test").setId("2").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         assertBusy(() -> {
             // this one becomes visible due to the scheduled refresh
-            try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            try (Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
                 assertEquals(3, search.totalHits.value());
             }

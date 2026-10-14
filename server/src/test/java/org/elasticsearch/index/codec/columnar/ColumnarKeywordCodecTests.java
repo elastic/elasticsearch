@@ -485,7 +485,7 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
     /** The doc-values format the {@code kw} field's values were written with in {@code index}. */
     private String keywordDocValuesFormat(String index) throws IOException {
         final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index)).getShard(0);
-        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+        try (Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             String format = null;
             boolean found = false;
             for (LeafReaderContext leaf : searcher.getLeafContexts()) {

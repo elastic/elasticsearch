@@ -70,7 +70,7 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
 
         final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         final IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+        try (Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertTrue(PartitionedDocValues.canPartitionByTsidPrefix(searcher));
             PartitionedDocValues.PrefixPartitions partition = null;
             for (LeafReaderContext leaf : searcher.getLeafContexts()) {
@@ -104,7 +104,7 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
 
         final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         final IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+        try (Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertFalse(PartitionedDocValues.canPartitionByTsidPrefix(searcher));
         }
     }
@@ -203,7 +203,7 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
         indicesAdmin().flush(new FlushRequest(indexName).force(true)).actionGet();
         indicesAdmin().prepareRefresh(indexName).get();
 
-        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+        try (Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             final List<LeafReaderContext> leaves = searcher.getDirectoryReader().leaves();
             assertThat(leaves.size(), greaterThan(0));
 

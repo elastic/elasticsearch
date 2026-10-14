@@ -67,7 +67,7 @@ public final class DuelIndexAccess {
                 continue;
             }
             startedShardSeen = true;
-            try (Engine.Searcher searcher = shard.acquireExternalSearcher("duel-format-check", SplitShardCountSummary.IRRELEVANT)) {
+            try (Engine.Searcher searcher = shard.acquireSearcher("duel-format-check", SplitShardCountSummary.IRRELEVANT)) {
                 for (final LeafReaderContext leaf : searcher.getLeafContexts()) {
                     final FieldInfo fieldInfo = leaf.reader().getFieldInfos().fieldInfo(field);
                     if (fieldInfo != null && fieldInfo.getDocValuesType() != DocValuesType.NONE) {

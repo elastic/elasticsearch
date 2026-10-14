@@ -325,7 +325,7 @@ public class NodeTests extends ESTestCase {
         assertAcked(node.client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT);
+        Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT);
         node.close();
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(10L, TimeUnit.SECONDS));

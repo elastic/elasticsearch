@@ -133,7 +133,7 @@ class DownsampleShardIndexer {
         this.downsampleMetrics = downsampleMetrics;
         this.indexShard = indexService.getShard(shardId.id());
         this.downsampleIndex = downsampleIndex;
-        this.searcher = indexShard.acquireExternalSearcher("downsampling", SplitShardCountSummary.IRRELEVANT);
+        this.searcher = indexShard.acquireSearcher("downsampling", SplitShardCountSummary.IRRELEVANT);
         this.state = state;
         Closeable toClose = searcher;
         try {

@@ -247,7 +247,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         assertThat(indexService.mapperService().mappingLookup().getMapper("parent.field").getOffsetFieldName(), nullValue());
 
-        try (var searcher = indexService.getShard(0).acquireExternalSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
+        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
             var reader = searcher.getDirectoryReader();
             var ignoredSourceDV = MultiDocValues.getBinaryValues(reader, IgnoredSourceFieldMapper.NAME);
             assertThat(FieldInfos.getMergedFieldInfos(reader).fieldInfo("parent.field.offsets"), nullValue());
@@ -321,7 +321,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             }
         }
 
-        try (var searcher = indexService.getShard(0).acquireExternalSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
+        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < expectedArrays.length; i++) {
                 var document = reader.storedFields().document(i);
@@ -388,7 +388,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         }
 
         indexService.getShard(0).forceMerge(new ForceMergeRequest("test-index").maxNumSegments(1));
-        try (var searcher = indexService.getShard(0).acquireExternalSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
+        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);
@@ -459,7 +459,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         }
 
         indexService.getShard(0).forceMerge(new ForceMergeRequest("test-index").maxNumSegments(1));
-        try (var searcher = indexService.getShard(0).acquireExternalSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
+        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName(), SplitShardCountSummary.IRRELEVANT)) {
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);

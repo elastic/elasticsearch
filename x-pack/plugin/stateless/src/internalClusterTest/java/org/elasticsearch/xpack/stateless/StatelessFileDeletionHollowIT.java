@@ -437,7 +437,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessPluginIntegT
         logLastCommittedSegmentInfos(indexShard);
 
         // Acquire commit for searcher
-        var searcher = indexShard.acquireExternalSearcher("searcher", SplitShardCountSummary.IRRELEVANT);
+        var searcher = indexShard.acquireSearcher("searcher", SplitShardCountSummary.IRRELEVANT);
         assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(5L));
         assertThat(searcher.getDirectoryReader().getIndexCommit().getSegmentCount(), equalTo(2));
 

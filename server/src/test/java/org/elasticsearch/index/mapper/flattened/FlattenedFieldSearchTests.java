@@ -547,7 +547,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
 
         var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         var shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+        try (Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             for (var leaf : searcher.getDirectoryReader().leaves()) {
                 for (FieldInfo fieldInfo : leaf.reader().getFieldInfos()) {
                     if (fieldInfo.name.equals("labels")) {

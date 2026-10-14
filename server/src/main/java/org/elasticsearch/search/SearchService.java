@@ -2825,7 +2825,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // However, this will request modifying the engine to surface that information.
                 IndexShard indexShard = canMatchContext.getShard();
                 hasRefreshPending = needsWaitForRefresh || (indexShard.hasRefreshPending() && checkRefreshPending);
-                canMatchSearcher = indexShard.acquireExternalSearcher(
+                canMatchSearcher = indexShard.acquireSearcher(
                     Engine.CAN_MATCH_SEARCH_SOURCE,
                     canMatchContext.request.getSplitShardCountSummary()
                 );

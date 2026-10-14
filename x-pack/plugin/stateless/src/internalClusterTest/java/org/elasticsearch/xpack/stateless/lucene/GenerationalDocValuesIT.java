@@ -1237,7 +1237,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         searchCacheService.forceEvict(fileCacheKey -> bccBlobName.equals(fileCacheKey.fileName()));
 
         // With ES-7496 resolved we can fully read the generational file without triggering a NoSuchFileException
-        try (var searcher = searchShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+        try (var searcher = searchShard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat(searcher.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(9L));
             readGenerationalDocValues(searcher);
         }

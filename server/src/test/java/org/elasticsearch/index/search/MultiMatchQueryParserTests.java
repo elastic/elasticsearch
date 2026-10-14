@@ -150,7 +150,7 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
                 .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                 .tieBreaker(tieBreaker)
                 .toQuery(searchExecutionContext);
-            try (Engine.Searcher searcher = indexService.getShard(0).acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 Query rewrittenQuery = searcher.rewrite(parsedQuery);
                 Query tq1 = new BoostQuery(new TermQuery(new Term("name.last", "banon")), 3);
                 Query tq2 = new BoostQuery(new TermQuery(new Term("name.first", "banon")), 2);

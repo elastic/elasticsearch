@@ -1912,7 +1912,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param splitShardCountSummary a summary of the shard routing state seen when the search request was created
      * @return a searcher
      */
-    public Engine.Searcher acquireExternalSearcher(String source, SplitShardCountSummary splitShardCountSummary) {
+    public Engine.Searcher acquireSearcher(String source, SplitShardCountSummary splitShardCountSummary) {
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();

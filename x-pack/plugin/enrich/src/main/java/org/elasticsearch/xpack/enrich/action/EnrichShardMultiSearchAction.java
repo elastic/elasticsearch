@@ -227,7 +227,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         protected MultiSearchResponse shardOperation(Request request, ShardId shardId) throws IOException {
             final IndexService indexService = indicesService.indexService(shardId.getIndex());
             final IndexShard indexShard = indicesService.getShardOrNull(shardId);
-            try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("enrich_msearch", SplitShardCountSummary.IRRELEVANT)) {
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch", SplitShardCountSummary.IRRELEVANT)) {
                 final FieldsVisitor visitor = new FieldsVisitor(true);
                 /*
                  * Enrich doesn't support defining runtime fields in its

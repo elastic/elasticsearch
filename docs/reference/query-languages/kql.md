@@ -7,7 +7,7 @@ mapped_pages:
 # KQL syntax reference [kuery-query]
 
 :::{note}
-This page is the syntax reference for KQL. For an introduction to KQL, refer to [{{kib}} Query Language (KQL)](docs-content://explore-analyze/query-filter/languages/kql.md).
+This page is the syntax reference for {{kib}} Query Language (KQL). To learn what KQL is, refer to [KQL](docs-content://explore-analyze/query-filter/languages/kql.md) in **Explore and analyze**.
 :::
 
 

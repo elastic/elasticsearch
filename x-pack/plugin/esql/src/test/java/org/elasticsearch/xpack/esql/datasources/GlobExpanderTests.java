@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
@@ -1340,6 +1341,31 @@ public class GlobExpanderTests extends ESTestCase {
             GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_OFF),
             GlobExpander.listingCacheDiscriminator(pattern, closed, HIVE_OFF)
         );
+    }
+
+    public void testListingCacheDiscriminatorReflectsFolderRangePredicate() {
+        String pattern = "s3://bucket/logs/" + "**/*.parquet";
+        PartitionSpec spec = PartitionSpec.parse("year(@timestamp), month(@timestamp), day(@timestamp)");
+        Instant morning = Instant.parse("2026-10-14T01:00:00Z");
+        Instant afternoon = Instant.parse("2026-10-14T18:00:00Z");
+        Instant nextDay = Instant.parse("2026-10-15T01:00:00Z");
+        FolderRangePredicate sameDayA = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, morning))
+        );
+        FolderRangePredicate sameDayB = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, afternoon))
+        );
+        FolderRangePredicate next = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, nextDay))
+        );
+        assertNotNull(sameDayA);
+        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON);
+        String a = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, sameDayA);
+        String b = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, sameDayB);
+        String c = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, next);
+        assertNotEquals("one-sided must not share the unfiltered listing", unhinted, a);
+        assertEquals("same UTC day shares identity", a, b);
+        assertNotEquals("next UTC day differs", a, c);
     }
 
     /**

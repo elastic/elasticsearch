@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -1281,6 +1282,79 @@ public final class PartitionSpec {
         );
     }
 
+    /**
+     * Folder-range predicate from a TEMPORAL extract, before {@code dropNonListingKeys}. Null when no temporal
+     * group has a usable bound (a point, or a one-sided or closed range). {@code @timestamp} / {@code NOW()}
+     * stay out of listing hints; this is the channel that still prunes them.
+     */
+    @Nullable
+    public FolderRangePredicate folderRangePredicate(@Nullable List<PartitionFilterHint> temporalHints) {
+        if (isEmpty() || temporalHints == null || temporalHints.isEmpty()) {
+            return null;
+        }
+        Transform finest = null;
+        LinkedHashSet<String> keys = new LinkedHashSet<>();
+        StringBuilder id = new StringBuilder();
+        appendLengthPrefixed(id, toSpecString());
+        boolean usable = false;
+        for (Map.Entry<String, List<Field>> group : temporalGroups().entrySet()) {
+            if (hasHintOn(temporalHints, group.getKey()) == false) {
+                continue;
+            }
+            List<Field> binds = usable(group.getValue(), null);
+            if (binds.isEmpty()) {
+                continue;
+            }
+            Field finestBind = finestTemporalBind(binds);
+            if (finestBind == null) {
+                continue;
+            }
+            SourceBounds bounds = sourceBounds(temporalHints, group.getKey(), finestBind.unit());
+            InstantRange covering = coveringRange(bounds);
+            if (covering == null) {
+                continue;
+            }
+            usable = true;
+            for (Field field : binds) {
+                if (field.transform().isTemporal()) {
+                    keys.add(field.key());
+                    if (finest == null || grainRank(field.transform()) > grainRank(finest)) {
+                        finest = field.transform();
+                    }
+                }
+            }
+            InstantRange quantized = quantizeRange(covering, finestBind.transform());
+            appendLengthPrefixed(id, group.getKey());
+            appendLengthPrefixed(id, quantized.startInclusiveMillis() == null ? "" : Long.toString(quantized.startInclusiveMillis()));
+            appendLengthPrefixed(id, quantized.endExclusiveMillis() == null ? "" : Long.toString(quantized.endExclusiveMillis()));
+        }
+        if (usable == false) {
+            return null;
+        }
+        if (finest != null) {
+            appendLengthPrefixed(id, finest.token());
+        }
+        for (String key : keys) {
+            appendLengthPrefixed(id, key);
+        }
+        return new SpecFolderRangePredicate(this, List.copyOf(temporalHints), List.copyOf(keys), id.toString());
+    }
+
+    /**
+     * Round {@code range} to {@code grain}: lower down, exclusive upper up. Already-on-boundary values stay.
+     * Folder intervals sit on grain boundaries, so {@code overlapsFolder} on raw vs quantized bounds is identical.
+     */
+    static InstantRange quantizeRange(InstantRange range, Transform grain) {
+        if (grain.isTemporal() == false) {
+            return range;
+        }
+        Long lo = range.startInclusiveMillis();
+        Long hi = range.endExclusiveMillis();
+        Long qLo = lo == null ? null : grainFloor(lo, grain);
+        Long qHi = hi == null ? null : grainCeil(hi, grain);
+        return new InstantRange(qLo, qHi);
+    }
+
     /** Notices for unmatched keys and a numeric bound that lands outside 1971–2100. */
     public void emitListingNotices(@Nullable Set<String> detectedKeys, @Nullable List<PartitionFilterHint> hints, Consumer<String> sink) {
         emitListingNotices(detectedKeys, hints, null, sink);
@@ -1590,6 +1664,93 @@ public final class PartitionSpec {
             case HOUR -> 3;
             case IDENTITY -> -1;
         };
+    }
+
+    @Nullable
+    private static Field finestTemporalBind(List<Field> binds) {
+        Field finest = null;
+        int finestRank = -1;
+        for (Field field : binds) {
+            int rank = grainRank(field.transform());
+            if (rank > finestRank) {
+                finest = field;
+                finestRank = rank;
+            }
+        }
+        return finest;
+    }
+
+    @Nullable
+    private static InstantRange coveringRange(SourceBounds bounds) {
+        if (bounds.points() != null) {
+            if (bounds.points().isEmpty()) {
+                return InstantRange.EMPTY;
+            }
+            long min = Long.MAX_VALUE;
+            long max = Long.MIN_VALUE;
+            for (Long point : bounds.points()) {
+                min = Math.min(min, point);
+                max = Math.max(max, point);
+            }
+            return new InstantRange(min, increment(max));
+        }
+        InstantRange range = bounds.range();
+        if (range.startInclusiveMillis() == null && range.endExclusiveMillis() == null) {
+            return null;
+        }
+        return range;
+    }
+
+    private static long grainFloor(long millis, Transform grain) {
+        ZonedDateTime z = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC);
+        return switch (grain) {
+            case YEAR -> LocalDate.of(z.getYear(), 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+            case MONTH -> LocalDate.of(z.getYear(), z.getMonthValue(), 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+            case DAY -> z.toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+            case HOUR -> z.withMinute(0).withSecond(0).withNano(0).toInstant().toEpochMilli();
+            case IDENTITY -> millis;
+        };
+    }
+
+    private static long grainCeil(long millis, Transform grain) {
+        long floor = grainFloor(millis, grain);
+        if (floor == millis) {
+            return millis;
+        }
+        ZonedDateTime z = Instant.ofEpochMilli(floor).atZone(ZoneOffset.UTC);
+        return switch (grain) {
+            case YEAR -> z.plusYears(1).toInstant().toEpochMilli();
+            case MONTH -> z.plusMonths(1).toInstant().toEpochMilli();
+            case DAY -> z.plusDays(1).toInstant().toEpochMilli();
+            case HOUR -> z.plusHours(1).toInstant().toEpochMilli();
+            case IDENTITY -> millis;
+        };
+    }
+
+    private static void appendLengthPrefixed(StringBuilder sb, String value) {
+        sb.append(value.length()).append(':').append(value);
+    }
+
+    private record SpecFolderRangePredicate(PartitionSpec spec, List<PartitionFilterHint> hints, List<String> bindKeys, String identity)
+        implements
+            FolderRangePredicate {
+        @Override
+        public boolean mayContain(Map<String, String> boundKeyValues) {
+            if (boundKeyValues == null || boundKeyValues.isEmpty()) {
+                return true;
+            }
+            return spec.overlaps(new LinkedHashMap<>(boundKeyValues), hints);
+        }
+
+        @Override
+        public String identity() {
+            return identity;
+        }
+
+        @Override
+        public List<String> bindKeys() {
+            return bindKeys;
+        }
     }
 
     private static boolean hasHintOn(List<PartitionFilterHint> hints, String column) {

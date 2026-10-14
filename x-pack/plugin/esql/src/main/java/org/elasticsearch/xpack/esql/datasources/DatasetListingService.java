@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
@@ -133,6 +134,20 @@ public final class DatasetListingService {
         PlanningMemory memory,
         BooleanSupplier cancelled
     ) throws Exception {
+        return expand(path, provider, hints, config, storagePath, extents, memory, cancelled, null);
+    }
+
+    public FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        StoragePath storagePath,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        @Nullable FolderRangePredicate folderRange
+    ) throws Exception {
         return GlobExpander.expandAndCompact(
             path,
             provider,
@@ -144,7 +159,8 @@ public final class DatasetListingService {
             maxListedObjects.getAsInt(),
             extents,
             memory,
-            cancelled
+            cancelled,
+            folderRange
         );
     }
 
@@ -168,6 +184,23 @@ public final class DatasetListingService {
         Executor executor,
         ActionListener<FileList> listener
     ) {
+        expandAsync(path, provider, hints, config, storagePath, extents, memory, cancelled, concurrency, executor, listener, null);
+    }
+
+    public void expandAsync(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        StoragePath storagePath,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange
+    ) {
         GlobExpander.expandAndCompactAsync(
             path,
             provider,
@@ -182,7 +215,8 @@ public final class DatasetListingService {
             concurrency,
             cancelled,
             executor,
-            listener
+            listener,
+            folderRange
         );
     }
 
@@ -266,6 +300,21 @@ public final class DatasetListingService {
         PlanningMemory memory,
         BooleanSupplier cancelled
     ) throws Exception {
+        return cachedListing(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, memory, cancelled, null);
+    }
+
+    public FileList cachedListing(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        String storageIdentity,
+        String secretIdentity,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        @Nullable FolderRangePredicate folderRange
+    ) throws Exception {
         // The two identities are passed in rather than derived here: only the provider that would list this prefix
         // knows which of its settings name the same store twice and which of them are declared secret, and the
         // resolver already holds what it reported. Re-deriving would take a fresh lease and decrypt again.
@@ -277,14 +326,14 @@ public final class DatasetListingService {
             secretIdentity,
             ExternalSourceResolver.storageConfig(config),
             // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
-            GlobExpander.listingCacheDiscriminator(path, hints, config, ListingExtents.UNBOUNDED)
+            GlobExpander.listingCacheDiscriminator(path, hints, config, ListingExtents.UNBOUNDED, folderRange)
         );
         FileList listing;
         boolean[] servedFromCacheHolder = { true };
         try {
             listing = cacheService.getOrComputeListing(listingKey, k -> {
                 servedFromCacheHolder[0] = false;
-                return expand(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED, memory, cancelled);
+                return expand(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED, memory, cancelled, folderRange);
             });
         } catch (ExecutionException e) {
             throw asListingFailure(e);

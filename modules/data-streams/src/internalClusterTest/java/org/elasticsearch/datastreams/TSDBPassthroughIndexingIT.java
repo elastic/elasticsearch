@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -150,6 +151,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
     public void testIndexingGettingAndSearching() throws Exception {
         var templateSettings = indexSettings(randomIntBetween(2, 10), 0).put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -234,6 +236,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         String dataStreamName = "k8s";
         var templateSettings = indexSettings(8, 0).put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }

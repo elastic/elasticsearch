@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,6 +85,49 @@ public class ReplacePotentiallyUnmappedFieldWithMappedFieldTests extends Abstrac
             // Neither indexed nor doc-valued here, so it can't be read as a mapped field and stays loaded from _source (also unpushable).
             assertFalse(pushdown.isPushableFieldAttribute(f));
         }
+    }
+
+    /**
+     * A field no local shard maps is still read from {@code _source}, where a shard may hold it without mapping it.
+     */
+    public void testPotentiallyUnmappedFieldRetainedWhenMappedNowhereOnDataNode() {
+        var plan = planWithLoad("""
+              FROM test
+            | WHERE does_not_exist == "x"
+            | KEEP does_not_exist
+            """);
+
+        var mappedNowhere = new TestConfigurableSearchStats().exclude(Config.EXISTS, "does_not_exist")
+            .exclude(Config.INDEXED, "does_not_exist")
+            .exclude(Config.DOC_VALUES, "does_not_exist");
+
+        var localFields = fieldAttributes(localPlan(plan, mappedNowhere), "does_not_exist");
+        assertThat(localFields, not(empty()));
+        for (FieldAttribute f : localFields) {
+            assertThat(f.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+        }
+    }
+
+    /**
+     * When no local shard can hold a field it does not map, a field mapped nowhere is missing, and the filter on it matches nothing.
+     */
+    public void testPotentiallyUnmappedFieldIsMissingWhenNoShardCanHoldIt() {
+        var plan = planWithLoad("""
+              FROM test
+            | WHERE does_not_exist == "x"
+            | KEEP does_not_exist
+            """);
+
+        var noUnmappedFields = new TestConfigurableSearchStats() {
+            @Override
+            public boolean mayHoldUnmappedField(FieldAttribute.FieldName name) {
+                return false;
+            }
+        }.exclude(Config.EXISTS, "does_not_exist").exclude(Config.INDEXED, "does_not_exist").exclude(Config.DOC_VALUES, "does_not_exist");
+
+        // The filter compares a missing field, so it folds away along with the relation it read from.
+        var local = as(localPlan(plan, noUnmappedFields), LocalRelation.class);
+        assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
     public void testLookupIndexFieldsNotModified() {

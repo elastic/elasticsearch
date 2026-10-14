@@ -297,8 +297,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             request.routing(),
             requestedSlice,
             "validate query request",
-            target,
-            false
+            target
         );
     }
 

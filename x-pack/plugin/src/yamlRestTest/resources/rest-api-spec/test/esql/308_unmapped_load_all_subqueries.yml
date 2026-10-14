@@ -6,14 +6,12 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2, optional_fields_load_with_fork_subqueries_and_views ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2, optional_fields_load_with_fork_subqueries_and_views ]
       reason: >
-        LOAD and LOAD_ALL diverge on sub-queries. For a field named explicitly they are the same code:
-        UnmappedKeywordValues is "shared by the per-document UnmappedKeywordBlockLoader and the
-        coordinator-side ExpandUnmappedFieldsPostProcessor so an explicitly referenced unmapped field and its
-        LOAD_ALL auto-expanded twin render identically", and DetermineUnmappedFieldsToKeep excludes every
-        plan-output name from the discovery set precisely so the named field is served once, by the LOAD
-        path. What is NOT shared is discovery, and discovery has to decide which relations to stamp.
+        LOAD and LOAD_ALL diverge on sub-queries. For a field named explicitly they are the same code: both load
+        it through UnmappedKeywordBlockLoader, and DetermineUnmappedFieldsToKeep excludes every plan-output
+        name from the discovery set precisely so the named field is served once, by the LOAD path. What is
+        NOT shared is discovery, and discovery has to decide which relations to stamp.
 
   - do:
       indices.create:
@@ -78,10 +76,10 @@ teardown:
   - length: { columns: 3 }
   - match: { columns.0.name: color }
   - match: { columns.1.name: id }
-  - match: { columns.2.name: note }
-  - match: { columns.2.type: keyword }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.2.type: _source }
   - match: { values.0: [ "red", "a1", null ] }
-  - match: { values.1: [ null, "b1", "from_source" ] }
+  - match: { values.1: [ null, "b1", { note: from_source } ] }
 
 ---
 'LOAD_ALL runs a sub-query union whose conversion resolves on a later analyzer pass':

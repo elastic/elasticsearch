@@ -9,4 +9,4 @@ lexer grammar UnknownCommand;
 //
 // Catch-all for unrecognized commands
 //
-UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION_MODE) ;
+UNKNOWN_CMD : (~[ \r\n\t[\]()/]+ | [()]) -> pushMode(EXPRESSION_MODE) ;

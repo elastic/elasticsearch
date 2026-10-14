@@ -15,13 +15,13 @@ setup:
       index:
         index:  sliced_source
         id:     "1"
-        slice:  tenant-a
+        _slice:  tenant-a
         body:   { "company": "cat" }
   - do:
       index:
         index:  sliced_source
         id:     "2"
-        slice:  tenant-b
+        _slice:  tenant-b
         body:   { "company": "dog" }
   - do:
       indices.refresh: {}
@@ -62,13 +62,13 @@ setup:
       index:
         index:  sliced_source_all
         id:     "1"
-        slice:  tenant-a
+        _slice:  tenant-a
         body:   { "company": "cat" }
   - do:
       index:
         index:  sliced_source_all
         id:     "2"
-        slice:  tenant-b
+        _slice:  tenant-b
         body:   { "company": "dog" }
   - do:
       indices.refresh: {}
@@ -136,14 +136,14 @@ setup:
       get:
         index: sliced_dest
         id:    "1"
-        slice: tenant-a
+        _slice: tenant-a
   - match: { _slice: tenant-a }
 
   - do:
       get:
         index: sliced_dest
         id:    "2"
-        slice: tenant-a
+        _slice: tenant-a
   - match: { _slice: tenant-a }
 
 ---
@@ -158,13 +158,13 @@ setup:
       index:
         index:  sliced_source_1
         id:     "1"
-        slice:  tenant-a
+        _slice:  tenant-a
         body:   { "company": "cat" }
   - do:
       index:
         index:  sliced_source_1
         id:     "2"
-        slice:  tenant-b
+        _slice:  tenant-b
         body:   { "company": "dog" }
   - do:
       indices.refresh: {}
@@ -193,7 +193,7 @@ setup:
       get:
         index: sliced_dest_1
         id:    "1"
-        slice: tenant-b
+        _slice: tenant-b
   - match: { _slice: tenant-b }
 
 ---
@@ -208,13 +208,13 @@ setup:
       index:
         index:  sliced_source_2
         id:     "1"
-        slice:  tenant-a
+        _slice:  tenant-a
         body:   { "company": "cat" }
   - do:
       index:
         index:  sliced_source_2
         id:     "2"
-        slice:  tenant-a
+        _slice:  tenant-a
         body:   { "company": "dog" }
   - do:
       indices.refresh: {}
@@ -242,14 +242,14 @@ setup:
       get:
         index: sliced_dest_2
         id:    "1"
-        slice: tenant-a
+        _slice: tenant-a
   - match: { _slice: tenant-a }
 
   - do:
       get:
         index: sliced_dest_2
         id:    "2"
-        slice: tenant-a
+        _slice: tenant-a
   - match: { _slice: tenant-a }
 
 ---
@@ -264,13 +264,13 @@ setup:
       index:
         index:  sliced_source_3
         id:     "1"
-        slice:  tenant-a
+        _slice:  tenant-a
         body:   { "company": "cat" }
   - do:
       index:
         index:  sliced_source_3
         id:     "2"
-        slice:  tenant-b
+        _slice:  tenant-b
         body:   { "company": "dog" }
   - do:
       indices.refresh: {}
@@ -298,14 +298,14 @@ setup:
       get:
         index: sliced_dest_3
         id:    "1"
-        slice: tenant-a
+        _slice: tenant-a
   - match: { _slice: tenant-a }
 
   - do:
       get:
         index: sliced_dest_3
         id:    "2"
-        slice: tenant-b
+        _slice: tenant-b
   - match: { _slice: tenant-b }
 
 ---
@@ -420,7 +420,7 @@ setup:
       index:
         index:  slice_source_to_routing
         id:     "1"
-        slice:  tenant-a
+        _slice:  tenant-a
         body:   { "company": "cat" }
   - do:
       indices.refresh: {}

@@ -565,6 +565,9 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         settings.remove(IndexMetadata.SETTING_VERSION_UPGRADED);
         settings.remove(IndexMetadata.SETTING_VERSION_UPGRADED_STRING);
 
+        // A follower always has it set, see CcrRepository#getSnapshotIndexMetaData.
+        settings.remove(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey());
+
         Iterator<String> iterator = settings.keys().iterator();
         while (iterator.hasNext()) {
             String key = iterator.next();

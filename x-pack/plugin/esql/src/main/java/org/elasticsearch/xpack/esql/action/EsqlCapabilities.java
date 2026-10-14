@@ -4380,7 +4380,7 @@ public class EsqlCapabilities {
          * Older nodes read that cell under {@code date} and refused it under {@code date_nanos}. Gates the
          * csv-spec case asserting both reads, which such nodes still fail.
          */
-        EXTERNAL_CSV_DATE_NANOS_ACCEPTS_SPACE_SEPARATED_TIMESTAMP,
+        CSV_DATE_NANOS_ACCEPTS_SPACE_SEPARATED_TIMESTAMP,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

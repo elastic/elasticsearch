@@ -222,6 +222,41 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertInferredDateNanosRoundTrips(reader, tsv);
     }
 
+    /**
+     * The same thing for the space-separated form — the shape pandas and SQL dumps write, and the one
+     * this change is about. Inference types the column {@code date_nanos} and the reader returns the
+     * instant its {@code T}-separated twin returns, which is what the shared assertion below checks:
+     * the template reads its fields as UTC, so the two forms are the same instant.
+     * <p>
+     * Until inference was told the rail had grown a template, this column came back {@code datetime}
+     * with everything below the millisecond gone, even though the reader could already read it. This
+     * is the one test that can see that disagreement. The unit-level invariants in
+     * {@code CsvSchemaInferrerTests} ask the rail's two halves the same way production's screen does,
+     * so the screen and the rail drifting apart is invisible to them; here the screen decides the type
+     * and the rail then has to actually produce the value.
+     */
+    public void testInferredDateNanosKeepsNanoPrecisionSpaceSeparated() throws Exception {
+        String csv = """
+            id,ts
+            1,2023-10-23 12:15:03.360103847
+            2,2023-10-23 12:15:03.360
+            """;
+        assertInferredDateNanosRoundTrips(new CsvFormatReader(blockFactory), csv);
+    }
+
+    /**
+     * And with the trailing {@code Z} the template accepts and the millisecond sibling refuses, so the
+     * suffix cannot quietly push the column off the rail it just reached.
+     */
+    public void testInferredDateNanosKeepsNanoPrecisionSpaceSeparatedWithZ() throws Exception {
+        String csv = """
+            id,ts
+            1,2023-10-23 12:15:03.360103847Z
+            2,2023-10-23 12:15:03.360Z
+            """;
+        assertInferredDateNanosRoundTrips(new CsvFormatReader(blockFactory), csv);
+    }
+
     private void assertInferredDateNanosRoundTrips(CsvFormatReader reader, String text) throws Exception {
         StorageObject object = createStorageObject(text);
         List<Attribute> schema = reader.metadata(object).schema();

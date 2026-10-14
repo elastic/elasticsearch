@@ -104,9 +104,17 @@ public class DatafeedJobBuilder {
         final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
             ? -1
             : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
-        final long latestRecordTimeMs = context.restartTimeInfo().getLatestRecordTimeMs() == null
-            ? -1
-            : context.restartTimeInfo().getLatestRecordTimeMs();
+        final long latestRecordTimeMs;
+        if (context.restartTimeInfo().getLatestRecordTimeMs() == null) {
+            latestRecordTimeMs = -1;
+        } else {
+            long recordMs = context.restartTimeInfo().getLatestRecordTimeMs();
+            if (datafeedConfig.getEsqlQuery() != null && recordMs > 0) {
+                // A record stamp s means bucket [s, s+interval) was fully emitted; resume after it.
+                recordMs += datafeedConfig.getGroupingInterval().millis() - 1;
+            }
+            latestRecordTimeMs = recordMs;
+        }
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats

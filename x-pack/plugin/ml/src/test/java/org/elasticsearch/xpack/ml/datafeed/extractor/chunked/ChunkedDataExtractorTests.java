@@ -736,9 +736,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = null;
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(start, end, groupingInterval));
 
-        // earliest (480_000, already grouping-interval-aligned) is far ahead of the window start (0);
-        // chunkSpan works out larger than the remaining range, so the chunk end is capped at
-        // context.end() (960_000), not derived from earliest + chunkSpan.
+        // earliest=480_000 ahead of start=0; chunk end caps at context.end()=960_000.
         stubSummary(start, end, new DataSummary(480_000L, 540_000L, 1L));
         stubChunk(480_000L, end, mock(InputStream.class));
 
@@ -757,9 +755,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = null;
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(start, end, groupingInterval));
 
-        // earliest (60_000) is behind the window start (180_000); timeSpread=latest-earliest=120_000 ->
-        // chunkSpan = max(MIN_CHUNK_SPAN, 500 * 120_000 / 500) = 120_000, already a grouping-interval
-        // multiple.
+        // earliest=60_000 behind start=180_000; chunkSpan=120_000 (grouping-interval multiple).
         stubSummary(start, end, new DataSummary(60_000L, 180_000L, 500L));
         stubChunk(start, 300_000L, mock(InputStream.class));
 

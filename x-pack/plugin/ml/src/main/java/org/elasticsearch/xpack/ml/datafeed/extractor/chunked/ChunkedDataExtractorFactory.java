@@ -41,11 +41,13 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     @Override
     public DataExtractor newExtractor(long start, long end) {
         ChunkedDataExtractorContext.TimeAligner timeAligner = newTimeAligner();
+        // End rounds down so the still-open bucket at the window edge is never extracted (real-time relies on this).
+        long alignedEnd = timeAligner.alignToFloor(end);
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),
             datafeedConfig.getScrollSize(),
             alignStart(timeAligner, start),
-            timeAligner.alignToFloor(end),
+            alignedEnd,
             datafeedConfig.getChunkingConfig().getTimeSpan(),
             timeAligner,
             datafeedConfig.hasAggregations(),
@@ -55,14 +57,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
         return new ChunkedDataExtractor(dataExtractorFactory, dataExtractorContext);
     }
 
-    /**
-     * Classic aggregated datafeeds round the start up so a partial first bucket is skipped. An ES|QL row is
-     * stamped with its bucket <em>start</em> and is computed from the raw documents inside the queried window,
-     * so rounding the start up would discard the bucket containing an unaligned start, and a window that lies
-     * inside one bucket would collapse to nothing. Rounding down instead extracts that bucket from its complete
-     * raw data. The end is still rounded down for both kinds, so the bucket still open at the end is never
-     * extracted (real-time relies on this to avoid emitting a bucket before it is complete).
-     */
+    /** ES|QL start rounds down so the bucket containing it is kept; DSL aggregations round up to skip a partial first bucket. */
     private long alignStart(ChunkedDataExtractorContext.TimeAligner timeAligner, long start) {
         return datafeedConfig.getEsqlQuery() != null ? timeAligner.alignToFloor(start) : timeAligner.alignToCeil(start);
     }

@@ -306,10 +306,6 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             "DENSE_VECTOR command is not supported in CCS unless all nodes support it",
             bothClustersAtCurrentVersion() == false && testCase.requiredCapabilities.contains(DENSE_VECTOR_COMMAND.capabilityName())
         );
-        assumeFalse(
-            "Wildcard FROM matches the reserved .ml-anomalies view on the remote, which older coordinators can't exclude from CCS",
-            bothClustersAtCurrentVersion() == false && hasWildcardFrom(testCase.query)
-        );
 
     }
 
@@ -514,13 +510,6 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         "metadata\\s+[^|=]*(_index|_name)",
         Pattern.CASE_INSENSITIVE
     );
-
-    // A FROM (or subquery FROM) whose index list contains a wildcard, up to the next pipe.
-    private static final Pattern HAS_WILDCARD_FROM = Pattern.compile("\\bfrom\\s+[^|]*\\*", Pattern.CASE_INSENSITIVE);
-
-    static boolean hasWildcardFrom(String query) {
-        return HAS_WILDCARD_FROM.matcher(query).find();
-    }
 
     static boolean hasQualifiedNameMetadata(String query) {
         return HAS_QUALIFIED_NAME_METADATA.matcher(query).find();

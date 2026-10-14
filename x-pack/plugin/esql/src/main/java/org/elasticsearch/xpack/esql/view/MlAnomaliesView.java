@@ -8,14 +8,22 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+/**
+ * The reserved {@code .ml-anomalies} view over the results of anomaly detection jobs. Like the ML annotations index, it is only
+ * created once an ML results index exists, to avoid clutter on clusters that never use ML.
+ */
 public class MlAnomaliesView {
 
     private static final Logger logger = LogManager.getLogger(MlAnomaliesView.class);
+
+    private static final String RESULTS_INDEX_PREFIX = ".ml-anomalies-";
 
     public MlAnomaliesView(ViewService viewService) {
         viewService.ensureReservedViewExists(
@@ -50,10 +58,25 @@ public class MlAnomaliesView {
                        event_count,
                        processing_time_ms
                 """, "View that contains the results of machine learning anomaly detection jobs.", true),
+            MlAnomaliesView::hasResultsIndex,
             ActionListener.wrap(
                 ack -> logger.info("reserved view [.ml-anomalies] initialized"),
                 e -> logger.warn("failed to initialize reserved view [.ml-anomalies]: ", e)
             )
         );
+    }
+
+    // Views and datasets are not results indices, so they don't count
+    static boolean hasResultsIndex(ProjectMetadata project) {
+        for (var entry : project.getIndicesLookup().tailMap(RESULTS_INDEX_PREFIX).entrySet()) {
+            if (entry.getKey().startsWith(RESULTS_INDEX_PREFIX) == false) {
+                return false;
+            }
+            var type = entry.getValue().getType();
+            if (type != IndexAbstraction.Type.VIEW && type != IndexAbstraction.Type.DATASET) {
+                return true;
+            }
+        }
+        return false;
     }
 }

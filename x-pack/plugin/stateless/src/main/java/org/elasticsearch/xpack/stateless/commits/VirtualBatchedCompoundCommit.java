@@ -123,7 +123,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     // Maps internal data (pending compound commits' headers, files, padding) to their offset in the virtual batched compound commit
     private final NavigableMap<Long, InternalDataReader> internalDataReadersByOffset = new ConcurrentSkipListMap<>();
     private final AtomicLong currentOffset = new AtomicLong();
-    private final AtomicLong copiedGenerationalFilesSize = new AtomicLong();
+    private final AtomicLong logicalSize = new AtomicLong();
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
     private final BlobFile blobFile;
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
@@ -322,13 +322,14 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         var generationalFilesSize = 0L;
         for (String commitFile : reference.getCommitFiles()) {
             boolean isAdditionalFile = reference.getAdditionalFiles().contains(commitFile);
-            if (isAdditionalFile || (isFirstCommit && isGenerationalFile(commitFile))) {
+            boolean shouldCopyGenerationalFile = isFirstCommit && isGenerationalFile(commitFile);
+            if (isAdditionalFile || shouldCopyGenerationalFile) {
                 assert internalLocations.containsKey(commitFile) == false : commitFile;
                 var fileLength = reference.getDirectory().fileLength(commitFile);
                 internalFiles.add(new InternalFile(commitFile, fileLength));
                 internalFilesSize += fileLength;
 
-                if (isFirstCommit && isGenerationalFile(commitFile)) {
+                if (shouldCopyGenerationalFile) {
                     generationalFilesSize += fileLength;
                 }
             } else {
@@ -342,8 +343,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 referencedFiles.put(commitFile, blobLocation);
             }
         }
-
-        copiedGenerationalFilesSize.addAndGet(generationalFilesSize);
 
         var replicatedContent = useInternalFilesReplicatedContent
             ? getReplicatedContent(ccTermAndGen, currentOffset.get(), internalFiles, internalFilesSize, reference.getDirectory())
@@ -394,11 +393,12 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
 
         // Add padding to the previous CC if it exists
+        int padding = 0;
         if (pendingCompoundCommits.isEmpty() == false) {
             var lastCompoundCommit = pendingCompoundCommits.last();
             long lastCompoundCommitSize = lastCompoundCommit.getSizeInBytes();
             long lastCompoundCommitSizePageAligned = BlobCacheUtils.toPageAlignedSize(lastCompoundCommitSize);
-            int padding = Math.toIntExact(lastCompoundCommitSizePageAligned - lastCompoundCommitSize);
+            padding = Math.toIntExact(lastCompoundCommitSizePageAligned - lastCompoundCommitSize);
             if (padding > 0) {
                 lastCompoundCommit.setPadding(padding);
                 long paddingOffset = currentOffset.get();
@@ -464,6 +464,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             fileOffset += fileLength;
         }
         currentOffset.set(fileOffset);
+        logicalSize.addAndGet(padding + sizeInBytes - generationalFilesSize);
 
         var pendingCompoundCommit = new PendingCompoundCommit(
             headerLength,
@@ -855,7 +856,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     /// We exclude copied generational files because in some cases they dominate the size of the VBCC
     /// and would trigger frequent uploads resulting in write amplification.
     public long sizeInBytesExcludingCopiedGenerationalFiles() {
-        return currentOffset.get() - copiedGenerationalFilesSize.get();
+        return logicalSize.get();
     }
 
     public Map<String, BlobLocation> getInternalLocations() {

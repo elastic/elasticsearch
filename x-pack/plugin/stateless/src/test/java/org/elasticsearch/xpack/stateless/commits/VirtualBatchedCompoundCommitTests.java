@@ -709,10 +709,11 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             );
 
             // Only the first commit in the VBCC has copied generational files.
+            StatelessCommitRef firstCommit = commitsWithDeletions.get(intoNewVbcc);
             long generationalFilesSize = 0;
-            for (String commitFile : commitsWithDeletions.get(intoNewVbcc).getCommitFiles()) {
+            for (String commitFile : firstCommit.getCommitFiles()) {
                 if (StatelessCompoundCommit.isGenerationalFile(commitFile)) {
-                    generationalFilesSize += commitsWithDeletions.getLast().getDirectory().fileLength(commitFile);
+                    generationalFilesSize += firstCommit.getDirectory().fileLength(commitFile);
                 }
             }
 

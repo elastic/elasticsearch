@@ -727,7 +727,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // TODO: we can also check whether we need upload before appending to avoid creating VBCC just above the cache region size
 
             final VirtualBatchedCompoundCommit virtualBcc;
-            final StatelessCompoundCommit lastCompoundCommit;
             final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(shardId);
             // reads the timestamp field value range outside the commit state synchronized block (because this does blocking IO)
             var timestampFieldValueRange = readTimestampFieldValueRange(commitState, reference);
@@ -745,11 +744,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     return;
                 }
                 virtualBcc = commitState.appendCommit(reference, timestampFieldValueRange);
-                // Read under the lock, since the notification may be deferred until the relocation upload bound is pinned,
-                // by which time later commits may have been appended to `virtualBcc`.
-                lastCompoundCommit = virtualBcc.lastCompoundCommit();
-                assert lastCompoundCommit.generation() == generation : lastCompoundCommit + " vs generation " + generation;
-
                 virtualBcc.addNotifiedSearchNodeIds(
                     shardRoutingTable.map(IndexShardRoutingTable::assignedUnpromotableShards)
                         .orElse(List.of())
@@ -760,7 +754,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             success = true;
 
-            // Fetch these values up front for consistent relative values.
+            // Fetch these values up front for consistent relative values: `virtualBcc` and `commitState` may be modified
+            // later in parallel with the network request handling, or while the notification waits on the relocation upload bound.
+            // `onCommitCreation` runs under the engine's flush lock, so no other commit can have been appended to `virtualBcc` yet.
+            final StatelessCompoundCommit lastCompoundCommit = virtualBcc.lastCompoundCommit();
+            assert lastCompoundCommit.generation() == generation : lastCompoundCommit + " vs generation " + generation;
             final long batchedCompoundCommitGeneration = virtualBcc.getPrimaryTermAndGeneration().generation();
             final PrimaryTermAndGeneration maxUploadedBccTermAndGen = commitState.getMaxUploadedBccTermAndGen();
             final long maxSeqNo;
@@ -814,25 +812,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (commitState.isClosed()) {
-                            // The shard closed before markRelocating. Nothing to advertise.
-                            logger.trace(
-                                () -> format("%s skipping new-commit notification for [%s]: upload bound failed", shardId, generation),
-                                e
-                            );
-                        } else {
-                            // The relocation source abandoned the handoff before markRelocating, so no bound was pinned and
-                            // uploads were never paused. Advertise the commit. Any future bound will include it.
-                            maybeSendNewCommitNotification(
-                                commitState,
-                                shardRoutingTable.get(),
-                                lastCompoundCommit,
-                                batchedCompoundCommitGeneration,
-                                maxUploadedBccTermAndGen,
-                                maxSeqNo,
-                                Long.MAX_VALUE
-                            );
-                        }
+                        // The relocation source abandoned the handoff before markRelocating, so no bound was pinned and uploads
+                        // were never paused. Advertise the commit. Any future bound will include it. If the shard is closing, the
+                        // global checkpoint listener will complete with an IndexShardClosedException and nothing is sent.
+                        maybeSendNewCommitNotification(
+                            commitState,
+                            shardRoutingTable.get(),
+                            lastCompoundCommit,
+                            batchedCompoundCommitGeneration,
+                            maxUploadedBccTermAndGen,
+                            maxSeqNo,
+                            Long.MAX_VALUE
+                        );
                     }
                 });
             }

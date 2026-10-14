@@ -60,6 +60,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
     private final String field;
     private final ByteRunAutomaton automaton;
     private final String description;
+    private final boolean singleValued;
     private final ScanBudget budget;
 
     /**
@@ -69,18 +70,25 @@ public final class ColumnarStringAutomatonQuery extends Query {
      * what the automaton was built from, for {@link #toString}; what the query is compared and cached on is the
      * automaton itself, so a caller that spells its parameters differently cannot make two queries collide.
      */
-    public ColumnarStringAutomatonQuery(String field, Automaton automaton, String description, ScanBudget budget) {
-        this(field, new ByteRunAutomaton(Objects.requireNonNull(automaton)), description, budget);
+    public ColumnarStringAutomatonQuery(String field, Automaton automaton, String description, boolean singleValued, ScanBudget budget) {
+        this(field, new ByteRunAutomaton(Objects.requireNonNull(automaton)), description, singleValued, budget);
     }
 
     /**
      * As above, for a caller that already compiled the automaton - a fuzzy query, whose {@link ByteRunAutomaton} is built
      * by the query that defines the edit distance rather than by this one.
      */
-    public ColumnarStringAutomatonQuery(String field, ByteRunAutomaton automaton, String description, ScanBudget budget) {
+    public ColumnarStringAutomatonQuery(
+        String field,
+        ByteRunAutomaton automaton,
+        String description,
+        boolean singleValued,
+        ScanBudget budget
+    ) {
         this.field = Objects.requireNonNull(field);
         this.automaton = Objects.requireNonNull(automaton);
         this.description = Objects.requireNonNull(description);
+        this.singleValued = singleValued;
         this.budget = Objects.requireNonNull(budget);
     }
 
@@ -111,6 +119,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
                         if (values instanceof StringColumnSource columnar) {
+                            assert columnar.singleValued() == singleValued : "framing of [" + field + "] differs between query and column";
                             final StringColumnReader column = columnar.reader();
                             return column.match(value -> automaton.run(value.bytes, value.offset, value.length));
                         }
@@ -118,7 +127,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
                         // An overlay rather than the column, as an updated field is: the values are read one
                         // document at a time and run through the automaton. For a plain (single-valued) field
                         // the blob is the raw value bytes; for a payload field it carries slot count + framed values.
-                        if (ColumNARDocValuesFormat.isSingleValued(info)) {
+                        if (singleValued) {
                             return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                                 @Override
                                 public boolean matches() throws IOException {
@@ -184,13 +193,16 @@ public final class ColumnarStringAutomatonQuery extends Query {
             return true;
         }
         if (other instanceof ColumnarStringAutomatonQuery q) {
-            return field.equals(q.field) && automaton.equals(q.automaton) && description.equals(q.description);
+            return singleValued == q.singleValued
+                && field.equals(q.field)
+                && automaton.equals(q.automaton)
+                && description.equals(q.description);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, automaton, description);
+        return Objects.hash(field, automaton, description, singleValued);
     }
 }

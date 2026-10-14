@@ -86,6 +86,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.ColumnarCodecClusterSettingProvider;
 import org.elasticsearch.index.ES95CodecClusterSettingProvider;
+import org.elasticsearch.index.HashInIdRoutingSettingProvider;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -224,6 +225,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         if (ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled()) {
             pluginSettings.add(ColumnarCodecClusterSettingProvider.COLUMNAR_CODEC_CLUSTER_ENABLED_SETTING);
         }
+        pluginSettings.add(HashInIdRoutingSettingProvider.HASH_IN_ID_ROUTING_ENABLED_SETTING);
         return pluginSettings;
     }
 
@@ -334,6 +336,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         if (ColumnarCodecClusterSettingProvider.isFeatureFlagEnabled()) {
             providers.add(new ColumnarCodecClusterSettingProvider(parameters.clusterService().getClusterSettings()));
         }
+        providers.add(new HashInIdRoutingSettingProvider(parameters.clusterService().getClusterSettings()));
         return providers;
     }
 

@@ -11,6 +11,11 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
 public class RoutingFunctionTests extends ESTestCase {
     public void testModuloSanity() {
         int shards = 1024;
@@ -41,6 +46,40 @@ public class RoutingFunctionTests extends ESTestCase {
                 int expected = routingShardId / routingFactor;
                 assertEquals(expected, function.shardNum(hash));
                 hash++;
+            }
+        }
+    }
+
+    public void testModuloHashForShard() {
+        for (int iteration = 0; iteration < 20; iteration++) {
+            int shards = between(1, 1024);
+            var function = RoutingFunction.moduloNumberOfShards(shards);
+            assertHashForShard(function, shards);
+
+            int shardId = between(0, shards - 1);
+            Set<Integer> shardsAfterSplit = new HashSet<>();
+            for (int i = 0; i < 100; i++) {
+                shardsAfterSplit.add(Math.floorMod(function.hashForShard(shardId, randomInt()), 2 * shards));
+            }
+            assertEquals(Set.of(shardId, shardId + shards), shardsAfterSplit);
+        }
+    }
+
+    public void testLegacyHashForShard() {
+        for (int iteration = 0; iteration < 20; iteration++) {
+            int shards = between(1, 64);
+            int routingFactor = between(1, 64);
+            var function = RoutingFunction.legacyRoutingNumberOfShards(shards * routingFactor, routingFactor);
+            assertHashForShard(function, shards);
+        }
+    }
+
+    private static void assertHashForShard(RoutingFunction function, int shards) {
+        for (int shardId = 0; shardId < shards; shardId++) {
+            for (int random : new int[] { Integer.MIN_VALUE, -1, 0, Integer.MAX_VALUE, randomInt(), randomInt(), randomInt() }) {
+                int hash = function.hashForShard(shardId, random);
+                assertThat(hash, greaterThanOrEqualTo(0));
+                assertEquals(shardId, function.shardNum(hash));
             }
         }
     }

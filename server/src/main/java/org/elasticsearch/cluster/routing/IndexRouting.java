@@ -292,7 +292,7 @@ public abstract sealed class IndexRouting {
             this.routingRequired = mapping == null ? false : mapping.routingRequired();
             this.indexMode = metadata.getIndexMode();
             this.sliceEnabled = IndexSettings.SLICE_ENABLED.get(metadata.getSettings());
-            this.requiredRoutingParameterName = sliceEnabled ? SliceIndexing.PARAM_NAME : "routing";
+            this.requiredRoutingParameterName = sliceEnabled ? SliceIndexing.FIELD_NAME : "routing";
         }
 
         protected abstract int shardId(String id, @Nullable String routing);

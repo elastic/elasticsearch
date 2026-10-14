@@ -3180,6 +3180,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 clusterSize,
                 flatIndexThreshold,
                 defaultVisitPercentage,
+                onDiskRescore,
                 bits,
                 doPrecondition,
                 autoCalibrate,

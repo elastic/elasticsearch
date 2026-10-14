@@ -352,10 +352,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 && context.context() == IOContext.Context.MERGE
                 && useDirectIO(getTempFileName(prefix, suffix, 0), context)
                 && mergeDirectIOCreates(prefix)) {
-                Set<String> pendingDeletions = getPendingDeletions();
                 while (true) {
                     String name = getTempFileName(prefix, suffix, nextDirectIOTempFile.getAndIncrement());
-                    if (pendingDeletions.contains(name)) {
+                    if (getPendingDeletions().contains(name)) {
                         continue;
                     }
                     try {

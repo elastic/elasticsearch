@@ -23,10 +23,13 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.codec.vectors.VectorWriteHints;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.store.VectorFieldHint;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -40,6 +43,8 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
 public class ES93FlatVectorFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES93FlatVectorFormat";
+
+    private static final Logger logger = LogManager.getLogger(ES93FlatVectorFormat.class);
 
     private final FlatVectorsFormat format;
 
@@ -120,6 +125,7 @@ public class ES93FlatVectorFormat extends KnnVectorsFormat {
             try {
                 return new ES93FlatVectorReader(this, format.fieldsReader(new SegmentReadState(state, IOContext.merge().withHints(hints))));
             } catch (FileNotFoundException | NoSuchFileException e) {
+                logger.debug(() -> Strings.format("merging field [%s] through the search reader: its files are gone", field.field()), e);
                 return this;
             }
         }

@@ -55,14 +55,13 @@ public class ColumnarCollapseFullClusterRestartIT extends ParameterizedFullClust
             if (clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false) == false) {
                 return;
             }
-            String codecSetting = clusterHasFlaggedColumnarCodec() ? ", \"index.columnar_codec.enabled\": false" : "";
             Request create = new Request("PUT", "/" + INDEX);
             create.setJsonEntity("""
                 {
                   "settings": {
                     "index.mode": "columnar",
                     "index.number_of_shards": 1,
-                    "index.number_of_replicas": 0%s
+                    "index.number_of_replicas": 0
                   },
                   "mappings": {
                     "properties": {
@@ -70,7 +69,7 @@ public class ColumnarCollapseFullClusterRestartIT extends ParameterizedFullClust
                       "host.name": { "type": "keyword" }
                     }
                   }
-                }""".formatted(codecSetting));
+                }""");
             assertOK(client().performRequest(create));
 
             Request bulk = new Request("POST", "/" + INDEX + "/_bulk");

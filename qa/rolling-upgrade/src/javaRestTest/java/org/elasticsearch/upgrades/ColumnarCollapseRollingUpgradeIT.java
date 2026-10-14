@@ -43,21 +43,22 @@ public class ColumnarCollapseRollingUpgradeIT extends AbstractRollingUpgradeTest
             if (clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false) == false) {
                 return;
             }
-            Settings.Builder settings = Settings.builder()
-                .put("index.mode", "columnar")
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0);
-            if (clusterHasFlaggedColumnarCodec()) {
-                settings.put("index.columnar_codec.enabled", false);
-            }
-            createIndex(INDEX, settings.build(), """
-                {
-                    "properties": {
-                        "@timestamp": { "type": "date" },
-                        "host.name": { "type": "keyword" }
+            createIndex(
+                INDEX,
+                Settings.builder()
+                    .put("index.mode", "columnar")
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build(),
+                """
+                    {
+                        "properties": {
+                            "@timestamp": { "type": "date" },
+                            "host.name": { "type": "keyword" }
+                        }
                     }
-                }
-                """);
+                    """
+            );
         }
 
         if (indexExists(INDEX) == false) {

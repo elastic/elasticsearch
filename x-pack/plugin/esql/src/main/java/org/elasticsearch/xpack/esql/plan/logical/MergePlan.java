@@ -153,7 +153,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         }
         for (int i = 0; i < converted.size(); i++) {
             if (converted.get(i).name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
-                // Keep the subtype so coordinator expansion can find $$unmapped_fields after the merge.
+                // Keep the subtype so the coordinator flattening can find $$unmapped_fields after the merge.
                 converted.set(i, ufa.withId(converted.get(i).id()));
                 break;
             }

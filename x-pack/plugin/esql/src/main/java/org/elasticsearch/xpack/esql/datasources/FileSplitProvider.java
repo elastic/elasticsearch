@@ -772,34 +772,25 @@ public class FileSplitProvider implements SplitProvider {
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
             if (extents.boundsFileSet()) {
-                // The cache either way, because what decides is the listing that comes back rather than the bound
-                // that was asked for: a first attempt that drained its whole prefix is the dataset, and the next
-                // query is owed exactly that. One that stopped on the bound is a prefix, and the cache refuses it
-                // (DatasetListingService.boundedListing), so the attempt below still re-lists unbounded for its own
-                // query and leaves nothing behind for anyone else's.
-                return listingService.isCacheable(provider)
-                    ? listingService.boundedListing(
-                        pattern,
-                        storagePath,
-                        provider,
-                        storageIdentity,
-                        secretIdentity,
-                        narrowing,
-                        config,
-                        extents,
-                        scanMemory(context),
-                        context.isCancelled()
-                    )
-                    : listingService.expand(
-                        pattern,
-                        provider,
-                        narrowing,
-                        config,
-                        storagePath,
-                        extents,
-                        scanMemory(context),
-                        context.isCancelled()
-                    );
+                // Not the cache, though the key would hold it correctly now: the extent joins the listing cache
+                // identity (GlobExpander#listingCacheDiscriminator), so a prefix is addressed as a prefix and two
+                // queries asking one bound are asking one question. What stops it is the synchronous rail's
+                // follower handling, not the key. getOrComputeListing goes through Cache#computeIfAbsent, where a
+                // follower blocks on the leader's future and is handed the leader's exception, so a cancelled
+                // leader fails a query nobody cancelled - and a bounded scan is exactly the key many concurrent
+                // LIMIT queries would share. cachedListingAsync retries a follower past a leader's cancellation;
+                // this rail does not, and sharing here is worth nothing until it does. A read path left listing
+                // privately pays its own walk, which is slower and correct.
+                return listingService.expand(
+                    pattern,
+                    provider,
+                    narrowing,
+                    config,
+                    storagePath,
+                    extents,
+                    scanMemory(context),
+                    context.isCancelled()
+                );
             }
             // The whole pattern either way, so it is cacheable: the query's file set is the dataset's, narrowed by
             // filters the cache key already distinguishes. Without this a warm second query over the same dataset

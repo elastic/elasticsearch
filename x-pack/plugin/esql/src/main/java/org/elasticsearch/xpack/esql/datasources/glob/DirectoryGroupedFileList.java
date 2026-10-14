@@ -41,7 +41,6 @@ final class DirectoryGroupedFileList implements FileList {
     @Nullable
     private final PartitionMetadata partitionMetadata;
     private final int fileCount;
-    private final int globMatchCount;
     /**
      * File-set fingerprint carried over from the raw list this was compacted from — compaction preserves
      * the file set exactly and the fingerprint is order-independent, so the pass-through value equals what
@@ -65,12 +64,10 @@ final class DirectoryGroupedFileList implements FileList {
         @Nullable PartitionMetadata partitionMetadata,
         int fileCount,
         @Nullable FileSetFingerprint fileSetFingerprint,
-        List<String> listingWarnings,
-        int globMatchCount
+        List<String> listingWarnings
     ) {
         assert partitionMetadata == null || partitionMetadata.coversFileCount(fileCount)
             : "partition metadata covers [" + partitionMetadata.fileCount() + "] files but the listing has [" + fileCount + "]";
-        this.globMatchCount = globMatchCount;
         this.basePath = basePath;
         this.groupDirs = groupDirs;
         this.fileGroups = fileGroups;
@@ -96,16 +93,6 @@ final class DirectoryGroupedFileList implements FileList {
     @Override
     public int fileCount() {
         return fileCount;
-    }
-
-    /**
-     * Carried through compaction. The encodings refuse a truncated listing, but a complete one can still have had
-     * entries narrowed out of it after the drain counted them, so this is not {@link #fileCount()} and cannot be
-     * recomputed from what survived.
-     */
-    @Override
-    public int globMatchCount() {
-        return globMatchCount;
     }
 
     @Override

@@ -283,28 +283,6 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A truncated listing must still never be cached. The bound here is below the number of matching files, so the
-     * drain stops on matches it has rather than on exhaustion and the listing is a prefix of the dataset. Served to
-     * a later query it would pass for the whole of it, with nothing in it to say otherwise -- so the second query
-     * must list again.
-     */
-    public void testATruncatedListingIsNotCached() throws Exception {
-        String dataset = registerCountingDataset("pass_truncated", 0, Map.of("partition_sample_size", 2));
-        String coordinator = internalCluster().getNodeNames()[0];
-
-        query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
-
-        CountingStorageProvider.reset();
-        query(coordinator, "FROM " + dataset + " | LIMIT 0").close();
-
-        assertThat(
-            "a truncated listing is a prefix of the dataset and must not be served to a later query",
-            CountingStorageProvider.listingPasses(),
-            equalTo(1L)
-        );
-    }
-
-    /**
      * A glob that matches nothing must still list once; a mistyped glob used to cost two full listings.
      * <p>
      * One pass suffices because a drain that exhausted its prefix saw every key under it, so an empty result is the

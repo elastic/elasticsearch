@@ -2,7 +2,7 @@
 
 # Compares PromQL compliance with Prometheus between the PR and its merge base, using the promcheck Go binary
 # (https://github.com/elastic/promcheck), and reports the queries whose result changed on the build and the PR.
-# The elasticsearch-pull-request-promql-coverage pipeline (catalog-info.yaml) runs it with the PR's
+# The elasticsearch-pull-request-validate-prometheus-compliance pipeline (catalog-info.yaml) runs it with the PR's
 # GITHUB_PR_* variables, so that the build bot also posts the report as a PR comment.
 #
 # The step never fails on the result. Buildkite's GitHub commit status mirrors the step state and ignores
@@ -34,15 +34,15 @@ if [[ -z "$GITHUB_API_TOKEN" ]]; then
 fi
 
 readonly RELEASE_URL="https://github.com/elastic/promcheck/releases/tag/v$PROMCHECK_VER"
-readonly ANNOTATION_CONTEXT="ctx-validate-promql-coverage"
-readonly PR_COMMENT_KEY="pr_comment:validate-promql-coverage:body"
+readonly ANNOTATION_CONTEXT="ctx-validate-prometheus-compliance"
+readonly PR_COMMENT_KEY="pr_comment:validate-prometheus-compliance:body"
 # Changed queries listed per section; the full list is the changes artifact.
 readonly MAX_ROWS=50
 
 # The pipeline uploads OUTPUT_DIR as artifacts. Tests point TMP_ROOT at a scratch directory.
-readonly TMP_ROOT="${PROMQL_COVERAGE_TMPDIR:-/tmp}"
-readonly WORK_DIR="$TMP_ROOT/validate-promql-coverage"
-readonly OUTPUT_DIR="$TMP_ROOT/validate-promql-coverage-output"
+readonly TMP_ROOT="${PROMETHEUS_COMPLIANCE_TMPDIR:-/tmp}"
+readonly WORK_DIR="$TMP_ROOT/validate-prometheus-compliance"
+readonly OUTPUT_DIR="$TMP_ROOT/validate-prometheus-compliance-output"
 readonly PROMCHECK_BIN="$WORK_DIR/promcheck"
 readonly BUNDLE="$WORK_DIR/$CORPUS.tar.gz"
 readonly CONTROL_LOG="$OUTPUT_DIR/@$CORPUS-control.log"
@@ -230,6 +230,11 @@ render_changes() {
 rm -rf "$WORK_DIR" "$OUTPUT_DIR"
 mkdir -p "$WORK_DIR" "$OUTPUT_DIR"
 
+# Show up on the build as soon as the comparison starts. The final
+# report reuses the same annotation context and comment key, so it
+# replaces this note instead of adding a second one.
+annotate info "$(printf '**Promcheck running**\n\nComparing PromQL coverage between the merge base and this PR with promcheck v%s. The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" | report)"
+
 echo "--- Downloading promcheck v$PROMCHECK_VER"
 release=$(
   curl -fsSL --retry 3 --retry-delay 2 \
@@ -254,7 +259,7 @@ git fetch --no-tags origin "$GITHUB_PR_TARGET_BRANCH" \
 base=$(git merge-base "origin/$GITHUB_PR_TARGET_BRANCH" HEAD) \
   || not_compared "This PR has no merge base with $GITHUB_PR_TARGET_BRANCH"
 revision=$(git rev-parse HEAD)
-control_dir=$(mktemp -d "$TMP_ROOT/validate-promql-coverage-control-XXXXXX")
+control_dir=$(mktemp -d "$TMP_ROOT/validate-prometheus-compliance-control-XXXXXX")
 trap cleanup EXIT
 git worktree add --detach "$control_dir" "$base" || not_compared "Could not check out the merge base $base"
 

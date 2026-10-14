@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -286,76 +285,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 return testSchemaEntry();
             });
             assertEquals(2, loaderCalls.get());
-        }
-    }
-
-    /**
-     * A truncated listing must not reach the store by the unbounded rail, and the refusal must land before the put.
-     * <p>
-     * Entries are keyed by the path and its filters, never by how much of the dataset the query that computed one
-     * needed, so a truncated entry in here is served to every later query as though it were the whole dataset. A
-     * check on the value a writer hands back cannot hold that: it fails the query that computed the entry while
-     * every query behind it reads a prefix and believes it read all of it. So this asserts both halves — the
-     * writer sees the failure, and the next reader sees a miss rather than the poisoned entry.
-     */
-    public void testATruncatedListingCannotEnterTheCacheByTheUnboundedRail() throws Exception {
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
-
-            // computeIfAbsent wraps whatever the loader throws, so the type here is ExecutionException and the
-            // refusal is its cause. The async rail below raises it unwrapped, which is why the two differ.
-            ExecutionException wrapped = expectThrows(
-                ExecutionException.class,
-                () -> service.getOrComputeListing(key, k -> testTruncatedFileList())
-            );
-            assertEquals(IllegalStateException.class, wrapped.getCause().getClass());
-            assertNull("the refusal must run before the store, so nothing is left behind", service.getListingIfPresent(key));
-
-            AtomicInteger loaderCalls = new AtomicInteger();
-            FileList second = service.getOrComputeListing(key, k -> {
-                loaderCalls.incrementAndGet();
-                return testCompactFileList();
-            });
-            assertEquals("a refused listing is not a cached listing, so the next query computes", 1, loaderCalls.get());
-            assertEquals(10, second.fileCount());
-        }
-    }
-
-    /** The same invariant on the async rail, which must also release its in-flight entry rather than wedge the key. */
-    public void testATruncatedListingCannotEnterTheCacheByTheAsyncRail() throws Exception {
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
-
-            PlainActionFuture<FileList> refused = new PlainActionFuture<>();
-            service.getOrComputeListingAsync(key, l -> l.onResponse(testTruncatedFileList()), refused);
-            expectThrows(IllegalStateException.class, refused::actionGet);
-            assertNull(service.getListingIfPresent(key));
-
-            // The in-flight entry must be gone, or this second call waits on a future nobody completes.
-            PlainActionFuture<FileList> next = new PlainActionFuture<>();
-            service.getOrComputeListingAsync(key, l -> l.onResponse(testCompactFileList()), next);
-            assertEquals(10, next.actionGet().fileCount());
-        }
-    }
-
-    /**
-     * The bounded rail drops a truncated listing silently instead of failing: there, a bound reached is the
-     * expected outcome and the query that asked for it is still owed its answer.
-     */
-    public void testTheBoundedRailDropsATruncatedListingWithoutFailing() throws Exception {
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
-
-            service.putListingIfComplete(key, testTruncatedFileList());
-            assertNull("a prefix of the dataset must not be offered to a later query", service.getListingIfPresent(key));
-
-            FileList complete = testCompactFileList();
-            service.putListingIfComplete(key, complete);
-            assertSame(
-                "a bounded listing that drained its prefix is the dataset, and is cacheable",
-                complete,
-                service.getListingIfPresent(key)
-            );
         }
     }
 
@@ -4494,14 +4423,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
         }
         return GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
-    }
-
-    /** The shape a listing has when it stopped on its bound: a prefix of the matching files, flagged as one. */
-    private static FileList testTruncatedFileList() {
-        return GlobExpander.truncatedFileListOf(
-            List.of(new StorageEntry(StoragePath.of("s3://bucket/data/part-00000.parquet"), 1, Instant.EPOCH)),
-            "s3://bucket/data/*.parquet"
-        );
     }
 
     private static FileList testCompactFileList() {

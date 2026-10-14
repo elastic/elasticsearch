@@ -3062,6 +3062,32 @@ public class GlobExpanderTests extends ESTestCase {
         return config;
     }
 
+    /**
+     * The extent is part of the listing's address. Sharing a bounded listing is only safe because of this: a query
+     * that wants the whole pattern cannot be served a prefix of it, and two different bounds are two different
+     * answers. Before the extent joined the key, a bound had to bypass the cache entirely for want of a way to say
+     * which of the two values a holder had.
+     */
+    public void testTheListingCacheKeyDistinguishesTheExtentAsked() {
+        String pattern = "s3://bucket/data/year=*/month=*/*.parquet";
+        String unbounded = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, ListingExtents.UNBOUNDED);
+        String thousand = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, new ListingExtents(1000));
+        String ten = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, new ListingExtents(10));
+
+        assertNotEquals("a prefix of the pattern is not the pattern", unbounded, thousand);
+        assertNotEquals("and two different prefixes are two different answers", thousand, ten);
+        assertEquals(
+            "while the same bound on the same pattern is the same question",
+            thousand,
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, new ListingExtents(1000))
+        );
+        assertEquals(
+            "and the no-extent overload means the unbounded ask",
+            unbounded,
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON)
+        );
+    }
+
     private static StorageEntry entry(String path, long length) {
         return new StorageEntry(StoragePath.of(path), length, Instant.EPOCH);
     }
@@ -5010,136 +5036,6 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * A bounded listing records the number of files the glob selected, not the number it returned.
-     * <p>
-     * Those differ whenever something narrows the result after the drain has counted toward its bound — a
-     * partition-value filter, a closed-range narrowing, or a {@code _file.*} metadata hint. The gap is what a
-     * cache reader needs: it decides whether a query running this bound would have completed or stopped short,
-     * and {@code fileCount()} cannot answer because it is measured on the far side of the narrowing. Every rule
-     * written to detect "nothing narrowed" from the outside missed one of the three, which is why the number is
-     * carried rather than inferred.
-     * <p>
-     * Here a {@code _file.size} hint drops two of the four files the glob matched, with a bound of three. The
-     * returned count is two, below the bound; the count that stopped the drain is three, at it.
-     */
-    public void testABoundedListingRecordsWhatTheGlobSelectedNotWhatItReturned() throws Exception {
-        List<StorageEntry> entries = List.of(
-            entry("s3://bucket/data/m=1/part.csv", 100),
-            entry("s3://bucket/data/m=2/part.csv", 1),
-            entry("s3://bucket/data/m=3/part.csv", 1),
-            entry("s3://bucket/data/m=abc/part.csv", 100)
-        );
-        TreeStubProvider provider = new TreeStubProvider(entries);
-        var sizeHint = new PartitionFilterHintExtractor.PartitionFilterHint(
-            "_file.size",
-            PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL,
-            List.of(100L)
-        );
-
-        FileList bounded = expandSync(
-            "s3://bucket/data/m=*/part.csv",
-            provider,
-            List.of(sizeHint),
-            HIVE_ON,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            3,
-            1,
-            () -> false
-        );
-
-        // The gap is the point, and it is what no consumer can recover from the result alone: the drain stopped on
-        // its bound of three glob matches, and the hint then dropped some of those, so the count that comes out is
-        // strictly smaller than the count that stopped it. A reader comparing fileCount() to the bound would read
-        // this listing as having completed.
-        assertEquals("the bound is what stopped the drain", 3, bounded.globMatchCount());
-        assertTrue("so the listing is a prefix of the pattern", bounded.isTruncated());
-        assertThat(
-            "and the returned count is strictly smaller, which is why it cannot stand in for the bound",
-            bounded.fileCount(),
-            lessThan(bounded.globMatchCount())
-        );
-    }
-
-    /** An unbounded listing drains its pattern, so its recorded count is every file the glob selected. */
-    public void testAnUnboundedListingRecordsEveryGlobMatch() throws Exception {
-        TreeStubProvider provider = new TreeStubProvider(List.of(entry("s3://bucket/data/a.csv", 10), entry("s3://bucket/data/b.csv", 10)));
-
-        FileList all = expandSync(
-            "s3://bucket/data/*.csv",
-            provider,
-            null,
-            HIVE_ON,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            1,
-            () -> false
-        );
-
-        assertEquals(2, all.fileCount());
-        assertEquals(2, all.globMatchCount());
-        assertFalse(all.isTruncated());
-    }
-
-    /**
-     * A listing the partition walk withdrew from records no glob-match count, so it can never be served to a
-     * bounded query — whose own listing of the same inputs is a strict subset of it.
-     *
-     * <p>When the walk withdraws, the pattern is re-listed flat with the value filter deliberately suppressed, so
-     * that listing is the unfiltered superset. A bounded query never walks: it applies the filter in the drain and
-     * keeps the subset. Whether the two agree turns on a difference in what the two trust checks look at — the walk
-     * types a partition column from the <em>folder names</em> it enumerated, the drain from the <em>files</em> it
-     * matched — so a {@code key=value} folder holding no matching file is visible only to the walk. Here
-     * {@code m=abc} holds a {@code _SUCCESS}, not a {@code .csv}: it widens the column to text for the walk, which
-     * withdraws, while the drain never sees it and trusts its own prune.
-     *
-     * <p>So the superset is two files and the bounded listing is one, and both drains counted two. Served, the bounded
-     * query would read a file its own filter excludes and — under {@code first_file_wins}, where the schema comes
-     * from the first path — infer its schema from a different file than it would cold. Recording no count is what
-     * stops it: the entry still serves a query that wants the whole pattern, and a bounded one re-lists.
-     */
-    public void testAWalkRejectedListingIsNotServableToABoundedQuery() throws Exception {
-        List<StorageEntry> files = List.of(
-            entry("s3://bucket/logs/k=1/m=1/a.csv", 10),
-            entry("s3://bucket/logs/k=2/m=abc/_SUCCESS", 0),
-            entry("s3://bucket/logs/k=3/m=2/c.csv", 10)
-        );
-        // The data-column conjunct keeps the walk descending to the second level, where the placeholder sits.
-        var hints = List.of(
-            hint("k", PartitionFilterHintExtractor.Operator.IN, 1, 2),
-            hint("status", PartitionFilterHintExtractor.Operator.EQUALS, "ok")
-        );
-        String glob = "s3://bucket/logs/k=*/m=*/*.csv";
-
-        FileList withdrawn = GlobExpander.expand(glob, new TreeStubProvider(files), hints, HIVE_ON, MAX, MAX);
-        FileList bounded = expandSync(
-            glob,
-            new TreeStubProvider(files),
-            hints,
-            HIVE_ON,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            10,
-            1,
-            () -> false
-        );
-
-        assertEquals("the withdrawn walk re-lists the superset the filter would have pruned", 2, withdrawn.fileCount());
-        assertEquals("while a bounded query's own listing keeps only what its filter selects", 1, bounded.fileCount());
-        assertNotEquals("the two disagree, which is the whole reason the count must not be recorded", paths(withdrawn), paths(bounded));
-        assertEquals(
-            "so the superset records no count and cannot be served to a bounded query",
-            FileList.UNKNOWN_GLOB_MATCH_COUNT,
-            withdrawn.globMatchCount()
-        );
-        assertFalse("and it is still cacheable for a query that wants the whole pattern", withdrawn.isTruncated());
-    }
-
-    /**
      * The fan-out must not spend a request on a folder the pattern cannot match.
      * <p>
      * One slot is one {@code listObjects}, and the slot list was built from every directory under the pattern
@@ -7005,12 +6901,6 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("nothing in the fixture matches the pattern", 0, result.fileCount());
         assertFalse("the listing reached the end of the pattern, so the empty answer is complete", result.isTruncated());
         assertEquals("so there is no retry: the ten keys were pulled once, not twice", 10, provider.keysPulled());
-        assertEquals(
-            "a complete empty listing selected zero files, which is a count -- not the absence of one, which would "
-                + "hold it out of the cache and make every query asking for this pattern list it again",
-            0,
-            result.globMatchCount()
-        );
     }
 
     /**
@@ -7040,7 +6930,6 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("nothing in the fixture matches the pattern", 0, result.fileCount());
         assertFalse("the listing reached the end of the pattern, so the empty answer is complete", result.isTruncated());
         assertEquals("so there is no retry: the ten keys were pulled once, not twice", 10, provider.keysPulled());
-        assertEquals("and the complete empty listing carries its count", 0, result.globMatchCount());
     }
 
     /**

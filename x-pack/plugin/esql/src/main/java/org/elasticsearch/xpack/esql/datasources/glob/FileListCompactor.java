@@ -250,8 +250,7 @@ final class FileListCompactor {
             pm,
             count,
             raw.fileSetFingerprint(),
-            raw.listingWarnings(),
-            raw.globMatchCount()
+            raw.listingWarnings()
         );
     }
 
@@ -370,8 +369,7 @@ final class FileListCompactor {
             partitionMetadata,
             count,
             raw.fileSetFingerprint(),
-            raw.listingWarnings(),
-            raw.globMatchCount()
+            raw.listingWarnings()
         );
     }
 

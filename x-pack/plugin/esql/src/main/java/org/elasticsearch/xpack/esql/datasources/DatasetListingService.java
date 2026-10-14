@@ -187,199 +187,10 @@ public final class DatasetListingService {
     }
 
     /**
-     * The shared listing-cache address. Built here rather than at each caller because the two identities are the
-     * listing provider's own report of which of its settings name the same store twice and which are secret, and
-     * re-deriving them would take a fresh lease and decrypt again.
-     */
-    private static ListingCacheKey listingCacheKey(
-        String path,
-        StoragePath storagePath,
-        String storageIdentity,
-        String secretIdentity,
-        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        Map<String, Object> config
-    ) {
-        return ListingCacheKey.build(
-            storagePath.scheme(),
-            storagePath.host(),
-            storagePath.path(),
-            storageIdentity,
-            secretIdentity,
-            ExternalSourceResolver.storageConfig(config),
-            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
-            GlobExpander.listingCacheDiscriminator(path, hints, config)
-        );
-    }
-
-    /**
-     * Whether a listing this bounded rail produced may be published into the shared cache.
-     * <p>
-     * Every other reader of that cache wants the whole pattern, and takes an entry without comparing anything. A
-     * bounded drain applies the value filter itself; an unbounded one first tries the partition walk, and where
-     * the walk withdraws it re-lists with that filter suppressed — the unfiltered superset. So where the walk is
-     * in play the two rails can produce different file sets for one key, and publishing the bounded one hands an
-     * unbounded query a listing that is not what it would have listed: under {@code first_file_wins} it would
-     * take its schema from a different file, so the answer would depend on which query ran first.
-     * <p>
-     * Two conjuncts, because the rails can end up with different file sets by more than one route:
-     * <ul>
-     *     <li>the listing in hand has no glob-match count. A suppressed-filter re-list records none, and so does
-     *     the retry this rail's own narrowed pass triggers: where that pass drains its whole bound on matches a
-     *     hint then drops, the empty result is retried unbounded on the <em>original</em> pattern. That retry
-     *     reaches the superset two ways — the original pattern walks even when the narrowed one cannot, and,
-     *     whether anything walks or not, dropping the splice lists folder names the spliced drain never asks for.
-     *     So the superset can be this rail's own product, and no prediction about the other rail would catch it;</li>
-     *     <li>or the pattern an unbounded query would list can itself route through the walk, in which case the
-     *     entry this rail is about to publish is the narrower of the two sets rather than the wider.</li>
-     * </ul>
-     * One conjunct is about the listing produced and the other about the listing the other rail would produce;
-     * neither implies the other. The first also makes this the same question the read side asks — see
-     * {@link #servesThisBound}, which declines an entry with no count for the same reason.
-     * <p>
-     * Declining to publish costs the next unbounded query a listing it could have had, never an answer. It does
-     * not cost the bounded rail its own cache: a pattern with no partition-value hints -- the shape the bound
-     * exists for -- never walks by either route, so it still publishes and still reads.
-     */
-    private static boolean publishable(
-        FileList listing,
-        String path,
-        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        Map<String, Object> config
-    ) {
-        return listing.globMatchCount() != FileList.UNKNOWN_GLOB_MATCH_COUNT && GlobExpander.pathWouldWalk(path, hints, config) == false;
-    }
-
-    /**
-     * Whether {@code cached} answers a listing bounded by {@code extents} — that is, whether a query running this
-     * bound would have produced the same complete listing rather than stopping short of it.
-     * <p>
-     * An entry with no recorded glob-match count cannot say, so it is declined — which is the conservative
-     * direction: it costs a listing, never an answer. It is not a bounded-versus-unbounded distinction; see
-     * {@link FileList#UNKNOWN_GLOB_MATCH_COUNT} for when a listing has no count to offer.
-     * <p>
-     * Every entry is a listing of the whole pattern — {@code ExternalSourceCacheService.refuseTruncated} is the
-     * only way in — so what is left to establish is that this query's own listing would have completed too.
-     * Otherwise the entry reports the whole pattern where this query's listing reports a prefix, with partition
-     * types folded over more paths, and the schema a query returns starts depending on what ran before it.
-     * <p>
-     * That is answered by the number of files the glob selected, which the entry carries. Not its file count: the
-     * drain counts a file toward the bound when the glob matches its path, and a partition-value filter, a
-     * closed-range narrowing and a {@code _file.*} hint each drop entries after that, so the count that comes out
-     * is not the count that stopped the drain. Every rule written to detect "nothing narrowed" from the outside was
-     * a proxy that missed two of those three: the guard this replaced tested only the value filter. The comparison
-     * is strictly below the bound, because reaching the bound is what sets the truncation flag.
-     */
-    private static boolean servesThisBound(@Nullable FileList cached, ListingExtents extents) {
-        if (cached == null || cached.globMatchCount() == FileList.UNKNOWN_GLOB_MATCH_COUNT) {
-            return false;
-        }
-        return cached.globMatchCount() < extents.maxFiles();
-    }
-
-    /**
-     * Synchronous counterpart of {@link #boundedListingAsync}. For split discovery's first attempt, which lists on
-     * the calling thread.
-     */
-    public FileList boundedListing(
-        String path,
-        StoragePath storagePath,
-        StorageProvider provider,
-        String storageIdentity,
-        String secretIdentity,
-        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        Map<String, Object> config,
-        ListingExtents extents,
-        PlanningMemory memory,
-        BooleanSupplier cancelled
-    ) throws Exception {
-        ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
-        // Served from the shared cache only when the entry answers this bound's question; servesThisBound says
-        // what that takes and why the glob-match count is what answers it.
-        FileList cached = cacheService.getListingIfPresent(listingKey);
-        if (servesThisBound(cached, extents)) {
-            GlobExpander.checkDiscoveredFilesLimit(cached.fileCount(), maxDiscoveredFiles.getAsInt());
-            memory.reserve(cached.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
-            return cached;
-        }
-        FileList listing = expand(path, provider, hints, config, storagePath, extents, memory, cancelled);
-        if (publishable(listing, path, hints, config)) {
-            cacheService.putListingIfComplete(listingKey, listing);
-        }
-        return listing;
-    }
-
-    /**
-     * A bounded listing, read from and offered to the shared cache.
-     * <p>
-     * A bound and the cache used to be mutually exclusive, so a bounded listing was recomputed on every execution
-     * however complete it was — which, before the bound counted matching files, it almost never was for a selective
-     * glob. Now a listing whose matches fit inside the bound drains its whole prefix, and for most patterns such a
-     * listing is the same artifact an unbounded query would have produced, so the next query that needs the whole
-     * pattern is owed it, and this one is owed whatever the cache already holds. Where the two could differ it is
-     * read but not published; {@link #publishable} is that boundary.
-     * <p>
-     * Reading needs one question answered: would this query's own listing have completed, or stopped on its bound?
-     * If it would have stopped, the entry reports the whole pattern where this query reports a prefix, with
-     * partition types folded over more paths — and then the schema a query returns depends on what ran before it.
-     * {@link #servesThisBound} answers it from the entry's own {@code globMatchCount()}, the number that stops a
-     * drain, because every rule that tried to infer it from the far side of the narrowing missed a case: a width
-     * comparison on {@code fileCount()} is blind to the partition-value filter, the closed-range narrowing and the
-     * {@code _file.*} hints, each of which drops entries the bound had already counted.
-     */
-    public void boundedListingAsync(
-        String path,
-        StoragePath storagePath,
-        StorageProvider provider,
-        String storageIdentity,
-        String secretIdentity,
-        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        Map<String, Object> config,
-        ListingExtents extents,
-        PlanningMemory memory,
-        BooleanSupplier cancelled,
-        int concurrency,
-        Executor executor,
-        ActionListener<FileList> listener
-    ) {
-        ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
-        // Served from the shared cache only when the entry answers this bound's question; servesThisBound says
-        // what that takes and why the glob-match count is what answers it.
-        FileList cached = cacheService.getListingIfPresent(listingKey);
-        if (servesThisBound(cached, extents)) {
-            try {
-                GlobExpander.checkDiscoveredFilesLimit(cached.fileCount(), maxDiscoveredFiles.getAsInt());
-                memory.reserve(cached.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-            listener.onResponse(cached);
-            return;
-        }
-        expandAsync(
-            path,
-            provider,
-            hints,
-            config,
-            storagePath,
-            extents,
-            memory,
-            cancelled,
-            concurrency,
-            executor,
-            listener.delegateFailureAndWrap((l, listing) -> {
-                if (publishable(listing, path, hints, config)) {
-                    cacheService.putListingIfComplete(listingKey, listing);
-                }
-                l.onResponse(listing);
-            })
-        );
-    }
-
-    /**
-     * Async counterpart of {@link #cachedListing}, with the same key-and-compute pairing and the same reservation
-     * rule. Concurrent cold misses for one key share one listing: the first query's listing is the one that runs, and
-     * the others wait on it rather than each starting a fan-out. A query that waited allocated nothing in the walk, so
+     * Async counterpart of {@link #cachedListing}, with the same reservation rule. It keys on the extent it is
+     * given; the synchronous overload always lists unbounded. Concurrent cold misses for one key share one
+     * listing: the first query's listing is the one that runs, and the others wait on it rather than each
+     * starting a fan-out. A query that waited allocated nothing in the walk, so
      * like a cache hit it reserves the listing's size here; a leader that was cancelled fails only itself, and the
      * others list again.
      */
@@ -395,27 +206,34 @@ public final class DatasetListingService {
         BooleanSupplier cancelled,
         int concurrency,
         Executor executor,
+        ListingExtents extents,
         ActionListener<FileList> listener
     ) {
-        ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
+        ListingCacheKey listingKey = ListingCacheKey.build(
+            storagePath.scheme(),
+            storagePath.host(),
+            storagePath.path(),
+            storageIdentity,
+            secretIdentity,
+            ExternalSourceResolver.storageConfig(config),
+            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
+            GlobExpander.listingCacheDiscriminator(path, hints, config, extents)
+        );
         // Set by whichever thread runs the compute and read by whichever completes the listing.
         AtomicBoolean computedHere = new AtomicBoolean();
         cacheService.getOrComputeListingAsync(listingKey, innerListener -> {
             computedHere.set(true);
-            expandAsync(
-                path,
-                provider,
-                hints,
-                config,
-                storagePath,
-                ListingExtents.UNBOUNDED,
-                memory,
-                cancelled,
-                concurrency,
-                executor,
-                innerListener
-            );
+            expandAsync(path, provider, hints, config, storagePath, extents, memory, cancelled, concurrency, executor, innerListener);
         }, ActionListener.wrap(listing -> {
+            // Same refusal as the synchronous path, and for the same reason - except that the bound is now part of
+            // the key, so a bounded prefix is addressed as a prefix. What must never be served from the cache is a
+            // listing that truncated when no bound was asked for: that one would answer for the full dataset.
+            if (listing.isTruncated() && extents.boundsFileSet() == false) {
+                listener.onFailure(
+                    new IllegalStateException("a truncated listing must never be served from the shared listing cache: " + path)
+                );
+                return;
+            }
             try {
                 // Caps are not part of the listing key; see cachedListing.
                 GlobExpander.checkDiscoveredFilesLimit(listing.fileCount(), maxDiscoveredFiles.getAsInt());
@@ -431,10 +249,8 @@ public final class DatasetListingService {
     }
 
     /**
-     * The compacted listing for a cacheable provider, from the cache or computed into it. Always the whole pattern:
-     * a bounded listing is a sample of a dataset rather than the dataset, so it must never become the answer another
-     * query is served, and {@code ExternalSourceCacheService.refuseTruncated} is what holds that, at the single
-     * put every writer goes through.
+     * The compacted listing for a cacheable provider, from the cache or computed into it. The scan path always
+     * lists unbounded: every reading query wants the full dataset, not a prefix of it.
      * <p>
      * {@code memory} reserves the entries either way, once each, and the same figure either way: a miss reserves
      * through the walk as it grows, a hit reserves the equivalent here.
@@ -453,7 +269,16 @@ public final class DatasetListingService {
         // The two identities are passed in rather than derived here: only the provider that would list this prefix
         // knows which of its settings name the same store twice and which of them are declared secret, and the
         // resolver already holds what it reported. Re-deriving would take a fresh lease and decrypt again.
-        ListingCacheKey listingKey = listingCacheKey(path, storagePath, storageIdentity, secretIdentity, hints, config);
+        ListingCacheKey listingKey = ListingCacheKey.build(
+            storagePath.scheme(),
+            storagePath.host(),
+            storagePath.path(),
+            storageIdentity,
+            secretIdentity,
+            ExternalSourceResolver.storageConfig(config),
+            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
+            GlobExpander.listingCacheDiscriminator(path, hints, config, ListingExtents.UNBOUNDED)
+        );
         FileList listing;
         boolean[] servedFromCacheHolder = { true };
         try {
@@ -463,6 +288,14 @@ public final class DatasetListingService {
             });
         } catch (ExecutionException e) {
             throw asListingFailure(e);
+        }
+        // A refusal rather than an assertion: assertions are off in production, and a truncated listing reaching
+        // this cache would be served to later queries as though it were the dataset - they would answer from a
+        // prefix with nothing to tell them. Nothing reaches it today: this path lists unbounded, so truncation
+        // would need Integer.MAX_VALUE keys, and the object-count cap throws from expand instead. A guard for a
+        // future bounded caller.
+        if (listing.isTruncated()) {
+            throw new IllegalStateException("a truncated listing must never be served from the shared listing cache: " + path);
         }
         // Caps are not part of the listing key: a raise must keep hitting. A later drop still has to fail closed, or
         // a cached FileList computed under a looser cap would bypass the setting until TTL. Expand already checked;

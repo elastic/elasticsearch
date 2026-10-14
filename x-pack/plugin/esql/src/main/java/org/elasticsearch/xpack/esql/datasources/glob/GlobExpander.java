@@ -224,12 +224,12 @@ public final class GlobExpander {
     /**
      * As below, for a caller with no query behind the listing: nothing is waiting on it, so nothing cancels it.
      * <p>
-     * Stops once {@code extents.maxFiles()} matching files have been found rather than draining the glob. Reaching
-     * the bound is the expected outcome, not an error, where {@code maxListedObjects} is a failure: the result is a
-     * prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and left uncompacted,
-     * because neither compacted encoding carries the truncation flag — see {@link FileListCompactor#compact}, which
-     * refuses a truncated list for that reason. Resolution and split discovery both pass bounds, and
-     * {@code Integer.MAX_VALUE} is the unbounded path, byte for byte as before.
+     * The bound truncates where {@code maxListedObjects} fails: reaching it is the expected outcome, not an error.
+     * The result is a prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and it
+     * is left uncompacted, because neither compacted encoding carries the truncation flag — see
+     * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. Schema discovery passes a
+     * bound for its first attempt; the scan also bounds its first attempt. {@code Integer.MAX_VALUE} is the
+     * unbounded path.
      */
     public static FileList expandAndCompact(
         String path,
@@ -864,7 +864,6 @@ public final class GlobExpander {
         Check.notNull(provider, "provider cannot be null");
 
         String effectivePattern = allowRewrite ? effectivePattern(pattern, hints, partitionConfig) : pattern;
-        boolean spliceSkipped = spliceSkipped(pattern, hints, partitionConfig, allowRewrite);
 
         StoragePath storagePath = StoragePath.of(effectivePattern);
 
@@ -1133,7 +1132,6 @@ public final class GlobExpander {
             fileHints,
             excludedCount,
             globKeptCount,
-            suppressValueFilter || spliceSkipped,
             excludedExample,
             excludedExampleEntry,
             truncated,
@@ -1153,10 +1151,6 @@ public final class GlobExpander {
      * fan-out so the two cannot disagree about what a listing is; they differ only in how the entries were gathered.
      *
      * @param reserved how many of the retained entries the drain has already reserved heap for
-     * @param countNotComparable whether this drain applied narrowings another query's drain would not, or skipped
-     *                           ones it would, so the number it stopped on is not that drain's number. Recorded as
-     *                           {@link FileList#UNKNOWN_GLOB_MATCH_COUNT}, which is what keeps such a listing out
-     *                           of both the bounded serve rule and the bounded publish rule.
      */
     private static FileList finishListing(
         String pattern,
@@ -1167,7 +1161,6 @@ public final class GlobExpander {
         List<PartitionFilterHint> fileHints,
         int excludedCount,
         int globKeptCount,
-        boolean countNotComparable,
         @Nullable String excludedExample,
         @Nullable String excludedExampleEntry,
         boolean truncated,
@@ -1250,43 +1243,19 @@ public final class GlobExpander {
             matched.add(fileHintAnchor);
         }
 
-        // globKeptCount, not matched.size(): the count the bound was measured against, before the value filter, the
-        // closed-range narrowing and the _file.* hints each dropped from it. See FileList#globMatchCount.
-        //
-        // Except where this drain and another query's drain narrowed differently, which is what countNotComparable
-        // marks. Two drains do:
-        //
-        // This one SUPPRESSED the value filter, which happens only after the partition walk withdrew. Then this
-        // listing is the unfiltered superset while a bounded query's own drain applies the filter and keeps a
-        // subset -- the two trust checks judge different populations, so they can disagree: the walk types a
-        // partition column from the FOLDER NAMES it enumerated, the drain from the FILES it matched, and a key=value
-        // folder holding no matching file (a console placeholder, a _SUCCESS, another format) is visible only to the
-        // walk.
-        //
-        // Or this one SKIPPED THE SPLICE, as the empty-rewrite retry does, and so lists folder names the spliced
-        // drain never asks the store for -- see spliceSkipped.
-        //
-        // Recording no count keeps the entry cacheable for a query that wants the whole pattern and refuses it
-        // to a bounded one, which re-lists -- the conservative direction servesThisBound documents.
-        //
-        // Computed before the two empty returns below, not just for the listing that keeps files: a listing that
-        // kept none still selected however many the pattern matched, and recording no count for it would hold it
-        // out of the cache both ways, so every query asking for that pattern would list it again.
-        int recordedCount = countNotComparable ? FileList.UNKNOWN_GLOB_MATCH_COUNT : globKeptCount;
-
         if (matched.isEmpty()) {
             // FileList.EMPTY is a shared sentinel and cannot carry per-listing warnings. Litter-only
             // prefixes still need the exclusion text on a cacheable empty listing.
             // Carries `truncated` even when nothing matched: the shared EMPTY sentinel cannot hold it, so a
             // bounded empty listing takes the GenericFileList branch whether or not there are warnings.
-            return emptyListing(pattern, exclusionNotice, truncated, recordedCount);
+            return emptyListing(pattern, exclusionNotice, truncated);
         }
 
         matched = withoutFoldersOutsideClosedRange(matched, hints, partitionConfig);
         if (matched.isEmpty()) {
             // A bound that then filters to nothing is still truncated. EMPTY cannot carry the flag, and caching
             // it as a complete empty listing would hide files past the bound that fall inside the range.
-            return emptyListing(pattern, exclusionNotice, truncated, recordedCount);
+            return emptyListing(pattern, exclusionNotice, truncated);
         }
 
         // Charge the listing that is kept. valueExcluded was reserved as the drain grew; putting those files
@@ -1300,22 +1269,11 @@ public final class GlobExpander {
         // (PartitionMetadata#coversFileCount) — a narrower sample would describe a listing that cannot be built.
         PartitionMetadata partitionMetadata = detectPartitions(matched, partitionConfig, listingWarnings::add);
 
-        return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated, false, recordedCount);
+        return new GenericFileList(matched, pattern, partitionMetadata, listingWarnings, truncated);
     }
 
-    /**
-     * @param globMatchCount how many files the pattern selected, for a listing that ended up keeping none of them:
-     *                       zero where the pattern matched nothing, non-zero where it matched files the value
-     *                       filter or the closed-range narrowing then dropped, and
-     *                       {@link FileList#UNKNOWN_GLOB_MATCH_COUNT} where this listing narrowed differently from
-     *                       the one another query would build. An empty listing carries this for the same reason a
-     *                       populated one does -- {@code DatasetListingService} declines an entry with no count
-     *                       both when publishing and when reading -- so where there is a count to record the
-     *                       shared {@link FileList#EMPTY} sentinel cannot be used. The sentinel reports no count
-     *                       correctly, since it is also what a path that never listed anything returns.
-     */
-    private static FileList emptyListing(String pattern, @Nullable String exclusionNotice, boolean truncated, int globMatchCount) {
-        if (exclusionNotice == null && truncated == false && globMatchCount == FileList.UNKNOWN_GLOB_MATCH_COUNT) {
+    private static FileList emptyListing(String pattern, @Nullable String exclusionNotice, boolean truncated) {
+        if (exclusionNotice == null && truncated == false) {
             return FileList.EMPTY;
         }
         return new GenericFileList(
@@ -1324,8 +1282,7 @@ public final class GlobExpander {
             null,
             exclusionNotice == null ? List.of() : List.of(exclusionNotice),
             truncated,
-            false,
-            globMatchCount
+            false
         );
     }
 
@@ -1528,7 +1485,6 @@ public final class GlobExpander {
         // Fan-out eligible path: re-derive just enough of doExpandGlob's header to handle early exits
         // (non-pattern, enumerable) inline, then attempt to build slots for the fan-out.
         String effectivePattern = allowRewrite ? effectivePattern(pattern, hints, partitionConfig) : pattern;
-        boolean spliceSkipped = spliceSkipped(pattern, hints, partitionConfig, allowRewrite);
         StoragePath storagePath;
         try {
             storagePath = StoragePath.of(effectivePattern);
@@ -1672,8 +1628,7 @@ public final class GlobExpander {
                 isCancelled,
                 fanOutExecutor,
                 listener,
-                sharedListedCount,
-                spliceSkipped
+                sharedListedCount
             );
         } else {
             // Slots unavailable (listChildren unsupported, budget exhausted, or a value filter): use the flat drain.
@@ -1989,8 +1944,7 @@ public final class GlobExpander {
         BooleanSupplier isCancelled,
         Executor fanOutExecutor,
         ActionListener<FileList> listener,
-        AtomicInteger sharedListedCount,
-        boolean spliceSkipped
+        AtomicInteger sharedListedCount
     ) {
         int size = slots.size();
         AtomicReferenceArray<SlotResult> results = new AtomicReferenceArray<>(size);
@@ -2148,9 +2102,6 @@ public final class GlobExpander {
                         fileHints,
                         merged.excludedCount(),
                         merged.globKeptCount(),
-                        // The fan-out rail never withdraws a walk, so the filter is never suppressed here; a retry
-                        // that skipped the splice still reaches this rail, and its count is not comparable either.
-                        spliceSkipped,
                         merged.excludedExample(),
                         merged.excludedExampleEntry(),
                         false,
@@ -2473,27 +2424,6 @@ public final class GlobExpander {
     }
 
     /**
-     * As {@link #wouldWalk}, for a caller holding the dataset's raw path and settings rather than one resolved
-     * pattern. A comma list walks if any of its segments would, which is the conservative direction.
-     */
-    public static boolean pathWouldWalk(String path, @Nullable List<PartitionFilterHint> hints, @Nullable Map<String, Object> config) {
-        PartitionConfig partitionConfig = PartitionConfig.fromConfig(config);
-        for (String segment : commaSegments(path)) {
-            // The EFFECTIVE pattern, because that is what the drain is handed: a single-value equality is spliced
-            // into the glob, and the literal segment it leaves is not walkable. That answers what an unbounded
-            // drain of this pattern does, which is not the whole of whether the two rails can disagree -- the
-            // empty-rewrite retry lists the ORIGINAL pattern, which walks where the effective one cannot. The
-            // listing that retry produces is refused on the count it carries instead; see
-            // DatasetListingService's publish rule.
-            StoragePath parsed = StoragePath.of(effectivePattern(segment, hints, partitionConfig));
-            if (parsed.isPattern() && wouldWalk(parsed.globPart(), hints, partitionConfig)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * Whether {@code glob} is a shape the partition walk can narrow: a leading {@code **}, or a leading Hive
      * {@code key=*} segment. {@code year=*}/{@code city=*} is the keyed form a multi-value hint no longer rewrites.
      * A keyed glob may descend an unhinted leading {@code key=*} when a hinted key of that glob is still pending;
@@ -2778,7 +2708,7 @@ public final class GlobExpander {
                     // list+desc is reverse(concat) rather than reverse(concat(reverse(g1), reverse(g2))).
                     FileOrderConfig.DEFAULT,
                     // A key budget has no single meaning across the segments of a comma list, so each
-                    // segment lists in full; expand() never hands this path a bound.
+                    // segment lists unbounded whatever the caller asked for.
                     ListingExtents.UNBOUNDED,
                     // Each segment reserves against the same budget, so a comma list is charged for every entry it
                     // retains rather than for none of them. ExternalSourceResolver.chargeListingPlanning subtracts
@@ -2823,29 +2753,6 @@ public final class GlobExpander {
     }
 
     /**
-     * Whether this drain is the empty-rewrite retry on a pattern a splice would have narrowed -- which makes the
-     * count it stops on incomparable with the count that stops another query's drain.
-     *
-     * <p>The splice is a literal folder name; the hint it came from is a comparison on the typed value. So a drain
-     * on the spliced pattern never lists {@code month=06} for {@code month == 6}, and the retry, which lists the
-     * original pattern, does. Nothing the retry applies afterwards takes it back out, whether or not a value
-     * filter runs on that pattern -- and both happen, since a splice can leave the original walkable while the
-     * spliced pattern is not, and a TEMPLATE strategy value-filters a pattern that never walks. Where a filter
-     * runs it compares the typed value, so {@code PartitionValueMatcher.keepsIsolated} keeps the other spelling.
-     * Where none runs, nothing applies the equality at all: splicing it is what handles it, so
-     * {@link #folderPostFilterHints} leaves an integral equality out. The retry therefore holds files the other
-     * drain cannot reach, and {@link FileList#UNKNOWN_GLOB_MATCH_COUNT} is the value that says so.
-     */
-    private static boolean spliceSkipped(
-        String pattern,
-        @Nullable List<PartitionFilterHint> hints,
-        PartitionConfig partitionConfig,
-        boolean allowRewrite
-    ) {
-        return allowRewrite == false && effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
-    }
-
-    /**
      * The pattern an expansion will actually list once the hints have narrowed it. The one place that decides
      * whether a hint reaches the glob at all; {@link #doExpandGlob} and {@link #listingCacheDiscriminator} both
      * route through it so that the listing cache key cannot drift from the listing it names.
@@ -2862,7 +2769,9 @@ public final class GlobExpander {
      * {@link PartitionConfig} (strategy AND path template), the effective (post-rewrite) glob pattern, the
      * {@code _file.*} metadata filters, the partition hints when the effective pattern is walk-eligible or a rewrite
      * left the original pattern walk-eligible (see {@link PartitionPruningWalk}), the resolved
-     * {@link ExclusionConfig}, and the resolved {@link FileOrderConfig}.
+     * {@link ExclusionConfig}, the resolved {@link FileOrderConfig}, and the {@link ListingExtents} the caller
+     * asked for - a bounded ask and an unbounded one over the same pattern are different values, so they are
+     * different addresses.
      * These are the inputs {@link #doExpandGlob} consults beyond the storage contents themselves — via
      * {@link #effectivePattern}, {@link #applyFileMetadataFilters} and {@link #partitionPruningHints} — and this
      * value shares those same helpers, so the listing cache key cannot drift from the listing it names. It binds only
@@ -2881,7 +2790,8 @@ public final class GlobExpander {
         List<String> encodedFileHints,
         List<String> encodedPartitionHints,
         ExclusionConfig exclusionConfig,
-        FileOrderConfig fileOrder
+        FileOrderConfig fileOrder,
+        int maxFiles
     ) {
 
         static ListingIdentity of(
@@ -2889,7 +2799,8 @@ public final class GlobExpander {
             @Nullable List<PartitionFilterHint> hints,
             PartitionConfig partitionConfig,
             ExclusionConfig exclusionConfig,
-            FileOrderConfig fileOrder
+            FileOrderConfig fileOrder,
+            ListingExtents extents
         ) {
             String effectivePattern = effectiveWholePathPattern(path, hints, partitionConfig);
             // The empty-rewrite retry lists the original glob with these hints. A splice can make the effective
@@ -2918,7 +2829,12 @@ public final class GlobExpander {
                     ? encodedHints(partitionPruningHints(hints))
                     : encodedHints(folderPostFilterHints(hints, partitionConfig)),
                 exclusionConfig,
-                fileOrder
+                fileOrder,
+                // How far the listing was asked to run is part of which files it holds, so it is part of the key.
+                // Without it a prefix of a dataset and the whole dataset collide on one address, which is why a
+                // bounded listing had to bypass the cache: there was no way for a holder to say which of the two
+                // values it had.
+                extents.maxFiles()
             );
         }
 
@@ -2955,6 +2871,13 @@ public final class GlobExpander {
             // stays uniform with every other field.
             appendLengthPrefixed(sb, fileOrder.sortBy().name());
             appendLengthPrefixed(sb, fileOrder.order().name());
+            // How far the listing was asked to run. Two different asks are two different values and take
+            // different addresses; what comes back under a bounded key is whatever that ask produces, which is a
+            // prefix when the bound bit and the whole pattern when an empty bounded pass was retried unbounded
+            // (see expandGlobWithRewriteFallback) - a superset of what the bound promised, and so a correct answer
+            // for every holder of this key. Length-prefixed like every other field so no content can forge a
+            // field boundary.
+            appendLengthPrefixed(sb, Integer.toString(maxFiles));
             return sb.toString();
         }
     }
@@ -3002,12 +2925,22 @@ public final class GlobExpander {
         @Nullable List<PartitionFilterHint> hints,
         @Nullable Map<String, Object> config
     ) {
+        return listingCacheDiscriminator(path, hints, config, ListingExtents.UNBOUNDED);
+    }
+
+    public static String listingCacheDiscriminator(
+        String path,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        ListingExtents extents
+    ) {
         return ListingIdentity.of(
             path,
             hints,
             PartitionConfig.fromConfig(config),
             ExclusionConfig.fromConfig(config),
-            FileOrderConfig.forListing(config)
+            FileOrderConfig.forListing(config),
+            extents
         ).encode();
     }
 

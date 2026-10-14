@@ -1973,17 +1973,14 @@ public class ExternalSourceResolver {
 
     /**
      * Lists (and, when cacheable, caches) the inferred multi-file glob, and publishes the discovery telemetry for
-     * it. FIRST_FILE_WINS, UNION_BY_NAME, and inferred STRICT share this so a cacheable provider reaches the shared
-     * listing cache regardless of merge strategy; which of the two cached rails it takes depends on whether the mode
-     * allowed a bound. Declared-schema resolution stays in {@link #resolveStrictMultiFileAsync}, which makes the
-     * same three-way choice.
+     * it. FIRST_FILE_WINS, UNION_BY_NAME, and inferred STRICT share this so a cacheable provider hits
+     * {@link #cachedListingAsync} regardless of merge strategy. Declared-schema resolution stays in
+     * {@link #resolveStrictMultiFileAsync}, which makes the same choice.
      *
-     * <p>Cache entries are keyed by the path and its filters rather than by what the query needed, so what may be
-     * cached is decided by the listing that came back, not by the bound that was asked for: a bounded listing that
-     * drained its whole prefix is complete and may be cached, while a truncated one is served to its own query and
-     * dropped. Complete is necessary but not sufficient — a complete bounded listing of a pattern where the walk
-     * is in play is kept out, because the unbounded rail would not have produced it. {@link #boundedListingAsync}
-     * is that rail; see also {@link #listingExtentsFor}.
+     * <p>A bounded listing is a prefix of the dataset, and the extent it was asked for is part of the cache key
+     * ({@code GlobExpander.listingCacheDiscriminator}), so a prefix is addressed as a prefix: a query wanting the
+     * whole pattern cannot be served one, and a query asking for the same bound is asking the same question.
+     * Cacheability alone decides the rail. See {@link #listingExtentsFor}.
      */
     private void listAndRecordAsync(
         String path,
@@ -2016,12 +2013,10 @@ public class ExternalSourceResolver {
             recordDiscovery(listing, discoveryStartNanos, storagePath.scheme(), schemaResolution);
             listener.onResponse(listing);
         }, listener::onFailure);
-        if (cacheable == false) {
-            expandAndCompactAsync(path, provider, hints, config, storagePath, extents, recordingListener);
-        } else if (extents.boundsFileSet()) {
-            boundedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, extents, recordingListener);
+        if (cacheable) {
+            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, extents, recordingListener);
         } else {
-            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, recordingListener);
+            expandAndCompactAsync(path, provider, hints, config, storagePath, extents, recordingListener);
         }
     }
 
@@ -2029,9 +2024,9 @@ public class ExternalSourceResolver {
      * How far this resolution's listing runs: how many files it returns, and how many paths partition detection
      * folds over. {@link ListingExtents#UNBOUNDED} is the whole glob for both.
      *
-     * <p>Answered here and nowhere else. It no longer decides whether the listing cache is consulted — a bounded
-     * listing reads it, and writes to it when what came back was complete — so a bound granted or revoked here
-     * changes how far the listing runs and nothing about its address.
+     * <p>Answered here for resolution. The scan answers its own extent in {@link FileSplitProvider#listingExtentsForTheDemand}.
+     * Neither path decides whether the listing cache is consulted: the extent joins the key instead, so a bound
+     * granted or revoked changes how far the listing runs and which address it takes, never whether it may be shared.
      *
      * <p>Three things must hold. The mode's schema must not span every file, so a prefix of the listing
      * can answer it. The query must not want dataset-wide statistics, which are a fold over every
@@ -2198,6 +2193,7 @@ public class ExternalSourceResolver {
         String secretIdentity,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
+        ListingExtents extents,
         ActionListener<FileList> listener
     ) {
         listingService.cachedListingAsync(
@@ -2212,38 +2208,7 @@ public class ExternalSourceResolver {
             listingCancellation(),
             listingConcurrency(),
             metadataReadExecutor,
-            listener
-        );
-    }
-
-    /**
-     * As {@link #cachedListingAsync}, for a resolution whose listing is bounded: it reads the shared cache and
-     * writes back only a listing that turned out complete. See {@link DatasetListingService#boundedListingAsync}.
-     */
-    private void boundedListingAsync(
-        String path,
-        StoragePath storagePath,
-        StorageProvider provider,
-        String storageIdentity,
-        String secretIdentity,
-        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        Map<String, Object> config,
-        ListingExtents extents,
-        ActionListener<FileList> listener
-    ) {
-        listingService.boundedListingAsync(
-            path,
-            storagePath,
-            provider,
-            storageIdentity,
-            secretIdentity,
-            hints,
-            config,
             extents,
-            planningMemory(),
-            listingCancellation(),
-            listingConcurrency(),
-            metadataReadExecutor,
             listener
         );
     }
@@ -5193,12 +5158,10 @@ public class ExternalSourceResolver {
                 return;
             }
             listingListener.onResponse(listing);
-        } else if (isCacheable(provider) == false) {
-            expandAndCompactAsync(path, provider, hints, config, storagePath, extents, listingListener);
-        } else if (extents.boundsFileSet()) {
-            boundedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, extents, listingListener);
+        } else if (isCacheable(provider)) {
+            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, extents, listingListener);
         } else {
-            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, listingListener);
+            expandAndCompactAsync(path, provider, hints, config, storagePath, extents, listingListener);
         }
     }
 

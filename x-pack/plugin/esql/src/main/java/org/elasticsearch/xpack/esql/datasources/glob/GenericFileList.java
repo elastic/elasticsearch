@@ -30,7 +30,6 @@ final class GenericFileList implements FileList {
     private final FileSetFingerprint fileSetFingerprint;
     private final List<String> listingWarnings;
     private final boolean truncated;
-    private final int globMatchCount;
     private final boolean inferenceAnchor;
     private final long estimatedBytes;
 
@@ -54,8 +53,8 @@ final class GenericFileList implements FileList {
     /**
      * @param truncated whether listing stopped at a bound before the end of the glob, so {@code files} is a
      *                  prefix of what the pattern matches. See {@link FileList#isTruncated()} for the
-     *                  invariant that keeps such a list out of the listing cache, and what a reading query
-     *                  handed one owes it.
+     *                  invariant that keeps such a list from being served to a query that asked to list
+     *                  further, and what a reading query handed one owes it.
      */
     GenericFileList(
         List<StorageEntry> files,
@@ -79,23 +78,6 @@ final class GenericFileList implements FileList {
         boolean truncated,
         boolean inferenceAnchor
     ) {
-        this(files, originalPattern, partitionMetadata, listingWarnings, truncated, inferenceAnchor, UNKNOWN_GLOB_MATCH_COUNT);
-    }
-
-    /**
-     * @param globMatchCount how many files the glob selected before anything narrowed the result further, which is
-     *                       the number a listing bound is measured against, or {@link #UNKNOWN_GLOB_MATCH_COUNT}
-     *                       where this listing has none to offer. See {@link FileList#globMatchCount()}.
-     */
-    GenericFileList(
-        List<StorageEntry> files,
-        String originalPattern,
-        @Nullable PartitionMetadata partitionMetadata,
-        List<String> listingWarnings,
-        boolean truncated,
-        boolean inferenceAnchor,
-        int globMatchCount
-    ) {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
         }
@@ -104,7 +86,6 @@ final class GenericFileList implements FileList {
         assert partitionMetadata == null || partitionMetadata.coversFileCount(files.size())
             : "partition metadata covers [" + partitionMetadata.fileCount() + "] files but the listing has [" + files.size() + "]";
         this.files = files;
-        this.globMatchCount = globMatchCount;
         this.originalPattern = originalPattern;
         // A truncated listing publishes its partition columns but not its per-file values, for the same reason the
         // fingerprint below is withheld: PartitionMetadata#nullablePartitionColumns reads those values as evidence
@@ -191,11 +172,6 @@ final class GenericFileList implements FileList {
     }
 
     @Override
-    public int globMatchCount() {
-        return globMatchCount;
-    }
-
-    @Override
     public boolean isTruncated() {
         return truncated;
     }
@@ -230,12 +206,8 @@ final class GenericFileList implements FileList {
             return false;
         }
         GenericFileList other = (GenericFileList) o;
-        // globMatchCount participates: it decides whether this listing may answer a bounded query from the cache
-        // (DatasetListingService#servesThisBound) and whether it may be published there at all, so two listings
-        // that differ only in it are not interchangeable.
         return truncated == other.truncated
             && inferenceAnchor == other.inferenceAnchor
-            && globMatchCount == other.globMatchCount
             && Objects.equals(files, other.files)
             && Objects.equals(originalPattern, other.originalPattern)
             && Objects.equals(partitionMetadata, other.partitionMetadata)
@@ -244,7 +216,7 @@ final class GenericFileList implements FileList {
 
     @Override
     public int hashCode() {
-        return Objects.hash(files, originalPattern, partitionMetadata, listingWarnings, truncated, inferenceAnchor, globMatchCount);
+        return Objects.hash(files, originalPattern, partitionMetadata, listingWarnings, truncated, inferenceAnchor);
     }
 
     @Override

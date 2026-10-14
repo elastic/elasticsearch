@@ -1,0 +1,6 @@
+area: Transform
+issues:
+ - 161960
+pr: 162048
+summary: Use system clock when deleting checkpoints
+type: bug

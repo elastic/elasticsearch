@@ -1657,7 +1657,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 resolved.fileList().isInferenceAnchor()
             );
             assertTrue(
-                "an inference anchor means non-anchor files are unexamined and may narrow",
+                "an inference anchor replaces the scan set with EMPTY, so true is the safe answer",
                 SourceStatisticsSerializer.conversionMayNarrow(resolved.metadata().sourceMetadata())
             );
         }

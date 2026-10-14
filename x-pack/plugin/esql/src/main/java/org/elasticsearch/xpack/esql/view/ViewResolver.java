@@ -170,12 +170,18 @@ public class ViewResolver {
     }
 
     /**
-     * Result of view resolution containing the rewritten plan, the view queries, and whether any {@code InSubquery} expression was
-     * rewritten into a {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin} during resolution.
+     * Result of view resolution containing the rewritten plan, the view queries, whether any {@code InSubquery} expression was
+     * rewritten into a {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin} during resolution, and the views each index pattern was
+     * reached through.
      * <p>
      * {@code hasInSubquery} drives the {@code IN_SUBQUERY} telemetry counter (see {@code EsqlSession#gatherInSubqueryMetrics}).
      */
-    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries, boolean hasInSubquery) {}
+    public record ViewResolutionResult(
+        LogicalPlan plan,
+        Map<String, String> viewQueries,
+        boolean hasInSubquery,
+        IndexViewOrigins indexViewOrigins
+    ) {}
 
     /**
      * Entry point for view + IN subquery resolution; see the {@link ViewResolver} class documentation for the traversal model and the
@@ -213,6 +219,7 @@ public class ViewResolver {
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
+        IndexViewOrigins indexViewOrigins = new IndexViewOrigins();
         // Set when the traversal below rewrites an InSubquery (in the query or in a view body) into a Semi/Anti/MarkJoin; reported in
         // the result so the session can count IN_SUBQUERY telemetry even for IN subqueries that only exist inside a view definition.
         // A Holder (not a plain boolean) because it is written from inside the async resolution callbacks; cross-thread visibility is
@@ -220,7 +227,7 @@ public class ViewResolver {
         Holder<Boolean> hasInSubquery = new Holder<>(false);
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
         if (noViews && InSubqueryResolver.hasInSubquery(plan) == false) {
-            listener.onResponse(new ViewResolutionResult(plan, viewQueries, false));
+            listener.onResponse(new ViewResolutionResult(plan, viewQueries, false, indexViewOrigins));
             return;
         }
         // Note: this returns the uncompacted nested plan. Compaction (UnionAll/ViewUnionAll
@@ -236,11 +243,12 @@ public class ViewResolver {
             parser,
             new LinkedHashSet<>(),
             viewQueries,
+            indexViewOrigins,
             hasInSubquery,
             0,
             preserveViewBoundaries,
             listener.delegateFailureAndWrap(
-                (l, rewritten) -> l.onResponse(new ViewResolutionResult(rewritten, viewQueries, hasInSubquery.get()))
+                (l, rewritten) -> l.onResponse(new ViewResolutionResult(rewritten, viewQueries, hasInSubquery.get(), indexViewOrigins))
             )
         );
     }
@@ -252,6 +260,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        IndexViewOrigins indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
@@ -285,6 +294,7 @@ public class ViewResolver {
                     parser,
                     seenInner,
                     viewQueries,
+                    indexViewOrigins,
                     hasInSubquery,
                     depth,
                     preserveViewBoundaries,
@@ -310,6 +320,7 @@ public class ViewResolver {
                             parser,
                             seenInner,
                             viewQueries,
+                            indexViewOrigins,
                             hasInSubquery,
                             depth,
                             preserveViewBoundaries,
@@ -336,6 +347,7 @@ public class ViewResolver {
                             parser,
                             seenInner,
                             viewQueries,
+                            indexViewOrigins,
                             hasInSubquery,
                             depth,
                             preserveViewBoundaries,
@@ -362,6 +374,7 @@ public class ViewResolver {
                             parser,
                             seenInner,
                             viewQueries,
+                            indexViewOrigins,
                             hasInSubquery,
                             depth,
                             preserveViewBoundaries,
@@ -379,6 +392,7 @@ public class ViewResolver {
                     parser,
                     seenInner,
                     viewQueries,
+                    indexViewOrigins,
                     hasInSubquery,
                     depth,
                     preserveViewBoundaries,
@@ -395,6 +409,7 @@ public class ViewResolver {
                     seenInner,
                     seenWildcards,
                     viewQueries,
+                    indexViewOrigins,
                     hasInSubquery,
                     depth,
                     preserveViewBoundaries,
@@ -418,6 +433,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        IndexViewOrigins indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
@@ -436,6 +452,7 @@ public class ViewResolver {
                     parser,
                     seenViews,
                     viewQueries,
+                    indexViewOrigins,
                     hasInSubquery,
                     depth + 1,
                     preserveViewBoundaries,
@@ -469,6 +486,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        IndexViewOrigins indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
@@ -484,6 +502,7 @@ public class ViewResolver {
                 parser,
                 seenViews,
                 viewQueries,
+                indexViewOrigins,
                 hasInSubquery,
                 depth + 1,
                 preserveViewBoundaries,
@@ -503,6 +522,7 @@ public class ViewResolver {
                 parser,
                 seenViews,
                 viewQueries,
+                indexViewOrigins,
                 hasInSubquery,
                 depth + 1,
                 preserveViewBoundaries,
@@ -528,11 +548,13 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
+        IndexViewOrigins indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
         ActionListener<LogicalPlan> listener
     ) {
+        indexViewOrigins.record(unresolvedRelation.indexPattern().indexPattern(), seenViews);
         // Avoid re-resolving wildcards preserved for non-view matches in subsequent transformDown visits.
         var patterns = Arrays.stream(unresolvedRelation.indexPattern().indexPattern().split(","))
             .filter(pattern -> Regex.isSimpleMatchPattern(pattern) == false || seenWildcards.contains(pattern) == false)
@@ -664,6 +686,7 @@ public class ViewResolver {
                         parser,
                         branchSeenViews,
                         viewQueries,
+                        indexViewOrigins,
                         hasInSubquery,
                         depth + 1,
                         // Resolving a view's *body*: never preserve boundaries in here. The request filter applies to

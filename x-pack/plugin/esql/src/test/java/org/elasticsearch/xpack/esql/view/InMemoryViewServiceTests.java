@@ -881,6 +881,40 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testIndexViewOriginsDescribeImmediateView() {
+        addView("v1", "FROM missing | KEEP f1");
+        assertThat(indexViewOrigins("FROM emp, v1").describe("missing"), equalTo(" referenced by view [v1]"));
+    }
+
+    public void testIndexViewOriginsDescribeNestedViewChain() {
+        addView("outer", "FROM inner | KEEP f1");
+        addView("inner", "FROM missing");
+        assertThat(indexViewOrigins("FROM outer").describe("missing"), equalTo(" referenced by view [outer -> inner]"));
+    }
+
+    public void testIndexViewOriginsSurviveMergedPassThroughViews() {
+        addView("bare1", "FROM missing1");
+        addView("bare2", "FROM missing2");
+        assertThat(
+            indexViewOrigins("FROM bare1, bare2").describe("missing1,missing2"),
+            equalTo(" ([missing1] referenced by view [bare1], [missing2] referenced by view [bare2])")
+        );
+    }
+
+    public void testIndexViewOriginsDescribeEveryViewReferencingIndex() {
+        addView("v1", "FROM missing | KEEP f1");
+        addView("v2", "FROM missing | KEEP f2");
+        String description = indexViewOrigins("FROM v1, v2").describe("missing");
+        assertThat(description, startsWith(" referenced by views "));
+        assertThat(description, containsString("[v1]"));
+        assertThat(description, containsString("[v2]"));
+    }
+
+    public void testIndexViewOriginsIgnoreIndicesNamedByQuery() {
+        addView("v1", "FROM emp | KEEP f1");
+        assertThat(indexViewOrigins("FROM missing, v1").describe("missing"), equalTo(""));
+    }
+
     public void testCircularViewSelfReference() {
         addView("view_a", "FROM view_a");
         Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a")));
@@ -2851,6 +2885,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
         resolver.replaceViews(plan, null, true, this::parse, false, future);
         return future.actionGet().plan();
+    }
+
+    private IndexViewOrigins indexViewOrigins(String query) {
+        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+        viewResolver.replaceViews(query(query), null, true, this::parse, false, future);
+        return future.actionGet().indexViewOrigins();
     }
 
     private InMemoryViewResolver cpsViewResolver() {

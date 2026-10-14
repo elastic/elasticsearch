@@ -1838,7 +1838,7 @@ public class ExternalSourceResolver {
      * When the base carries statistics, they must describe the same values the replacement's {@code _stats.*}
      * keys carry: {@code ExternalRelation.toPhysicalExec} re-embeds {@code metadata.statistics()} over
      * {@code sourceMetadata()} via {@link SourceStatisticsSerializer#embedStatistics}, so a statistics object
-     * that disagrees with the replacement's row-count key would overwrite it at exec time. The stamp call site
+     * that disagrees with the replacement's {@code _stats.*} keys would overwrite them at exec time. The stamp call site
      * passes the source's own metadata with one non-statistics key added, so whatever agreement held before the
      * stamp still holds. The first-file-wins aggregation, partition enrichment, and strict warm call sites all
      * pass a base with empty statistics.

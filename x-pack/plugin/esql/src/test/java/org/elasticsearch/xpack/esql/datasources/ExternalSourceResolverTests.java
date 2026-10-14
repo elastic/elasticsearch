@@ -1605,6 +1605,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertNotNull(resolved);
         assertTrue("pre-condition: listing must be truncated for this test to be meaningful", resolved.fileList().isTruncated());
         assertEquals("pre-condition: one file sampled", 1, resolved.fileList().fileCount());
+        assertFalse("pre-condition: schema map must not be empty for the inner loop to run", resolved.schemaMap().isEmpty());
         for (var info : resolved.schemaMap().values()) {
             assertNotNull(
                 "pre-condition: first_file_wins records types so only the isTruncated guard can make the stamp true",

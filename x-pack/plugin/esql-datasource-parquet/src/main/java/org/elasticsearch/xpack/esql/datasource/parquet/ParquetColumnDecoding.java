@@ -591,12 +591,15 @@ final class ParquetColumnDecoding {
     /**
      * Whether an {@code INT32} column's value widens to {@code long} as unsigned. Only an {@code INT} annotation
      * that declares itself unsigned does; a bare {@code INT32}, a {@code TIME}, and any other annotation sign-extend,
-     * which is the historical reading. Every arm that widens an {@code INT32} asks this one method -- both engines'
-     * scalar arms, the list arm and {@link #int32AsInferredLong} -- because they previously open-coded it in two
-     * different idioms, one of them an unchecked cast to {@code IntLogicalTypeAnnotation}. No file has been
-     * identified that reached that cast with another annotation: every shape {@code convertParquetTypeToEsql} routes
-     * to {@code long} carries either no annotation or an {@code INT} one. Its safety was a coupling between two
-     * distant methods rather than a property of the arm, which is what asking a predicate replaces.
+     * which is the historical reading. The decode arms -- both engines' scalar arms, the list arm and
+     * {@link #int32AsInferredLong} -- ask this method; the stats-normalization and sort-threshold paths ask the
+     * pre-existing {@link #isUnsignedInt32}, which additionally checks the physical bit width. On a well-formed
+     * Parquet file the two predicates agree; they can differ only on a malformed file where the {@code INT32}
+     * physical type carries a logical annotation with a different bit width. The decode arms previously open-coded
+     * the check in two different idioms, one of them an unchecked cast to {@code IntLogicalTypeAnnotation}. No file
+     * has been identified that reached that cast with another annotation: every shape {@code convertParquetTypeToEsql}
+     * routes to {@code long} carries either no annotation or an {@code INT} one. Its safety was a coupling between
+     * two distant methods rather than a property of the arm, which is what asking a predicate replaces.
      */
     static boolean int32IsUnsigned(@Nullable LogicalTypeAnnotation logical) {
         return logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical && intLogical.isSigned() == false;

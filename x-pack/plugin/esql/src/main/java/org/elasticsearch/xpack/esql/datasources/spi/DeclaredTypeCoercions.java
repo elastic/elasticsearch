@@ -570,9 +570,9 @@ public final class DeclaredTypeCoercions {
                     // nanos -> millis, losing sub-millisecond precision. The narrowing is arithmetic and total: every
                     // value a date_nanos block can hold is a representable epoch-millis instant, so it cannot fail,
                     // and it must not borrow date_nanos' own 1970 floor. DateUtils.toMilliSeconds throws below the
-                    // epoch because that is the floor the date_nanos field mapper enforces at ingest (DateUtils.toLong),
-                    // a fact about the ingest path, not about
-                    // `date`; that floor failed a pre-1970 TIMESTAMP(MICROS) column under the default fail_fast mode
+                    // epoch -- the same floor the date_nanos field mapper enforces at ingest (DateUtils.toLong), a fact
+                    // about the ingest path and not about `date`; that floor failed a pre-1970 TIMESTAMP(MICROS)
+                    // column under the default fail_fast mode
                     // -- nulling the cell under null_field and dropping the row under skip_row, per onCoercionFailure
                     // -- while the same column read correctly with no declaration at all.
                     //

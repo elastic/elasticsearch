@@ -382,7 +382,30 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         activityLogger.wrapAndRun(
             listener,
             new EsqlLogContextBuilder(task, request),
-            (l) -> ActionListener.run(EsqlFailureBounds.wrap(l, request.query()), bounded -> innerExecute(task, request, bounded))
+            (l) -> ActionListener.run(
+                EsqlFailureBounds.wrap(l, request.query()),
+                bounded -> innerExecuteRetryingOnObjectChange(task, request, bounded)
+            )
+        );
+    }
+
+    /**
+     * Runs the query again once if an external object was rewritten while it ran; see {@link ObjectChangedRetry}. Only a sync
+     * query retries: an async query reuses the {@link EsqlExecutionInfo} of its task, which would carry the failed attempt's state
+     * into the retry.
+     * <p>
+     * The failed attempt is not hidden from the query log, the failure metrics or the CCS telemetry. Each of them records the
+     * failed attempt as a failure, and the retry is recorded again as a second query. Clients that count these records see one
+     * failed query followed by one successful query.
+     */
+    private void innerExecuteRetryingOnObjectChange(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        ObjectChangedRetry.run(
+            l -> innerExecute(task, request, l),
+            listener,
+            threadPool.getThreadContext(),
+            requestExecutor,
+            task instanceof CancellableTask cancellable ? cancellable::isCancelled : () -> false,
+            (task instanceof EsqlQueryTask) == false
         );
     }
 

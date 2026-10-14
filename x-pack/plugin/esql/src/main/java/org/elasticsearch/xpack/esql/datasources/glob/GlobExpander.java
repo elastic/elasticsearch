@@ -1276,14 +1276,7 @@ public final class GlobExpander {
         if (exclusionNotice == null && truncated == false) {
             return FileList.EMPTY;
         }
-        return new GenericFileList(
-            List.of(),
-            pattern,
-            null,
-            exclusionNotice == null ? List.of() : List.of(exclusionNotice),
-            truncated,
-            false
-        );
+        return new GenericFileList(List.of(), pattern, null, exclusionNotice == null ? List.of() : List.of(exclusionNotice), truncated);
     }
 
     /**
@@ -2413,8 +2406,8 @@ public final class GlobExpander {
      * Whether an unbounded drain of this pattern would try the partition walk — and so might withdraw from it and
      * return the unfiltered superset, where a bounded drain applies the value filter and keeps a subset.
      * <p>
-     * It is the gate at the walk in {@link #doExpandGlob}, lifted out so that gate and the bounded rail's refusal
-     * to publish into the shared cache cannot drift apart. Only the bound-independent half is here; the caller
+     * It is the gate at the walk in {@link #doExpandGlob}, lifted out so the condition reads as one named
+     * question rather than a conjunction written inline. Only the bound-independent half is here; the caller
      * adds its own. {@link #doExpandGlobAsync} still carries a separate copy of the same shape, which predates
      * this and admits fewer globs ({@link #globstarLeads} rather than {@link #walkableGlob}); it only routes to
      * the synchronous drain, so it decides nothing this answers.

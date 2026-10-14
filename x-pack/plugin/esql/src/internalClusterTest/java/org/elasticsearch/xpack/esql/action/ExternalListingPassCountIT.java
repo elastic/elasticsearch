@@ -229,7 +229,7 @@ public class ExternalListingPassCountIT extends AbstractExternalDataSourceIT {
      * the listing's address, so the repeat finds the entry and the unfiltered query cannot: it has a different
      * address and must list for itself. That is the failure the second assertion exists for — served the filtered
      * entry, it would infer a schema, and a partition column's type, from one folder of 1,209 — and it is the
-     * address that stops it, not the serve rule, whose own test is below. The entry's width is no defence either
+     * address that stops it, which is also what the test below turns on. The entry's width is no defence either
      * way: one file is far below this query's bound.
      */
     public void testAFilteredEntryServesTheSameFilterAndNoOther() throws Exception {

@@ -73,7 +73,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         new String[0]
     );
 
-    private static final Set<String> INFLUENCED_SETTINGS = Set.of(
+    private static final Set<String> AFFECTED_SETTINGS = Set.of(
         IndexSettings.MODE.getKey(),
         IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
         IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(),
@@ -129,8 +129,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public Set<String> influencedSettings() {
-        return INFLUENCED_SETTINGS;
+    public Set<String> affectedSettings() {
+        return AFFECTED_SETTINGS;
     }
 
     @Override

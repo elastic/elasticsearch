@@ -43,7 +43,7 @@ public final class ES95CodecClusterSettingProvider implements IndexSettingProvid
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    public static final Set<String> INFLUENCED_SETTINGS = Set.of(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey());
+    public static final Set<String> AFFECTED_SETTINGS = Set.of(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey());
 
     private volatile boolean enabled;
 
@@ -82,8 +82,8 @@ public final class ES95CodecClusterSettingProvider implements IndexSettingProvid
     }
 
     @Override
-    public Set<String> influencedSettings() {
-        return enabled ? Set.of() : INFLUENCED_SETTINGS;
+    public Set<String> affectedSettings() {
+        return enabled ? Set.of() : AFFECTED_SETTINGS;
     }
 
     @Override

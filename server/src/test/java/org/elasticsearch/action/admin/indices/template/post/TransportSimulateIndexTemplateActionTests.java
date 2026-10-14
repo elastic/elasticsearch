@@ -79,7 +79,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             }
 
             @Override
-            public Set<String> influencedSettings() {
+            public Set<String> affectedSettings() {
                 return Set.of("test-setting");
             }
         }, new IndexSettingProvider() {
@@ -100,7 +100,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             }
 
             @Override
-            public Set<String> influencedSettings() {
+            public Set<String> affectedSettings() {
                 return Set.of("test-setting-2");
             }
 

@@ -932,7 +932,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public Set<String> influencedSettings() {
+                public Set<String> affectedSettings() {
                     return Set.of("request_setting", "other_setting");
                 }
 
@@ -990,7 +990,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public Set<String> influencedSettings() {
+                public Set<String> affectedSettings() {
                     return Set.of(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey());
                 }
 
@@ -1040,7 +1040,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public Set<String> influencedSettings() {
+                public Set<String> affectedSettings() {
                     return Set.of("request_setting", "other_setting");
                 }
 
@@ -1090,7 +1090,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public Set<String> influencedSettings() {
+                public Set<String> affectedSettings() {
                     return Set.of("template_setting", "other_setting");
                 }
 
@@ -1141,7 +1141,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public Set<String> influencedSettings() {
+                public Set<String> affectedSettings() {
                     return Set.of("template_setting", "other_setting");
                 }
 
@@ -2407,7 +2407,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public Set<String> influencedSettings() {
+                    public Set<String> affectedSettings() {
                         return Set.of();
                     }
                 }))
@@ -2470,7 +2470,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public Set<String> influencedSettings() {
+                    public Set<String> affectedSettings() {
                         return Set.of();
                     }
                 }))

@@ -27,7 +27,7 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
     public StatelessIndexSettingProvider() {}
 
     @Override
-    public Set<String> influencedSettings() {
+    public Set<String> affectedSettings() {
         return Set.of(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey());
     }
 

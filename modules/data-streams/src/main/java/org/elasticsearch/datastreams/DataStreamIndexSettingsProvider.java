@@ -64,7 +64,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         Setting.Property.NodeScope
     );
 
-    private static final Set<String> INFLUENCED_SETTINGS = Set.of(
+    private static final Set<String> AFFECTED_SETTINGS = Set.of(
         IndexSettings.TIME_SERIES_START_TIME.getKey(),
         IndexSettings.TIME_SERIES_END_TIME.getKey(),
         IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
@@ -88,8 +88,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public Set<String> influencedSettings() {
-        return INFLUENCED_SETTINGS;
+    public Set<String> affectedSettings() {
+        return AFFECTED_SETTINGS;
     }
 
     @Override

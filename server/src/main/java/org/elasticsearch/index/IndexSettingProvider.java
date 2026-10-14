@@ -78,12 +78,12 @@ public interface IndexSettingProvider {
     /**
      * Exposes the keys of all the index settings this provider may add, either via
      * {@link #provideAdditionalSettings} or via {@link #onUpdateMappings}. This allows other components to know upfront which
-     * settings can be influenced by this provider, without having to invoke it.
+     * settings can be affected by this provider, without having to invoke it.
      *
-     * @return the keys of the settings this provider can influence, the provider does not necessarily set all of them
+     * @return the keys of the settings this provider can affect, the provider does not necessarily set all of them
      *         for every index
      */
-    Set<String> influencedSettings();
+    Set<String> affectedSettings();
 
     /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.

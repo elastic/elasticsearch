@@ -217,11 +217,11 @@ public class DataTier {
      */
     public static class DefaultHotAllocationSettingProvider implements IndexSettingProvider {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);
-        private static final Set<String> INFLUENCED_SETTINGS = Set.of(TIER_PREFERENCE);
+        private static final Set<String> AFFECTED_SETTINGS = Set.of(TIER_PREFERENCE);
 
         @Override
-        public Set<String> influencedSettings() {
-            return INFLUENCED_SETTINGS;
+        public Set<String> affectedSettings() {
+            return AFFECTED_SETTINGS;
         }
 
         @Override

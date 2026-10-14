@@ -1206,7 +1206,7 @@ public enum IndexMode {
      * Lookup, strict columnar data-stream, and vector database modes provide additional settings.
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
-        private static final Set<String> INFLUENCED_SETTINGS = Set.of(
+        private static final Set<String> AFFECTED_SETTINGS = Set.of(
             IndexMetadata.SETTING_NUMBER_OF_SHARDS,
             IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
             IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(),
@@ -1216,8 +1216,8 @@ public enum IndexMode {
         );
 
         @Override
-        public Set<String> influencedSettings() {
-            return INFLUENCED_SETTINGS;
+        public Set<String> affectedSettings() {
+            return AFFECTED_SETTINGS;
         }
 
         @Override

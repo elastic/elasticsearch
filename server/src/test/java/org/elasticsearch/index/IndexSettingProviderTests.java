@@ -119,7 +119,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Set<String> influencedSettings() {
+        public Set<String> affectedSettings() {
             return Set.of("index.refresh_interval", "index.mapping.depth.limit", "index.version.created");
         }
 

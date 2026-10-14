@@ -133,7 +133,7 @@ public class IndexSettingProvidersTests extends ESTestCase {
             }
 
             @Override
-            public Set<String> influencedSettings() {
+            public Set<String> affectedSettings() {
                 return Set.of();
             }
         };
@@ -480,8 +480,8 @@ public class IndexSettingProvidersTests extends ESTestCase {
             }
 
             @Override
-            public Set<String> influencedSettings() {
-                return delegate.influencedSettings();
+            public Set<String> affectedSettings() {
+                return delegate.affectedSettings();
             }
         };
     }
@@ -508,7 +508,7 @@ public class IndexSettingProvidersTests extends ESTestCase {
             }
 
             @Override
-            public Set<String> influencedSettings() {
+            public Set<String> affectedSettings() {
                 return settings.keySet();
             }
 

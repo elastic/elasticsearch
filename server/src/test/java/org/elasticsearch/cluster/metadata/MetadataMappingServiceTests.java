@@ -226,7 +226,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public Set<String> influencedSettings() {
+                public Set<String> affectedSettings() {
                     return Set.of("index.mapping.total_fields.limit");
                 }
             }))

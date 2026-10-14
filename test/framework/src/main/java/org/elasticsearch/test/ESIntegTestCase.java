@@ -2947,7 +2947,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Set<String> influencedSettings() {
+                public Set<String> affectedSettings() {
                     return Set.of("index.mapping.use_columnar_id_mode_by_default");
                 }
             });

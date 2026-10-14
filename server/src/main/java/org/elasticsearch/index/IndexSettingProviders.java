@@ -39,7 +39,7 @@ public final class IndexSettingProviders {
      * to the index being created.
      * The primary use case is for tests that want to add specific settings without having to create a full implementation.
      *
-     * @param influencedSettings      The keys of the settings the consumer may add, see {@link IndexSettingProvider#influencedSettings()}
+     * @param influencedSettings      The keys of the settings the consumer may add, see {@link IndexSettingProvider#affectedSettings()}
      * @param settingsBuilderConsumer A consumer that adds index settings
      * @return An {@link IndexSettingProviders} instance that uses the provided consumer to add settings
      */
@@ -62,7 +62,7 @@ public final class IndexSettingProviders {
             }
 
             @Override
-            public Set<String> influencedSettings() {
+            public Set<String> affectedSettings() {
                 return influencedSettings;
             }
         }));
@@ -133,7 +133,7 @@ public final class IndexSettingProviders {
         Settings.Builder additionalSettings = Settings.builder();
         Set<String> overrulingSettings = new HashSet<>();
         for (IndexSettingProvider provider : providers) {
-            if (settingSubset != null && Sets.intersection(settingSubset, provider.influencedSettings()).isEmpty()) {
+            if (settingSubset != null && Sets.intersection(settingSubset, provider.affectedSettings()).isEmpty()) {
                 continue;
             }
             Settings.Builder builder = Settings.builder();

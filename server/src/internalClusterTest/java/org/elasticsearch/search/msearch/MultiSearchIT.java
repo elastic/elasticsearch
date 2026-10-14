@@ -409,7 +409,7 @@ public class MultiSearchIT extends ESIntegTestCase {
             {"index": "index-2" }
             {"query" : {"match_all" : {}}}
             """;
-        MultiSearchRequest mreq = parseRequest(body, Map.of(SliceIndexing.PARAM_NAME, "s1,s2"));
+        MultiSearchRequest mreq = parseRequest(body, Map.of(SliceIndexing.FIELD_NAME, "s1,s2"));
         assertThat(mreq.requests().size(), Matchers.is(2));
         for (SearchRequest req : mreq.requests()) {
             assertEquals("s1,s2", req.routing());
@@ -421,11 +421,11 @@ public class MultiSearchIT extends ESIntegTestCase {
     public void testRoutingAndSliceCannotBeMixedAcrossRequestLevels() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         String body = """
-            {"slice": "s1" }
+            {"_slice": "s1" }
             {"query" : {"match_all" : {}}}
             """;
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseRequest(body, Map.of("routing", "r1")));
-        assertThat(ex.getMessage(), Matchers.is("[routing] and [slice] cannot be combined in the same _msearch request"));
+        assertThat(ex.getMessage(), Matchers.is("[routing] and [_slice] cannot be combined in the same _msearch request"));
     }
 
     public void testSliceEnabledIndexDefaultsToAllAndRejectsRoutingInExecution() throws Exception {
@@ -451,7 +451,7 @@ public class MultiSearchIT extends ESIntegTestCase {
                 response.getResponses()[1].getFailure().getMessage(),
                 containsString("[routing] is not allowed when [index.slice.enabled] is true")
             );
-            assertThat(response.getResponses()[1].getFailure().getMessage(), containsString("use [slice] instead"));
+            assertThat(response.getResponses()[1].getFailure().getMessage(), containsString("use [_slice] instead"));
         });
     }
 
@@ -472,11 +472,11 @@ public class MultiSearchIT extends ESIntegTestCase {
         String body = """
             {"index":"routing-index","routing":"r1"}
             {"query":{"term":{"field.keyword":"routing-r1"}}}
-            {"index":"slice-index","slice":"s1"}
+            {"index":"slice-index","_slice":"s1"}
             {"query":{"term":{"field.keyword":"slice-s1"}}}
             {"index":"routing-index","routing":"r2"}
             {"query":{"term":{"field.keyword":"routing-r2"}}}
-            {"index":"slice-index","slice":"s2"}
+            {"index":"slice-index","_slice":"s2"}
             {"query":{"term":{"field.keyword":"slice-s2"}}}
             """;
         MultiSearchRequest request = parseRequest(body, Map.of());

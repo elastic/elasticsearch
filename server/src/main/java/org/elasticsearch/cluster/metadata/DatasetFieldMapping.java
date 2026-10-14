@@ -100,8 +100,10 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
     /**
      * Folds the two spellings of the rename setting into one value. They mean the same thing, so either alone is
      * accepted; both in one entry is a contradiction in the making — nothing says which wins, and a later reader of
-     * the stored definition would have to guess — so it is refused at the boundary rather than resolved by
-     * precedence.
+     * the stored definition would have to guess — so it is refused at the boundary rather than resolved by precedence.
+     * <p>
+     * {@code PARSER.declareExclusiveFieldSet} would also express mutual exclusion but its message names the fields
+     * without saying they are the same setting. The explicit check here gives the caller that context.
      */
     private static DatasetFieldMapping collapse(String type, @Nullable String renameFrom, @Nullable String path, @Nullable String format) {
         if (renameFrom != null && path != null) {

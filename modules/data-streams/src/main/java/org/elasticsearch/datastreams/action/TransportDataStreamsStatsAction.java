@@ -137,7 +137,7 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
 
     private static long getMaxTimestamp(IndexShard indexShard) throws IOException {
         try (
-            Engine.Searcher searcher = indexShard.acquireSearcher(
+            Engine.Searcher searcher = indexShard.acquireExternalSearcher(
                 ReadOnlyEngine.FIELD_RANGE_SEARCH_SOURCE,
                 SplitShardCountSummary.IRRELEVANT
             )

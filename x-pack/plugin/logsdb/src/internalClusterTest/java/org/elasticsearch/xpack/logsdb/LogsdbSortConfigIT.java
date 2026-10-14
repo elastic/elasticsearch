@@ -582,7 +582,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(backingIndex);
         assertThat(indexService.numberOfShards(), equalTo(1));
         IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             DirectoryReader directoryReader = searcher.getDirectoryReader();
 
             assertThat(directoryReader.numDocs(), equalTo(orderedDocs.length));
@@ -618,7 +618,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(backingIndex);
         assertThat(indexService.numberOfShards(), equalTo(1));
         IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
 
             MappedFieldType timestampField = shard.mapperService().fieldType("@timestamp");
             SortField sf = timestampField.fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))

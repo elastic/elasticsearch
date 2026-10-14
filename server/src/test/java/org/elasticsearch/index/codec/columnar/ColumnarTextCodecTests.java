@@ -138,7 +138,7 @@ public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
     /** The doc-values format the field's values were actually written with. */
     private String docValuesFormat() throws IOException {
         final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(INDEX)).getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             String format = null;
             boolean found = false;
             for (LeafReaderContext leaf : searcher.getLeafContexts()) {

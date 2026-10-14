@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
  * against a shard being restored from a snapshot.
  *
  * <p>{@code _terms_enum} uses {@code TransportTermsEnumAction}, which fans out to individual shards
- * and calls {@code IndexShard.acquireSearcher()} directly. This path does NOT go through
+ * and calls {@code IndexShard.acquireExternalSearcher()} directly. This path does NOT go through
  * {@code SearchReadyGate}, so requests do NOT park when the shard is INITIALIZING. The shard-level
  * call throws {@link org.elasticsearch.index.shard.IllegalIndexShardStateException}, but the
  * node-level failure is silently dropped by {@code TransportTermsEnumAction.onNodeFailure()}
@@ -72,7 +72,7 @@ public class RestoringShardTermsEnumIT extends AbstractSnapshotIntegTestCase {
     /**
      * {@code POST /{index}/_terms_enum} against a fully-restoring index returns HTTP 200 with
      * zero total, successful, and failed shards. Unlike {@code _search}, the terms-enum action
-     * calls {@code IndexShard.acquireSearcher()} directly, bypassing {@code SearchReadyGate}.
+     * calls {@code IndexShard.acquireExternalSearcher()} directly, bypassing {@code SearchReadyGate}.
      * The shard-level {@link org.elasticsearch.index.shard.IllegalIndexShardStateException} is
      * thrown on the data node, but {@code TransportTermsEnumAction.onNodeFailure()} silently drops
      * node-level failures (see the TODO comment in that method). The caller receives a response

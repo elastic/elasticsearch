@@ -314,7 +314,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             .get();
         indicesAdmin().prepareRefresh().get();
 
-        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             long[] currentTime = new long[] { System.currentTimeMillis() };
             SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
                 0,

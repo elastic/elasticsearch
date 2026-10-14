@@ -155,7 +155,7 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
         assertMappings();
         assertMessagesInSource(messages);
 
-        try (var searcher = indexService.getShard(0).acquireSearcher(INDEX, SplitShardCountSummary.IRRELEVANT)) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(INDEX, SplitShardCountSummary.IRRELEVANT)) {
             try (var indexReader = searcher.getIndexReader()) {
                 if (useBinaryDocValues) {
                     var leafReader = indexReader.leaves().get(0).reader();
@@ -182,7 +182,7 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
         assertMappings();
         assertMessagesInSource(messages);
 
-        try (var searcher = indexService.getShard(0).acquireSearcher(INDEX, SplitShardCountSummary.IRRELEVANT)) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(INDEX, SplitShardCountSummary.IRRELEVANT)) {
             try (var indexReader = searcher.getIndexReader()) {
                 if (disableTemplating) {
                     // when templating is disabled, large values are either stored in binary doc values or stored fields

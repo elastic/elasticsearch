@@ -872,7 +872,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             }
         }
         shard.refresh("test");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat(
                 "numDocs=" + numDocs + " moreDocs=" + moreDocs,
                 (long) searcher.getIndexReader().numDocs(),

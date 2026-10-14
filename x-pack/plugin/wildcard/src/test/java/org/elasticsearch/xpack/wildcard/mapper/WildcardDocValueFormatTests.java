@@ -54,7 +54,7 @@ public class WildcardDocValueFormatTests extends ESSingleNodeTestCase {
         assertFalse(response.hasFailures());
         safeGet(indicesAdmin().refresh(new RefreshRequest(indexName).indicesOptions(IndicesOptions.lenientExpandOpenHidden())));
 
-        try (var searcher = indexService.getShard(0).acquireSearcher(indexName, SplitShardCountSummary.IRRELEVANT)) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(indexName, SplitShardCountSummary.IRRELEVANT)) {
             try (var indexReader = searcher.getIndexReader()) {
                 var leaves = indexReader.leaves();
                 assertThat(leaves.size(), equalTo(1));

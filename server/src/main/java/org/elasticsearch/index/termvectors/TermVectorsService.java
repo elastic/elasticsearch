@@ -92,7 +92,7 @@ public class TermVectorsService {
                 ).version(request.version()).versionType(request.versionType()),
                 request.getSplitShardCountSummary()
             );
-            Engine.Searcher searcher = indexShard.acquireSearcher("term_vector", request.getSplitShardCountSummary())
+            Engine.Searcher searcher = indexShard.acquireExternalSearcher("term_vector", request.getSplitShardCountSummary())
         ) {
             Fields topLevelFields = fields(get.searcher() != null ? get.searcher().getIndexReader() : searcher.getIndexReader());
             DocIdAndVersion docIdAndVersion = get.docIdAndVersion();

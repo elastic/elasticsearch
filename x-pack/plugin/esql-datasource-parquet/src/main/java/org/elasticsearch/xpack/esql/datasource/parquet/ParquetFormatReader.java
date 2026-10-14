@@ -95,7 +95,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -3702,19 +3701,18 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * When the query plan type cannot be satisfied from this file's Parquet-derived ESQL type — neither by the same
-     * widening rules as {@link EsqlDataTypeConverter#commonType} (plus KEYWORD/TEXT interchangeability) nor by a
-     * declared-type coercion the decode paths implement ({@link DeclaredTypeCoercions#supports}) — the column cannot
-     * be read in this file, and the read's {@code errorPolicy} decides what happens to it; the last paragraph below
-     * says what each mode does. Where the read continues, a response Warning header (and a logged warning) names the
-     * column, so clients see which columns a read could not interpret alongside other recoverable ES|QL warnings.
+     * When a column in this file's Parquet schema cannot be read as the query plan type via a coercion that
+     * {@link DeclaredTypeCoercions#supports} admits, the column cannot be read in this file, and the read's
+     * {@code errorPolicy} decides what happens to it; the last paragraph below says what each mode does.
+     * Where the read continues, a response Warning header (and a logged warning) names the column, so clients
+     * see which columns a read could not interpret alongside other recoverable ES|QL warnings.
      * This is the per-file manifestation of the castability check the resolver already ran against the
-     * anchor footer: a multi-file glob can drift from the anchor, and a drifted file that is neither compatible nor
+     * anchor footer: a multi-file glob can drift from the anchor, and a drifted file whose column is not
      * coercible must not decode garbage.
      * <p>
-     * The {@code DeclaredTypeCoercions#supports} escape — which admits lossy narrowing (e.g. {@code int64}&rarr;
-     * {@code integer}, null on overflow) — applies to every column, because whether a value can be read as the
-     * query's type turns on the two types and nothing else.
+     * {@link DeclaredTypeCoercions#supports} — which admits lossy narrowing (e.g. {@code int64}&rarr;
+     * {@code integer}, null on overflow) — is the sole gate and applies to every column, because whether
+     * a value can be read as the query's type turns on the two types and nothing else.
      * <p>
      * A pair nothing can convert is a read failure of that column in this file, so the read's
      * {@code errorPolicy} decides it ({@link DeclaredTypeCoercions#onUncoercibleColumn}): {@code fail_fast} fails the

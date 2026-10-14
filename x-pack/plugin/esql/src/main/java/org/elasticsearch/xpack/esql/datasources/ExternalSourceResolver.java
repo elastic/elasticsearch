@@ -1778,8 +1778,9 @@ public class ExternalSourceResolver {
             return true;
         }
         if (source.fileList().isTruncated() || source.fileList().isInferenceAnchor()) {
-            // The schema map covers only a prefix of the dataset. Files outside the sample may narrow
-            // a column the map records as lossless, so the stamp must be conservative.
+            // The schema map does not cover the full dataset — either the listing was truncated or an
+            // inference anchor left the remaining partitions unexamined. Files outside the sample may
+            // narrow a column the map records as lossless, so the stamp must be conservative.
             return true;
         }
         DeclaredReadSpec spec = source.declaredReadSpec() == null ? DeclaredReadSpec.NONE : source.declaredReadSpec();

@@ -7315,9 +7315,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Schema-vs-planner mismatch is a "skip and resume" path: the column is silently null-replaced.
-     * Confirm that, on top of the {@code logger.warn} we keep, the reader emits a response Warning
-     * header so clients see the same information they get for other recoverable ES|QL warnings.
+     * Schema-vs-planner mismatch under PERMISSIVE ({@code null_field}) error policy: the whole column
+     * is null-replaced and the row is kept. Confirm that, on top of the {@code logger.warn} we keep,
+     * the reader emits a response Warning header so clients see the same information they get for other
+     * recoverable ES|QL warnings.
      */
     public void testSchemaMismatchEmitsResponseWarningHeader() throws Exception {
         // A pair even ingest cannot coerce (a number has no ip form) keeps the whole-column null + Warning fallback,

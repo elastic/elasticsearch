@@ -150,8 +150,8 @@ import java.util.function.IntFunction;
  *       {@link #onCoercionFailure} chokepoint so the two paths cannot disagree. A value of a
  *       multi-valued cell that fails under {@code null_field} is removed from the cell and the
  *       readable values are kept; the cell nulls only when none survives. Readers also
- *       re-check {@link #supports} per file for a <b>declared</b> column, since a multi-file glob
- *       can drift from the anchor footer; a declared column a file cannot supply is a read failure
+ *       re-check {@link #supports} per file for every column, since a multi-file glob
+ *       can drift from the anchor footer; a column a file cannot supply is a read failure
  *       of the whole column in that file and follows the {@link ErrorPolicy} through
  *       {@link #onUncoercibleColumn}. Nothing about this turns on whether the type was declared or
  *       inferred: a column whose file type {@link #supports} admits is converted per value either way,

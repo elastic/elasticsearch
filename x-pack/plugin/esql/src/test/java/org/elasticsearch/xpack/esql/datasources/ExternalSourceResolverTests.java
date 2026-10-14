@@ -1574,6 +1574,97 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
     }
 
+    /**
+     * A truncated listing means the schema map covers only a sample of the dataset; files outside
+     * the sample may hold a narrowing type. The guard in {@code conversionMayNarrow} must return
+     * {@code true} unconditionally when {@link FileList#isTruncated()} is set. This test fails if
+     * that guard is deleted: all seen files have lossless types, so without the guard the stamp
+     * would be {@code false}.
+     */
+    public void testConversionMayNarrowIsTrueForTruncatedListing() throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("event_ts", new DatasetFieldMapping("long", null));
+        List<Attribute> fileSchema = List.of(attr("event_ts", DataType.LONG));
+
+        int fileCount = 1500;
+        List<StorageEntry> files = new ArrayList<>(fileCount);
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        for (int i = 0; i < fileCount; i++) {
+            String file = String.format(Locale.ROOT, "s3://bucket/data/file%05d.parquet", i);
+            files.add(entry(file, 100));
+            schemasByPath.put(file, fileSchema);
+        }
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), files);
+
+        ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(
+            List.of(DECLARED_GLOB),
+            Map.of(DECLARED_GLOB, new HashMap<>()),
+            null,
+            Map.of(DECLARED_GLOB, mapping),
+            Set.of(),
+            Set.of(DECLARED_GLOB),
+            future
+        );
+        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(DECLARED_GLOB);
+
+        assertNotNull(resolved);
+        assertTrue("pre-condition: listing must be truncated for this test to be meaningful", resolved.fileList().isTruncated());
+        assertTrue(
+            "a truncated listing means unseen files may narrow, so the stamp must be conservative",
+            SourceStatisticsSerializer.conversionMayNarrow(resolved.metadata().sourceMetadata())
+        );
+    }
+
+    /**
+     * An inference anchor is the leftover file kept after partition pruning eliminates all real
+     * candidates. The schema map holds only that one file's types, so files in other partitions are
+     * unexamined and may narrow. The guard in {@code conversionMayNarrow} must return {@code true}
+     * unconditionally when {@link FileList#isInferenceAnchor()} is set. This test fails if that
+     * guard is deleted: the anchor file has lossless types, so without the guard the stamp would
+     * be {@code false}.
+     */
+    public void testConversionMayNarrowIsTrueForInferenceAnchor() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.LONG));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        schemas.put("s3://bucket/data/year=2025/b.parquet", schema);
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(
+            "s3://bucket/data/",
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 100))
+        );
+        // year=2099 matches nothing; the resolver keeps one leftover file as an inference anchor.
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2099)
+        );
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolver(schemas, listingsByPrefix, Settings.EMPTY, null, null, null, cacheService);
+            ExternalSourceResolution.ResolvedSource resolved = resolveWith(
+                resolver,
+                glob,
+                Map.of(glob, List.of(hint)),
+                FormatReader.SchemaResolution.FIRST_FILE_WINS
+            ).resolvedSource(glob);
+
+            assertNotNull(resolved);
+            assertTrue(
+                "pre-condition: listing must be an inference anchor for this test to be meaningful",
+                resolved.fileList().isInferenceAnchor()
+            );
+            assertTrue(
+                "an inference anchor means non-anchor files are unexamined and may narrow",
+                SourceStatisticsSerializer.conversionMayNarrow(resolved.metadata().sourceMetadata())
+            );
+        }
+    }
+
     // ===== Stats partial / file-count flag tests =====
 
     /**

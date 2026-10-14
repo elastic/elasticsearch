@@ -1781,8 +1781,6 @@ public class EsqlCapabilities {
          * Does the usage information for ESQL contain per-component CPU counters for successful
          * external-source queries ({@code datasources.queries.cpu_nanos.execution},
          * {@code .read}, {@code .planning}, {@code .split_discovery}, {@code .total})?
-         * Note: the {@code planning} component is currently wall time pending a real planning-CPU
-         * measurement in {@code EsqlQueryProfile}.
          */
         USAGE_CONTAINS_DATASOURCES_QUERY_CPU,
 

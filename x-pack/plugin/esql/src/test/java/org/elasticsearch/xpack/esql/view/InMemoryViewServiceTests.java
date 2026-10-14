@@ -889,7 +889,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private static final String maxDepthViewsError = "ES|QL query exceeded the maximum query depth allowed (500) after expanding views";
-    private static final String maxPlanNodesViewsError = "ES|QL query exceeded the maximum plan size allowed after expanding views";
+    private static final String maxPlanNodesViewsError =
+        "ES|QL query exceeded the maximum plan size allowed (50000 nodes) after expanding views";
 
     public void testMaxQueryDepthAcrossViews() {
         addView("long_view", "FROM emp" + pipes(300));
@@ -943,7 +944,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * Two IN subqueries in one condition are planned as {@code Filter -> MarkJoin -> MarkJoin -> source}, with each subquery on the
      * right of its join. The first subquery has the Filter and both joins above it, the second one the Filter and one join.
      */
-    public void testMaxQueryDepthAcrossViewInOredInSubqueries() {
+    public void testMaxQueryDepthMarkInSubqueries() {
         addView("long_view", "FROM emp" + pipes(300));
         String first = "FROM emp1 | WHERE x IN (FROM long_view %s) OR y IN (FROM emp2)";
         replaceViews(query(Strings.format(first, pipes(197))));
@@ -1073,6 +1074,40 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         replaceViews(query(query));
     }
 
+    public void testMaxQueryDepthAcrossViewInForkBranch() {
+        addView("long_view", "FROM emp" + pipes(300));
+        // Above the view lie the pipes, FORK, and in each branch its implicit EVAL and its commands. The longest branch has three.
+        String fork = " | FORK (WHERE a > 0 | WHERE a > 1 | WHERE a > 2) (WHERE a > 3)";
+        replaceViews(query("FROM long_view" + pipes(195) + fork));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query("FROM long_view" + pipes(196) + fork))
+        );
+    }
+
+    /**
+     * Commands planned as more than one node are counted once per node, so a query on the limit can be rejected. The limit is never
+     * missed this way.
+     */
+    public void testMaxQueryDepthCountsInlineStatsAsTwoNodes() {
+        addView("long_view", "FROM emp" + pipes(300));
+        replaceViews(query("FROM long_view | INLINE STATS c = COUNT(*) BY a" + pipes(198)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxDepthViewsError),
+            () -> replaceViews(query("FROM long_view | INLINE STATS c = COUNT(*) BY a" + pipes(199)))
+        );
+    }
+
+    public void testMaxQueryDepthOfViewWithoutRelation() {
+        addView("row_view", "ROW a = 1" + pipes(300));
+        addView("outer_view", "FROM row_view" + pipes(200));
+        addView("too_long_outer_view", "FROM row_view" + pipes(201));
+        replaceViews(query("FROM outer_view"));
+        expectThrows(VerificationException.class, startsWith(maxDepthViewsError), () -> replaceViews(query("FROM too_long_outer_view")));
+    }
+
     /**
      * The k-th of {@code n} successive {@code WHERE x IN (FROM view_k)} has the joins of the {@code n - k} later ones and its own above
      * it, and {@code view_k} has {@code k} pipes, so every path has {@code n + 1} commands: the limit on the commands of a path holds
@@ -1111,16 +1146,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(e.getMessage(), containsString("after expanding views [fan_out_view_5 -> fan_out_view_4"));
     }
 
-    /**
-     * Subqueries bring nodes without views, since each of them may have as many commands as the limit on a path allows. A command such
-     * as {@code WHERE a > 0} is four nodes: the command, the comparison, and its two operands.
-     */
-    /**
-     * A query that resolves no view is not checked against {@code MAX_PLAN_NODES} at all, however many subqueries it has: every copy
-     * of a subquery is already present in the query's own text, bounded by the length limit, the same as a query with many
-     * {@code EVAL}/{@code STATS} columns or a wide {@code IN} list — none of those are checked against this limit either. See
-     * {@code HeapAttackIT} in the heap-attack test module for real queries this limit must not reject.
-     */
     public void testMaxPlanNodesDoesNotApplyWithoutViews() {
         String subquery = "(FROM emp2" + pipes(499) + ")";
         // about 42,000 nodes, far over MAX_PLAN_NODES, but no view is involved so nothing is checked
@@ -1134,41 +1159,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             query.append(" | WHERE x IN (FROM growing_view_").append(k).append(")");
         }
         return query.toString();
-    }
-
-    public void testMaxQueryDepthAcrossViewInForkBranch() {
-        addView("long_view", "FROM emp" + pipes(300));
-        // Above the view lie the pipes, FORK, and in each branch its implicit EVAL and its commands. The longest branch has three.
-        String fork = " | FORK (WHERE a > 0 | WHERE a > 1 | WHERE a > 2) (WHERE a > 3)";
-        replaceViews(query("FROM long_view" + pipes(195) + fork));
-        expectThrows(
-            VerificationException.class,
-            startsWith(maxDepthViewsError),
-            () -> replaceViews(query("FROM long_view" + pipes(196) + fork))
-        );
-    }
-
-    /**
-     * Commands planned as more than one node are counted once per node, so a query on the limit can be rejected. The limit is never
-     * missed this way.
-     */
-    public void testMaxQueryDepthCountsInlineStatsAsTwoNodes() {
-        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
-        addView("long_view", "FROM emp" + pipes(300));
-        replaceViews(query("FROM long_view | INLINE STATS c = COUNT(*) BY a" + pipes(198)));
-        expectThrows(
-            VerificationException.class,
-            startsWith(maxDepthViewsError),
-            () -> replaceViews(query("FROM long_view | INLINE STATS c = COUNT(*) BY a" + pipes(199)))
-        );
-    }
-
-    public void testMaxQueryDepthOfViewWithoutRelation() {
-        addView("row_view", "ROW a = 1" + pipes(300));
-        addView("outer_view", "FROM row_view" + pipes(200));
-        addView("too_long_outer_view", "FROM row_view" + pipes(201));
-        replaceViews(query("FROM outer_view"));
-        expectThrows(VerificationException.class, startsWith(maxDepthViewsError), () -> replaceViews(query("FROM too_long_outer_view")));
     }
 
     public void testCircularViewSelfReference() {

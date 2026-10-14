@@ -114,8 +114,7 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *  {@code ViewResolver} and {@code InSubqueryResolver} to do the view and IN subquery resolution respectively.
  */
 public class ViewResolver {
-    public static final int MAX_EXPANDED_SIZE = 50_000; // TEMP: diagnostic bump to prove expression-heavy view expansion OOMs without this
-                                                        // cap
+    public static final int MAX_EXPANDED_SIZE = 50_000;
 
     protected Logger log = LogManager.getLogger(getClass());
     private final Executor executor;
@@ -235,15 +234,9 @@ public class ViewResolver {
         // A Holder (not a plain boolean) because it is written from inside the async resolution callbacks; cross-thread visibility is
         // provided by the ActionListener plumbing, the same way the viewQueries map threaded through these callbacks is.
         Holder<Boolean> hasInSubquery = new Holder<>(false);
-        // Counts the nodes contributed by expanding views into the plan, so that expansion stops before a query that references views
-        // that reference views grows beyond what the node can hold. Written from the async callbacks, like the holder.
-        //
-        // This only ever grows inside resolve(), i.e. only once a relation is actually found to reference a view, and only the nodes
-        // of view bodies are added to it — never the query's own, as-written plan. Subqueries (FROM or IN, without a view) are not
-        // counted either: every copy of a subquery is already present in the query's own text, bounded by the length limit, the same
-        // as a query with many EVAL/STATS columns — there is no hidden re-expansion to guard against there. Views are different: each
-        // reference re-parses and re-expands a body that is not in the query's text, which is the growth this limit exists to catch.
-        AtomicInteger planNodes = new AtomicInteger(0);
+        // Counts the nodes contributed by expanding views into the plan, so expansion stops before we can hold the tree in memory
+        // This only ever grows inside resolve()
+        AtomicInteger numOfPlanNodes = new AtomicInteger(0);
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
         if (noViews && InSubqueryResolver.hasInSubquery(plan) == false) {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries, false));
@@ -263,7 +256,7 @@ public class ViewResolver {
             new LinkedHashSet<>(),
             viewQueries,
             hasInSubquery,
-            planNodes,
+            numOfPlanNodes,
             0,
             0,
             preserveViewBoundaries,
@@ -281,7 +274,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        AtomicInteger planNodes,
+        AtomicInteger numOfPlanNodes,
         int depth,
         int pipesAbove,
         boolean preserveViewBoundaries,
@@ -297,7 +290,7 @@ public class ViewResolver {
         Set<LogicalPlan> resolvedPlans = Collections.newSetFromMap(new IdentityHashMap<>());
 
         IdentityHashMap<LogicalPlan, Integer> nodesAbove = new IdentityHashMap<>();
-        collectNodesAbove(plan, 0, nodesAbove);
+        collectNodesAbove(plan, nodesAbove);
 
         plan.transformDown((p, planListener) -> {
             if (resolvedPlans.contains(p)) {
@@ -321,7 +314,7 @@ public class ViewResolver {
                     seenInner,
                     viewQueries,
                     hasInSubquery,
-                    planNodes,
+                    numOfPlanNodes,
                     depth,
                     above,
                     preserveViewBoundaries,
@@ -348,7 +341,7 @@ public class ViewResolver {
                             seenInner,
                             viewQueries,
                             hasInSubquery,
-                            planNodes,
+                            numOfPlanNodes,
                             depth,
                             above,
                             preserveViewBoundaries,
@@ -376,7 +369,7 @@ public class ViewResolver {
                             seenInner,
                             viewQueries,
                             hasInSubquery,
-                            planNodes,
+                            numOfPlanNodes,
                             depth,
                             above,
                             preserveViewBoundaries,
@@ -404,7 +397,7 @@ public class ViewResolver {
                             seenInner,
                             viewQueries,
                             hasInSubquery,
-                            planNodes,
+                            numOfPlanNodes,
                             depth,
                             above,
                             preserveViewBoundaries,
@@ -423,7 +416,7 @@ public class ViewResolver {
                     seenInner,
                     viewQueries,
                     hasInSubquery,
-                    planNodes,
+                    numOfPlanNodes,
                     depth,
                     above,
                     preserveViewBoundaries,
@@ -441,7 +434,7 @@ public class ViewResolver {
                     seenWildcards,
                     viewQueries,
                     hasInSubquery,
-                    planNodes,
+                    numOfPlanNodes,
                     depth,
                     above,
                     preserveViewBoundaries,
@@ -466,7 +459,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        AtomicInteger planNodes,
+        AtomicInteger numOfPlanNodes,
         int depth,
         int pipesAbove,
         boolean preserveViewBoundaries,
@@ -486,7 +479,7 @@ public class ViewResolver {
                     seenViews,
                     viewQueries,
                     hasInSubquery,
-                    planNodes,
+                    numOfPlanNodes,
                     depth + 1,
                     pipesAbove + (isCounted(mergePlan) ? 1 : 0),
                     preserveViewBoundaries,
@@ -521,7 +514,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        AtomicInteger planNodes,
+        AtomicInteger numOfPlanNodes,
         int depth,
         int pipesAbove,
         boolean preserveViewBoundaries,
@@ -538,7 +531,7 @@ public class ViewResolver {
                 seenViews,
                 viewQueries,
                 hasInSubquery,
-                planNodes,
+                numOfPlanNodes,
                 depth + 1,
                 pipesAbove + 1,
                 preserveViewBoundaries,
@@ -559,7 +552,7 @@ public class ViewResolver {
                 seenViews,
                 viewQueries,
                 hasInSubquery,
-                planNodes,
+                numOfPlanNodes,
                 depth + 1,
                 pipesAbove + 1,
                 preserveViewBoundaries,
@@ -586,7 +579,7 @@ public class ViewResolver {
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
-        AtomicInteger planNodes,
+        AtomicInteger numOfPlanNodes,
         int depth,
         int pipesAbove,
         boolean preserveViewBoundaries,
@@ -723,7 +716,7 @@ public class ViewResolver {
                             viewQueries,
                             MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields()),
                             pipesAbove,
-                            planNodes,
+                            numOfPlanNodes,
                             branchSeenViews
                         ),
                         projectRouting,
@@ -732,7 +725,7 @@ public class ViewResolver {
                         branchSeenViews,
                         viewQueries,
                         hasInSubquery,
-                        planNodes,
+                        numOfPlanNodes,
                         depth + 1,
                         pipesAbove,
                         // Resolving a view's *body*: never preserve boundaries in here. The request filter applies to
@@ -1229,21 +1222,13 @@ public class ViewResolver {
         }
     }
 
-    /**
-     * Parses the body of a view, and checks that expanding it where {@code pipesAbove} commands already lie above it keeps the longest
-     * path of the query within {@link LogicalPlanBuilder#MAX_QUERY_DEPTH}. The parser limits the commands of a single query, so the
-     * commands of the view and of the queries it is expanded into have to be added up here.
-     * <p>
-     * It also adds the nodes of the body to {@code planNodes}, and checks them against {@link #MAX_EXPANDED_SIZE}. Every reference to a
-     * view parses and expands its body again, so views that reference views several times grow much faster than the text of the query.
-     */
     private LogicalPlan resolve(
         View view,
         BiFunction<String, String, LogicalPlan> parser,
         Map<String, String> viewQueries,
         boolean keepViewIdentity,
         int pipesAbove,
-        AtomicInteger planNodes,
+        AtomicInteger numOfPlanNodes,
         LinkedHashSet<String> viewPath
     ) {
         log.debug("Resolving view '{}'", view.name());
@@ -1253,7 +1238,7 @@ public class ViewResolver {
         // Parse the view query with the view name, which causes all Source objects
         // to be tagged with the view name during parsing
         LogicalPlan parsed = parser.apply(view.query(), view.name());
-        checkPlanSize(planNodes.addAndGet(countNodes(parsed)), viewPath);
+        checkPlanSize(numOfPlanNodes.addAndGet(countNodes(parsed)), viewPath);
         int commandsOnLongestPath = pipesAbove + commandsOnLongestPath(parsed);
         if (commandsOnLongestPath > LogicalPlanBuilder.MAX_QUERY_DEPTH) {
             throw new VerificationException(
@@ -1289,11 +1274,11 @@ public class ViewResolver {
     private static void checkPlanSize(int nodes, Collection<String> viewPath) {
         if (nodes > MAX_EXPANDED_SIZE) {
             throw new VerificationException(
-                "ES|QL query exceeded the maximum plan size allowed after expanding views ({} nodes){}: [{}] nodes. "
+                "ES|QL query exceeded the maximum plan size allowed ({} nodes) after expanding views{}: found [{}] nodes. "
                     + "Reduce the number of subqueries and views that the query uses, the number of times they reference each other, "
                     + "or the size of its expressions.",
                 MAX_EXPANDED_SIZE,
-                viewPath.isEmpty() ? "" : " after expanding views [" + String.join(" -> ", viewPath) + "]",
+                viewPath.isEmpty() ? "" : " [" + String.join(" -> ", viewPath) + "]",
                 nodes
             );
         }
@@ -1326,10 +1311,6 @@ public class ViewResolver {
     /**
      * Whether a node is one command of the query. Leaves are the source command, which is not a pipe, and the wrappers that views and
      * subqueries are expanded into are not commands either.
-     * <p>
-     * Counting nodes is not exact for the few commands that are planned as more than one node, such as {@code INLINE STATS}, the
-     * implicit {@code EVAL} of each {@code FORK} branch, and {@code IN} subqueries combined with other conditions. Those count more
-     * than once, so the limit can only be hit early, never missed.
      */
     private static boolean isCounted(LogicalPlan plan) {
         return plan instanceof LeafPlan == false
@@ -1343,17 +1324,17 @@ public class ViewResolver {
      * recursive walk would grow the JVM call stack with the depth of the plan, and {@link LogicalPlanBuilder#MAX_QUERY_DEPTH} bounds
      * only a single query level, not the depth {@code resolve()} can reach once views are expanded into it.
      */
-    private static void collectNodesAbove(LogicalPlan plan, int above, IdentityHashMap<LogicalPlan, Integer> nodesAbove) {
-        Deque<Object[]> stack = new ArrayDeque<>();
-        stack.push(new Object[] { plan, above });
+    private record Frame(LogicalPlan node, int above) {}
+
+    private static void collectNodesAbove(LogicalPlan plan, IdentityHashMap<LogicalPlan, Integer> nodesAbove) {
+        Deque<Frame> stack = new ArrayDeque<>();
+        stack.push(new Frame(plan, 0));
         while (stack.isEmpty() == false) {
-            Object[] frame = stack.pop();
-            LogicalPlan node = (LogicalPlan) frame[0];
-            int nodeAbove = (int) frame[1];
-            nodesAbove.put(node, nodeAbove);
-            int childrenAbove = nodeAbove + (isCounted(node) ? 1 : 0);
-            for (LogicalPlan child : node.children()) {
-                stack.push(new Object[] { child, childrenAbove });
+            Frame frame = stack.pop();
+            nodesAbove.put(frame.node(), frame.above());
+            int childrenAbove = frame.above() + (isCounted(frame.node()) ? 1 : 0);
+            for (LogicalPlan child : frame.node().children()) {
+                stack.push(new Frame(child, childrenAbove));
             }
         }
     }
@@ -1363,22 +1344,27 @@ public class ViewResolver {
      * the plans of {@code IN} subqueries, which are only turned into joins when views are resolved.
      */
     private static int commandsOnLongestPath(LogicalPlan plan) {
-        int below = 0;
-        for (LogicalPlan child : plan.children()) {
-            below = Math.max(below, commandsOnLongestPath(child));
+        Deque<Frame> stack = new ArrayDeque<>();
+        stack.push(new Frame(plan, 0));
+        int longestPath = 0;
+        while (stack.isEmpty() == false) {
+            Frame frame = stack.pop();
+            int above = frame.above() + (isCounted(frame.node()) ? 1 : 0);
+            longestPath = Math.max(longestPath, above);
+            for (LogicalPlan child : frame.node().children()) {
+                stack.push(new Frame(child, above));
+            }
+            for (Expression expression : frame.node().expressions()) {
+                expression.forEachDown(e -> {
+                    if (e instanceof InSubquery inSubquery) {
+                        stack.push(new Frame(inSubquery.subquery(), above));
+                    } else if (e instanceof MultiColumnInSubquery inSubquery) {
+                        stack.push(new Frame(inSubquery.subquery(), above));
+                    }
+                });
+            }
         }
-        for (Expression expression : plan.expressions()) {
-            int[] inSubqueryBelow = new int[1];
-            expression.forEachDown(e -> {
-                if (e instanceof InSubquery inSubquery) {
-                    inSubqueryBelow[0] = Math.max(inSubqueryBelow[0], commandsOnLongestPath(inSubquery.subquery()));
-                } else if (e instanceof MultiColumnInSubquery inSubquery) {
-                    inSubqueryBelow[0] = Math.max(inSubqueryBelow[0], commandsOnLongestPath(inSubquery.subquery()));
-                }
-            });
-            below = Math.max(below, inSubqueryBelow[0]);
-        }
-        return below + (isCounted(plan) ? 1 : 0);
+        return longestPath;
     }
 
     private static boolean containsExclusion(UnresolvedRelation ur) {

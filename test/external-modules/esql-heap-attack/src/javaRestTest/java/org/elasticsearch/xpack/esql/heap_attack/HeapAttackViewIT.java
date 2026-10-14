@@ -126,7 +126,10 @@ public class HeapAttackViewIT extends HeapAttackTestCase {
                         "error",
                         matchesMap().extraOk()
                             .entry("type", "verification_exception")
-                            .entry("reason", containsString("ES|QL query exceeded the maximum plan size allowed after expanding views"))
+                            .entry(
+                                "reason",
+                                containsString("ES|QL query exceeded the maximum plan size allowed (50000 nodes) after expanding views")
+                            )
                     )
             );
         }

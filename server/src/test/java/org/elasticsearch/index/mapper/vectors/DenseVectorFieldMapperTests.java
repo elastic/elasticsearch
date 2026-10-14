@@ -960,15 +960,21 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertEquals(4f, indexOptions.rescoreVector.oversample(), 0f);
 
-        final Map<String, Object> preconditionTrueIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(
-            oversampleFourIndexOptionsMap,
-            "precondition",
-            true
+        // Only auto_calibrate is relaxed: flipping it together with precondition, which is baked into segments, must still be
+        // rejected, and the rejected merge must leave the existing mapping untouched.
+        final Map<String, Object> preconditionTrueAutoCalibrateOffIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(
+            Maps.copyMapWithAddedOrReplacedEntry(oversampleFourIndexOptionsMap, "precondition", true),
+            "auto_calibrate",
+            false
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> merge(mapperService, fieldMapping(b -> baseMapping.clone().indexOptions(preconditionTrueIndexOptionsMap).build(b)))
+            () -> merge(
+                mapperService,
+                fieldMapping(b -> baseMapping.clone().indexOptions(preconditionTrueAutoCalibrateOffIndexOptionsMap).build(b))
+            )
         );
+        assertTrue(getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrate());
     }
 
     public void testAutoCalibrateDefaultEnabledProfile() throws IOException {
@@ -1201,24 +1207,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 assertThat(((RescoreKnnVectorQuery) query).innerQuery(), instanceOf(IVFKnnFloatVectorQuery.class));
             }
             assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"auto_calibrate\":" + autoCalibrate));
-        }
-    }
-
-    /**
-     * Only {@code auto_calibrate} is relaxed: changing it together with {@code precondition}, which is baked
-     * into segments, must still be rejected in either direction and must leave the existing mapping untouched.
-     */
-    public void testBbqDiskAutoCalibrateUpdateStillRejectsImmutableParameterChanges() throws IOException {
-        for (boolean from : new boolean[] { false, true }) {
-            boolean to = from == false;
-            MapperService mapperService = createMapperService(fieldMapping(bbqDiskMapping(from, false, 2)));
-
-            expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(bbqDiskMapping(to, true, 2))));
-
-            assertEquals(
-                from,
-                ((DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldType(mapperService).getIndexOptions()).autoCalibrate()
-            );
         }
     }
 

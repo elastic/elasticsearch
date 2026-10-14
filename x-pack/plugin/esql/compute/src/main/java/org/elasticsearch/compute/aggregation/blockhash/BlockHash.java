@@ -92,6 +92,15 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
 
     /**
+     * Like {@link #lookup}, but safe to call from several threads at once on a hash that is no longer
+     * being added to, so one fully built hash can be shared by many drivers. The returned blocks are
+     * built with {@code resultBlockFactory}, which should be the calling driver's factory.
+     */
+    public ReleasableIterator<IntBlock> concurrentLookup(Page page, ByteSizeValue targetBlockSize, BlockFactory resultBlockFactory) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support concurrent lookups");
+    }
+
+    /**
      * Returns an array of {@link Block}s containing keys.
      * @param selected The groupIds to include in the results. These are the same
      *                 groupIds returned by {@link #nonEmpty} and fed into aggregations

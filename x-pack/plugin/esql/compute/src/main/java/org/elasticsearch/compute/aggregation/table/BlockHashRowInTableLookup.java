@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.ReleasableIterator;
 
 import java.util.ArrayList;
@@ -98,6 +99,16 @@ final class BlockHashRowInTableLookup extends RowInTableLookup {
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
         return hash.lookup(page, targetBlockSize);
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(
+        Page page,
+        ByteSizeValue targetBlockSize,
+        BlockFactory resultBlockFactory,
+        Warnings warnings
+    ) {
+        return hash.concurrentLookup(page, targetBlockSize, resultBlockFactory);
     }
 
     @Override

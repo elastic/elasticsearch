@@ -34,6 +34,19 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
      */
     public abstract ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize);
 
+    /**
+     * Like {@link #lookup(Page, ByteSizeValue)}, but builds the returned blocks with {@code resultBlockFactory}
+     * and reports warnings to {@code warnings} instead of using what the lookup was built with. It does not
+     * modify the lookup, so once built a single lookup may be shared by several drivers, each passing its own
+     * factory and warnings.
+     */
+    public abstract ReleasableIterator<IntBlock> lookup(
+        Page page,
+        ByteSizeValue targetBlockSize,
+        BlockFactory resultBlockFactory,
+        Warnings warnings
+    );
+
     @Override
     public abstract String toString();
 

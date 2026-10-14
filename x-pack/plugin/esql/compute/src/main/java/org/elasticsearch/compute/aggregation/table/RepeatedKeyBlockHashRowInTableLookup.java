@@ -133,6 +133,16 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        return lookup(page, targetBlockSize, blockFactory, warnings);
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(
+        Page page,
+        ByteSizeValue targetBlockSize,
+        BlockFactory resultBlockFactory,
+        Warnings warnings
+    ) {
         Block[] sanitizedBlocks = new Block[page.getBlockCount()];
         Block.Builder[] builders = new Block.Builder[page.getBlockCount()];
         Page sanitizedPage = null;
@@ -140,7 +150,7 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
         boolean encounteredMultiValue = false;
         try {
             for (int k = 0; k < builders.length; k++) {
-                builders[k] = page.getBlock(k).elementType().newBlockBuilder(page.getPositionCount(), blockFactory);
+                builders[k] = page.getBlock(k).elementType().newBlockBuilder(page.getPositionCount(), resultBlockFactory);
             }
             for (int p = 0; p < page.getPositionCount(); p++) {
                 boolean matchable = true;
@@ -164,8 +174,8 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
                 warnings.registerException(IllegalArgumentException.class, "LOOKUP JOIN encountered multi-value");
             }
 
-            ReleasableIterator<IntBlock> groupIds = hash.lookup(sanitizedPage, targetBlockSize);
-            RepeatedLookupResults results = new RepeatedLookupResults(sanitizedPage, groupIds);
+            ReleasableIterator<IntBlock> groupIds = hash.concurrentLookup(sanitizedPage, targetBlockSize, resultBlockFactory);
+            RepeatedLookupResults results = new RepeatedLookupResults(sanitizedPage, groupIds, resultBlockFactory);
             sanitizedPage = null;
             success = true;
             return results;
@@ -197,10 +207,12 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
     private final class RepeatedLookupResults implements ReleasableIterator<IntBlock> {
         private final Page sanitizedPage;
         private final ReleasableIterator<IntBlock> groupIds;
+        private final BlockFactory blockFactory;
 
-        private RepeatedLookupResults(Page sanitizedPage, ReleasableIterator<IntBlock> groupIds) {
+        private RepeatedLookupResults(Page sanitizedPage, ReleasableIterator<IntBlock> groupIds, BlockFactory blockFactory) {
             this.sanitizedPage = sanitizedPage;
             this.groupIds = groupIds;
+            this.blockFactory = blockFactory;
         }
 
         @Override

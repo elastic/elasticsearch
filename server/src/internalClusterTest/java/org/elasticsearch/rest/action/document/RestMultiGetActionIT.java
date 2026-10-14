@@ -49,10 +49,8 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
     }
 
     private void seedDoc(String index, String id, String slice) throws Exception {
-        Request seed = new Request("POST", "/" + index + "/_doc/" + id);
-        if (slice != null) {
-            seed.addParameter("slice", slice);
-        }
+        String path = slice == null ? "/" + index + "/_doc/" + id : "/" + index + "/" + slice + "/_doc/" + id;
+        Request seed = new Request("POST", path);
         seed.addParameter("refresh", "true");
         seed.setJsonEntity(Strings.format("""
             {
@@ -73,8 +71,8 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
         mget.setJsonEntity("""
             {
               "docs": [
-                { "_id": "1", "slice": "s1" },
-                { "_id": "2", "slice": "s2" }
+                { "_id": "1", "_slice": "s1" },
+                { "_id": "2", "_slice": "s2" }
               ]
             }""");
         ObjectPath found = ObjectPath.createFromResponse(getRestClient().performRequest(mget));
@@ -92,7 +90,7 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
               ]
             }""");
         ObjectPath missing = ObjectPath.createFromResponse(getRestClient().performRequest(missingSlice));
-        assertThat(missing.evaluate("docs.0.error.reason"), containsString("[slice] is required when [index.slice.enabled] is true"));
+        assertThat(missing.evaluate("docs.0.error.reason"), containsString("[_slice] is required when [index.slice.enabled] is true"));
     }
 
     public void testMgetTopLevelSliceDefaultAppliesToIds() throws Exception {
@@ -101,8 +99,7 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
         seedDoc("slice-mget-default-it", "1", "s1");
 
         // The top-level _slice acts as the per-item default, so the ids form (which has no place for a per-item _slice) works.
-        Request mget = new Request("POST", "/slice-mget-default-it/_mget");
-        mget.addParameter("slice", "s1");
+        Request mget = new Request("POST", "/slice-mget-default-it/s1/_mget");
         mget.setJsonEntity("""
             {
               "ids": [ "1" ]
@@ -121,18 +118,17 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
         routingAndSlice.setJsonEntity("""
             {
               "docs": [
-                { "_id": "1", "routing": "s1", "slice": "s1" }
+                { "_id": "1", "routing": "s1", "_slice": "s1" }
               ]
             }""");
         ResponseException routingAndSliceException = expectThrows(
             ResponseException.class,
             () -> getRestClient().performRequest(routingAndSlice)
         );
-        assertThat(bodyOf(routingAndSliceException), containsString("[routing] is not allowed together with [slice]"));
+        assertThat(bodyOf(routingAndSliceException), containsString("[routing] is not allowed together with [_slice]"));
 
         // The reserved _all value is not a valid write-side slice.
-        Request reservedSlice = new Request("POST", "/slice-mget-invalid-it/_mget");
-        reservedSlice.addParameter("slice", "_all");
+        Request reservedSlice = new Request("POST", "/slice-mget-invalid-it/_all/_mget");
         reservedSlice.setJsonEntity("""
             {
               "ids": [ "1" ]
@@ -141,7 +137,7 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
             ResponseException.class,
             () -> getRestClient().performRequest(reservedSlice)
         );
-        assertThat(bodyOf(reservedSliceException), containsString("invalid [slice] value [_all]"));
+        assertThat(bodyOf(reservedSliceException), containsString("invalid [_slice] value [_all]"));
     }
 
     public void testMgetSliceRejectedWhenSettingDisabled() throws Exception {
@@ -153,28 +149,27 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
         mget.setJsonEntity("""
             {
               "docs": [
-                { "_id": "1", "slice": "s1" }
+                { "_id": "1", "_slice": "s1" }
               ]
             }""");
         ObjectPath objectPath = ObjectPath.createFromResponse(getRestClient().performRequest(mget));
         assertThat(
             objectPath.evaluate("docs.0.error.reason"),
-            containsString("[slice] is not allowed when [index.slice.enabled] is false")
+            containsString("[_slice] is not allowed when [index.slice.enabled] is false")
         );
     }
 
     public void testMgetSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request mget = new Request("POST", "/_mget");
-        mget.addParameter("slice", "s1");
+        Request mget = new Request("POST", "/test_index/s1/_mget");
         mget.setJsonEntity("""
             {
               "docs": [
-                { "_index": "test_index", "_id": "1" }
+                { "_id": "1" }
               ]
             }""");
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(mget));
-        assertThat(bodyOf(exception), containsString("request does not support [slice]"));
+        assertThat(bodyOf(exception), containsString("request does not support [_slice]"));
     }
 
     private static String bodyOf(ResponseException e) throws Exception {

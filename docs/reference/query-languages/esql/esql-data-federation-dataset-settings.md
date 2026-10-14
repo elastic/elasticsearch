@@ -465,7 +465,7 @@ $$$csv-trim-spaces$$$
 
 $$$csv-multiline-fields$$$
 
-`multiline_fields`
+`multiline_fields` {applies_to}`stack: experimental 9.6+`
 :   Whether a quoted field or a backslash-escaped line break can span several lines.
 
     - **Default:** Not set. {{esql}} infers it from the rows it samples to infer the schema: if they hold no quote or escape character, the file is split on plain newlines.

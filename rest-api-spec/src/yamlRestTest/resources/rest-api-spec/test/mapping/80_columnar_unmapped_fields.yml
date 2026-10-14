@@ -19,12 +19,14 @@ setup:
           mappings:
             properties: {}
 
-  # Same index with one concrete field, for the tests that need a mapped field alongside the absorbed ones.
+  # Same index with one concrete field, for the tests that need a mapped field alongside the absorbed ones. A single shard so that a fetch-phase
+  # failure fails the whole search instead of returning partial results from the shards without hits (serverless defaults to several shards).
   - do:
       indices.create:
         index: test_mapped
         body:
           settings:
+            index.number_of_shards: 1
             index.mode: columnar
             index.mapping.flattened_unmapped_fields.enabled: true
           mappings:

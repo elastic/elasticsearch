@@ -491,6 +491,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     Map.of(
                         QueryMetricsListener.PLANNING_NANOS,
                         qp.planning().timeSpan().durationInNanos(),
+                        QueryMetricsListener.PLANNING_CPU_NANOS,
+                        qp.planningCpuNanos(),
                         QueryMetricsListener.CPU_NANOS,
                         ci.cpuNanos(),
                         QueryMetricsListener.READ_NANOS,

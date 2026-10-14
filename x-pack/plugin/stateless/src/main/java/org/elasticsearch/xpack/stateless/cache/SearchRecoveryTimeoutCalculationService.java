@@ -172,10 +172,7 @@ public class SearchRecoveryTimeoutCalculationService {
         if (remaining <= 0) {
             return new SearchRecoveryTimeout(TimeValue.ZERO, "relocation source shutting down (grace period elapsed)");
         }
-        int shardsOnSource = countShardsOnNode(state, sourceNodeId);
-        if (shardsOnSource <= 0) {
-            shardsOnSource = 1;
-        }
+        final int shardsOnSource = Math.max(1, countShardsOnNode(state, sourceNodeId));
         final double equalShareMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor;
 
         // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.

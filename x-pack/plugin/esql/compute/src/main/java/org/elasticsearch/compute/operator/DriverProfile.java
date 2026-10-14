@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
+
 /**
  * Profile results from a single {@link Driver}.
  *
@@ -56,7 +58,6 @@ public record DriverProfile(
 
     private static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = TransportVersion.fromName("esql_driver_node_description");
     private static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = TransportVersion.fromName("esql_driver_task_description");
-    private static final TransportVersion ESQL_DRIVER_NANOS = TransportVersion.fromName("esql_driver_nanos");
 
     public static DriverProfile readFrom(StreamInput in) throws IOException {
         return new DriverProfile(

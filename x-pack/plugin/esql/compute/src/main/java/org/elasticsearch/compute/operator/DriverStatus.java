@@ -68,7 +68,7 @@ public record DriverStatus(
     private static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = TransportVersion.fromName("esql_driver_node_description");
     private static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = TransportVersion.fromName("esql_driver_task_description");
     private static final TransportVersion ESQL_DRIVER_STATUS_THREAD_NAME = TransportVersion.fromName("esql_driver_status_thread_name");
-    private static final TransportVersion ESQL_DRIVER_NANOS = TransportVersion.fromName("esql_driver_nanos");
+    public static final TransportVersion ESQL_DRIVER_NANOS = TransportVersion.fromName("esql_driver_nanos");
 
     public static DriverStatus readFrom(StreamInput in) throws IOException {
         return new DriverStatus(

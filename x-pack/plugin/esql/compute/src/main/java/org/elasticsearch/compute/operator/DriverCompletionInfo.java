@@ -26,6 +26,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
+
 /**
  * Information returned when one of more {@link Driver}s is completed.
  * @param documentsFound The number of documents found by all lucene queries performed by these drivers.
@@ -345,7 +347,6 @@ public record DriverCompletionInfo(
     public static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
     private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
     private static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
-    private static final TransportVersion ESQL_DRIVER_NANOS = TransportVersion.fromName("esql_driver_nanos");
 
     public static DriverCompletionInfo readFrom(StreamInput in, ThreadContext threadContext) throws IOException {
         long documentsFound = in.readVLong();

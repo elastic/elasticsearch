@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
 import static org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver.ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION;
 
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
@@ -57,7 +58,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
     private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
     private static final TransportVersion ESQL_APPROXIMATION_APPLIED = TransportVersion.fromName("esql_approximation_applied");
-    private static final TransportVersion ESQL_DRIVER_NANOS = TransportVersion.fromName("esql_driver_nanos");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 

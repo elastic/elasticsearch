@@ -193,7 +193,7 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
         assertThat(copy.cpuNanos(), equalTo(700L));
         assertThat(copy.driverNanos(), equalTo(900L));
 
-        TransportVersion beforeDriverNanos = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_driver_nanos"));
+        TransportVersion beforeDriverNanos = TransportVersionUtils.getPreviousVersion(DriverStatus.ESQL_DRIVER_NANOS);
         DriverCompletionInfo old = deserialize(serialize(original, beforeDriverNanos), beforeDriverNanos, threadContext);
         assertThat(old.cpuNanos(), equalTo(700L));
         assertThat(old.driverNanos(), equalTo(0L));

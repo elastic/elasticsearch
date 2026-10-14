@@ -193,6 +193,8 @@ public class Driver implements Releasable, Describable {
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      * {@code threadCpuNanosSupplier} is the CPU clock of the current thread, a parameter so tests can control it.
      * It returns {@code -1} when thread CPU time is unsupported.
+     * CPU and driver time are published at status updates. If an iteration throws, including cancellation,
+     * time accumulated since the last status update is not included in the reported totals.
      */
     SubscribableListener<Void> run(
         TimeValue maxTime,
@@ -274,7 +276,7 @@ public class Driver implements Releasable, Describable {
                     );
                 } else {
                     // Delay DONE until waitForAsyncActions so a later resnapshot of kept operators
-                    // is the status the profile sees. Last-loop CPU still lands on this update.
+                    // is the status the profile sees. Final-loop thread CPU and driver wall time are recorded here.
                     updateStatus(
                         finishNanos - lastStatusUpdateTime,
                         extraCpuNanos,

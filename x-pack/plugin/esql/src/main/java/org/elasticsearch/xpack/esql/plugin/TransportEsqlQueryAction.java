@@ -453,23 +453,21 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     }
 
-    // Note: this gate differs from the by_outcome.success gate (PlanTelemetry.externalSource()). A
-    // query that prunes all splits (splitsScanned=0, externalWarmAggregates=0) counts as a success
-    // in by_outcome but does not trigger CPU recording — it consumed no external CPU.
+    // Gated on an external relation having been resolved in the analyzed plan (the same fact PlanExecutor uses for the
+    // by_outcome metrics), not on the scan counters: a query that scans nothing (LIMIT 0, every split pruned) still spent coordinator CPU
+    // on
+    // planning and split discovery, and must be metered.
     private boolean hasExternalSources(Result result) {
-        if (result.executionInfo() == null) {
-            return false;
-        }
-        var qp = result.executionInfo().queryProfile();
-        return qp != null && (qp.splitsScanned() > 0 || qp.externalWarmAggregates() > 0);
+        return result.executionInfo() != null && result.executionInfo().externalSource();
     }
 
     void collectMetrics(Result result) {
         if (hasExternalSources(result) == false) {
             return;
         }
-        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null,
-        // and completionInfo() / queryProfile() are plain getters.
+        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null, and a successful
+        // query always goes through attachAdditionalData (which defaults completionInfo) and
+        // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning (which stops the planning span).
         var ci = result.completionInfo();
         var qp = result.executionInfo().queryProfile();
         // APM and phone-home CPU recording — independent of the billing listener so that a failure
@@ -491,6 +489,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     Map.of(
                         QueryMetricsListener.PLANNING_NANOS,
                         qp.planning().timeSpan().durationInNanos(),
+                        QueryMetricsListener.PLANNING_CPU_NANOS,
+                        qp.planningCpuNanos(),
                         QueryMetricsListener.CPU_NANOS,
                         ci.cpuNanos(),
                         QueryMetricsListener.READ_NANOS,
@@ -595,10 +595,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
-        // Already expanded in EsqlSession, where the unmapped-fields ordering captured during analysis is in scope.
+        // Already flattened into the _unmapped_fields column by EsqlSession.
         var result = versionedResult.inner();
         assert result.schema().stream().noneMatch(a -> a instanceof UnmappedFieldsAttribute)
-            : UnmappedFieldsAttribute.ATTRIBUTE_NAME + " reached the response unexpanded: " + Expressions.names(result.schema());
+            : UnmappedFieldsAttribute.ATTRIBUTE_NAME + " reached the response unflattened: " + Expressions.names(result.schema());
         // A lenient external read (e.g. a external_max_record_size truncation under a non-strict error_mode) returns fewer
         // records than the source held. Surface that as is_partial on the response — the structured counterpart of
         // the client Warning header — here at the single Result->response chokepoint, so every execution path

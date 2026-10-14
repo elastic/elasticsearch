@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
       reason: >
         copy_to targets and multi-fields are the two mapping features that create a queryable field name
         which NEVER appears in _source. LOAD_ALL reads only _source, so such a name is unrecoverable for any
@@ -120,17 +120,19 @@ teardown:
         ignore_unavailable: true
 
 ---
-'copy_to: the destination is a mapped column with a value, and LOAD_ALL discovers nothing extra':
+'copy_to: the destination is a mapped column with a value, and _unmapped_fields is empty':
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_copyto_stored | LIMIT 5'
-  - length: { columns: 3 }
+  - length: { columns: 4 }
   - match: { columns.0.name: dst }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: id }
   - match: { columns.2.name: src }
-  - match: { values.0: [ "v", "s1", "v" ] }
+  - match: { columns.3.name: _unmapped_fields }
+  - match: { columns.3.type: _source }
+  - match: { values.0: [ "v", "s1", "v", null ] }
 
 ---
 'copy_to under synthetic source behaves like stored source':
@@ -138,11 +140,12 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_copyto_synth | LIMIT 5'
-  - length: { columns: 3 }
+  - length: { columns: 4 }
   - match: { columns.0.name: dst }
   - match: { columns.1.name: id }
   - match: { columns.2.name: src }
-  - match: { values.0: [ "v", "y1", "v" ] }
+  - match: { columns.3.name: _unmapped_fields }
+  - match: { values.0: [ "v", "y1", "v", null ] }
 
 ---
 'copy_to: an index that does not map the destination cannot recover it from _source':
@@ -163,13 +166,14 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_multifield | LIMIT 5'
-  - length: { columns: 3 }
+  - length: { columns: 4 }
   - match: { columns.0.name: id }
   - match: { columns.1.name: t }
   - match: { columns.1.type: text }
   - match: { columns.2.name: t.kw }
   - match: { columns.2.type: keyword }
-  - match: { values.0: [ "1", "some text", "some text" ] }
+  - match: { columns.3.name: _unmapped_fields }
+  - match: { values.0: [ "1", "some text", "some text", null ] }
 
 ---
 'multi-fields: a partially mapped text parent is not loadable, and t.kw never is':
@@ -199,6 +203,6 @@ teardown:
   - match: { columns.0.name: id }
   - match: { columns.1.name: indexed }
   - match: { columns.1.type: long }
-  - match: { columns.2.name: blob_payload.deep.leaf }
-  - match: { columns.2.type: keyword }
-  - match: { values.0: [ "1", 3, "kept" ] }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.2.type: _source }
+  - match: { values.0: [ "1", 3, { blob_payload.deep.leaf: kept } ] }

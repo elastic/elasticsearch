@@ -6,6 +6,7 @@
  */
 
 import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+import org.elasticsearch.gradle.transform.FilteringJarTransform
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -29,6 +30,35 @@ base {
   archivesName = 'x-pack-inference'
 }
 
+def guavaDependency = 'com.google.guava:guava:33.7.2-jre'
+def failureAccessDependency = 'com.google.guava:failureaccess:1.0.3'
+
+configurations {
+  unmodularGuava {
+    canBeConsumed = false
+    canBeResolved = true
+    transitive = false
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+      attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+      attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE, objects.named(TargetJvmEnvironment, TargetJvmEnvironment.STANDARD_JVM))
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, FilteringJarTransform.FILTERED_JAR_TYPE)
+    }
+  }
+}
+
+FilteringJarTransform.registerTransform(dependencies) { spec ->
+  spec.exclude('module-info.class')
+  spec.exclude('META-INF/versions/*/module-info.class')
+}
+
+// Guava's and failureaccess' explicit modules are never resolved into the plugin's module layer, so bundle them as automatic modules
+def unmodularGuavaFiles = configurations.unmodularGuava
+esplugin.bundleSpec.from(unmodularGuavaFiles)
+esplugin.bundleSpec.exclude { FileTreeElement e ->
+  (e.file.name.startsWith('guava-') || e.file.name.startsWith('failureaccess-')) && unmodularGuavaFiles.files.contains(e.file) == false
+}
+
 dependencies {
   implementation project(path: ':libs:logging')
   compileOnly project(":server")
@@ -48,7 +78,10 @@ dependencies {
   testImplementation project(':x-pack:plugin:ml')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
-  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
+  runtimeOnly guavaDependency
+  unmodularGuava guavaDependency
+  runtimeOnly failureAccessDependency
+  unmodularGuava failureAccessDependency
   implementation 'com.google.code.gson:gson:2.10'
   implementation "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
   implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
@@ -173,6 +206,7 @@ tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /httpclient|httpcore.*|httpasyncclient/, to: 'httpclient'
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /google-auth-.*/, to: 'google-auth'
+  mapping from: /failureaccess.*/, to: 'guava'
   mapping from: /google-http-.*/, to: 'google-http'
   mapping from: /msal4j.*/, to: 'msal4j'
   mapping from: /reactor-netty-.*/, to: 'reactor-netty'
@@ -236,20 +270,12 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.MessageSchema',
     'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
     'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
@@ -345,8 +371,6 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.api.gax.tracing.BaseApiTracer',
     'com.google.api.gax.tracing.SpanName',
     'com.google.api.pathtemplate.PathTemplate',
-    'com.google.common.util.concurrent.internal.InternalFutureFailureAccess',
-    'com.google.common.util.concurrent.internal.InternalFutures',
     'com.google.longrunning.CancelOperationRequest',
     'com.google.longrunning.CancelOperationRequest$Builder',
     'com.google.longrunning.DeleteOperationRequest',

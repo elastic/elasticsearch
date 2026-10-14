@@ -1405,7 +1405,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V2(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V3(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -3665,18 +3665,27 @@ public class EsqlCapabilities {
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, at most 1000 fields discovered in {@code _source} become columns: the
-         * alphabetically first ones, with a warning if there were more.
+         * alphabetically first ones, with a warning if there were more. Superseded by
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN}, under which no per-field columns are produced and nothing is capped.
          * See https://github.com/elastic/elasticsearch/issues/159972.
          */
         OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, the cap on the number of fields discovered in {@code _source} is the cluster
-         * setting {@code esql.query.unmapped_fields.load_all_max_fields}. Needed by tests that set it, which older nodes would reject
-         * as an unknown setting.
+         * The cluster setting {@code esql.query.unmapped_fields.load_all_max_fields} exists. Under the single-column layout its only
+         * effect is that {@code 0} downgrades {@code unmapped_fields="LOAD_ALL"} to {@code LOAD}. Needed by tests that set it, which
+         * older nodes would reject as an unknown setting.
          * See https://github.com/elastic/elasticsearch/issues/161340.
          */
         OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the unmapped fields discovered in {@code _source} are returned as a single
+         * {@code _unmapped_fields} column of type {@code source} holding a flattened JSON object per row, instead of one column
+         * per field. Supersedes the per-field column layout and the cap on the number of expanded fields.
+         * See https://github.com/elastic/elasticsearch/issues/161717.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
@@ -4366,13 +4375,10 @@ public class EsqlCapabilities {
         FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
 
         /**
-         * A column whose file type differs from the type the query reads it as is converted value by value, whether or
-         * not the dataset declared that column. Older nodes converted only declared columns and replaced an undeclared
-         * one with nulls for its whole length, plus a warning. The read now follows {@code error_mode} for every column,
-         * and the refusal text names the type the query uses rather than a declared type. Used to gate the external
-         * csv-spec tests asserting the converted values and the new text, which such nodes still fail.
+         * A {@code TS} aggregation grouping on a non-dimension {@code text} field keeps the {@code text} type in the
+         * output. Older nodes returned {@code keyword} (see {@link #TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON}).
          */
-        EXTERNAL_SOURCE_CONVERTS_UNDECLARED_COLUMNS,
+        TS_KEEP_TEXT_TYPE_WHEN_GROUPED_ON,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

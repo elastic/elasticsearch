@@ -423,6 +423,15 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testRegularIndexViewAndDataset() {
+        registerEmployees();
+        createRealEmployees();
+        createView("emp_idx_view", "FROM real_employees");
+        try (var response = run(syncEsqlQueryRequest("FROM emp_idx_view, employees | STATS c = COUNT(*)"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(8L))));
+        }
+    }
+
     public void testDatasetViewAndDataset() {
         registerEmployees();
         createView("emp_ds_view", "FROM employees");
@@ -469,7 +478,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
 
     // wildcard
 
-    public void testWildcardDatasetViews() {
+    public void testWildcardMatchesViews() {
         registerEmployees();
         registerEmployeesAlt();
         createView("emp_view_a", "FROM employees");
@@ -479,7 +488,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testWildcardDatasets() {
+    public void testWildcardMatchesDatasetsDoesNotMatchViews() {
         registerEmployees();
         createView("emp_view_a", "FROM employees");
         createView("emp_view_b", "FROM employees");
@@ -490,7 +499,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testDatasetWildcardView() {
+    public void testDatasetAndWildcardMatchesView() {
         registerEmployees();
         registerEmployeesAlt();
         createView("emp_view_a", "FROM employees_alt");
@@ -504,7 +513,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testWildcardViewExclusion() {
+    public void testWildcardMatchesViewWithExclusion() {
         registerEmployees();
         registerEmployeesAlt();
         createView("emp_view_a", "FROM employees");
@@ -519,7 +528,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    // TODO double check if this behavior is as expected
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/161954")
     public void testWildcardMatchesViewAndDataset() {
         registerEmployees();
         registerEmployeesAlt();
@@ -532,11 +541,53 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             FROM employees*
             | STATS c = COUNT(*)
             """), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(2L))));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(7L))));
         }
     }
 
-    public void testWildcardDatasetsIgnoresMatchingView() {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/161954")
+    public void testWildcardMatchesViewAndDatasetWithExclusion() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("employees_view", "FROM employees_alt");
+        // employees* matches employees_view (2), employees (3), and employees_alt (2). Excluding employees_alt leaves
+        // the view plus the employees dataset: 5. Same composition as testWildcardMatchesViewAndDataset.
+        try (var response = run(syncEsqlQueryRequest("""
+            SET wildcards_match_views = true;
+            SET wildcards_match_datasets = true;
+            FROM employees*,-employees_alt
+            | STATS c = COUNT(*)
+            """), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+        }
+    }
+
+    public void testWildcardInViewBodyHonorsOuterWildcardsMatchDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_star_view", "FROM employees*");
+        // Default: a wildcard stored in the view body reaches no dataset.
+        try (var response = run(syncEsqlQueryRequest("FROM emp_star_view | STATS c = COUNT(*)"), TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+        }
+        // The outer SET is applied to the inlined view body, same as wildcards_match_views on nested views.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM emp_star_view | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+        }
+        // The same SET on an outer wildcard still reaches both datasets.
+        try (
+            var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM employees* | STATS c = COUNT(*)"), TIMEOUT)
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+        }
+    }
+
+    public void testWildcardMatchesDatasetsIgnoresMatchingView() {
         registerEmployees();
         registerEmployeesAlt();
         createView("employees_view", "FROM employees_alt");
@@ -807,6 +858,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/161957")
     public void testRequestFilterOnStatsInsideDatasetView() {
         registerEmployees();
         createView("emp_stats_view", "FROM employees | STATS c = COUNT(*) BY department");
@@ -822,10 +874,11 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         var computed = syncEsqlQueryRequest("FROM emp_stats_view | KEEP department, c");
         computed.filter(QueryBuilders.rangeQuery("c").gte(2));
         try (var response = run(computed, TIMEOUT)) {
-            assertThat(getValuesList(response), hasSize(0));
+            assertThat(getValuesList(response), hasSize(1));
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/161957")
     public void testRequestFilterOnEvalInsideDatasetView() {
         registerEmployees();
         createView("emp_eval_view", "FROM employees | EVAL doubled = emp_no * 2");
@@ -839,7 +892,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         var computed = syncEsqlQueryRequest("FROM emp_eval_view | KEEP emp_no, doubled | SORT emp_no");
         computed.filter(QueryBuilders.termQuery("doubled", 2));
         try (var response = run(computed, TIMEOUT)) {
-            assertThat(getValuesList(response), hasSize(0));
+            assertThat(getValuesList(response), hasSize(1));
         }
     }
 

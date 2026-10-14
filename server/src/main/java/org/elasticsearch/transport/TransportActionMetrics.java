@@ -11,11 +11,9 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,40 +30,31 @@ public final class TransportActionMetrics implements TransportMessageListener {
     static final String ACTION_NAME_ATTRIBUTE = "es_transport_action_name";
     static final String IS_REMOTE_CONNECTION_ATTRIBUTE = "es_transport_connection_is_remote";
 
-    private static final List<Long> BUCKET_BOUNDARIES = Arrays.stream(TransportActionStatsTracker.getBucketUpperBounds())
-        .asLongStream()
-        .boxed()
-        .toList();
-
-    private final LongHistogram sentRequestSize;
-    private final LongHistogram receivedRequestSize;
-    private final LongHistogram sentResponseSize;
-    private final LongHistogram receivedResponseSize;
+    private final LongCounter sentRequestSize;
+    private final LongCounter receivedRequestSize;
+    private final LongCounter sentResponseSize;
+    private final LongCounter receivedResponseSize;
 
     public TransportActionMetrics(MeterRegistry meterRegistry) {
-        this.sentRequestSize = meterRegistry.registerLongHistogram(
+        this.sentRequestSize = meterRegistry.registerLongCounter(
             SENT_REQUEST_SIZE_METRIC,
             "Size, in bytes, of the transport action requests sent by this node",
-            "By",
-            BUCKET_BOUNDARIES
+            "By"
         );
-        this.receivedRequestSize = meterRegistry.registerLongHistogram(
+        this.receivedRequestSize = meterRegistry.registerLongCounter(
             RECEIVED_REQUEST_SIZE_METRIC,
             "Size, in bytes, of the transport action requests received by this node",
-            "By",
-            BUCKET_BOUNDARIES
+            "By"
         );
-        this.sentResponseSize = meterRegistry.registerLongHistogram(
+        this.sentResponseSize = meterRegistry.registerLongCounter(
             SENT_RESPONSE_SIZE_METRIC,
             "Size, in bytes, of the transport action responses sent by this node",
-            "By",
-            BUCKET_BOUNDARIES
+            "By"
         );
-        this.receivedResponseSize = meterRegistry.registerLongHistogram(
+        this.receivedResponseSize = meterRegistry.registerLongCounter(
             RECEIVED_RESPONSE_SIZE_METRIC,
             "Size, in bytes, of the transport action responses received by this node",
-            "By",
-            BUCKET_BOUNDARIES
+            "By"
         );
     }
 
@@ -108,13 +97,13 @@ public final class TransportActionMetrics implements TransportMessageListener {
         return RemoteConnectionManager.resolveRemoteClusterProjectInfo(connection).isPresent();
     }
 
-    private static void record(LongHistogram histogram, String action, long networkMessageSize, boolean isRemoteConnection) {
+    private static void record(LongCounter counter, String action, long networkMessageSize, boolean isRemoteConnection) {
         if (networkMessageSize < 0) {
             return;
         }
         final Map<String, Object> attributes = isRemoteConnection
             ? Map.of(ACTION_NAME_ATTRIBUTE, action, IS_REMOTE_CONNECTION_ATTRIBUTE, true)
             : Map.of(ACTION_NAME_ATTRIBUTE, action);
-        histogram.record(networkMessageSize, attributes);
+        counter.incrementBy(networkMessageSize, attributes);
     }
 }

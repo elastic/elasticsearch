@@ -3467,7 +3467,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     private static List<Long> messageSizes(MockTransportService service, String metric, String action) {
         final var meterRegistry = (RecordingMeterRegistry) service.getTelemetryProvider().getMeterRegistry();
         return meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, metric)
+            .getMeasurements(InstrumentType.LONG_COUNTER, metric)
             .stream()
             .filter(m -> action.equals(m.attributes().get(TransportActionMetrics.ACTION_NAME_ATTRIBUTE)))
             .peek(m -> assertThat(m.attributes(), not(hasKey(TransportActionMetrics.IS_REMOTE_CONNECTION_ATTRIBUTE))))

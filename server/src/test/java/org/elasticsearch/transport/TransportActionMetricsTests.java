@@ -171,7 +171,7 @@ public class TransportActionMetricsTests extends ESTestCase {
     }
 
     private List<Measurement> measurements(String metric) {
-        return meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, metric);
+        return meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, metric);
     }
 
     private static Measurement measurement(long bytes, String action, boolean isRemoteConnection) {

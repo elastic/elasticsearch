@@ -30,7 +30,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
@@ -439,9 +441,6 @@ public class ViewResolver {
                     depth + 1,
                     preserveViewBoundaries,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
-                        if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
-                            newPlan = named;
-                        }
                         if (newPlan.equals(subplan) == false) {
                             var updatedSubplansInner = updatedSubplans;
                             if (updatedSubplansInner == null) {
@@ -660,7 +659,7 @@ public class ViewResolver {
                         }
                     }
                     replaceViews(
-                        resolve(view, parser, viewQueries),
+                        resolve(view, parser, viewQueries, MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields())),
                         projectRouting,
                         wildcardsMatchViews,
                         parser,
@@ -986,7 +985,12 @@ public class ViewResolver {
         EsqlResolveViewAction.Request request,
         ActionListener<EsqlResolveViewAction.Response> listener
     ) {
-        client.execute(EsqlResolveViewAction.TYPE, request, new ThreadedActionListener<>(executor, listener));
+        // Metered inside the fork, so planning CPU is measured on the SEARCH thread, not the transport thread.
+        client.execute(
+            EsqlResolveViewAction.TYPE,
+            request,
+            new ThreadedActionListener<>(executor, PlanningCpuTracker.inheritMeteredCpu(listener))
+        );
     }
 
     protected record OriginViewsResolution(boolean resolveLocalViews, @Nullable String originProjectAlias) {}
@@ -1157,7 +1161,12 @@ public class ViewResolver {
         }
     }
 
-    private LogicalPlan resolve(View view, BiFunction<String, String, LogicalPlan> parser, Map<String, String> viewQueries) {
+    private LogicalPlan resolve(
+        View view,
+        BiFunction<String, String, LogicalPlan> parser,
+        Map<String, String> viewQueries,
+        boolean keepViewIdentity
+    ) {
         log.debug("Resolving view '{}'", view.name());
         // Store the view query so it can be used during Source deserialization
         viewQueries.put(view.name(), view.query());
@@ -1166,7 +1175,7 @@ public class ViewResolver {
         // to be tagged with the view name during parsing
         LogicalPlan parsed = parser.apply(view.query(), view.name());
         LogicalPlan subquery = parsed instanceof UnresolvedMetadata fs ? fs.child() : parsed;
-        if (subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
+        if (keepViewIdentity == false && subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
             // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them
             // together and avoid branched plans. But exclusion patterns must stay scoped to the
             // view body — a bare UnresolvedRelation with an exclusion that gets merged with sibling

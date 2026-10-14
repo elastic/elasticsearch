@@ -403,6 +403,41 @@ public class BatchModeRouterTests extends ESTestCase {
         router.close();
     }
 
+    /**
+     * Same re-entry as {@link #testSecondShardBatchesCallIsANoOp} but for the inline-encoder mode,
+     * where rows are encoded during routing and the partitions are built by the first
+     * {@code shardBatches()} call. When every shard request completes synchronously (e.g. a write
+     * blocked backing index), the failure-store redirect pass calls {@code shardBatches()} again
+     * before the encoders are closed. Rebuilding an already-built partition throws, which would
+     * otherwise surface as a fatal error on the node.
+     */
+    public void testSecondShardBatchesCallIsANoOpForInlineEncoders() {
+        int numDocs = randomIntBetween(3, 20);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(new IndexRequest("myindex").source("{\"dim\":\"d" + i + "\",\"val\":" + i + "}", XContentType.JSON));
+        }
+        ProjectMetadata project = project(plainMetadata("myindex", randomIntBetween(1, 3)));
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        assertThat(router, notNullValue());
+        var requestsByShard = routeAll(router, bulkRequest, project);
+        Map<ShardId, SourceBatch> first = router.shardBatches();
+        assertFalse(first.isEmpty());
+        assertThat(first.values().stream().mapToInt(SourceBatch::docCount).sum(), equalTo(numDocs));
+        for (DocWriteRequest<?> request : bulkRequest.requests) {
+            assertTrue(((IndexRequest) request).indexSource().hasSourceRow());
+        }
+        assertShardsAligned(requestsByShard, first);
+
+        // Redirected items carry inline source and were never encoded, so there is nothing to build.
+        assertThat(router.shardBatches(), equalTo(Map.of()));
+        for (DocWriteRequest<?> request : bulkRequest.requests) {
+            assertTrue(((IndexRequest) request).indexSource().hasSourceRow());
+        }
+        router.close();
+    }
+
     public void testRejectsItemWithoutSourceRow() throws IOException {
         EscfBatch batch = buildBatch(1);
         // Item has inline source — no source-row reference.

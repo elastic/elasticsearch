@@ -58,8 +58,9 @@ ratio:double       | step:datetime            | cluster:keyword
 // on(cluster) with opaque operands: `without` packs each operand's identity into _timeseries with no label columns
 // of its own; the on(cluster) demand materializes the label as a concrete column to key the join on. The k8s label
 // universe is (cluster, pod, region), so `without (pod, region)` matches vector_match_on_cluster exactly.
-vector_match_on_cluster_opaque_operands-Ignore
+vector_match_on_cluster_opaque_operands
 required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
 required_capability: promql_vector_matching_v0
 PROMQL index=k8s step=10m ratio=(sum without (pod, region) (network.eth0.tx) / on (cluster) sum without (pod, region) (network.eth0.rx))
 | KEEP ratio, step, cluster
@@ -125,6 +126,47 @@ ratio:double        | step:datetime            | cluster:keyword | pod:keyword
 0.34833948339483395 | 2024-05-10T00:10:00.000Z | staging         | two
 0.34769995855781183 | 2024-05-10T00:20:00.000Z | staging         | two
 0.3487455197132617  | 2024-05-10T00:30:00.000Z | staging         | two
+;
+
+// group_left over on(cluster) with a bare (non-aggregated) build operand: the build is the single
+// pod="one" rx series per cluster, so each probe pod's tx is divided by that series and the copied
+// (region) label is materialized from the bare selector's dimensions. Values are tx[pod] / rx[one]
+// per (cluster, step); region is projected away, its presence in the result is covered by plan tests.
+vector_match_group_left_bare_build
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m ratio=(sum by (cluster, pod) (network.eth0.tx) / on (cluster) group_left (region) network.eth0.rx{pod="one"})
+| KEEP ratio, step, cluster, pod
+| SORT cluster, pod, step;
+
+ratio:double       | step:datetime            | cluster:keyword | pod:keyword
+0.9295454545454546 | 2024-05-10T00:10:00.000Z | prod            | one
+1.054054054054054  | 2024-05-10T00:20:00.000Z | prod            | one
+1.0560661764705883 | 2024-05-10T00:30:00.000Z | prod            | one
+0.8204545454545454 | 2024-05-10T00:10:00.000Z | prod            | three
+0.9646569646569647 | 2024-05-10T00:20:00.000Z | prod            | three
+0.6772727272727272 | 2024-05-10T00:10:00.000Z | prod            | two
+0.762993762993763 | 2024-05-10T00:20:00.000Z | prod            | two
+0.8887867647058824 | 2024-05-10T00:30:00.000Z | prod            | two
+0.6185819070904646 | 2024-05-10T00:10:00.000Z | qa              | one
+0.9889064976228209 | 2024-05-10T00:20:00.000Z | qa              | one
+0.9871244635193133 | 2024-05-10T00:30:00.000Z | qa              | one
+0.6112469437652812 | 2024-05-10T00:10:00.000Z | qa              | three
+0.9508716323296355 | 2024-05-10T00:20:00.000Z | qa              | three
+0.8876967095851216 | 2024-05-10T00:30:00.000Z | qa              | three
+1.1100244498777505 | 2024-05-10T00:10:00.000Z | qa              | two
+1.3541996830427891 | 2024-05-10T00:20:00.000Z | qa              | two
+1.2274678111587982 | 2024-05-10T00:30:00.000Z | qa              | two
+0.9505494505494505 | 2024-05-10T00:10:00.000Z | staging         | one
+0.891846921797005  | 2024-05-10T00:20:00.000Z | staging         | one
+0.8671641791044776 | 2024-05-10T00:30:00.000Z | staging         | one
+1.2307692307692308 | 2024-05-10T00:10:00.000Z | staging         | three
+1.8985024958402663 | 2024-05-10T00:20:00.000Z | staging         | three
+1.8044776119402985 | 2024-05-10T00:30:00.000Z | staging         | three
+1.2967032967032968 | 2024-05-10T00:10:00.000Z | staging         | two
+1.3960066555740434 | 2024-05-10T00:20:00.000Z | staging         | two
+1.4522388059701492 | 2024-05-10T00:30:00.000Z | staging         | two
 ;
 
 // One-to-many group_right: the "many" RHS is grouped by (cluster, pod); the "one" LHS (cluster) is broadcast.
@@ -826,8 +868,9 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 ;
 
 // Opaque/opaque: both keys are materialized from _timeseries, no regrouping.
-vector_match_matrix_opaque_opaque_on-Ignore
+vector_match_matrix_opaque_opaque_on
 required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
 required_capability: promql_vector_matching_v0
 PROMQL index=k8s step=10m r=(network.eth0.tx / on (cluster, pod) network.eth0.rx)
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -841,8 +884,9 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 ;
 
 // Opaque/concrete: hidden labels on the LHS become join keys.
-vector_match_matrix_opaque_concrete-Ignore
+vector_match_matrix_opaque_concrete
 required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
 required_capability: promql_vector_matching_v0
 PROMQL index=k8s step=10m r=(network.eth0.tx / on (cluster, pod) sum by (cluster, pod) (network.eth0.rx))
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -856,8 +900,9 @@ r:double           | cluster:keyword | pod:keyword | step:datetime
 ;
 
 // Concrete/opaque: hidden labels on the RHS become join keys.
-vector_match_matrix_concrete_opaque-Ignore
+vector_match_matrix_concrete_opaque
 required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
 required_capability: promql_vector_matching_v0
 PROMQL index=k8s step=10m r=(sum by (cluster, pod) (network.eth0.tx) / on (cluster, pod) network.eth0.rx)
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -923,8 +968,9 @@ r:double            | cluster:keyword | pod:keyword | step:datetime
 // A `without` identity can still expose concrete join labels: without (pod)
 // keeps (cluster, region) packed, and cluster is materialized for the key.
 // Same numbers as vector_match_on_cluster.
-vector_match_matrix_without_identity-Ignore
+vector_match_matrix_without_identity
 required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
 required_capability: promql_vector_matching_v0
 PROMQL index=k8s step=10m r=(sum without (pod) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx))
 | WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
@@ -936,8 +982,9 @@ r:double          | cluster:keyword | step:datetime
 
 // An outer aggregate consumes a joined opaque-lowered table: sum over the nine
 // per-series ratios. ROUND guards against float summation-order jitter.
-vector_match_matrix_nested_join-Ignore
+vector_match_matrix_nested_join
 required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
 required_capability: promql_vector_matching_v0
 PROMQL index=k8s step=10m r=(sum(network.eth0.tx / on (cluster, pod) network.eth0.rx))
 | WHERE step == "2024-05-10T00:10:00.000Z"
@@ -1238,4 +1285,90 @@ PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) + sum by (p
 | SORT cluster, step;
 
 result:double | step:datetime | cluster:keyword
+;
+
+// Raw series must retain pod and region while matching only on cluster.
+vector_match_bare_probe_identity
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(network.eth0.tx / on (cluster) group_left sum by (cluster) (network.eth0.rx))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| EVAL cluster = JSON_EXTRACT(_timeseries, "$.cluster"), pod = JSON_EXTRACT(_timeseries, "$.pod")
+| WHERE cluster == "prod"
+| KEEP r, pod
+| SORT pod;
+
+r:double            | pod:keyword
+0.4225206611570248  | one
+0.37293388429752067 | three
+0.30785123966942146 | two
+;
+
+// Swapping the physical sides must not reverse division.
+vector_match_default_bare_left
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(network.eth0.tx / sum by (cluster, pod, region) (network.eth0.rx))
+| WHERE cluster == "staging" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod
+| SORT pod;
+
+r:double           | cluster:keyword | pod:keyword
+0.9505494505494505 | staging         | one
+1.1546391752577319 | staging         | three
+0.7827529021558872 | staging         | two
+;
+
+vector_match_default_bare_right
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(sum by (cluster, pod, region) (network.eth0.tx) / network.eth0.rx)
+| WHERE cluster == "staging" AND step == "2024-05-10T00:10:00.000Z"
+| KEEP r, cluster, pod
+| SORT pod;
+
+r:double           | cluster:keyword | pod:keyword
+0.9505494505494505 | staging         | one
+1.1546391752577319 | staging         | three
+0.7827529021558872 | staging         | two
+;
+
+// Extra pod/region labels must prevent a default match, without raising false duplicate-build errors.
+vector_match_default_bare_extra_labels
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(network.eth0.tx / sum by (cluster) (network.eth0.rx))
+| KEEP r, cluster, step;
+
+r:double | cluster:keyword | step:datetime
+;
+
+vector_match_default_bare_extra_labels_reversed
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(sum by (cluster) (network.eth0.tx) / network.eth0.rx)
+| KEEP r, cluster, step;
+
+r:double | cluster:keyword | step:datetime
+;
+
+// The enclosing aggregation must be able to demand a label carried in the raw probe's identity.
+vector_match_bare_probe_parent_by
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_metadata
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=10m r=(sum by (pod) (network.eth0.tx{cluster="prod"} / on (cluster) group_left sum by (cluster) (network.eth0.rx)))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP r, pod
+| SORT pod;
+
+r:double            | pod:keyword
+0.4225206611570248  | one
+0.37293388429752067 | three
+0.30785123966942146 | two
 ;

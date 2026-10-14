@@ -15,12 +15,12 @@ import java.util.Set;
 
 /**
  * The existing label requirements and available columns, shared by parent and child translations.
- * Labels required by name, optionally together with packed columns each excluding a set of names.
+ * Labels required by name, optionally together with metadata columns each excluding a set of names.
  * This is a selection, not an inventory of storage projections: combining requirements only combines
  * their label names and exclusion sets, without creating physical record projections.
  *
  * @param labels concrete label reads
- * @param skips exclusion sets, one per packed column
+ * @param skips exclusion sets, one per metadata column
  */
 public record TranslationSchema(Set<String> labels, Set<Set<String>> skips) {
     /** No columns: a scalar's schema, and the identity of {@link #union}. */
@@ -40,7 +40,7 @@ public record TranslationSchema(Set<String> labels, Set<Set<String>> skips) {
         return new TranslationSchema(new LinkedHashSet<>(names), Set.of());
     }
 
-    /** Every runtime label except {@code skip}, as packed columns; an empty skip set is the full label space. */
+    /** Every runtime label except {@code skip}, as metadata columns; an empty skip set is the full label space. */
     public static TranslationSchema open(Collection<String> skip) {
         return new TranslationSchema(Set.of(), Set.of(new LinkedHashSet<>(skip)));
     }
@@ -61,7 +61,7 @@ public record TranslationSchema(Set<String> labels, Set<Set<String>> skips) {
 
     /**
      * A constraint transposed below a node that drops {@code keys}: the dropped labels are no longer available as
-     * columns, and every packed column must already exclude them to survive the regroup.
+     * columns, and every metadata column must already exclude them to survive the regroup.
      */
     public static TranslationSchema subtract(TranslationSchema constraint, Collection<String> keys) {
         var remaining = new LinkedHashSet<>(constraint.labels);
@@ -76,7 +76,7 @@ public record TranslationSchema(Set<String> labels, Set<Set<String>> skips) {
     }
 
     /**
-     * The columns of a constraint that survive a node dropping {@code keys}: labels outside the set and packed
+     * The columns of a constraint that survive a node dropping {@code keys}: labels outside the set and metadata
      * columns already excluding all of it. The upward counterpart of {@link #subtract}.
      */
     public static TranslationSchema intersect(TranslationSchema constraint, Collection<String> keys) {
@@ -91,19 +91,19 @@ public record TranslationSchema(Set<String> labels, Set<Set<String>> skips) {
         return new TranslationSchema(remaining, covering);
     }
 
-    /** Only the labels among {@code names}; packed columns unchanged. Trims what a child exposes to what is required. */
+    /** Only the labels among {@code names}; metadata columns unchanged. Trims what a child exposes to what is required. */
     public static TranslationSchema project(TranslationSchema constraint, Collection<String> names) {
         var retained = new LinkedHashSet<>(constraint.labels);
         retained.retainAll(names);
         return new TranslationSchema(retained, constraint.skips);
     }
 
-    /** The smallest skip set: the packed column fixing this table's grain; null when the table is unpacked. */
+    /** The smallest skip set: the metadata column fixing this table's grain; null when the table has only named labels. */
     public Set<String> finestSkip() {
         return skips.stream().min(Comparator.comparingInt(Set::size)).orElse(null);
     }
 
-    /** True when this constraint carries at least one packed column. */
+    /** True when this constraint carries at least one metadata column. */
     public boolean isOpen() {
         return skips.isEmpty() == false;
     }

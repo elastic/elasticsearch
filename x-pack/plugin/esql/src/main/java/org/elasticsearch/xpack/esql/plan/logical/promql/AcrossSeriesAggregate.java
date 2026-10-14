@@ -117,7 +117,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     /**
-     * {@code WITHOUT} over a child with a packed identity (a selector, a function over one) uses a dynamic
+     * {@code WITHOUT} over a child with metadata identity (a selector, a function over one) uses a dynamic
      * {@code _timeseries} output, because the concrete retained labels are not known until lowering time.
      * {@code WITHOUT} over a child that names every label it exposes (a {@code BY}/{@code NONE} aggregate, a binary
      * operator between two of them) instead exposes those labels minus the excluded ones - the {@code WITHOUT} is a plain

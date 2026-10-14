@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -712,8 +713,9 @@ public final class StreamingParallelParsingCoordinator {
          * Total outstanding tasks for this iterator: the segmentator (1, started at construction) plus
          * one per parser that has started ({@link #consumeChunk}, including inline parse). Increment
          * happens at the start of parse work, not at submit, so a rejected {@code execute} never leaves a
-         * stuck count. EOF: {@code currentChunk >= chunksDispatched} (every POISON consumed) and this
-         * counter is 0 (segmentator exited and every started parser finished). A queued unparsed chunk
+         * stuck count. EOF reads this counter first: a 0 means the segmentator has exited, so a later
+         * {@code chunksDispatched} read is final. The reverse order can pair a stale dispatch count
+         * with a later zero and report EOF while chunks are still unconsumed. A queued unparsed chunk
          * is not EOF: the consumer still sits behind {@code chunksDispatched}.
          */
         private final AtomicInteger tasksOutstanding;
@@ -997,7 +999,7 @@ public final class StreamingParallelParsingCoordinator {
                     // No POISON-to-parkers fan-out anymore: parser tasks are one-shot (one per chunk)
                     // and exit on their own after processing. Segmentator's done; decrement and signal
                     // so the consumer wakes if it's the last task standing (EOF condition is
-                    // currentChunk >= chunksDispatched && tasksOutstanding == 0).
+                    // tasksOutstanding == 0 then currentChunk >= chunksDispatched).
                     if (tasksOutstanding.decrementAndGet() == 0) {
                         signalReady();
                     }
@@ -2116,7 +2118,7 @@ public final class StreamingParallelParsingCoordinator {
                     if (buffered != null) {
                         return true;
                     }
-                    if (currentChunk >= chunksDispatched.get() && tasksOutstanding.get() == 0) {
+                    if (producersDoneAndDrained()) {
                         return false;
                     }
                     // Not EOF — page may have advanced past POISON; loop to re-register a listener
@@ -2156,25 +2158,18 @@ public final class StreamingParallelParsingCoordinator {
                 buffered = null;
                 return result;
             }
-            // Release POISON-held permits before throwing so a segmentator parked in acquire()
-            // does not wait for close(). Open 403/404 still surface via checkError() afterwards.
+            // Skip POISON before the closed check so a concurrent close still releases dispatch
+            // permits. takeNextPage() repeats skip+checkError; that is idle on the live path.
             skipDrainedPoison();
             checkError();
             if (closed.get()) {
                 checkError();
                 return null;
             }
-            if (currentChunk >= chunksDispatched.get()) {
-                return null;
-            }
-            int slot = currentChunk % pageQueueRingSize;
-            Page page = pageQueues[slot].poll();
-            if (page == POISON) {
-                currentChunk++;
-                dispatchPermits.release();
-                return null;
-            }
-            return page;
+            // Same bounded POISON-then-next-slot loop as {@link #takeNextPage}: a lone POISON is not
+            // async EOF. Returning null here with a page already in the next slot made
+            // {@code tryAdvanceOrPark} treat the gap as terminal and drop remaining chunks.
+            return takeNextPage();
         }
 
         /**
@@ -2196,13 +2191,33 @@ public final class StreamingParallelParsingCoordinator {
             if (closed.get() || buffered != null || firstError.get() != null || openFailure.get() != null) {
                 return true;
             }
-            skipDrainedPoison();
-            int slot = currentChunk % pageQueueRingSize;
-            if (pageQueues[slot].peek() != null) {
+            if (pageReadyNow()) {
                 return true;
             }
-            // EOF: consumer has drained every dispatched chunk AND every producer has exited.
-            return currentChunk >= chunksDispatched.get() && tasksOutstanding.get() == 0;
+            if (tasksOutstanding.get() != 0) {
+                return false;
+            }
+            // Producers have exited: chunksDispatched is final. Re-peek so a page that landed in the
+            // empty-slot window is readiness, not a lost signal after the last signalReady.
+            return pageReadyNow() || currentChunk >= chunksDispatched.get();
+        }
+
+        /**
+         * EOF: every producer has exited and every dispatched chunk is consumed. Read
+         * {@code tasksOutstanding} first — a 0 means the segmentator has exited, so
+         * {@code chunksDispatched} afterwards is final. Re-skip POISON and re-peek so a page that
+         * landed after the first empty peek is not reported as EOF.
+         */
+        private boolean producersDoneAndDrained() {
+            if (tasksOutstanding.get() != 0) {
+                return false;
+            }
+            return pageReadyNow() == false && currentChunk >= chunksDispatched.get();
+        }
+
+        private boolean pageReadyNow() {
+            skipDrainedPoison();
+            return pageQueues[currentChunk % pageQueueRingSize].peek() != null;
         }
 
         /**
@@ -2529,6 +2544,10 @@ public final class StreamingParallelParsingCoordinator {
         InputStreamStorageObject(InputStream stream) {
             this.stream = stream;
         }
+
+        /** A caller-supplied stream produces no storage I/O, so there are no counters to attach. */
+        @Override
+        public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
         @Override
         public InputStream newStream() {

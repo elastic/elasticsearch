@@ -21,6 +21,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
@@ -176,7 +177,7 @@ import java.util.regex.Pattern;
  *   <tr><td>{@code multi_value_syntax}</td><td>{@code none}</td>
  *       <td>Multi-value field syntax; see "Bracket multi-value syntax" below for the
  *           {@code brackets} opt-in and the element-splitter rules (always comma, even for TSV).</td></tr>
- *   <tr><td>{@code schema_sample_size}</td><td>20,000</td><td>Number of rows to sample for type inference</td></tr>
+ *   <tr><td>{@code schema_sample_size}</td><td>40,000</td><td>Number of rows to sample for type inference</td></tr>
  *   <tr><td>{@code header_row}</td><td>{@code true}</td>
  *       <td>When {@code true} (default), the first non-comment, non-blank record after
  *           {@code skip_rows} names the columns. When {@code false}, no header row is read;
@@ -1310,6 +1311,37 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
+    public CsvFormatReader withSchemaSampleShare(int files) {
+        int shared = FormatReader.sharedSchemaSampleSize(schemaSampleSize, files);
+        if (shared == schemaSampleSize) {
+            return this;
+        }
+        // canonicalConfig is kept: it is the harvest fingerprint, and the data node reads with the unshared sample.
+        return new CsvFormatReader(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            shared,
+            schemaMaxFields,
+            effectivePolicy,
+            canonicalConfig,
+            readConfig,
+            directBlockEnabled,
+            declaredDateFormats,
+            declaredProvenanceBinding,
+            headerBindingByProvenance,
+            configWarnings
+        );
+    }
+
+    @Override
+    public int schemaSampleSize() {
+        return schemaSampleSize;
+    }
+
+    @Override
     public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return Configured.empty(this);
@@ -1857,6 +1889,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      *   <li>{@code SKIP_ROW} / {@code NULL_FIELD}: skip bad rows, continue sampling, throw if
      *       the budget ({@code max_errors} / {@code max_error_ratio}) is exceeded.</li>
      * </ul>
+     * A {@link CircuitBreakingException} raised while reserving a sampled row is never a sampling error: it
+     * propagates unchanged regardless of the policy and is neither counted nor suppressed.
      * Independent of the policy, sampling bails after
      * {@link #MAX_CONSECUTIVE_SAMPLING_FAILURES} consecutive failures (Jackson resync guard),
      * and throws if zero rows could be collected.
@@ -1937,6 +1971,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                     sampleRows.add(row);
                     consecutiveFailures = 0;
+                } catch (CircuitBreakingException e) {
+                    // Out of memory is a resource failure, not a malformed row: it must not be counted against the
+                    // error budget, reported as bad data, or end the sample early. Propagate it (HTTP 429).
+                    throw e;
                 } catch (RuntimeException e) {
                     totalRowCount++;
                     errorCount++;

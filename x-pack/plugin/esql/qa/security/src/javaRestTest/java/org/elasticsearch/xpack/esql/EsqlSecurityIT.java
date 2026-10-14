@@ -2807,10 +2807,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
             assertOK(resp);
             var respMap = entityAsMap(resp);
             var views = (List<Map<String, Object>>) respMap.get("views");
-            // the reserved .ml-anomalies views exist in every cluster
+            // the reserved .ml-anomalies view exists in every cluster
             assertThat(
                 views.stream().map(entry -> entry.get("name")).toList(),
-                containsInAnyOrder("view", "view-user1", "view-user2", ".ml-anomalies", ".ml-anomalies-ccs")
+                containsInAnyOrder("view", "view-user1", "view-user2", ".ml-anomalies")
             );
         }
     }

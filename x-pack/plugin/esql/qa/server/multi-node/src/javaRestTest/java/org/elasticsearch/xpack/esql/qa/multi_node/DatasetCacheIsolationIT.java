@@ -28,6 +28,7 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -114,8 +115,12 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
 
     @BeforeClass
     public static void uploadFiles() {
-        addBlobToFixture(fixtureA.getHandler(), FILE_KEY, ndjson(ROWS_A));
-        addBlobToFixture(fixtureB.getHandler(), FILE_KEY, ndjson(ROWS_B));
+        // A and B use the same FILE_KEY path — the cache key includes the mtime, so a second
+        // boundary between the two addBlobToFixture calls would give them different mtimes and
+        // let B's entry match A's cache lookup. Pin both to the same instant.
+        Instant sharedMtime = Instant.now();
+        addBlobToFixture(fixtureA.getHandler(), FILE_KEY, ndjson(ROWS_A), sharedMtime);
+        addBlobToFixture(fixtureB.getHandler(), FILE_KEY, ndjson(ROWS_B), sharedMtime);
         addBlobToFixture(fixtureA.getHandler(), FILE_KEY_2, ndjson(ROWS_FILE_2));
         addBlobToFixture(fixtureA.getHandler(), FILE_KEY_3, ndjson(ROWS_FILE_3));
     }
@@ -185,8 +190,8 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
      * (with {@code STATS_ROW_COUNT=3}) via {@code canSkipSplitDiscovery}, returning 3 instead of 7.
      *
      * <p>The profile assertion after the first query confirms the coordinator actually went warm
-     * (served from the schema-cache stats, no S3 scan) before dataset B is queried. Without it,
-     * dataset B returning 7 could be a cold scan that happened to race ahead of A's cache harvest.
+     * (served from the schema-cache stats, no S3 scan) before dataset B is queried. The test pins
+     * to node 0 and reconcile is synchronous, so there is no race between A's harvest and B's query.
      */
     public void testSchemaAndListingCacheIsolatedByEndpoint() throws Exception {
         long countA = count("FROM " + DATASET_A + " | STATS count = COUNT(*)");
@@ -196,8 +201,8 @@ public class DatasetCacheIsolationIT extends ESRestTestCase {
         // external_warm_aggregates > 0 means the COUNT(*) was served from the schema-cache stats
         // without re-scanning S3. Only after this signal can we be sure that dataset B returning 7
         // reflects cache isolation rather than a cold scan that produced the correct answer by chance.
-        // Reconcile runs inline before the response on this rail, so this should pass first try; the retry guards
-        // a regression where it stops landing before the response.
+        // Reconcile is synchronous on this rail, so the first query already warmed the coordinator;
+        // assertBusy here would tolerate a regression — remove it if this becomes a flake gate.
         String warmQuery = "FROM " + DATASET_A + " | STATS count = COUNT(*)";
         assertBusy(() -> assertCoordinatorWarm(warmQuery), 30, TimeUnit.SECONDS);
 

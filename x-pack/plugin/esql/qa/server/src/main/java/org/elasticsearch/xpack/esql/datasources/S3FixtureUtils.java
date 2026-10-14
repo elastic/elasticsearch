@@ -20,6 +20,7 @@ import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -93,6 +94,18 @@ public final class S3FixtureUtils {
     public static void addBlobToFixture(S3HttpHandler handler, String key, byte[] content) {
         String fullPath = "/" + BUCKET + "/" + key;
         handler.blobs().put(fullPath, new BlobEntry(new BytesArray(content), "STANDARD"));
+        logRequest("PUT_OBJECT", fullPath, content.length);
+    }
+
+    /**
+     * Add a blob to the S3 fixture with a specified last-modified time. Use this when two blobs
+     * at different endpoints must share an mtime — {@link BlobEntry#BlobEntry(BytesReference, String)}
+     * calls {@code Instant.now()}, so calls milliseconds apart may produce different second-granular
+     * timestamps if they straddle a second boundary.
+     */
+    public static void addBlobToFixture(S3HttpHandler handler, String key, byte[] content, Instant lastModified) {
+        String fullPath = "/" + BUCKET + "/" + key;
+        handler.blobs().put(fullPath, new BlobEntry(new BytesArray(content), "STANDARD", lastModified));
         logRequest("PUT_OBJECT", fullPath, content.length);
     }
 

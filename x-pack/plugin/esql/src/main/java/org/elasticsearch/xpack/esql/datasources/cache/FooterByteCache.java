@@ -28,11 +28,11 @@ import java.util.concurrent.ExecutionException;
  *       for the result</li>
  *   <li>Time-based expiration via two clocks. The primary clock ({@link CacheBuilder#setExpireAfterAccess})
  *       expires an entry the configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) after it
- *       was last read — a working set that keeps being read keeps its entries, and one stored together no
- *       longer expires together. A write cap (six times the access TTL) forces expiry at most
- *       {@code 6 × TTL} after an entry was written, regardless of reads. The cap bounds how long a stale
- *       footer (one for a same-length overwritten object) may be served; the access clock is the normal
- *       release path — see {@link Key}.</li>
+ *       was last read — a working set that keeps being read keeps its entries, and entries no longer all expire
+ *       together at one TTL. A write cap ({@link #WRITE_CAP_MULTIPLIER} × TTL) forces expiry at most
+ *       {@code WRITE_CAP_MULTIPLIER × TTL} after an entry was written, regardless of reads. The cap bounds how
+ *       long a stale footer (one for a same-length overwritten object) may be served; the access clock is the
+ *       normal release path — see {@link Key}.</li>
  * </ul>
  *
  * <h2>Why one instance per root format reader instead of per-query?</h2>
@@ -81,6 +81,12 @@ public class FooterByteCache {
      * LRU. This is not a read limit.
      */
     public static final long DEFAULT_MAX_ENTRY_BYTES = 2L * 1024 * 1024;
+
+    /**
+     * The write-cap multiplier: both footer caches are built with a write cap of this many times the
+     * access TTL. Shared by {@link ParsedFooterCache} so the two caches always agree on the policy.
+     */
+    static final long WRITE_CAP_MULTIPLIER = 6L;
 
     /**
      * Cache key identifying a file by its storage configuration, path, and total length. Uses
@@ -146,7 +152,11 @@ public class FooterByteCache {
     FooterByteCache(long maxBytes, long maxEntryBytes, TimeValue expireAfterAccess) {
         this.maxEntryBytes = maxEntryBytes;
         this.expireAfterAccess = expireAfterAccess;
-        this.expireAfterWrite = TimeValue.timeValueNanos(expireAfterAccess.nanos() * 6L);
+        long accessNanos = expireAfterAccess.nanos();
+        long capNanos = accessNanos <= Long.MAX_VALUE / WRITE_CAP_MULTIPLIER
+            ? accessNanos * WRITE_CAP_MULTIPLIER
+            : Long.MAX_VALUE;
+        this.expireAfterWrite = TimeValue.timeValueNanos(capNanos);
         this.cache = CacheBuilder.<Key, byte[]>builder()
             .setMaximumWeight(maxBytes)
             .setExpireAfterAccess(expireAfterAccess)

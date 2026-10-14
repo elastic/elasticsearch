@@ -139,22 +139,38 @@ public class ParsedFooterCacheTests extends ESTestCase {
 
     /**
      * The write cap expires a parsed entry even when it is being continuously read, bounding how long a stale
-     * footer (from a same-length overwrite) may be served. TTL=200ms → write cap=1.2s; reads for 1.8s.
+     * footer (from a same-length overwrite) may be served. TTL=500ms → write cap=3s (6×). Reads every 50ms
+     * keep the access clock alive; the entry must be present at 2.5s (access clock renewal confirmed, cap
+     * not yet fired) and absent at 3.5s (cap fired; continuous reads cannot keep it alive).
      */
     public void testWriteCapExpiresAnEntryDespiteContinuousReads() {
-        TimeValue ttl = TimeValue.timeValueMillis(200);
+        TimeValue ttl = TimeValue.timeValueMillis(500);
         ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
         FooterByteCache.Key k = key("file.parquet", 1000);
 
         shortLived.put(k, "footer");
+        long writeNanos = System.nanoTime();
         assertNotNull("the entry must be stored to begin with", shortLived.get(k));
-        long deadline = System.nanoTime() + TimeValue.timeValueMillis(1800).nanos();
-        while (System.nanoTime() < deadline) {
-            shortLived.get(k);
-            safeSleep(20);
-        }
 
-        assertNull("write cap must force-expire the entry even though it was continuously read", shortLived.get(k));
+        long priorCapDeadline = writeNanos + TimeValue.timeValueMillis(2500).nanos();
+        while (System.nanoTime() < priorCapDeadline) {
+            shortLived.get(k);
+            safeSleep(50);
+        }
+        assertNotNull(
+            "entry kept alive by continuous reads must be present at 2.5s: access clock is renewed and write cap has not fired yet",
+            shortLived.get(k)
+        );
+
+        long postCapDeadline = writeNanos + TimeValue.timeValueMillis(3500).nanos();
+        while (System.nanoTime() < postCapDeadline) {
+            shortLived.get(k);
+            safeSleep(50);
+        }
+        assertNull(
+            "write cap must force-expire the entry at 3s even though it was continuously read through 3.5s",
+            shortLived.get(k)
+        );
     }
 
     public void testPutThenGetReturnsSameInstance() {

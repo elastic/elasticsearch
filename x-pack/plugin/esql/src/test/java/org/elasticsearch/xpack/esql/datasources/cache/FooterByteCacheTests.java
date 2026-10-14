@@ -234,23 +234,41 @@ public class FooterByteCacheTests extends ESTestCase {
 
     /**
      * The write cap expires an entry even when it is being continuously read, so a same-length-overwrite
-     * staleness window is bounded. TTL=200ms → write cap=1.2s; reads for 1.8s → cap fires.
+     * staleness window is bounded. TTL=500ms → write cap=3s (6×). Reads every 50ms keep the access clock
+     * alive for five TTLs before the cap fires; the entry must be present at 2.5s (access clock renewal
+     * confirmed, cap not yet fired) and absent at 3.5s (cap fired; continuous reads cannot keep it alive).
+     * A cache with only an access clock would still serve the entry at 3.5s, so the final assertion
+     * discriminates the cap from a pure access clock.
      */
     public void testWriteCapExpiresAnEntryDespiteContinuousReads() {
-        TimeValue ttl = TimeValue.timeValueMillis(200);
+        TimeValue ttl = TimeValue.timeValueMillis(500);
         FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
         FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         byte[] data = randomByteArrayOfLength(64);
 
         shortLived.put(key, data);
+        long writeNanos = System.nanoTime();
         assertNotNull("the entry must be stored to begin with", shortLived.get(key));
-        long deadline = System.nanoTime() + TimeValue.timeValueMillis(1800).nanos();
-        while (System.nanoTime() < deadline) {
-            shortLived.get(key);
-            safeSleep(20);
-        }
 
-        assertNull("write cap must force-expire the entry even though it was continuously read", shortLived.get(key));
+        long priorCapDeadline = writeNanos + TimeValue.timeValueMillis(2500).nanos();
+        while (System.nanoTime() < priorCapDeadline) {
+            shortLived.get(key);
+            safeSleep(50);
+        }
+        assertNotNull(
+            "entry kept alive by continuous reads must be present at 2.5s: access clock is renewed and write cap has not fired yet",
+            shortLived.get(key)
+        );
+
+        long postCapDeadline = writeNanos + TimeValue.timeValueMillis(3500).nanos();
+        while (System.nanoTime() < postCapDeadline) {
+            shortLived.get(key);
+            safeSleep(50);
+        }
+        assertNull(
+            "write cap must force-expire the entry at 3s even though it was continuously read through 3.5s",
+            shortLived.get(key)
+        );
     }
 
     public void testFromSettingsUsesConfiguredTtl() {

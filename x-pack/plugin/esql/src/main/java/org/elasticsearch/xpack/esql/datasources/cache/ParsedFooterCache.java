@@ -63,10 +63,12 @@ import java.util.function.ToLongFunction;
  *       derived reader via the reader copy constructors, exactly like the paired
  *       {@link FooterByteCache} (see its class Javadoc for why not per-query).</li>
  *   <li>Two-clock expiry: same policy as the paired {@link FooterByteCache}. An access clock releases
- *       an entry a TTL after the last read of it (working set stays hot); a write cap (six times the
- *       access TTL) force-expires every entry at most {@code 6 × TTL} after it was written, bounding
- *       staleness. Unlike the byte cache, a store here does NOT imply a storage read — an entry can be
- *       evicted while its bytes survive and a reparse refills it from those bytes.</li>
+ *       an entry a TTL after the last read of it (working set stays hot); a write cap
+ *       ({@link FooterByteCache#WRITE_CAP_MULTIPLIER} × TTL) force-expires every entry at most
+ *       {@code WRITE_CAP_MULTIPLIER × TTL} after it was written, bounding staleness. Unlike the byte cache,
+ *       a store here does NOT imply a storage read — an entry can be evicted while its bytes survive
+ *       and a reparse refills it from those bytes, which can extend the total staleness window for
+ *       parsed footers beyond what the raw-bytes cap alone would allow.</li>
  *   <li>Byte-weighted LRU eviction: parsed metadata structures do not expose an exact byte
  *       size, so each format supplies a structural estimator (row groups × columns for Parquet,
  *       the analogous stripe shape for ORC) against a heap-relative budget
@@ -168,7 +170,11 @@ public final class ParsedFooterCache<T> {
         this.maxWeightBytes = maxWeightBytes;
         this.coalesceAsyncLoads = coalesceAsyncLoads;
         this.expireAfterAccess = expireAfterAccess;
-        this.expireAfterWrite = TimeValue.timeValueNanos(expireAfterAccess.nanos() * 6L);
+        long accessNanos = expireAfterAccess.nanos();
+        long capNanos = accessNanos <= Long.MAX_VALUE / FooterByteCache.WRITE_CAP_MULTIPLIER
+            ? accessNanos * FooterByteCache.WRITE_CAP_MULTIPLIER
+            : Long.MAX_VALUE;
+        this.expireAfterWrite = TimeValue.timeValueNanos(capNanos);
         this.cache = CacheBuilder.<FooterByteCache.Key, Weighted<T>>builder()
             .setMaximumWeight(maxWeightBytes)
             .setExpireAfterAccess(expireAfterAccess)

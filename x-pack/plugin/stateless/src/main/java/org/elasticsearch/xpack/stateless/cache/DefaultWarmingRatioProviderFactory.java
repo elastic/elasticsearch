@@ -45,7 +45,11 @@ public class DefaultWarmingRatioProviderFactory implements WarmingRatioProviderF
         private final double ratio;
 
         DefaultWarmingRatioProvider(ClusterSettings clusterSettings) {
-            ratio = clusterSettings.get(SEARCH_RECOVERY_WARMING_RATIO_SETTING);
+            if (clusterSettings.get(SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey()) != null) {
+                ratio = clusterSettings.get(SEARCH_RECOVERY_WARMING_RATIO_SETTING);
+            } else {
+                ratio = 0.0d;
+            }
         }
 
         @Override

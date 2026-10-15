@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -678,8 +680,20 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
         return blockValue == null ? null : ((BytesRef) blockValue).utf8ToString();
     }
 
+    /** The stored fields of one document, which share what is read from it like {@link BlockLoaderStoredFieldsFromLeafLoader}. */
     private static BlockLoader.StoredFields storedFields(Source source) {
         return new BlockLoader.StoredFields() {
+            private final Map<Object, Object> shared = new IdentityHashMap<>();
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> T shared(Object key, IOFunction<BlockLoader.StoredFields, T> compute) throws IOException {
+                if (shared.containsKey(key) == false) {
+                    shared.put(key, compute.apply(this));
+                }
+                return (T) shared.get(key);
+            }
+
             @Override
             public Source source() {
                 return source;

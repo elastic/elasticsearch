@@ -27,7 +27,6 @@ import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -1016,18 +1015,18 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
         Query query = createSliceAwareKnnQuery(createBBQIVFFloatFieldType(), null, parentFilter, true, SliceSelection.of(List.of("s1")));
         assertThat(query, instanceOf(parentFilter == null ? IVFKnnFloatSlicedVectorQuery.class : SLICED_NESTED_QUERY));
-        assertThat(query.toString("ignored"), containsString("_routing=[s1]"));
+        assertThat(query.toString("ignored"), containsString(SliceIndexing.SLICE_KEY_FIELD_NAME + "=[s1]"));
 
         query = createSliceAwareKnnQuery(createBBQIVFFloatFieldType(), null, parentFilter, true, SliceSelection.of(List.of("s1", "s2")));
         assertThat(query, instanceOf(parentFilter == null ? IVFKnnFloatSlicedVectorQuery.class : SLICED_NESTED_QUERY));
-        assertThat(query.toString("ignored"), containsString("_routing=[s1,s2]"));
+        assertThat(query.toString("ignored"), containsString(SliceIndexing.SLICE_KEY_FIELD_NAME + "=[s1,s2]"));
     }
 
     public void testBBQIVFSearchesAllSlices() {
         BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
         Query query = createSliceAwareKnnQuery(createBBQIVFFloatFieldType(), null, parentFilter, true, SliceSelection.ALL);
         assertThat(query, instanceOf(parentFilter == null ? IVFKnnFloatSlicedVectorQuery.class : SLICED_NESTED_QUERY));
-        assertThat(query.toString("ignored"), containsString("_routing=[]"));
+        assertThat(query.toString("ignored"), containsString(SliceIndexing.SLICE_KEY_FIELD_NAME + "=[]"));
     }
 
     /**
@@ -1059,14 +1058,14 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             slices
         );
-        assertThat(floatQuery.getFilter().toString(), equalTo("_routing:s1"));
+        assertThat(floatQuery.getFilter().toString(), equalTo(SliceIndexing.SLICE_KEY_FIELD_NAME + ":s1"));
 
         Query userFilter = new TermQuery(new Term("color", "red"));
         floatQuery = (KnnFloatVectorQuery) createSliceAwareKnnQuery(createHnswFieldType(FLOAT), userFilter, null, true, slices);
-        assertThat(floatQuery.getFilter().toString(), equalTo("#color:red #_routing:s1"));
+        assertThat(floatQuery.getFilter().toString(), equalTo("#color:red #" + SliceIndexing.SLICE_KEY_FIELD_NAME + ":s1"));
 
         KnnByteVectorQuery byteQuery = (KnnByteVectorQuery) createSliceAwareKnnQuery(createHnswFieldType(BYTE), null, null, true, slices);
-        assertThat(byteQuery.getFilter().toString(), equalTo("_routing:s1"));
+        assertThat(byteQuery.getFilter().toString(), equalTo(SliceIndexing.SLICE_KEY_FIELD_NAME + ":s1"));
 
         KnnByteVectorQuery bitQuery = (KnnByteVectorQuery) createSliceAwareKnnQuery(
             createHnswFieldType(BIT),
@@ -1075,7 +1074,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             slices
         );
-        assertThat(bitQuery.getFilter().toString(), equalTo("#color:red #_routing:s1"));
+        assertThat(bitQuery.getFilter().toString(), equalTo("#color:red #" + SliceIndexing.SLICE_KEY_FIELD_NAME + ":s1"));
     }
 
     public void testNonPartitionedFormatKeepsFilterForAllSlices() {
@@ -1166,7 +1165,9 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         when(context.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", settings));
         when(context.sliceSelection()).thenReturn(slices);
         if (slices.isRestricted()) {
-            when(context.sliceFilter()).thenReturn(new TermQuery(new Term(RoutingFieldMapper.NAME, String.join(",", slices.names()))));
+            when(context.sliceFilter()).thenReturn(
+                new TermQuery(new Term(SliceIndexing.SLICE_KEY_FIELD_NAME, String.join(",", slices.names())))
+            );
         }
         return context;
     }

@@ -82,7 +82,6 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -3906,7 +3905,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             parentFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
                             sliceIds
                         )
                         : new IVFKnnByteSlicedVectorQuery(
@@ -3917,7 +3916,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             cachedFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
                             sliceIds
                         );
                 } else {
@@ -4030,7 +4029,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             parentFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
                             sliceIds
                         )
                         : new IVFKnnFloatSlicedVectorQuery(
@@ -4041,7 +4040,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             cachedFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
                             sliceIds
                         );
                 } else {
@@ -4448,7 +4447,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final KnnVectorsFormat format;
         ElementType elementType = fieldType().element.elementType();
         final String sliceField = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings.isSliceEnabled()
-            ? RoutingFieldMapper.NAME
+            ? SliceIndexing.SLICE_KEY_FIELD_NAME
             : null;
         if (indexOptions == null) {
             format = switch (elementType) {

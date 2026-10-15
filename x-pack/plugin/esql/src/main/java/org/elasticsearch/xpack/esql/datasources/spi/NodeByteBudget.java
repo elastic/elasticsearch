@@ -48,7 +48,9 @@ public interface NodeByteBudget {
         /** Default. Waiting while this lease holds force-added bytes is the hang class. */
         FORBID,
         /**
-         * Test-only coalesced {@code PER_GET}. Production uses GROUP_HOLD or UNGATED.
+         * Named exception for coalesced per-GET tickets. Waiting is allowed while this lease still
+         * holds force-added bytes. Production coalesced admission uses {@link #FORBID}; this value
+         * is the test-only unit-ticket path.
          */
         PER_GET
     }

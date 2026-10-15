@@ -1,6 +1,6 @@
 area: ES|QL
 issues: []
 pr: 161976
-summary: "ESQL:DS: Read a parquet temporal column from the file's annotation, not its
-  physical primitive name, and read a TIME column as a time of day"
+summary: "ES|QL|DS: Fix a batch of coercion bugs when reading Parquet columns as date,
+  date_nanos and unsigned types"
 type: bug

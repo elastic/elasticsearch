@@ -74,10 +74,27 @@ final class ParquetColumnDecoding {
 
     static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
         if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            // floorDiv, not `/`. Java's `/` truncates toward zero, so a pre-epoch value would round the wrong
+            // way here and disagree with DeclaredTypeCoercions' date_nanos -> date narrowing, which floors. The
+            // two have to agree: a declared `date` over a sub-millisecond column reaches the instant through
+            // this method, and the same value reached through the narrowing must land on the same millisecond.
             return switch (ts.getUnit()) {
                 case MILLIS -> raw;
-                case MICROS -> raw / 1_000;
-                case NANOS -> raw / 1_000_000;
+                case MICROS -> Math.floorDiv(raw, 1_000L);
+                case NANOS -> Math.floorDiv(raw, 1_000_000L);
+            };
+        }
+        // A TIME column takes the same unit arithmetic, for the same reason convertTemporalToNanos gives: the file
+        // states a unit and the caller wants millis. What the value counts from differs -- a TIMESTAMP is an offset
+        // from the epoch, a TIME a time of day, which `date` renders as an instant on 1970-01-01 -- but the scale
+        // is the unit's, not the origin's. Without this arm a declared `date` over TIME(MICROS) would return its
+        // microsecond-of-day as a millisecond-of-day, which testTimeMicrosDeclaredDatetimeNarrowsToTheMillisecondOfDay
+        // pins against.
+        if (logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+            return switch (time.getUnit()) {
+                case MILLIS -> raw;
+                case MICROS -> Math.floorDiv(raw, 1_000L);
+                case NANOS -> Math.floorDiv(raw, 1_000_000L);
             };
         }
         return raw;

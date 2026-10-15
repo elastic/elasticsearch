@@ -10,7 +10,7 @@ products:
 
 # Configure cluster settings for {{esql}} Data Federation
 
-The data sources feature adds the following cluster settings. For general guidance on how to apply cluster settings across deployment types, refer to [configure Elasticsearch](docs-content://deploy-manage/stack-settings.md).
+Use these cluster settings to enable {{esql}} Data Federation and to control its limits, concurrency, caching, and query defaults. For general guidance on how to apply cluster settings across deployment types, refer to [configure Elasticsearch](docs-content://deploy-manage/stack-settings.md).
 
 Each setting is labeled Static or Dynamic. You can update a dynamic setting on a running cluster. A static setting takes effect after a node restart.
 

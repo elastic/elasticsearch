@@ -421,12 +421,20 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
         );
     }
 
-    public void testKeyedValueLongerThanBinaryDocValueLimitIsRejectedOnBatchPath() {
-        String immenseValue = "v".repeat(64 * 1024);
+    public void testKeyedValueLongerThanBinaryDocValueLimitIsRejectedOnBatchPath() throws IOException {
         Settings settings = Settings.builder()
             .put(columnarSettings())
             .put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "64kb")
             .build();
+        // The keyed encoding "k\0" + value adds 2 bytes to the value.
+        String valueAtLimit = "v".repeat(64 * 1024 - 2);
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            settings,
+            batch("keyed value at the limit", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"" + valueAtLimit + "\"}}"))
+        );
+
+        String immenseValue = valueAtLimit + "v";
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> assertColumnarMatchesXContent(
@@ -437,5 +445,6 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
         );
         assertThat(e.getMessage(), containsString("immense field"));
         assertThat(e.getMessage(), containsString("allowed max length of 65536 bytes"));
+        assertThat(e.getMessage(), containsString(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey()));
     }
 }

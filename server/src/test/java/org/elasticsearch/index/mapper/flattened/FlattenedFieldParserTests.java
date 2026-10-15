@@ -51,7 +51,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             IndexVersion.current(),
             false,
             false,
-            IndexWriter.MAX_TERM_LENGTH
+            IndexWriter.MAX_TERM_LENGTH,
+            true
         );
     }
 
@@ -323,7 +324,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             IndexVersion.current(),
             false,
             false,
-            IndexWriter.MAX_TERM_LENGTH
+            IndexWriter.MAX_TERM_LENGTH,
+            true
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -356,7 +358,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             IndexVersion.current(),
             false,
             false,
-            IndexWriter.MAX_TERM_LENGTH
+            IndexWriter.MAX_TERM_LENGTH,
+            true
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -384,7 +387,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             IndexVersion.current(),
             false,
             false,
-            IndexWriter.MAX_TERM_LENGTH
+            IndexWriter.MAX_TERM_LENGTH,
+            true
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -412,7 +416,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             IndexVersion.current(),
             false,
             false,
-            IndexWriter.MAX_TERM_LENGTH
+            IndexWriter.MAX_TERM_LENGTH,
+            true
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -446,7 +451,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             IndexVersion.current(),
             false,
             false,
-            IndexWriter.MAX_TERM_LENGTH
+            IndexWriter.MAX_TERM_LENGTH,
+            true
         );
 
         TestDocumentParserContext configuredContext = new TestDocumentParserContext(createXContentParser(input));

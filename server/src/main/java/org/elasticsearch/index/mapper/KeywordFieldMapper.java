@@ -125,7 +125,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
@@ -1537,6 +1536,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final DocValuesFieldFactory dvFactory;
     private final String indexOptions;
     private final FieldType fieldType;
+    private final boolean enforcesTermLength;
     private final int maxValueLength;
     private final String normalizerName;
     private final boolean normalizerSkipStoreOriginalValue;
@@ -1576,11 +1576,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         );
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
-        // Lucene enforces MAX_TERM_LENGTH only in the inverted index and in SORTED_SET doc values.
-        this.maxValueLength = this.fieldType.indexOptions() != IndexOptions.NONE
-            || this.fieldType.docValuesType() == DocValuesType.SORTED_SET
-                ? MAX_TERM_LENGTH
-                : builder.indexSettings.getMaxBinaryDocValueLength();
+        this.enforcesTermLength = this.fieldType.indexOptions() != IndexOptions.NONE
+            || this.fieldType.docValuesType() == DocValuesType.SORTED_SET;
+        this.maxValueLength = builder.indexSettings.maxValueLength(enforcesTermLength);
         this.normalizerName = builder.normalizer.getValue();
         this.normalizerSkipStoreOriginalValue = builder.normalizerSkipStoreOriginalValue.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
@@ -2202,6 +2200,19 @@ public final class KeywordFieldMapper extends FieldMapper {
     private IllegalArgumentException largeTermException(BytesRef value) {
         byte[] prefix = new byte[30];
         System.arraycopy(value.bytes, value.offset, prefix, 0, 30);
+        if (enforcesTermLength == false) {
+            return new IllegalArgumentException(
+                "Document contains a value in field=\""
+                    + fieldType().name()
+                    + "\" whose UTF8 encoding is longer than the max length "
+                    + maxValueLength
+                    + " set by ["
+                    + IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey()
+                    + "]. The prefix of the value is: '"
+                    + Arrays.toString(prefix)
+                    + "...'"
+            );
+        }
         return new IllegalArgumentException(
             "Document contains at least one immense term in field=\""
                 + fieldType().name()
@@ -2322,11 +2333,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.getRoutingFields().addString(fieldType().name(), binaryValue);
         }
 
-        // If the UTF8 encoding of the field value is bigger than the max length 32766 (only for indexed or SORTED_SET fields), Lucene will
-        // fail the indexing request and, to
-        // roll back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an
-        // append-only workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC
-        // instead of MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
+        // If an indexed or SORTED_SET value is longer than MAX_TERM_LENGTH (32766 bytes), Lucene fails the indexing request and, to roll
+        // back the changes, marks the (possibly partially indexed) document as deleted. This results in deletes, even in an append-only
+        // workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC instead of
+        // MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene. Other values have no
+        // Lucene limit, so they are checked against the binary doc values limit from the index settings instead.
         if (binaryValue.length > maxValueLength) {
             throw largeTermException(binaryValue);
         }

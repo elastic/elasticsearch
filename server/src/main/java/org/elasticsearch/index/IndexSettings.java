@@ -2581,6 +2581,14 @@ public final class IndexSettings {
         return maxBinaryDocValueLength;
     }
 
+    /**
+     * Byte limit for one keyword or flattened value. Lucene enforces {@link IndexWriter#MAX_TERM_LENGTH} only in the inverted
+     * index and in sorted-set doc values; other values get {@link #MAX_BINARY_DOC_VALUE_LENGTH_SETTING}.
+     */
+    public int maxValueLength(boolean enforcesTermLength) {
+        return enforcesTermLength ? IndexWriter.MAX_TERM_LENGTH : maxBinaryDocValueLength;
+    }
+
     public boolean useDocValuesSkipper() {
         return useDocValuesSkipper;
     }

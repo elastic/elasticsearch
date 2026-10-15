@@ -81,6 +81,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -886,6 +887,33 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("allowed max length of " + IndexWriter.MAX_TERM_LENGTH + " bytes"));
     }
 
+    /**
+     * A non-indexed flattened field that does not use the time series doc values format writes sorted-set doc values, which
+     * Lucene limits to {@link IndexWriter#MAX_TERM_LENGTH}, so it keeps that limit rather than the binary doc values limit.
+     */
+    public void testKeyedValueLongerThan32766NotIndexedSortedSetIsRejected() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), false).build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened").field("index", false)))
+            .documentMapper();
+        String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("key", value))))
+        );
+        assertThat(e.getCause().getMessage(), containsString("allowed max length of " + IndexWriter.MAX_TERM_LENGTH + " bytes"));
+        assertThat(e.getCause().getMessage(), not(containsString(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey())));
+    }
+
+    /**
+     * Logsdb uses binary doc values for flattened fields, so a non-indexed flattened field gets the binary doc values limit
+     * outside columnar modes too.
+     */
+    public void testKeyedValueLongerThan32766NotIndexedInLogsdbModeIsAccepted() throws IOException {
+        DocumentMapper mapper = createLogsModeDocumentMapper(fieldMapping(b -> b.field("type", "flattened").field("index", false)));
+        String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        mapper.parse(source(b -> b.field("@timestamp", "2026-01-01T00:00:00Z").field("field", Map.of("key", value))));
+    }
+
     public void testKeyedValueLongerThanBinaryDocValueLimitIsRejected() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
@@ -893,12 +921,17 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             .build();
         DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened").field("index", false)))
             .documentMapper();
-        String value = "x".repeat(64 * 1024);
+        // The keyed encoding "key\0" + value adds 4 bytes to the value.
+        String valueAtLimit = "x".repeat(64 * 1024 - 4);
+        mapper.parse(source(b -> b.field("field", Map.of("key", valueAtLimit))));
+
+        String valueOverLimit = valueAtLimit + "x";
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", Map.of("key", value))))
+            () -> mapper.parse(source(b -> b.field("field", Map.of("key", valueOverLimit))))
         );
         assertThat(e.getCause().getMessage(), containsString("allowed max length of 65536 bytes"));
+        assertThat(e.getCause().getMessage(), containsString(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey()));
     }
 
     public void testNullValues() throws Exception {

@@ -13,9 +13,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -56,7 +56,8 @@ class FlattenedFieldParser {
     private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
 
     private final boolean writeDimensionRouting;
-    private final int maxBinaryDocValueLength;
+    private final int maxKeyedValueLength;
+    private final boolean enforcesTermLength;
 
     FlattenedFieldParser(
         String rootFieldFullPath,
@@ -74,7 +75,8 @@ class FlattenedFieldParser {
         IndexVersion indexVersion,
         boolean writeDimensionRouting,
         boolean usesArrayOrderBinaryDocValues,
-        int maxBinaryDocValueLength
+        int maxKeyedValueLength,
+        boolean enforcesTermLength
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -91,7 +93,8 @@ class FlattenedFieldParser {
         this.preserveLeafArrays = preserveLeafArrays;
         this.indexVersion = indexVersion;
         this.writeDimensionRouting = writeDimensionRouting;
-        this.maxBinaryDocValueLength = maxBinaryDocValueLength;
+        this.maxKeyedValueLength = maxKeyedValueLength;
+        this.enforcesTermLength = enforcesTermLength;
     }
 
     public void parse(final DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) throws IOException {
@@ -155,11 +158,32 @@ class FlattenedFieldParser {
     }
 
     /**
-     * Lucene enforces {@link IndexWriter#MAX_TERM_LENGTH} only in the inverted index and in sorted-set doc values. A field that
-     * writes only binary doc values gets a separate, higher ceiling.
+     * Builds the error for a {@code key\0value} encoding that is longer than the field allows. The row path and the columnar
+     * batch path both use it so that they report the same message.
      */
-    private int maxKeyedValueLength() {
-        return fieldType.indexType().hasTerms() || usesBinaryDocValues == false ? IndexWriter.MAX_TERM_LENGTH : maxBinaryDocValueLength;
+    static IllegalArgumentException immenseKeyedValueException(
+        String rootFieldFullPath,
+        String key,
+        int valueLength,
+        int maxLength,
+        boolean enforcesTermLength
+    ) {
+        String msg = "Flattened field ["
+            + rootFieldFullPath
+            + "] contains one immense field"
+            + " whose keyed encoding is longer than the allowed max length of "
+            + maxLength
+            + " bytes. Key length: "
+            + key.length()
+            + ", value length: "
+            + valueLength
+            + " for key starting with ["
+            + key.substring(0, Math.min(key.length(), 50))
+            + "]";
+        if (enforcesTermLength == false) {
+            msg += ". The limit is set by [" + IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey() + "].";
+        }
+        return new IllegalArgumentException(msg);
     }
 
     private void addField(Context context, ContentPath path, String currentName, String value) throws IOException {
@@ -209,23 +233,10 @@ class FlattenedFieldParser {
             return;
         }
 
-        // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time
-        // in that case we can already throw a more user friendly exception here which includes the offending fields key and value lengths
-        int maxKeyedValueLength = maxKeyedValueLength();
+        // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time, or the binary
+        // doc values limit for fields without terms; we can throw a more user friendly exception here with the key and value lengths
         if (bytesKeyedValue.length > maxKeyedValueLength) {
-            String msg = "Flattened field ["
-                + rootFieldFullPath
-                + "] contains one immense field"
-                + " whose keyed encoding is longer than the allowed max length of "
-                + maxKeyedValueLength
-                + " bytes. Key length: "
-                + key.length()
-                + ", value length: "
-                + value.length()
-                + " for key starting with ["
-                + key.substring(0, Math.min(key.length(), 50))
-                + "]";
-            throw new IllegalArgumentException(msg);
+            throw immenseKeyedValueException(rootFieldFullPath, key, value.length(), maxKeyedValueLength, enforcesTermLength);
         }
         BytesRef bytesValue = new BytesRef(value);
         if (fieldType.indexType().hasTerms()) {

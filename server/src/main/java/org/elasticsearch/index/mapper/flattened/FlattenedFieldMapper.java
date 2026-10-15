@@ -1682,6 +1682,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     private final boolean passthrough;
     private final PreserveLeafArrays preserveLeafArrays;
     private final boolean writeDimensionRouting;
+    private final boolean enforcesTermLength;
+    private final int maxKeyedValueLength;
 
     private FlattenedFieldMapper(
         String leafName,
@@ -1699,6 +1701,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         this.writeDimensionRouting = builder.dimensions.getValue().isEmpty() == false
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
+        this.enforcesTermLength = mappedFieldType.indexType().hasTerms() || builder.usesBinaryDocValues == false;
+        this.maxKeyedValueLength = builder.indexSettings.maxValueLength(enforcesTermLength);
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
@@ -1715,7 +1719,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             builder.indexSettings.getIndexVersionCreated(),
             this.writeDimensionRouting,
             ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues(),
-            builder.indexSettings.getMaxBinaryDocValueLength()
+            maxKeyedValueLength,
+            enforcesTermLength
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
     }
@@ -1900,8 +1905,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         assert columns.length == relativeKeys.length : columns.length + " columns vs " + relativeKeys.length + " keys";
         final int docCount = ctx.docCount();
         final int columnCount = columns.length;
-        // Fields that reach this path have no terms and use binary doc values, so Lucene's term limit never applies.
-        final int maxBinaryDocValueLength = builder.indexSettings.getMaxBinaryDocValueLength();
 
         // The "key\0" prefix is constant across documents for a given column, so build it once.
         // Also validate depth_limit and the reserved separator character here, once per key.
@@ -1981,8 +1984,14 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                                         + "] exceeds ignore_above; the ignored-values channel is not yet supported"
                                 );
                             }
-                            if (keyPrefix.length + value.length > maxBinaryDocValueLength) {
-                                throw immenseKeyedValueException(relativeKeys[k], value.length, maxBinaryDocValueLength);
+                            if (keyPrefix.length + value.length > maxKeyedValueLength) {
+                                throw FlattenedFieldParser.immenseKeyedValueException(
+                                    fieldType().name(),
+                                    relativeKeys[k],
+                                    value.length,
+                                    maxKeyedValueLength,
+                                    enforcesTermLength
+                                );
                             }
                         }
 
@@ -2036,24 +2045,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             }
         }
         return count;
-    }
-
-    /** Mirrors the row path's immense-keyed-value error in {@link FlattenedFieldParser}. */
-    private IllegalArgumentException immenseKeyedValueException(String key, int valueLength, int maxLength) {
-        return new IllegalArgumentException(
-            "Flattened field ["
-                + fieldType().name()
-                + "] contains one immense field"
-                + " whose keyed encoding is longer than the allowed max length of "
-                + maxLength
-                + " bytes. Key length: "
-                + key.length()
-                + ", value length: "
-                + valueLength
-                + " for key starting with ["
-                + key.substring(0, Math.min(key.length(), 50))
-                + "]"
-        );
     }
 
     /**

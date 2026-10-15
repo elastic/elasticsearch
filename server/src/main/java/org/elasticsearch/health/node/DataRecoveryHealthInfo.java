@@ -30,7 +30,7 @@ import java.util.Map;
  * </ul>
  *
  * @param projects              the summary of each project that has one
- * @param generatedAtMillis     when the master built this information
+ * @param generatedAtMillis     when the master built this information, which must not be negative
  * @param publishIntervalMillis how often the publisher refreshes the snapshot, which must be positive; readers can treat the snapshot as
  *                              stale once {@code now - generatedAtMillis} exceeds a few multiples of it
  */
@@ -39,6 +39,9 @@ public record DataRecoveryHealthInfo(Map<ProjectId, ProjectSummary> projects, lo
         Writeable {
 
     public DataRecoveryHealthInfo {
+        if (generatedAtMillis < 0) {
+            throw new IllegalArgumentException("generation time must not be negative, got [" + generatedAtMillis + "]");
+        }
         if (publishIntervalMillis <= 0) {
             throw new IllegalArgumentException("publish interval must be positive, got [" + publishIntervalMillis + "]");
         }

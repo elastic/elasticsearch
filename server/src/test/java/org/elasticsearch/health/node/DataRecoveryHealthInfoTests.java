@@ -64,6 +64,15 @@ public class DataRecoveryHealthInfoTests extends AbstractWireSerializingTestCase
         assertThat(e.getMessage(), containsString("publish interval must be positive"));
     }
 
+    public void testRejectsNegativeGeneratedAt() {
+        long invalidGeneratedAt = randomLongBetween(Long.MIN_VALUE, -1);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DataRecoveryHealthInfo(Map.of(), invalidGeneratedAt, randomLongBetween(1, Long.MAX_VALUE))
+        );
+        assertThat(e.getMessage(), containsString("generation time must not be negative"));
+    }
+
     public void testEmptySummaryIsValid() {
         ProjectSummary summary = new ProjectSummary(NONE, NONE, 0, 0, 0);
         assertFalse(summary.hasRecoveryPoints());

@@ -43,7 +43,7 @@ public class ES950DiskBBQVectorsWriterTests extends ESTestCase {
     }
 
     public void testReadCentroidDataLoadsClusterSizesWithoutParents() throws Exception {
-        try (IVFVectorsReader.CentroidData centroidData = readCentroidData(64, 16, 256)) {
+        try (IVFVectorsReader.CentroidData<?> centroidData = readCentroidData(64, 16, 256)) {
             assertNotNull(centroidData);
             assertThat(centroidData.centroids().size(), lessThanOrEqualTo(16));
             assertClusterSizesAreLoaded(centroidData, 256);
@@ -51,14 +51,14 @@ public class ES950DiskBBQVectorsWriterTests extends ESTestCase {
     }
 
     public void testReadCentroidDataLoadsClusterSizesWithParents() throws Exception {
-        try (IVFVectorsReader.CentroidData centroidData = readCentroidData(64, 2, 512)) {
+        try (IVFVectorsReader.CentroidData<?> centroidData = readCentroidData(64, 2, 512)) {
             assertNotNull(centroidData);
             assertThat(centroidData.centroids().size(), greaterThan(2));
             assertClusterSizesAreLoaded(centroidData, 512);
         }
     }
 
-    private static void assertClusterSizesAreLoaded(IVFVectorsReader.CentroidData centroidData, int numDocs) {
+    private static void assertClusterSizesAreLoaded(IVFVectorsReader.CentroidData<?> centroidData, int numDocs) {
         assertEquals(centroidData.centroids().size(), centroidData.clusterSizes().length);
         int totalAssignments = Arrays.stream(centroidData.clusterSizes()).sum();
         assertThat(totalAssignments, both(greaterThanOrEqualTo(numDocs)).and(lessThanOrEqualTo(numDocs * 2)));
@@ -67,7 +67,7 @@ public class ES950DiskBBQVectorsWriterTests extends ESTestCase {
         }
     }
 
-    private IVFVectorsReader.CentroidData readCentroidData(int vectorsPerCluster, int centroidsPerParentCluster, int numDocs)
+    private IVFVectorsReader.CentroidData<?> readCentroidData(int vectorsPerCluster, int centroidsPerParentCluster, int numDocs)
         throws Exception {
         try (
             Directory directory = newDirectory();

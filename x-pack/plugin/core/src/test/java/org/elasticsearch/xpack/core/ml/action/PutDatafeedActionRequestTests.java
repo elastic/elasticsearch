@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -19,15 +20,18 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction.Request;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -110,6 +114,58 @@ public class PutDatafeedActionRequestTests extends AbstractXContentSerializingTe
         try (StreamInput in = new NamedWriteableAwareStreamInput(rawIn, getNamedWriteableRegistry())) {
             Request deserialized = new Request(in);
             assertThat(deserialized.getCloudCredential(), nullValue());
+        }
+    }
+
+    public void testParseRequestDslDatafeedShouldKeepRestDefaultIndicesOptions() throws IOException {
+        String json = """
+            {"job_id": "job1", "indices": ["index-1"]}
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            Request request = Request.parseRequest("datafeed1", SearchRequest.DEFAULT_INDICES_OPTIONS, parser);
+            assertThat(request.getDatafeed().getIndicesOptions(), equalTo(SearchRequest.DEFAULT_INDICES_OPTIONS));
+        }
+    }
+
+    public void testParseRequestDslDatafeedWithExplicitIndicesOptionsShouldKeepThem() throws IOException {
+        String json = """
+            {"job_id": "job1", "indices": ["index-1"], "indices_options": {"expand_wildcards": ["all"]}}
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            Request request = Request.parseRequest("datafeed1", SearchRequest.DEFAULT_INDICES_OPTIONS, parser);
+            assertThat(request.getDatafeed().getIndicesOptions(), notNullValue());
+            assertThat(request.getDatafeed().getIndicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS), equalTo(false));
+        }
+    }
+
+    public void testParseRequestEsqlDatafeedShouldHaveNoIndicesOptions() throws IOException {
+        // The REST handler always passes a non-null default; it must not be applied to ES|QL datafeeds.
+        String json = """
+            {"job_id": "job1", "esql_query": "FROM logs", "source_time_field": "@timestamp", "grouping_interval": "1h"}
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            Request request = Request.parseRequest("datafeed1", SearchRequest.DEFAULT_INDICES_OPTIONS, parser);
+            assertThat(request.getDatafeed().getEsqlQuery(), equalTo("FROM logs"));
+            assertThat(request.getDatafeed().getIndicesOptions(), nullValue());
+        }
+    }
+
+    public void testParseRequestEsqlDatafeedWithExplicitIndicesOptionsShouldBeRejected() throws IOException {
+        String json = """
+            {
+              "job_id": "job1",
+              "esql_query": "FROM logs",
+              "source_time_field": "@timestamp",
+              "grouping_interval": "1h",
+              "indices_options": {"expand_wildcards": ["all"]}
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            ElasticsearchStatusException e = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> Request.parseRequest("datafeed1", SearchRequest.DEFAULT_INDICES_OPTIONS, parser)
+            );
+            assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "indices_options")));
         }
     }
 }

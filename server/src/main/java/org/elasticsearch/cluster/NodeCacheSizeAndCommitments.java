@@ -12,6 +12,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.RatioValue;
 
 import java.io.IOException;
 
@@ -31,6 +32,18 @@ public record NodeCacheSizeAndCommitments(long cacheSizeInBytes, long boostedCac
 
     public NodeCacheSizeAndCommitments(StreamInput in) throws IOException {
         this(in.readLong(), in.readLong(), in.readLong());
+    }
+
+    public long totalCacheCommitmentInBytes() {
+        return Math.addExact(boostedCacheCommitmentInBytes, unboostedCacheCommitmentInBytes);
+    }
+
+    /**
+     * The caller resolves {@code commitmentBytes} first, since which commitment value to compare is a policy decision outside
+     * this record's concern.
+     */
+    public boolean exceedsWatermark(long commitmentBytes, RatioValue watermark) {
+        return commitmentBytes > (long) (cacheSizeInBytes * watermark.getAsRatio());
     }
 
     @Override

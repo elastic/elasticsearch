@@ -20,7 +20,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Error tests for RANGE_CONTAINS(container, value). First argument must be date_range; second must be date or date_range.
+ * Error tests for {@code RANGE_CONTAINS(container, value)}.
  */
 public class RangeContainsErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
@@ -36,6 +36,26 @@ public class RangeContainsErrorTests extends ErrorsForCasesWithoutExamplesTestCa
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, i) -> i == 0 ? "date_range" : "date or date_range"));
+        return equalTo(
+            typeErrorMessage(
+                true,
+                validPerPosition,
+                signature,
+                (v, i) -> i == 0 ? "date_range or double_range"
+                    : signature.get(0) == DataType.DOUBLE_RANGE ? "double or double_range"
+                    : signature.get(0) == DataType.DATE_RANGE ? "date or date_range"
+                    : "date, date_range, double or double_range",
+                () -> {
+                    String expected = signature.get(0) == DataType.DOUBLE_RANGE ? "double or double_range" : "date or date_range";
+                    return "second argument of ["
+                        + sourceForSignature(signature)
+                        + "] must be ["
+                        + expected
+                        + "], found value [] type ["
+                        + signature.get(1).typeName()
+                        + "]";
+                }
+            )
+        );
     }
 }

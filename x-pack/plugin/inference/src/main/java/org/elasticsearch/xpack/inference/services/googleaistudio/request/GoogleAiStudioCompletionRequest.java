@@ -15,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundCompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -29,13 +29,13 @@ public class GoogleAiStudioCompletionRequest implements OutboundCompletionReques
     private static final String ALT_PARAM = "alt";
     private static final String SSE_VALUE = "sse";
 
-    private final ChatCompletionInput input;
+    private final CompletionInput input;
 
     private final LazyInitializable<URI, RuntimeException> uri;
 
     private final GoogleAiStudioCompletionModel model;
 
-    public GoogleAiStudioCompletionRequest(ChatCompletionInput input, GoogleAiStudioCompletionModel model) {
+    public GoogleAiStudioCompletionRequest(CompletionInput input, GoogleAiStudioCompletionModel model) {
         this.input = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
         this.uri = new LazyInitializable<>(() -> model.uri(input.stream()));

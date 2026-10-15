@@ -142,7 +142,8 @@ public class S3ServiceTests extends ESTestCase {
                     S3ClientSettings.getClientSettings(
                         Settings.builder().put("s3.client." + clientName + ".region", region.id()).build(),
                         clientName
-                    )
+                    ),
+                    S3Service.LOG_ON_DEPRECATED_LENIENCY
                 )
             );
 
@@ -150,7 +151,10 @@ public class S3ServiceTests extends ESTestCase {
         }
     }
 
-    @TestLogging(reason = "testing WARN log output", value = "org.elasticsearch.repositories.s3.S3Service:WARN")
+    @TestLogging(
+        reason = "testing WARN log output",
+        value = "org.elasticsearch.repositories.s3.S3Service:WARN,org.elasticsearch.repositories.s3.S3DefaultRegionHolder:WARN"
+    )
     public void testGetClientRegionFromEndpointSettingGuess() {
         final var regionRequested = new AtomicBoolean();
         try (
@@ -214,7 +218,8 @@ public class S3ServiceTests extends ESTestCase {
                     S3ClientSettings.getClientSettings(
                         Settings.builder().put("s3.client." + clientName + ".endpoint", endpoint).build(),
                         clientName
-                    )
+                    ),
+                    S3Service.LOG_ON_DEPRECATED_LENIENCY
                 )
             );
 
@@ -264,14 +269,23 @@ public class S3ServiceTests extends ESTestCase {
                 )
             );
 
-            assertSame(defaultRegion, s3Service.getClientRegion(S3ClientSettings.getClientSettings(Settings.EMPTY, clientName)));
+            assertSame(
+                defaultRegion,
+                s3Service.getClientRegion(
+                    S3ClientSettings.getClientSettings(Settings.EMPTY, clientName),
+                    S3Service.LOG_ON_DEPRECATED_LENIENCY
+                )
+            );
 
             mockLog.assertAllExpectationsMatched();
         }
     }
 
-    @TestLogging(reason = "testing WARN log output", value = "org.elasticsearch.repositories.s3.S3Service:WARN")
-    public void testGetClientRegionFallbackToUsEast1() {
+    @TestLogging(
+        reason = "testing WARN log output",
+        value = "org.elasticsearch.repositories.s3.S3Service:WARN,org.elasticsearch.repositories.s3.S3DefaultRegionHolder:WARN"
+    )
+    public void testGetClientRegionFallbackToUsEast1WithCrossRegionAccess() {
         final var regionRequested = new AtomicBoolean();
         final var exceptionMessage = randomIdentifier();
         try (
@@ -312,12 +326,82 @@ public class S3ServiceTests extends ESTestCase {
                 falling back to [us-east-1] and enabling cross-region access; \
                 to suppress this warning, configure the [s3.client.CLIENT_NAME.region] setting on this node"""));
 
-            assertNull(s3Service.getClientRegion(S3ClientSettings.getClientSettings(Settings.EMPTY, clientName)));
+            assertNull(
+                s3Service.getClientRegion(
+                    S3ClientSettings.getClientSettings(Settings.EMPTY, clientName),
+                    S3Service.LOG_ON_DEPRECATED_LENIENCY
+                )
+            );
 
             mockLog.assertAllExpectationsMatched();
         }
     }
 
+    @TestLogging(
+        reason = "testing WARN log output",
+        value = "org.elasticsearch.repositories.s3.S3Service:WARN,org.elasticsearch.repositories.s3.S3DefaultRegionHolder:WARN"
+    )
+    public void testGetClientRegionGuessedAsUsEast1() {
+        final var regionRequested = new AtomicBoolean();
+        final var exceptionMessage = randomIdentifier();
+        try (
+            var s3Service = new S3Service(
+                mock(Environment.class),
+                ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                mock(ResourceWatcherService.class),
+                () -> {
+                    assertTrue(regionRequested.compareAndSet(false, true));
+                    throw new ElasticsearchException(exceptionMessage);
+                }
+            );
+            var mockLog = MockLog.capture(S3Service.class, S3DefaultRegionHolder.class)
+        ) {
+            s3Service.start();
+            assertTrue(regionRequested.get());
+
+            final var clientName = randomBoolean() ? "default" : randomIdentifier();
+            final var endpointHost = randomIdentifier() + ".ignore";
+            final var endpoint = randomFrom(endpointHost, "https://" + endpointHost, "http://" + endpointHost);
+
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "default provider chain failure",
+                    S3DefaultRegionHolder.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to obtain region from default provider chain"
+                ) {
+                    @Override
+                    public void match(LogEvent event) {
+                        if (event.getThrown() instanceof ElasticsearchException e && exceptionMessage.equals(e.getMessage())) {
+                            super.match(event);
+                        }
+                    }
+                }
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("warning", S3Service.class.getCanonicalName(), Level.WARN, Strings.format("""
+                    found S3 client with no configured region and configured endpoint [%s], \
+                    falling back to [us-east-1]; \
+                    to suppress this warning, configure the [s3.client.CLIENT_NAME.region] setting on this node""", endpoint))
+            );
+
+            assertSame(
+                Region.US_EAST_1,
+                s3Service.getClientRegion(
+                    S3ClientSettings.getClientSettings(
+                        Settings.builder().put("s3.client." + clientName + ".endpoint", endpoint).build(),
+                        clientName
+                    ),
+                    S3Service.LOG_ON_DEPRECATED_LENIENCY
+                )
+            );
+
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    @TestLogging(reason = "testing WARN log output", value = "org.elasticsearch.repositories.s3.S3Service:WARN")
     public void testEndpointOverrideSchemeDefaultsToHttpsWhenNotSpecified() {
         final var endpointWithoutScheme = randomIdentifier() + ".ignore";
         final var clientName = randomIdentifier();
@@ -327,6 +411,7 @@ public class S3ServiceTests extends ESTestCase {
         );
     }
 
+    @TestLogging(reason = "testing WARN log output", value = "org.elasticsearch.repositories.s3.S3Service:WARN")
     public void testEndpointOverrideSchemeUsesHttpsIfHttpsProtocolSpecified() {
         final var endpointWithoutScheme = randomIdentifier() + ".ignore";
         final var clientName = randomIdentifier();
@@ -344,6 +429,7 @@ public class S3ServiceTests extends ESTestCase {
             See the breaking changes documentation for the next major version.""", clientName));
     }
 
+    @TestLogging(reason = "testing WARN log output", value = "org.elasticsearch.repositories.s3.S3Service:WARN")
     public void testEndpointOverrideSchemeUsesHttpIfHttpProtocolSpecified() {
         final var endpointWithoutScheme = randomIdentifier() + ".ignore";
         final var clientName = randomIdentifier();
@@ -369,13 +455,32 @@ public class S3ServiceTests extends ESTestCase {
                 TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 mock(ResourceWatcherService.class),
                 () -> Region.of(randomIdentifier())
-            )
+            );
+            var mockLog = MockLog.capture(S3Service.class)
         ) {
             s3Service.start();
-            return s3Service.buildClient(S3ClientSettings.getClientSettings(settings.build(), clientName), mock(SdkHttpClient.class))
+            final var clientSettings = S3ClientSettings.getClientSettings(settings.build(), clientName);
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "missing scheme",
+                    S3Service.class.getCanonicalName(),
+                    Level.WARN,
+                    Strings.format(
+                        """
+                            found S3 client with endpoint [%s] that is missing a scheme, guessing it should be [%s://%s]; \
+                            to suppress this warning, add a scheme prefix to the [s3.client.CLIENT_NAME.endpoint] setting on this node""",
+                        clientSettings.endpoint,
+                        clientSettings.protocol.getSchemeString(),
+                        clientSettings.endpoint
+                    )
+                )
+            );
+            final var endpointUri = s3Service.buildClient(clientSettings, mock(SdkHttpClient.class))
                 .serviceClientConfiguration()
                 .endpointOverride()
                 .get();
+            mockLog.assertAllExpectationsMatched();
+            return endpointUri;
         }
     }
 }

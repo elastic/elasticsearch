@@ -1,0 +1,385 @@
+products:
+- product: cloud-serverless
+  target: 2026-08-20
+  repo: elasticsearch
+  owner: elastic
+release-date: 2026-08-20
+hide-features:
+- data-federation
+entries:
+- file:
+    name: 156325.yaml
+    checksum: 62b0e694c14e940476fc498fce9c1686beb081e9
+  type: enhancement
+  title: Speed up vector merge scoring on the stateless indexing tier
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Improves HNSW merge scoring on stateless indexing nodes by scoring vector data on memory segments instead of copying each vector onto the heap.
+  areas:
+  - Performance
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156325
+  issues:
+  - '# PRIVATE: https://github.com/elastic/elasticsearch-serverless/issues/6066'
+  - '# PRIVATE: https://github.com/elastic/elasticsearch-serverless/issues/6087'
+- file:
+    name: 156466.yaml
+    checksum: 91a2a6101913818130a75eafd1f1d6c0eea04c7d
+  type: bug-fix
+  title: Fix search failures when excluding source vectors
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes searches that failed with a too-complex regex error when excluding vector fields from `_source` on indices with many field patterns, including indices with no vector fields.
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156466
+- file:
+    name: 156779.yaml
+    checksum: 59451ae960be89acfa4a395ad49ed46db229efaf
+  type: bug-fix
+  title: Fix delayed search context release under load
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes search context teardown that used a single thread and could backlog tasks and heap when many contexts needed to be freed.
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156779
+- file:
+    name: 155600.yaml
+    checksum: c50fdc367d3aded44e47c2f4bca79bbdacd84b7c
+  type: bug-fix
+  title: Fix circuit breaker tracking for high-cardinality aggregations
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes missing request-breaker accounting for deferred aggregation collectors used by rare-terms, auto-date-histogram, and variable-width-histogram aggregations, which could exhaust heap.
+  areas:
+  - Aggregations
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/155600
+- file:
+    name: 155586.yaml
+    checksum: 020fe805818770156cd2b5e0efbe95d038660fd2
+  type: bug-fix
+  title: Fix percentile aggregations that caused nodes to run out of memory
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes circuit breaker accounting for T-Digest percentile aggregations. High-cardinality `terms` plus `percentiles` queries now trip the breaker instead of exhausting heap.
+  areas:
+  - Aggregations
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/155586
+- file:
+    name: 156650.yaml
+    checksum: d82e77b8b9e4f2763098fbd49f3df8802b105629
+  type: enhancement
+  title: Enable the ES|QL `DEDUP` command as a technical preview
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156650
+- file:
+    name: 155314.yaml
+    checksum: 71bcdb0384ab6c6efbee54848dd9c5be2eadcafd
+  type: bug-fix
+  title: Fix Anthropic streaming chat completions in the unified inference API
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes translation of Anthropic streamed responses into the unified schema, including reasoning blocks, usage, chunk types, and tool-call function fields.
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/155314
+- file:
+    name: 156386.yaml
+    checksum: dbf4f248f49f880e6dcf80d520c4eeb286e520a9
+  type: bug-fix
+  title: Fix unauthorized Kibana mapping updates on `.entities.*` indices
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes `kibana_system` requests that failed `putMapping` on `.entities.*` by granting `manage` and `delete_index` for entity-store metadata indices.
+  areas:
+  - Authorization
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156386
+- file:
+    name: 156332.yaml
+    checksum: d40c9d0088debb574e362cc891f9428f4bb890f7
+  type: bug-fix
+  title: Fix empty nested kNN `inner_hits` after vector rescoring
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes quantized nested kNN searches where `inner_hits` scored against quantized vectors while the query phase rescored against full-precision vectors, which could return a parent with empty `inner_hits`.
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156332
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/138496
+- file:
+    name: 156728.yaml
+    checksum: 0caf673a439da90d936ead8c2c3359405045139c
+  type: bug-fix
+  title: Fix `dense_vector` queries failing on unmapped fields
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes `dense_vector` queries on index patterns where some shards do not map the field. Those shards now match no documents instead of failing the search.
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156728
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/154361
+- file:
+    name: 155978.yaml
+    checksum: 939d195d175833387659c53f064a0aec16afcbee
+  type: enhancement
+  title: Include snapshot names in index delete and close errors
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Improves errors when delete or close is blocked by a snapshot by naming each blocking snapshot as `repository/snapshot`.
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/155978
+- file:
+    name: 155580.yaml
+    checksum: d132f87fe838660158c04fed49ed26a66fd0be8e
+  type: bug-fix
+  title: Fix nested integer sorts treating parent documents as missing
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes nested sorts on integer fields that treated every parent as missing on indices created before the integer-sort optimization in 8.19 and on 9.0.x indices.
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/155580
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/155243
+- file:
+    name: 156683.yaml
+    checksum: faac98612a930701a7636de9f1f90ef2add87200
+  type: bug-fix
+  title: Fix `_msearch` circuit breaker leaks on failed sub-searches
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes multi-search requests that did not charge failed sub-search responses to the request circuit breaker, which could contribute to out-of-memory errors.
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156683
+- file:
+    name: 156396.yaml
+    checksum: c8036f7a1881c72ec3c36f1c49f1d629fd790c61
+  type: enhancement
+  title: Selectively enable `MADV_RANDOM` on the stateless indexing tier for stored fields
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Enables `MADV_RANDOM` for stored fields on stateless indexing nodes so the kernel can use random-access advice already requested by Lucene.
+  areas:
+  - Distributed
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156396
+- file:
+    name: 156585.yaml
+    checksum: 68e7c0c644bcf0b8da61039d77b8cac6c2d55625
+  type: enhancement
+  title: Skip loading unmapped fields for ES|QL `KEEP` without wildcards
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Improves ES|QL queries that use an unpatterned `KEEP` by skipping the unmapped-fields `_source` load during analysis.
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156585
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/156173
+- file:
+    name: 156643.yaml
+    checksum: be397ca1655ed170175b1c0417ae5706ddb2cd29
+  type: other
+  title: Upgrade to Lucene 10.5.1
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156643
+- file:
+    name: 155782.yaml
+    checksum: fe16610ceace56dac4ab2a1ea40f4ede34faf369
+  type: enhancement
+  title: Upgrade the Google Cloud Storage SDK
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Upgrades the Google Cloud Storage SDK so snapshot and restore can use concurrent multipart uploads.
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/155782
+- file:
+    name: 156623.yaml
+    checksum: 907894dd533aedc2da78d8e0ca276a2ef8be4607
+  type: bug-fix
+  title: Fix `auto_calibrate` failing as an experimental index option
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes vector `auto_calibrate` index options that still failed as experimental after the feature was released.
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156623
+- file:
+    name: 156382.yaml
+    checksum: 520873ffcf0bace60fa7bfc014291734db4f57c2
+  type: bug-fix
+  title: Fix exceptions when truncating large JSON for logging
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes diagnostic JSON truncation that threw an exception when a large object was cut off mid-structure, instead of returning a truncated string for logs.
+  areas:
+  - Infra/Core
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156382
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/156289
+- file:
+    name: 156603.yaml
+    checksum: b2ca468b2fb91b904e23c61815d601f88e82cf5a
+  type: bug-fix
+  title: Fix inference cache broadcasts on multi-node clusters
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes inference plugin broadcasts that were not serialized, so remote nodes never received cache-clear and authorization messages and could fail when assertions were enabled.
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156603
+- file:
+    name: 156341.yaml
+    checksum: 2e845c929cdd97f640f47d517a5e44b2bf0a96e0
+  type: bug-fix
+  title: Fix field-level security leaking offset fields in LogsDB
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes LogsDB indices with field-level security that did not filter the `.offsets` companion field from search results.
+  areas:
+  - Logs
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156341
+  issues:
+  - '# PRIVATE: https://github.com/elastic/elasticsearch-internal/issues/1976'
+- file:
+    name: 156649.yaml
+    checksum: a06ebe68baada2fd89313529a642ccb02c76a96f
+  type: enhancement
+  title: Add PromQL `histogram_fraction` for native histograms
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  areas:
+  - PromQL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156649
+- file:
+    name: 156665.yaml
+    checksum: e9c2bc68cac0a898fbde11dc653209224d1cb8f6
+  type: bug-fix
+  title: Fix Google Vertex AI tool-call arguments that are not strings
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes unified chat completion requests to Google Vertex AI that failed when tool-call arguments contained arrays, numbers, or nested objects.
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156665
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/156644
+- file:
+    name: 156203.yaml
+    checksum: f794c3d8ee8ca23d22b948cd95f42c625a8f5906
+  type: other
+  title: Bump JDK to 26.0.2
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  areas:
+  - Infra/Core
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156203
+- file:
+    name: 156413.yaml
+    checksum: 631d499ec53a200400f5f04df03e488bcebb8955
+  type: bug-fix
+  title: Fix T-Digest `percentile_rank` using different interpolation than quantiles
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes T-Digest `percentile_ranks` aggregations that interpolated differently from quantile calculations, which produced inconsistent rank results.
+  areas:
+  - TSDB
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156413
+- file:
+    name: 155697.yaml
+    checksum: f6de82c6587dbb473982484ded7d306e9d22e1ac
+  type: bug-fix
+  title: Fix scroll retries after transient search thread pool rejection
+  products:
+  - product: cloud-serverless
+    target: 2026-08-20
+  - product: elasticsearch
+  description: Fixes scroll continuations that freed the scroll context when the search thread pool was full, so retries with the same `scroll_id` failed.
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/155697
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/90912

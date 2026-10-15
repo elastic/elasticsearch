@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 
@@ -89,5 +90,27 @@ public abstract class CollectionUtils {
             }
         }
         return List.of(result);
+    }
+
+    public static <T, E extends T> List<E> collect(Iterable<T> collection, Class<E> clazz) {
+        List<E> result = new ArrayList<>();
+        for (T element : collection) {
+            if (clazz.isInstance(element)) {
+                result.add(clazz.cast(element));
+            }
+        }
+        return result;
+    }
+
+    /** Returns the index of the first element satisfying the predicate, or -1 if none. */
+    public static <T> int findIndex(List<T> list, Predicate<T> p) {
+        int i = 0;
+        for (T t : list) {
+            if (p.test(t)) {
+                return i;
+            }
+            i++;
+        }
+        return -1;
     }
 }

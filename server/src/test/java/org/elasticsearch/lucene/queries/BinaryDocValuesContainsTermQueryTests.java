@@ -10,10 +10,18 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
@@ -30,6 +38,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL;
+import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
 import static org.elasticsearch.lucene.queries.BinaryDocValuesContainsTermQuery.contains;
 
 public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
@@ -47,11 +57,18 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
                     // A multi-valued doc is present, so the maxValue<=1 gate disables the whole-blob tryContainsIterator and the per-value
                     // decode fallback runs. "et" is contained by "beta" in the multi-value and single-value docs; the all-null doc that
                     // immediately precedes the single-value "beta" doc must not be matched.
-                    assertEquals(2, searcher.count(new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("et"), true)));
+                    assertEquals(
+                        2,
+                        searcher.count(new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("et"), ARRAY_ORDER_INLINE_NULL))
+                    );
                     // The bytes {'a', 0x03, 'b'} appear contiguously in the raw multi-value blob of ["xa","bz"] (the 0x03 is the length
                     // prefix of "bz"), so a whole-blob scan would falsely match. Per-value decoding tests "xa" and "bz" individually and
                     // correctly finds no match — guarding that the gate routes multi-value contains away from the raw-blob fast path.
-                    var framingTerm = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(new byte[] { 'a', 0x03, 'b' }), true);
+                    var framingTerm = new BinaryDocValuesContainsTermQuery(
+                        fieldName,
+                        new BytesRef(new byte[] { 'a', 0x03, 'b' }),
+                        ARRAY_ORDER_INLINE_NULL
+                    );
                     assertEquals(0, searcher.count(framingTerm));
                 }
             }
@@ -168,7 +185,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("search"), false);
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("search"), SEPARATE_COUNT);
                     assertEquals(3, searcher.count(query));
                 }
             }
@@ -190,7 +207,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("ell"), false);
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("ell"), SEPARATE_COUNT);
                     assertEquals(2, searcher.count(query));
                 }
             }
@@ -206,7 +223,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("test"), false);
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("test"), SEPARATE_COUNT);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -220,7 +237,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
                 writer.addDocument(new Document());
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("test"), false);
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("test"), SEPARATE_COUNT);
                     assertEquals(1, searcher.count(query));
                 }
             }
@@ -237,7 +254,7 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
                 try (IndexReader reader = writer.getReader()) {
                     IndexSearcher searcher = newSearcher(reader);
-                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("xyz"), false);
+                    Query query = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("xyz"), SEPARATE_COUNT);
                     assertEquals(0, searcher.count(query));
                 }
             }
@@ -270,14 +287,14 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
                     );
                     searcher.setCircuitBreaker(breaker);
 
-                    Query present = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("search"), false);
+                    Query present = new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef("search"), SEPARATE_COUNT);
                     expectThrows(CircuitBreakingException.class, () -> searcher.count(present));
                     // Checkpointed with 0 bytes so the child breaker never accumulates and nothing needs releasing.
                     assertEquals(0L, checkpointedBytes.get());
 
                     // A field absent from the segment opens no binary doc values reader, so the checkpoint must not fire.
                     checkpointedBytes.set(-1);
-                    Query absent = new BinaryDocValuesContainsTermQuery("missing", new BytesRef("search"), false);
+                    Query absent = new BinaryDocValuesContainsTermQuery("missing", new BytesRef("search"), SEPARATE_COUNT);
                     assertEquals(0, searcher.count(absent));
                     assertEquals(-1L, checkpointedBytes.get());
 
@@ -290,15 +307,73 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        BinaryDocValuesContainsTermQuery q1 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("term"), false);
-        BinaryDocValuesContainsTermQuery q2 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("term"), false);
-        BinaryDocValuesContainsTermQuery q3 = new BinaryDocValuesContainsTermQuery("other", new BytesRef("term"), false);
-        BinaryDocValuesContainsTermQuery q4 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("other"), false);
+        BinaryDocValuesContainsTermQuery q1 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("term"), SEPARATE_COUNT);
+        BinaryDocValuesContainsTermQuery q2 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("term"), SEPARATE_COUNT);
+        BinaryDocValuesContainsTermQuery q3 = new BinaryDocValuesContainsTermQuery("other", new BytesRef("term"), SEPARATE_COUNT);
+        BinaryDocValuesContainsTermQuery q4 = new BinaryDocValuesContainsTermQuery("field", new BytesRef("other"), SEPARATE_COUNT);
 
         assertEquals(q1, q2);
         assertEquals(q1.hashCode(), q2.hashCode());
         assertNotEquals(q1, q3);
         assertNotEquals(q1, q4);
+    }
+
+    public void testNoBinaryDocValuesOpenedDuringPlanning() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = newRandomIndexWriter(dir)) {
+                addSingleValueDoc(writer, "field", "hello");
+                try (DirectoryReader reader = forbidBinaryDvOpenReader(writer.getReader())) {
+                    final IndexSearcher searcher = new IndexSearcher(reader);
+                    final Weight weight = new BinaryDocValuesContainsTermQuery("field", new BytesRef("hello"), SEPARATE_COUNT).createWeight(
+                        searcher,
+                        ScoreMode.COMPLETE_NO_SCORES,
+                        1f
+                    );
+                    for (LeafReaderContext ctx : reader.leaves()) {
+                        weight.scorerSupplier(ctx);
+                    }
+                }
+            }
+        }
+    }
+
+    private static DirectoryReader forbidBinaryDvOpenReader(DirectoryReader reader) throws IOException {
+        return new FilterDirectoryReader(reader, new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                return new FilterLeafReader(leaf) {
+                    @Override
+                    public BinaryDocValues getBinaryDocValues(String field) {
+                        throw new AssertionError(
+                            "getBinaryDocValues() must not be called during scorerSupplier() (planning phase);"
+                                + " defer reader construction to ScorerSupplier#get(). field=["
+                                + field
+                                + "]"
+                        );
+                    }
+
+                    @Override
+                    public IndexReader.CacheHelper getCoreCacheHelper() {
+                        return null;
+                    }
+
+                    @Override
+                    public IndexReader.CacheHelper getReaderCacheHelper() {
+                        return null;
+                    }
+                };
+            }
+        }) {
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+                return in;
+            }
+
+            @Override
+            public IndexReader.CacheHelper getReaderCacheHelper() {
+                return null;
+            }
+        };
     }
 
     private static void addSingleValueDoc(RandomIndexWriter writer, String fieldName, String value) throws IOException {

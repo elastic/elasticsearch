@@ -36,6 +36,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
 
     private static final String TEMPLATE = """
         {
+            %%settings%%
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -75,7 +76,19 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             maybeEnableLogsdbByDefault();
 
             final String tagKeepMode = columnarEnabled ? "" : ",\"synthetic_source_keep\":\"all\"";
-            final String template = TEMPLATE.replace("%%tag_keep_mode%%", tagKeepMode);
+            String template = TEMPLATE.replace("%%tag_keep_mode%%", tagKeepMode);
+            final Version oldVersion = System.getProperty("tests.old_cluster_version") != null
+                ? Version.fromString(System.getProperty("tests.old_cluster_version"))
+                : Version.CURRENT;
+            // 9.4.x nodes write _ignored_source using stored fields on release builds but doc values
+            // on snapshot builds, making the on-disk format ambiguous during a rolling upgrade.
+            // Disable the TSDB doc-values format so both old and new nodes use stored fields,
+            // eliminating the conflict while still exercising _ignored_source via synthetic_source_keep.
+            final boolean ignoredSourceFormatIsStable = oldVersion.before("9.4.0") || oldVersion.onOrAfter(Version.fromString("9.5.0"));
+            final String settingsJson = ignoredSourceFormatIsStable
+                ? ""
+                : "\"settings\": {\"index.use_time_series_doc_values_format\": false},";
+            template = template.replace("%%settings%%", settingsJson);
 
             String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
             createTemplate(dataStreamName, templateId, template);
@@ -131,7 +144,11 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
         String hostName = "host" + j % 50; // Not realistic, but makes asserting search / query response easier.
         String methodName = "method" + j % 5;
         String ip = NetworkAddress.format(randomIp(true));
-        String message = randomAlphaOfLength(128);
+        // Every ~100th document uses a message that exceeds the binary doc-values block threshold
+        // (512 KB). The text field value is stored as binary doc values in its fallback field for
+        // synthetic source reconstruction, so the oversized value lands in a single-doc block and
+        // exercises the verbatim-copy path in addRawBlock during force merges.
+        String message = (j % 100 == 0) ? randomAlphaOfLength(1024 * 1024) : randomAlphaOfLength(128);
         long length = randomLong();
         double factor = randomDouble();
         String tag = randomAlphaOfLengthBetween(3, 8);

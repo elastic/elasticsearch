@@ -156,6 +156,17 @@ public final class LongRangeArrayBlock extends AbstractBlockRefCounted implement
 
     @Override
     public LongRangeBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (LongRangeBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
         LongRangeBlock result = null;
         LongBlock newFromBlock = null;
         LongBlock newToBlock = null;
@@ -174,7 +185,7 @@ public final class LongRangeArrayBlock extends AbstractBlockRefCounted implement
     @Override
     public ReleasableIterator<? extends LongRangeBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         // TODO: support
-        throw new UnsupportedOperationException("can't lookup values from DateRangeBlock");
+        throw new UnsupportedOperationException("can't lookup values from LongRangeBlock");
     }
 
     @Override

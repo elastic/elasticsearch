@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.ESSloppyMath;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -29,7 +30,7 @@ import java.util.List;
 /**
  * Inverse hyperbolic sine function.
  */
-public class Asinh extends AbstractTrigonometricFunction {
+public class Asinh extends AbstractTrigonometricFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Asinh", Asinh::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Asinh.class).unary(Asinh::new).name("asinh");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()

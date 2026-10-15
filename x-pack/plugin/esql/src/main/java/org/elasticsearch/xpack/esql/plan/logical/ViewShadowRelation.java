@@ -44,22 +44,17 @@ import java.util.Objects;
  *       <em>(deferred to the lenient field-caps PR)</em></li>
  *   <li>The {@code ResolveViewShadow} analyzer rule (sibling of {@code ResolveTable}, in the
  *       Initialize batch) consults {@code AnalyzerContext.optionalLinkedResolution} for this shadow's
- *       {@link #linkedIndexPattern()}. If a remote <em>index</em> is found the shadow is replaced
- *       with a corresponding {@code EsRelation}; otherwise the shadow is left unresolved.
- *       <em>(this PR — backed by a mocked {@code optionalLinkedResolution} map until the lenient
- *       field-caps PR provides real data)</em></li>
+ *       {@link #linkedIndexPattern()}. If a remote <em>index</em> is found (a valid resolution that
+ *       matched at least one index) the shadow is replaced with a corresponding {@code EsRelation};
+ *       otherwise (including a valid-but-empty resolution) the shadow is left unresolved.
+ *       Backed by a mocked {@code optionalLinkedResolution} map until lenient field-caps
+ *       provides real data.</li>
  *   <li>{@code ViewCompactionPostIndexResolution} runs after {@code ResolveViewShadow}: any
  *       still-unresolved shadow is stripped, then nested {@link ViewUnionAll}s are flattened
- *       and remaining {@code NamedSubquery} wrappers unwrapped. Per Strategy A in
- *       <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a>,
- *       sibling {@code EsRelation}s stay separate (a {@code UnionAll}/{@link ViewUnionAll}
- *       of {@code EsRelation}s) rather than being merged via a third combined field-caps call.
- *       <em>(landed)</em></li>
+ *       and remaining {@code NamedSubquery} wrappers unwrapped.
+ *       Sibling {@code EsRelation}s stay separate (a {@code UnionAll}/{@link ViewUnionAll}
+ *       of {@code EsRelation}s) rather than being merged via a third combined field-caps call.</li>
  * </ol>
- * The strict, default-options field-caps path on the local cluster keeps {@code resolveViews(true)}
- * unchanged, so a remote project that has a <em>view</em> with the same name still fails the query
- * with {@code RemoteViewNotSupportedException}. This node only enables lookup of remote
- * <em>indices</em> with the same name as a local view.
  */
 public class ViewShadowRelation extends LeafPlan implements Unresolvable {
 

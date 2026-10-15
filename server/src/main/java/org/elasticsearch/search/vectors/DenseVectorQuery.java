@@ -512,7 +512,7 @@ public abstract class DenseVectorQuery extends Query {
             public float score() throws IOException {
                 BytesRef ref = values.binaryValue();
                 if (elementType == ElementType.BFLOAT16) {
-                    VectorEncoderDecoder.decodeBFloat16DenseVector(ref, decoded);
+                    VectorEncoderDecoder.decodeBFloat16DenseVector(indexVersion, ref, decoded);
                 } else {
                     VectorEncoderDecoder.decodeDenseVector(indexVersion, ref, decoded);
                 }
@@ -703,8 +703,13 @@ public abstract class DenseVectorQuery extends Query {
         public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
             collector.setScorer(scorable);
 
-            if (scorer.docID() < min) {
-                scorer.iterator().advance(min);
+            int currentDoc = scorer.docID();
+            if (currentDoc < min) {
+                currentDoc = scorer.iterator().advance(min);
+            }
+
+            if (currentDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                return DocIdSetIterator.NO_MORE_DOCS;
             }
 
             for (scorer.nextDocsAndScores(max, acceptDocs, buffer); buffer.size > 0; scorer.nextDocsAndScores(max, acceptDocs, buffer)) {

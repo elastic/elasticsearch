@@ -15,14 +15,15 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests;
 import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 import org.junit.Before;
@@ -110,9 +111,7 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void configureClustersIfNeeded() throws Exception {
         if (clustersConfigured == false) {
             configureClusters();
             clustersConfigured = true;
@@ -127,8 +126,8 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
         InferenceStringGroup embeddingInput = qvb instanceof EmbeddingQueryVectorBuilder eqvb ? eqvb.getInput() : null;
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(field, qvb, 10, 100, 10f, null);
 
-        boolean localCompatible = isCompatible(qvbType, localFieldType, embeddingInput);
-        boolean remoteCompatible = isCompatible(qvbType, remoteFieldType, embeddingInput);
+        boolean localCompatible = isCompatible(qvb, localFieldType, embeddingInput);
+        boolean remoteCompatible = isCompatible(qvb, remoteFieldType, embeddingInput);
 
         if (localCompatible && remoteCompatible) {
             String expectedLocalAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundtrips);
@@ -173,8 +172,12 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
             case QVB_GENERIC -> new GenericQueryVectorBuilder(
                 generateDenseVectorFieldValue(DIMS, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f)
             );
-            case QVB_TEXT_EMBEDDING -> new TextEmbeddingQueryVectorBuilder(null, "hello");
-            case QVB_EMBEDDING -> new EmbeddingQueryVectorBuilder(null, randomEmbeddingInput(), null);
+            case QVB_TEXT_EMBEDDING -> new TextEmbeddingQueryVectorBuilder(randomBoolean() ? null : TEXT_EMBEDDING_INFERENCE_ID, "hello");
+            case QVB_EMBEDDING -> new EmbeddingQueryVectorBuilder(
+                randomBoolean() ? null : EMBEDDING_INFERENCE_ID,
+                randomEmbeddingInput(),
+                null
+            );
             case QVB_LOOKUP -> new LookupQueryVectorBuilder(docId(LOOKUP_SOURCE_FIELD), LOCAL_INDEX_NAME, LOOKUP_SOURCE_FIELD, null);
             default -> throw new IllegalArgumentException("unknown qvb type: " + qvbType);
         };
@@ -202,30 +205,44 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
     }
 
     /**
-     * Returns true when the QVB can resolve an embedding for the given field type without an explicit model/inference ID.
+     * Returns true if the QVB has a model/inference ID configured, or if it can resolve an embedding for the given field type
+     * without an explicit model/inference ID.
      * <ul>
      *   <li>{@code generic} and {@code lookup} supply a pre-computed vector — always compatible.</li>
-     *   <li>{@code text_embedding} requires an inference endpoint on the field ({@code semantic_text} or {@code semantic}).</li>
-     *   <li>{@code embedding} also requires an inference endpoint, but additionally the input type must match what the endpoint
-     *       supports: {@code embedding} (EMBEDDING) endpoints accept all input types; {@code text_embedding} (TEXT_EMBEDDING)
-     *       endpoints only accept single plain-text inputs.</li>
+     *   <li>{@code text_embedding} if model is not set, it requires an inference
+     *   endpoint on the field ({@code semantic_text} or {@code semantic}).</li>
+     *   <li>{@code embedding} if inference id is not set, it also requires an inference endpoint on the field.
+     *   Additionally, the input type must match what the endpoint supports: {@code embedding} (EMBEDDING) endpoints accept all input types;
+     *   {@code text_embedding} (TEXT_EMBEDDING) endpoints only accept single plain-text inputs.</li>
      * </ul>
      */
-    private static boolean isCompatible(String qvbType, String fieldType, @Nullable InferenceStringGroup embeddingInput) {
-        return switch (qvbType) {
-            case QVB_GENERIC, QVB_LOOKUP -> true;
-            case QVB_TEXT_EMBEDDING -> fieldType.equals("semantic_text") || fieldType.equals("semantic");
-            case QVB_EMBEDDING -> switch (fieldType) {
-                // EMBEDDING endpoints accept all input types
-                case "semantic" -> true;
-                // TEXT_EMBEDDING endpoints only accept single plain-text inputs
-                case "semantic_text" -> embeddingInput != null
-                    && embeddingInput.containsNonTextEntry() == false
-                    && embeddingInput.containsMultipleInferenceStrings() == false;
-                // dense_vector has no inference endpoint
-                default -> false;
-            };
-            default -> throw new IllegalArgumentException("unknown qvb type: " + qvbType);
+    private static boolean isCompatible(QueryVectorBuilder qvb, String fieldType, @Nullable InferenceStringGroup embeddingInput) {
+        return switch (qvb) {
+            case GenericQueryVectorBuilder ignored -> true;
+            case LookupQueryVectorBuilder ignored -> true;
+            case TextEmbeddingQueryVectorBuilder teqvb -> {
+                if (teqvb.getModelId() != null) {
+                    yield true;
+                }
+                yield fieldType.equals("semantic_text") || fieldType.equals("semantic");
+            }
+            case EmbeddingQueryVectorBuilder eqvb -> {
+                if (eqvb.getInferenceId() != null) {
+                    yield true;
+                } else {
+                    yield switch (fieldType) {
+                        // EMBEDDING endpoints accept all input types
+                        case "semantic" -> true;
+                        // TEXT_EMBEDDING endpoints only accept single plain-text inputs
+                        case "semantic_text" -> embeddingInput != null
+                            && embeddingInput.containsNonTextEntry() == false
+                            && embeddingInput.containsMultipleInferenceStrings() == false;
+                        // dense_vector has no inference endpoint
+                        default -> false;
+                    };
+                }
+            }
+            default -> throw new IllegalArgumentException("Unrecognized qvb class: " + qvb.getClass());
         };
     }
 
@@ -275,7 +292,7 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
             Map.of(LOOKUP_SOURCE_FIELD, generateDenseVectorFieldValue(DIMS, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f))
         );
 
-        Map<String, MinimalServiceSettings> inferenceEndpoints = Map.of(
+        Map<String, EndpointClusterState> inferenceEndpoints = Map.of(
             TEXT_EMBEDDING_INFERENCE_ID,
             textEmbeddingServiceSettings(DIMS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
             EMBEDDING_INFERENCE_ID,
@@ -308,7 +325,8 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
     private Object fieldValue(String fieldType) {
         return switch (fieldType) {
             case "dense_vector" -> generateDenseVectorFieldValue(DIMS, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f);
-            case "semantic_text", "semantic" -> "hello";
+            case "semantic_text" -> "hello";
+            case "semantic" -> SemanticTextFieldTests.randomSemanticInput(true);
             default -> throw new IllegalArgumentException("unknown field type: " + fieldType);
         };
     }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -119,7 +120,7 @@ public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
     }
 
     private static BlockFactory blockFactory() {
-        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     private static CsvFormatOptions bracketsDefault() {
@@ -128,7 +129,7 @@ public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
             '"',
             '\\',
             "//",
-            "",
+            null,
             StandardCharsets.UTF_8,
             null,
             CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
@@ -138,7 +139,7 @@ public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
         );
     }
 
-    private static class ByteArrayStorageObject implements StorageObject {
+    private static class ByteArrayStorageObject extends AbstractTestStorageObject {
         private final byte[] bytes;
 
         ByteArrayStorageObject(byte[] bytes) {

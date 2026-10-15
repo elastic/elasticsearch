@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.TransportVersion;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -43,6 +45,16 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
  * these tests only snapshot the plan.
  */
 public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
+    private static final String ESQL_SUM_LONG_OVERFLOW_FIX = "esql_sum_long_overflow_fix";
+
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public HeterogeneousFromPushdownGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(
         Stage.LOGICAL_OPTIMIZATION,
@@ -80,7 +92,7 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
 
     /** {@code AVG} is surrogate-substituted to {@code SUM}/{@code COUNT}, so it pushes through the algebraic path. */
     public void testAvgPushedViaSumCount() {
-        runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS a = AVG(salary) BY dept");
+        heavyGoldenTest("FROM heavy_a, heavy_b | STATS a = AVG(salary) BY dept").expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX).run();
     }
 
     /** Mixed {@code STATS}: the algebraic {@code COUNT} and the intermediate-state {@code COUNT_DISTINCT} both push. */
@@ -90,7 +102,8 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
 
     /** Algebraic aggregates push even with a per-aggregate filter ({@code ToPartial} is not involved). */
     public void testFilteredAlgebraicPushed() {
-        runHeavyGoldenTest("FROM heavy_a, heavy_b | STATS s = SUM(salary) WHERE salary > 0");
+        heavyGoldenTest("FROM heavy_a, heavy_b | STATS s = SUM(salary) WHERE salary > 0").expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
+            .run();
     }
 
     /**
@@ -140,12 +153,14 @@ public class HeterogeneousFromPushdownGoldenTests extends GoldenTestCase {
     }
 
     private void runHeavyGoldenTest(String query) {
+        heavyGoldenTest(query).run();
+    }
+
+    private TestBuilder heavyGoldenTest(String query) {
         assumeTrue("Requires external data source FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
-        builder(query).stages(STAGES)
-            .transportVersion(TransportVersion.current())
+        return builder(query).stages(STAGES)
             .datasetMetadata(heavyDatasetMetadata())
-            .externalSourceResolution(heavyExternalSourceResolution())
-            .run();
+            .externalSourceResolution(heavyExternalSourceResolution());
     }
 
     /** Registers {@code heavy_a} and {@code heavy_b} as external datasets so {@code FROM heavy_a, heavy_b} is a UnionAll. */

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160797
+summary: One Parquet group may sit above the byte cap
+type: enhancement

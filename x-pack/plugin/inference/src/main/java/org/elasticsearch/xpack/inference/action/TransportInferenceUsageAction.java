@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
@@ -23,6 +21,8 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.inference.InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 
 public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAction {
@@ -183,7 +184,9 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         for (TaskType taskType : TaskType.values()) {
             if (taskType == TaskType.ANY
                 || (taskType == TaskType.EMBEDDING
-                    && featureService.clusterHasFeature(clusterService.state(), EMBEDDING_TASK_TYPE) == false)) {
+                    && featureService.clusterHasFeature(clusterService.state(), EMBEDDING_TASK_TYPE) == false)
+                || (taskType == TaskType.DOCUMENT_EXTRACTION
+                    && featureService.clusterHasFeature(clusterService.state(), DOCUMENT_EXTRACTION_TASK_TYPE) == false)) {
                 continue;
             }
             var allStatsForTaskType = endpointStats.computeIfAbsent(

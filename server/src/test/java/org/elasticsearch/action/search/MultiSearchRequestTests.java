@@ -214,7 +214,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         MultiSearchRequest request = parseMultiSearchRequestFromStringAndParams("""
             {}
             {"query":{"match_all":{}}}
-            """, Map.of(SliceIndexing.PARAM_NAME, "s1,s2"));
+            """, Map.of(SliceIndexing.FIELD_NAME, "s1,s2"));
         assertThat(request.requests().size(), equalTo(1));
         SearchRequest searchRequest = request.requests().getFirst();
         assertThat(searchRequest.routing(), equalTo("s1,s2"));
@@ -245,7 +245,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromStringAndParams("""
             {"routing":"r1"}
             {"query":{"match_all":{}}}
-            """, Map.of(SliceIndexing.PARAM_NAME, "s1")));
+            """, Map.of(SliceIndexing.FIELD_NAME, "s1")));
         assertEquals("[routing] and [_slice] cannot be combined in the same _msearch request", ex.getMessage());
     }
 
@@ -315,7 +315,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                 BytesReference.bytes(builder).streamInput(),
                 false
             );
-            assertThat(map.get(SliceIndexing.PARAM_NAME), equalTo("s1"));
+            assertThat(map.get(SliceIndexing.FIELD_NAME), equalTo("s1"));
             assertNull(map.get("routing"));
         }
     }
@@ -717,7 +717,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 containsString(
-                    "Unexpected close marker '}': expected ']' (for root starting at "
+                    "Unexpected close marker '}': no open Object to close\n at "
                         + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
                 )
             );

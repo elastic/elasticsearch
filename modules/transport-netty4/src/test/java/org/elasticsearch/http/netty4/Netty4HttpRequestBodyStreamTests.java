@@ -10,48 +10,57 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
+import io.netty.channel.DefaultChannelPromise;
 import io.netty.channel.DefaultEventLoop;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpContent;
-import io.netty.handler.flow.FlowControlHandler;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 
 public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
 
     static HttpBody.ChunkHandler discardHandler = (chunk, isLast) -> chunk.close();
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-    private EmbeddedChannel channel;
+    private CloseFutureListenerTrackingChannel channel;
     private ReadSniffer readSniffer;
     private Netty4HttpRequestBodyStream stream;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        channel = new EmbeddedChannel();
-        readSniffer = new ReadSniffer();
-        channel.pipeline().addLast(new FlowControlHandler(), readSniffer);
+    @Before
+    public void initStream() throws Exception {
+        channel = new CloseFutureListenerTrackingChannel();
         channel.config().setAutoRead(false);
+        readSniffer = new ReadSniffer();
+        channel.pipeline().addLast(new Netty4HttpFlowControlHandler(), readSniffer);
         channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
             @Override
             public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
@@ -67,9 +76,8 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         });
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeStream() throws Exception {
         stream.close();
     }
 
@@ -122,8 +130,9 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         try {
             // activity tracker requires stream execution in the same thread, setting up stream inside event-loop
             eventLoop.submit(() -> {
-                channel = new EmbeddedChannel(new FlowControlHandler());
+                channel = new CloseFutureListenerTrackingChannel();
                 channel.config().setAutoRead(false);
+                channel.pipeline().addLast(new Netty4HttpFlowControlHandler());
                 channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
                     @Override
                     public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
@@ -149,23 +158,20 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
                         headers.set(threadContext.getHeaders());
                     }
                 });
-                channel.pipeline().addFirst(new FlowControlHandler()); // block all incoming messages, need explicit channel.read()
             }).await();
 
-            channel.writeInbound(randomContent(chunkSize));
-            channel.writeInbound(randomLastContent(chunkSize));
-
+            // one chunk is requested and delivered at a time, so that each next() gets the context captured when it was called
             threadContext.putHeader("header2", "value2");
             stream.next();
 
-            eventLoop.submit(() -> channel.runPendingTasks()).await();
+            eventLoop.submit(() -> channel.writeInbound(randomContent(chunkSize))).await();
             assertThat(headers.get(), hasEntry("header1", "value1"));
             assertThat(headers.get(), hasEntry("header2", "value2"));
 
             threadContext.putHeader("header3", "value3");
             stream.next();
 
-            eventLoop.submit(() -> channel.runPendingTasks()).await();
+            eventLoop.submit(() -> channel.writeInbound(randomLastContent(chunkSize))).await();
             assertThat(headers.get(), hasEntry("header1", "value1"));
             assertThat(headers.get(), hasEntry("header2", "value2"));
             assertThat(headers.get(), hasEntry("header3", "value3"));
@@ -182,6 +188,46 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         } finally {
             eventLoop.shutdownGracefully(0, 0, TimeUnit.SECONDS);
         }
+    }
+
+    public void testRemoveCloseListenerOnStreamClose() {
+        assertThat(channel.closeFutureListeners, hasSize(1));
+        stream.close();
+        assertThat(channel.closeFutureListeners, empty());
+        channel.writeInbound(randomContent(1024));
+        channel.writeInbound(randomLastContent(0));
+        assertThat(channel.closeFutureListeners, empty());
+    }
+
+    public void testRemoveCloseListenerAfterLastContent() {
+        assertThat(channel.closeFutureListeners, hasSize(1));
+        channel.writeInbound(randomLastContent(10));
+        stream.next();
+        channel.runPendingTasks();
+        assertThat(channel.closeFutureListeners, empty());
+        stream.close();
+        assertThat(channel.closeFutureListeners, empty());
+    }
+
+    public void testCloseHandlerOnceOnChannelClose() {
+        var handlerCloseCount = new AtomicInteger();
+        stream.setHandler(new HttpBody.ChunkHandler() {
+            @Override
+            public void onNext(ReleasableBytesReference chunk, boolean isLast) {
+                chunk.close();
+            }
+
+            @Override
+            public void close() {
+                handlerCloseCount.incrementAndGet();
+            }
+        });
+        channel.writeInbound(randomContent(1024));
+        stream.next();
+        channel.runPendingTasks();
+        channel.close();
+        stream.close();
+        assertEquals(1, handlerCloseCount.get());
     }
 
     // ensure that we catch all exceptions and throw them into channel pipeline
@@ -231,6 +277,32 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
 
     HttpContent randomLastContent(int size) {
         return randomContent(size, true);
+    }
+
+    private static class CloseFutureListenerTrackingChannel extends EmbeddedChannel {
+        private final Set<GenericFutureListener<?>> closeFutureListeners = new HashSet<>();
+        private final ChannelPromise closeFuture = new DefaultChannelPromise(this) {
+            @Override
+            public ChannelPromise addListener(GenericFutureListener<? extends Future<? super Void>> listener) {
+                closeFutureListeners.add(listener);
+                return super.addListener(listener);
+            }
+
+            @Override
+            public ChannelPromise removeListener(GenericFutureListener<? extends Future<? super Void>> listener) {
+                closeFutureListeners.remove(listener);
+                return super.removeListener(listener);
+            }
+        };
+
+        CloseFutureListenerTrackingChannel() {
+            super.closeFuture().addListener(future -> closeFuture.setSuccess());
+        }
+
+        @Override
+        public ChannelFuture closeFuture() {
+            return closeFuture;
+        }
     }
 
 }

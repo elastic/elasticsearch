@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 154526
-summary: Honour the resolved schema and split position on external text reads
-type: bug

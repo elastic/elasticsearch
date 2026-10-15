@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
@@ -111,7 +112,7 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
                         builder.field(key, value.toString());
                     }
                 }
-                Map<String, Object> source = IngestDocument.deepCopyMap(document.getSourceAndMetadata());
+                Map<String, Object> source = CollectionUtils.deepCopy(document.getSourceAndMetadata());
                 metadata.keySet().forEach(source::remove);
                 builder.field("_source", source);
                 builder.field("_ingest", document.getIngestMetadata());

@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 
 @Aggregator({ @IntermediateState(name = "hll", type = "BYTES_REF") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 public class CountDistinctLongAggregator {
 
     public static HllStates.SingleState initSingle(DriverContext driverContext, int precision) {

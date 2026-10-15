@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -65,7 +66,7 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.Ab
  *     expose a single method to users.
  * </p>
  */
-public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression, OptionalArgument, ConvertFunction {
+public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression, OptionalArgument, ConvertFunction, AnyNullIsNull {
     private static final String LEADING_ZEROS = "leading_zeros";
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(Map.entry(LEADING_ZEROS, KEYWORD));
 

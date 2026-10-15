@@ -34,7 +34,8 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
 
         private final boolean profilingEnabled;
         private final boolean resourceManagementEnabled;
-        private final boolean resourcesCreated;
+        // true only when ECS k/v indices and templates are fully installed; always false in OTel-only mode
+        private final boolean ecsResourcesCreated;
         private final boolean pre891Data;
         private final boolean hasData;
         private boolean timedOut;
@@ -42,7 +43,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         public Response(StreamInput in) throws IOException {
             profilingEnabled = in.readBoolean();
             resourceManagementEnabled = in.readBoolean();
-            resourcesCreated = in.readBoolean();
+            ecsResourcesCreated = in.readBoolean();
             pre891Data = in.readBoolean();
             timedOut = in.readBoolean();
             hasData = in.readBoolean();
@@ -51,13 +52,13 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         public Response(
             boolean profilingEnabled,
             boolean resourceManagementEnabled,
-            boolean resourcesCreated,
+            boolean ecsResourcesCreated,
             boolean pre891Data,
             boolean hasData
         ) {
             this.profilingEnabled = profilingEnabled;
             this.resourceManagementEnabled = resourceManagementEnabled;
-            this.resourcesCreated = resourcesCreated;
+            this.ecsResourcesCreated = ecsResourcesCreated;
             this.pre891Data = pre891Data;
             this.hasData = hasData;
         }
@@ -66,8 +67,8 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             this.timedOut = timedOut;
         }
 
-        public boolean isResourcesCreated() {
-            return resourcesCreated;
+        public boolean isEcsResourcesCreated() {
+            return ecsResourcesCreated;
         }
 
         public boolean hasData() {
@@ -80,7 +81,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             builder.startObject("profiling").field("enabled", profilingEnabled).endObject();
             builder.startObject("resource_management").field("enabled", resourceManagementEnabled).endObject();
             builder.startObject("resources")
-                .field("created", resourcesCreated)
+                .field("created", ecsResourcesCreated)
                 .field("pre_8_9_1_data", pre891Data)
                 .field("has_data", hasData)
                 .endObject();
@@ -92,7 +93,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(profilingEnabled);
             out.writeBoolean(resourceManagementEnabled);
-            out.writeBoolean(resourcesCreated);
+            out.writeBoolean(ecsResourcesCreated);
             out.writeBoolean(pre891Data);
             out.writeBoolean(timedOut);
             out.writeBoolean(hasData);
@@ -105,7 +106,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             Response response = (Response) o;
             return profilingEnabled == response.profilingEnabled
                 && resourceManagementEnabled == response.resourceManagementEnabled
-                && resourcesCreated == response.resourcesCreated
+                && ecsResourcesCreated == response.ecsResourcesCreated
                 && pre891Data == response.pre891Data
                 && hasData == response.hasData
                 && timedOut == response.timedOut;
@@ -113,7 +114,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(profilingEnabled, resourceManagementEnabled, resourcesCreated, pre891Data, hasData, timedOut);
+            return Objects.hash(profilingEnabled, resourceManagementEnabled, ecsResourcesCreated, pre891Data, hasData, timedOut);
         }
 
         @Override
@@ -127,27 +128,27 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
     }
 
     public static class Request extends MasterNodeRequest<Request> {
-        private final boolean waitForResourcesCreated;
-        private final TimeValue waitForResourcesCreatedTimeout;
+        private final boolean waitForEcsResourcesCreated;
+        private final TimeValue waitForEcsResourcesCreatedTimeout;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            waitForResourcesCreatedTimeout = in.readTimeValue();
-            waitForResourcesCreated = in.readBoolean();
+            waitForEcsResourcesCreatedTimeout = in.readTimeValue();
+            waitForEcsResourcesCreated = in.readBoolean();
         }
 
-        public Request(TimeValue masterNodeTimeout, boolean waitForResourcesCreated, TimeValue waitForResourcesCreatedTimeout) {
+        public Request(TimeValue masterNodeTimeout, boolean waitForEcsResourcesCreated, TimeValue waitForEcsResourcesCreatedTimeout) {
             super(masterNodeTimeout);
-            this.waitForResourcesCreated = waitForResourcesCreated;
-            this.waitForResourcesCreatedTimeout = waitForResourcesCreatedTimeout;
+            this.waitForEcsResourcesCreated = waitForEcsResourcesCreated;
+            this.waitForEcsResourcesCreatedTimeout = waitForEcsResourcesCreatedTimeout;
         }
 
-        public boolean waitForResourcesCreated() {
-            return waitForResourcesCreated;
+        public boolean waitForEcsResourcesCreated() {
+            return waitForEcsResourcesCreated;
         }
 
-        public TimeValue waitForResourcesCreatedTimeout() {
-            return waitForResourcesCreatedTimeout;
+        public TimeValue waitForEcsResourcesCreatedTimeout() {
+            return waitForEcsResourcesCreatedTimeout;
         }
 
         @Override
@@ -158,8 +159,8 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeTimeValue(waitForResourcesCreatedTimeout);
-            out.writeBoolean(waitForResourcesCreated);
+            out.writeTimeValue(waitForEcsResourcesCreatedTimeout);
+            out.writeBoolean(waitForEcsResourcesCreated);
         }
     }
 }

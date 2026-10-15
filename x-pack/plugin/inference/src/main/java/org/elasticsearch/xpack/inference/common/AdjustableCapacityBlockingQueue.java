@@ -180,6 +180,22 @@ public class AdjustableCapacityBlockingQueue<E> {
     }
 
     /**
+     * Removes a single instance of the item from the queue if it is present.
+     *
+     * @return true if this call removed the item, false if it was not present (e.g. another thread took it)
+     */
+    public boolean remove(E item) {
+        final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
+
+        readLock.lock();
+        try {
+            return prioritizedReadingQueue.remove(item) || currentQueue.remove(item);
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    /**
      * Returns the number of elements stored in the queue. If the capacity was recently changed, the value returned could be
      * greater than the capacity. This occurs when the capacity was reduced and there were more elements in the queue than the
      * new capacity.

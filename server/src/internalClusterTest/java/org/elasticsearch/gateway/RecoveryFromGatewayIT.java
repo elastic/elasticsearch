@@ -470,7 +470,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         final RecoveryResponse initialRecoveryReponse = indicesAdmin().prepareRecoveries("test").get();
         final Set<String> files = new HashSet<>();
-        for (final RecoveryState recoveryState : initialRecoveryReponse.shardRecoveryStates().get("test")) {
+        for (var recoveryInfo : initialRecoveryReponse.shardRecoveryInfos().get("test")) {
+            RecoveryState recoveryState = recoveryInfo.recoveryState();
             if (recoveryState.getTargetNode().getName().equals(replicaNode)) {
                 for (final RecoveryState.FileDetail file : recoveryState.getIndex().fileDetails()) {
                     files.add(file.name());
@@ -522,7 +523,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         ensureGreen();
 
         final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
-        for (final RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
+        for (var recoveryInfo : recoveryResponse.shardRecoveryInfos().get("test")) {
+            RecoveryState recoveryState = recoveryInfo.recoveryState();
             long recovered = 0;
             long reused = 0;
             int filesRecovered = 0;

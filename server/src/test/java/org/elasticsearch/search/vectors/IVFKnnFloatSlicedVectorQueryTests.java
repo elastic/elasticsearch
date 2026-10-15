@@ -29,6 +29,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -42,11 +43,25 @@ import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase {
+public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase<float[]> {
 
     private static final String SLICE_FIELD = "_slice";
     private int numSlices;
     private BytesRef querySlice;
+
+    @Override
+    float[] vector(int... components) {
+        float[] v = new float[components.length];
+        for (int i = 0; i < components.length; i++) {
+            v[i] = components[i];
+        }
+        return v;
+    }
+
+    @Override
+    float[][] createVectorArray(int size) {
+        return new float[size][];
+    }
 
     @Override
     IVFKnnFloatVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {
@@ -83,7 +98,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
 
     public void testToString() throws IOException {
         try (
-            Directory indexStore = getIndexStore("field", new float[] { 0, 1 }, new float[] { 1, 2 }, new float[] { 0, 0 });
+            Directory indexStore = getIndexStore("field", vector(0, 1), vector(1, 2), vector(0, 0));
             IndexReader reader = DirectoryReader.open(indexStore)
         ) {
             AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new float[] { 0.0f, 1.0f }, 10);
@@ -98,16 +113,25 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
         }
     }
 
+    /** Encoded slice key (the index sort field) plus the numeric slice hash that sliced search prunes on. */
+    private static void addSliceFields(Document doc, String sliceValue) {
+        doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, SliceIndexing.encodeSliceKey(sliceValue)));
+    }
+
     @Override
     protected Document getDocumentToIndex() {
         Document doc = new Document();
-        doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef("" + random().nextInt(numSlices))));
+        addSliceFields(doc, "" + random().nextInt(numSlices));
         return doc;
+    }
+
+    private static Sort sliceSortWithMissingLast() {
+        return new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING, false, SortField.STRING_LAST));
     }
 
     @Override
     protected void decorateIWC(IndexWriterConfig indexWriterConfig) {
-        indexWriterConfig.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
+        indexWriterConfig.setIndexSort(sliceSortWithMissingLast());
     }
 
     public void testSlicesDense() throws IOException {
@@ -153,14 +177,14 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
         String filterMiss = "miss";
         String docIdField = "_doc_id";
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(new SortField(SLICE_FIELD, SortField.Type.STRING)));
+        iwc.setIndexSort(sliceSortWithMissingLast());
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
 
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
             for (int i = 0; i < numDocs; i++) {
                 int slice = random().nextInt(numSlices);
                 Document doc = new Document();
-                doc.add(SortedDocValuesField.indexedField(SLICE_FIELD, new BytesRef("" + slice)));
+                addSliceFields(doc, "" + slice);
                 boolean filterMatch = random().nextBoolean();
                 String filterText = filterMatch ? filterValue : filterMiss;
                 doc.add(new StringField(filterField, filterText, Field.Store.NO));

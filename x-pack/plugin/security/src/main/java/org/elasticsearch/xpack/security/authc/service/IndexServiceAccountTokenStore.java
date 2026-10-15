@@ -24,6 +24,7 @@ import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.Servic
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
@@ -137,16 +139,49 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         return TokenSource.INDEX;
     }
 
-    void createToken(
+    /**
+     * Creates a token for a built-in service account, failing if no built-in account carries the requested principal.
+     */
+    void createBuiltInToken(
         Authentication authentication,
         CreateServiceAccountTokenRequest request,
         ActionListener<CreateServiceAccountTokenResponse> listener
     ) {
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
-        if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
+        if (false == ServiceAccountService.isBuiltInServiceAccountPrincipal(accountId.asPrincipal())) {
             listener.onFailure(new IllegalArgumentException("service account [" + accountId + "] does not exist"));
             return;
         }
+        createToken(authentication, request, listener);
+    }
+
+    /**
+     * Creates a token for a user-managed service account, failing if the principal is not a well-formed user-managed
+     * account ID. That the account actually <em>exists</em> cannot be checked here — user-managed accounts live in
+     * {@link UserManagedServiceAccountStore}, which this store cannot consult synchronously — so the caller must resolve
+     * it first. The ID itself is still checked because nothing downstream would: the document is written under whatever
+     * principal it is handed, so an unchecked one would store a working credential under a name no account could carry.
+     */
+    void createUserManagedToken(
+        Authentication authentication,
+        CreateServiceAccountTokenRequest request,
+        ActionListener<CreateServiceAccountTokenResponse> listener
+    ) {
+        final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
+        final Validation.Error error = Validation.UserManagedServiceAccounts.validatePrincipal(accountId.asPrincipal());
+        if (error != null) {
+            listener.onFailure(new IllegalArgumentException(error.toString()));
+            return;
+        }
+        createToken(authentication, request, listener);
+    }
+
+    private void createToken(
+        Authentication authentication,
+        CreateServiceAccountTokenRequest request,
+        ActionListener<CreateServiceAccountTokenResponse> listener
+    ) {
+        final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         final ServiceAccountToken token = ServiceAccountToken.newToken(accountId, request.getTokenName());
         try (XContentBuilder builder = newDocument(authentication, token)) {
             final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
@@ -188,16 +223,12 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                     .newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
                     // TODO: wildcard support?
-                    final BoolQueryBuilder query = QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_TOKEN_DOC_TYPE))
-                        .must(QueryBuilders.termQuery("username", accountId.asPrincipal()));
                     final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
                         .setScroll(DEFAULT_KEEPALIVE_SETTING.get(getSettings()))
-                        .setQuery(query)
+                        .setQuery(tokensForAccountQuery(accountId))
                         .setSize(1000)
                         .setFetchSource(false)
                         .request();
-                    request.indicesOptions().ignoreUnavailable();
 
                     logger.trace("Searching tokens for service account [{}]", accountId);
                     ScrollHelper.fetchAllByEntity(
@@ -211,7 +242,67 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         }
     }
 
-    void deleteToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+    /**
+     * Reports whether the account has at least one index-backed token, so that a caller can refuse to delete an account
+     * whose tokens would otherwise be stranded. Unlike {@link #findTokensFor} this is a bounded existence check that
+     * stops at the first match and neither enumerates nor returns token names.
+     */
+    void hasTokensFor(ServiceAccountId accountId, ActionListener<Boolean> listener) {
+        final IndexState projectSecurityIndex = this.securityIndex.forCurrentProject();
+        if (false == projectSecurityIndex.indexExists()) {
+            listener.onResponse(false);
+        } else if (false == projectSecurityIndex.isAvailable(SEARCH_SHARDS)) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
+                    .setQuery(tokensForAccountQuery(accountId))
+                    .setSize(0)
+                    .setTerminateAfter(1)
+                    .setTrackTotalHitsUpTo(1)
+                    .request();
+
+                logger.trace("Checking whether service account [{}] has any token", accountId);
+                executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    TransportSearchAction.TYPE,
+                    request,
+                    ActionListener.wrap(response -> listener.onResponse(response.getHits().getTotalHits().value() > 0), listener::onFailure)
+                );
+            });
+        }
+    }
+
+    /**
+     * Deletes a token belonging to a built-in service account, responding {@code false} when no built-in account carries
+     * the requested principal, since no such token can exist.
+     */
+    void deleteBuiltInToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+        final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
+        if (false == ServiceAccountService.isBuiltInServiceAccountPrincipal(accountId.asPrincipal())) {
+            listener.onResponse(false);
+            return;
+        }
+        deleteToken(request, listener);
+    }
+
+    /**
+     * Deletes a token belonging to a user-managed service account, responding {@code false} when the principal is not a
+     * well-formed user-managed account ID, since no such token can have been stored. As with
+     * {@link #createUserManagedToken}, whether the account exists is the caller's to establish; only the ID is checked
+     * here, and it keeps this entry point from operating on a built-in account's tokens.
+     */
+    void deleteUserManagedToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+        final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
+        if (Validation.UserManagedServiceAccounts.validatePrincipal(accountId.asPrincipal()) != null) {
+            listener.onResponse(false);
+            return;
+        }
+        deleteToken(request, listener);
+    }
+
+    private void deleteToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
         final IndexState projectSecurityIndex = this.securityIndex.forCurrentProject();
         if (false == projectSecurityIndex.indexExists()) {
             listener.onResponse(false);
@@ -219,10 +310,6 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
             listener.onFailure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
-            if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
-                listener.onResponse(false);
-                return;
-            }
             final ServiceAccountTokenId accountTokenId = new ServiceAccountTokenId(accountId, request.getTokenName());
             final String qualifiedTokenName = accountTokenId.getQualifiedName();
             projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
@@ -261,6 +348,17 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
 
     private static String docIdForToken(String qualifiedTokenName) {
         return SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + qualifiedTokenName;
+    }
+
+    /**
+     * Matches the token documents of a single service account. The {@code doc_type} clause is what keeps this from also
+     * matching the {@code service_account} documents that {@link UserManagedServiceAccountStore} stores under the same
+     * {@code username}.
+     */
+    private static BoolQueryBuilder tokensForAccountQuery(ServiceAccountId accountId) {
+        return QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_TOKEN_DOC_TYPE))
+            .must(QueryBuilders.termQuery("username", accountId.asPrincipal()));
     }
 
     private XContentBuilder newDocument(Authentication authentication, ServiceAccountToken serviceAccountToken) throws IOException {

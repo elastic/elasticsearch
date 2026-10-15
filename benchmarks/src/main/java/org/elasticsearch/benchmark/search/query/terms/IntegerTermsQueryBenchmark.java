@@ -27,9 +27,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.query.bitmapterms.IntBitmapIndexBKDQuery;
-import org.elasticsearch.index.query.bitmapterms.IntBitmapIndexTermsQuery;
+import org.elasticsearch.index.query.bitmapterms.BitmapBKDQuery;
+import org.elasticsearch.index.query.bitmapterms.BitmapTermsQuery;
+import org.elasticsearch.index.query.bitmapterms.IntBitmap;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -43,7 +43,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
-import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -57,8 +56,8 @@ import java.util.concurrent.TimeUnit;
  * Compares four ways of matching an integer set query as the size of the value list grows:
  * BKD points ({@link IntPoint#newSetQuery}), the {@code index_terms}-mapped path
  * ({@link TermInSetQuery} over sortable-bytes terms), and two bitmap variants
- * ({@link IntBitmapIndexBKDQuery} and {@link IntBitmapIndexTermsQuery}) that accept a
- * pre-serialized {@link RoaringBitmap} instead of an explicit value list.
+ * ({@link BitmapBKDQuery} and {@link BitmapTermsQuery}) that accept a
+ * pre-built {@link IntBitmap} instead of an explicit value list.
  * <p>
  * The field/query construction mirrors {@code NumberFieldMapper}'s private {@code IndexTermsIntegerField},
  * {@code encodeIndexTerm}, and {@code INDEX_TERMS_FIELD_TYPE} (points path) / the {@code indexTerms}
@@ -81,14 +80,6 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @SuppressWarnings("unused") // invoked by JMH
 public class IntegerTermsQueryBenchmark {
-
-    static {
-        // IndexWriterConfig below picks up Elasticsearch814Codec via Lucene's codec SPI (since
-        // :server is on the classpath), whose static init reaches Elasticsearch's log4j config.
-        // That config's %node_name converter throws unless a node name was set, which never
-        // happens in a bare JMH JVM. Set a dummy one before anything can trigger that lookup.
-        LogConfigurator.setNodeName("benchmark");
-    }
 
     static final String FIELD = "f";
     static final int N_DOCS = 10_000_000;
@@ -176,7 +167,7 @@ public class IntegerTermsQueryBenchmark {
         },
 
         /**
-         * Bitmap query over BKD points: same indexing as POINT, query via {@link IntBitmapIndexBKDQuery}.
+         * Bitmap query over BKD points: same indexing as POINT, query via {@link BitmapBKDQuery}.
          * Shares the POINT index on disk so the index is not rebuilt.
          */
         BITMAP_BKD {
@@ -186,17 +177,13 @@ public class IntegerTermsQueryBenchmark {
             }
 
             @Override
-            Query termsQuery(int[] values, RoaringBitmap bitmap) {
-                return new IntBitmapIndexBKDQuery(FIELD, bitmap);
+            Query termsQuery(int[] values, IntBitmap bitmap) {
+                return new BitmapBKDQuery(FIELD, bitmap);
             }
 
             @Override
-            RoaringBitmap buildBitmap(int[] values) {
-                RoaringBitmap bitmap = new RoaringBitmap();
-                for (int value : values) {
-                    bitmap.add(value);
-                }
-                return bitmap;
+            IntBitmap buildBitmap(int[] values) {
+                return IntBitmap.bitmapOf(values);
             }
 
             @Override
@@ -206,7 +193,7 @@ public class IntegerTermsQueryBenchmark {
         },
         /**
          * Bitmap query over the index_terms inverted index: same indexing as INDEX_TERMS, query via
-         * {@link IntBitmapIndexTermsQuery}. Shares the INDEX_TERMS index on disk so the index is not rebuilt.
+         * {@link BitmapTermsQuery}. Shares the INDEX_TERMS index on disk so the index is not rebuilt.
          */
         BITMAP_TERMS {
             @Override
@@ -215,17 +202,13 @@ public class IntegerTermsQueryBenchmark {
             }
 
             @Override
-            Query termsQuery(int[] values, RoaringBitmap bitmap) {
-                return new IntBitmapIndexTermsQuery(FIELD, bitmap);
+            Query termsQuery(int[] values, IntBitmap bitmap) {
+                return new BitmapTermsQuery(FIELD, bitmap);
             }
 
             @Override
-            RoaringBitmap buildBitmap(int[] values) {
-                RoaringBitmap bitmap = new RoaringBitmap();
-                for (int value : values) {
-                    bitmap.add(value);
-                }
-                return bitmap;
+            IntBitmap buildBitmap(int[] values) {
+                return IntBitmap.bitmapOf(values);
             }
 
             @Override
@@ -236,7 +219,7 @@ public class IntegerTermsQueryBenchmark {
 
         abstract void addField(Document doc, int value);
 
-        Query termsQuery(int[] values, RoaringBitmap bitmap) {
+        Query termsQuery(int[] values, IntBitmap bitmap) {
             return termsQuery(values);
         }
 
@@ -245,7 +228,7 @@ public class IntegerTermsQueryBenchmark {
         }
 
         /** Builds the pre-computed bitmap for this strategy; returns {@code null} for non-bitmap strategies. */
-        RoaringBitmap buildBitmap(int[] values) {
+        IntBitmap buildBitmap(int[] values) {
             return null;
         }
 
@@ -265,7 +248,7 @@ public class IntegerTermsQueryBenchmark {
     private DirectoryReader reader;
     private IndexSearcher searcher;
     private int[] queryValues;
-    private RoaringBitmap prebuiltBitmap;
+    private IntBitmap prebuiltBitmap;
     private Query prebuiltQuery;
 
     @Setup(Level.Trial)

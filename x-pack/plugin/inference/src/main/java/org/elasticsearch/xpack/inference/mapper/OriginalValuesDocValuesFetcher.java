@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -32,7 +32,7 @@ import java.util.List;
 class OriginalValuesDocValuesFetcher implements ValueFetcher {
     private final String fieldName;
     private final CheckedFunction<BytesRef, Object, IOException> decoder;
-    private SortedBinaryDocValues values;
+    private SortableBinaryDocValues values;
 
     OriginalValuesDocValuesFetcher(String fieldName, CheckedFunction<BytesRef, Object, IOException> decoder) {
         this.fieldName = fieldName;
@@ -44,7 +44,7 @@ class OriginalValuesDocValuesFetcher implements ValueFetcher {
         try {
             // fromMultiValued handles both the separate-counts and (older) integrated-counts encodings; the values are returned in
             // the document order they were written (the store uses ValueOrdering.UNSORTED), so array order round-trips exactly.
-            values = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), fieldName);
+            values = MultiValuedSortableBinaryDocValues.fromMultiValued(context.reader(), fieldName);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

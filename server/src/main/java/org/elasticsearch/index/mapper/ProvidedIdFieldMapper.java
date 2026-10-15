@@ -25,7 +25,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -33,7 +32,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
@@ -60,8 +59,6 @@ import java.util.function.Supplier;
  * if the cluster is configured to allow it.
  */
 public class ProvidedIdFieldMapper extends IdFieldMapper {
-    public static final NodeFeature ID_FIELD_MODE_MAPPING_ATTRIBUTE = new NodeFeature("mapper.id_field.mode_mapping_attribute");
-
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ProvidedIdFieldMapper.class);
     static final String ID_FIELD_DATA_DEPRECATION_MESSAGE =
         "Loading the fielddata on the _id field is deprecated and will be removed in future versions. "
@@ -249,7 +246,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             int bucketSize,
             BucketedSort.ExtraData extra
         ) {
-            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+            throw new IllegalArgumentException("Can't sort on the [" + CONTENT_TYPE + "] field");
         }
 
         private static LeafFieldData wrap(LeafFieldData in) {
@@ -269,9 +266,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 }
 
                 @Override
-                public SortedBinaryDocValues getBytesValues() {
-                    SortedBinaryDocValues inValues = in.getBytesValues();
-                    return new SortedBinaryDocValues(inValues.docIdIterator()) {
+                public SortableBinaryDocValues getBytesValues() {
+                    SortableBinaryDocValues inValues = in.getBytesValues();
+                    return new SortableBinaryDocValues(inValues.docIdIterator()) {
 
                         @Override
                         public BytesRef nextValue() throws IOException {
@@ -303,6 +300,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                         public ValueMode getValueMode() {
                             return inValues.getValueMode();
                         }
+
+                        @Override
+                        public ValueOrder getValueOrder() {
+                            return inValues.getValueOrder();
+                        }
                     };
                 }
             };
@@ -324,7 +326,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         return true;
     }
 
@@ -392,6 +394,14 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     public static IndexableField columnarIdField(String id) {
         BytesRef encoded = Uid.encodeId(id);
         return new ColumnarIdField(NAME, encoded);
+    }
+
+    /**
+     * Columnar {@code _id} field for an already-encoded uid. Used by slice-enabled indices, whose identity term is the
+     * compound {@code (slice, id)} uid rather than a plain {@link Uid#encodeId(String)}.
+     */
+    public static IndexableField columnarIdField(BytesRef uid) {
+        return new ColumnarIdField(NAME, uid);
     }
 
     static final class ColumnarIdField extends Field {

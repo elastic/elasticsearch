@@ -118,6 +118,29 @@ public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
         assertThat(actualMetadata, equalTo(expectedMetadata));
     }
 
+    /**
+     * A user-managed service account is authorized from the role names on its user, and those names are exactly what the
+     * consistency check inside {@link CrossClusterAccessSubjectInfo#cleanAndValidate()} rejects for any other service
+     * account. Both the roles and the marker that exempts them have to survive cleaning and a serialization round trip:
+     * losing the marker would silently re-route the account to the built-in authorization path.
+     */
+    public void testCleanWithValidationForUserManagedServiceAccounts() throws IOException {
+        final String[] roles = { "role-a", "role-b" };
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .userManagedServiceAccount("my-namespace/my-service", roles)
+            .metadata(Map.copyOf(newHashMapWithRandomMetadata()))
+            .build();
+        final CrossClusterAccessSubjectInfo subjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(authentication);
+
+        final Authentication cleaned = subjectInfo.cleanAndValidate().getAuthentication();
+        assertThat(cleaned.isUserManagedServiceAccount(), is(true));
+        assertThat(cleaned.getEffectiveSubject().getUser().roles(), equalTo(roles));
+
+        final Authentication decoded = CrossClusterAccessSubjectInfo.decode(subjectInfo.encode()).cleanAndValidate().getAuthentication();
+        assertThat(decoded.isUserManagedServiceAccount(), is(true));
+        assertThat(decoded.getEffectiveSubject().getUser().roles(), equalTo(roles));
+    }
+
     public void testCleanWithValidationWhenMetadataShouldBeEmpty() throws IOException {
         final Map<String, Object> metadata = newHashMapWithRandomMetadata();
         final Authentication authentication = randomRealmAuthenticationWithMetadata(metadata);

@@ -14,6 +14,7 @@ import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.nio.charset.Charset;
 
 /**
  * Adapts MemorySegment APIs that changed between JDK 21 and 22+.
@@ -32,10 +33,49 @@ public final class MemorySegmentAdapter {
         return arena.allocateFrom(s);
     }
 
+    /**
+     * Charset-aware counterpart to {@link #getString(MemorySegment, long)}, needed for
+     * non-UTF-8 encodings such as UTF-16LE used by Windows {@code *W}-suffixed APIs. FFM has
+     * supported charset-aware string access natively since JDK 22, so this is a direct passthrough.
+     */
+    public static String getString(MemorySegment segment, long offset, Charset charset) {
+        return segment.getString(offset, charset);
+    }
+
+    /**
+     * Charset-aware counterpart to {@link #setString(MemorySegment, long, String)}. See
+     * {@link #getString(MemorySegment, long, Charset)} for why this overload exists.
+     */
+    public static void setString(MemorySegment segment, long offset, String value, Charset charset) {
+        segment.setString(offset, value, charset);
+    }
+
+    /**
+     * Charset-aware counterpart to {@link #allocateString(Arena, String)}. See
+     * {@link #getString(MemorySegment, long, Charset)} for why this overload exists.
+     */
+    public static MemorySegment allocateString(Arena arena, String s, Charset charset) {
+        return arena.allocateFrom(s, charset);
+    }
+
     // MemoryLayout.varHandle changed between Java 21 and 22 to require a new offset
     // parameter for the returned VarHandle. This function exists to remove the need for that offset.
     public static VarHandle varHandleWithoutOffset(MemoryLayout layout, MemoryLayout.PathElement element) {
         return MethodHandles.insertCoordinates(layout.varHandle(element), 1, 0L);
+    }
+
+    /**
+     * Return a {@link VarHandle} for indexed sequence element access within the given memory layout.
+     * The Java 22 variant inserts a fixed offset coordinate at position 1 so callers pass
+     * {@code (segment, 0L, (long) index)} for reads and {@code (segment, 0L, (long) index, value)}
+     * for writes — matching the Java 21 two-path-element VarHandle shape.
+     */
+    public static VarHandle varHandleSequenceWithoutOffset(
+        MemoryLayout layout,
+        MemoryLayout.PathElement group,
+        MemoryLayout.PathElement seq
+    ) {
+        return MethodHandles.insertCoordinates(layout.varHandle(group, seq), 1, 0L);
     }
 
     private MemorySegmentAdapter() {}

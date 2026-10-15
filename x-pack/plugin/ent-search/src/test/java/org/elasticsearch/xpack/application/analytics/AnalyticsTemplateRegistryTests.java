@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -76,13 +77,17 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new AnalyticsTemplateRegistry(clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry = new AnalyticsTemplateRegistry(
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
+        );
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdownNow();
     }
 

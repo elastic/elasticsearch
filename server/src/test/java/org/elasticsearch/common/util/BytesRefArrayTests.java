@@ -12,10 +12,13 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -419,6 +422,192 @@ public class BytesRefArrayTests extends ESTestCase {
                 assertThat(array.get(i, scratch), equalTo(values.get(i)));
             }
         }
+    }
+
+    /**
+     * Enough entries that the byte storage keeps grabbing fresh pages for the whole run. Only the sub-page first
+     * page grows geometrically; past that each page costs one fixed-size allocation. A short run therefore never
+     * leaves the geometric phase and allocates only a handful of times, giving the breaker little to trip on.
+     */
+    private static final int ENTRIES_SPANNING_MANY_PAGES = 2000;
+
+    /**
+     * How many fresh arrays a refusal test may go through looking for one pass that both survived construction
+     * and saw an append refused. The constructor makes two breaker calls, so roughly one pass in ten is lost
+     * before the loop even starts; without the retry those runs would verify nothing and still pass.
+     */
+    private static final int MAX_PASSES = 100;
+
+    /**
+     * Builds an array, or returns {@code null} when the breaker refuses one of the allocations the constructor
+     * makes, leaving nothing for the caller to exercise on that pass.
+     */
+    private BytesRefArray newArrayOrNullIfRefused(BigArrays bigArrays) {
+        try {
+            return new BytesRefArray(1, bigArrays);
+        } catch (CircuitBreakingException e) {
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            return null;
+        }
+    }
+
+    public void testAppendDiscardsEntryRefusedByCircuitBreaker() {
+        // Tripping at random spreads the interruptions over growing the byte storage, growing the offset tables
+        // and the switch away from the fixed-length encoding. Whichever one is interrupted, the array has to
+        // look exactly as it did before the refused append and keep accepting entries afterwards.
+        CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
+        boolean verified = false;
+        for (int attempt = 0; attempt < MAX_PASSES && verified == false; attempt++) {
+            BytesRefArray array = newArrayOrNullIfRefused(bigArrays);
+            if (array == null) {
+                continue;
+            }
+            List<BytesRef> expected = new ArrayList<>();
+            int refusals = 0;
+            try (array) {
+                for (int i = 0; i < ENTRIES_SPANNING_MANY_PAGES; i++) {
+                    BytesRef value = new BytesRef(randomAlphaOfLengthBetween(1, 500));
+                    try {
+                        array.append(value);
+                        expected.add(BytesRef.deepCopyOf(value));
+                    } catch (CircuitBreakingException e) {
+                        // the entry must be discarded whole, so it is deliberately not added to `expected`
+                        assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                        refusals++;
+                    }
+                }
+                assertThat(array.size(), equalTo((long) expected.size()));
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < expected.size(); i++) {
+                    assertThat(array.get(i, scratch), equalTo(expected.get(i)));
+                }
+                verified = refusals > 0;
+            }
+        }
+        assertThat("no pass ever saw an append refused", verified, equalTo(true));
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+    }
+
+    public void testAppendCursorDiscardsEntryRefusedByCircuitBreaker() {
+        // As above but through the cursor overload, which reserves its offset the same way but copies the bytes
+        // chunk by chunk out of the cursor rather than from a single array.
+        CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
+        PagedBytesCursor cursor = new PagedBytesCursor();
+        boolean verified = false;
+        for (int attempt = 0; attempt < MAX_PASSES && verified == false; attempt++) {
+            BytesRefArray array = newArrayOrNullIfRefused(bigArrays);
+            if (array == null) {
+                continue;
+            }
+            List<BytesRef> expected = new ArrayList<>();
+            int refusals = 0;
+            try (array) {
+                for (int i = 0; i < ENTRIES_SPANNING_MANY_PAGES; i++) {
+                    byte[] data = randomByteArrayOfLength(between(1, 500));
+                    cursor.init(data, 0, data.length);
+                    try {
+                        array.append(cursor);
+                        expected.add(new BytesRef(data));
+                    } catch (CircuitBreakingException e) {
+                        // the entry must be discarded whole; the cursor itself is left partially consumed, so the
+                        // refused entry cannot simply be re-offered
+                        assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                        refusals++;
+                    }
+                }
+                assertThat(array.size(), equalTo((long) expected.size()));
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < expected.size(); i++) {
+                    assertThat(array.get(i, scratch), equalTo(expected.get(i)));
+                }
+                verified = refusals > 0;
+            }
+        }
+        assertThat("no pass ever saw an append refused", verified, equalTo(true));
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+    }
+
+    public void testRefusedFirstAppendLeavesArrayEmpty() {
+        // The very first append is the only one that can install the fixed-length encoding, and rolling it back
+        // has to uninstall it: an array left claiming a length it never stored reports that length as its
+        // largest entry even though it holds none. The initial byte storage is only 3 bytes wide, so any longer
+        // entry has to grow it and can therefore be refused.
+        CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
+        // The breaker only trips now and then, so keep making fresh arrays until a first append is refused.
+        boolean refused = false;
+        for (int attempt = 0; attempt < 500 && refused == false; attempt++) {
+            try (BytesRefArray array = new BytesRefArray(1, bigArrays)) {
+                try {
+                    array.append(new BytesRef(randomAlphaOfLengthBetween(4, 100)));
+                } catch (CircuitBreakingException e) {
+                    refused = true;
+                    assertThat(array.size(), equalTo(0L));
+                    assertThat(array.valueMaxByteSize(), equalTo(0));
+                }
+            } catch (CircuitBreakingException e) {
+                // constructing the array can trip too, which leaves no array to inspect
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            }
+        }
+        assertThat("no first append was ever refused", refused, equalTo(true));
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+    }
+
+    public void testAppendDiscardsFixedLengthEntryRefusedByCircuitBreaker() {
+        // Entries of a constant length keep the array on its implicit fixed-length encoding, where a refused
+        // append records no offset of its own but still has to give back the byte range it reserved. A closing
+        // entry of a different length then forces the switch to explicit offset tables, which is what turns any
+        // byte range left over from a refusal into entries that read back wrong.
+        CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);
+        int fixedLength = between(200, 500);
+        boolean verified = false;
+        for (int attempt = 0; attempt < MAX_PASSES && verified == false; attempt++) {
+            BytesRefArray array = newArrayOrNullIfRefused(bigArrays);
+            if (array == null) {
+                continue;
+            }
+            List<BytesRef> expected = new ArrayList<>();
+            int refusals = 0;
+            try (array) {
+                for (int i = 0; i < ENTRIES_SPANNING_MANY_PAGES; i++) {
+                    BytesRef value = new BytesRef(randomAlphaOfLength(fixedLength));
+                    try {
+                        array.append(value);
+                        expected.add(BytesRef.deepCopyOf(value));
+                    } catch (CircuitBreakingException e) {
+                        // the entry must be discarded whole, so it is deliberately not added to `expected`
+                        assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                        refusals++;
+                    }
+                }
+                // Force the switch to explicit offset tables so that it is guaranteed to happen and to see
+                // whatever state the rolled-back appends left behind. Retry until the breaker lets it through.
+                BytesRef odd = new BytesRef(randomAlphaOfLength(fixedLength + 1));
+                boolean appended = false;
+                while (appended == false) {
+                    try {
+                        array.append(odd);
+                        appended = true;
+                    } catch (CircuitBreakingException e) {
+                        assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                    }
+                }
+                expected.add(BytesRef.deepCopyOf(odd));
+
+                assertThat(array.size(), equalTo((long) expected.size()));
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < expected.size(); i++) {
+                    assertThat(array.get(i, scratch), equalTo(expected.get(i)));
+                }
+                verified = refusals > 0;
+            }
+        }
+        assertThat("no pass ever saw an append refused", verified, equalTo(true));
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
     private static BigArrays mockBigArrays() {

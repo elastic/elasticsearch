@@ -10,43 +10,59 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.PrefixCodedTerms;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefComparator;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.StringSorter;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 /**
  * A query for matching any value from a set of BytesRef values for a specific field.
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
-public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryDocValuesQuery {
+public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryDocValuesQuery implements Accountable {
 
     private final PrefixCodedTerms termData;
     private final int termDataHashCode;
+    private final ByteRunAutomaton automaton;
 
-    public ScanningBinaryDocValuesTermInSetQuery(String fieldName, List<BytesRef> terms, boolean arrayOrderInlineNull) {
-        this(fieldName, packTerms(fieldName, Objects.requireNonNull(terms)), arrayOrderInlineNull);
+    public ScanningBinaryDocValuesTermInSetQuery(String fieldName, List<BytesRef> terms, BinaryDocValuesFormat binaryFormat) {
+        this(fieldName, packTerms(fieldName, Objects.requireNonNull(terms)), binaryFormat);
     }
 
-    private ScanningBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData, boolean arrayOrderInlineNull) {
-        super(fieldName, buildMatchPredicate(termData), arrayOrderInlineNull);
+    private ScanningBinaryDocValuesTermInSetQuery(String fieldName, PrefixCodedTerms termData, BinaryDocValuesFormat binaryFormat) {
+        this(fieldName, termData, buildAutomaton(termData), binaryFormat);
+    }
+
+    private ScanningBinaryDocValuesTermInSetQuery(
+        String fieldName,
+        PrefixCodedTerms termData,
+        ByteRunAutomaton automaton,
+        BinaryDocValuesFormat binaryFormat
+    ) {
+        super(fieldName, term -> automaton.run(term.bytes, term.offset, term.length), binaryFormat);
         this.termData = termData;
         this.termDataHashCode = termData.hashCode();
+        this.automaton = automaton;
     }
 
-    private static Predicate<BytesRef> buildMatchPredicate(PrefixCodedTerms termData) {
+    @Override
+    public long ramBytesUsed() {
+        return RamUsageEstimator.shallowSizeOf(this) + automaton.ramBytesUsed() + termData.ramBytesUsed();
+    }
+
+    private static ByteRunAutomaton buildAutomaton(PrefixCodedTerms termData) {
         try {
-            var automaton = Automata.makeBinaryStringUnion(termData.iterator());
-            var runAutomaton = new ByteRunAutomaton(automaton, true);
-            return term -> runAutomaton.run(term.bytes, term.offset, term.length);
+            return new ByteRunAutomaton(Automata.makeBinaryStringUnion(termData.iterator()), true);
         } catch (java.io.IOException e) {
             // Shouldn't happen since termData.iterator() provides an iterator implementation that never throws
             assert false : e;
@@ -120,11 +136,14 @@ public final class ScanningBinaryDocValuesTermInSetQuery extends AbstractBinaryD
             return false;
         }
         ScanningBinaryDocValuesTermInSetQuery that = (ScanningBinaryDocValuesTermInSetQuery) o;
-        return Objects.equals(fieldName, that.fieldName) && termDataHashCode == that.termDataHashCode && termData.equals(that.termData);
+        return Objects.equals(fieldName, that.fieldName)
+            && termDataHashCode == that.termDataHashCode
+            && termData.equals(that.termData)
+            && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, termDataHashCode);
+        return Objects.hash(classHash(), fieldName, termDataHashCode, binaryFormat);
     }
 }

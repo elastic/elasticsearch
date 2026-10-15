@@ -44,7 +44,7 @@ public abstract class NoFieldFullTextFunctionTestCase extends SingleFieldFullTex
 
     private static TestCaseSupplier.TestCase testCase(DataType strType, String str, Matcher<Boolean> matcher) {
         return new TestCaseSupplier.TestCase(
-            List.of(new TestCaseSupplier.TypedData(new BytesRef(str), strType, "query")),
+            List.of(new TestCaseSupplier.TypedData(new BytesRef(str), strType, "query").forceLiteral()),
             "",
             DataType.BOOLEAN,
             matcher

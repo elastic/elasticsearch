@@ -23,9 +23,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.license.License;
-import org.elasticsearch.license.TestUtils;
-import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -127,9 +124,6 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         client = Mockito.mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
 
-        final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-        licenseState.update(new XPackLicenseStatus(License.OperationMode.PLATINUM, true, null));
-
         final Clock clock = Clock.systemUTC();
 
         final ClusterService clusterService = mock(ClusterService.class);
@@ -151,7 +145,6 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             settings,
             clock,
             client,
-            licenseState,
             securityContext,
             securityIndex,
             tokensIndex,

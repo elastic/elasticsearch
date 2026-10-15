@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -35,9 +36,12 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public class Length extends UnaryScalarFunction implements BlockLoaderExpression {
+public class Length extends UnaryScalarFunction implements BlockLoaderExpression, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Length", Length::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Length.class).unary(Length::new).name("length");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Length.class)
+        .unary(Length::new)
+        .capabilities("missing_keyword_field")  // Mapped keyword with no values used to NPE in the loader.
+        .name("length");
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },

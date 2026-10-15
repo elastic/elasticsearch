@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -117,6 +118,14 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
 
     private SemanticInferenceMetadataFieldsMapper() {
         super(FieldType.INSTANCE);
+    }
+
+    @Override
+    public boolean supportsColumnarMetadataParse(IndexSettings indexSettings) {
+        // This is a metadata mapper. We support it from teh metadata perspective in that pre/post
+        // methods don't do anything. However, if a document actually matches this to a field we
+        // will fall back to row because we do not yet support the columnar parsing of fields.
+        return true;
     }
 
     @Override

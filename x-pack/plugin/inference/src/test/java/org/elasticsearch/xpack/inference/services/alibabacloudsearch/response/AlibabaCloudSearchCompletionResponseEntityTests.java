@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchRequest;
 
@@ -43,11 +43,11 @@ public class AlibabaCloudSearchCompletionResponseEntityTests extends ESTestCase 
         URI uri = new URI("mock_uri");
         when(request.getURI()).thenReturn(uri);
 
-        ChatCompletionResults chatCompletionResults = AlibabaCloudSearchCompletionResponseEntity.fromResponse(
+        CompletionResults completionResults = AlibabaCloudSearchCompletionResponseEntity.fromResponse(
             request,
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        assertThat(chatCompletionResults.getResults().size(), is(1));
-        assertThat(chatCompletionResults.getResults().get(0).content(), is("result"));
+        assertThat(completionResults.getResults().size(), is(1));
+        assertThat(completionResults.getResults().get(0).content(), is("result"));
     }
 }

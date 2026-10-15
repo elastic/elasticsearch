@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -50,6 +51,13 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
+        if (plan instanceof TimeSeriesAggregate) {
+            // If both f1 and f2 are missing, this rule rewrites `STATS f(f1), f(f2)` as
+            // `STATS f(v0), f(v0)`, where `v0` is null. Because the rewritten aggregations
+            // are identical, they are treated as `STATS f(v0)`, causing an intermediate
+            // output mismatch.
+            return plan;
+        }
         var lookupFieldsBuilder = AttributeSet.builder();
         var externalFieldsBuilder = AttributeSet.builder();
         Map<Attribute, Expression> attrToConstant = new HashMap<>();
@@ -81,8 +89,9 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices and external sources because we do not have stats for these.
         Predicate<FieldAttribute> shouldBeRetained = f -> f instanceof TimeSeriesMetadataAttribute
-            // We should still attempt to load potentially unmapped fields if they're unmapped; that's the whole point!
-            || f.isPotentiallyUnmapped()
+            // We should still attempt to load potentially unmapped fields if they're unmapped; that's the whole point! Unless no
+            // shard here can hold a value for it outside of its mapping, in which case it is as missing as any other field.
+            || (f.isPotentiallyUnmapped() && localLogicalOptimizerContext.searchStats().mayHoldUnmappedField(f.fieldName()))
             // The source (or doc) field is added to the relation output as a hack to enable late materialization in the reduce driver.
             || EsQueryExec.isDocAttribute(f)
             // MissingEsField means the coordinator explicitly nullified this field (unmapped_fields="nullify").

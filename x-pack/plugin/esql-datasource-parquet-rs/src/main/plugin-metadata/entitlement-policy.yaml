@@ -1,3 +1,0 @@
-ALL-UNNAMED:
-  - load_native_libraries
-  - create_class_loader

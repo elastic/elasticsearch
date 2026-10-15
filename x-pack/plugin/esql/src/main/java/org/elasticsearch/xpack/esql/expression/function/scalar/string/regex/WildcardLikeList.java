@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -39,7 +40,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.WildcardQueryBuilder.expressionTransportSupported;
 
-public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
+public class WildcardLikeList extends RegexMatch<WildcardPatternList> implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "WildcardLikeList",

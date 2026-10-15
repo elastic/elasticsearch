@@ -38,7 +38,12 @@ public interface SourceBatchEncoder extends Releasable {
      */
     int commitScratchTo(int partitionKey) throws IOException;
 
-    /** Builds the {@link SourceBatch} for {@code partitionKey} from all committed rows. */
+    /**
+     * Builds the {@link SourceBatch} for {@code partitionKey} from all committed rows.
+     *
+     * @throws IllegalStateException if no rows have been committed to {@code partitionKey}, or if
+     *     the partition has already been built
+     */
     SourceBatch buildPartition(int partitionKey);
 
     /** The number of documents committed to {@code partitionKey}. */

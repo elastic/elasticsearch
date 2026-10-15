@@ -15,10 +15,14 @@ module org.elasticsearch.workloadidentity {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.workloadidentity.spi;
 
-    requires org.apache.httpcomponents.httpclient;
-    requires org.apache.httpcomponents.httpcore;
-    requires org.apache.httpcomponents.httpasyncclient;
-    requires org.apache.httpcomponents.httpcore.nio;
+    requires org.apache.httpcomponents.client5.httpclient5;
+    requires org.apache.httpcomponents.core5.httpcore5;
+    requires org.apache.httpcomponents.core5.httpcore5.h2;
+
+    // httpclient5 calls LoggerFactory.getLogger() in static initializers; the JPMS module layer
+    // resolver only includes org.slf4j if a named module requires it, so we must declare it here
+    // even though this module itself does not import any org.slf4j types.
+    requires org.slf4j;
 
     // HttpsWorkloadIdentityIssuerClient declares its logger as org.apache.logging.log4j.Logger
     // (rather than the org.elasticsearch.logging facade used elsewhere in this module) so it

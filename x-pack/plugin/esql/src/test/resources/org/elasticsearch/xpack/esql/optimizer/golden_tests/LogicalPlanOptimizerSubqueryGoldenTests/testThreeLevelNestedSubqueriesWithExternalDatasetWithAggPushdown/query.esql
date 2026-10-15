@@ -1,0 +1,5 @@
+FROM employees,
+     (FROM languages,
+           (FROM heavy_a, heavy_b)
+     )
+| STATS c = COUNT(*), mx = MAX(salary)

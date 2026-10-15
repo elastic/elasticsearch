@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -25,7 +26,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -41,7 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -71,7 +72,13 @@ public class HuggingFaceChatCompletionActionTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
     }
 
     @After
@@ -116,7 +123,7 @@ public class HuggingFaceChatCompletionActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
+            action.execute(new CompletionInput(List.of("abc")), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -152,7 +159,7 @@ public class HuggingFaceChatCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
+        action.execute(new CompletionInput(List.of("abc")), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -172,7 +179,7 @@ public class HuggingFaceChatCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
+        action.execute(new CompletionInput(List.of("abc")), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -214,7 +221,7 @@ public class HuggingFaceChatCompletionActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc", "def")), null, listener);
+            action.execute(new CompletionInput(List.of("abc", "def")), null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -230,7 +237,7 @@ public class HuggingFaceChatCompletionActionTests extends ESTestCase {
             model,
             COMPLETION_HANDLER,
             inputs -> new HuggingFaceUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
-            ChatCompletionInput.class
+            CompletionInput.class
         );
         var errorMessage = constructFailedToSendRequestMessage("hugging face chat completions");
         return new SingleInputSenderExecutableAction(sender, manager, errorMessage, "hugging face chat completions");

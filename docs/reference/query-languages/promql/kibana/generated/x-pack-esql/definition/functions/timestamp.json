@@ -1,0 +1,24 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "time",
+  "name" : "timestamp",
+  "description" : "Returns the timestamp of each sample of the given vector as the number of seconds since January 1, 1970 UTC. It acts on float and histogram samples in the same way.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "timestamp(http_requests_total)"
+  ],
+  "snapshot_only" : false
+}

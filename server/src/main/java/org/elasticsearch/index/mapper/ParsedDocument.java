@@ -40,7 +40,7 @@ public class ParsedDocument {
 
     private final long normalizedSize;
 
-    private final SourceToParse.Source source;
+    private final DocumentSource source;
     private CompressedXContent dynamicMappingsUpdate;
 
     /**
@@ -123,10 +123,14 @@ public class ParsedDocument {
             document.add(field);
 
         } else if (useColumnarId) {
-            document.add(ProvidedIdFieldMapper.columnarIdField(id));
+            // When uid is provided (slice-enabled indices) the tombstone identity is the compound (slice, id) term, so store that
+            document.add(uid != null ? ProvidedIdFieldMapper.columnarIdField(uid) : ProvidedIdFieldMapper.columnarIdField(id));
         } else {
-            // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
-            document.add(IdFieldMapper.standardIdField(id));
+            if (uid != null) {
+                document.add(IdFieldMapper.standardIdField(uid, Field.Store.YES));
+            } else {
+                document.add(IdFieldMapper.standardIdField(id));
+            }
         }
         return new ParsedDocument(
             versionField,
@@ -147,7 +151,7 @@ public class ParsedDocument {
         String id,
         String routing,
         List<LuceneDocument> documents,
-        SourceToParse.Source source,
+        DocumentSource source,
         CompressedXContent dynamicMappingsUpdate,
         long normalizedSize
     ) {
@@ -172,16 +176,7 @@ public class ParsedDocument {
         CompressedXContent dynamicMappingsUpdate,
         long normalizedSize
     ) {
-        this(
-            version,
-            seqID,
-            id,
-            routing,
-            documents,
-            SourceToParse.Source.fromBytes(source, xContentType),
-            dynamicMappingsUpdate,
-            normalizedSize
-        );
+        this(version, seqID, id, routing, documents, new BytesSource(source, xContentType, false), dynamicMappingsUpdate, normalizedSize);
     }
 
     public String id() {
@@ -212,7 +207,7 @@ public class ParsedDocument {
         return this.documents;
     }
 
-    public SourceToParse.Source source() {
+    public DocumentSource source() {
         return this.source;
     }
 

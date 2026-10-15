@@ -9,14 +9,13 @@
 
 package org.elasticsearch.sourcebatch;
 
-import org.elasticsearch.eirf.EirfEncoder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentString;
 
 public class InlineArrayReaderTests extends ESTestCase {
 
     public void testEmptyUnionArray() {
-        byte[] packed = EirfEncoder.packUnionArray(new byte[0], new long[0], new Object[0], 0);
+        byte[] packed = SourceBatchEncodeHelper.packUnionArray(new byte[0], new long[0], new Object[0], 0);
         InlineArrayReader reader = new InlineArrayReader(packed, false);
         assertFalse(reader.next());
     }
@@ -31,7 +30,7 @@ public class InlineArrayReaderTests extends ESTestCase {
     public void testUnionArraySingleInt() {
         byte[] elemTypes = { SourceValueType.INT };
         long[] elemNumeric = { 42L };
-        byte[] packed = EirfEncoder.packUnionArray(elemTypes, elemNumeric, new Object[1], 1);
+        byte[] packed = SourceBatchEncodeHelper.packUnionArray(elemTypes, elemNumeric, new Object[1], 1);
 
         InlineArrayReader reader = new InlineArrayReader(packed, false);
         assertTrue(reader.next());
@@ -42,7 +41,7 @@ public class InlineArrayReaderTests extends ESTestCase {
 
     public void testFixedArrayInts() {
         long[] elemNumeric = { 1L, 2L, 3L };
-        byte[] packed = EirfEncoder.packFixedArray(SourceValueType.INT, elemNumeric, new Object[3], 3);
+        byte[] packed = SourceBatchEncodeHelper.packFixedArray(SourceValueType.INT, elemNumeric, new Object[3], 3);
 
         InlineArrayReader reader = new InlineArrayReader(packed, true);
         assertTrue(reader.next());
@@ -59,7 +58,7 @@ public class InlineArrayReaderTests extends ESTestCase {
         byte[] utf8a = "hello".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         byte[] utf8b = "world".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         Object[] elemVar = { new XContentString.UTF8Bytes(utf8a, 0, utf8a.length), new XContentString.UTF8Bytes(utf8b, 0, utf8b.length) };
-        byte[] packed = EirfEncoder.packFixedArray(SourceValueType.STRING, new long[2], elemVar, 2);
+        byte[] packed = SourceBatchEncodeHelper.packFixedArray(SourceValueType.STRING, new long[2], elemVar, 2);
 
         InlineArrayReader reader = new InlineArrayReader(packed, true);
         assertTrue(reader.next());
@@ -84,7 +83,7 @@ public class InlineArrayReaderTests extends ESTestCase {
         // TRUE and NULL have no data
         elemNumeric[4] = Float.floatToRawIntBits(3.14f);
 
-        byte[] packed = EirfEncoder.packUnionArray(elemTypes, elemNumeric, elemVar, 5);
+        byte[] packed = SourceBatchEncodeHelper.packUnionArray(elemTypes, elemNumeric, elemVar, 5);
         InlineArrayReader reader = new InlineArrayReader(packed, false);
 
         assertTrue(reader.next());
@@ -112,7 +111,7 @@ public class InlineArrayReaderTests extends ESTestCase {
 
     public void testBooleanValues() {
         byte[] elemTypes = { SourceValueType.TRUE, SourceValueType.FALSE };
-        byte[] packed = EirfEncoder.packUnionArray(elemTypes, new long[2], new Object[2], 2);
+        byte[] packed = SourceBatchEncodeHelper.packUnionArray(elemTypes, new long[2], new Object[2], 2);
 
         InlineArrayReader reader = new InlineArrayReader(packed, false);
         assertTrue(reader.next());
@@ -127,7 +126,7 @@ public class InlineArrayReaderTests extends ESTestCase {
     public void testWithOffset() {
         byte[] elemTypes = { SourceValueType.INT };
         long[] elemNumeric = { 99L };
-        byte[] packed = EirfEncoder.packUnionArray(elemTypes, elemNumeric, new Object[1], 1);
+        byte[] packed = SourceBatchEncodeHelper.packUnionArray(elemTypes, elemNumeric, new Object[1], 1);
 
         byte[] withPrefix = new byte[5 + packed.length];
         System.arraycopy(packed, 0, withPrefix, 5, packed.length);
@@ -139,7 +138,7 @@ public class InlineArrayReaderTests extends ESTestCase {
 
     public void testFixedArrayLongs() {
         long[] elemNumeric = { Long.MAX_VALUE, Long.MIN_VALUE };
-        byte[] packed = EirfEncoder.packFixedArray(SourceValueType.LONG, elemNumeric, new Object[2], 2);
+        byte[] packed = SourceBatchEncodeHelper.packFixedArray(SourceValueType.LONG, elemNumeric, new Object[2], 2);
 
         InlineArrayReader reader = new InlineArrayReader(packed, true);
         assertTrue(reader.next());
@@ -151,7 +150,7 @@ public class InlineArrayReaderTests extends ESTestCase {
 
     public void testFixedArrayDoubles() {
         long[] elemNumeric = { Double.doubleToRawLongBits(3.14), Double.doubleToRawLongBits(-2.718) };
-        byte[] packed = EirfEncoder.packFixedArray(SourceValueType.DOUBLE, elemNumeric, new Object[2], 2);
+        byte[] packed = SourceBatchEncodeHelper.packFixedArray(SourceValueType.DOUBLE, elemNumeric, new Object[2], 2);
 
         InlineArrayReader reader = new InlineArrayReader(packed, true);
         assertTrue(reader.next());
@@ -178,7 +177,7 @@ public class InlineArrayReaderTests extends ESTestCase {
 
         byte[] elemTypes = { SourceValueType.KEY_VALUE };
         Object[] elemVar = { kvPayload };
-        byte[] packed = EirfEncoder.packUnionArray(elemTypes, new long[1], elemVar, 1);
+        byte[] packed = SourceBatchEncodeHelper.packUnionArray(elemTypes, new long[1], elemVar, 1);
 
         InlineArrayReader reader = new InlineArrayReader(packed, false);
         assertTrue(reader.next());

@@ -16,12 +16,16 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader.BytesRefBuilder;
+import org.elasticsearch.index.mapper.BlockLoader.DoubleBuilder;
+import org.elasticsearch.index.mapper.BlockLoader.IntBuilder;
+import org.elasticsearch.index.mapper.BlockLoader.LongBuilder;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.ToDoubleFunction;
 
 import static org.elasticsearch.index.mapper.BlockSourceReader.ESTIMATED_SIZE;
 
@@ -160,6 +164,115 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         @Override
         public String toString() {
             return "BlockStoredFieldsReader.Bytes";
+        }
+    }
+
+    /**
+     * Load integer blocks from stored {@link Number}s.
+     */
+    public static class IntsFromNumbersBlockLoader extends StoredFieldsBlockLoader {
+        public IntsFromNumbersBlockLoader(String field) {
+            super(field);
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.ints(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
+            return new Numbers(breaker, field) {
+                @Override
+                protected void append(Builder builder, Number value) {
+                    ((IntBuilder) builder).appendInt(value.intValue());
+                }
+            };
+        }
+    }
+
+    /**
+     * Load long blocks from stored {@link Number}s.
+     */
+    public static class LongsFromNumbersBlockLoader extends StoredFieldsBlockLoader {
+        public LongsFromNumbersBlockLoader(String field) {
+            super(field);
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.longs(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
+            return new Numbers(breaker, field) {
+                @Override
+                protected void append(Builder builder, Number value) {
+                    ((LongBuilder) builder).appendLong(value.longValue());
+                }
+            };
+        }
+    }
+
+    /**
+     * Load double blocks from stored {@link Number}s.
+     */
+    public static class DoublesFromNumbersBlockLoader extends StoredFieldsBlockLoader {
+        private final ToDoubleFunction<Number> toDouble;
+
+        public DoublesFromNumbersBlockLoader(String field, ToDoubleFunction<Number> toDouble) {
+            super(field);
+            this.toDouble = toDouble;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.doubles(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
+            return new Numbers(breaker, field) {
+                @Override
+                protected void append(Builder builder, Number value) {
+                    ((DoubleBuilder) builder).appendDouble(toDouble.applyAsDouble(value));
+                }
+            };
+        }
+    }
+
+    private abstract static class Numbers extends BlockStoredFieldsReader {
+        private final String field;
+
+        private Numbers(CircuitBreaker breaker, String field) {
+            super(breaker);
+            this.field = field;
+        }
+
+        protected abstract void append(BlockLoader.Builder builder, Number value);
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+            List<Object> values = storedFields.storedFields().get(field);
+            if (values == null) {
+                builder.appendNull();
+                return;
+            }
+            if (values.size() == 1) {
+                append(builder, (Number) values.getFirst());
+                return;
+            }
+            builder.beginPositionEntry();
+            for (Object value : values) {
+                append(builder, (Number) value);
+            }
+            builder.endPositionEntry();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockStoredFieldsReader.Numbers";
         }
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 
 import java.io.IOException;
 import java.util.Date;
@@ -459,6 +460,20 @@ public class Annotation implements ToXContentObject, Writeable {
 
     public String toString() {
         return Strings.toString(this);
+    }
+
+    public static Annotation searchScopeChanged(String jobId, String message, Date eventTime, Date now) {
+        return new Builder().setAnnotation(message)
+            .setCreateTime(now)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
+            .setTimestamp(eventTime)
+            .setEndTimestamp(eventTime)
+            .setJobId(jobId)
+            .setModifiedTime(now)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
+            .setType(Type.ANNOTATION)
+            .setEvent(Event.SEARCH_SCOPE_CHANGED)
+            .build();
     }
 
     public static class Builder {

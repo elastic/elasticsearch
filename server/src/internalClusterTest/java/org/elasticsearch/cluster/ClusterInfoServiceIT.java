@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -42,9 +43,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
@@ -413,6 +414,10 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
      * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueueMillis()}. The latter looks at currently queued tasks,
      * and the former tracks the queue latency of tasks when they are taken off of the queue to start execution.
      */
+    @TestLogging(
+        value = "org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor:TRACE",
+        reason = "Aids diagnosis of hard-to-reproduce failures in this test: thread pool executor state is not otherwise observable"
+    )
     public void testMaxQueueLatenciesInClusterInfo() throws Exception {
         var settings = Settings.builder()
             .put(
@@ -430,27 +435,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         final int numShards = randomIntBetween(1, 5);
         createIndex(indexName, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
         ensureGreen(indexName);
-
-        // Global checkpoint sync actions are asynchronous. We cannot really tell exactly when they are completely off the
-        // thread pool. To avoid busy waiting, we redirect them to the generic thread pool so that we have precise control
-        // over the write thread pool for assertions.
-        final MockTransportService mockTransportService = MockTransportService.getInstance(dataNodeName);
-        final var originalRegistry = mockTransportService.transport()
-            .getRequestHandlers()
-            .getHandler(GlobalCheckpointSyncAction.ACTION_NAME + "[p]");
-        mockTransportService.transport()
-            .getRequestHandlers()
-            .forceRegister(
-                new RequestHandlerRegistry<>(
-                    GlobalCheckpointSyncAction.ACTION_NAME + "[p]",
-                    in -> null, // no need to deserialize the request since it's local
-                    mockTransportService.getTaskManager(),
-                    originalRegistry.getHandler(),
-                    mockTransportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                    true,
-                    true
-                )
-            );
 
         // Block indexing on the data node by submitting write thread pool tasks equal to the number of write threads.
         var barrier = blockDataNodeIndexing(dataNodeName);
@@ -514,18 +498,39 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 threadsToJoin[i].join();
             }
             Arrays.stream(threadsToJoin).forEach(thread -> assertFalse(thread.isAlive()));
-            // Monitor the write executor on the data node to try and determine when the backlog of tasks
-            // has been fully drained (and
-            // {@link org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor.afterExecute()}
-            // has been called). This is probably not foolproof, so worth investigating if we see non-zero utilization numbers
-            // after the next poll. See https://github.com/elastic/elasticsearch/issues/134500
-            assertBusy(() -> assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0)));
-
-            assertThat(
-                "Unexpectedly found a task queued for the write thread pool. Write thread pool dump: " + trackingWriteExecutor,
-                trackingWriteExecutor.peekMaxQueueLatencyInQueueMillis(),
-                equalTo(0L)
-            );
+            // Disable the periodic global-checkpoint sync task for ALL indices.
+            // This is a source of GlobalCheckpointSyncAction dispatches to the WRITE pool after all write threads are joined.
+            final var dataNodeIndicesService = internalCluster().getInstance(IndicesService.class, dataNodeName);
+            for (IndexService indexService : dataNodeIndicesService) {
+                indexService.getGlobalCheckpointTask().setInterval(TimeValue.ZERO);
+            }
+            // The `AsyncGlobalCheckpointTask` runs on the GENERIC thread pool. A periodic sync
+            // executing before the above setInterval(ZERO) interrupt signal may have already
+            // dispatched a GlobalCheckpointSyncAction onto the transport layer. A transport action
+            // request is registered as a task in the TransportService's TaskManager *before* it is
+            // routed through the GENERIC pool, and ultimately onto the WRITE pool. Waiting for
+            // GENERIC to quiesce, and no transport TaskManager entry matching
+            // `GlobalCheckpointSyncAction`, ensures that any async tasks have either completed or
+            // advanced past GENERIC into WRITE.
+            final var genericExecutor = (EsThreadPoolExecutor) dataNodeThreadPool.executor(ThreadPool.Names.GENERIC);
+            final var dataNodeTaskManager = internalCluster().getInstance(TransportService.class, dataNodeName).getTaskManager();
+            assertBusy(() -> {
+                assertThat(genericExecutor.getActiveCount(), equalTo(0));
+                assertThat(genericExecutor.getQueue().size(), equalTo(0));
+                final var inFlightSyncCheckpointSyncTasks = dataNodeTaskManager.getTasks()
+                    .values()
+                    .stream()
+                    .filter(t -> t.getAction().startsWith(GlobalCheckpointSyncAction.ACTION_NAME))
+                    .toList();
+                assertThat(inFlightSyncCheckpointSyncTasks, Matchers.empty());
+            });
+            // Once GENERIC is idle and no TaskManager entry exists, any in-flight sync has reached
+            // the WRITE pool. A WRITE thread may still be finishing its run() after unregistering
+            // from the TaskManager, so wait for WRITE to fully quiesce.
+            assertBusy(() -> {
+                assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0));
+                assertThat(trackingWriteExecutor.getCurrentQueueSize(), equalTo(0));
+            });
 
             final ClusterInfo nextClusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
             {

@@ -12,6 +12,8 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Objects;
 
 /**
@@ -26,13 +28,33 @@ import java.util.Objects;
  * {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator}). Callers must invoke
  * {@link #makeRefCountsThreadSafe()} before doing that, e.g. from
  * {@link Block#allowPassingToDifferentDriver()}, to switch to a thread-safe implementation that
- * uses {@code synchronized} blocks around the same {@code int} field.
+ * uses a CAS loop over a separate embedded {@code volatile int} field -- the same technique used
+ * by {@link AbstractRefCounted}, without any separate heap allocation.
  */
 public abstract class AbstractBlockRefCounted implements RefCounted, Releasable {
 
+    private static final VarHandle VH_ATOMIC_REFCOUNT_FIELD;
+
+    static {
+        try {
+            VH_ATOMIC_REFCOUNT_FIELD = MethodHandles.lookup()
+                .in(AbstractBlockRefCounted.class)
+                .findVarHandle(AbstractBlockRefCounted.class, "atomicRefCount", int.class);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Plain (non-atomic) ref count used while single-threaded, before promotion. */
     private int refCount = 1;
     /**
-     * When {@code true}, all ref-count mutations are guarded by {@code synchronized(this)}.
+     * Atomic ref count used after promotion. Initialized from {@link #refCount} by
+     * {@link #makeRefCountsThreadSafe()}; mutated only via {@link #VH_ATOMIC_REFCOUNT_FIELD}.
+     */
+    @SuppressWarnings("FieldMayBeFinal") // updated via VH_ATOMIC_REFCOUNT_FIELD after promotion
+    private volatile int atomicRefCount;
+    /**
+     * When {@code true}, all ref-count mutations use the CAS path over {@link #atomicRefCount}.
      * Set once by the owning thread before safe publication; never cleared.
      */
     private boolean threadSafe;
@@ -55,12 +77,16 @@ public abstract class AbstractBlockRefCounted implements RefCounted, Releasable 
     }
 
     /**
-     * Switches this object's reference counting to a thread-safe mode, guarding all subsequent
-     * mutations with {@code synchronized(this)}. Must be called by the single thread that currently
-     * owns this object, before any reference to it can be used concurrently from more than one
-     * thread. Idempotent: a no-op if already thread-safe.
+     * Switches this object's reference counting to a thread-safe mode that uses a CAS loop over an
+     * embedded {@code volatile int}. Must be called by the single thread that currently owns this
+     * object, before any reference to it can be used concurrently from more than one thread.
+     * Idempotent: a no-op if already thread-safe.
      */
     public final void makeRefCountsThreadSafe() {
+        if (threadSafe) {
+            return;
+        }
+        atomicRefCount = refCount;
         threadSafe = true;
     }
 
@@ -74,13 +100,16 @@ public abstract class AbstractBlockRefCounted implements RefCounted, Releasable 
     @Override
     public final boolean tryIncRef() {
         if (threadSafe) {
-            synchronized (this) {
-                if (refCount <= 0) {
+            do {
+                int i = atomicRefCount;
+                if (i > 0) {
+                    if (VH_ATOMIC_REFCOUNT_FIELD.weakCompareAndSet(this, i, i + 1)) {
+                        return true;
+                    }
+                } else {
                     return false;
                 }
-                refCount++;
-                return true;
-            }
+            } while (true);
         } else {
             if (refCount <= 0) {
                 return false;
@@ -94,12 +123,11 @@ public abstract class AbstractBlockRefCounted implements RefCounted, Releasable 
     public final boolean decRef() {
         boolean closed;
         if (threadSafe) {
-            synchronized (this) {
-                if (refCount <= 0) {
-                    throw new IllegalStateException("can't release already released object [" + this + "]");
-                }
-                closed = --refCount == 0;
+            int i = (int) VH_ATOMIC_REFCOUNT_FIELD.getAndAdd(this, -1);
+            if (i <= 0) {
+                throw new IllegalStateException("can't release already released object [" + this + "]");
             }
+            closed = (i == 1);
         } else {
             if (refCount <= 0) {
                 throw new IllegalStateException("can't release already released object [" + this + "]");
@@ -116,12 +144,9 @@ public abstract class AbstractBlockRefCounted implements RefCounted, Releasable 
     @Override
     public final boolean hasReferences() {
         if (threadSafe) {
-            synchronized (this) {
-                return refCount > 0;
-            }
-        } else {
-            return refCount > 0;
+            return atomicRefCount > 0;
         }
+        return refCount > 0;
     }
 
     @Override

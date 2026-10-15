@@ -372,7 +372,8 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         if (indexMode == IndexMode.STANDARD
             || indexMode == IndexMode.LOOKUP
             || indexMode == IndexMode.COLUMNAR
-            || indexMode == IndexMode.VECTORDB_DOCUMENT) {
+            || indexMode == IndexMode.VECTORDB_DOCUMENT
+            || indexMode == IndexMode.VECTORDB_COLUMNAR) {
             boolean nanosTimestampResolution = randomBoolean();
             // Strict columnar modes disable indexing by default; override explicitly so this test can read timestamp ranges via points.
             boolean strictColumnar = indexMode.isStrictColumnar();

@@ -77,6 +77,14 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
         return fault == null ? 0 : fault.remaining.get();
     }
 
+    /**
+     * Atomically consume one fault slot. Returns the previous remaining count;
+     * the caller should inject iff the result is {@code > 0}. Never drives remaining below 0.
+     */
+    private static int tryConsumeFault(AtomicInteger remaining) {
+        return remaining.getAndUpdate(n -> n > 0 ? n - 1 : n);
+    }
+
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         FaultConfig fault = this.activeFault;
@@ -88,7 +96,8 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
                 delegate.handle(new TruncatingHttpExchange(exchange, fault.resetAfterBytes, fault.remaining));
                 return;
             }
-            if (fault.remaining.decrementAndGet() >= 0) {
+            int previous = tryConsumeFault(fault.remaining);
+            if (previous > 0) {
                 logger.debug(
                     "injecting fault [{}] for path [{}], remaining [{}]",
                     fault.type,
@@ -278,17 +287,22 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
                 written += len;
                 return;
             }
-            // Cross the threshold: write what fits, then drop the connection mid-body.
-            if (room > 0) {
-                delegate.write(b, off, (int) room);
-                written += room;
+            // Cross the threshold. Consume the budget atomically so concurrent mid-body
+            // GETs cannot drive remaining below 0. Only the winner truncates; losers
+            // serve this write in full.
+            int previous = tryConsumeFault(remaining);
+            if (previous > 0) {
+                if (room > 0) {
+                    delegate.write(b, off, (int) room);
+                    written += room;
+                }
+                truncated = true;
+                logger.debug("injecting mid-body connection reset after [{}] bytes, remaining [{}]", written, remaining.get());
+                exchange.close();
+                throw new IOException("connection reset (injected mid-body fault)");
             }
-            truncated = true;
-            // Only consume the budget when we actually fault (so sub-threshold probe reads don't).
-            int left = remaining.decrementAndGet();
-            logger.debug("injecting mid-body connection reset after [{}] bytes, remaining [{}]", written, left);
-            exchange.close();
-            throw new IOException("connection reset (injected mid-body fault)");
+            delegate.write(b, off, len);
+            written += len;
         }
 
         @Override

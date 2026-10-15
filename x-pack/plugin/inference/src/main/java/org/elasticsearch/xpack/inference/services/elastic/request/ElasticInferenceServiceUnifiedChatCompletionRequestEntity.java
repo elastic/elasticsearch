@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -28,7 +28,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntity implement
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxCompletionTokens(modelId, params));
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequestBody.withMaxCompletionTokens(modelId, params));
         builder.endObject();
 
         return builder;

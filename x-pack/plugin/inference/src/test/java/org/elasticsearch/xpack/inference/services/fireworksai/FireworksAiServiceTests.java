@@ -15,11 +15,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.http.MockResponse;
@@ -46,7 +48,6 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiServiceParameterizedTestConfiguration.createInternalChatCompletionModel;
 import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiServiceParameterizedTestConfiguration.createInternalEmbeddingModel;
@@ -151,9 +152,9 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
 
             var model = createInternalChatCompletionModel(getUrl(webServer), API_KEY, MODEL_ID);
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            var request = UnifiedCompletionRequest.of(List.of(new Message(new ContentString("Hello"), "user", null, null)));
+            var request = UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("Hello"), "user", null, null)));
 
-            service.unifiedCompletionInfer(model, request, null, listener);
+            service.unifiedCompletionInfer(model, UnifiedCompletionRequest.streaming(request), null, listener);
 
             var inferenceServiceResults = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -222,6 +223,11 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
                          "completion",
                          "chat_completion"
                      ],
+                     "features": {
+                         "non_streaming_chat": {
+                             "supported": true
+                         }
+                     },
                      "configurations": {
                          "api_key": {
                              "description": "API Key for the provider you're connecting to.",
@@ -289,7 +295,7 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
                      }
                  }
                 """, dimensionsDescription));
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );

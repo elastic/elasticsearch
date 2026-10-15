@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
@@ -22,6 +25,14 @@ import java.util.EnumSet;
  * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFiltersTests}.
  */
 public class UserAgentGoldenTests extends GoldenTestCase {
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public UserAgentGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
 
     /**
      * Filters on fields unrelated to USER_AGENT output should be pushed below USER_AGENT,

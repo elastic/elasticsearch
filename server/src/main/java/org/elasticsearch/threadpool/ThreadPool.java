@@ -32,8 +32,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
-import org.elasticsearch.telemetry.metric.LongGauge;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -343,40 +342,39 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     }
 
     private static ArrayList<Instrument> setupMetrics(MeterRegistry meterRegistry, String name, ExecutorHolder holder) {
-        Map<String, Object> at = Map.of();
         ArrayList<Instrument> instruments = new ArrayList<>();
         if (holder.executor() instanceof ThreadPoolExecutor threadPoolExecutor) {
             String prefix = THREAD_POOL_METRIC_PREFIX + name;
             instruments.add(
-                meterRegistry.registerLongGauge(
+                meterRegistry.registerLongAsyncGauge(
                     prefix + THREAD_POOL_METRIC_NAME_CURRENT,
                     "number of threads for " + name,
                     "count",
-                    () -> new LongWithAttributes(threadPoolExecutor.getPoolSize(), at)
+                    threadPoolExecutor::getPoolSize
                 )
             );
             instruments.add(
-                meterRegistry.registerLongGauge(
+                meterRegistry.registerLongAsyncGauge(
                     prefix + THREAD_POOL_METRIC_NAME_QUEUE,
                     "number queue size for " + name,
                     "count",
-                    () -> new LongWithAttributes(threadPoolExecutor.getQueue().size(), at)
+                    () -> threadPoolExecutor.getQueue().size()
                 )
             );
             instruments.add(
-                meterRegistry.registerLongGauge(
+                meterRegistry.registerLongAsyncGauge(
                     prefix + THREAD_POOL_METRIC_NAME_ACTIVE,
                     "number of active threads for " + name,
                     "count",
-                    () -> new LongWithAttributes(threadPoolExecutor.getActiveCount(), at)
+                    threadPoolExecutor::getActiveCount
                 )
             );
             instruments.add(
-                meterRegistry.registerLongGauge(
+                meterRegistry.registerLongAsyncGauge(
                     prefix + THREAD_POOL_METRIC_NAME_LARGEST,
                     "largest pool size for " + name,
                     "count",
-                    () -> new LongWithAttributes(threadPoolExecutor.getLargestPoolSize(), at)
+                    threadPoolExecutor::getLargestPoolSize
                 )
             );
             instruments.add(
@@ -384,7 +382,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                     prefix + THREAD_POOL_METRIC_NAME_COMPLETED,
                     "number of completed threads for " + name,
                     "count",
-                    () -> new LongWithAttributes(threadPoolExecutor.getCompletedTaskCount(), at)
+                    threadPoolExecutor::getCompletedTaskCount
                 )
             );
             RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
@@ -607,7 +605,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                     } catch (Exception e) {
                         logger.warn(format("Failed to close LongAsyncCounter for %s. %s", executor.info.getName(), e.getMessage()), e);
                     }
-                } else if (instrument instanceof LongGauge longgauge) {
+                } else if (instrument instanceof LongAsyncGauge longgauge) {
                     try {
                         longgauge.close();
                     } catch (Exception e) {

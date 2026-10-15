@@ -8,16 +8,23 @@
 package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -31,10 +38,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RequestFilterRewriterTests extends ESTestCase {
@@ -52,82 +62,110 @@ public class RequestFilterRewriterTests extends ESTestCase {
 
     public void testNullFilterLeavesPlanUnchanged() {
         ExternalRelation relation = relation();
-        assertSame(relation, RequestFilterRewriter.rewrite(relation, null, true, CONFIG, CURRENT));
+        assertSame(relation, RequestFilterRewriter.rewrite(relation, null, CONFIG, CURRENT, randomBoolean()));
     }
 
     public void testSupportedFilterIsInstalledAboveTheRelation() {
         ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), true, CONFIG, CURRENT);
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), CONFIG, CURRENT, randomBoolean());
         assertThat(result, instanceOf(Filter.class));
         assertThat(((Filter) result).child(), sameInstance(relation));
     }
 
-    /** Fail-closed: a wholly-unsupported filter fails the whole query with a 400 (IllegalArgumentException) naming the construct. */
+    /** Strict policy: a wholly-unsupported filter fails the whole query with a 400 (VerificationException) listing the construct. */
     public void testWhollyUnsupportedFilterFailsTheQuery() {
         ExternalRelation relation = relation();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), true, CONFIG, CURRENT)
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), CONFIG, CURRENT, false)
         );
         assertThat(e.getMessage(), containsString("[wildcard]"));
     }
 
     /**
-     * Fail-closed: a filter that mixes a supported term with an unsupported wildcard fails the whole query — the
+     * Strict policy: a filter that mixes a supported term with an unsupported wildcard fails the whole query — the
      * supported clause does not rescue it, and no widened superset is silently applied.
      */
     public void testMixedFilterWithAnUnsupportedClauseFailsTheQuery() {
         ExternalRelation relation = relation();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        VerificationException e = expectThrows(
+            VerificationException.class,
             () -> RequestFilterRewriter.rewrite(
                 relation,
                 QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.wildcardQuery("a", "x*")),
-                true,
                 CONFIG,
-                CURRENT
+                CURRENT,
+                false
             )
         );
         assertThat(e.getMessage(), containsString("[wildcard]"));
     }
 
-    /**
-     * The feature gate: when off (a release build, where the feature flag is excluded) the relation is read
-     * unfiltered and the user is told, rather than the filter being silently dropped.
-     */
-    public void testDisabledLeavesThePlanUnchangedAndWarns() {
-        ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), false, CONFIG, CURRENT);
-        assertSame(relation, result);
-        assertWarnings(
-            "The request filter was not applied to external dataset(s) [ds] because applying the request filter to "
-                + "datasets is not enabled in this build; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from external datasets instead"
-        );
-    }
-
-    /** Disabled short-circuits before translation, so even an unsupported construct cannot fail the query. */
-    public void testDisabledDoesNotFailOnUnsupportedConstruct() {
-        ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), false, CONFIG, CURRENT);
-        assertSame(relation, result);
-        assertWarnings(
-            "The request filter was not applied to external dataset(s) [ds] because applying the request filter to "
-                + "datasets is not enabled in this build; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from external datasets instead"
-        );
-    }
-
     /** The critical version gate: below the feature version the rewrite is skipped, so no plan an old node can't read ships. */
     public void testOldMinimumVersionSkipsTheRewriteEntirely() {
         ExternalRelation relation = relation();
-        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), true, CONFIG, TOO_OLD);
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD, randomBoolean());
         assertSame(relation, result);
-        assertWarnings(
-            "The request filter was not applied to external dataset(s) [ds] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from external datasets instead"
+        assertWarnings("Request filter not applied to external datasets [ds], a node is too old to evaluate it; use WHERE instead");
+    }
+
+    // ---- per-function version gating (elastic/elasticsearch#159672) ----
+    //
+    // CURRENT here is the rewrite's OWN pin, which is below esql_mv_compare — so it is exactly the window this gate
+    // exists for: the rewrite runs, and a single-bound range needs a function the targeted nodes cannot read.
+
+    /** Strict policy: the query fails, naming the construct and the dataset. */
+    public void testGatedFunctionFailsUnderStrictPolicy() {
+        ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER), attr("k", DataType.KEYWORD));
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> RequestFilterRewriter.rewrite(relation, QueryBuilders.rangeQuery("k").gt("m"), CONFIG, CURRENT, false)
         );
+        assertThat(
+            e.getMessage(),
+            allOf(
+                containsString("single lower bound on keyword"),
+                containsString("dataset [ds]"),
+                // The cause, not just the construct: "unsupported" would be wrong for a clause the cluster is merely
+                // too old for, and without this the assertion passes on a message that misstates it.
+                containsString(QueryDslTranslator.VERSION_REASON),
+                not(containsString("unsupported on dataset"))
+            )
+        );
+    }
+
+    /** Partial mode: the gated conjunct is dropped with a warning, and the rest of the filter is still applied. */
+    public void testGatedFunctionIsDroppedInPartialModeAndTheRestApplies() {
+        ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER), attr("k", DataType.KEYWORD));
+        QueryBuilder filter = QueryBuilders.boolQuery()
+            .must(QueryBuilders.rangeQuery("k").gt("m"))
+            .must(QueryBuilders.rangeQuery("a").gte(1).lte(10));
+
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, filter, CONFIG, CURRENT, true);
+
+        assertThat(result, instanceOf(Filter.class));
+        Expression condition = ((Filter) result).condition();
+        assertThat("the survivable conjunct is installed", condition.anyMatch(MvInRange.class::isInstance), equalTo(true));
+        assertThat("the gated conjunct is not", condition.anyMatch(MvCompare.class::isInstance), equalTo(false));
+        assertWarnings(
+            "Request filter not fully applied to external datasets; not applied, "
+                + "[range[single lower bound on keyword]] on dataset [ds] because "
+                + QueryDslTranslator.VERSION_REASON
+                + "; use WHERE instead"
+        );
+    }
+
+    /**
+     * A filter naming a field the dataset does not have needs no function at all — the leaf folds to false either
+     * way — so below the pin it is answered exactly rather than dropped. Without this the most ordinary input there
+     * is would loosen the filter and tell the operator a construct was unsupported when nothing about it is.
+     */
+    public void testMissingFieldIsAnsweredExactlyRatherThanDropped() {
+        ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER));
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.rangeQuery("absent").gt("m"), CONFIG, CURRENT, true);
+        assertThat(result, instanceOf(Filter.class));
+        assertThat(((Filter) result).condition().anyMatch(MvCompare.class::isInstance), equalTo(false));
+        ensureNoWarnings();
     }
 
     private static ExternalRelation relation(String name, Attribute... attrs) {
@@ -146,7 +184,7 @@ public class RequestFilterRewriterTests extends ESTestCase {
         EsRelation index = EsqlTestUtils.relation();
         ExternalRelation dataset = relation("ds", attr("a", DataType.INTEGER));
         UnionAll union = new UnionAll(Source.EMPTY, List.of(index, dataset), List.of());
-        LogicalPlan result = RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), true, CONFIG, CURRENT);
+        LogicalPlan result = RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), CONFIG, CURRENT, randomBoolean());
 
         Map<Boolean, LogicalPlan> children = new HashMap<>();
         ((UnionAll) result).children().forEach(c -> children.put(c instanceof Filter, c));
@@ -154,17 +192,17 @@ public class RequestFilterRewriterTests extends ESTestCase {
         assertThat("the index branch is left untouched", children.get(false), sameInstance(index));
     }
 
-    /** Fail-closed: an unsupported clause under must_not fails the whole query too — the polarity does not matter. */
+    /** Strict policy: an unsupported clause under must_not fails the whole query too — the polarity does not matter. */
     public void testUnsupportedClauseUnderMustNotFailsTheQuery() {
         ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        VerificationException e = expectThrows(
+            VerificationException.class,
             () -> RequestFilterRewriter.rewrite(
                 relation,
                 QueryBuilders.boolQuery().mustNot(QueryBuilders.wildcardQuery("a", "x*")),
-                true,
                 CONFIG,
-                CURRENT
+                CURRENT,
+                false
             )
         );
         assertThat(e.getMessage(), containsString("[wildcard]"));
@@ -177,13 +215,9 @@ public class RequestFilterRewriterTests extends ESTestCase {
             List.of(relation("dsA", attr("a", DataType.INTEGER)), relation("dsB", attr("a", DataType.INTEGER))),
             List.of()
         );
-        LogicalPlan result = RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), true, CONFIG, TOO_OLD);
+        LogicalPlan result = RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD, false);
         assertThat(result, sameInstance(union));
-        assertWarnings(
-            "The request filter was not applied to external dataset(s) [dsA, dsB] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from external datasets instead"
-        );
+        assertWarnings("Request filter not applied to external datasets [dsA, dsB], a node is too old to evaluate it; use WHERE instead");
     }
 
     /** A dataset appearing more than once collapses to a single name in the version-gate warning. */
@@ -193,18 +227,14 @@ public class RequestFilterRewriterTests extends ESTestCase {
             List.of(relation("ds", attr("a", DataType.INTEGER)), relation("ds", attr("a", DataType.INTEGER))),
             List.of()
         );
-        RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), true, CONFIG, TOO_OLD);
-        assertWarnings(
-            "The request filter was not applied to external dataset(s) [ds] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from external datasets instead"
-        );
+        RequestFilterRewriter.rewrite(union, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD, false);
+        assertWarnings("Request filter not applied to external datasets [ds], a node is too old to evaluate it; use WHERE instead");
     }
 
     /** No datasets in the plan -> the version gate is silent (nothing to warn about). */
     public void testVersionGateOnPlanWithoutDatasetsStaysSilent() {
         EsRelation index = EsqlTestUtils.relation();
-        LogicalPlan result = RequestFilterRewriter.rewrite(index, QueryBuilders.termQuery("a", 1), true, CONFIG, TOO_OLD);
+        LogicalPlan result = RequestFilterRewriter.rewrite(index, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD, false);
         assertThat(result, sameInstance(index));
         // no assertWarnings: the datasets.isEmpty() guard means nothing is emitted
     }
@@ -222,26 +252,55 @@ public class RequestFilterRewriterTests extends ESTestCase {
             Map.of(),
             null
         );
-        RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), true, CONFIG, TOO_OLD);
+        RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD, false);
         assertWarnings(
-            "The request filter was not applied to external dataset(s) [file:///data.csv] because the cluster contains a node "
-                + "too old to evaluate the translated filter; they were read unfiltered. "
-                + "Use a WHERE clause to filter rows from external datasets instead"
+            "Request filter not applied to external datasets [file:///data.csv], a node is too old to evaluate it; use WHERE instead"
         );
     }
 
-    /** Fail-closed: an unsupported clause fails the query even when several datasets are queried together. */
+    /** The source-path fallback of an unnamed HTTP dataset drops the URL's user info, query string and fragment. */
+    public void testWarningFallbackRedactsHttpUrl() {
+        String url = "https://user:pass@host:8443/a/b.csv?X-Amz-Signature=abc";
+        List<Attribute> output = List.of(attr("a", DataType.INTEGER));
+        SourceMetadata metadata = new SimpleSourceMetadata(output, "test", url);
+        ExternalRelation relation = new ExternalRelation(Source.EMPTY, url, metadata, output, FileList.UNRESOLVED, Map.of(), null);
+        RequestFilterRewriter.rewrite(relation, QueryBuilders.termQuery("a", 1), CONFIG, TOO_OLD, false);
+        assertWarnings(
+            "Request filter not applied to external datasets [https://host:8443/a/b.csv], a node is too old to evaluate it; "
+                + "use WHERE instead"
+        );
+    }
+
+    public void testRedactHttpUrl() {
+        assertEquals(
+            "https://host:8443/a/b.csv",
+            ExternalFailures.redactHttpUrl("https://user:pass@host:8443/a/b.csv?X-Amz-Signature=abc")
+        );
+        assertEquals("http://host/a.csv", ExternalFailures.redactHttpUrl("http://u@host/a.csv#frag"));
+        assertEquals("HTTPS://host", ExternalFailures.redactHttpUrl("HTTPS://user:pass@host?sig=abc"));
+        // user info of other schemes is not a secret: for wasbs it is the container name
+        assertEquals(
+            "wasbs://container@account.blob.core.windows.net/a.csv",
+            ExternalFailures.redactHttpUrl("wasbs://container@account.blob.core.windows.net/a.csv")
+        );
+        assertEquals("s3://bucket/a?b.csv", ExternalFailures.redactHttpUrl("s3://bucket/a?b.csv"));
+    }
+
+    /** Fail-closed: an unsupported clause fails the query even when several datasets are queried together, listing all. */
     public void testUnsupportedClauseFailsTheQueryAcrossDatasets() {
         UnionAll union = new UnionAll(
             Source.EMPTY,
             List.of(relation("dsA", attr("a", DataType.INTEGER)), relation("dsB", attr("a", DataType.INTEGER))),
             List.of()
         );
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> RequestFilterRewriter.rewrite(union, QueryBuilders.wildcardQuery("a", "x*"), true, CONFIG, CURRENT)
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> RequestFilterRewriter.rewrite(union, QueryBuilders.wildcardQuery("a", "x*"), CONFIG, CURRENT, false)
         );
         assertThat(e.getMessage(), containsString("[wildcard]"));
+        // Each dataset produces one failure entry — both named in the error.
+        assertThat(e.getMessage(), containsString("dsA"));
+        assertThat(e.getMessage(), containsString("dsB"));
     }
 
     /**
@@ -264,9 +323,9 @@ public class RequestFilterRewriterTests extends ESTestCase {
             QueryBuilders.boolQuery()
                 .must(QueryBuilders.termQuery("region", "eu"))
                 .must(QueryBuilders.rangeQuery("status").gte(200).lte(400)),
-            true,
             CONFIG,
-            CURRENT
+            CURRENT,
+            false
         );
 
         Map<String, Filter> byDataset = new HashMap<>();
@@ -284,4 +343,95 @@ public class RequestFilterRewriterTests extends ESTestCase {
         );
         // No assertWarnings call: a missing field is index-consistent leniency, so nothing is dropped and nothing warns.
     }
+
+    /**
+     * Partial mode: an unsupported top-level clause is dropped with a warning instead of failing the query.
+     * The supported conjuncts are applied.
+     */
+    public void testPartialModeDropsUnsupportedClauseWithWarning() {
+        ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER));
+        LogicalPlan result = RequestFilterRewriter.rewrite(
+            relation,
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.wildcardQuery("a", "x*")),
+            CONFIG,
+            CURRENT,
+            true
+        );
+        // The plan should have a Filter (from the supported term clause) rather than failing.
+        assertThat(result, instanceOf(Filter.class));
+        // A single warning must be emitted naming the dropped construct.
+        assertWarnings("Request filter not fully applied to external datasets; unsupported: [wildcard] on dataset [ds]; use WHERE instead");
+    }
+
+    /**
+     * Partial mode: a wholly unsupported filter leaves the plan unchanged (no filter installed)
+     * and emits a warning — it does not fail the query.
+     */
+    public void testPartialModeWhollyUnsupportedLeavesNodeUnwrappedWithWarning() {
+        ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER));
+        LogicalPlan result = RequestFilterRewriter.rewrite(relation, QueryBuilders.wildcardQuery("a", "x*"), CONFIG, CURRENT, true);
+        assertThat("no filter installed when no conjuncts translated", result, sameInstance(relation));
+        assertWarnings(true, List.of(containsString("[wildcard]")));
+    }
+
+    /**
+     * Partial mode with multiple datasets: unsupported clauses from each dataset are all reported in a single warning.
+     */
+    public void testPartialModeMultipleDatasetsWarnsAll() {
+        UnionAll union = new UnionAll(
+            Source.EMPTY,
+            List.of(relation("dsA", attr("a", DataType.INTEGER)), relation("dsB", attr("a", DataType.INTEGER))),
+            List.of()
+        );
+        RequestFilterRewriter.rewrite(union, QueryBuilders.wildcardQuery("a", "x*"), CONFIG, CURRENT, true);
+        // Both datasets named in a single warning.
+        assertWarnings(
+            "Request filter not fully applied to external datasets; unsupported: [wildcard] on dataset [dsA], "
+                + "[wildcard] on dataset [dsB]; use WHERE instead"
+        );
+    }
+
+    /**
+     * Production policy on {@code must_not}: each clause is its own arm, and an arm is all-or-nothing. An unsupported
+     * construct inside a compound arm drops that whole arm — its supported part included — because negating only the
+     * translatable part would exclude more than the original. The query does not fail and the warning names the construct.
+     */
+    public void testPartialModeUnsupportedInsideAMustNotArmDropsTheWholeArm() {
+        ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER));
+        LogicalPlan result = RequestFilterRewriter.rewrite(
+            relation,
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery("a", 1))
+                .mustNot(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 2)).must(QueryBuilders.wildcardQuery("a", "x*"))),
+            CONFIG,
+            CURRENT,
+            true
+        );
+        assertThat("the must clause is still installed", result, instanceOf(Filter.class));
+        assertThat(((Filter) result).child(), sameInstance(relation));
+        assertFalse(
+            "the compound must_not arm is dropped whole, its supported term included",
+            ((Filter) result).condition().anyMatch(e -> e instanceof Not)
+        );
+        assertWarnings(true, List.of(containsString("[wildcard]")));
+    }
+
+    /**
+     * Separate {@code must_not} clauses are separate arms, so an unsupported one does not take a supported sibling with
+     * it: dropping {@code NOT(wildcard)} only widens the result, and keeping {@code NOT(a = 2)} stays correct.
+     */
+    public void testPartialModeSeparateMustNotArmsAreIndependent() {
+        ExternalRelation relation = relation("ds", attr("a", DataType.INTEGER));
+        LogicalPlan result = RequestFilterRewriter.rewrite(
+            relation,
+            QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("a", 2)).mustNot(QueryBuilders.wildcardQuery("a", "x*")),
+            CONFIG,
+            CURRENT,
+            true
+        );
+        assertThat(result, instanceOf(Filter.class));
+        assertTrue("the supported must_not arm is still negated", ((Filter) result).condition().anyMatch(e -> e instanceof Not));
+        assertWarnings(true, List.of(containsString("[wildcard]")));
+    }
+
 }

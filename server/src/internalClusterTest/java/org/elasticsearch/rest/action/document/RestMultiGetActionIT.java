@@ -49,10 +49,8 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
     }
 
     private void seedDoc(String index, String id, String slice) throws Exception {
-        Request seed = new Request("POST", "/" + index + "/_doc/" + id);
-        if (slice != null) {
-            seed.addParameter("_slice", slice);
-        }
+        String path = slice == null ? "/" + index + "/_doc/" + id : "/" + index + "/" + slice + "/_doc/" + id;
+        Request seed = new Request("POST", path);
         seed.addParameter("refresh", "true");
         seed.setJsonEntity(Strings.format("""
             {
@@ -101,8 +99,7 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
         seedDoc("slice-mget-default-it", "1", "s1");
 
         // The top-level _slice acts as the per-item default, so the ids form (which has no place for a per-item _slice) works.
-        Request mget = new Request("POST", "/slice-mget-default-it/_mget");
-        mget.addParameter("_slice", "s1");
+        Request mget = new Request("POST", "/slice-mget-default-it/s1/_mget");
         mget.setJsonEntity("""
             {
               "ids": [ "1" ]
@@ -131,8 +128,7 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
         assertThat(bodyOf(routingAndSliceException), containsString("[routing] is not allowed together with [_slice]"));
 
         // The reserved _all value is not a valid write-side slice.
-        Request reservedSlice = new Request("POST", "/slice-mget-invalid-it/_mget");
-        reservedSlice.addParameter("_slice", "_all");
+        Request reservedSlice = new Request("POST", "/slice-mget-invalid-it/_all/_mget");
         reservedSlice.setJsonEntity("""
             {
               "ids": [ "1" ]
@@ -165,12 +161,11 @@ public class RestMultiGetActionIT extends ESIntegTestCase {
 
     public void testMgetSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request mget = new Request("POST", "/_mget");
-        mget.addParameter("_slice", "s1");
+        Request mget = new Request("POST", "/test_index/s1/_mget");
         mget.setJsonEntity("""
             {
               "docs": [
-                { "_index": "test_index", "_id": "1" }
+                { "_id": "1" }
               ]
             }""");
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(mget));

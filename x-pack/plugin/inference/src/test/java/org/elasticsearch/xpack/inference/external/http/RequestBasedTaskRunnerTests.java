@@ -29,8 +29,7 @@ public class RequestBasedTaskRunnerTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createThreadPool() throws Exception {
         threadPool = mock();
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }

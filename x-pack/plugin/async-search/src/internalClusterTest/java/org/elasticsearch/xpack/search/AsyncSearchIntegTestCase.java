@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncResultsTestUtils;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
@@ -123,6 +124,12 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
+    protected void beforeIndexDeletion() throws Exception {
+        AsyncResultsTestUtils.awaitAsyncTasksAndDeleteResultsIndex();
+        super.beforeIndexDeletion();
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
             LocalStateCompositeXPackPlugin.class,
@@ -153,13 +160,17 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         pauseMaintenanceService();
         ensureAllSearchContextsReleased();
 
-        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {});
-        // The restarted node gets a new, unpaused maintenance service that the pre-restart pause did
-        // not cover. It can dispatch a DeleteByQueryRequest to a still-INITIALIZING shard, registering
-        // an async waitForSearchReady callback that opens a reader context only after the shard starts.
-        // Wait for shards to start, then pause and drain any such in-flight contexts before unpausing.
-        ensureYellow(ASYNC_RESULTS_INDEX, indexName);
-        pauseMaintenanceService();
+        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
+            @Override
+            public void onNodeStarted(String nodeName) {
+                // Pause before the service's first scheduled run to prevent it from opening reader
+                // contexts on still-initializing shards that would outlast the drain below.
+                pauseMaintenanceService();
+            }
+        });
+        // ensureGreen so any waitForSearchReady callbacks registered before the pause have fired
+        // (and opened their contexts) by the time we drain.
+        ensureGreen(ASYNC_RESULTS_INDEX, indexName);
         ensureAllSearchContextsReleased();
         unpauseMaintenanceService();
     }

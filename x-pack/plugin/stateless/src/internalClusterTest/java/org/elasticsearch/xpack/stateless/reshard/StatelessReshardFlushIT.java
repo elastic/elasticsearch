@@ -19,12 +19,14 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 
@@ -119,6 +121,16 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
         assertTrue(flushFailed.get());
     }
 
+    // Debug logging to find out which commits the source uploads, copies to the target and names in the handoff, and whether a
+    // commit is uploaded after copying to the target has stopped.
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.reshard.SplitSourceService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.reshard.SplitTargetService:DEBUG,"
+            + "org.elasticsearch.xpack.stateless.engine.IndexEngine:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/161089"
+    )
     public void testPreFlushWaitsForOngoingFlushes() {
         var indexNode = startMasterAndIndexNode();
         startSearchNode();
@@ -134,6 +146,7 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
         // Release refresh flush and validate that preflush never skips due to ongoing flush. This isn't foolproof since the
         // refresh flush is unblocked just before preflush invokes the actual flush call, but it catches regression reliably
         // on my laptop.
+        var refreshEntered = new CountDownLatch(1);
         var refreshLatch = new CountDownLatch(1);
         var refreshInProgress = new AtomicBoolean(false);
         var preflushResult = new AtomicReference<Engine.FlushResult>();
@@ -141,6 +154,7 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
             if (force) {
                 // refresh called
                 refreshInProgress.set(true);
+                refreshEntered.countDown();
                 safeAwait(refreshLatch);
             } else if (refreshInProgress.get()) {
                 // preflush has now started, so refresh can be unblocked
@@ -171,6 +185,8 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
         });
         refreshThread.start();
 
+        // wait for refresh flush before resharding
+        safeAwait(refreshEntered);
         logger.info("starting reshard");
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
 
@@ -198,7 +214,8 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
             RefreshManagerService refreshManagerService,
             ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
-            IndexEngine.EngineMetrics engineMetrics
+            IndexEngine.EngineMetrics engineMetrics,
+            IndexEngineDynamicSettings indexEngineDynamicSettings
         ) {
             return new IndexEngine(
                 engineConfig,
@@ -212,6 +229,7 @@ public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCas
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
                 documentParsingProvider,
                 engineMetrics,
+                indexEngineDynamicSettings,
                 statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
             ) {
                 @Override

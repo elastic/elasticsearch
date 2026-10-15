@@ -44,7 +44,7 @@ public abstract class AbstractVersionTopNEncoderTests extends AbstractSortableTo
     }
 
     public void testContainingNul() {
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         BytesRef v = (BytesRef) testCase.randomValue().get();
         insertNul(v);
         try (BreakingBytesRefBuilder bytes = new BreakingBytesRefBuilder(breaker, "bytes")) {

@@ -33,15 +33,16 @@ import java.util.Set;
  * <p>
  * The provider runs during role building and does not know who the user is, so the scope clause is emitted as a
  * mustache template over {@code _user.profile_uid}, which {@code SecurityQueryTemplateEvaluator} fills in per
- * request from the profile uid that authorization resolves for actions whose DLS needs it. A user without an activated profile renders an
- * empty uid and sees only unscoped memories. Kibana stamps the same uid on write, so a user's memories and Agent
- * Builder conversations share one identity. The grant is read-only: DLS does not constrain writes, so a user holding it could otherwise stamp any
+ * request from the uid that authorization resolves for actions whose DLS needs it. A user without an activated
+ * profile renders an empty uid and sees only unscoped memories. Kibana stamps the same uid on write, so a user's
+ * memories and Agent Builder conversations share one identity.
+ * <p>
+ * The grant is read-only: DLS does not constrain writes, so a user holding it could otherwise stamp any
  * {@code scope_id}. Kibana writes memory as {@code kibana_system}.
  */
 public class ElasticAiMemoryImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {
 
     static final String[] ELASTIC_MANAGED_AI_MEMORY_INDICES = { ".ai-memory-*" };
-    static final String INDEX_READ_PRIVILEGE = "read";
 
     static final String SCOPE_ID_FIELD = "scope_id";
     static final String USER_SCOPE_PREFIX = "user://";
@@ -63,7 +64,7 @@ public class ElasticAiMemoryImplicitPrivilegesProvider implements ImplicitPrivil
         return List.of(
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(ELASTIC_MANAGED_AI_MEMORY_INDICES)
-                .privileges(INDEX_READ_PRIVILEGE)
+                .privileges(ElasticAiIndexImplicitPrivilegesProvider.INDEX_READ_PRIVILEGE)
                 .query(dlsQuery)
                 .build()
         );

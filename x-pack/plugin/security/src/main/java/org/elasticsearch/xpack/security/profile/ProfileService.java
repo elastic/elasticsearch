@@ -155,13 +155,11 @@ public class ProfileService implements ProfileUidResolver {
     }
 
     /**
-     * Resolves the profile uid of the authenticated user so that {@code AuthorizationService} can expose it to DLS role
-     * query templates as {@code _user.profile_uid} while authorizing an index action that needs it. Only realm users
-     * have profiles, so API keys, service accounts, internal and anonymous users and run-as targets resolve to
-     * {@code null} without a lookup, as does a user whose profile has not been activated. Results, including the
-     * absence of a profile, are cached per subject for {@link #PROFILE_UID_CACHE_TTL} and dropped when that subject
-     * activates its profile through this node. A lookup failure resolves to {@code null} rather than failing
-     * authorization.
+     * Resolves the profile uid that DLS role query templates read as {@code _user.profile_uid}. Only realm users have
+     * profiles, so API keys, service accounts, internal and anonymous users and run-as targets resolve to {@code null}
+     * without a lookup, as does a user whose profile has not been activated. Results, including the absence of a
+     * profile, are cached per subject for {@link #PROFILE_UID_CACHE_TTL} and dropped when that subject activates its
+     * profile through this node. A lookup failure resolves to {@code null} rather than failing authorization.
      */
     @Override
     public void resolve(Authentication authentication, ActionListener<String> listener) {

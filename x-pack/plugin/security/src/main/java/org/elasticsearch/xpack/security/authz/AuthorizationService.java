@@ -772,50 +772,26 @@ public class AuthorizationService {
         final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
         securityContext.putIndicesAccessControl(indicesAccessControl);
 
-        // Inspect the engine's own access control, not the wrapped one: the wrapper tracks DLS feature usage and checks the
-        // license on every access, which belongs to the action's execution, not to deciding whether to resolve the uid.
+        final Runnable proceed = () -> continueIndexActionAuthorization(
+            indicesAccessControl,
+            requestInfo,
+            requestId,
+            authzInfo,
+            authzEngine,
+            resolvedIndicesAsyncSupplier,
+            projectMetadata,
+            listener
+        );
+        // The unwrapped access control is inspected because the wrapper tracks DLS feature usage on every access. The uid is
+        // resolved only for actions whose DLS refers to it, and the transient is action-scoped like the access control itself.
         if (requiresProfileUid(result.getIndicesAccessControl())) {
-            // Resolved lazily, only for actions whose DLS refers to the profile uid, and only once the role is known. The
-            // transient is action-scoped like the indices access control it accompanies, so each node resolves it (from
-            // cache) for the actions it authorizes itself.
-            profileUidResolver.resolve(requestInfo.getAuthentication(), ActionListener.wrap(profileUid -> {
+            profileUidResolver.resolve(requestInfo.getAuthentication(), ActionListener.runAfter(ActionListener.wrap(profileUid -> {
                 if (profileUid != null) {
                     PROFILE_UID_VALUE.set(threadContext, profileUid);
                 }
-                continueIndexActionAuthorization(
-                    indicesAccessControl,
-                    requestInfo,
-                    requestId,
-                    authzInfo,
-                    authzEngine,
-                    resolvedIndicesAsyncSupplier,
-                    projectMetadata,
-                    listener
-                );
-            }, e -> {
-                logger.debug("failed to resolve profile uid for [{}]", requestInfo.getAuthentication(), e);
-                continueIndexActionAuthorization(
-                    indicesAccessControl,
-                    requestInfo,
-                    requestId,
-                    authzInfo,
-                    authzEngine,
-                    resolvedIndicesAsyncSupplier,
-                    projectMetadata,
-                    listener
-                );
-            }));
+            }, e -> logger.debug("failed to resolve profile uid for [{}]", requestInfo.getAuthentication(), e)), proceed));
         } else {
-            continueIndexActionAuthorization(
-                indicesAccessControl,
-                requestInfo,
-                requestId,
-                authzInfo,
-                authzEngine,
-                resolvedIndicesAsyncSupplier,
-                projectMetadata,
-                listener
-            );
+            proceed.run();
         }
     }
 

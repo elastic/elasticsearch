@@ -1101,11 +1101,11 @@ public final class IndicesPermission {
             return indices;
         }
 
-        @Nullable
         boolean queryRequiresProfileUid() {
             return queryRequiresProfileUid;
         }
 
+        @Nullable
         public Set<BytesReference> getQuery() {
             return query;
         }

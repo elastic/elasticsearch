@@ -142,56 +142,35 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
     }
 
     /**
-     * {@code skip_row} over files whose values the scan may have to convert drops rows at emit time, which the
-     * extract operator cannot do, so no extract exec is inserted. Both arms carry the same files; the declared
-     * column set differs, and used to be what decided this on its own.
+     * {@code skip_row} + declared column types is the one combination where the columnar reader has to drop rows
+     * at the page emit point. An {@link ExternalFieldExtractExec} runs after the page shape is fixed and cannot
+     * participate, so the operator factory turns deferred extraction off for such a read — and a plan that still
+     * carried the extract exec would ask a {@code SourceExtractors} registry nobody filled for extractor 0,
+     * failing with "extractor id [0] is out of range [0, 0)". The rule must bail out instead.
      */
-    public void testNoOpWhenSkipRowOverFilesThatMayNarrow() {
-        for (Set<String> declaredTypeColumns : List.of(Set.of("a"), Set.<String>of())) {
-            List<Attribute> schema = sixColumnSchema();
-            ExternalSourceExec source = parquetSource(schema, "skip_row", true, declaredTypeColumns);
-            TopNExec topN = topN(schema.get(0), 100, source);
-
-            PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
-            assertSame("skip_row over a narrowing read must not get an extract exec", topN, result);
-        }
-    }
-
-    /**
-     * {@code skip_row} over files whose values all read losslessly can fail nothing, so no row is ever dropped
-     * and the optimization stays available. The control for the no-op case above: without it that test would
-     * pass on a rule that refused every {@code skip_row} read. Both declared sets, since neither decides this.
-     */
-    public void testSkipRowOverFilesThatConvertNothingStillDefers() {
-        for (Set<String> declaredTypeColumns : List.of(Set.of("a"), Set.<String>of())) {
-            List<Attribute> schema = sixColumnSchema();
-            ExternalSourceExec source = parquetSource(schema, "skip_row", false, declaredTypeColumns);
-            TopNExec topN = topN(schema.get(0), 100, source);
-
-            assertThat(applyRule(topN, columnExtractorAwareRegistry()), instanceOf(ExternalFieldExtractExec.class));
-        }
-    }
-
-    /**
-     * An unstamped plan came from a coordinator that predates the stamp, so this rule reads it conservatively and
-     * does not defer extraction under {@code skip_row}: a deferred column would be fetched for rows the eager scan
-     * would have dropped. Reading an absent stamp as "cannot fail" is the mixed-version hazard, and every arm above
-     * stamps explicitly, so without this case the rule's half of the upgrade window is unpinned.
-     */
-    public void testSkipRowWithNoStampDoesNotDefer() {
+    public void testNoOpWhenSkipRowWithDeclaredTypeColumns() {
         List<Attribute> schema = sixColumnSchema();
-        ExternalSourceExec source = parquetSource(schema, null, Map.of(), Map.of(ErrorPolicy.CONFIG_ERROR_MODE, "skip_row"))
-            .withDeclaredReadSpec(DeclaredReadSpec.of(Map.of(), Map.of(), Set.of()));
+        ExternalSourceExec source = parquetSource(schema, "skip_row", Set.of("a"));
         TopNExec topN = topN(schema.get(0), 100, source);
 
-        // assertSame, not instanceOf(TopNExec): an extract inserted BELOW the TopN leaves a TopNExec at the root.
-        assertSame(topN, applyRule(topN, columnExtractorAwareRegistry()));
+        PhysicalPlan result = applyRule(topN, columnExtractorAwareRegistry());
+        assertSame("skip_row + declared types must not get an extract exec", topN, result);
     }
 
-    /** A mode that keeps every row stays eligible even where a value can fail to convert. */
-    public void testNarrowingReadUnderNullFieldStillDefers() {
+    /** {@code skip_row} with no declared column types coerces nothing, so no row is ever dropped and the
+     *  optimization stays available. */
+    public void testSkipRowWithoutDeclaredTypeColumnsStillDefers() {
         List<Attribute> schema = sixColumnSchema();
-        ExternalSourceExec source = parquetSource(schema, "null_field", true, Set.of("a"));
+        ExternalSourceExec source = parquetSource(schema, "skip_row", Set.of());
+        TopNExec topN = topN(schema.get(0), 100, source);
+
+        assertThat(applyRule(topN, columnExtractorAwareRegistry()), instanceOf(ExternalFieldExtractExec.class));
+    }
+
+    /** Declared column types under a mode that keeps every row ({@code null_field}) also stay eligible. */
+    public void testDeclaredTypeColumnsUnderNullFieldStillDefers() {
+        List<Attribute> schema = sixColumnSchema();
+        ExternalSourceExec source = parquetSource(schema, "null_field", Set.of("a"));
         TopNExec topN = topN(schema.get(0), 100, source);
 
         assertThat(applyRule(topN, columnExtractorAwareRegistry()), instanceOf(ExternalFieldExtractExec.class));
@@ -559,21 +538,9 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
         return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", schema, config, sourceMetadata, pushedFilter, null);
     }
 
-    /**
-     * A source reading with the given {@code error_mode} over files whose values the scan may have to convert —
-     * the pair the row-drop guard keys on. {@code declaredTypeColumns} is carried too, so a case can show that
-     * it does not move the verdict.
-     */
-    private static ExternalSourceExec parquetSource(
-        List<Attribute> schema,
-        String errorMode,
-        boolean conversionMayNarrow,
-        Set<String> declaredTypeColumns
-    ) {
-        // Stamped explicitly either way; an absent stamp means a coordinator that predates it and is read
-        // conservatively (see FileSourceFactoryTests.testAnUnstampedPlanIsReadConservatively).
-        Map<String, Object> sourceMetadata = Map.of(SourceStatisticsSerializer.CONVERSION_MAY_NARROW_KEY, conversionMayNarrow);
-        return parquetSource(schema, null, sourceMetadata, Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode)).withDeclaredReadSpec(
+    /** A source reading with the given {@code error_mode} and declared-type columns — the pair the row-drop guard keys on. */
+    private static ExternalSourceExec parquetSource(List<Attribute> schema, String errorMode, Set<String> declaredTypeColumns) {
+        return parquetSource(schema, null, Map.of(), Map.of(ErrorPolicy.CONFIG_ERROR_MODE, errorMode)).withDeclaredReadSpec(
             DeclaredReadSpec.of(Map.of(), Map.of(), declaredTypeColumns)
         );
     }

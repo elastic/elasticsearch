@@ -188,6 +188,16 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A reader that treats the given columns as declared-type — the ones whose target came from an explicit declaration
+     * and are therefore licensed to coerce (including narrow) toward it. Mirrors what {@code FileSourceFactory} threads
+     * from a dataset mapping in production; without it a lossy narrowing (e.g. declared {@code integer} over an
+     * {@code int64} file) is treated as an inferred clash and the whole column null-fills.
+     */
+    private ParquetFormatReader declaredReader(String... declaredColumns) {
+        return (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of(declaredColumns));
+    }
+
+    /**
      * The schema-vs-planner mismatch fallback in {@code ParquetFormatReader} now emits a response
      * Warning header alongside the existing {@code logger.warn}. Drop accumulated warnings so the
      * parent {@code ensureNoWarnings} post-check passes; tests that assert on them call
@@ -999,9 +1009,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Bytes the cache served are not stored back into it, which would give the entry a fresh write time with
-     * no read behind it. The executor below holds the parse past the entry's expiry, so the absent-key case is
-     * the one under test.
+     * Bytes the cache served are not stored back into it. The executor below holds the parse past the
+     * entry's expiry, so the absent-key case is the one under test: the parse must work from the array it
+     * was handed, and must not revive a key the cache has since released.
      */
     public void testBytesServedFromTheFooterCacheAreNotStoredAgain() throws Exception {
         byte[] parquetData = createVpcFlowShapedParquet();
@@ -1784,7 +1794,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetMetadata rootSeeded = root.parsedFooterForTests(key);
         assertNotNull("root discoverSplitRanges must seed the parsed-footer cache", rootSeeded);
 
-        ParquetFormatReader derived = (ParquetFormatReader) root.withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        ParquetFormatReader derived = (ParquetFormatReader) root.withDeclaredTypeColumns(Set.of("i32_0"));
         assertSame(
             "derived copy must share the root's footer byte cache",
             root.footerByteCacheForTests(),
@@ -2362,17 +2372,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The width cap bounds a declared read too. It used to be lifted for one, so the same wide file was refused when
-     * its types were inferred and read when they were declared - one file, two outcomes, decided by how the dataset
-     * was written down rather than by anything about the file. Raising the cap is the way to
-     * read a wide file, and it works the same either way.
+     * A declared dataset names the columns it reads, so a file wider than the cap is not refused, the same as for the
+     * text formats. The flattened schema is bounded by the breaker instead
+     * ({@link #testFlattenedSchemaIsChargedAndReleased}).
      */
-    public void testTheWidthCapBoundsADeclaredReadToo() throws Exception {
+    public void testDeclaredProvenanceLiftsTheWidthCap() throws Exception {
         byte[] data = wideOptionalLongFile(6);
         FormatReader declared = new ParquetFormatReader(blockFactory).withSchemaMaxFields(5).withDeclaredProvenanceBinding(true);
-        expectThrows(Exception.class, () -> declared.metadata(createStorageObject(data)));
-        FormatReader raised = new ParquetFormatReader(blockFactory).withSchemaMaxFields(6);
-        assertEquals(6, raised.metadata(createStorageObject(data)).schema().size());
+        assertEquals(6, declared.metadata(createStorageObject(data)).schema().size());
     }
 
     /**
@@ -2392,11 +2399,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 super.addEstimateBytesAndMaybeBreak(bytes, label);
             }
         };
-        // Raise the width cap directly. This exercises the schema budget, not the binding mode; the cap used to be
-        // lifted here by claiming a declared read, which no longer lifts it.
-        ParquetFormatReader reader = new ParquetFormatReader(new BlockFactory(roomy, blockFactory.bigArrays())).withSchemaMaxFields(
-            Integer.MAX_VALUE
-        );
+        ParquetFormatReader reader = new ParquetFormatReader(new BlockFactory(roomy, blockFactory.bigArrays()))
+            .withDeclaredProvenanceBinding(true);
         reader.clearFooterCachesForTests();
         assertEquals(1_000, reader.metadata(createStorageObject(data)).schema().size());
         assertTrue("the flattened schema must be charged", charged.get());
@@ -2411,9 +2415,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 super.addEstimateBytesAndMaybeBreak(bytes, label);
             }
         };
-        ParquetFormatReader tight = new ParquetFormatReader(new BlockFactory(refusing, blockFactory.bigArrays())).withSchemaMaxFields(
-            Integer.MAX_VALUE
-        );
+        ParquetFormatReader tight = new ParquetFormatReader(new BlockFactory(refusing, blockFactory.bigArrays()))
+            .withDeclaredProvenanceBinding(true);
         tight.clearFooterCachesForTests();
         CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> tight.metadata(createStorageObject(data)));
         assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
@@ -5532,7 +5535,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         StorageObject storageObject = createStorageObject(parquetData, "s3://b/mismatch1.parquet");
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.KEYWORD));
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader reader = declaredReader("x");
         try (
             CloseableIterator<Page> iterator = reader.readRange(
                 storageObject,
@@ -5598,7 +5601,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, "s_bool", DataType.BOOLEAN),
             new ReferenceAttribute(Source.EMPTY, "s_ip", DataType.IP)
         );
-        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader r = declaredReader("s_long", "s_double", "s_bool", "s_ip");
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
@@ -5640,7 +5643,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         StorageObject storageObject = createStorageObject(parquetData);
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
-        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader r = declaredReader("x");
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
@@ -5677,7 +5680,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         List<Attribute> asLong = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("x").readRange(
                 createStorageObject(wholeData),
                 new RangeReadContext(List.of("x"), 10, 0, wholeData.length, asLong, ErrorPolicy.STRICT)
             )
@@ -5694,7 +5697,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         expectThrows(Exception.class, () -> {
             try (
-                CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+                CloseableIterator<Page> it = declaredReader("x").readRange(
                     createStorageObject(fractionData),
                     new RangeReadContext(List.of("x"), 10, 0, fractionData.length, asLong, ErrorPolicy.STRICT)
                 )
@@ -5703,7 +5706,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
         });
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("x").readRange(
                 createStorageObject(fractionData),
                 new RangeReadContext(List.of("x"), 10, 0, fractionData.length, asLong, ErrorPolicy.PERMISSIVE)
             )
@@ -5724,7 +5727,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         );
         List<Attribute> asInt = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER));
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("x").readRange(
                 createStorageObject(bigData),
                 new RangeReadContext(List.of("x"), 10, 0, bigData.length, asInt, ErrorPolicy.PERMISSIVE)
             )
@@ -5754,7 +5757,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         List<Attribute> asInt = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER));
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("x").readRange(
                 createStorageObject(parquetData),
                 new RangeReadContext(List.of("x"), 10, 0, parquetData.length, asInt, ErrorPolicy.STRICT)
             )
@@ -5784,7 +5787,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         List<Attribute> asKeyword = List.of(new ReferenceAttribute(Source.EMPTY, "u", DataType.KEYWORD));
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("u").readRange(
                 storageObject,
                 new RangeReadContext(List.of("u"), 10, 0, parquetData.length, asKeyword, ErrorPolicy.STRICT)
             )
@@ -5794,7 +5797,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
         List<Attribute> asDouble = List.of(new ReferenceAttribute(Source.EMPTY, "u", DataType.DOUBLE));
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("u").readRange(
                 storageObject,
                 new RangeReadContext(List.of("u"), 10, 0, parquetData.length, asDouble, ErrorPolicy.STRICT)
             )
@@ -5823,7 +5826,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         List<Attribute> asKeyword = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.KEYWORD));
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("ts").readRange(
                 storageObject,
                 new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asKeyword, ErrorPolicy.STRICT)
             )
@@ -5833,7 +5836,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
         List<Attribute> asLong = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.LONG));
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("ts").readRange(
                 storageObject,
                 new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asLong, ErrorPolicy.STRICT)
             )
@@ -5861,9 +5864,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
 
-        ParquetFormatReader withFormat = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredDateFormats(
-            Map.of("ts", "epoch_second")
-        );
+        ParquetFormatReader withFormat = (ParquetFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
         try (
             CloseableIterator<Page> it = withFormat.readRange(
                 storageObject,
@@ -5874,7 +5875,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals("epoch_second format must parse the int64 as seconds", 1704067200000L, l.getLong(0));
         }
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("ts").readRange(
                 storageObject,
                 new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
             )
@@ -5898,7 +5899,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         List<Attribute> asDouble = List.of(new ReferenceAttribute(Source.EMPTY, "d", DataType.DOUBLE));
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("d").readRange(
                 createStorageObject(parquetData),
                 new RangeReadContext(List.of("d"), 10, 0, parquetData.length, asDouble, ErrorPolicy.STRICT)
             )
@@ -5927,7 +5928,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         StorageObject storageObject = createStorageObject(parquetData);
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
-        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader r = declaredReader("x");
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
@@ -5962,10 +5963,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(ok1, bad, ok2);
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
-        for (ParquetFormatReader r : List.of(
-            new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
-        )) {
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
             try (
                 CloseableIterator<Page> it = r.readRange(
                     createStorageObject(parquetData),
@@ -6018,10 +6016,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD)
         );
-        for (ParquetFormatReader r : List.of(
-            new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
-        )) {
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
             try (
                 CloseableIterator<Page> it = r.readRange(
                     createStorageObject(parquetData),
@@ -6060,10 +6055,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(bad1, bad2);
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
-        for (ParquetFormatReader r : List.of(
-            new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
-        )) {
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
             try (
                 CloseableIterator<Page> it = r.readRange(
                     createStorageObject(parquetData),
@@ -6121,7 +6113,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD),
             new WildcardPattern("keep*")
         );
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(new ParquetPushedExpressions(List.of(like)));
+        ParquetFormatReader reader = declaredReader("x").withPushedFilter(new ParquetPushedExpressions(List.of(like)));
         List<Attribute> plannerTypes = List.of(
             new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD)
@@ -6168,10 +6160,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
         ErrorPolicy budget = new ErrorPolicy(1L, false);
-        for (ParquetFormatReader r : List.of(
-            new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
-        )) {
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
             try (
                 CloseableIterator<Page> it = r.readRange(
                     createStorageObject(parquetData),
@@ -6223,10 +6212,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(bad, ok1, ok2);
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
-        for (ParquetFormatReader r : List.of(
-            new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
-        )) {
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
             List<Long> got = new ArrayList<>();
             try (
                 CloseableIterator<Page> it = r.readRange(
@@ -6280,10 +6266,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(ok1, bad, ok2);
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
-        for (ParquetFormatReader r : List.of(
-            new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
-        )) {
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
             try (
                 CloseableIterator<Page> it = r.readRange(
                     createStorageObject(parquetData),
@@ -6346,7 +6329,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         StorageObject storageObject = createStorageObject(parquetData);
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER));
-        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader r = declaredReader("x");
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
@@ -6367,16 +6350,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
         );
     }
 
-    /**
-     * An {@code int64} column read as {@code integer} is narrowed per value, so a value that fits comes back and
-     * nothing is warned about. The eager twin of
-     * {@code ParquetColumnExtractorTests.testDeferredIntegerOverInt64NarrowsPerValue}, and of the ORC pair, because a
-     * column must read the same across all three paths.
-     * <p>
-     * Under {@code fail_fast} this read used to return a column of nulls and a warning, for values a 32-bit integer
-     * holds comfortably, because nobody had declared the target type.
-     */
-    public void testInt64ReadAsIntegerNarrowsPerValue() throws Exception {
+    public void testInt64InferredIntegerNullFillsWholeColumn() throws Exception {
+        // The INFERRED counterpart to testInt64DeclaredIntegerOverflowWarnsAndNulls: the SAME int64-file / INTEGER-target
+        // pair, but the INTEGER came from inference (plain reader — no declared signal), so it must NOT narrow. The whole
+        // column null-fills + warns, matching main's first_file_wins behavior (qa spec parquetFfwAllRows). Because
+        // DeclaredTypeCoercions.supports(LONG, INTEGER) is true, this pins the declared-vs-inferred gate split: dropping
+        // the declaredTypeColumns guard in validatePlannerTypesAgainstFile would downcast here instead of null-filling.
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("x").named("test_schema");
         byte[] parquetData = createParquetFile(schema, factory -> {
             Group a = factory.newGroup();
@@ -6386,7 +6365,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             return List.of(a, b);
         });
         StorageObject storageObject = createStorageObject(parquetData);
-        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader r = new ParquetFormatReader(blockFactory); // PLAIN reader: no declaredTypeColumns => inferred
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER));
         try (
             CloseableIterator<Page> it = r.readRange(
@@ -6396,30 +6375,32 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ) {
             Page page = it.next();
             assertEquals(2, page.getPositionCount());
-            IntBlock values = page.getBlock(0);
-            assertEquals(7, values.getInt(0));
-            assertEquals(42, values.getInt(1));
+            assertTrue("inferred int64->integer must null-fill the whole column, never downcast", page.getBlock(0).isNull(0));
+            assertTrue(page.getBlock(0).isNull(1));
         }
-        assertTrue("a value that fits is not a failure, got: " + drainWarnings(), drainWarnings().isEmpty());
+        List<String> warnings = drainWarnings();
+        assertFalse("inferred incompatibility must emit a response Warning", warnings.isEmpty());
+        assertTrue(
+            "warning must name the incompatibility, got: " + warnings,
+            warnings.toString().contains("column [x]: [long] in the file, [integer] in the query")
+        );
     }
 
     /**
-     * A column whose type in the file cannot be read as the query's type (int32 for a boolean: the boolean mapper
-     * takes no numbers) is a read failure of the whole column in that file, so {@code error_mode} decides:
+     * A DECLARED column whose type in the file cannot be read as declared (int32 for a declared boolean: the boolean
+     * mapper takes no numbers) is a read failure of the whole column in that file, so {@code error_mode} decides:
      * {@code fail_fast} fails naming column, file, both types and {@code [error_mode]}; {@code null_field} nulls the
      * column with the summary + detail warnings; {@code skip_row} drops every row of the file, charged to the budget.
      * Both the optimized and the baseline row-at-a-time iterator.
-     * <p>
-     * This held only for a column the dataset declared a type for. An inferred column was filled with nulls under
-     * all three modes, so {@code fail_fast} returned a column of nulls for data it could not read; the test
-     * that pinned that is gone with the behaviour.
      */
-    public void testUncoercibleColumnFollowsErrorMode() throws Exception {
-        assertUncoercibleColumnFollowsErrorMode(new ParquetFormatReader(blockFactory));
-        assertUncoercibleColumnFollowsErrorMode(new ParquetFormatReader(blockFactory, false));
+    public void testDeclaredUncoercibleColumnFollowsErrorMode() throws Exception {
+        assertDeclaredUncoercibleColumnFollowsErrorMode(declaredReader("flag"));
+        assertDeclaredUncoercibleColumnFollowsErrorMode(
+            (ParquetFormatReader) new ParquetFormatReader(blockFactory, false).withDeclaredTypeColumns(Set.of("flag"))
+        );
     }
 
-    private void assertUncoercibleColumnFollowsErrorMode(ParquetFormatReader r) throws Exception {
+    private void assertDeclaredUncoercibleColumnFollowsErrorMode(ParquetFormatReader r) throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT32)
             .named("flag")
@@ -6458,7 +6439,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             containsString(
                 "column [flag] in ["
                     + location
-                    + "] is [integer] in the file and cannot be read as "
+                    + "] is [integer] in the file and cannot be read as its declared type "
                     + "[boolean]; set [error_mode] to [null_field]"
             )
         );
@@ -6570,7 +6551,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, "flag", DataType.BOOLEAN),
             new ReferenceAttribute(Source.EMPTY, "id", DataType.INTEGER)
         );
-        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader r = declaredReader("flag");
 
         ErrorPolicy withinBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, firstGroupRows, 0.0, false);
         try (
@@ -6634,10 +6615,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         int distinctBad = SkipWarnings.MAX_ADDED_WARNINGS + 5;
         byte[] data = badDatetimeTokenFixture(0, distinctBad);
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
-        for (ParquetFormatReader reader : List.of(
-            new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
-        )) {
+        for (ParquetFormatReader reader : List.of(declaredReader("ts"), declaredReader("ts").withBaselinePath())) {
             List<String> sink = new ArrayList<>();
             StorageObject storageObject = createStorageObject(data);
             try (
@@ -6691,10 +6669,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // previously hard-failed the read while the deferred extractor warned+nulled the same cell.
         byte[] parquetData = stringDatetimeFixture();
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
-        for (ParquetFormatReader r : List.of(
-            new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
-        )) {
+        for (ParquetFormatReader r : List.of(declaredReader("ts"), declaredReader("ts").withBaselinePath())) {
             StorageObject storageObject = createStorageObject(parquetData);
             try (
                 CloseableIterator<Page> it = r.readRange(
@@ -6721,10 +6696,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // castBlock's strict contract and to the text readers' parse failure under fail_fast.
         byte[] parquetData = stringDatetimeFixture();
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
-        for (ParquetFormatReader r : List.of(
-            new ParquetFormatReader(blockFactory),
-            new ParquetFormatReader(blockFactory).withBaselinePath()
-        )) {
+        for (ParquetFormatReader r : List.of(declaredReader("ts"), declaredReader("ts").withBaselinePath())) {
             StorageObject storageObject = createStorageObject(parquetData);
             try (
                 CloseableIterator<Page> it = r.readRange(
@@ -6763,7 +6735,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "vals", DataType.DATETIME));
         StorageObject storageObject = createStorageObject(parquetData);
 
-        ParquetFormatReader withFormat = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredDateFormats(
+        ParquetFormatReader withFormat = (ParquetFormatReader) declaredReader("vals").withDeclaredDateFormats(
             Map.of("vals", "epoch_second")
         );
         try (
@@ -6782,7 +6754,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         // no format: the fused epoch-millis reinterpret, unchanged
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("vals").readRange(
                 createStorageObject(parquetData),
                 new RangeReadContext(List.of("vals"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
@@ -6815,7 +6787,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "vals", DataType.DATETIME));
         StorageObject storageObject = createStorageObject(parquetData);
-        ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+        ParquetFormatReader r = declaredReader("vals");
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
@@ -7116,7 +7088,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "vals", DataType.INTEGER));
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("vals").readRange(
                 createStorageObject(parquetData),
                 new RangeReadContext(List.of("vals"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.PERMISSIVE)
             )
@@ -7146,7 +7118,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "vals", DataType.DATETIME));
         try (
-            CloseableIterator<Page> it = new ParquetFormatReader(blockFactory).readRange(
+            CloseableIterator<Page> it = declaredReader("vals").readRange(
                 createStorageObject(parquetData),
                 new RangeReadContext(List.of("vals"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.PERMISSIVE)
             )
@@ -7211,7 +7183,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 });
                 List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
                 StorageObject storageObject = createStorageObject(parquetData);
-                ParquetFormatReader r = new ParquetFormatReader(blockFactory);
+                ParquetFormatReader r = declaredReader("x");
                 try (
                     CloseableIterator<Page> it = r.readRange(
                         storageObject,
@@ -7239,12 +7211,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertTrue("native fused decodes must not warn", drainWarnings().isEmpty());
     }
 
-    /**
-     * A {@code boolean} column read as {@code double} is a pair nothing can convert, so {@code fail_fast} fails the
-     * read naming the column, and {@code null_field} nulls it. Both arms used to null it: the failure arm was
-     * reachable only for a column the dataset declared a type for.
-     */
-    public void testSchemaMismatchBooleanVsDoubleFollowsErrorMode() throws Exception {
+    public void testSchemaMismatchBooleanVsDoubleReturnsNullsOnReadRange() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.BOOLEAN).named("x").named("test_schema");
         byte[] parquetData = createParquetFile(schema, factory -> {
             Group g = factory.newGroup();
@@ -7254,31 +7221,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader r = new ParquetFormatReader(blockFactory);
         List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.DOUBLE));
-
-        Exception e = expectThrows(Exception.class, () -> {
-            try (
-                CloseableIterator<Page> it = r.readRange(
-                    storageObject,
-                    new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
-                )
-            ) {
-                while (it.hasNext()) {
-                    it.next().releaseBlocks();
-                }
-            }
-        });
-        assertThat(e.getMessage(), containsString("column [x]"));
-        assertThat(e.getMessage(), containsString("cannot be read as [double]"));
-
         try (
             CloseableIterator<Page> it = r.readRange(
                 storageObject,
-                new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.PERMISSIVE)
+                new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
             Page page = it.next();
             assertTrue(page.getBlock(0).isNull(0));
-            page.releaseBlocks();
         }
     }
 
@@ -7288,8 +7238,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * header so clients see the same information they get for other recoverable ES|QL warnings.
      */
     public void testSchemaMismatchEmitsResponseWarningHeader() throws Exception {
-        // A pair even ingest cannot coerce (a number has no ip form) keeps the whole-column null + Warning fallback,
-        // under a mode that keeps reading. fail_fast now fails such a read for any column, not only a declared one.
+        // A pair even ingest cannot coerce (a number has no ip form) keeps the whole-column null + Warning fallback.
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("x").named("test_schema");
         byte[] parquetData = createParquetFile(schema, factory -> {
             Group g = factory.newGroup();
@@ -7302,7 +7251,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iterator = reader.readRange(
                 storageObject,
-                new RangeReadContext(List.of("x"), 100, 0, parquetData.length, plannerTypes, ErrorPolicy.PERMISSIVE)
+                new RangeReadContext(List.of("x"), 100, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
             assertTrue(iterator.hasNext());
@@ -7341,20 +7290,13 @@ public class ParquetFormatReaderTests extends ESTestCase {
         });
         StorageObject storageObject = createStorageObject(parquetData, "s3://bucket/warn.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        // A pair nothing can convert, under a mode that keeps reading: int32 -> keyword is now converted per value,
-        // and fail_fast would throw rather than warn, and this test is about where the warning goes.
-        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.IP));
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.KEYWORD));
         List<String> sunk = new ArrayList<>();
 
         try (
             CloseableIterator<Page> iterator = reader.read(
                 storageObject,
-                FormatReadContext.builder()
-                    .batchSize(100)
-                    .readSchema(plannerTypes)
-                    .errorPolicy(ErrorPolicy.PERMISSIVE)
-                    .informationalWarningSink(sunk::add)
-                    .build()
+                FormatReadContext.builder().batchSize(100).readSchema(plannerTypes).informationalWarningSink(sunk::add).build()
             )
         ) {
             assertTrue(iterator.hasNext());
@@ -10307,6 +10249,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertSame(pool, reader.copySharingCachesForTests().heapBufferPool());
         assertSame(pool, reader.withPushedFilter(FilterCompat.NOOP).heapBufferPool());
         assertSame(pool, ((ParquetFormatReader) reader.withDeclaredDateFormats(Map.of("ts", "epoch_second"))).heapBufferPool());
+        assertSame(pool, ((ParquetFormatReader) reader.withDeclaredTypeColumns(Set.of("x"))).heapBufferPool());
         PoolingHeapByteBufferAllocator other = new PoolingHeapByteBufferAllocator(1024);
         assertSame(other, reader.withHeapBufferPool(other).heapBufferPool());
         assertSame("withHeapBufferPool must not mutate the original reader", pool, reader.heapBufferPool());

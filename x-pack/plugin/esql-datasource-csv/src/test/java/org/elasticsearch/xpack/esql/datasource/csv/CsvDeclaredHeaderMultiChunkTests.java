@@ -71,12 +71,10 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
     }
 
     /**
-     * A file wider than the cap is readable through a schema the planner pinned: the cap bounds the schema a read
-     * resolves, and this read resolves none. The file spans several chunks, so chunk 0 binds from its own header and
-     * every later chunk from the width and names the coordinator captured through {@code metadata()} - the one path
-     * that asks the reader to resolve a schema from the file after the pin, and so the one that has to take its bound
-     * from the pin rather than from the call site. Leaving the cap at its default is what makes this a test of that:
-     * raising it to the file's width would pass whatever the bound did.
+     * A declared schema names the columns it reads, so a file wider than the schema-inference cap is still readable:
+     * the cap bounds what inference materialises, not what a declaration selects. The file spans several chunks, so
+     * chunk 0 binds from its own header and every later chunk from the width and names the coordinator captured through
+     * {@code metadata()}, which is the path that would otherwise run inference over the whole header.
      */
     public void testDeclaredSchemaOverFileWiderThanTheCapReadsAcrossChunks() throws Exception {
         int columns = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS + 201;
@@ -147,9 +145,8 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
     }
 
     /**
-     * Every chunk after the first charges the scratch it builds to bind the declaration against the header names
-     * chunk 0 passed down, and releases it once bound. The file is five times the cap and the cap is left at its
-     * default: a read whose schema the planner pinned is not bounded by the file's width.
+     * A declared read is not capped by the file's width, so every chunk after the first charges the scratch it builds to
+     * bind the declaration against the header names chunk 0 passed down, and releases it once bound.
      */
     public void testLaterChunksChargeTheDeclaredHeaderBinding() throws Exception {
         int columns = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS * 5;

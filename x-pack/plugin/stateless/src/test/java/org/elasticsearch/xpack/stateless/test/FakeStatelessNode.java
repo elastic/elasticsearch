@@ -318,7 +318,7 @@ public class FakeStatelessNode implements Closeable {
                 telemetryProvider,
                 clusterSettings,
                 warmingRatioProvider,
-                new SearchRecoveryTimeoutCalculationService(sharedCacheService, threadPool, clusterSettings)
+                new SearchRecoveryTimeoutCalculationService(sharedCacheService, threadPool, clusterSettings, () -> Integer.MAX_VALUE)
             );
             onlinePrewarmingService = new StatelessOnlinePrewarmingService(
                 nodeSettings,

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
-import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.TypeWidening;
@@ -72,26 +71,6 @@ public final class SourceStatisticsSerializer {
      * {@code _stats.} prefix so the FirstFileWins / union-by-name stat merges preserve it. Value: {@code List<String>}.
      */
     public static final String PARTITION_COLUMNS_KEY = "_partition.columns";
-    /**
-     * Whether reading this source may convert a value and fail, stamped here at resolution because only the
-     * coordinator has seen the files. The data node decides three things that must agree for one read - whether
-     * the filter is pushed, whether field extraction is deferred, and whether the operator factory enables
-     * deferred extraction - and each of them moves the page away from the point where the reader drops a row.
-     * <p>
-     * Written on every resolve, {@code true} or {@code false}, so that ABSENT means something different: a
-     * coordinator that predates the key, which said nothing. Absent must not be read as "cannot fail" - the
-     * predicate this replaced answered YES for a declared read, so a new data node taking absent as no would push
-     * a filter the old coordinator withheld, during a rolling upgrade. Readers use
-     * {@link #conversionNarrowingStamped} to tell the two apart and read an unstamped plan CONSERVATIVELY - as
-     * though a value may fail. That is not the old plan: the predicate this replaced answered no for an undeclared
-     * read, so such a read is now planned without the pushdown it used to get, for the length of the upgrade
-     * window. Reproducing the old plan exactly would mean asking which columns were declared, which is the read
-     * this change exists to remove.
-     * <p>
-     * Like {@link #PARTITION_COLUMNS_KEY}, deliberately
-     * not under the {@code _stats.} prefix, so the statistics merges preserve it. Value: {@code Boolean}.
-     */
-    public static final String CONVERSION_MAY_NARROW_KEY = "_read.conversion_may_narrow";
     // Package-private: consumed by the *Key helpers here and by SplitStats.of/toMap (the round-trip between the
     // flat keys and the compact model), all within this package.
     static final String NULL_COUNT_SUFFIX = ".null_count";
@@ -137,51 +116,6 @@ public final class SourceStatisticsSerializer {
             return Collections.unmodifiableSet(new LinkedHashSet<>((Collection<String>) collection));
         }
         return Set.of();
-    }
-
-    /**
-     * Whether reading this source may convert a value and fail, read from the {@link #CONVERSION_MAY_NARROW_KEY}
-     * stamp. Only meaningful once {@link #conversionNarrowingStamped} says the plan carries the stamp at all.
-     */
-    static boolean conversionMayNarrow(Map<String, Object> sourceMetadata) {
-        return sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(CONVERSION_MAY_NARROW_KEY));
-    }
-
-    /**
-     * Whether this plan carries the {@link #CONVERSION_MAY_NARROW_KEY} stamp at all. False only for a plan minted by
-     * a coordinator that predates it, which a reader must then answer conservatively rather than assume into.
-     */
-    static boolean conversionNarrowingStamped(Map<String, Object> sourceMetadata) {
-        return sourceMetadata != null && sourceMetadata.containsKey(CONVERSION_MAY_NARROW_KEY);
-    }
-
-    /**
-     * Whether reading this source may convert a value and fail. A plan carrying no answer - one minted by a
-     * coordinator that predates the stamp - is assumed to be able to fail, which withholds the filter pushdown and
-     * the deferred extraction for the length of a rolling upgrade and costs nothing but speed.
-     * <p>
-     * It deliberately does NOT fall back to asking whether the dataset declared any column types. That question
-     * would reproduce the old plan exactly, and it is schema provenance wearing another name: a signal whose value
-     * is decided by how the schema was produced, consulted while reading. Reintroducing it here would put that
-     * read back for every plan in the upgrade window.
-     */
-    public static boolean conversionMayNarrowOrIsUnstamped(Map<String, Object> sourceMetadata) {
-        return conversionNarrowingStamped(sourceMetadata) == false || conversionMayNarrow(sourceMetadata);
-    }
-
-    /**
-     * Whether this read drops whole rows when a value fails to convert: the error mode asks for it, and a value in
-     * this source can fail at all.
-     * <p>
-     * The one implementation of that question, and it has to be. Three decisions turn on it for a single read -
-     * whether the filter reaches the reader, whether field extraction is deferred, and whether the operator factory
-     * enables it - and they have to agree, because each moves the page away from the point where a failing row is
-     * dropped. Two are plan-time and one is execution-time, so a second copy shows up as a plan the factory cannot
-     * honour. It was spelled out at all three sites once, and {@code PushFiltersToSource} then grew a third term of
-     * its own, which is how copies start to diverge.
-     */
-    public static boolean dropsRowsOnConversionFailure(ErrorPolicy errorPolicy, Map<String, Object> sourceMetadata) {
-        return errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW && conversionMayNarrowOrIsUnstamped(sourceMetadata);
     }
 
     /**

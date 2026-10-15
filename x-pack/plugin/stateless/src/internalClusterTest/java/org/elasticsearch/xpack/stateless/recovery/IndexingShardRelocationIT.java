@@ -56,6 +56,9 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.SelfAccountingIndexInput;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
@@ -1350,12 +1353,17 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             };
         }
 
-        private static final class PrefetchCountingIndexInput extends FilterIndexInput {
+        private static final class PrefetchCountingIndexInput extends FilterIndexInput implements SelfAccountingIndexInput {
             private final boolean countPrefetch;
 
             PrefetchCountingIndexInput(IndexInput delegate, boolean countPrefetch) {
                 super(delegate.toString(), delegate);
                 this.countPrefetch = countPrefetch;
+            }
+
+            @Override
+            public void accountBytesReadTo(PluggableDirectoryMetricsHolder<StoreMetrics> holder) {
+                asInstanceOf(SelfAccountingIndexInput.class, in).accountBytesReadTo(holder);
             }
 
             @Override
@@ -1479,9 +1487,9 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         var cacheService = internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, indexNode2).get();
         // In case of hollow being disabled, we expect to have created one BCC which fits in one region, and thus we expect one cache write.
         // In case of hollow being enabled, we expect to have 2 BCCs, due to one more being created due to the hollow flush, and only the
-        // 2nd hollow BCC to be read.
+        // 2nd hollow BCC to be read. Its region 0 is prewarmed before the BCC header is read, so the read is a cache hit.
         assertThat(cacheService.getStats().writeCount(), equalTo(1L));
-        assertThat(cacheService.getStats().missCount(), equalTo(1L));
+        assertThat(cacheService.getStats().missCount(), equalTo(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowNodeSettings) ? 0L : 1L));
         assertThat(cacheService.getStats().numberOfRegions(), greaterThan(1));
     }
 

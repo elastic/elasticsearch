@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_v2, optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard ]
       reason: >
         A shard that cannot hold an unmapped field is not read for one. These tests pin the cases where a shard must
         still be read although its current mapping maps every field: a mapping that used to keep unmapped fields, a
@@ -127,9 +127,9 @@ teardown:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM unmapped-history | LIMIT 5'
   - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: extra }
-  - match: { columns.1.type: keyword }
-  - match: { values.0: [ "1", "kept" ] }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "1", { extra: kept } ] }
 
 ---
 'a field kept before the mapping was tightened is still loaded by name':
@@ -150,9 +150,9 @@ teardown:
   - match: { columns.0.name: id }
   - match: { columns.1.name: f1 }
   - match: { columns.1.type: long }
-  - match: { columns.2.name: f2 }
-  - match: { columns.2.type: keyword }
-  - match: { values.0: [ "1", 1, "2" ] }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.2.type: _source }
+  - match: { values.0: [ "1", 1, { f2: 2 } ] }
 
 ---
 'the value of a removed runtime field is still discovered':
@@ -162,9 +162,9 @@ teardown:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM unmapped-runtime | LIMIT 5'
   - length: { columns: 2 }
   - match: { columns.0.name: id }
-  - match: { columns.1.name: note }
-  - match: { columns.1.type: keyword }
-  - match: { values.0: [ "1", "hello" ] }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "1", { note: hello } ] }
 
   - do:
       esql.query:
@@ -190,11 +190,18 @@ teardown:
   - length: { values: 0 }
 
 ---
-'a key below a mapped field is still read by name':
+'a key below a mapped field is not an unmapped field':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ optional_fields_nothing_below_mapped_fields ]
+      reason: "A key of the value of a mapped field is null by name"
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD"; FROM unmapped-none | KEEP id, span.gte | LIMIT 5'
   - match: { columns.1.name: span.gte }
   - match: { columns.1.type: keyword }
-  - match: { values.0: [ "1", "1" ] }
+  - match: { values.0: [ "1", null ] }

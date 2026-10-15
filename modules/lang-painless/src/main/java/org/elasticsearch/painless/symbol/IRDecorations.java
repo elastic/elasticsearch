@@ -412,20 +412,9 @@ public class IRDecorations {
     }
 
     /**
-     * like {@link IRCInstanceCancellationCheck} but for static lambdas, which receive the script as a synthetic
-     * {@code #scriptThis} parameter
-     */
-    public static class IRCStaticCancellationCheck implements IRCondition {
-
-        private IRCStaticCancellationCheck() {
-
-        }
-    }
-
-    /**
-     * marks a static lambda that receives the script as a synthetic leading {@code #scriptThis} parameter, whether for
-     * cancellation or allocation tracking. Decoupled from {@link IRCStaticCancellationCheck}, which additionally emits the
-     * poll; a static cancellation lambda carries both.
+     * marks a static lambda that receives the script as a synthetic leading {@code #scriptThis} parameter for allocation
+     * tracking. Cancellation never needs this: under cancellation every lambda is an instance lambda and polls through
+     * {@code this}.
      */
     public static class IRCStaticScriptCapture implements IRCondition {
 

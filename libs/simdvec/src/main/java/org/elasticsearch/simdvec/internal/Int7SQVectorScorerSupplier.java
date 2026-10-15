@@ -31,8 +31,8 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final LegacyQuantizedByteVectorValues values; // to support ordToDoc/getAcceptOrds
     final int vectorDataBytes;
     final int vectorTotalBytes;
-    final FixedSizeScratch firstScratch;
-    final FixedSizeScratch secondScratch;
+    final FixedSizeSegmentScratch firstScratch;
+    final FixedSizeSegmentScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
     final float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
@@ -44,8 +44,8 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         this.scoreCorrectionConstant = scoreCorrectionConstant;
         this.vectorDataBytes = dims;
         this.vectorTotalBytes = vectorDataBytes + Float.BYTES;
-        this.firstScratch = new FixedSizeScratch(vectorTotalBytes);
-        this.secondScratch = new FixedSizeScratch(vectorTotalBytes);
+        this.firstScratch = new FixedSizeSegmentScratch(vectorTotalBytes);
+        this.secondScratch = new FixedSizeSegmentScratch(vectorTotalBytes);
     }
 
     protected final void checkOrdinal(int ord) {

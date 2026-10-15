@@ -84,7 +84,7 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
         // The control the pruning assertions are measured against: without a filter nothing may be skipped.
         String dataset = registerSortedDataset("rg_control");
         Pruning status = runAndReadStatus(dataset, null, allIds());
-        assertThat(status.kept(), equalTo(status.total()));
+        assertNothingWasSkipped(status);
     }
 
     public void testMustNotKeepsEveryRowGroup() throws Exception {
@@ -100,7 +100,7 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
             }
         }
         Pruning status = runAndReadStatus(dataset, QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("region", "EU")), expected);
-        assertThat("a negated filter must not prune row groups", status.kept(), equalTo(status.total()));
+        assertNothingWasSkipped(status);
     }
 
     public void testCaseInsensitiveTermKeepsEveryRowGroup() throws Exception {
@@ -114,7 +114,7 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
             }
         }
         Pruning status = runAndReadStatus(dataset, QueryBuilders.termQuery("region", "eu").caseInsensitive(true), expected);
-        assertThat("a case-insensitive term must not prune row groups", status.kept(), equalTo(status.total()));
+        assertNothingWasSkipped(status);
     }
 
     public void testTimeRangeAndedWithATermStillSkipsRowGroups() throws Exception {
@@ -135,6 +135,23 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
             expected
         );
         assertThat("the range arm must still skip row groups", status.kept(), lessThan(status.total()));
+    }
+
+    /**
+     * Asserts the scan skipped no row group.
+     *
+     * <p>{@code kept == total} cannot say that on its own. These three shapes push no statistics predicate, and a
+     * reader that pushes none never reaches the row-group filter, so it leaves both counters at zero and satisfies
+     * the equality whatever the engine did. Pinning {@code pushdownUsed} is what gives the assertion teeth, because
+     * for these shapes the guarantee is precisely that no statistics predicate gets built: the multivalue forms
+     * construct none under a negation, and a case-insensitive term would have to match lowered text against
+     * statistics that hold the original case. Should either start pushing one, this fails instead of reporting a
+     * hollow pass.
+     */
+    private static void assertNothingWasSkipped(Pruning status) {
+        assertFalse("this shape must not push a statistics predicate to the reader", status.pushdownUsed());
+        assertThat("a reader given no predicate must not have filtered any row group", status.total(), equalTo(0L));
+        assertThat("no row group may be skipped", status.kept(), equalTo(status.total()));
     }
 
     /** Row-group accounting for one query, summed over every external source operator that ran. */

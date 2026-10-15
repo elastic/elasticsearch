@@ -70,7 +70,7 @@ public class FromDatasetWarmAggregateIT extends AbstractExternalDataSourceIT {
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, SRC, resourceUri, null, new HashMap<>(settings), mapping, null)
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, SRC, resourceUri, null, new HashMap<>(settings), mapping)
             )
         );
         mappedDatasets.add(name);

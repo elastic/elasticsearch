@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction.R
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
 import static org.hamcrest.Matchers.contains;
@@ -34,8 +33,7 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
             randomName(),
             randomFrom("s3", "gcs", "azure", "test"),
             randomBoolean() ? null : randomAlphaOfLengthBetween(0, 20),
-            randomSettings(),
-            randomBoolean() ? Set.of("access_key") : null
+            randomSettings()
         );
     }
 
@@ -46,15 +44,14 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return switch (between(0, 4)) {
+        return switch (between(0, 3)) {
             case 0 -> new Request(
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
                 instance.name() + "_mutated",
                 instance.type(),
                 instance.description(),
-                instance.rawSettings(),
-                instance.secretSettingNames()
+                instance.rawSettings()
             );
             case 1 -> new Request(
                 TEST_REQUEST_TIMEOUT,
@@ -62,8 +59,7 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
                 instance.name(),
                 randomValueOtherThan(instance.type(), () -> randomFrom("s3", "gcs", "azure", "test")),
                 instance.description(),
-                instance.rawSettings(),
-                instance.secretSettingNames()
+                instance.rawSettings()
             );
             case 2 -> new Request(
                 TEST_REQUEST_TIMEOUT,
@@ -71,8 +67,7 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
                 instance.name(),
                 instance.type(),
                 randomValueOtherThan(instance.description(), () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)),
-                instance.rawSettings(),
-                instance.secretSettingNames()
+                instance.rawSettings()
             );
             case 3 -> {
                 Map<String, Object> mutated = new HashMap<>(instance.rawSettings());
@@ -83,19 +78,6 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
                     instance.name(),
                     instance.type(),
                     instance.description(),
-                    mutated,
-                    instance.secretSettingNames()
-                );
-            }
-            case 4 -> {
-                var mutated = instance.secretSettingNames() == null ? Set.of("access_key") : null;
-                yield new Request(
-                    TEST_REQUEST_TIMEOUT,
-                    TEST_REQUEST_TIMEOUT,
-                    instance.name(),
-                    instance.type(),
-                    instance.description(),
-                    instance.rawSettings(),
                     mutated
                 );
             }
@@ -104,47 +86,47 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
     }
 
     public void testValidateAcceptsCleanRequest() {
-        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", null, Map.of("region", "us-east-1"), null);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", null, Map.of("region", "us-east-1"));
         assertThat(r.validate(), nullValue());
     }
 
     public void testValidateRejectsEmptyName() {
-        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "", "s3", null, Map.of(), null);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "", "s3", null, Map.of());
         ActionRequestValidationException v = r.validate();
         assertThat(v, notNullValue());
         assertThat(v.getMessage(), containsString("data source name is missing"));
     }
 
     public void testValidateRejectsUppercaseName() {
-        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "MyDS", "s3", null, Map.of(), null);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "MyDS", "s3", null, Map.of());
         ActionRequestValidationException v = r.validate();
         assertThat(v, notNullValue());
         assertThat(v.getMessage(), containsString("must be lowercase"));
     }
 
     public void testValidateRejectsEmptyType() {
-        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "", null, Map.of(), null);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "", null, Map.of());
         ActionRequestValidationException v = r.validate();
         assertThat(v, notNullValue());
         assertThat(v.getMessage(), containsString("data source type is missing"));
     }
 
     public void testValidateRejectsWhitespaceOnlyName() {
-        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "   ", "s3", null, Map.of(), null);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "   ", "s3", null, Map.of());
         ActionRequestValidationException v = r.validate();
         assertThat(v, notNullValue());
         assertThat(v.getMessage(), containsString("data source name is missing"));
     }
 
     public void testValidateRejectsNameWithInvalidCharacters() {
-        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "bad#name", "s3", null, Map.of(), null);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "bad#name", "s3", null, Map.of());
         ActionRequestValidationException v = r.validate();
         assertThat(v, notNullValue());
         assertThat(v.getMessage(), containsString("invalid data source name"));
     }
 
     public void testValidateRejectsNameStartingWithUnderscore() {
-        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "_leading_underscore", "s3", null, Map.of(), null);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "_leading_underscore", "s3", null, Map.of());
         ActionRequestValidationException v = r.validate();
         assertThat(v, notNullValue());
         assertThat(v.getMessage(), containsString("invalid data source name"));
@@ -153,7 +135,7 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
     public void testValidateAcceptsAbsentSettingsAsEmpty() {
         // Matches ES-wide precedent: absent optional container ≡ empty map (see CreateIndexRequest
         // Settings.EMPTY default, SLM optionalConstructorArg, inference removeFromMapOrDefaultEmpty).
-        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", null, null, null);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", null, null);
         assertThat(r.validate(), nullValue());
         // Constructor defaults null rawSettings to Map.of() — downstream reads see an empty map.
         assertThat(r.rawSettings(), notNullValue());
@@ -161,7 +143,7 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
 
     public void testValidateRejectsDescriptionTooLong() {
         String description = randomAlphaOfLength(MAX_DESCRIPTION_LENGTH + 1);
-        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", description, Map.of(), null);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", description, Map.of());
         ActionRequestValidationException v = r.validate();
         assertThat(v, notNullValue());
         assertThat(
@@ -177,14 +159,14 @@ public class PutDataSourceActionRequestTests extends AbstractWireSerializingTest
 
     public void testValidateAcceptsDescriptionAtLimit() {
         String description = randomAlphaOfLength(MAX_DESCRIPTION_LENGTH);
-        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", description, Map.of(), null);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "s3", description, Map.of());
         assertThat(r.validate(), nullValue());
     }
 
     /** The length check accumulates with the other field checks rather than short-circuiting them. */
     public void testValidateReportsDescriptionTooLongAlongsideOtherErrors() {
         String description = randomAlphaOfLength(MAX_DESCRIPTION_LENGTH + between(1, 100));
-        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "", description, Map.of(), null);
+        Request r = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my_ds", "", description, Map.of());
         ActionRequestValidationException v = r.validate();
         assertThat(v, notNullValue());
         assertThat(

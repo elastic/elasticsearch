@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.datasources.datasource;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -39,7 +38,24 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutDataSourceAction INSTANCE = new PutDataSourceAction();
     public static final String NAME = EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME;
-    public static final TransportVersion FEDERATED_DATA_SECRET_KEYS = TransportVersion.fromName("federated_data_secret_keys");
+
+    private static final Set<String> AUDITABLE_SETTINGS = Set.of(
+        "addressing_style",
+        "auth",
+        "account",
+        "client_id",
+        "endpoint",
+        "jwt_audience",
+        "project_id",
+        "region",
+        "role_arn",
+        "role_session_name",
+        "service_account_impersonation_url",
+        "sts_endpoint",
+        "sts_region",
+        "tenant_id",
+        "token_uri"
+    );
 
     private PutDataSourceAction() {
         super(NAME);
@@ -50,7 +66,7 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
         private static final ParseField DESCRIPTION = new ParseField("description");
         private static final ParseField SETTINGS = new ParseField("settings");
 
-        public record ParseContext(String name, TimeValue masterNodeTimeout, TimeValue ackTimeout, Set<String> secretSettingNames) {}
+        public record ParseContext(String name, TimeValue masterNodeTimeout, TimeValue ackTimeout) {}
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Request, ParseContext> PARSER = new ConstructingObjectParser<>(
@@ -62,8 +78,7 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
                 ctx.name(),
                 (String) args[0],
                 (String) args[1],
-                (Map<String, Object>) args[2],
-                ctx.secretSettingNames()
+                (Map<String, Object>) args[2]
             )
         );
 
@@ -77,10 +92,9 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             XContentParser parser,
             TimeValue masterNodeTimeout,
             TimeValue ackTimeout,
-            String name,
-            Set<String> secretSettingNames
+            String name
         ) throws IOException {
-            return PARSER.parse(parser, new ParseContext(name, masterNodeTimeout, ackTimeout, secretSettingNames));
+            return PARSER.parse(parser, new ParseContext(name, masterNodeTimeout, ackTimeout));
         }
 
         private final String name;
@@ -88,7 +102,6 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
         @Nullable
         private final String description;
         private final Map<String, Object> rawSettings;
-        private final Set<String> secretSettingNames;
 
         public Request(
             TimeValue masterNodeTimeout,
@@ -96,15 +109,13 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             String name,
             String type,
             @Nullable String description,
-            Map<String, Object> rawSettings,
-            Set<String> secretSettingNames
+            Map<String, Object> rawSettings
         ) {
             super(masterNodeTimeout, ackTimeout);
             this.name = name;
             this.type = type;
             this.description = description;
             this.rawSettings = rawSettings == null ? Map.of() : rawSettings;
-            this.secretSettingNames = secretSettingNames;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -113,11 +124,6 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             this.type = in.readString();
             this.description = in.readOptionalString();
             this.rawSettings = in.readGenericMap();
-            if (in.getTransportVersion().supports(FEDERATED_DATA_SECRET_KEYS)) {
-                this.secretSettingNames = in.readOptional(i -> i.readCollectionAsSet(StreamInput::readString));
-            } else {
-                this.secretSettingNames = null;
-            }
         }
 
         @Override
@@ -127,9 +133,6 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             out.writeString(type);
             out.writeOptionalString(description);
             out.writeGenericMap(rawSettings);
-            if (out.getTransportVersion().supports(FEDERATED_DATA_SECRET_KEYS)) {
-                out.writeOptionalStringCollection(secretSettingNames);
-            }
         }
 
         @Override
@@ -198,10 +201,6 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             return rawSettings;
         }
 
-        /* package private */ Set<String> secretSettingNames() {
-            return secretSettingNames;
-        }
-
         @Override
         public Map<String, Object> auditFields() {
             var fields = new HashMap<String, Object>();
@@ -210,13 +209,11 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             if (description != null) {
                 fields.put("description", description);
             }
-            if (secretSettingNames != null) {
-                for (var entry : rawSettings.entrySet()) {
-                    if (secretSettingNames.contains(entry.getKey()) == false) {
-                        fields.put("settings." + entry.getKey(), entry.getValue());
-                    } else {
-                        fields.put("settings." + entry.getKey(), "::es_redacted::");
-                    }
+            for (var entry : rawSettings.entrySet()) {
+                if (AUDITABLE_SETTINGS.contains(entry.getKey())) {
+                    fields.put("settings." + entry.getKey(), entry.getValue());
+                } else {
+                    fields.put("settings." + entry.getKey(), "::es_redacted::");
                 }
             }
             return fields;
@@ -230,13 +227,12 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             return Objects.equals(name, request.name)
                 && Objects.equals(type, request.type)
                 && Objects.equals(description, request.description)
-                && Objects.equals(rawSettings, request.rawSettings)
-                && Objects.equals(secretSettingNames, request.secretSettingNames);
+                && Objects.equals(rawSettings, request.rawSettings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, type, description, rawSettings, secretSettingNames);
+            return Objects.hash(name, type, description, rawSettings);
         }
     }
 }

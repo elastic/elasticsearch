@@ -121,8 +121,7 @@ public class ExternalNullFieldParallelWarningIT extends AbstractExternalDataSour
                     StoragePath.fileUri(file),
                     null,
                     new HashMap<>(Map.of("format", "csv", "error_mode", "null_field")),
-                    mapping,
-                    null
+                    mapping
                 )
             )
         );

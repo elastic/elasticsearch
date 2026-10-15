@@ -296,11 +296,11 @@ public class NdJsonCrossFileScalarAndDottedColumnsIT extends AbstractEsqlIntegTe
     }
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
-        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings), null);
+        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
 
     private static PutDataSourceAction.Request putLocalFileDataSourceRequest() {
-        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, FILE_DS, "local", null, new HashMap<>(), null);
+        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, FILE_DS, "local", null, new HashMap<>());
     }
 
     private static PutDatasetAction.Request putDatasetRequest(

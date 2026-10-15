@@ -377,8 +377,7 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
                             "endpoint",
                             "http://127.0.0.1:" + s3Port
                         )
-                    ),
-                    null
+                    )
                 )
             )
         );
@@ -403,8 +402,7 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
                     DATASOURCE_NAME,
                     "s3",
                     null,
-                    new HashMap<>(Map.of("auth", "managed_identity", "region", "us-east-1", "endpoint", "http://127.0.0.1:" + s3Port)),
-                    null
+                    new HashMap<>(Map.of("auth", "managed_identity", "region", "us-east-1", "endpoint", "http://127.0.0.1:" + s3Port))
                 )
             )
         );

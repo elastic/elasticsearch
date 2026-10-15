@@ -229,7 +229,7 @@ public class DatasetSchemaSampleSizeValidationIT extends AbstractExternalDataSou
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "local", null, new HashMap<>(), null)
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "local", null, new HashMap<>())
             )
         );
         rawDataSources.add(name);

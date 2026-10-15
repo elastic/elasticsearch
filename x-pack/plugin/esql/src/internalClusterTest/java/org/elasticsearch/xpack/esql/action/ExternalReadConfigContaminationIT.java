@@ -355,7 +355,7 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, SRC, uri, null, settings, mapping, null)
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, SRC, uri, null, settings, mapping)
             )
         );
         datasets.add(name);

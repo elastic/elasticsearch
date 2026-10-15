@@ -78,7 +78,7 @@ public class DatasetPutStaleParentIT extends ESIntegTestCase {
             // a success status that a client reasonably reads as "created".
             AcknowledgedResponse created = client(master).execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, SHORT_ACK, "cb", "test", null, new HashMap<>(), null)
+                new PutDataSourceAction.Request(TIMEOUT, SHORT_ACK, "cb", "test", null, new HashMap<>())
             ).actionGet(TIMEOUT);
             assertThat("the blocked node cannot ack", created.isAcknowledged(), equalTo(false));
 

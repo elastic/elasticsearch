@@ -37,7 +37,6 @@ import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
-import static org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction.FEDERATED_DATA_SECRET_KEYS;
 
 /** Create or replace an ES|QL dataset. */
 public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
@@ -50,6 +49,34 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).build())
         .build();
 
+    private static final Set<String> AUDITABLE_SETTINGS = Set.of(
+        "region",
+        "format",
+        "schema_resolution",
+        "error_mode",
+        "max_errors",
+        "max_error_ratio",
+        "partition_detection",
+        "partition_sample_size",
+        "file_sort_by",
+        "file_order",
+        "target_split_size",
+        "split_probe_window",
+        "max_split_probes",
+        "schema_sample_size",
+        "schema_max_fields",
+        "segment_size",
+        "mode",
+        "encoding",
+        "header_row",
+        "trim_spaces",
+        "skip_rows",
+        "max_field_size",
+        "delimiter",
+        "quote",
+        "escape"
+    );
+
     private PutDatasetAction() {
         super(NAME);
     }
@@ -58,7 +85,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         implements
             IndicesRequest,
             DataSourceRequestInfo,
-        SecurityConfigChangeRequest {
+            SecurityConfigChangeRequest {
         private static final ParseField DATA_SOURCE = new ParseField("data_source");
         private static final ParseField RESOURCE = new ParseField("resource");
         private static final ParseField DESCRIPTION = new ParseField("description");
@@ -68,7 +95,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         /** Gates the optional {@link DatasetMapping} on the request wire (mixed-version upgrade). */
         private static final TransportVersion DATASET_DECLARED_SCHEMA = TransportVersion.fromName("dataset_declared_schema");
 
-        public record ParseContext(String name, TimeValue masterNodeTimeout, TimeValue ackTimeout, Set<String> secretSettingNames) {}
+        public record ParseContext(String name, TimeValue masterNodeTimeout, TimeValue ackTimeout) {}
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Request, ParseContext> PARSER = new ConstructingObjectParser<>(
@@ -82,8 +109,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
                 (String) args[1],
                 (String) args[2],
                 (Map<String, Object>) args[3],
-                DatasetMapping.assemble((DatasetMapping.Mappings) args[4]),
-                ctx.secretSettingNames()
+                DatasetMapping.assemble((DatasetMapping.Mappings) args[4])
             )
         );
 
@@ -99,10 +125,9 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             XContentParser parser,
             TimeValue masterNodeTimeout,
             TimeValue ackTimeout,
-            String name,
-            Set<String> secretSettingNames
+            String name
         ) throws IOException {
-            return PARSER.parse(parser, new ParseContext(name, masterNodeTimeout, ackTimeout, secretSettingNames));
+            return PARSER.parse(parser, new ParseContext(name, masterNodeTimeout, ackTimeout));
         }
 
         private final String name;
@@ -113,7 +138,6 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         private final Map<String, Object> rawSettings;
         @Nullable
         private final DatasetMapping mapping;
-        private final Set<String> secretSettingNames;
 
         public Request(
             TimeValue masterNodeTimeout,
@@ -124,7 +148,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             @Nullable String description,
             Map<String, Object> rawSettings
         ) {
-            this(masterNodeTimeout, ackTimeout, name, dataSource, resource, description, rawSettings, null, null);
+            this(masterNodeTimeout, ackTimeout, name, dataSource, resource, description, rawSettings, null);
         }
 
         public Request(
@@ -135,8 +159,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             String resource,
             @Nullable String description,
             Map<String, Object> rawSettings,
-            @Nullable DatasetMapping mapping,
-            Set<String> secretSettingNames
+            @Nullable DatasetMapping mapping
         ) {
             super(masterNodeTimeout, ackTimeout);
             this.name = name;
@@ -145,7 +168,6 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             this.description = description;
             this.rawSettings = rawSettings == null ? Map.of() : rawSettings;
             this.mapping = mapping;
-            this.secretSettingNames = secretSettingNames;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -158,11 +180,6 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             this.mapping = in.getTransportVersion().supports(DATASET_DECLARED_SCHEMA)
                 ? in.readOptionalWriteable(DatasetMapping::new)
                 : null;
-            if (in.getTransportVersion().supports(FEDERATED_DATA_SECRET_KEYS)) {
-                this.secretSettingNames = in.readOptional(i -> i.readCollectionAsSet(StreamInput::readString));
-            } else {
-                this.secretSettingNames = null;
-            }
         }
 
         @Override
@@ -179,9 +196,6 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
                 // Reject rather than silently dropping the mapping toward an older master: an acked PUT whose
                 // declared schema evaporated is worse than a failed one (same pattern as RestGetSnapshotsAction).
                 throw new IllegalArgumentException("[mappings] is not supported on all nodes in the cluster; retry after the upgrade");
-            }
-            if (out.getTransportVersion().supports(FEDERATED_DATA_SECRET_KEYS)) {
-                out.writeOptionalStringCollection(secretSettingNames);
             }
         }
 
@@ -259,10 +273,6 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             return mapping;
         }
 
-        /* package private */ Set<String> secretSettingNames() {
-            return secretSettingNames;
-        }
-
         @Override
         public Map<String, Object> auditFields() {
             var fields = new HashMap<String, Object>();
@@ -272,13 +282,11 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             if (description != null) {
                 fields.put("description", description);
             }
-            if (secretSettingNames != null) {
-                for (var entry : rawSettings.entrySet()) {
-                    if (secretSettingNames.contains(entry.getKey()) == false) {
-                        fields.put("settings." + entry.getKey(), entry.getValue());
-                    } else {
-                        fields.put("settings." + entry.getKey(), "::es_redacted::");
-                    }
+            for (var entry : rawSettings.entrySet()) {
+                if (AUDITABLE_SETTINGS.contains(entry.getKey())) {
+                    fields.put("settings." + entry.getKey(), entry.getValue());
+                } else {
+                    fields.put("settings." + entry.getKey(), "::es_redacted::");
                 }
             }
             return fields;
@@ -294,13 +302,12 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
                 && Objects.equals(resource, request.resource)
                 && Objects.equals(description, request.description)
                 && Objects.equals(rawSettings, request.rawSettings)
-                && Objects.equals(mapping, request.mapping)
-                && Objects.equals(secretSettingNames, request.secretSettingNames);
+                && Objects.equals(mapping, request.mapping);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, dataSource, resource, description, rawSettings, mapping, secretSettingNames);
+            return Objects.hash(name, dataSource, resource, description, rawSettings, mapping);
         }
 
         @Override

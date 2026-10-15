@@ -251,7 +251,7 @@ public class ExternalSourceProfileIT extends AbstractExternalDataSourceIT {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
-                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "profile_src", "test", null, new HashMap<>(), null)
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "profile_src", "test", null, new HashMap<>())
             )
         );
         assertAcked(

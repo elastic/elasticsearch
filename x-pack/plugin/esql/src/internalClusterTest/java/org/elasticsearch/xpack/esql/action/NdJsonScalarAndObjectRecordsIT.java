@@ -189,7 +189,7 @@ public class NdJsonScalarAndObjectRecordsIT extends AbstractEsqlIntegTestCase {
     }
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
-        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings), null);
+        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
 
     private static PutDatasetAction.Request putDatasetRequest(

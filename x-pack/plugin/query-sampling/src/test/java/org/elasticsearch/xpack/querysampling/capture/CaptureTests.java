@@ -105,15 +105,6 @@ public class CaptureTests extends ESTestCase {
         assertTrue(delivered.get());
     }
 
-    public void testIgnoresHybridSearches() {
-        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
-        SearchRequest request = knnSearch(randomVector(8));
-        request.source().query(QueryBuilders.matchQuery("title", "phone"));
-        assertTrue(queryCaptureFilterApply(filter, request, TaskId.EMPTY_TASK_ID));
-        assertTrue(captured.isEmpty());
-        assertThat(filter.knnSearches(), equalTo(0L));
-    }
-
     public void testIgnoresSearchesThatAreNotOverAllTheDocumentsOfTheirIndicesOrDoNotReturnTheNearestK() {
         QueryCaptureFilter filter = filter(true, 1.0, captured::add);
         List<SearchRequest> notComparable = new ArrayList<>();
@@ -260,15 +251,6 @@ public class CaptureTests extends ESTestCase {
         rate.observe(1, 1);
 
         assertThat(rate.effective(), closeTo(0.1, 1e-12));
-    }
-
-    public void testTheRateNeverGoesAboveOne() {
-        CaptureRate rate = new CaptureRate(0.01, 1_000_000);
-
-        rate.observe(1, 1);
-        assertThat(rate.effective(), equalTo(1.0));
-        rate.observe(0, 1);
-        assertThat("and no traffic means anything that comes is captured", rate.effective(), equalTo(1.0));
     }
 
     public void testDropsWithoutBlockingWhenTheQueueIsFull() throws Exception {

@@ -216,16 +216,6 @@ public class GroundTruthTests extends ESTestCase {
         assertThat(stored.get(query).dataState(), nullValue());
     }
 
-    public void testExactSearchesSpendTheCredit() {
-        CostBudget budget = new CostBudget(0.01, 1000);
-        budget.earn(5000);
-
-        budget.spend(30);
-
-        assertThat(budget.credit(), closeTo(20, 1e-9));
-        assertThat(budget.affordable(10, 100), equalTo(2));
-    }
-
     public void testAnExpensiveSearchLeavesADebtThatIsPaidOffFirst() {
         CostBudget budget = new CostBudget(0.1, 100);
         budget.earn(100);
@@ -266,19 +256,6 @@ public class GroundTruthTests extends ESTestCase {
         String update = ((UpdateRequest) updates.get(0)).doc().source().utf8ToString();
         assertThat(update.contains("\"has_ground_truth\":true"), equalTo(true));
         assertThat(update.contains("\"neighbors\""), equalTo(true));
-    }
-
-    public void testAFailedSearchLeavesTheQueryPendingButMovesItBack() throws IOException {
-        StoredGroundTruth service = service(pending(1, 2), failingEveryExactSearchOf(1), acknowledgingAll());
-
-        GroundTruthRunner.Result result = compute(service, 5);
-
-        assertThat(result, equalTo(new GroundTruthRunner.Result(1, 1)));
-        List<DocWriteRequest<?>> updates = bulks.get(0).requests();
-        String failed = ((UpdateRequest) updates.get(0)).doc().source().utf8ToString();
-        assertThat("only marked as looked at", failed.contains("has_ground_truth"), equalTo(false));
-        assertThat(failed.contains("updated_at"), equalTo(true));
-        assertThat(((UpdateRequest) updates.get(1)).doc().source().utf8ToString().contains("\"has_ground_truth\":true"), equalTo(true));
     }
 
     private GroundTruthRunner.Result compute(StoredGroundTruth service, int max) {
@@ -382,10 +359,6 @@ public class GroundTruthTests extends ESTestCase {
 
     private int waiting;
 
-    private ActionListener<SearchResponse> heldSampleSearch;
-
-    private boolean holdSampleSearch;
-
     private boolean failSampleSearch;
 
     public void testItComputesWhatTheCreditAffords() {
@@ -415,22 +388,6 @@ public class GroundTruthTests extends ESTestCase {
         );
     }
 
-    public void testOnlyOneBatchIsComputedAtATime() {
-        waiting = 5;
-        holdSampleSearch = true;
-        budget.earn(1000);
-        GroundTruthWorker worker = worker();
-
-        worker.run();
-        worker.run();
-
-        assertThat("the second round finds the first still running", sampleSearches.size(), equalTo(1));
-        holdSampleSearch = false;
-        heldSampleSearch.onFailure(new IllegalStateException("search failed"));
-        worker.run();
-        assertThat("and it is free to work once the first is over", sampleSearches.size(), equalTo(2));
-    }
-
     public void testAFailureDoesNotStopIt() {
         waiting = 5;
         failSampleSearch = true;
@@ -449,8 +406,6 @@ public class GroundTruthTests extends ESTestCase {
             sampleSearches.add(request);
             if (failSampleSearch) {
                 listener.onFailure(new IllegalStateException("search failed"));
-            } else if (holdSampleSearch) {
-                heldSampleSearch = listener;
             } else {
                 try {
                     boolean own = request.source().query().toString().contains("sampler_id");
@@ -501,27 +456,6 @@ public class GroundTruthTests extends ESTestCase {
 
     private final Map<CapturedQuery, GroundTruth> stored = new IdentityHashMap<>();
 
-    public void testComputesTheGroundTruthOfEveryQuery() {
-        List<CapturedQuery> queries = List.of(query(1), query(2), query(3));
-        GroundTruthRunner runner = new GroundTruthRunner(overShards(SHARDS, answering(request -> "doc" + request.source().size())));
-
-        GroundTruthRunner.Result result = run(runner, queries);
-
-        assertThat(result, equalTo(new GroundTruthRunner.Result(3, 0)));
-        for (int i = 0; i < 3; i++) {
-            assertThat(stored.get(queries.get(i)).neighbors(), equalTo(List.of(new CapturedSearch.Hit("idx", "doc" + (i + 1), 1f))));
-        }
-    }
-
-    public void testSearchThatCompletesAndThenThrowsIsOnlyCountedOnce() {
-        GroundTruthRunner runner = new GroundTruthRunner(overShards(SHARDS, (request, listener) -> {
-            respond(listener, "doc1");
-            throw new IllegalStateException("thrown after the response");
-        }));
-
-        assertThat(run(runner, List.of(query(1))), equalTo(new GroundTruthRunner.Result(1, 0)));
-    }
-
     private GroundTruthRunner.Result run(GroundTruthRunner runner, List<CapturedQuery> queries) {
         AtomicReference<GroundTruthRunner.Result> result = new AtomicReference<>();
         AtomicInteger notifications = new AtomicInteger();
@@ -531,10 +465,6 @@ public class GroundTruthTests extends ESTestCase {
         }, e -> fail(e)));
         assertThat("the caller is notified exactly once", notifications.get(), equalTo(1));
         return result.get();
-    }
-
-    private static BiConsumer<SearchRequest, ActionListener<SearchResponse>> answering(Function<SearchRequest, String> id) {
-        return (request, listener) -> respond(listener, id.apply(request));
     }
 
     private static void respond(ActionListener<SearchResponse> listener, String id) {

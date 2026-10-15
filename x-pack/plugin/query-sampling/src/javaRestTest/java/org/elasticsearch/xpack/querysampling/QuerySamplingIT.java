@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.querysampling;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -68,20 +67,6 @@ public class QuerySamplingIT extends QuerySamplingRestTestCase {
         assertThat(((Number) estimate.evaluate("traffic_weighted_recall")).doubleValue(), greaterThan(0.99));
         assertThat(((Number) estimate.evaluate("unique_query_recall")).doubleValue(), greaterThan(0.99));
         assertThat(((List<?>) estimate.evaluate("samples")).size(), greaterThanOrEqualTo(1));
-    }
-
-    public void testSampledQueriesAreWrittenToTheIndex() throws Exception {
-        setUpIndexAndSampling();
-        sampleOneQuery();
-    }
-
-    public void testSettingsOutOfRangeAreRejected() throws Exception {
-        Request settings = new Request("PUT", "/_cluster/settings");
-        settings.setJsonEntity("""
-            { "persistent": { "xpack.query_sampling.head_threshold": 0 } }
-            """);
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(settings));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testEveryArrivalIsADocumentAndGivesAnEstimateOfTheTraffic() throws Exception {

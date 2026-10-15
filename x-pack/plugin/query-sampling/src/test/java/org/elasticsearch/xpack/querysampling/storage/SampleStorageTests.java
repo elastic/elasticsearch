@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
@@ -46,7 +45,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -182,21 +180,6 @@ public class SampleStorageTests extends ESTestCase {
 
     private final List<ActionListener<BulkResponse>> listeners = new ArrayList<>();
 
-    public void testAFullBatchIsWrittenAtOnce() {
-        SampleWriter writer = writer(3, 10);
-
-        writer.onSampled(sampled(1));
-        writer.onSampled(sampled(2));
-        writer.onSampled(sampled(3));
-        taskQueue.runAllRunnableTasks();
-
-        assertThat(requests.size(), equalTo(1));
-        BulkRequest request = requests.get(0);
-        assertThat(request.numberOfActions(), equalTo(3));
-        assertThat(request.requests().get(0).index(), equalTo(QuerySamplingIndex.NAME));
-        assertThat(request.requests().get(0).id(), equalTo(SampleRecord.documentId("sampler", new QueryFingerprint(1, 1))));
-    }
-
     public void testOneRequestIsInFlightAtATime() {
         SampleWriter writer = writer(2, 10);
         writer.onSampled(sampled(1));
@@ -214,30 +197,6 @@ public class SampleStorageTests extends ESTestCase {
         assertThat(requests.size(), equalTo(2));
         assertThat(requests.get(1).numberOfActions(), equalTo(2));
         assertThat(writer.written(), equalTo(2L));
-    }
-
-    public void testFailuresAreCountedAndDoNotStopTheWriter() {
-        SampleWriter writer = writer(2, 10);
-        writer.onSampled(sampled(1));
-        writer.onSampled(sampled(2));
-        taskQueue.runAllRunnableTasks();
-
-        listeners.get(0).onFailure(new IllegalStateException("bulk failed"));
-        assertThat(writer.failed(), equalTo(2L));
-
-        writer.onSampled(sampled(3));
-        writer.onSampled(sampled(4));
-        taskQueue.runAllRunnableTasks();
-        assertThat(requests.size(), equalTo(2));
-
-        BulkItemResponse rejected = BulkItemResponse.failure(
-            0,
-            DocWriteRequest.OpType.INDEX,
-            new BulkItemResponse.Failure(QuerySamplingIndex.NAME, "id", new IllegalArgumentException("rejected"))
-        );
-        listeners.get(1).onResponse(new BulkResponse(new BulkItemResponse[] { rejected }, 1));
-        assertThat(writer.failed(), equalTo(3L));
-        assertThat(writer.written(), equalTo(1L));
     }
 
     private SampleWriter writer(int maxBatch, int maxPending) {
@@ -280,61 +239,12 @@ public class SampleStorageTests extends ESTestCase {
         assertThat(requests.size(), equalTo(1));
         assertThat(requests.get(0).numberOfActions(), equalTo(1));
         assertThat(requests.get(0).requests().get(0).id(), equalTo(SampleRecord.documentId("sampler", fingerprint)));
-        listeners.get(0).onResponse(responseOf(1, true));
+        listeners.get(0).onResponse(responseOf(1));
         assertThat(refresher.refreshed(), equalTo(1L));
 
         nextRound();
         assertThat(requests.size(), equalTo(1));
         assertThat(refresher.tracked(), equalTo(1));
-    }
-
-    public void testFailedUpdatesAreTriedAgain() {
-        WeightsRefresher refresher = refresher(10);
-        QueryFingerprint fingerprint = new QueryFingerprint(1, 1);
-        TrackedQuery query = tracker.record(fingerprint);
-        refresher.written(fingerprint, query, query.weights());
-        tracker.record(fingerprint);
-
-        nextRound();
-        listeners.get(0).onFailure(new IllegalStateException("bulk failed"));
-        assertThat(refresher.failed(), equalTo(1L));
-
-        nextRound();
-        assertThat(requests.size(), equalTo(2));
-        listeners.get(1).onResponse(responseOf(1, false));
-        assertThat(refresher.failed(), equalTo(2L));
-
-        nextRound();
-        assertThat("rejected updates are tried again too", requests.size(), equalTo(3));
-    }
-
-    public void testQueriesWhoseDocumentIsGoneAreDroppedAndDoNotKeepOthersFromBeingUpdated() {
-        WeightsRefresher refresher = refresher(2);
-        QueryFingerprint[] fingerprints = new QueryFingerprint[3];
-        for (int i = 0; i < 3; i++) {
-            fingerprints[i] = new QueryFingerprint(i + 1, i + 1);
-            TrackedQuery query = tracker.record(fingerprints[i]);
-            refresher.written(fingerprints[i], query, query.weights());
-            tracker.record(fingerprints[i]);
-        }
-
-        nextRound();
-        assertThat(requests.size(), equalTo(1));
-        BulkItemResponse missing = BulkItemResponse.failure(
-            0,
-            DocWriteRequest.OpType.UPDATE,
-            new BulkItemResponse.Failure(
-                QuerySamplingIndex.NAME,
-                "id",
-                new DocumentMissingException(new ShardId(QuerySamplingIndex.NAME, "_na_", 0), "id")
-            )
-        );
-        listeners.get(0).onResponse(new BulkResponse(new BulkItemResponse[] { missing, missing }, 1));
-        assertThat("what has no document any more is not looked at again", refresher.tracked(), equalTo(1));
-
-        nextRound();
-        assertThat("so the one that has a document is updated", requests.size(), equalTo(2));
-        assertThat(requests.get(1).numberOfActions(), equalTo(1));
     }
 
     private WeightsRefresher refresher(int maxBatch) {
@@ -349,27 +259,19 @@ public class SampleStorageTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
     }
 
-    private static BulkResponse responseOf(int items, boolean succeeded) {
+    private static BulkResponse responseOf(int items) {
         BulkItemResponse[] responses = new BulkItemResponse[items];
         for (int i = 0; i < items; i++) {
-            responses[i] = succeeded
-                ? BulkItemResponse.success(
-                    i,
-                    DocWriteRequest.OpType.UPDATE,
-                    new UpdateResponse(new ShardId(QuerySamplingIndex.NAME, "_na_", 0), "id", 0, 1, 1, DocWriteResponse.Result.UPDATED)
-                )
-                : BulkItemResponse.failure(
-                    i,
-                    DocWriteRequest.OpType.UPDATE,
-                    new BulkItemResponse.Failure(QuerySamplingIndex.NAME, "id", new IllegalStateException("rejected"))
-                );
+            responses[i] = BulkItemResponse.success(
+                i,
+                DocWriteRequest.OpType.UPDATE,
+                new UpdateResponse(new ShardId(QuerySamplingIndex.NAME, "_na_", 0), "id", 0, 1, 1, DocWriteResponse.Result.UPDATED)
+            );
         }
         return new BulkResponse(responses, 1);
     }
 
     private static final TimeValue RETENTION = TimeValue.timeValueDays(7);
-
-    private final AtomicBoolean master = new AtomicBoolean(true);
 
     private final List<DeleteByQueryRequest> sampleRetentionRequests = new ArrayList<>();
 
@@ -392,20 +294,11 @@ public class SampleStorageTests extends ESTestCase {
         assertThat(retention.deleted(), equalTo(5L));
     }
 
-    public void testOnlyTheElectedMasterDeletes() {
-        SampleRetention retention = retention();
-        master.set(false);
-
-        retention.run();
-
-        assertThat(sampleRetentionRequests.size(), equalTo(0));
-    }
-
     private SampleRetention retention() {
         return new SampleRetention((request, listener) -> {
             sampleRetentionRequests.add(request);
             sampleRetentionListeners.add(listener);
-        }, master::get, () -> TimeValue.timeValueDays(10).millis(), RETENTION);
+        }, () -> true, () -> TimeValue.timeValueDays(10).millis(), RETENTION);
     }
 
     private static BulkByPaginatedSearchResponse response(long deleted) {

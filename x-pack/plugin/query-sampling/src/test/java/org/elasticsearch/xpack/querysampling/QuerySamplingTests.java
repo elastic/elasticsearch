@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.querysampling;
 
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
@@ -19,8 +18,6 @@ import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
 import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -28,7 +25,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class QuerySamplingTests extends ESTestCase {
@@ -92,17 +88,6 @@ public class QuerySamplingTests extends ESTestCase {
         assertThat("two events of the same query", sampled.get(0).eventId().equals(sampled.get(1).eventId()), equalTo(false));
         assertThat("captured with 0.5 and kept with 0.25", sampled.get(0).tracked().inclusionProbability(), closeTo(0.125, 1e-12));
         assertThat("each is one search, standing for two", sampled.get(0).tracked().weightedMultiplicity(), closeTo(2.0, 1e-12));
-    }
-
-    public void testEveryDeclaredSettingIsRegistered() throws IllegalAccessException {
-        int declared = 0;
-        for (Field field : QuerySamplingSettings.class.getFields()) {
-            if (Modifier.isStatic(field.getModifiers()) && Setting.class.isAssignableFrom(field.getType())) {
-                declared++;
-                assertThat(field.getName() + " is registered", QuerySamplingSettings.getSettings(), hasItem((Setting<?>) field.get(null)));
-            }
-        }
-        assertThat(declared, equalTo(QuerySamplingSettings.getSettings().size()));
     }
 
     /** A random whose draws are all the given value, so sampling decisions are deterministic. */

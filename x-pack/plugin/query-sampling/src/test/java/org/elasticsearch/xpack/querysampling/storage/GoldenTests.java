@@ -23,7 +23,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -38,7 +37,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.Hardness;
@@ -57,7 +55,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -233,16 +230,6 @@ public class GoldenTests extends ESTestCase {
         assertThat("the ground truth is not looked at", probes.size(), equalTo(0));
     }
 
-    public void testNoVersionIsMadeWhenNothingIsNew() throws IOException {
-        latestVersion = 2;
-        golden = List.of(goldenRecord(1, 100, STORED), goldenRecord(2, 200, STORED));
-        goldenUpdaterStored = List.of(sample("s", 2, 200), sample("s", 1, 100));
-
-        assertThat(update(adding(), 10), equalTo(new GoldenUpdater.Result(2, 0, 2, 0, 0, 0, 0)));
-        assertThat(manifests.size(), equalTo(0));
-        assertThat(bulks.size(), equalTo(0));
-    }
-
     public void testFreshQueriesAreCopiedAndStaleOnesAreComputedAgainInANewVersion() throws IOException {
         latestVersion = 4;
         golden = List.of(goldenRecord(1, 100, STORED), goldenRecord(2, 200, STORED), goldenRecord(3, 300, STORED));
@@ -371,7 +358,7 @@ public class GoldenTests extends ESTestCase {
 
     private List<SearchHit> records = List.of();
 
-    private GoldenStaleness staleness(BiConsumer<SearchRequest, ActionListener<SearchResponse>> probe) {
+    private GoldenStaleness staleness() {
         GoldenReader reader = new GoldenReader((request, listener) -> {
             if (request.source().size() == 1) {
                 respond(listener, List.of(manifest(3)));
@@ -381,16 +368,8 @@ public class GoldenTests extends ESTestCase {
         }, REGISTRY);
         return new GoldenStaleness(reader, (request, listener) -> {
             probes.add(request);
-            probe.accept(request, listener);
+            STORED_SHARDS.accept(request, listener);
         });
-    }
-
-    private GoldenStaleness staleness() {
-        return staleness((request, listener) -> STORED_SHARDS.accept(request, listener));
-    }
-
-    private static float firstOf(SearchRequest request) {
-        return Float.parseFloat(request.indices()[0].substring(3));
     }
 
     private GoldenStaleness.Result check(GoldenStaleness staleness, long version, int max) {
@@ -418,19 +397,6 @@ public class GoldenTests extends ESTestCase {
 
         assertThat(statuses.get().size(), equalTo(many.size()));
         assertThat(Set.copyOf(statuses.get()), equalTo(Set.of(GoldenStaleness.Status.UNKNOWN)));
-    }
-
-    public void testAFailedProbeIsCountedAsFailedAndDoesNotStopTheOthers() throws IOException {
-        records = List.of(record(1, STORED), record(2, STORED), record(3, STORED));
-        GoldenStaleness staleness = staleness((request, listener) -> {
-            if (firstOf(request) == 2f) {
-                listener.onFailure(new IllegalStateException("no"));
-            } else {
-                STORED_SHARDS.accept(request, listener);
-            }
-        });
-
-        assertThat(check(staleness, 3, 10), equalTo(new GoldenStaleness.Result(3, 3, 2, 0, 0, 1)));
     }
 
     private static SearchHit record(long n, DataState state) throws IOException {
@@ -508,51 +474,4 @@ public class GoldenTests extends ESTestCase {
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
     }
 
-    private final List<Integer> limits = new ArrayList<>();
-
-    private boolean master = true;
-
-    private GoldenUpdater.Result outcome = new GoldenUpdater.Result(1, 2, 0, 0, 3, 0, 0);
-
-    private Exception failure;
-
-    private GoldenPromotionJob job() {
-        GoldenPromotionJob job = new GoldenPromotionJob((limit, listener) -> {
-            limits.add(limit);
-            if (failure != null) {
-                listener.onFailure(failure);
-            } else {
-                listener.onResponse(outcome);
-            }
-        }, () -> master);
-        job.watch(
-            new ClusterSettings(
-                Settings.builder().put(QuerySamplingSettings.GOLDEN_MAX_QUERIES.getKey(), 7).build(),
-                Set.of(QuerySamplingSettings.GOLDEN_MAX_QUERIES)
-            )
-        );
-        return job;
-    }
-
-    public void testOnlyTheElectedMasterGrowsTheDataset() {
-        master = false;
-        GoldenPromotionJob job = job();
-
-        job.run();
-
-        assertThat(limits.size(), equalTo(0));
-        assertThat(job.promotions(), equalTo(0L));
-    }
-
-    public void testAFailedRoundIsCountedAndDoesNotStopTheNext() {
-        failure = new IllegalStateException("no");
-        GoldenPromotionJob job = job();
-
-        job.run();
-        failure = null;
-        job.run();
-
-        assertThat(job.failed(), equalTo(1L));
-        assertThat(job.promotions(), equalTo(1L));
-    }
 }

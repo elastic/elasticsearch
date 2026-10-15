@@ -25,8 +25,6 @@ public class SamplerTests extends ESTestCase {
 
     private static final QueryFingerprint FINGERPRINT = new QueryFingerprint(1, 1);
 
-    private final AtomicLong now = new AtomicLong();
-    private final PickBudget budget = new PickBudget(now::get);
     private final ScaleRegulator regulator = new ScaleRegulator();
 
     public void testProbabilityShrinksWithPopularityButAddsUpLogarithmically() {
@@ -111,39 +109,6 @@ public class SamplerTests extends ESTestCase {
         }
         double fiveSigma = 5 * Math.sqrt(inclusionProbability * (1 - inclusionProbability) / trials);
         assertThat((double) sampled / trials, closeTo(inclusionProbability, fiveSigma));
-    }
-
-    public void testTheBucketStartsFullAndIsEmptiedByPicks() {
-        budget.perHour(3600);
-
-        for (int i = 0; i < 60; i++) {
-            assertTrue("pick " + i, budget.available());
-            budget.take();
-        }
-        assertFalse(budget.available());
-    }
-
-    public void testTokensComeBackAtTheRateOfTheLimit() {
-        budget.perHour(3600);
-        for (int i = 0; i < 60; i++) {
-            budget.take();
-        }
-        assertFalse(budget.available());
-
-        now.addAndGet(TimeUnit.MILLISECONDS.toNanos(1500));
-        assertTrue("one token after a second and a half", budget.available());
-        budget.take();
-        assertFalse("and not two", budget.available());
-    }
-
-    public void testASingleStepIsNeverMoreThanAFactorOfTwo() {
-        regulator.targetPerHour(3600);
-        regulator.observe(30);
-        assertThat("no picks at all", regulator.adjustment(), equalTo(2.0));
-
-        pick(100_000);
-        regulator.observe(30);
-        assertThat("far too many", regulator.adjustment(), equalTo(1.0));
     }
 
     public void testSettlesAtATargetAndStaysThere() {

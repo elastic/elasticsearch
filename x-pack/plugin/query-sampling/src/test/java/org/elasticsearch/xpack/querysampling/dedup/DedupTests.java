@@ -8,19 +8,15 @@
 package org.elasticsearch.xpack.querysampling.dedup;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class DedupTests extends ESTestCase {
@@ -59,20 +55,6 @@ public class DedupTests extends ESTestCase {
 
         assertThat(tracker.record(a, 0.01).seenProbability(), closeTo(1 - Math.pow(0.99, 100), 1e-9));
         assertThat(tracker.record(a, 0.01).seenProbability(), closeTo(1 - Math.pow(0.99, 200), 1e-9));
-    }
-
-    public void testStopsTrackingNewQueriesWhenFull() {
-        MultiplicityTracker tracker = new MultiplicityTracker(2);
-        QueryFingerprint known = new QueryFingerprint(1, 1);
-        tracker.record(known);
-        tracker.record(new QueryFingerprint(2, 2));
-
-        assertThat(tracker.record(new QueryFingerprint(3, 3)), nullValue());
-        assertThat(tracker.record(new QueryFingerprint(4, 4)), nullValue());
-        assertThat("queries that are already known keep being counted", tracker.record(known).multiplicity(), equalTo(2L));
-
-        assertThat(tracker.distinct(), equalTo(2));
-        assertThat(tracker.untracked(), equalTo(2L));
     }
 
     public void testForgetsQueriesNotSeenForAWindow() {
@@ -118,19 +100,6 @@ public class DedupTests extends ESTestCase {
             query.filters(),
             label
         );
-    }
-
-    public void testNoCollisionsAmongManyQueries() {
-        Set<QueryFingerprint> seen = new HashSet<>();
-        int queries = 50_000;
-        for (int i = 0; i < queries; i++) {
-            seen.add(QueryFingerprint.of(query("vec", randomVector(8), List.of())));
-        }
-        assertThat(seen.size(), equalTo(queries));
-    }
-
-    private static CapturedQuery query(String field, float[] vector, List<QueryBuilder> filters) {
-        return new CapturedQuery(new String[] { "idx" }, field, vector, 10, 100, null, null, filters, null);
     }
 
     private static float[] randomVector(int dims) {

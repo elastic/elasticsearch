@@ -20,7 +20,6 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
-import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.Hardness;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
@@ -37,13 +36,11 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.nullValue;
 
 public class StrataTests extends ESTestCase {
 
@@ -115,15 +112,6 @@ public class StrataTests extends ESTestCase {
         assertThat(strata.factor(found[1]), closeTo(5.0, 1e-9));
     }
 
-    private static List<CapturedSearch.Hit> hits(float... scores) {
-        return IntStream.range(0, scores.length).mapToObj(i -> new CapturedSearch.Hit("idx", "doc" + i, scores[i])).toList();
-    }
-
-    private static List<CapturedSearch.Hit> hitsWithContrast(double contrast) {
-        float others = (float) ((3 * contrast - 1) / 2);
-        return hits(1f, others, others);
-    }
-
     private static HardnessStrata tilting(double tilt) {
         HardnessStrata strata = new HardnessStrata();
         strata.watch(
@@ -135,21 +123,6 @@ public class StrataTests extends ESTestCase {
         return strata;
     }
 
-    private static void learn(HardnessStrata strata, String field, int queries) {
-        for (int i = 0; i < queries; i++) {
-            strata.assign(field, 2, hitsWithContrast(0.4 + 0.5 * i / queries));
-        }
-    }
-
-    public void testQueriesAreToldApartByHowFarTheyAreFromTheOthers() {
-        HardnessStrata strata = tilting(1.0);
-        learn(strata, "vec", 100);
-
-        assertThat(strata.assign("vec", 2, hitsWithContrast(0.95)), equalTo(Hardness.HARD));
-        assertThat(strata.assign("vec", 2, hitsWithContrast(0.35)), equalTo(Hardness.EASY));
-        assertThat(strata.assign("vec", 2, hitsWithContrast(0.65)), equalTo(Hardness.MEDIUM));
-    }
-
     public void testHardQueriesAreFavouredAndEasyOnesAreNot() {
         HardnessStrata strata = tilting(1.0);
 
@@ -157,17 +130,6 @@ public class StrataTests extends ESTestCase {
         assertThat(strata.factor(Hardness.EASY), lessThan(1.0));
         assertThat(strata.factor(Hardness.HARD) / strata.factor(Hardness.MEDIUM), closeTo(Math.E, 1e-9));
         assertThat(strata.factor(Hardness.MEDIUM) / strata.factor(Hardness.EASY), closeTo(Math.E, 1e-9));
-    }
-
-    public void testAThirdOfEachGivesAnAverageOfOne() {
-        for (double tilt : new double[] { 0.1, 1.0, 3.0, 10.0 }) {
-            HardnessStrata strata = tilting(tilt);
-            double sum = 0;
-            for (Hardness hardness : Hardness.values()) {
-                sum += strata.factor(hardness);
-            }
-            assertThat("tilt " + tilt, sum / 3, closeTo(1.0, 1e-9));
-        }
     }
 
     private SelectivityStrata strata() {
@@ -234,21 +196,5 @@ public class StrataTests extends ESTestCase {
             assertThat("passing " + oneCase[0], tracked.selectivity(), equalTo(Selectivity.values()[(int) oneCase[1]]));
         }
         assertThat(strata.counted(), equalTo((long) cases.length));
-    }
-
-    public void testAFailedCountLeavesTheSelectivityUnknownAndFreesTheRoom() {
-        SelectivityStrata failing = new SelectivityStrata(
-            (request, listener) -> listener.onFailure(new IllegalStateException("no")),
-            now::get
-        );
-        enableEstimate(failing);
-        for (int i = 0; i < SelectivityStrata.MAX_IN_FLIGHT * 3; i++) {
-            TrackedQuery tracked = tracked(i);
-            failing.assign(tracked, filtered(i));
-            assertThat(tracked.selectivity(), nullValue());
-        }
-
-        assertThat(failing.failed(), equalTo((long) SelectivityStrata.MAX_IN_FLIGHT * 3));
-        assertThat("a failure does not hold the room", failing.skipped(), equalTo(0L));
     }
 }

@@ -444,7 +444,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 BranchIdentity parentIdentity = vua.branchIdentity(parentKey);
                 for (LogicalPlan child : mergePlan.children()) {
                     LogicalPlan unwrapped = (child instanceof Subquery sq) ? sq.child() : child;
-                    String childKey = parentKey + "#" + childIndex++;
+                    String childKey = parentKey + "~" + childIndex++;
                     if (unwrapped instanceof UnresolvedRelation childUr && containsExclusion(childUr)) {
                         unwrapped = new NamedSubquery(childUr.source(), childUr, childKey);
                     }
@@ -489,6 +489,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     /**
      * Generate a unique key for the flat map, avoiding collisions with existing entries.
      */
+    // The separator must not be `#` — see ViewResolver#makeUniqueKey.
     private static String makeUniqueKey(LinkedHashMap<String, LogicalPlan> flat, String key) {
         if (key == null) {
             key = "main";
@@ -496,7 +497,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         String original = key;
         int counter = 2;
         while (flat.containsKey(key)) {
-            key = original + "#" + counter++;
+            key = original + "~" + counter++;
         }
         return key;
     }

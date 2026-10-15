@@ -1017,7 +1017,7 @@ public class ViewResolver {
             if (vp.plan instanceof NamedSubquery ns) {
                 assertNamesMatch("Unexpected subquery name mismatch", ns.name(), vp.name);
                 plans.put(key, ns);
-                // Identity carries the real view name; the key may be uniquified (e.g. "meow#2") and is just a label.
+                // Identity carries the real view name; the key may be uniquified (e.g. "meow~2") and is just a label.
                 identities.put(key, BranchIdentity.view(vp.name));
             } else if (vp.plan instanceof UnresolvedRelation urp && urp.indexMode() == IndexMode.STANDARD) {
                 plans.put(key, urp);
@@ -1138,6 +1138,9 @@ public class ViewResolver {
 
     /**
      * Generate a unique key for the plans map, avoiding collisions with existing entries.
+     * The separator must not be {@code #}: branch keys print inside plan dumps, and the golden-test
+     * normalizer rewrites every {@code #digits} token as a NameId, which would make goldens containing
+     * uniquified keys depend on the NameId counter state and thus on test execution order.
      */
     private static String makeUniqueKey(LinkedHashMap<String, LogicalPlan> plans, String key) {
         if (key == null) {
@@ -1146,7 +1149,7 @@ public class ViewResolver {
         String original = key;
         int counter = 2;
         while (plans.containsKey(key)) {
-            key = original + "#" + counter++;
+            key = original + "~" + counter++;
         }
         return key;
     }

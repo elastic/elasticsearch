@@ -903,7 +903,7 @@ public abstract class FieldMapper extends Mapper {
                             updateSyntheticSourceCompatibleKeywordField(incomingBuilder);
                         }
                     } else {
-                        MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
+                        MapperMergeContext childContext = mergeContext.withUnlimitedParseFieldLimitsBudget();
                         Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, childContext);
                         fieldBuilders.put(entry.getKey(), (FieldMapper.Builder) merged);
                     }

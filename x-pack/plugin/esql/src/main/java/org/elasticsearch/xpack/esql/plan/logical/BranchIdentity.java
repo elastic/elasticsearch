@@ -16,7 +16,7 @@ import java.util.List;
  * What a {@link ViewUnionAll} branch <em>is</em>: a resolved view (with its name), a user-written subquery, a resolved
  * dataset (with its name), or a bare index pattern. Carried as first-class state on the union node — not inferred from
  * transient {@link Subquery}/{@link NamedSubquery} wrappers, whose survival depends on compaction decisions, and not
- * from the branch map's keys, which are uniquified ({@code "meow#2"}) and so are labels rather than names.
+ * from the branch map's keys, which are uniquified ({@code "meow~2"}) and so are labels rather than names.
  *
  * <p>An identity describes only its own nesting level, and it is the <em>durable</em> truth about that level: the kind
  * the boundary features consult (the request-filter rewriter targets {@code kind == VIEW} branches, {@code Mapper}

@@ -436,12 +436,12 @@ public final class DatasetRewriter {
         return new ViewUnionAll(relation.source(), branches, identities, List.of());
     }
 
-    /** Uniquifies {@code key} against the branch map ({@code "ds"} → {@code "ds#2"}), like {@code ViewCompaction.makeUniqueKey}. */
+    /** Uniquifies {@code key} against the branch map ({@code "ds"} → {@code "ds~2"}), like {@code ViewCompaction.makeUniqueKey}. */
     private static String uniqueKey(Map<String, LogicalPlan> branches, String key) {
         String candidate = key;
         int counter = 2;
         while (branches.containsKey(candidate)) {
-            candidate = key + "#" + counter++;
+            candidate = key + "~" + counter++;
         }
         return candidate;
     }

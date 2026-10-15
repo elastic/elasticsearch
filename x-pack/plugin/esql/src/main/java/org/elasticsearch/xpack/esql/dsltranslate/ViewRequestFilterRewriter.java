@@ -217,7 +217,7 @@ public final class ViewRequestFilterRewriter {
                 QueryDslTranslator.TranslationResult result = translateFilter(child.output(), requestFilter, configuration, minimumVersion);
                 // The same construct can fail more than once on one view (two wildcard clauses, say); the set keeps the header short.
                 for (QueryDslTranslator.UnsupportedClause unsupported : result.unsupported()) {
-                    // The identity's name, not the map key: keys are uniquified labels ("meow#2"), names are the view's own.
+                    // The identity's name, not the map key: keys are uniquified labels ("meow~2"), names are the view's own.
                     String where = "[" + unsupported.construct() + "] on view [" + vua.branchIdentity(key).name() + "]";
                     // Name the version reason, as RequestFilterRewriter does; "not supported" would be wrong.
                     if (unsupported.reason() == null) {

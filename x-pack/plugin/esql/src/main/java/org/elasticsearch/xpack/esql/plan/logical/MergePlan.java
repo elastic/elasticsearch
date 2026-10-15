@@ -139,7 +139,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
 
     protected List<Attribute> refreshedOutput() {
         List<Attribute> converted = toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
-        // LOAD_ALL stamps $$unmapped_fields; preserve type-conflict UnsupportedAttributes that alignment Eval-null'd in children.
+        // LOAD_ALL stamps _unmapped_fields; preserve type-conflict UnsupportedAttributes that alignment Eval-null'd in children.
         if (unmappedFieldsAttributeFromChildren() != null) {
             converted = keepExistingUnsupportedAttributes(converted, this.output());
         }
@@ -153,7 +153,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         }
         for (int i = 0; i < converted.size(); i++) {
             if (converted.get(i).name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
-                // Keep the subtype so the coordinator flattening can find $$unmapped_fields after the merge.
+                // Keep the subtype so that _unmapped_fields is found after the merge and returned.
                 converted.set(i, ufa.withId(converted.get(i).id()));
                 break;
             }

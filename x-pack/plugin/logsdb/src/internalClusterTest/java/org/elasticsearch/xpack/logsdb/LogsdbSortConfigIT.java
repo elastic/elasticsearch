@@ -316,6 +316,54 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         assertOrder(backingIndex, orderedDocs);
     }
 
+    /**
+     * A custom sort on a multi-valued keyword then {@code @timestamp} descending, replacing the defaults. Documents tie on the keyword's
+     * minimum so the order within each group is decided by the timestamp, and documents without the keyword sort last.
+     */
+    public void testCustomKeywordTimestampSortConfig() throws IOException {
+        final String dataStreamName = "test-logsdb-sort-custom-keyword-timestamp";
+
+        final String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  },
+                  "test_id": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+            """;
+
+        final DocWithId[] orderedDocs = {
+            doc("{\"@timestamp\": \"2025-01-01T13:00:00\", \"service\": \"aaa\", \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T12:00:00\", \"service\": [\"bbb\", \"aaa\"], \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T11:00:00\", \"service\": \"aaa\", \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T15:00:00\", \"service\": \"bbb\", \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T14:00:00\", \"service\": [\"ccc\", \"bbb\"], \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T16:00:00\", \"service\": \"ccc\", \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T17:00:00\", \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T10:00:00\", \"test_id\": \"%id%\"}") };
+
+        createDataStream(
+            dataStreamName,
+            mapping,
+            s -> s.putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "service", "@timestamp")
+                .putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "asc", "desc")
+        );
+
+        List<DocWithId> shuffledDocs = shuffledList(Arrays.asList(orderedDocs));
+        indexDocuments(dataStreamName, shuffledDocs);
+
+        assertOrder(getBackingIndex(dataStreamName), orderedDocs);
+    }
+
     public void testMatchTailWithMissingHostname() throws Exception {
         final String dataStreamName = "test-logsdb-match-tail-with-missing-hostname";
 

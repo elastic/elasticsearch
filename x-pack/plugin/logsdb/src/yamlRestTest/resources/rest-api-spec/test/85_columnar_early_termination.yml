@@ -127,3 +127,80 @@ teardown:
   - match: { hits.hits.0.fields.host\.name.0: "alpha" }
   - match: { hits.hits.1.fields.host\.name.0: "bravo" }
   - match: { hits.hits.2.fields.host\.name.0: "charlie" }
+
+---
+"top-N without total hits on a logsdb_columnar index sorted by the keyword":
+  # With track_total_hits false and a query sort matching the index sort, each segment may stop collecting once it has filled the
+  # top N; whether it did is not reported (terminated_early only reflects terminate_after), so this pins that the results stay
+  # right across several segments when it can.
+  - do:
+      indices.create:
+        index: cl-et-sorted
+        body:
+          settings:
+            number_of_shards: 1
+            index.mode: logsdb_columnar
+            index.sort.field: host.name
+          mappings:
+            properties:
+              host.name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: cl-et-sorted
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": "2024-01-01T00:00:00Z"
+            host.name: "charlie"
+          - create: {}
+          - "@timestamp": "2024-01-01T00:00:01Z"
+            host.name: [ "foxtrot", "alpha" ]
+          - create: {}
+          - "@timestamp": "2024-01-01T00:00:02Z"
+            host.name: "golf"
+
+  - do:
+      bulk:
+        index: cl-et-sorted
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": "2024-01-01T00:00:03Z"
+            host.name: "echo"
+          - create: {}
+          - "@timestamp": "2024-01-01T00:00:04Z"
+            host.name: "bravo"
+          - create: {}
+          - "@timestamp": "2024-01-01T00:00:05Z"
+            host.name: "delta"
+
+  # Ascending by the minimum value, as each segment is sorted, so each may stop after its first two documents.
+  - do:
+      search:
+        index: cl-et-sorted
+        body:
+          size: 3
+          track_total_hits: false
+          sort:
+            - host.name: asc
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0.sort.0: "alpha" }
+  - match: { hits.hits.1.sort.0: "bravo" }
+  - match: { hits.hits.2.sort.0: "charlie" }
+
+  # Descending does not match the index sort, so every document has to be collected.
+  - do:
+      search:
+        index: cl-et-sorted
+        body:
+          size: 2
+          track_total_hits: false
+          sort:
+            - host.name: desc
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.sort.0: "golf" }
+  - match: { hits.hits.1.sort.0: "foxtrot" }

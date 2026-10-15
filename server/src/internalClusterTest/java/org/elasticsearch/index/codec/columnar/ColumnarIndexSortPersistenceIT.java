@@ -51,8 +51,16 @@ public class ColumnarIndexSortPersistenceIT extends ESIntegTestCase {
     private boolean missingFirst;
     private IndexMode mode;
 
-    public void testSortSurvivesReopenRestoreRecoveryAndResize() throws Exception {
-        mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+    public void testColumnarSortSurvivesReopenRestoreRecoveryAndResize() throws Exception {
+        assertSortSurvivesReopenRestoreRecoveryAndResize(IndexMode.COLUMNAR);
+    }
+
+    public void testLogsdbColumnarSortSurvivesReopenRestoreRecoveryAndResize() throws Exception {
+        assertSortSurvivesReopenRestoreRecoveryAndResize(IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    private void assertSortSurvivesReopenRestoreRecoveryAndResize(IndexMode indexMode) throws Exception {
+        mode = indexMode;
         max = randomBoolean();
         descending = randomBoolean();
         missingFirst = randomBoolean();

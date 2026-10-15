@@ -8,14 +8,14 @@ mapped_pages:
 :::{note}
 This section provides detailed **reference information**.
 
-Refer to [KQL overview](docs-content://explore-analyze/query-filter/languages/kql.md) in the **Explore and analyze** section for overview and conceptual information about the SQL query language.
+Refer to [KQL overview](docs-content://explore-analyze/query-filter/languages/kql.md) in the **Explore and analyze** section for overview and conceptual information about KQL.
 :::
 
 
-The {{kib}} Query Language (KQL) is a simple text-based query language for filtering data.
+The {{kib}} Query Language (KQL) is a text-based query language for filtering data.
 
-* KQL only filters data, and has no role in aggregating, transforming, or sorting data.
-* KQL is not to be confused with the [Lucene query language](docs-content://explore-analyze/query-filter/languages/lucene-query-syntax.md), which has a different feature set.
+* KQL only filters data. It does not aggregate, transform, or sort data.
+* Do not confuse KQL with the [Lucene query language](docs-content://explore-analyze/query-filter/languages/lucene-query-syntax.md). Lucene has a different feature set.
 
 Use KQL to filter documents where a value for a field exists, matches a given value, or is within a given range.
 
@@ -31,7 +31,7 @@ http.request.method: *
 This checks for any indexed value, including an empty string.
 
 
-## Filter for documents that match  a value [_filter_for_documents_that_match_a_value]
+## Filter for documents that match a value [_filter_for_documents_that_match_a_value]
 
 Use KQL to filter for documents that match a specific number, text, date, or boolean value. For example, to filter for documents where the `http.request.method` is GET, use the following query:
 
@@ -39,7 +39,7 @@ Use KQL to filter for documents that match a specific number, text, date, or boo
 http.request.method: GET
 ```
 
-The field parameter is optional. If not provided, all fields are searched for the given value. For example, to search all fields for “Hello”, use the following:
+The field name is optional. If you omit it, KQL searches all fields for the given value. For example, to search all fields for “Hello”, use the following:
 
 ```yaml
 Hello
@@ -51,20 +51,20 @@ When querying keyword, numeric, date, or boolean fields, the value must be an ex
 http.request.body.content: null pointer
 ```
 
-Because this is a `text` field, the order of these search terms does not matter, and even documents containing “pointer null” are returned. To search `text` fields where the terms are in the order provided, surround the value in quotation marks, as follows:
+Because this is a `text` field, the order of these search terms does not matter. Documents that contain “pointer null” also match. To search `text` fields for terms in that order, surround the value in quotation marks:
 
 ```yaml
 http.request.body.content: "null pointer"
 ```
 
-Certain characters must be escaped by a backslash (unless surrounded by quotes). For example, to search for documents where `http.request.referrer` is `https://<example-url>`, use either of the following queries:
+Escape certain characters with a backslash, unless you surround the value with quotes. For example, to search for documents where `http.request.referrer` is `https://<example-url>`, use either of these queries:
 
 ```yaml
 http.request.referrer: "https://<example-url>"
 http.request.referrer: https\://<example-url>
 ```
 
-You must escape following characters:
+Escape these characters:
 
 ```yaml
 \():<>"*
@@ -96,13 +96,21 @@ For more examples on acceptable date formats, refer to [Date Math](/reference/el
 
 ## Filter for documents using wildcards [_filter_for_documents_using_wildcards]
 
-To search for documents matching a pattern, use the wildcard syntax. For example, to find documents where `http.response.status_code` begins with a 4, use the following syntax:
+To search for documents matching a pattern, use the wildcard syntax. Wildcard queries are supported on keyword, text, and wildcard fields, but not on numeric, date, or boolean fields. For example, to find documents where `machine.os` begins with "win", use the following syntax:
 
 ```yaml
-http.response.status_code: 4*
+machine.os: win*
 ```
 
-By default, leading wildcards are not allowed for performance reasons. You can modify this with the [`query:allowLeadingWildcards`](kibana://reference/advanced-settings.md#query-allowleadingwildcards) advanced setting.
+By default, you can put `*` at the start of a pattern. For example, to find documents where `url` contains `elastic`:
+
+```yaml
+url: *elastic*
+```
+
+Queries that start with `*` can slow searches.
+
+{applies_to}`stack: ga` {applies_to}`serverless: unavailable` In {{kib}}, turn leading wildcards off with the [`query:allowLeadingWildcards`](kibana://reference/advanced-settings.md#query-allowleadingwildcards) advanced setting.
 
 ::::{note}
 Only `*` is currently supported. This matches zero or more characters.
@@ -156,7 +164,7 @@ datastream.*: logs
 ```
 
 ::::{note}
-When using wildcards to query multiple fields, errors might occur if the fields are of different types. For example, if `datastream.*` matches both numeric and string fields, the above query will result in an error because numeric fields cannot be queried for string values.
+If the matching fields have different types, the query can fail. For example, if `datastream.*` matches both numeric and string fields, `datastream.*: logs` returns an error. Numeric fields cannot be queried for string values.
 ::::
 
 

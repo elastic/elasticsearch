@@ -43,6 +43,8 @@ abstract class OtlpParser {
             case INT_VALUE -> value.getIntValue();
             case DOUBLE_VALUE -> value.getDoubleValue();
             case BOOL_VALUE -> value.getBoolValue();
+            case ARRAY_VALUE -> value.getArrayValue();
+            case KVLIST_VALUE -> value.getKvlistValue();
             default -> value.toString();
         };
     }

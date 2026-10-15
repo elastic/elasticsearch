@@ -376,10 +376,14 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof AttributeMap<?> am) {
-            obj = am.delegate;
+        if (this == obj) {
+            return true;
         }
-        return delegate.equals(obj);
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        AttributeMap<?> other = (AttributeMap<?>) obj;
+        return delegate.equals(other.delegate);
     }
 
     @Override

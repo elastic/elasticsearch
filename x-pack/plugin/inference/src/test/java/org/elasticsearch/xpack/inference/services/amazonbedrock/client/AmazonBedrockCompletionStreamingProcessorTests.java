@@ -13,15 +13,17 @@ import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEve
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,11 +46,13 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AmazonBedrockCompletionStreamingProcessorTests extends ESTestCase {
+
+    private static final String BAD_INPUT = "bad input";
+
     private AmazonBedrockCompletionStreamingProcessor processor;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createProcessor() throws Exception {
         ThreadPool threadPool = mock();
         when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         processor = new AmazonBedrockCompletionStreamingProcessor(threadPool);
@@ -69,7 +73,7 @@ public class AmazonBedrockCompletionStreamingProcessorTests extends ESTestCase {
      */
     public void testOnSubscribeAfterDownstreamRequests() {
         var expectedRequestCount = randomLongBetween(1, 500);
-        Flow.Subscriber<StreamingChatCompletionResults.Results> subscriber = mock();
+        Flow.Subscriber<StreamingCompletionResults.Results> subscriber = mock();
         doAnswer(ans -> {
             Flow.Subscription sub = ans.getArgument(0);
             sub.request(expectedRequestCount);
@@ -96,7 +100,7 @@ public class AmazonBedrockCompletionStreamingProcessorTests extends ESTestCase {
     public void testMultiplePublishesCallsOnError() {
         processor.subscribe(mock());
 
-        Flow.Subscriber<StreamingChatCompletionResults.Results> subscriber = mock();
+        Flow.Subscriber<StreamingCompletionResults.Results> subscriber = mock();
         processor.subscribe(subscriber);
 
         verify(subscriber, times(1)).onError(assertArg(e -> {
@@ -135,7 +139,7 @@ public class AmazonBedrockCompletionStreamingProcessorTests extends ESTestCase {
 
         Flow.Subscription upstream = mock();
         processor.onSubscribe(upstream);
-        Flow.Subscriber<StreamingChatCompletionResults.Results> downstream = mock();
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
         processor.subscribe(downstream);
 
         ConverseStreamOutput output = output(expectedText);
@@ -160,7 +164,7 @@ public class AmazonBedrockCompletionStreamingProcessorTests extends ESTestCase {
         return output;
     }
 
-    private void verifyText(Flow.Subscriber<StreamingChatCompletionResults.Results> downstream, String expectedText) {
+    private void verifyText(Flow.Subscriber<StreamingCompletionResults.Results> downstream, String expectedText) {
         verify(downstream, times(1)).onNext(assertArg(results -> {
             assertThat(results, notNullValue());
             assertThat(results.results().size(), equalTo(1));
@@ -171,7 +175,7 @@ public class AmazonBedrockCompletionStreamingProcessorTests extends ESTestCase {
     public void verifyCompleteBeforeRequest() {
         processor.onComplete();
 
-        Flow.Subscriber<StreamingChatCompletionResults.Results> downstream = mock();
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
         var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
         processor.subscribe(downstream);
         verify(downstream).onSubscribe(sub.capture());
@@ -182,7 +186,7 @@ public class AmazonBedrockCompletionStreamingProcessorTests extends ESTestCase {
 
     public void verifyCompleteAfterRequest() {
 
-        Flow.Subscriber<StreamingChatCompletionResults.Results> downstream = mock();
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
         var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
         processor.subscribe(downstream);
         verify(downstream).onSubscribe(sub.capture());
@@ -192,42 +196,45 @@ public class AmazonBedrockCompletionStreamingProcessorTests extends ESTestCase {
         verify(downstream, times(1)).onComplete();
     }
 
-    public void verifyOnErrorBeforeRequest() {
-        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
-        processor.onError(expectedError);
+    public void testOnErrorBeforeRequest_PropagatesBedrockStatus() {
+        var bedrockError = BedrockRuntimeException.builder().message(BAD_INPUT).statusCode(400).build();
+        processor.onSubscribe(mock(Flow.Subscription.class));
+        processor.onError(new CompletionException(bedrockError));
 
-        Flow.Subscriber<StreamingChatCompletionResults.Results> downstream = mock();
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
         var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
         processor.subscribe(downstream);
         verify(downstream).onSubscribe(sub.capture());
 
         sub.getValue().request(1);
         verify(downstream, times(1)).onError(assertArg(e -> {
-            assertThat(e, isA(ElasticsearchException.class));
-            assertThat(e.getCause(), is(expectedError));
+            assertThat(e, isA(ElasticsearchStatusException.class));
+            assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
+            assertThat(e.getCause(), is(bedrockError));
         }));
     }
 
-    public void verifyOnErrorAfterRequest() {
-        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+    public void testOnErrorAfterRequest_PropagatesBedrockStatus() {
+        var bedrockError = BedrockRuntimeException.builder().message("bad input").statusCode(400).build();
 
-        Flow.Subscriber<StreamingChatCompletionResults.Results> downstream = mock();
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
         var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
         processor.subscribe(downstream);
         verify(downstream).onSubscribe(sub.capture());
 
         sub.getValue().request(1);
-        processor.onError(expectedError);
+        processor.onError(new CompletionException(bedrockError));
         verify(downstream, times(1)).onError(assertArg(e -> {
-            assertThat(e, isA(ElasticsearchException.class));
-            assertThat(e.getCause(), is(expectedError));
+            assertThat(e, isA(ElasticsearchStatusException.class));
+            assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
+            assertThat(e.getCause(), is(bedrockError));
         }));
     }
 
     public void verifyAsyncOnCompleteIsStillDeliveredSynchronously() {
         mockUpstream();
 
-        Flow.Subscriber<StreamingChatCompletionResults.Results> downstream = mock();
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
         var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
         processor.subscribe(downstream);
         verify(downstream).onSubscribe(sub.capture());

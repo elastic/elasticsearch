@@ -303,7 +303,7 @@ public final class MultivalueTestCaseSupplier {
         switch (ordering) {
             case UNORDERED -> {
             }
-            case DEDUPLICATED_UNORDERD -> {
+            case DEDUPLICATED_UNORDERED -> {
                 var dedup = new LinkedHashSet<>(mvData);
                 mvData.clear();
                 mvData.addAll(dedup);

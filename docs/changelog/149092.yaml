@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149092
-summary: "Support ST_UNION, ST_INTERSECTION, ST_DIFFERENCE, ST_SYMDIFFERENCE"
-type: enhancement

@@ -19,8 +19,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -105,6 +105,15 @@ public class IndexSource implements Writeable, Releasable {
     }
 
     /**
+     * Replaces the inline source bytes with an empty reference, records the row index into the shard-level batch,
+     * and sets the content type. Use this overload when no prior {@link #source} call has been made.
+     */
+    public void setSourceRow(SourceBatch batch, int rowIndex, XContentType contentType) {
+        this.contentType = contentType;
+        setSourceRow(batch, rowIndex);
+    }
+
+    /**
      * Replaces the inline source bytes with an empty reference and records the row index into the shard-level batch.
      * The {@link XContentType} is preserved so downstream code can still identify the original content type.
      */
@@ -128,7 +137,7 @@ public class IndexSource implements Writeable, Releasable {
         }
         assert sourceBatch != null : "batch row set but no batch attached";
         try (XContentBuilder xcb = XContentFactory.contentBuilder(contentType)) {
-            EirfRowToXContent.writeRow(sourceBatch.row(rowIndex), sourceBatch.schema(), xcb);
+            SourceRowToXContent.writeRow(sourceBatch.row(rowIndex), sourceBatch.schema(), xcb);
             this.source = BytesReference.bytes(xcb);
         }
         this.rowIndex = -1;

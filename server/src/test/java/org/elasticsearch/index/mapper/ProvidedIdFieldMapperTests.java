@@ -21,17 +21,25 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
@@ -81,6 +89,19 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         assertTrue(ft.isAggregatable(idFieldDataEnabled));
     }
 
+    // Regular sorting on _id is supported, but bucketed sorting (e.g. top_metrics) is not and must be a 400, not a 500.
+    public void testBucketedSortOnIdThrowsIllegalArgument() {
+        var fieldData = ProvidedIdFieldMapper.COLUMNAR_ID.fieldType()
+            .fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test"))
+            .build(null, null);
+        assertNotNull(fieldData.sortField(null, MultiValueMode.MIN, null, false));
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> fieldData.newBucketedSort(null, null, MultiValueMode.MIN, null, SortOrder.ASC, DocValueFormat.RAW, 1, null)
+        );
+        assertThat(e.getMessage(), containsString("_id"));
+    }
+
     public void testFetchIdFieldValue() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         String id = randomAlphaOfLength(12);
@@ -90,7 +111,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
             SearchLookup lookup = new SearchLookup(
                 mapperService::fieldType,
                 fieldDataLookup(mapperService),
-                SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
+                SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics(), null)
             );
             SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
             when(searchExecutionContext.lookup()).thenReturn(lookup);
@@ -158,25 +179,29 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDocumentModeRejectedInStrictColumnarIndexMode() throws IOException {
-        IndexMode indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        Settings settings = Settings.builder().put("index.mode", indexMode.getName()).build();
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(settings, topMapping(b -> b.startObject("_id").field("mode", "document").endObject()))
-        );
-        assertThat(e.getMessage(), containsString("_id does not support [mode=document]"));
-        assertThat(e.getMessage(), containsString(indexMode.getName()));
+        for (IndexMode indexMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
+            Settings settings = Settings.builder().put("index.mode", indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, topMapping(b -> b.startObject("_id").field("mode", "document").endObject()))
+            );
+            assertThat(e.getMessage(), containsString("_id does not support [mode=document]"));
+            assertThat(e.getMessage(), containsString(indexMode.getName()));
+        }
     }
 
     public void testColumnarModeAllowedInStrictColumnarIndexMode() throws IOException {
-        IndexMode indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        Settings settings = Settings.builder().put("index.mode", indexMode.getName()).build();
-        MapperService mapperService = createMapperService(
-            settings,
-            topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject())
-        );
-        ProvidedIdFieldMapper idMapper = mapperService.mappingLookup().getMapping().getMetadataMapperByClass(ProvidedIdFieldMapper.class);
-        assertTrue("_id should be columnar in a strictly columnar index mode", idMapper.isColumnarMode());
+        for (IndexMode indexMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
+            Settings settings = Settings.builder().put("index.mode", indexMode.getName()).build();
+            MapperService mapperService = createMapperService(
+                settings,
+                topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject())
+            );
+            ProvidedIdFieldMapper idMapper = mapperService.mappingLookup()
+                .getMapping()
+                .getMetadataMapperByClass(ProvidedIdFieldMapper.class);
+            assertTrue("_id should be columnar in a strictly columnar index mode", idMapper.isColumnarMode());
+        }
     }
 
     public void testDocumentModeAllowedInStandardIndexMode() throws IOException {
@@ -226,27 +251,35 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         assertTrue("supportsColumnarParse must be true for _id", mapper.supportsColumnarParse(mapperService.getIndexSettings()));
 
         IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("doc-1"), new IndexRequest("index").id("doc-2") };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
+        IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
+        try (
+            BatchMappingContext context = new BatchMappingContext(
+                batch,
+                mapperService.mappingLookup(),
+                mapperService.getIndexSettings(),
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            )
+        ) {
+            mapper.preColumnarParse(context);
 
-        mapper.preColumnarParse(context);
-
-        final MappedColumns mappedColumns = context.columns();
-        Column idColumn = null;
-        for (Column column : mappedColumns.toColumnBatch().columns()) {
-            if (column.name().equals(IdFieldMapper.NAME)) {
-                idColumn = column;
+            final MappedColumns mappedColumns = context.columns();
+            Column idColumn = null;
+            for (Column column : mappedColumns.toColumnBatch().columns()) {
+                if (column.name().equals(IdFieldMapper.NAME)) {
+                    idColumn = column;
+                }
             }
-        }
-        assertNotNull("expected an _id column", idColumn);
-        assertEquals("must have DOCS inverted index (stored mode)", IndexOptions.DOCS, idColumn.fieldType().indexOptions());
-        assertTrue("must be stored", idColumn.fieldType().stored());
+            assertNotNull("expected an _id column", idColumn);
+            assertEquals("must have DOCS inverted index (stored mode)", IndexOptions.DOCS, idColumn.fieldType().indexOptions());
+            assertTrue("must be stored", idColumn.fieldType().stored());
 
-        BinaryColumn binaryColumn = (BinaryColumn) idColumn;
-        ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
-        assertEquals(0, cursor.nextDoc());
-        assertEquals(Uid.encodeId("doc-1"), cursor.value());
-        assertEquals(1, cursor.nextDoc());
-        assertEquals(Uid.encodeId("doc-2"), cursor.value());
-        assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+            BinaryColumn binaryColumn = (BinaryColumn) idColumn;
+            ObjectTupleCursor<BytesRef> cursor = binaryColumn.tuples();
+            assertEquals(0, cursor.nextDoc());
+            assertEquals(Uid.encodeId("doc-1"), cursor.value());
+            assertEquals(1, cursor.nextDoc());
+            assertEquals(Uid.encodeId("doc-2"), cursor.value());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+        }
     }
 }

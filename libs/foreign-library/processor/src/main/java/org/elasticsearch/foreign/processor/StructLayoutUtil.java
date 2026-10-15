@@ -16,8 +16,10 @@ import org.elasticsearch.foreign.processor.model.StructFieldModel;
 
 import java.lang.classfile.CodeBuilder;
 import java.lang.constant.MethodTypeDesc;
-import java.util.ArrayList;
+import java.lang.foreign.GroupLayout;
+import java.lang.foreign.MemoryLayout;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_PaddingLayout;
@@ -27,8 +29,10 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_sequenceLa
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 
 /**
- * Computes C natural-alignment struct layouts from a {@link StructFieldModel} list, and emits the
- * matching {@code MemoryLayout.structLayout(...)} argument array as bytecode.
+ * Emits the {@code MemoryLayout[]} argument array for {@code MemoryLayout.structLayout(...)} that
+ * reconstructs, at runtime, a struct's resolved {@link MemoryLayout} (already built by the parser).
+ * The model layout is walked member-by-member: a named member is a field (re-emitted from its shape
+ * plus {@code withName}), an unnamed member is a {@code paddingLayout} gap.
  */
 final class StructLayoutUtil {
 
@@ -38,88 +42,30 @@ final class StructLayoutUtil {
 
     private StructLayoutUtil() {}
 
-    /** A field along with the padding (in bytes) that precedes it in the struct layout. */
-    record LayoutField(StructFieldModel field, long paddingBefore) {}
-
     /**
-     * Computes per-field padding using C natural-alignment rules, assuming a 64-bit ADDRESS
-     * (8 bytes). Every field is aligned to its own size; padding is inserted before any field
-     * whose alignment isn't satisfied by the running offset.
+     * Emits bytecode constructing the {@code MemoryLayout[]} array whose elements are, in order, the
+     * member layouts of {@code layout} — each named member re-emitted from its field shape (looked up
+     * in {@code fieldsByName}) with {@code withName}, each unnamed member as a {@code paddingLayout}.
+     * The array is left on the operand stack for a following {@code structLayout(...)} call.
      */
-    static List<LayoutField> computeLayout(List<StructFieldModel> fields) {
-        List<LayoutField> result = new ArrayList<>();
-        long offset = 0;
-        for (StructFieldModel field : fields) {
-            long align = fieldAlignment(field);
-            long padding = (offset % align == 0) ? 0 : (align - offset % align);
-            result.add(new LayoutField(field, padding));
-            offset += padding + fieldSize(field);
-        }
-        return result;
-    }
-
-    /** Total byte size of a field in the struct layout. */
-    static long fieldSize(StructFieldModel field) {
-        return switch (field) {
-            case InlineArrayFieldModel inlineArray -> (long) inlineArray.length() * sizeOf(inlineArray.elementType());
-            case InlineStringFieldModel inlineString -> inlineString.length();
-            default -> sizeOf(field.type());
-        };
-    }
-
-    /** Natural alignment of a field in the struct layout. */
-    static long fieldAlignment(StructFieldModel field) {
-        return switch (field) {
-            case InlineArrayFieldModel inlineArray -> sizeOf(inlineArray.elementType());
-            case InlineStringFieldModel ignored -> 1;
-            default -> sizeOf(field.type());
-        };
-    }
-
-    /** Static byte size for a native type, assuming a 64-bit ABI. */
-    static long sizeOf(NativeType type) {
-        return switch (type) {
-            case BOOLEAN, BYTE -> 1;
-            case SHORT -> 2;
-            case INT, FLOAT -> 4;
-            case LONG, DOUBLE, ADDRESS -> 8;
-            case VOID, STRING, ADDRESSABLE -> throw new AssertionError("no size for type: " + type);
-        };
-    }
-
-    /** Natural alignment for a native type, equal to its size for all supported types. */
-    static long alignmentOf(NativeType type) {
-        return sizeOf(type);
-    }
-
-    /**
-     * Emits bytecode that constructs the {@code MemoryLayout[]} array for
-     * {@code MemoryLayout.structLayout(...)}, including named field layouts and any inline
-     * padding layouts. The array is left on the operand stack.
-     */
-    static void emitStructLayoutArray(CodeBuilder cb, List<LayoutField> layout) {
-        int arraySize = layout.size();
-        for (LayoutField lf : layout) {
-            if (lf.paddingBefore() > 0) {
-                arraySize++;
-            }
-        }
-        cb.loadConstant(arraySize);
+    static void emitStructLayoutArray(CodeBuilder cb, MemoryLayout layout, Map<String, StructFieldModel> fieldsByName) {
+        // structLayout(...) produces a GroupLayout; walk its members (named fields + padding gaps).
+        List<MemoryLayout> members = ((GroupLayout) layout).memberLayouts();
+        cb.loadConstant(members.size());
         cb.anewarray(CD_MemoryLayout);
         int arrayIndex = 0;
-        for (LayoutField lf : layout) {
-            if (lf.paddingBefore() > 0) {
-                cb.dup();
-                cb.loadConstant(arrayIndex++);
-                cb.loadConstant(lf.paddingBefore());
-                cb.invokestatic(CD_MemoryLayout, "paddingLayout", MTD_paddingLayout, true);
-                cb.aastore();
-            }
+        for (MemoryLayout member : members) {
             cb.dup();
             cb.loadConstant(arrayIndex++);
-            emitFieldLayout(cb, lf.field());
-            cb.ldc(lf.field().name());
-            cb.invokeinterface(CD_MemoryLayout, "withName", MTD_withName);
+            if (member.name().isPresent()) {
+                StructFieldModel field = fieldsByName.get(member.name().get());
+                emitFieldLayout(cb, field);
+                cb.ldc(field.name());
+                cb.invokeinterface(CD_MemoryLayout, "withName", MTD_withName);
+            } else {
+                cb.loadConstant(member.byteSize());
+                cb.invokestatic(CD_MemoryLayout, "paddingLayout", MTD_paddingLayout, true);
+            }
             cb.aastore();
         }
     }

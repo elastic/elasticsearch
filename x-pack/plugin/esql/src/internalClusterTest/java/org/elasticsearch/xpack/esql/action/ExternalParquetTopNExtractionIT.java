@@ -17,11 +17,13 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -37,6 +39,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end integration tests for the {@code SORT … | LIMIT N} deferred-extraction optimization
@@ -69,6 +73,15 @@ import static org.hamcrest.Matchers.greaterThan;
  *         regressions.</li>
  *     <li>Multiple files (wildcard URI) → multiple extractors registered concurrently per driver,
  *         each with independent ids; verifies the registry's id encoding survives mixing.</li>
+ *     <li>Multiple files, optional deferred column all-null in file 1 and typed in file 2 →
+ *         same schema, all-null values (not a missing-column union). Phase 5 must concat a
+ *         {@code ConstantNullBlock} with a typed block using the inferred planner type.</li>
+ *     <li>Single file, deferred {@code LIST} of struct ({@code unsupported}) → extract
+ *         constant-null-fills that column instead of throwing; late materialization still
+ *         runs for the sibling wide columns.</li>
+ *     <li>Two files, {@code schema_resolution=union_by_name}, deferred column present in file A
+ *         and absent from file B → file B rows null-fill without throwing; late materialization
+ *         still runs.</li>
  *     <li>Pushed filter ({@code WHERE}) → exercises the rule's pushed-expressions branch and the
  *         narrowed projection's interaction with predicate columns.</li>
  *     <li>Tiny limits ({@code LIMIT 1}) → boundary case for the extractor permutation step.</li>
@@ -158,6 +171,255 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
         try {
             String uri = StoragePath.fileUri(dir) + "/part-*.parquet";
             assertWideTopNReturnsLowestRows(uri, /* limit */ 30, /* startId */ 0);
+        } finally {
+            Files.deleteIfExists(file1);
+            Files.deleteIfExists(file2);
+        }
+    }
+
+    /**
+     * Two files via wildcard: deferred optional {@code flag} is all-null in {@code part-00} and
+     * typed in {@code part-01} (same schema; file 1 never writes the field). {@code SORT id ASC |
+     * LIMIT} spans both files so Phase 5 concatenates a {@code ConstantNullBlock} from the first
+     * extractor ({@code readBatchSparse} → {@code tryAllNull}) with an {@code IntBlock} from the
+     * second. {@code task_concurrency=1} keeps both files on one driver so the mixed concat
+     * actually runs. Extra wide columns keep the projection past {@code DEFERRED_COLUMN_MIN}.
+     */
+    public void testSortLimitMultipleFilesOptionalNullThenTyped() throws Exception {
+        Path dir = createTempDir();
+        String schema = "message test {"
+            + " required int64 id;"
+            + " required binary name (UTF8);"
+            + " required int32 value;"
+            + " required binary payload (UTF8);"
+            + " optional int32 flag;"
+            + " }";
+        int rowsPerFile = 40;
+        Path file1 = dir.resolve("part-00.parquet");
+        Path file2 = dir.resolve("part-01.parquet");
+        writeParquet(file1, schema, rowsPerFile, rowsPerFile + 1, (g, i) -> {
+            long id = i;
+            g.add("id", id);
+            g.add("name", expectedName(id));
+            g.add("value", (int) (id * 10));
+            g.add("payload", expectedPayload(id));
+        });
+        writeParquet(file2, schema, rowsPerFile, rowsPerFile + 1, (g, i) -> {
+            long id = rowsPerFile + i;
+            g.add("id", id);
+            g.add("name", expectedName(id));
+            g.add("value", (int) (id * 10));
+            g.add("payload", expectedPayload(id));
+            g.add("flag", (int) id);
+        });
+        try {
+            String uri = StoragePath.fileUri(dir) + "/part-*.parquet";
+            String dataset = registerDataset("topn_extract", uri, Map.of());
+            int limit = rowsPerFile + 10;
+            String query = "FROM " + dataset + " | SORT id ASC | LIMIT " + limit + " | KEEP id, name, value, payload, flag";
+            var request = syncEsqlQueryRequest(query);
+            request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1).build()));
+            request.acceptedPragmaRisks(true);
+            request.profile(true);
+            try (var response = run(request, LONG_TIMEOUT)) {
+                List<? extends ColumnInfo> columns = response.columns();
+                assertThat("expected five projected columns", columns.size(), equalTo(5));
+                assertThat(columns.get(0).name(), equalTo("id"));
+                assertThat(columns.get(1).name(), equalTo("name"));
+                assertThat(columns.get(2).name(), equalTo("value"));
+                assertThat(columns.get(3).name(), equalTo("payload"));
+                assertThat(columns.get(4).name(), equalTo("flag"));
+                assertTrue("late materialization must run so Phase 5 concatenates both files", profileHasExternalFieldExtract(response));
+                List<List<Object>> rows = getValuesList(response);
+                try {
+                    assertThat("returned row count", rows.size(), equalTo(limit));
+                    for (int i = 0; i < limit; i++) {
+                        long id = i;
+                        List<Object> row = rows.get(i);
+                        assertEquals("row " + i + " id", id, ((Number) row.get(0)).longValue());
+                        assertEquals("row " + i + " name", expectedName(id), bytesRefToString(row.get(1)));
+                        assertEquals("row " + i + " value", (int) (id * 10), ((Number) row.get(2)).intValue());
+                        assertEquals("row " + i + " payload", expectedPayload(id), bytesRefToString(row.get(3)));
+                        if (i < rowsPerFile) {
+                            assertThat("row " + i + " flag (file 1 all-null)", row.get(4), nullValue());
+                        } else {
+                            assertThat("row " + i + " flag (file 2 typed)", row.get(4), notNullValue());
+                            assertEquals("row " + i + " flag (file 2 typed)", (int) id, ((Number) row.get(4)).intValue());
+                        }
+                    }
+                } catch (AssertionError e) {
+                    StringBuilder dump = new StringBuilder("Query [").append(query)
+                        .append("] returned ")
+                        .append(rows.size())
+                        .append(" rows:\n");
+                    for (int i = 0; i < rows.size(); i++) {
+                        dump.append(" [").append(i).append("] ").append(rows.get(i)).append('\n');
+                    }
+                    throw new AssertionError(e.getMessage() + "\n" + dump, e);
+                }
+            }
+        } finally {
+            Files.deleteIfExists(file1);
+            Files.deleteIfExists(file2);
+        }
+    }
+
+    /**
+     * One file with a readable wide projection plus {@code outputs} as a Parquet {@code LIST} of
+     * struct (maps to {@code unsupported}). {@code KEEP} after {@code SORT|LIMIT} leaves three
+     * deferred columns so late materialization fires; the unsupported column must come back as
+     * all-null cells rather than fail the extract.
+     */
+    public void testSortLimitUnsupportedDeferredColumn() throws Exception {
+        String schema = """
+            message test {
+              required int64 id;
+              required binary name (UTF8);
+              required int32 value;
+              optional group outputs (LIST) {
+                repeated group list {
+                  optional group element {
+                    optional binary key (UTF8);
+                    optional int64 n;
+                  }
+                }
+              }
+            }
+            """;
+        int totalRows = 20;
+        int limit = 5;
+        Path file = createTempDir().resolve("unsupported_deferred.parquet");
+        writeParquet(file, schema, totalRows, totalRows + 1, (g, i) -> {
+            long id = i;
+            g.add("id", id);
+            g.add("name", expectedName(id));
+            g.add("value", (int) (id * 10));
+            Group outputs = g.addGroup("outputs");
+            Group element = outputs.addGroup("list").addGroup("element");
+            element.add("key", "k" + i);
+            element.add("n", (long) i);
+        });
+        try {
+            String dataset = registerDataset("topn_extract", StoragePath.fileUri(file), Map.of());
+            String query = "FROM " + dataset + " | SORT id ASC | LIMIT " + limit + " | KEEP id, name, value, outputs";
+            var request = syncEsqlQueryRequest(query);
+            request.profile(true);
+            try (var response = run(request, LONG_TIMEOUT)) {
+                List<? extends ColumnInfo> columns = response.columns();
+                assertThat("expected four projected columns", columns.size(), equalTo(4));
+                assertThat(columns.get(0).name(), equalTo("id"));
+                assertThat(columns.get(1).name(), equalTo("name"));
+                assertThat(columns.get(2).name(), equalTo("value"));
+                assertThat(columns.get(3).name(), equalTo("outputs"));
+                assertThat(columns.get(3).outputType(), equalTo("unsupported"));
+                assertTrue("late materialization must run for the unsupported deferred column", profileHasExternalFieldExtract(response));
+                List<List<Object>> rows = getValuesList(response);
+                try {
+                    assertThat("returned row count", rows.size(), equalTo(limit));
+                    for (int i = 0; i < limit; i++) {
+                        long id = i;
+                        List<Object> row = rows.get(i);
+                        assertEquals("row " + i + " id", id, ((Number) row.get(0)).longValue());
+                        assertEquals("row " + i + " name", expectedName(id), bytesRefToString(row.get(1)));
+                        assertEquals("row " + i + " value", (int) (id * 10), ((Number) row.get(2)).intValue());
+                        assertThat("row " + i + " outputs (unsupported)", row.get(3), nullValue());
+                    }
+                } catch (AssertionError e) {
+                    StringBuilder dump = new StringBuilder("Query [").append(query)
+                        .append("] returned ")
+                        .append(rows.size())
+                        .append(" rows:\n");
+                    for (int i = 0; i < rows.size(); i++) {
+                        dump.append(" [").append(i).append("] ").append(rows.get(i)).append('\n');
+                    }
+                    throw new AssertionError(e.getMessage() + "\n" + dump, e);
+                }
+            }
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    /**
+     * Two files via wildcard with {@code schema_resolution=union_by_name}: file A has deferred
+     * {@code extra}, file B does not. This class's {@code test} data source hydrates an omitted
+     * key as legacy union-by-name, so the setting is explicit. Extract on B must null-fill the
+     * missing name rather than throw. {@code task_concurrency=1} keeps both files on one driver.
+     * {@code KEEP} leaves three deferred columns so late materialization fires.
+     */
+    public void testSortLimitAbsentDeferredColumnAcrossFiles() throws Exception {
+        Path dir = createTempDir();
+        String schemaA = "message test {"
+            + " required int64 id;"
+            + " required binary name (UTF8);"
+            + " required int32 value;"
+            + " optional int32 extra;"
+            + " }";
+        String schemaB = "message test {" + " required int64 id;" + " required binary name (UTF8);" + " required int32 value;" + " }";
+        int rowsPerFile = 40;
+        Path file1 = dir.resolve("part-00.parquet");
+        Path file2 = dir.resolve("part-01.parquet");
+        writeParquet(file1, schemaA, rowsPerFile, rowsPerFile + 1, (g, i) -> {
+            long id = i;
+            g.add("id", id);
+            g.add("name", expectedName(id));
+            g.add("value", (int) (id * 10));
+            g.add("extra", (int) id);
+        });
+        writeParquet(file2, schemaB, rowsPerFile, rowsPerFile + 1, (g, i) -> {
+            long id = rowsPerFile + i;
+            g.add("id", id);
+            g.add("name", expectedName(id));
+            g.add("value", (int) (id * 10));
+        });
+        try {
+            String uri = StoragePath.fileUri(dir) + "/part-*.parquet";
+            String dataset = registerDataset("topn_extract", uri, Map.of("schema_resolution", "union_by_name"));
+            int limit = rowsPerFile + 10;
+            String query = "FROM " + dataset + " | SORT id ASC | LIMIT " + limit + " | KEEP id, name, value, extra";
+            var request = syncEsqlQueryRequest(query);
+            request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1).build()));
+            request.acceptedPragmaRisks(true);
+            request.profile(true);
+            try (var response = run(request, LONG_TIMEOUT)) {
+                List<? extends ColumnInfo> columns = response.columns();
+                assertThat("expected four projected columns", columns.size(), equalTo(4));
+                assertThat(columns.get(0).name(), equalTo("id"));
+                assertThat(columns.get(1).name(), equalTo("name"));
+                assertThat(columns.get(2).name(), equalTo("value"));
+                assertThat(columns.get(3).name(), equalTo("extra"));
+                assertThat(columns.get(3).outputType(), equalTo("integer"));
+                assertTrue(
+                    "late materialization must run across files with an absent deferred column",
+                    profileHasExternalFieldExtract(response)
+                );
+                List<List<Object>> rows = getValuesList(response);
+                try {
+                    assertThat("returned row count", rows.size(), equalTo(limit));
+                    for (int i = 0; i < limit; i++) {
+                        long id = i;
+                        List<Object> row = rows.get(i);
+                        assertEquals("row " + i + " id", id, ((Number) row.get(0)).longValue());
+                        assertEquals("row " + i + " name", expectedName(id), bytesRefToString(row.get(1)));
+                        assertEquals("row " + i + " value", (int) (id * 10), ((Number) row.get(2)).intValue());
+                        if (i < rowsPerFile) {
+                            assertThat("row " + i + " extra (file A populated)", row.get(3), notNullValue());
+                            assertEquals("row " + i + " extra (file A populated)", (int) id, ((Number) row.get(3)).intValue());
+                        } else {
+                            assertThat("row " + i + " extra (file B absent)", row.get(3), nullValue());
+                        }
+                    }
+                } catch (AssertionError e) {
+                    StringBuilder dump = new StringBuilder("Query [").append(query)
+                        .append("] returned ")
+                        .append(rows.size())
+                        .append(" rows:\n");
+                    for (int i = 0; i < rows.size(); i++) {
+                        dump.append(" [").append(i).append("] ").append(rows.get(i)).append('\n');
+                    }
+                    throw new AssertionError(e.getMessage() + "\n" + dump, e);
+                }
+            }
         } finally {
             Files.deleteIfExists(file1);
             Files.deleteIfExists(file2);
@@ -354,6 +616,18 @@ public class ExternalParquetTopNExtractionIT extends AbstractExternalDataSourceI
 
     private static String expectedPayload(long id) {
         return "payload_" + id + "_" + (id * 7919);
+    }
+
+    private static boolean profileHasExternalFieldExtract(EsqlQueryResponse response) {
+        assertThat("query must be run with profile(true)", response.profile(), notNullValue());
+        for (var driver : response.profile().drivers()) {
+            for (var op : driver.operators()) {
+                if (op.status() instanceof ExternalFieldExtractOperator.Status || op.operator().contains("ExternalFieldExtractOperator")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private Path writeParquetFile(int rowCount, int rowGroupSize, long startId) throws IOException {

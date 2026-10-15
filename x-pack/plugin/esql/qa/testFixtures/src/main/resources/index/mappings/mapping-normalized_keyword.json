@@ -1,0 +1,11 @@
+{
+    "properties": {
+        "doc_id": {
+            "type": "keyword"
+        },
+        "kw": {
+            "type": "keyword",
+            "normalizer": "test_lowercase"
+        }
+    }
+}

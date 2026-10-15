@@ -1,5 +1,0 @@
-area: Transform
-issues: []
-pr: 153298
-summary: Retry transient failures during restarts
-type: bug

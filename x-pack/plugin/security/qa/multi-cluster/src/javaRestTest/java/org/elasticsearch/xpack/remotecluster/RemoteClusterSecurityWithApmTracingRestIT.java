@@ -7,46 +7,33 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.apmintegration.GrpcThreadsFilter;
+import org.elasticsearch.test.apmintegration.ReceivedTelemetry;
+import org.elasticsearch.test.apmintegration.RecordingApmServer;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.spi.XContentProvider;
-import org.hamcrest.Matcher;
-import org.hamcrest.StringDescription;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.equalTo;
-
+@ThreadLeakFilters(filters = { GrpcThreadsFilter.class })
 public class RemoteClusterSecurityWithApmTracingRestIT extends AbstractRemoteClusterSecurityTestCase {
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
-    private static final XContentProvider.FormatProvider XCONTENT = XContentProvider.provider().getJsonXContent();
     final String traceIdValue = "0af7651916cd43dd8448eb211c80319c";
     final String traceParentValue = "00-" + traceIdValue + "-b7ad6b7169203331-01";
 
-    private static final ConsumingTestServer mockApmServer = new ConsumingTestServer();
+    private static final RecordingApmServer mockApmServer = new RecordingApmServer();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -55,10 +42,9 @@ public class RemoteClusterSecurityWithApmTracingRestIT extends AbstractRemoteClu
             .apply(commonClusterConfig)
             .setting("telemetry.metrics.enabled", "false")
             .setting("telemetry.tracing.enabled", "true")
-            .setting("telemetry.agent.metrics_interval", "1s")
-            .setting("telemetry.agent.server_url", () -> "http://127.0.0.1:" + mockApmServer.getPort())
+            .setting("telemetry.export.endpoint", () -> mockApmServer.getGrpcEndpoint())
             // to ensure tracestate header is always set to cover RCS 2.0 handling of the tracestate header
-            .setting("telemetry.agent.transaction_sample_rate", "1.0")
+            .setting("telemetry.tracing.sample_rate", "1.0")
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
@@ -75,9 +61,8 @@ public class RemoteClusterSecurityWithApmTracingRestIT extends AbstractRemoteClu
             .setting("telemetry.metrics.enabled", "false")
             .setting("telemetry.tracing.enabled", "true")
             // to ensure tracestate header is always set to cover RCS 2.0 handling of the tracestate header
-            .setting("telemetry.agent.transaction_sample_rate", "1.0")
-            .setting("telemetry.agent.metrics_interval", "1s")
-            .setting("telemetry.agent.server_url", () -> "http://127.0.0.1:" + mockApmServer.getPort())
+            .setting("telemetry.tracing.sample_rate", "1.0")
+            .setting("telemetry.export.endpoint", () -> mockApmServer.getGrpcEndpoint())
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
@@ -107,100 +92,30 @@ public class RemoteClusterSecurityWithApmTracingRestIT extends AbstractRemoteClu
      * Verifies that an externally supplied {@code traceparent} header is honoured by the REST controller and propagated through a
      * cross-cluster request. Since #130607, transport actions are not auto-traced by {@link org.elasticsearch.tasks.TaskManager} unless
      * a parent APM context already exists locally, so the fulfilling cluster does not produce its own transaction for the cross-cluster
-     * transport entry point. We therefore assert only on the query cluster's REST transaction, which captures the propagated trace id.
+     * transport entry point. We therefore assert only on the query cluster's REST span, which captures the propagated trace id.
      */
-    @SuppressWarnings("unchecked")
     public void testTracingCrossCluster() throws Exception {
         assumeTrue("requires test-apm-integration which is only loaded in snapshot builds", Build.current().isSnapshot());
         configureRemoteCluster();
-        Set<Predicate<Map<String, Object>>> assertions = new HashSet<>(
-            Set.of(
-                // REST action on query cluster: the externally supplied traceparent header must produce a transaction with this trace id.
-                allTrue(
-                    transactionValue("name", equalTo("GET /_resolve/cluster/{name}")),
-                    transactionValue("trace_id", equalTo(traceIdValue))
-                )
-            )
+
+        mockApmServer.await(
+            ReceivedTelemetry.ReceivedSpan.class,
+            s -> traceIdValue.equals(s.traceId()) && "GET /_resolve/cluster/{name}".equals(s.name()),
+            30,
+            () -> {
+                // Trigger an action that we know will cross clusters -- doesn't much matter which one
+                final Request resolveRequest = new Request("GET", "/_resolve/cluster/my_remote_cluster:*");
+                resolveRequest.setOptions(
+                    RequestOptions.DEFAULT.toBuilder()
+                        .addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_METRIC_USER, PASS))
+                        .addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue)
+                );
+                final Response response = client().performRequest(resolveRequest);
+                assertOK(response);
+
+                // Force the query cluster to flush so the test does not depend on the exporter's batch interval.
+                assertOK(client().performRequest(new Request("GET", "/_flush_telemetry")));
+            }
         );
-
-        CountDownLatch finished = new CountDownLatch(1);
-
-        Consumer<String> messageConsumer = (String message) -> {
-            var apmMessage = parseMap(message);
-            if (isTransactionTraceMessage(apmMessage)) {
-                logger.info("Apm transaction message received: {}", message);
-                assertions.removeIf(e -> e.test(apmMessage));
-            }
-
-            if (assertions.isEmpty()) {
-                finished.countDown();
-            }
-        };
-
-        mockApmServer.addMessageConsumer(messageConsumer);
-
-        // Trigger an action that we know will cross clusters -- doesn't much matter which one
-        final Request resolveRequest = new Request("GET", "/_resolve/cluster/my_remote_cluster:*");
-        resolveRequest.setOptions(
-            RequestOptions.DEFAULT.toBuilder()
-                .addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_METRIC_USER, PASS))
-                .addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue)
-        );
-        final Response response = client().performRequest(resolveRequest);
-        assertOK(response);
-
-        // Force the APM agent on the query cluster to flush so the test does not depend on the agent's batch interval.
-        assertOK(client().performRequest(new Request("GET", "/_flush_telemetry")));
-
-        assertTrue("Timed out waiting for expected APM transactions: " + assertions, finished.await(30, TimeUnit.SECONDS));
-        assertThat(assertions, equalTo(Collections.emptySet()));
-    }
-
-    private boolean isTransactionTraceMessage(Map<String, Object> apmMessage) {
-        return apmMessage.containsKey("transaction");
-    }
-
-    @SuppressWarnings("unchecked")
-    private Predicate<Map<String, Object>> allTrue(Predicate<Map<String, Object>>... predicates) {
-        var allTrueTest = Arrays.stream(predicates).reduce(v -> true, Predicate::and);
-        return new Predicate<>() {
-            @Override
-            public boolean test(Map<String, Object> map) {
-                return allTrueTest.test(map);
-            }
-
-            @Override
-            public String toString() {
-                return Arrays.stream(predicates).map(Object::toString).collect(Collectors.joining(" and "));
-            }
-        };
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> Predicate<Map<String, Object>> transactionValue(String path, Matcher<T> expected) {
-        return new Predicate<>() {
-            @Override
-            public boolean test(Map<String, Object> map) {
-                var transaction = (Map<String, Object>) map.get("transaction");
-                var value = XContentMapValues.extractValue(path, transaction);
-                return expected.matches((T) value);
-            }
-
-            @Override
-            public String toString() {
-                StringDescription matcherDescription = new StringDescription();
-                expected.describeTo(matcherDescription);
-                return path + " " + matcherDescription;
-            }
-        };
-    }
-
-    private Map<String, Object> parseMap(String message) {
-        try (XContentParser parser = XCONTENT.XContent().createParser(XContentParserConfiguration.EMPTY, message)) {
-            return parser.map();
-        } catch (IOException e) {
-            fail(e);
-            return Collections.emptyMap();
-        }
     }
 }

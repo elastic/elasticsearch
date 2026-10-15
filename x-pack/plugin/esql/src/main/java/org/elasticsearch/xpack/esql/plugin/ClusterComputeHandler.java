@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
@@ -77,6 +79,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         RemoteCluster cluster,
         Runnable cancelQueryOnFailure,
         EsqlExecutionInfo executionInfo,
+        boolean accumulateShardStats,
         ActionListener<DriverCompletionInfo> listener
     ) {
         var queryPragmas = configuration.pragmas();
@@ -89,12 +92,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
             if (executionInfo.shouldSkipOnFailure(clusterAlias)
                 || (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e))) {
-                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
-                    executionInfo,
-                    clusterAlias,
-                    receivedResults ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                    e
-                );
+                ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, clusterAlias, receivedResults, e);
                 l.onResponse(DriverCompletionInfo.EMPTY);
             } else {
                 l.onFailure(e);
@@ -123,8 +121,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     onGroupFailure = computeService.cancelQueryOnFailure(groupTask);
                     l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                 }
-                try (var computeListener = new ComputeListener(transportService.getThreadPool(), onGroupFailure, l.map(completionInfo -> {
-                    updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get());
+                try (var computeListener = new ComputeListener(onGroupFailure, l.map(completionInfo -> {
+                    updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get(), accumulateShardStats);
                     return completionInfo;
                 }))) {
                     var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
@@ -133,13 +131,14 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         finalResponse.set(r);
                         return r.getCompletionInfo();
                     });
+                    ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                     transportService.sendChildRequest(
                         cluster.connection,
                         ComputeService.CLUSTER_ACTION_NAME,
                         clusterRequest,
                         groupTask,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, searchExecutor)
+                        new ActionListenerResponseHandler<>(clusterListener, in -> new ComputeResponse(in, threadContext), searchExecutor)
                     );
                     var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     exchangeSource.addRemoteSink(
@@ -154,16 +153,28 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         );
     }
 
-    private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
+    private void updateExecutionInfo(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        ComputeResponse resp,
+        boolean accumulateShardStats
+    ) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             var builder = new EsqlExecutionInfo.Cluster.Builder(v);
             // Update shard counts from the main plan, or from an IN-subquery subplan for remote-only clusters.
             // For INLINE STATS subplans, skip shard count updates here — the main plan will set the definitive values.
+            // Merge branches (FORK / UNION ALL / FROM subquery) share one execInfo and must add, not replace,
+            // so failIfAllShardsFailed at the root merge sees every branch's targets.
             if (executionInfo.isMainPlan() || executionInfo.isSubqueryJoinSubPlan()) {
-                builder.setTotalShards(resp.getTotalShards())
-                    .setSuccessfulShards(resp.getSuccessfulShards())
-                    .setSkippedShards(resp.getSkippedShards())
-                    .setFailedShards(resp.getFailedShards());
+                ComputeService.applyShardCounts(
+                    builder,
+                    v,
+                    resp.getTotalShards(),
+                    resp.getSuccessfulShards(),
+                    resp.getSkippedShards(),
+                    resp.getFailedShards(),
+                    accumulateShardStats
+                );
             }
             if (v.getTook() != null && resp.getTook() != null) {
                 // This can happen when we had some subplan executions before the main plan - we need to accumulate the took time
@@ -179,16 +190,16 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     builder.setTook(executionInfo.queryProfile().total().timeSinceStarted());
                 }
             }
-            if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                builder.addFailures(v.getFailures());
-                builder.addFailures(resp.failures);
-                if (executionInfo.isMainPlan()) {
-                    if (executionInfo.isStopped() || resp.failedShards > 0 || resp.failures.isEmpty() == false) {
-                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
-                    } else {
-                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-                    }
-                }
+            // Always keep this response's failures. Builder copies any already-recorded list; adding v.getFailures() again would duplicate
+            // them. Later merge branches can report after an earlier leaf set SUCCESSFUL.
+            builder.addFailures(resp.failures);
+            if (executionInfo.isMainPlan()) {
+                boolean failed = executionInfo.isStopped()
+                    || resp.failedShards > 0
+                    || resp.failures.isEmpty() == false
+                    || (v.getFailedShards() != null && v.getFailedShards() > 0)
+                    || v.getFailures().isEmpty() == false;
+                ComputeService.applyClusterStatusAfterBranch(builder, v, failed, true);
             }
             return builder.build();
         });
@@ -222,7 +233,16 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
 
     @Override
     public void messageReceived(ClusterComputeRequest request, TransportChannel channel, Task task) {
-        ChannelActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
+        ChannelActionListener<ComputeResponse> channelListener = new ChannelActionListener<>(channel);
+        // An old querying cluster receives warnings as transport response headers rather than the ESQL_DRIVER_WARNINGS
+        // wire field. Replay the merged warnings here — before the channel serialises its ThreadContext — so they ride
+        // the legacy channel back to the old cluster.
+        final ActionListener<ComputeResponse> listener = channel.getVersion().supports(DriverCompletionInfo.ESQL_DRIVER_WARNINGS)
+            ? channelListener
+            : channelListener.map(resp -> {
+                resp.getCompletionInfo().warnings().forEach(HeaderWarning::addWarning);
+                return resp;
+            });
         RemoteClusterPlan remoteClusterPlan = request.remoteClusterPlan();
         var plan = remoteClusterPlan.plan();
         if (plan instanceof ExchangeSinkExec == false) {
@@ -281,7 +301,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final EsqlFlags flags = computeService.createFlags();
         final long startTimeInNanos = System.nanoTime();
         final Runnable cancelQueryOnFailure = computeService.cancelQueryOnFailure(parentTask);
-        try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
+        try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(profiles -> {
             final TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos);
             final ComputeResponse r = finalResponse.get();
             return new ComputeResponse(profiles, took, r.totalShards, r.successfulShards, r.skippedShards, r.failedShards, r.failures);

@@ -324,11 +324,11 @@ emp_no:integer | salary:integer | type:keyword | pvalue:double
 
 
 where after change point
-required_capability: change_point
+required_capability: change_point_multiple_events
 
 FROM employees
   | KEEP emp_no, salary
-  | EVAL salary = CASE(emp_no==10022, 100000, salary)
+  | EVAL salary = CASE(emp_no==10022, 120000, salary)
   | EVAL salary = CASE(emp_no==10033, 1000000, salary)
   | CHANGE_POINT salary ON emp_no AS type, pvalue
   | WHERE emp_no < 10025
@@ -356,7 +356,7 @@ emp_no:integer | salary:integer | type:keyword | pvalue:double
 10019          | 73717          | null         | null
 10020          | 40031          | null         | null
 10021          | 60408          | null         | null
-10022          | 100000         | null         | null
+10022          | 120000         | spike        | 0..1E-6
 10023          | 47896          | null         | null
 10024          | 64675          | null         | null
 ;
@@ -542,7 +542,7 @@ FROM k8s
 
 
 same key and value column
-required_capability: change_point
+required_capability: change_point_multiple_events
 
 FROM k8s
   | STATS count=COUNT() BY BUCKET(@timestamp, 1 MINUTE)
@@ -563,8 +563,8 @@ count:long | type:keyword | pvalue:double
 8          | null         | null
 8          | null         | null
 8          | null         | null
-8          | trend_change | 0..1E-10
-9          | null         | null
+8          | null         | null
+9          | trend_change | 0..1E-4
 9          | null         | null
 9          | null         | null
 10         | null         | null
@@ -578,7 +578,7 @@ count:long | type:keyword | pvalue:double
 
 
 all four columns the same
-required_capability: change_point
+required_capability: change_point_multiple_events
 
 FROM k8s
   | STATS count=COUNT() BY BUCKET(@timestamp, 1 MINUTE)
@@ -599,8 +599,8 @@ null
 null
 null
 null
-0..1E-10
 null
+0..1E-4
 null
 null
 null
@@ -942,7 +942,7 @@ count:LONG
 
 
 detect trend_change (using row)
-required_capability: change_point
+required_capability: change_point_multiple_events
 
 ROW time = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
   | MV_EXPAND time
@@ -965,8 +965,8 @@ time:integer | val:integer | type:keyword | pvalue:double
 12           | 3           | null         | null
 13           | 2           | null         | null
 14           | 1           | null         | null
-15           | 0           | trend_change | 0..1E-110
-16           | 1           | null         | null
+15           | 0           | null         | null
+16           | 1           | trend_change | 0..1E-10
 17           | 2           | null         | null
 18           | 3           | null         | null
 19           | 4           | null         | null
@@ -1156,7 +1156,7 @@ ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
 ;
 
 key:integer | value:integer | type:keyword | pvalue:double
-13          | 1             | step_change  | 0..1E-150
+13          | 1             | step_change  | 0..1e-150
 ;
 
 
@@ -1288,22 +1288,59 @@ true        | 1             | null         | null
 ;
 
 
-example for docs
+one clear change point
 required_capability: change_point
 
-// tag::changePointForDocs[]
 ROW key=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
 | MV_EXPAND key
 | EVAL value = CASE(key<13, 0, 42)
 | CHANGE_POINT value ON key
 | WHERE type IS NOT NULL
+;
+
+key:integer | value:integer | type:keyword | pvalue:double
+13          | 42            | step_change  | 0..1E-180
+;
+
+
+example for docs (one clear change point)
+required_capability: change_point_multiple_events
+
+// tag::changePointForDocs[]
+ROW key=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
+| MV_EXPAND key
+| EVAL value = CASE(key<13, 0, 50)
+| CHANGE_POINT value ON key
+| WHERE type IS NOT NULL
+| EVAL pvalue = ROUND(pvalue, 6)
 // end::changePointForDocs[]
 ;
 
 // tag::changePointForDocs-result[]
 key:integer | value:integer | type:keyword | pvalue:double
-13          | 42            | step_change  | 0..1E-180
+13          | 50            | step_change  | 0.0
 // end::changePointForDocs-result[]
+;
+
+
+example for docs (two clear change points)
+required_capability: change_point_multiple_events
+
+// tag::changePointForDocsMultipleChanges[]
+ROW key=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39]
+| MV_EXPAND key
+| EVAL value = CASE(key<13, 0, key<26, 25, 50)
+| CHANGE_POINT value ON key
+| WHERE type IS NOT NULL
+| EVAL pvalue = ROUND(pvalue, 6)
+// end::changePointForDocsMultipleChanges[]
+;
+
+// tag::changePointForDocsMultipleChanges-result[]
+key:integer | value:integer | type:keyword | pvalue:double
+13          | 25            | step_change  | 0.0
+26          | 50            | step_change  | 0.0
+// end::changePointForDocsMultipleChanges-result[]
 ;
 
 
@@ -1376,22 +1413,67 @@ b           | 25        | 0             | null         | null
 detect step change by group
 required_capability: change_point_by
 
-// tag::changePointForDocsByGroup[]
 ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25], location=[12,13,14]
 | MV_EXPAND k
 | MV_EXPAND location
 | EVAL value=CASE(k<location, 0, 42)
 | CHANGE_POINT value ON k BY location
 | WHERE type IS NOT NULL
+;
+
+k:integer | location:integer | value:integer | type:keyword | pvalue:double
+12        | 12               | 42            | step_change  | 0..1E-180
+13        | 13               | 42            | step_change  | 0..1E-180
+14        | 14               | 42            | step_change  | 0..1E-180
+;
+
+
+example for docs (detect step change by group, one clear change point)
+required_capability: change_point_multiple_events
+
+// tag::changePointForDocsByGroup[]
+ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25], location=[12,13,14]
+| MV_EXPAND k
+| MV_EXPAND location
+| EVAL value=CASE(k<location, 0, 50)
+| CHANGE_POINT value ON k BY location
+| WHERE type IS NOT NULL
+| EVAL pvalue = ROUND(pvalue, 6)
 // end::changePointForDocsByGroup[]
 ;
 
 // tag::changePointForDocsByGroup-result[]
 k:integer | location:integer | value:integer | type:keyword | pvalue:double
-12        | 12               | 42            | step_change  | 0..1E-180
-13        | 13               | 42            | step_change  | 0..1E-180
-14        | 14               | 42            | step_change  | 0..1E-180
+12        | 12               | 50            | step_change  | 0.0
+13        | 13               | 50            | step_change  | 0.0
+14        | 14               | 50            | step_change  | 0.0
 // end::changePointForDocsByGroup-result[]
+;
+
+
+example for docs (detect step change by group, two clear change points)
+required_capability: change_point_multiple_events
+
+// tag::changePointForDocsByGroupMultipleChanges[]
+ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39], location=[12,13,14]
+| MV_EXPAND k
+| MV_EXPAND location
+| EVAL value=CASE(k<location, 0, k<location+13, 25, 50)
+| CHANGE_POINT value ON k BY location
+| WHERE type IS NOT NULL
+| EVAL pvalue = ROUND(pvalue, 6)
+// end::changePointForDocsByGroupMultipleChanges[]
+;
+
+// tag::changePointForDocsByGroupMultipleChanges-result[]
+k:integer | location:integer | value:integer | type:keyword | pvalue:double
+12        | 12               | 25            | step_change  | 0.0
+25        | 12               | 50            | step_change  | 0.0
+13        | 13               | 25            | step_change  | 0.0
+26        | 13               | 50            | step_change  | 0.0
+14        | 14               | 25            | step_change  | 0.0
+27        | 14               | 50            | step_change  | 0.0
+// end::changePointForDocsByGroupMultipleChanges-result[]
 ;
 
 

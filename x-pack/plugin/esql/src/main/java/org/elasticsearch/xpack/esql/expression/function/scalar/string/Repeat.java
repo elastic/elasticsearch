@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -39,7 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Repeat extends EsqlScalarFunction implements OptionalArgument {
+public class Repeat extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Repeat", Repeat::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Repeat.class)
         .binary(Repeat::new)
@@ -165,16 +166,19 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
         ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
 
         if (number.foldable()) {
-            int num = (int) number.fold(toEvaluator.foldCtx());
-            if (num < 0) {
-                throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
+            // instanceof is null-safe: falls through to the row-level evaluator when fold() returns null
+            // (e.g. a missing field resolved to null in a per-shard plan).
+            if (number.fold(toEvaluator.foldCtx()) instanceof Integer num) {
+                if (num < 0) {
+                    throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
+                }
+                return new RepeatConstantEvaluator.Factory(
+                    source(),
+                    context -> new BreakingBytesRefBuilder(context.breaker(), "repeat"),
+                    strExpr,
+                    num
+                );
             }
-            return new RepeatConstantEvaluator.Factory(
-                source(),
-                context -> new BreakingBytesRefBuilder(context.breaker(), "repeat"),
-                strExpr,
-                num
-            );
         }
 
         ExpressionEvaluator.Factory numberExpr = toEvaluator.apply(number);

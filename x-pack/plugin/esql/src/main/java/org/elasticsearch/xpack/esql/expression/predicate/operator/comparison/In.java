@@ -7,16 +7,21 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -26,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
+import org.elasticsearch.xpack.esql.core.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
@@ -40,16 +46,15 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.FieldValueQueries;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -61,6 +66,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -143,6 +149,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                 "cartesian_shape",
                 "date_range",
                 "double",
+                "double_range",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -164,6 +171,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                 "cartesian_shape",
                 "date_range",
                 "double",
+                "double_range",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -309,7 +317,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     protected Expression canonicalize() {
         // order values for commutative operators
         List<Expression> canonicalValues = Expressions.canonicalize(list);
-        Collections.sort(canonicalValues, (l, r) -> Integer.compare(l.hashCode(), r.hashCode()));
+        canonicalValues.sort(Expressions::compareStable);
         return new In(source(), value, canonicalValues);
     }
 
@@ -376,6 +384,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         }
         if (commonType == DATE_RANGE) {
             return new InLongRangeEvaluator.Factory(source(), lhs, factories);
+        }
+        if (commonType == DOUBLE_RANGE) {
+            return new InDoubleRangeEvaluator.Factory(source(), lhs, factories);
         }
         if (commonType == NULL) {
             return ConstantEvaluators.CONSTANT_NULL_FACTORY;
@@ -499,17 +510,38 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         return false;
     }
 
+    static boolean processDoubleRange(
+        BitSet nulls,
+        BitSet mvs,
+        DoubleRangeBlockBuilder.DoubleRange lhs,
+        DoubleRangeBlockBuilder.DoubleRange[] rhs
+    ) {
+        for (int i = 0; i < rhs.length; i++) {
+            if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
+                continue;
+            }
+            if (lhs.equals(rhs[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (Expressions.foldable(list()) == false) {
             return Translatable.NO;
         }
-        // date_range fields don't support scalar term/range queries; IN must be evaluated in the compute engine
-        if (value.dataType() == DATE_RANGE) {
+        // Range fields don't support scalar term/range queries; IN must be evaluated in the compute engine.
+        if (value.dataType() == DATE_RANGE || value.dataType() == DOUBLE_RANGE) {
             return Translatable.NO;
         }
         if (pushdownPredicates.isPushableAttribute(value)) {
             return Translatable.YES;
+        }
+        if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, value)) {
+            // The field answers over the values it keeps, which the expression asks it for on the shard.
+            return FieldValueQueries.pushable(pushdownPredicates.minTransportVersion()) ? Translatable.YES : Translatable.NO;
         }
         if (value instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
             // Candidate terms query against the keyed sub-field; RECHECK keeps the predicate in the
@@ -521,6 +553,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, value)) {
+            return FieldValueQueries.over(source(), handler.nameOf((TypedAttribute) value), this);
+        }
         if (value() instanceof FieldExtract fe) {
             var keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
             if (keyedName.isPresent()) {
@@ -528,6 +563,22 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             }
         }
         return translate(pushdownPredicates, handler);
+    }
+
+    /** The listed values looked for among the values the field keeps, each matching whole. */
+    @Override
+    public org.apache.lucene.search.Query asLuceneQuery(
+        MappedFieldType fieldType,
+        MultiTermQuery.RewriteMethod constantScoreRewrite,
+        SearchExecutionContext context
+    ) {
+        final List<BytesRef> terms = new ArrayList<>(list().size());
+        for (Expression rhs : list()) {
+            if (Expressions.isGuaranteedNull(rhs) == false) {
+                terms.add(BytesRefs.toBytesRef(literalValueOf(rhs)));
+            }
+        }
+        return FieldValueQueries.textFamily(fieldType).termsLikeQuery(terms, context);
     }
 
     private Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
@@ -540,10 +591,12 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         for (Expression rhs : list()) {
             if (Expressions.isGuaranteedNull(rhs) == false) {
                 if (needsTypeSpecificValueHandling(attribute.dataType())) {
-                    // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
-                    // TODO:
-                    // Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs), handler);
-                    Query query = handler.asQuery(pushdownPredicates, new Equals(source(), value(), rhs));
+                    // Delegate to Equals to ensure consistent handling of date, ip, version and unsigned_long
+                    // values. Call asQuery() directly (bypassing the handler) so the per-value comparison
+                    // isn't itself wrapped in a SingleValueQuery: In is single-value aware, so the handler
+                    // already wraps the whole IN translation once; wrapping here too would turn what should
+                    // be one combined terms query into N redundant, individually-wrapped term clauses.
+                    Query query = new Equals(source(), value(), rhs).asQuery(pushdownPredicates, handler);
 
                     if (query instanceof TermQuery) {
                         terms.add(((TermQuery) query).value());
@@ -561,7 +614,10 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             queries.add(new TermsQuery(source(), fieldName, terms));
         }
 
-        return queries.stream().reduce((q1, q2) -> or(source(), q1, q2)).get();
+        if (queries.size() == 1) {
+            return queries.get(0);
+        }
+        return new BoolQuery(source(), false, queries);
     }
 
     /**
@@ -590,9 +646,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         }
         if (terms.isEmpty()) {
             // All RHS values were guaranteed-null, so no doc can match. translate() above has the
-            // same edge case (its reduce throws NoSuchElementException), but we should not
-            // claim the predicate is translatable in that case. The folder normally rewrites such
-            // an IN to a constant false beforehand, so this branch is defensive.
+            // same edge case (it would end up with an empty query list), but we should not claim the
+            // predicate is translatable in that case. The folder normally rewrites such an IN to a
+            // constant false beforehand, so this branch is defensive.
             throw new EsqlIllegalArgumentException("field_extract IN with all-null list cannot be translated to a query");
         }
         return new TermsQuery(source(), keyedName, terms);
@@ -600,10 +656,6 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
 
     private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
         return fieldType == DATETIME || fieldType == DATE_NANOS || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
-    }
-
-    private static Query or(Source source, Query left, Query right) {
-        return BinaryLogic.boolQuery(source, left, right, false);
     }
 
     @Override

@@ -13,12 +13,15 @@ import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 
 import java.util.Map;
 import java.util.Optional;
 
 public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
 
+    public static final String SETTINGS_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "settings.";
     public static final String PROFILE_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.profile.";
 
     @Override
@@ -33,6 +36,14 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
                 if (timeTook != null) {
                     String namePrefix = PROFILE_PREFIX + timeSpanMarker.name();
                     msg.field(namePrefix + ".took", timeTook.nanos());
+                }
+            }
+        });
+        context.getResolvedSettings().ifPresent(settings -> {
+            for (QuerySettingDef<?> def : QuerySettings.all()) {
+                Object value = def.get(settings);
+                if (value != null) {
+                    msg.field(SETTINGS_PREFIX + def.name(), value.toString());
                 }
             }
         });
@@ -58,6 +69,7 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
             msg.field(PROFILE_PREFIX + "rows_emitted", rollup.rowsEmitted());
             msg.field(PROFILE_PREFIX + "bytes_read", rollup.bytesRead());
             msg.field(PROFILE_PREFIX + "read_nanos", rollup.readNanos());
+            msg.field(PROFILE_PREFIX + "read_cpu_nanos", rollup.readCpuNanos());
             msg.field(PROFILE_PREFIX + "cpu_nanos", rollup.cpuNanos());
         });
         var clusters = context.getClusters();

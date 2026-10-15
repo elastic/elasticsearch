@@ -780,10 +780,10 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         String transformB = "transform_cred_list_b";
 
         // Store 3 credentials for transformA and 1 for transformB
-        PersistedCloudCredential credA1 = new PersistedCloudCredential("token-a1", new SecureString("secret-a1".toCharArray()));
-        PersistedCloudCredential credA2 = new PersistedCloudCredential("token-a2", new SecureString("secret-a2".toCharArray()));
-        PersistedCloudCredential credA3 = new PersistedCloudCredential("token-a3", new SecureString("secret-a3".toCharArray()));
-        PersistedCloudCredential credB1 = new PersistedCloudCredential("token-b1", new SecureString("secret-b1".toCharArray()));
+        PersistedCloudCredential credA1 = PersistedCloudCredential.plaintext("token-a1", new SecureString("secret-a1".toCharArray()));
+        PersistedCloudCredential credA2 = PersistedCloudCredential.plaintext("token-a2", new SecureString("secret-a2".toCharArray()));
+        PersistedCloudCredential credA3 = PersistedCloudCredential.plaintext("token-a3", new SecureString("secret-a3".toCharArray()));
+        PersistedCloudCredential credB1 = PersistedCloudCredential.plaintext("token-b1", new SecureString("secret-b1".toCharArray()));
 
         assertAsync(listener -> transformConfigManager.putTransformCloudCredential(transformA, credA1, listener), true, null, null);
         assertAsync(listener -> transformConfigManager.putTransformCloudCredential(transformA, credA2, listener), true, null, null);

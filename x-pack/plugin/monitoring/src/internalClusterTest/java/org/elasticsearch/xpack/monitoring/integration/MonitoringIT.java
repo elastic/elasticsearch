@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.wildcard.Wildcard;
 import java.io.IOException;
 import java.lang.Thread.State;
 import java.lang.management.LockInfo;
-import java.lang.management.ManagementFactory;
 import java.lang.management.MonitorInfo;
 import java.lang.management.ThreadInfo;
 import java.nio.charset.StandardCharsets;
@@ -303,20 +302,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      */
     private void whenExportersAreReady(final CheckedRunnable<Exception> runnable) throws Exception {
         try {
-            try {
-                enableMonitoring();
-            } catch (AssertionError e) {
-                // Added to debug https://github.com/elastic/elasticsearch/issues/29880
-                // Remove when fixed
-                StringBuilder b = new StringBuilder();
-                b.append("\n==== jstack at monitoring enablement failure time ====\n");
-                for (ThreadInfo ti : ManagementFactory.getThreadMXBean().dumpAllThreads(true, true)) {
-                    append(b, ti);
-                }
-                b.append("^^==============================================\n");
-                logger.info(b.toString());
-                throw e;
-            }
+            enableMonitoring();
             runnable.run();
         } finally {
             disableMonitoring();

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -41,10 +40,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
     @Override
     protected Writeable.Reader<Configuration> instanceReader() {
         return in -> new Configuration(
-            new BlockStreamInput(
-                in,
-                BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build()
-            )
+            new BlockStreamInput(in, BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build())
         );
     }
 

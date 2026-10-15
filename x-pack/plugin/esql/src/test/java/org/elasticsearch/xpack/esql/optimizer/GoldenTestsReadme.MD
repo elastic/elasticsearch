@@ -9,13 +9,14 @@ Contrast with regular (unit) tests, which include a specific assertion of some c
 
 ## How do I add a new golden test?
 
-`extend` `org.elasticsearch.xpack.esql.optimizer.GoldenTestCase`, and add new tests by invoking the
-`runGoldenTest` method.
+Extend `org.elasticsearch.xpack.esql.optimizer.GoldenTestCase`, then invoke `runGoldenTest(...)` or
+use its fluent builder. The builder keeps the query and any special inputs or version coverage
+together.
 
 ```java
 class MyGoldenTest extends GoldenTestCase {
   public void testBasicFrom() {
-    runGoldenTest("FROM employees");
+    builder("FROM employees").run();
   }
 }
 ```
@@ -26,7 +27,9 @@ You can also specify which plans you want to verify (all plans are output by def
 
 ```java
 public void testBasic() throws Exception {
-  runGoldenTest("FROM employees", EnumSet.of(Stage.ANALYZER, Stage.LOGICAL));
+  builder("FROM employees")
+      .stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION))
+      .run();
 }
 ```
 
@@ -111,8 +114,8 @@ public void testMultiTypeField() {
 Values are registered transport version names (`TransportVersion.fromName`); declare labels
 oldest-first; neither combines with a pinned `transportVersion(...)`. Tests without labels keep
 the flat layout, and directory names carry no order, so a new label never renames existing
-directories or breaks existing mutes. If one gate changes most of a suite, declare the label once
-in the suite's shared builder helper — the failing tests tell you exactly which ones fork.
+directories or breaks existing mutes. Keep `since(...)` and `expectationChangesAt(...)` directly
+on each affected test's builder chain so its version coverage is visible beside its query.
 
 ### Two runs per suite
 
@@ -141,10 +144,14 @@ range, at a random released version inside it. The two names mute independently:
   own starting version, so the old shape comes back and `{current}` stays red.
 - `{historical}` flaky on an unlabeled test: you found an undeclared fork; the failure diff shows
   both shapes. Declare it (label or `since`) and regenerate.
-- Warning about a dead range: the compatibility floor (advances at major releases) passed a label.
-  Harmless, but clean up as the message says — delete the `before_<label>` directory and remove
-  the declaration; nothing else moves. `-Dgolden.gc.strict` escalates the warning to a failure,
-  for scheduled cleanup sweeps.
+- Dead range or dead `since`: the compatibility floor (advances at major releases) passed the
+  declared version, so it no longer splits or removes any coverage. The test fails on the PR that
+  moved the floor. Run `./gradlew :x-pack:plugin:esql:goldenGc -Dtests.mutes.enabled=false` (so
+  muted golden tests are repaired too): it deletes the dead `before_<label>` directories across
+  each suite, removes the declarations and their now-unused constants from the test sources, and
+  reformats. Nothing else moves. A `since` through a version constant is matched by name
+  (`Sum.ESQL_SUM_LONG_OVERFLOW_FIX` names `esql_sum_long_overflow_fix`); one the task cannot
+  match fails with a message asking for a hand edit.
 - Error that a declaration no longer resolves: the transport version name was retired, meaning the
   code path it gated is gone. Remove the declaration; for a label, also delete its
   `before_<label>` directory (its files described planning that no longer exists).

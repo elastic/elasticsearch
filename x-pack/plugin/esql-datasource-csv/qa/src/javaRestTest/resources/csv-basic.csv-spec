@@ -51,7 +51,7 @@ count:long
 
 aggregateByGenderScalar
 required_capability: dataset_in_from_command
-required_capability: external_csv_empty_string_not_null
+required_capability: external_csv_blank_cell_empty_string_unless_null_token
 dataset: employees_no_mv: "{{employees_no_mv}}"
 
 FROM employees_no_mv
@@ -59,7 +59,7 @@ FROM employees_no_mv
 | SORT gender;
 
 count:long | gender:keyword
-10         |
+10         | ""
 33         | "F"
 57         | "M"
 ;

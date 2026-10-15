@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
@@ -71,6 +72,14 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
     // "failed to create query" on random mappings where field types are incompatible (e.g., non-indexed
     // fields, numeric fields receiving text input). https://github.com/elastic/elasticsearch/issues/147610
     private static final Pattern FAILED_TO_CREATE_QUERY = Pattern.compile(".*failed to create query.*", Pattern.DOTALL);
+
+    // LIKE/RLIKE/STARTS_WITH/ENDS_WITH/CONTAINS (and full-text with fuzziness) can be pushed to Lucene against a keyed subfield
+    // of a flattened field, e.g. "size.raw" when one unioned index maps "size" as flattened. The flattened field type rejects
+    // wildcard/regexp/fuzzy on keyed subfields by design; ES|QL does not yet gate this pushdown (unlike the field_extract path).
+    private static final Pattern KEYED_FLATTENED_QUERY_UNSUPPORTED = Pattern.compile(
+        ".*queries are not currently supported on keyed \\[flattened\\] fields.*",
+        Pattern.DOTALL
+    );
 
     @Before
     public void setupRandomIndices() throws IOException {
@@ -157,11 +166,6 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
             };
             try {
                 EsqlQueryGenerator.generatePipeline(RM_MAX_DEPTH, sourceCommand(), schema, exec, false, this, rootGenerationContext());
-            } catch (AssertionError ae) {
-                // Thrown by checkPipelineResults/checkPipelineException via fail();
-                // augment with full reproduction context.
-                String query = exec.previousResult != null ? exec.previousResult.query() : null;
-                throw new AssertionError(ae.getMessage() + formatReproductionContext(query), ae.getCause() != null ? ae.getCause() : ae);
             } catch (Exception e) {
                 String errorMessage = e.getMessage();
                 String query = exec.previousResult != null ? exec.previousResult.query() : null;
@@ -169,7 +173,7 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
                     continue;
                 }
                 throw new AssertionError(
-                    "Random mapping generative tests, error generating new command" + formatReproductionContext(query),
+                    "Random mapping generative tests, error generating new command\n" + failureReport(query, errorMessage),
                     e
                 );
             }
@@ -234,6 +238,11 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         if (query != null && isAllowedError(errorMessage, FAILED_TO_CREATE_QUERY) && queryContainsFullTextFunction(query)) {
             return true;
         }
+        // This message is produced only by the flattened field type, so match on it directly without a query guard; a guard on
+        // the pattern functions would miss the fuzzy variant that full-text functions can push to a keyed flattened subfield.
+        if (isAllowedError(errorMessage, KEYED_FLATTENED_QUERY_UNSUPPORTED)) {
+            return true;
+        }
         return false;
     }
 
@@ -249,7 +258,17 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         return upper.contains("MATCH(") || upper.contains("MATCH_PHRASE(") || upper.contains("QSTR(") || upper.contains("KQL(");
     }
 
-    private static String formatReproductionContext(String query) {
+    /**
+     * Appends the mappings and documents of this run's randomly generated indices, which a seed alone does not
+     * reproduce once the generator changes.
+     */
+    @Override
+    protected String failureReport(@Nullable String query, @Nullable String error) {
+        return super.failureReport(query, error) + formatReproductionContext(query);
+    }
+
+    /** The generated indices and the failing query, as ready-to-paste REST commands. */
+    private static String formatReproductionContext(@Nullable String query) {
         List<GeneratedIndex> indices = generatedIndices;
         if (indices == null) {
             return "";

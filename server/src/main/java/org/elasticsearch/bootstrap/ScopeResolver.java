@@ -21,17 +21,11 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNN
 public class ScopeResolver {
     private final Map<Module, String> pluginNameByModule;
 
-    /**
-     * The package name containing classes from the APM agent.
-     */
-    private final String apmAgentPackageName;
-
-    private ScopeResolver(Map<Module, String> pluginNameByModule, String apmAgentPackageName) {
+    private ScopeResolver(Map<Module, String> pluginNameByModule) {
         this.pluginNameByModule = pluginNameByModule;
-        this.apmAgentPackageName = apmAgentPackageName;
     }
 
-    public static ScopeResolver create(Stream<PluginsLoader.PluginLayer> pluginLayers, String apmAgentPackageName) {
+    public static ScopeResolver create(Stream<PluginsLoader.PluginLayer> pluginLayers) {
         Map<Module, String> pluginNameByModule = new HashMap<>();
 
         pluginLayers.forEach(pluginLayer -> {
@@ -47,7 +41,7 @@ public class ScopeResolver {
             }
         });
 
-        return new ScopeResolver(pluginNameByModule, apmAgentPackageName);
+        return new ScopeResolver(pluginNameByModule);
     }
 
     public PolicyScope resolveClassToScope(Class<?> clazz) {
@@ -59,10 +53,6 @@ public class ScopeResolver {
         String pluginName = pluginNameByModule.get(module);
         if (pluginName != null) {
             return PolicyScope.plugin(pluginName, scopeName);
-        }
-        if (module.isNamed() == false && clazz.getPackageName().startsWith(apmAgentPackageName)) {
-            // The APM agent is the only thing running non-modular in the system classloader
-            return PolicyScope.apmAgent(ALL_UNNAMED);
         }
         return PolicyScope.unknown(scopeName);
     }

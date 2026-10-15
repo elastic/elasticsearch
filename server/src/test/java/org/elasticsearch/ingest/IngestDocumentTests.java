@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -2063,11 +2064,11 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testDeepCopy() {
-        Map<String, Object> sourceAndMetadata = IngestDocument.deepCopyMap(document.getSource());
+        Map<String, Object> sourceAndMetadata = CollectionUtils.deepCopy(document.getSource());
         for (String key : document.getMetadata().keySet()) {
-            sourceAndMetadata.put(key, IngestDocument.deepCopy(document.getMetadata().get(key)));
+            sourceAndMetadata.put(key, CollectionUtils.deepCopy(document.getMetadata().get(key)));
         }
-        IngestDocument copiedDoc = new IngestDocument(sourceAndMetadata, IngestDocument.deepCopyMap(document.getIngestMetadata()));
+        IngestDocument copiedDoc = new IngestDocument(sourceAndMetadata, CollectionUtils.deepCopy(document.getIngestMetadata()));
         assertArrayEquals(
             copiedDoc.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),
             document.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),

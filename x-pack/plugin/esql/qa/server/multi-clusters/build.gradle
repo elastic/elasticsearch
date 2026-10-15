@@ -38,7 +38,7 @@ esqlCsvSpecTests {
 
 def currentVersion = buildParams.bwcVersions.currentVersion
 
-def currentToCurrent = tasks.register("v${currentVersion}#csvSpecTests", StandaloneRestIntegTestTask) {
+def currentToCurrent = tasks.register("csvSpecTestsCurrentToCurrent", StandaloneRestIntegTestTask) {
   systemProperty("tests.version.remote_cluster", currentVersion)
   systemProperty("tests.version.local_cluster", currentVersion)
   maxParallelForks = 1
@@ -47,28 +47,24 @@ def currentToCurrent = tasks.register("v${currentVersion}#csvSpecTests", Standal
   dependsOn generateEsqlSpecTests
 }
 
-tasks.named("bwcTest").configure {
-  if (project.bwc_tests_enabled) {
-    dependsOn currentToCurrent
-  }
-}
-
-// The federation kill-switch remote-dataset gate is a current-to-current CCS test (it registers a dataset while
-// enabled, then bounces the remote with the switch off). The base javaRestTest task is disabled by the bwc-test
-// plugin and every other javaRestTest class here is bwc-only, so this class gets its own current-to-current runner
-// wired into `check`.
-def federationKillSwitchTest = tasks.register("v${currentVersion}#federationKillSwitchTest", StandaloneRestIntegTestTask) {
+// The remote-dataset invisibility suite registers a dataset on the remote and asserts it is absent from what a query
+// on the local cluster resolves. It needs both clusters at a version that has datasets at all. The base javaRestTest
+// task is disabled by the bwc-test plugin, so it gets its own current-to-current runner wired into `check` for the
+// configuration that always applies.
+def remoteDatasetInvisibleTestPattern = "org.elasticsearch.xpack.esql.ccq.RemoteDatasetInvisibleRestIT"
+def remoteDatasetInvisibleTest = tasks.register("remoteDatasetInvisibleTest", StandaloneRestIntegTestTask) {
   systemProperty("tests.version.remote_cluster", currentVersion)
   systemProperty("tests.version.local_cluster", currentVersion)
   maxParallelForks = 1
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath
   filter {
-    includeTestsMatching "org.elasticsearch.xpack.esql.ccq.FederationRemoteDatasetGateRestIT"
+    includeTestsMatching remoteDatasetInvisibleTestPattern
   }
 }
 tasks.named("check").configure {
-  dependsOn federationKillSwitchTest
+  dependsOn remoteDatasetInvisibleTest
+  dependsOn currentToCurrent
 }
 
 def supportedVersion = bwcVersion -> {
@@ -76,12 +72,20 @@ def supportedVersion = bwcVersion -> {
   return bwcVersion.onOrAfter(Version.fromString("8.13.0")) && bwcVersion != currentVersion
 }
 
+def dataSourcesBwcVersion = Version.fromString("9.5.0")
+def federatedDataBwcTestPattern = "org.elasticsearch.xpack.esql.ccq.FederatedDataBwcIT"
+
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   def newToOld = tasks.register("${baseName}#newToOld", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.version.remote_cluster", bwcVersion)
     systemProperty("tests.version.local_cluster", currentVersion)
     maxParallelForks = 1
+    if (bwcVersion.before(dataSourcesBwcVersion)) {
+      filter {
+        excludeTestsMatching federatedDataBwcTestPattern
+      }
+    }
   }
 
   def oldToNew = tasks.register("${baseName}#oldToNew", StandaloneRestIntegTestTask) {
@@ -89,6 +93,11 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
     systemProperty("tests.version.local_cluster", bwcVersion)
     systemProperty("tests.version.remote_cluster", currentVersion)
     maxParallelForks = 1
+    if (bwcVersion.before(dataSourcesBwcVersion)) {
+      filter {
+        excludeTestsMatching federatedDataBwcTestPattern
+      }
+    }
   }
 
   def csvSpecTestsNewToOld = tasks.register("v${bwcVersion}#csvSpecTests#newToOld", StandaloneRestIntegTestTask) {

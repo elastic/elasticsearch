@@ -24,6 +24,8 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -50,20 +52,20 @@ import static org.hamcrest.Matchers.hasSize;
  * <ul>
  *   <li>a fixture-supplied auth token symlinked at the entitled config path
  *       ({@code ${ES_PATH_CONF}/esql-datasource-s3/eks-pod-identity-token}),</li>
- *   <li>{@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE} env var set so the plugin's
- *       {@code S3DataSourcePlugin#storageProviders} sysprop redirect kicks in on first use,</li>
+ *   <li>{@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE} env var set so the Pod Identity shape is
+ *       detected (the plugin reads the entitled symlink itself — it does not redirect via JVM
+ *       sysprop),</li>
  *   <li>{@code AWS_CONTAINER_CREDENTIALS_FULL_URI} env var pointing at the local
- *       {@link PodIdentityCredentialsHttpFixture} so {@code ContainerCredentialsProvider}
- *       resolves credentials against a fake endpoint instead of the real EKS Pod Identity Agent,</li>
- *   <li>{@code esql.datasource.managed_identity.enabled=true} so the validator accepts the data
+ *       {@link PodIdentityCredentialsHttpFixture} so credentials resolve against a fake endpoint
+ *       instead of the real EKS Pod Identity Agent,</li>
+ *   <li>{@code esql.external.managed_identity.enabled=true} so the validator accepts the data
  *       source.</li>
  * </ul>
  *
  * <p>A successful query proves: PUT data_source(auth=managed_identity) → cluster-setting gate →
- * S3StorageProvider builds an S3 client → ContainerCredentialsProvider reads the auth token from
- * the entitled symlink (because the sysprop override redirected it there) → exchanges the token
- * at the credentials endpoint for AWS credentials → those credentials sign an S3 GET → NDJSON
- * reader returns rows.
+ * S3StorageProvider builds an S3 client → {@code EsqlContainerCredentialsProvider} reads the auth
+ * token from the entitled symlink and exchanges it at the credentials endpoint → those credentials
+ * sign an S3 GET → NDJSON reader returns rows.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
@@ -91,15 +93,17 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("esql.datasource.managed_identity.enabled", "true")
-        // Operator-managed symlink the plugin redirects the AWS SDK at via JVM sysprop.
+        .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
+        .setting("esql.external.managed_identity.enabled", "true")
+        // Operator-managed symlink EsqlContainerCredentialsProvider reads directly.
         .configFile("esql-datasource-s3/eks-pod-identity-token", Resource.fromString(AUTH_TOKEN_FILE_CONTENTS))
-        // The plugin only checks the env var for presence to decide whether to set the sysprop;
-        // any non-empty value works because the sysprop override pins the SDK to the entitled path.
+        // Presence of this env var (with AWS_CONTAINER_CREDENTIALS_FULL_URI) selects the Pod Identity
+        // provider; the entitled symlink above is what is actually read.
         .environment("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE", () -> "/var/run/secrets/pods.eks.amazonaws.com/serviceaccount/token")
-        // ContainerCredentialsProvider reads the credentials endpoint URL from this env var.
+        // EsqlContainerCredentialsProvider reads the credentials endpoint URL from this env var.
         .environment("AWS_CONTAINER_CREDENTIALS_FULL_URI", credentialsFixture::getCredentialsUri)
         .environment("AWS_REGION", regionSupplier)
         .build();
@@ -124,7 +128,7 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
 
     /**
      * Core regression guard for the Pod Identity flow. Mirrors {@code IrsaManagedIdentityAuthIT}
-     * but exercises the {@code ContainerCredentialsProvider} branch of the workload-identity
+     * but exercises the {@code EsqlContainerCredentialsProvider} branch of the workload-identity
      * chain instead of the IRSA branch.
      */
     public void testPodIdentityManagedIdentityAuthQueryReturnsRows() throws IOException {
@@ -157,7 +161,7 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
                 () -> putManagedIdentityDataSource(DATASOURCE_NAME + "_disabled", s3HttpFixture.getAddress())
             );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("esql.datasource.managed_identity.enabled"));
+            assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("esql.external.managed_identity.enabled"));
         } finally {
             setManagedIdentityEnabled(true);
         }
@@ -174,7 +178,6 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
                 .field("type", "s3")
                 .startObject("settings")
                 .field("auth", "managed_identity")
-                .field("region", regionSupplier.get())
                 .field("endpoint", endpoint)
                 .endObject()
                 .endObject();
@@ -187,7 +190,13 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
     private static void putDataset(String name, String dataSource, String resource) throws IOException {
         Request req = new Request("PUT", "/_query/dataset/" + name);
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().field("data_source", dataSource).field("resource", resource).endObject();
+            b.startObject()
+                .field("data_source", dataSource)
+                .field("resource", resource)
+                .startObject("settings")
+                .field("region", regionSupplier.get())
+                .endObject()
+                .endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);
@@ -208,7 +217,7 @@ public class PodIdentityManagedIdentityAuthIT extends ESRestTestCase {
     private static void setManagedIdentityEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();
+            b.startObject().startObject("persistent").field("esql.external.managed_identity.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

@@ -26,8 +26,8 @@ public class Arg {
 
     private static final String SPACE = " ";
     private static final Base64.Decoder DECODER = Base64.getUrlDecoder();
-    private static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
-    private static int VINT_MAX_BYTES = 5;
+    static final Base64.Encoder ENCODER = Base64.getUrlEncoder().withoutPadding();
+    static final int VINT_MAX_BYTES = 5;
 
     public enum Type {
         GENERIC(0);
@@ -95,6 +95,34 @@ public class Arg {
         int size = dataInput.getPosition();
         byte[] data = Arrays.copyOfRange(buffer, 0, size);
         return ENCODER.encodeToString(data);
+    }
+
+    /**
+     * Byte-level equivalent of {@link #encodeInfo(List)} for the columnar path: writes base64url
+     * bytes into {@code dest} and returns their length.
+     *
+     * <p>{@code out} is a caller-owned, reusable {@link ByteArrayDataOutput}, reset onto
+     * {@code rawScratch} on every call so that it is not allocated per document.
+     */
+    static int encodeInfoBytes(int[] offsets, int count, ByteArrayDataOutput out, byte[] rawScratch, byte[] dest) throws IOException {
+        out.reset(rawScratch);
+        out.writeVInt(count);
+        int prev = 0;
+        for (int i = 0; i < count; i++) {
+            out.writeVInt(Type.GENERIC.toCode()); // always 0
+            out.writeVInt(offsets[i] - prev);
+            prev = offsets[i];
+        }
+        int rawLen = out.getPosition();
+        // Encode only the written prefix [0, rawLen). Arrays.copyOfRange allocates a small
+        // (<100 bytes for typical log lines) intermediate array — the larger allocation savings
+        // come from the caller avoiding String, Pattern.split, ArrayList, and StringBuilder.
+        return ENCODER.encode(Arrays.copyOfRange(rawScratch, 0, rawLen), dest);
+    }
+
+    static int argsInfoMaxBase64Bytes(int count) {
+        int rawMax = VINT_MAX_BYTES + count * 2 * VINT_MAX_BYTES;
+        return ((rawMax + 2) / 3) * 4;
     }
 
     static List<Info> decodeInfo(String encoded) throws IOException {

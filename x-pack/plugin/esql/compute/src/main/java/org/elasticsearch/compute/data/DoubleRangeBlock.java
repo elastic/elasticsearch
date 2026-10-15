@@ -92,6 +92,26 @@ public sealed interface DoubleRangeBlock extends Block permits DoubleRangeArrayB
     DoubleRangeBlockBuilder.DoubleRange getDoubleRange(int valueIndex, DoubleRangeBlockBuilder.DoubleRange scratch);
 
     /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     * @param scratch the scratch range to use for this operation; must not be {@code value}
+     */
+    default boolean hasValue(int position, DoubleRangeBlockBuilder.DoubleRange value, DoubleRangeBlockBuilder.DoubleRange scratch) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            DoubleRangeBlockBuilder.DoubleRange range = getDoubleRange(index, scratch);
+            if (Double.compare(value.from(), range.from()) == 0 && Double.compare(value.to(), range.to()) == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Builder for {@link DoubleRangeBlock}.
      */
     sealed interface Builder extends Block.Builder, BlockLoader.DoubleRangeBuilder permits DoubleRangeBlockBuilder {

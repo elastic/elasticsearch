@@ -67,6 +67,7 @@ public enum FunctionType {
      * <ul>
      * <li>Top-k: topk()</li>
      * <li>Bottom-k: bottomk()</li>
+     * <li>Limit-k: limitk()</li>
      * </ul>
      */
     ACROSS_SERIES_REDUCTION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
@@ -125,6 +126,19 @@ public enum FunctionType {
      * Example: {@code scalar(vector(42))}
      */
     SCALAR_CONVERSION(PromqlDataType.INSTANT_VECTOR, PromqlDataType.SCALAR),
+
+    /**
+     * Orders the final result without changing which series exist.
+     * <p>
+     * Input: Instant vector.
+     * <br>
+     * Output: Instant vector with the same series, reordered.
+     * <br>
+     * Grouping: none.
+     * <p>
+     * Examples: {@code sort()}, {@code sort_desc()}
+     */
+    RESULT_ORDERING(PromqlDataType.INSTANT_VECTOR, PromqlDataType.INSTANT_VECTOR),
 
     /**
      * Produces a scalar without consuming an input argument.

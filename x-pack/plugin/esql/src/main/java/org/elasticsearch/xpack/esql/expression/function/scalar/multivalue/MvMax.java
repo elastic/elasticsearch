@@ -15,6 +15,7 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -38,7 +39,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
 /**
  * Reduce a multivalued field to a single valued field containing the maximum value.
  */
-public class MvMax extends AbstractMultivalueFunction implements BlockLoaderExpression {
+public class MvMax extends AbstractMultivalueFunction implements BlockLoaderExpression, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMax", MvMax::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvMax.class).unary(MvMax::new).name("mv_max");
 

@@ -36,6 +36,18 @@
         "type": "boolean",
         "description": "filters the indices included in the response to ones in an ILM error state, implies only_managed"
       },
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "open",
+        "description": "Whether wildcard expressions should get expanded to open, closed, or hidden indices (default: open)"
+      },
       "master_timeout": {
         "type": "time",
         "default": "30s",

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -50,6 +51,17 @@ public enum StreamOutputHelper {
     }
 
     /**
+     * Maximum number of bytes in a UTF-8 character.
+     */
+    static final int MAX_CHAR_BYTES = 3;
+
+    /**
+     * Maximum number of bytes in a UTF-8 code point, which is more than {@link #MAX_CHAR_BYTES} because a code point outside the basic
+     * multilingual plane is made up of two chars.
+     */
+    static final int MAX_CODE_POINT_BYTES = 4;
+
+    /**
      * Write string prefixed by some number of bytes (possibly zero) from the beginning of the given {@code buffer}. The given
      * {@code buffer} will also be used when encoding the given string. This is almost certainly more efficient than calling
      * {@link StreamOutput#writeByte} repeatedly, but less efficient than writing the bytes directly into the buffer underneath the
@@ -68,20 +80,11 @@ public enum StreamOutputHelper {
         int total = 0;
         for (int i = 0; i < charCount; i++) {
             final int c = str.charAt(i);
-            if (c <= 0x007F) {
-                buffer[offset++] = ((byte) c);
-            } else if (c > 0x07FF) {
-                buffer[offset++] = ((byte) (0xE0 | c >> 12 & 0x0F));
-                buffer[offset++] = ((byte) (0x80 | c >> 6 & 0x3F));
-                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
-            } else {
-                buffer[offset++] = ((byte) (0xC0 | c >> 6 & 0x1F));
-                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
-            }
+            offset = putCharUtf8(buffer, c, offset);
             // make sure any possible char can fit into the buffer in any possible iteration
             // we need at most 3 bytes so we flush the buffer once we have less than 3 bytes
             // left before we start another iteration
-            if (offset > buffer.length - 3) {
+            if (offset > buffer.length - MAX_CHAR_BYTES) {
                 outputStream.write(buffer, 0, offset);
                 total += offset;
                 offset = 0;
@@ -89,6 +92,72 @@ public enum StreamOutputHelper {
         }
         outputStream.write(buffer, 0, offset);
         return total + offset;
+    }
+
+    /**
+     * Write the UTF-8 encoding of the given character, starting at the given position in the buffer, and return the updated position.
+     * Performs no bounds checks: callers must verify that there is enough space in {@code buffer} first.
+     */
+    static int putCharUtf8(byte[] buffer, int c, int position) {
+        if (c <= 0x7F) {
+            buffer[position++] = ((byte) c);
+        } else if (c > 0x07FF) {
+            buffer[position++] = ((byte) (0xE0 | c >> 12 & 0x0F));
+            buffer[position++] = ((byte) (0x80 | c >> 6 & 0x3F));
+            buffer[position++] = ((byte) (0x80 | c >> 0 & 0x3F));
+        } else {
+            buffer[position++] = ((byte) (0xC0 | c >> 6 & 0x1F));
+            buffer[position++] = ((byte) (0x80 | c >> 0 & 0x3F));
+        }
+        return position;
+    }
+
+    /**
+     * Write the UTF-8 encoding of the given character to the given {@link StreamOutput}.
+     */
+    static void writeCharUtf8(StreamOutput out, int c) throws IOException {
+        if (c <= 0x7F) {
+            out.writeByte((byte) c);
+        } else if (c > 0x07FF) {
+            out.writeByte((byte) (0xE0 | c >> 12 & 0x0F));
+            out.writeByte((byte) (0x80 | c >> 6 & 0x3F));
+            out.writeByte((byte) (0x80 | c >> 0 & 0x3F));
+        } else {
+            out.writeByte((byte) (0xC0 | c >> 6 & 0x1F));
+            out.writeByte((byte) (0x80 | c >> 0 & 0x3F));
+        }
+    }
+
+    /**
+     * Write the UTF-8 encoding of the given string with no length prefix, using the default thread-local scratch buffer. Unpaired
+     * surrogates are encoded as the replacement character U+FFFD, exactly as {@link UnicodeUtil#UTF16toUTF8} does, so the result is always
+     * {@link UnicodeUtil#calcUTF16toUTF8Length} bytes long, which is what {@link StreamOutput#writeText} writes as its length prefix.
+     *
+     * @param str string to write
+     * @param outputStream the stream to which to write the data.
+     * @return number of bytes written.
+     * @throws IOException on failure
+     */
+    public static int writeUtf8Chars(String str, OutputStream outputStream) throws IOException {
+        final byte[] buffer = getThreadLocalScratchBuffer();
+        // three bytes per char is the bound even though a code point may need four, because such a code point spends them on two chars
+        final int maxCharsPerChunk = buffer.length / UnicodeUtil.MAX_UTF8_BYTES_PER_CHAR;
+        assert maxCharsPerChunk > 0 : buffer.length + " is too short to hold a single char";
+        final int charCount = str.length();
+        int written = 0;
+        int charOffset = 0;
+        while (charOffset < charCount) {
+            int chunkChars = Math.min(maxCharsPerChunk, charCount - charOffset);
+            if (charOffset + chunkChars < charCount && Character.isHighSurrogate(str.charAt(charOffset + chunkChars - 1))) {
+                // leave the whole surrogate pair for the next chunk, otherwise each half would be encoded as the replacement character
+                chunkChars -= 1;
+            }
+            final int chunkBytes = UnicodeUtil.UTF16toUTF8(str, charOffset, chunkChars, buffer, 0);
+            outputStream.write(buffer, 0, chunkBytes);
+            written += chunkBytes;
+            charOffset += chunkChars;
+        }
+        return written;
     }
 
     /**

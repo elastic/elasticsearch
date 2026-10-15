@@ -61,6 +61,8 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     private final IndexOutput ivfMeta;
     private final String rawVectorFormatName;
     private final Boolean useDirectIOReads;
+    private final boolean onDiskMerge;
+    private final boolean shouldWriteOnDiskMerge;
     private final FlatVectorsWriter rawVectorDelegate;
     protected final int flatVectorThreshold;
     private final boolean shouldWriteDirectIoReads;
@@ -73,6 +75,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         return false;
     }
 
+    /** @param shouldWriteOnDiskMerge whether this codec version records {@code onDiskMerge} in the meta */
     @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(
         SegmentWriteState state,
@@ -85,9 +88,13 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         String centroidExtension,
         String clusterExtension,
         boolean shouldWriteDirectIoReads,
-        int flatVectorThreshold
+        int flatVectorThreshold,
+        boolean onDiskMerge,
+        boolean shouldWriteOnDiskMerge
     ) throws IOException {
         this.rawVectorFormatName = rawVectorFormatName;
+        this.onDiskMerge = onDiskMerge;
+        this.shouldWriteOnDiskMerge = shouldWriteOnDiskMerge;
         this.useDirectIOReads = useDirectIOReads;
         this.rawVectorDelegate = rawVectorDelegate;
         this.flatVectorThreshold = flatVectorThreshold;
@@ -532,17 +539,26 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
      * @return a {@link CentroidAssignments} instance with one centroid and
      *         all vectors assigned to it
      */
-    protected final CentroidInformation<float[]> buildFlatCentroidAssignments(FieldInfo fieldInfo, ClusteringVectorValues<?> vectorValues)
+    protected final CentroidInformation<?> buildFlatCentroidAssignments(FieldInfo fieldInfo, ClusteringVectorValues<?> vectorValues)
         throws IOException {
         int dimension = fieldInfo.getVectorDimension();
         int count = vectorValues.size();
-        float[] centroid = new float[dimension];
-        accumulateVectors(fieldInfo.getVectorEncoding(), vectorValues, centroid);
+        float[] floatCentroid = new float[dimension];
+        accumulateVectors(fieldInfo.getVectorEncoding(), vectorValues, floatCentroid);
         for (int d = 0; d < dimension; d++) {
-            centroid[d] /= count;
+            floatCentroid[d] /= count;
+        }
+        // For byte fields with native byte support, produce byte centroids so that the
+        // on-disk format stores them as bytes and merge can reuse them without type mismatch.
+        if (supportsByteNative() && fieldInfo.getVectorEncoding() == VectorEncoding.BYTE) {
+            byte[] byteCentroid = new byte[dimension];
+            for (int d = 0; d < dimension; d++) {
+                byteCentroid[d] = (byte) Math.clamp(Math.round(floatCentroid[d]), -128, 127);
+            }
+            return CentroidInformation.ofBytes(dimension, new byte[][] { byteCentroid }, new int[count], OverspillAssignments.NONE);
         }
         // For flat centroid assignments there is a single global centroid and no secondary centroid assignments
-        return CentroidInformation.ofFloat(dimension, new float[][] { centroid }, new int[count], OverspillAssignments.NONE);
+        return CentroidInformation.ofFloat(dimension, new float[][] { floatCentroid }, new int[count], OverspillAssignments.NONE);
     }
 
     /**
@@ -628,6 +644,11 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         if (shouldWriteDirectIoReads) {
             assert useDirectIOReads != null : "shouldWriteDirectIoReads is true but useDirectIOReads is null";
             ivfMeta.writeByte(useDirectIOReads ? (byte) 1 : 0);
+        }
+        if (shouldWriteOnDiskMerge) {
+            ivfMeta.writeByte(onDiskMerge ? (byte) 1 : 0);
+        } else {
+            assert onDiskMerge == false : "onDiskMerge is true but shouldWriteOnDiskMerge is false";
         }
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());
         ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));
@@ -730,14 +751,10 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         // now open the temp file and build the index structures. It is expected these files to be read in sequential order.
         // Even when the file might be sample, the reads will be always in increase order, therefore we set the ReadAdvice to SEQUENTIAL
         // so the OS can optimize read ahead in low memory situations.
+        final IOContext sequentialContext = IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL);
         try (
-            IndexInput vectors = mergeState.segmentInfo.dir.openInput(
-                tempRawVectorsFileName,
-                IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL)
-            );
-            IndexInput docs = docsFileName == null
-                ? null
-                : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
+            IndexInput vectors = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, sequentialContext);
+            IndexInput docs = docsFileName == null ? null : mergeState.segmentInfo.dir.openInput(docsFileName, sequentialContext)
         ) {
             final KMeansFloatVectorValues floatVectorValues;
             final KMeansByteVectorValues byteVectorValues;
@@ -748,7 +765,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                 vectorValues = byteVectorValues;
             } else {
                 byteVectorValues = null;
-                floatVectorValues = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
+                floatVectorValues = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors, sequentialContext);
                 vectorValues = floatVectorValues;
             }
 
@@ -883,9 +900,10 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         FieldInfo fieldInfo,
         IndexInput docs,
         IndexInput vectors,
-        int numVectors
+        int numVectors,
+        IOContext baseContext
     ) throws IOException {
-        return KMeansFloatVectorValues.build(vectors, docs, numVectors, fieldInfo.getVectorDimension());
+        return KMeansFloatVectorValues.build(vectors, docs, numVectors, fieldInfo.getVectorDimension(), baseContext);
     }
 
     private static int writeVectorValues(

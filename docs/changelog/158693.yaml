@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 158467
+pr: 158693
+summary: Fix `AggregationFunctions` with constant input
+type: bug

@@ -10,10 +10,14 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Response sent from server to client indicating batch exchange completion status.
@@ -21,17 +25,30 @@ import java.io.IOException;
  */
 public final class BatchExchangeStatusResponse extends TransportResponse {
     private static final TransportVersion ESQL_LOOKUP_BYTES_READ = TransportVersion.fromName("esql_lookup_bytes_read");
+    // Warnings ship as part of the same per-driver warnings feature as the DriverCompletionInfo warnings field.
+    private static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
+    /**
+     * Nodes on this version send a slot for a profile of the server driver. Only the removed remote fetch prototype ever
+     * asked for that profile, so this node always leaves the slot empty and skips a profile it receives.
+     */
+    static final TransportVersion ESQL_BATCH_EXCHANGE_PROFILE = TransportVersion.fromName("esql_batch_exchange_profile");
+    /**
+     * Adds four fields to the profile of {@link #ESQL_BATCH_EXCHANGE_PROFILE}.
+     */
+    static final TransportVersion ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE = TransportVersion.fromName("esql_batch_exchange_granular_profile");
 
     @Nullable
     private final Exception failure;
     private final long bytesRead;
+    private final List<String> warnings;
 
     /**
      * Create a success response.
      */
-    public BatchExchangeStatusResponse(long bytesRead) {
+    public BatchExchangeStatusResponse(long bytesRead, Collection<String> warnings) {
         this.failure = null;
         this.bytesRead = bytesRead;
+        this.warnings = List.copyOf(warnings);
     }
 
     /**
@@ -40,11 +57,37 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
     public BatchExchangeStatusResponse(Exception failure) {
         this.failure = failure;
         this.bytesRead = 0L;
+        this.warnings = List.of();
     }
 
-    public BatchExchangeStatusResponse(StreamInput in) throws IOException {
+    public BatchExchangeStatusResponse(StreamInput in, ThreadContext threadContext) throws IOException {
         this.failure = in.readOptionalException();
         this.bytesRead = in.getTransportVersion().supports(ESQL_LOOKUP_BYTES_READ) ? in.readVLong() : 0L;
+        if (in.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
+            this.warnings = in.readStringCollectionAsList();
+        } else {
+            // Old nodes send warnings as transport response headers; the transport layer has already deposited
+            // them into the current thread's context before this constructor is called.
+            // Parse the RFC 7234 warning format (e.g. "299 Elasticsearch-9.5.0 \"message\"") to extract the
+            // plain warning text, so the strings are in the same format as those sent by new nodes.
+            this.warnings = threadContext.takeResponseHeaders("Warning")
+                .stream()
+                .map(s -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(s, false)))
+                .toList();
+        }
+        if (in.getTransportVersion().supports(ESQL_BATCH_EXCHANGE_PROFILE) && in.readBoolean()) {
+            skipProfile(in);
+        }
+    }
+
+    /**
+     * Reads past the profile of the server driver: seven numbers, plus four since {@link #ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE}.
+     */
+    private static void skipProfile(StreamInput in) throws IOException {
+        int fields = in.getTransportVersion().supports(ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? 11 : 7;
+        for (int i = 0; i < fields; i++) {
+            in.readVLong();
+        }
     }
 
     @Override
@@ -52,6 +95,12 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
         out.writeOptionalException(failure);
         if (out.getTransportVersion().supports(ESQL_LOOKUP_BYTES_READ)) {
             out.writeVLong(bytesRead);
+        }
+        if (out.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
+            out.writeStringCollection(warnings);
+        }
+        if (out.getTransportVersion().supports(ESQL_BATCH_EXCHANGE_PROFILE)) {
+            out.writeBoolean(false); // no profile
         }
     }
 
@@ -65,6 +114,13 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
 
     public long bytesRead() {
         return bytesRead;
+    }
+
+    /**
+     * Warnings accumulated by the lookup-side lookup driver. Never {@code null}.
+     */
+    public List<String> warnings() {
+        return warnings;
     }
 
 }

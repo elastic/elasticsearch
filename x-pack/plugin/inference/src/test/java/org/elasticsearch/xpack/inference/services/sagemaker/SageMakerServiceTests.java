@@ -31,6 +31,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,8 +65,8 @@ import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureLi
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.core.TimeValue.THIRTY_SECONDS;
 import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomTextInputOnlyUnifiedCompletionRequest;
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomUnifiedCompletionRequest;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestBodyTests.randomTextInputOnlyUnifiedCompletionRequest;
+import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestBodyTests.randomUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
@@ -462,7 +463,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
     public void testUnifiedInferWithWrongModel() {
         sageMakerService.unifiedCompletionInfer(
             mockUnsupportedModel(),
-            randomUnifiedCompletionRequest(),
+            UnifiedCompletionRequest.streaming(randomUnifiedCompletionRequest()),
             THIRTY_SECONDS,
             assertUnsupportedModel()
         );
@@ -477,7 +478,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.unifiedCompletionInfer(
             model,
-            randomTextInputOnlyUnifiedCompletionRequest(),
+            UnifiedCompletionRequest.streaming(randomTextInputOnlyUnifiedCompletionRequest()),
             THIRTY_SECONDS,
             assertNoFailureListener(ignored -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));
@@ -499,7 +500,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.unifiedCompletionInfer(
             model,
-            randomTextInputOnlyUnifiedCompletionRequest(),
+            UnifiedCompletionRequest.streaming(randomTextInputOnlyUnifiedCompletionRequest()),
             THIRTY_SECONDS,
             assertNoSuccessListener(ignored -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));
@@ -529,7 +530,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.unifiedCompletionInfer(
             model,
-            randomTextInputOnlyUnifiedCompletionRequest(),
+            UnifiedCompletionRequest.streaming(randomTextInputOnlyUnifiedCompletionRequest()),
             THIRTY_SECONDS,
             assertNoSuccessListener(e -> {
                 verify(schemas, only()).streamSchemaFor(eq(model));

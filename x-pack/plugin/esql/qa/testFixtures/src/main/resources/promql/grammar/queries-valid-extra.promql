@@ -9,6 +9,9 @@
 sum without (foo) (some_metric);
 sum (some_metric) without (foo);
 topk(5, some_metric);
+bottomk(5, some_metric);
+limitk(5, some_metric);
+limit_ratio(0.5, some_metric);
 count_values("value", some_metric);
 sum without(and, by, avg, count, alert, annotations)(some_metric);
 
@@ -39,6 +42,11 @@ some_metric[10m:5s] offset 1m @ 123;
 // check defined functions don't mask metrics
 info(rate(http_request_counter_total{}[5m]));
 info(http_request_counter_total{namespace="zzz"}, {foo="bar", bar="baz"});
+
+// Prometheus 3.x functions not yet implemented
+sort_by_label(some_metric, "job");
+sort_by_label_desc(some_metric, "job", "instance");
+double_exponential_smoothing(some_metric[5m], 0.1, 0.9);
 
 // nested math, added in Prometheus 3.4.0 / May 2025
 // https://github.com/prometheus/prometheus/pull/16249

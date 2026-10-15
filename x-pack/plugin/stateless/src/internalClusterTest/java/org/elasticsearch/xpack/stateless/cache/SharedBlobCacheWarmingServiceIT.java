@@ -13,6 +13,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -45,8 +47,8 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -62,6 +64,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -77,7 +80,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -100,6 +103,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -108,6 +112,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
@@ -128,11 +133,12 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STAT
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PREWARM_RELOCATION_ACTION_NAME;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -200,7 +206,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             if (bccInfo.uploadedBcc().primaryTermAndGeneration().generation() == generationToBlock) {
                 logger.info("--> block object store repository");
                 // set exception filename pattern FIRST, before toggling IO exceptions for the repo
-                mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+                mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
                 mockRepository.setRandomControlIOExceptionRate(1.0);
                 mockRepository.setRandomDataFileIOExceptionRate(1.0);
                 mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -265,7 +271,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             var mockRepository = getObjectStoreMockRepository(getObjectStoreService(indexNodeB));
             var transportService = MockTransportService.getInstance(indexNodeB);
             // set exception filename pattern FIRST, before toggling IO exceptions for the repo
-            mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+            mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             mockRepository.setRandomControlIOExceptionRate(1.0);
             mockRepository.setRandomDataFileIOExceptionRate(1.0);
             mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -443,7 +449,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 logger.info("--> fail object store repository after warming");
                 // set exception filename pattern FIRST, before toggling IO exceptions for the repo
                 long generationToBlock = randomLongBetween(2, generation);
-                mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+                mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
                 mockRepository.setRandomControlIOExceptionRate(1.0);
                 mockRepository.setRandomDataFileIOExceptionRate(1.0);
                 mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -688,7 +694,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
     }
 
     public void testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded() {
-        var nodeSettings = Settings.builder()
+        // When true, the VBCC is released immediately after upload (pre-recentlyUploadedVbccs behaviour): the first chunk
+        // request from the search node receives a ResourceAlreadyUploadedException and warming falls back to the object store.
+        // When false, the default timeout keeps the VBCC alive so chunk requests succeed and warming can use the indexing node.
+        final boolean immediateVbccRelease = randomBoolean();
+        var nodeSettingsBuilder = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
@@ -697,8 +707,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             // Match the VBCC transport chunk size with the pre-warm range so that each warming range is fetched with a single
             // transport request, reducing the interleaving window where a mid-range flush can surface RAUE on a sibling gap.
             .put(TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
-            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .build();
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings());
+        if (immediateVbccRelease) {
+            nodeSettingsBuilder.put(
+                StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(),
+                TimeValue.ZERO
+            );
+        }
+        var nodeSettings = nodeSettingsBuilder.build();
         final var indexNode = startMasterAndIndexNode(nodeSettings);
 
         var searchNode = startSearchNode(nodeSettings);
@@ -758,8 +774,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 handler.messageReceived(alteredRequest, channel, task);
             });
 
-        // Upload VBCC on first message to get a chunk from the indexing node. This will return a ResourceAlreadyUploadedException and will
-        // make the warming service to fetch from the object store.
+        // Upload VBCC on first message to get a chunk from the indexing node. With immediateVbccRelease the VBCC is already gone
+        // by then and the handler returns ResourceAlreadyUploadedException, making the warming service fall back to the object store.
+        // With the default timeout the VBCC is still alive so the chunk request succeeds and warming can proceed via the indexing node.
         final var flushed = new AtomicBoolean(false);
         final var flushCountdown = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
@@ -802,7 +819,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
                     @Override
                     public void sendResponse(TransportResponse response) {
-                        assert false : "unexpectedly trying to send response " + response;
+                        // With immediateVbccRelease the VBCC is gone before the first chunk request arrives, so the handler
+                        // must never reach a success response. With the default timeout the VBCC is still alive, so it can.
+                        assert immediateVbccRelease == false : "unexpectedly trying to send response " + response;
+                        channel.sendResponse(response);
                     }
                 }, task)
             );
@@ -967,11 +987,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         final var stoppedLatch = new CountDownLatch(1);
         final var restartLatch = new CountDownLatch(1);
+        // We want to stall the getConnection for GetVBCCChunk request which is right after a successful registerCommitForRecovery
+        final AtomicBoolean shouldDelayGetConnection = new AtomicBoolean(false);
         final var restartIndexNodeThread = new Thread(() -> {
             try {
                 internalCluster().restartNode(indexNode, new InternalTestCluster.RestartCallback() {
                     @Override
                     public Settings onNodeStopped(String nodeName) throws Exception {
+                        shouldDelayGetConnection.set(false);
                         stoppedLatch.countDown();
                         // The node is stopped. Wait for the search shard warming to fail before restarting it. We don't want it
                         // to restart too soon which might interfere the failure path of the search shard recovery.
@@ -988,22 +1011,40 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             }
         });
 
-        // We want to stall the getConnection for GetVBCCChunk request which is right after registerCommitForRecovery
-        final AtomicBoolean shouldDelayGetConnection = new AtomicBoolean(false);
-        final MockTransportService searchNodeTransportService = MockTransportService.getInstance(searchNode);
-        searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (TransportRegisterCommitForRecoveryAction.NAME.equals(action)) {
-                shouldDelayGetConnection.set(true);
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
+        // Only arm the stall once the commit registration succeeds. A registration can fail with a retryable error,
+        // in which case the search node retries it, and we must not stall the retry's getConnection.
+        // Note that ShardNotFoundException is a valid (and retriable) response to the RegisterCommitForRecovery call,
+        // because the clusterStateVersion in the request comes from a clusterService.state() call,
+        // which might observe the previous cluster state, because RegisterCommitForRecovery is triggered for shard recoveries
+        // (on the generic thread pool), which are triggered from cluster state appliers,
+        // which themselves see the applied state before it's exposed to clusterService.state().
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
+                handler.messageReceived(
+                    request,
+                    new TestTransportChannel(new ChannelActionListener<>(channel).<TransportResponse>delegateFailure((l, response) -> {
+                        if (stoppedLatch.getCount() > 0) {
+                            shouldDelayGetConnection.set(true);
+                        }
+                        l.onResponse(response);
+                    }).delegateResponse((l, exception) -> {
+                        logger.error("--> encountered unexpected exception during recovery commit registration", exception);
+                    })),
+                    task
+                );
+            });
 
+        final MockTransportService searchNodeTransportService = MockTransportService.getInstance(searchNode);
         final AtomicBoolean restartOnce = new AtomicBoolean(false);
         final IndicesService searchNodeIndicesService = internalCluster().getInstance(IndicesService.class, searchNode);
         searchNodeTransportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> {
-            if (indexNode.equals(discoveryNode.getName()) && shouldDelayGetConnection.get() && restartOnce.compareAndSet(false, true)) {
-                logger.info("--> stalling getConnection and restart");
-                restartIndexNodeThread.start();
+            if (indexNode.equals(discoveryNode.getName()) && shouldDelayGetConnection.get()) {
+                if (restartOnce.compareAndSet(false, true)) {
+                    logger.info("--> stalling getConnection and restart");
+                    restartIndexNodeThread.start();
+                }
+                // SearchEngine initialization can happen concurrently with warming and also call getConnection
+                // Since it can happen first and trigger the restart, wait here to ensure warming fails with NodeNotConnectedException
                 try {
                     // Wait for the search shard to be removed (due to primary failure) to ensure no retry
                     assertBusy(() -> {
@@ -1184,7 +1225,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         logger.info("--> fail object store repository after access to commits after warming");
         var mockRepository = getObjectStoreMockRepository(getObjectStoreService(node2));
         var transportService = MockTransportService.getInstance(node2);
-        mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.PREFIX + ".*");
+        mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.PREFIX + ".*");
         mockRepository.setRandomControlIOExceptionRate(1.0);
         mockRepository.setRandomDataFileIOExceptionRate(1.0);
         mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -1291,7 +1332,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         );
 
         // The prewarm's readIndexingShardState reads the BCC through the cache directory, populating the cache. Wait for those cache writes
-        // to appear before letting recovery proceed. The warming service itself is not invoked for hollow commits.
+        // to appear before letting recovery proceed. The files of a hollow commit are not warmed, only region 0 of its root blob is
+        // prewarmed (see below).
         assertBusy(() -> {
             plugin.collect();
             long warmingBytes = plugin.getLongCounterMeasurement("es.blob_cache.population.bytes.total")
@@ -1305,6 +1347,22 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         ensureGreen(indexName);
         assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeC)));
+
+        // The hollow target prewarms region 0 of the root blob, the latest BCC blob of the shard, before reading the BCC header.
+        final var bccHeaderReadWarmedBlobs = getSharedBlobCacheWarmingService(indexNodeC).bccHeaderReadWarmedBlobs();
+        assertThat(bccHeaderReadWarmedBlobs, hasSize(1));
+        assertThat(bccHeaderReadWarmedBlobs.getFirst(), hasSize(1));
+        final BlobFile warmedBlob = bccHeaderReadWarmedBlobs.getFirst().iterator().next();
+        final var shardBlobs = getObjectStoreService(indexNodeC).getProjectBlobContainer(
+            findIndexShard(resolveIndex(indexName), 0).shardId(),
+            warmedBlob.primaryTerm()
+        ).listBlobs(OperationPurpose.INDICES).keySet();
+        final long latestBccGeneration = shardBlobs.stream()
+            .filter(BatchedCompoundCommit::startsWithBlobPrefix)
+            .mapToLong(BatchedCompoundCommit::parseGenerationFromBlobName)
+            .max()
+            .orElseThrow();
+        assertThat(warmedBlob.blobName(), equalTo(BatchedCompoundCommit.blobNameFromGeneration(latestBccGeneration)));
     }
 
     public void testRelocateIndexingShardWithMultipleBlobsPrewarmsRegionZero() throws Exception {
@@ -1350,10 +1408,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     .stream()
                     .filter(m -> Type.INDEXING_BCC_HEADER_PREWARM.name().equals(m.attributes().get("prewarming_type")))
                     .count(),
-                // When hollow shards are enabled and the shard is hollowed during relocations,
-                // the target shard won't prewarm the BCC header regions since they're not read
-                // when the shard is hollow.
-                equalTo(hollowShardEnabled ? 0L : 1L)
+                // When hollow shards are enabled and the shard is hollowed during relocations, only the root blob is prewarmed.
+                equalTo(1L)
             )
         );
     }
@@ -1403,7 +1459,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         getSharedBlobCacheWarmingService(node).addBeforeWarmingStartsListener(warmingType -> {
             logger.info("Disabling object store access to generation {}", generationToBlock);
             if (Type.INDEXING == warmingType) {
-                String pattern = ".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*";
+                String pattern = ".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*";
                 final var mockRepositoryB = getObjectStoreMockRepository(getObjectStoreService(node));
                 // set exception filename pattern FIRST, before toggling IO exceptions for the repo
                 mockRepositoryB.setRandomIOExceptionPattern(pattern);
@@ -1421,7 +1477,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         runOnWarmingComplete(node, type, ActionListener.running(() -> {
             logger.info("--> fail object store repository after warming");
             // set exception filename pattern FIRST, before toggling IO exceptions for the repo
-            mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+            mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             mockRepository.setRandomControlIOExceptionRate(1.0);
             mockRepository.setRandomDataFileIOExceptionRate(1.0);
             mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -1466,14 +1522,16 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            WarmingRatioProvider warmingRatioProvider,
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             return new ObservableSharedBlobCacheWarmingService(
                 cacheService,
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider
+                warmingRatioProvider,
+                searchRecoveryTimeoutCalculationService
             );
         }
 
@@ -1484,7 +1542,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
             MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService maybeNoFreeRegionForWarmingBlobCacheService =
                 new MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService(
@@ -1493,9 +1552,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     threadPool,
                     blobCacheMetrics,
                     clusterService,
-                    indicesService
+                    indicesService,
+                    metricHolder
                 );
-            maybeNoFreeRegionForWarmingBlobCacheService.assertInvariants();
             return maybeNoFreeRegionForWarmingBlobCacheService;
         }
     }
@@ -1509,17 +1568,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            super(
-                environment,
-                settings,
-                threadPool,
-                blobCacheMetrics,
-                clusterService,
-                indicesService,
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-            );
+            super(environment, settings, threadPool, blobCacheMetrics, clusterService, indicesService, metricHolder);
         }
 
         @Override
@@ -1530,13 +1582,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             long blobLength,
             RangeMissingHandler writer,
             Executor fetchExecutor,
+            long timestampMillis,
             ActionListener<Boolean> listener
         ) {
             if (noFreeRegionForWarming.get()) {
                 // Simulate no free region
                 listener.onResponse(false);
             } else {
-                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, listener);
+                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, timestampMillis, listener);
             }
         }
     }
@@ -1572,6 +1625,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             new CopyOnWriteArrayList<>();
         private final CopyOnWriteArrayList<Consumer<Type>> beforeWarmingStartsListeners = new CopyOnWriteArrayList<>();
 
+        private final CopyOnWriteArrayList<Set<BlobFile>> bccHeaderReadWarmedBlobs = new CopyOnWriteArrayList<>();
+
         private volatile boolean awaitWarmingForSearchRecovery = false;
         private volatile boolean awaitWarmingForIndexingRecovery = false;
 
@@ -1594,10 +1649,34 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            WarmingRatioProvider warmingRatioProvider,
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
-            super(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
+            super(
+                cacheService,
+                threadPool,
+                telemetryProvider,
+                clusterSettings,
+                warmingRatioProvider,
+                searchRecoveryTimeoutCalculationService
+            );
             this.threadPool = threadPool;
+        }
+
+        /** The blobs whose region 0 was prewarmed before reading BCC headers, one entry per prewarm. */
+        List<Set<BlobFile>> bccHeaderReadWarmedBlobs() {
+            return List.copyOf(bccHeaderReadWarmedBlobs);
+        }
+
+        @Override
+        public void warmCacheForBCCHeadersRead(
+            IndexShard indexShard,
+            BlobStoreCacheDirectory directory,
+            Set<BlobFile> lastCommitBlobs,
+            ActionListener<Void> listener
+        ) {
+            bccHeaderReadWarmedBlobs.add(lastCommitBlobs);
+            super.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobs, listener);
         }
 
         void setAwaitWarmingForSearchRecovery(boolean await) {
@@ -1610,7 +1689,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         @Override
         public void warmCacheForSearchShardRecovery(
-            ClusterState clusterState,
+            Supplier<ClusterState> clusterStateSupplier,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
@@ -1632,12 +1711,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                         TimeValue.timeValueMinutes(1),
                         "test: awaiting warming",
                         indexShard,
+                        directory,
+                        totalBytesToWarm(endTargetsToWarm),
                         resumeRecoveryListener
                     )
                 );
             } else {
                 super.warmCacheForSearchShardRecovery(
-                    clusterState,
+                    clusterStateSupplier,
                     indexShard,
                     commit,
                     directory,
@@ -1706,7 +1787,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         }
 
         @Override
-        protected void scheduleWarmingTask(ActionListener<Releasable> task) {
+        protected void scheduleWarmingTask(AbstractWarmingTask task) {
             var interceptor = scheduleWarmingTaskInterceptor;
             if (interceptor != null) {
                 interceptor.accept(task);

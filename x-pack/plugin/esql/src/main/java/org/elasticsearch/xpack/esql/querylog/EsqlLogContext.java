@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 
 import java.util.Arrays;
 import java.util.List;
@@ -42,6 +43,17 @@ public class EsqlLogContext extends QueryLoggerContext {
 
     EsqlLogContext(Task task, EsqlQueryRequest request, long tookInNanos, Exception error) {
         super(task, queryType(request), tookInNanos, error);
+        this.request = request;
+        this.response = null;
+    }
+
+    /**
+     * Constructor for subclasses that supply their own response-derived data (e.g. streaming queries
+     * that never build an {@link EsqlQueryResponse}); all response-derived accessors return their
+     * null-/empty defaults until overridden by the subclass.
+     */
+    protected EsqlLogContext(Task task, EsqlQueryRequest request, long tookInNanos) {
+        super(task, queryType(request), tookInNanos);
         this.request = request;
         this.response = null;
     }
@@ -82,6 +94,11 @@ public class EsqlLogContext extends QueryLoggerContext {
         return Math.clamp(response.getRowCount(), 0, Integer.MAX_VALUE);
     }
 
+    /** The settings the query resolved to, if it got far enough to resolve them. */
+    Optional<ResolvedSettings> getResolvedSettings() {
+        return Optional.ofNullable(request.resolvedSettings());
+    }
+
     Optional<EsqlQueryProfile> getQueryProfile() {
         return Optional.ofNullable(response).map(it -> it.getExecutionInfo().queryProfile());
     }
@@ -103,13 +120,22 @@ public class EsqlLogContext extends QueryLoggerContext {
                 response.rowsEmitted(),
                 response.bytesRead(),
                 response.readNanos(),
+                response.readCpuNanos(),
                 response.cpuNanos()
             )
         );
     }
 
     /** Snapshot of the query-level rollup counters surfaced into the slow log. */
-    record RollupCounters(long documentsFound, long valuesLoaded, long rowsEmitted, long bytesRead, long readNanos, long cpuNanos) {}
+    record RollupCounters(
+        long documentsFound,
+        long valuesLoaded,
+        long rowsEmitted,
+        long bytesRead,
+        long readNanos,
+        long readCpuNanos,
+        long cpuNanos
+    ) {}
 
     @Override
     public String[] getIndices() {

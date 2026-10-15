@@ -26,6 +26,7 @@ import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -110,7 +111,8 @@ public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("esql.datasource.managed_identity.enabled", "true")
+        .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
+        .setting("esql.external.managed_identity.enabled", "true")
         // Operator-managed symlink that the Azure SDK is pointed at via tokenFilePath().
         .configFile("esql-datasource-azure/azure-federated-token", Resource.fromString(fixture.getFederatedToken()))
         // Redirect the SDK's authority host to the fixture's OAuth token endpoint so federated
@@ -170,7 +172,7 @@ public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
                 org.apache.http.util.EntityUtils.toString(ex.getResponse().getEntity()),
-                containsString("esql.datasource.managed_identity.enabled")
+                containsString("esql.external.managed_identity.enabled")
             );
         } finally {
             setManagedIdentityCredentialsEnabled(true);
@@ -290,7 +292,7 @@ public class AzureAksManagedIdentityAuthIT extends ESRestTestCase {
     private static void setManagedIdentityCredentialsEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().startObject("persistent").field("esql.datasource.managed_identity.enabled", enabled).endObject().endObject();
+            b.startObject().startObject("persistent").field("esql.external.managed_identity.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

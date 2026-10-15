@@ -52,7 +52,7 @@ public class MultiGetRequest extends UntypedActionRequest
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
-    private static final ParseField SLICE = new ParseField(SliceIndexing.PARAM_NAME);
+    private static final ParseField SLICE = new ParseField(SliceIndexing.FIELD_NAME);
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
     private static final ParseField FIELDS = new ParseField("fields");
@@ -67,7 +67,7 @@ public class MultiGetRequest extends UntypedActionRequest
         private String index;
         private String id;
         private String routing;
-        // Whether this item's routing came from the _slice parameter. Like GetRequest, this is provenance used for
+        // Whether this item's routing came from the slice parameter. Like GetRequest, this is provenance used for
         // coordinating-node validation only and is intentionally not serialized (the routing value itself is what the
         // shard needs to build the slice-scoped identity term).
         private boolean routingFromSlice;
@@ -131,7 +131,7 @@ public class MultiGetRequest extends UntypedActionRequest
             return this.routing;
         }
 
-        /** Mark whether this item's {@link #routing()} was supplied via the {@code _slice} parameter. */
+        /** Mark whether this item's {@link #routing()} was supplied via the {@code slice} parameter. */
         public Item setRoutingFromSlice(boolean routingFromSlice) {
             this.routingFromSlice = routingFromSlice;
             return this;
@@ -569,7 +569,7 @@ public class MultiGetRequest extends UntypedActionRequest
             }
             if (slice != null) {
                 if (routingFromSlice == false && routing != null) {
-                    throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.PARAM_NAME + "]");
+                    throw new IllegalArgumentException("[routing] is not allowed together with [" + SliceIndexing.FIELD_NAME + "]");
                 }
                 SliceIndexing.validateUserSliceValue(slice);
                 routing = slice;

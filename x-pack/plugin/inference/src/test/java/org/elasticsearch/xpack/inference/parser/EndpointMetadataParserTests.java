@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.parser;
 
 import org.elasticsearch.inference.StatusHeuristic;
+import org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.test.ESTestCase;
 
@@ -16,12 +17,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.metadata.EndpointMetadata.CAPABILITIES_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Capabilities.CONTEXT_WINDOW_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Capabilities.REASONING_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ContextWindow.MAX_INPUT_TOKENS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ContextWindow.MAX_OUTPUT_TOKENS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DENIED_BY_REGION_POLICY_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DISPLAY_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.MODEL_CREATOR_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.NAME_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.CSP_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.GEO_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.REGION_DISPLAY_NAME_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.REGION_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.HEURISTICS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
@@ -32,9 +39,17 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.INTERNAL_FIE
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.FINGERPRINT_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.VERSION_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.MODEL_IDENTITY_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.CREATOR_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.FAMILY_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.TIER_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentity.VERSION_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.REGIONS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ReasoningCapability.DEFAULT_EFFORT_LEVEL_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.ReasoningCapability.SUPPORTED_EFFORT_LEVELS_FIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class EndpointMetadataParserTests extends ESTestCase {
@@ -101,6 +116,12 @@ public class EndpointMetadataParserTests extends ESTestCase {
         displayMap.put(NAME_FIELD, MY_ENDPOINT);
         displayMap.put(MODEL_CREATOR_FIELD, MY_ENDPOINT_CREATOR);
 
+        var modelIdentityMap = new HashMap<String, Object>();
+        modelIdentityMap.put(CREATOR_FIELD, "test_ai");
+        modelIdentityMap.put(FAMILY_FIELD, "test_model");
+        modelIdentityMap.put(TIER_FIELD, "test_tier");
+        modelIdentityMap.put(VERSION_FIELD, "4.2");
+
         var regionMap = new HashMap<String, Object>();
         regionMap.put(CSP_FIELD.getPreferredName(), "aws");
         regionMap.put(REGION_FIELD.getPreferredName(), "us-east-1");
@@ -110,6 +131,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
         metadataMap.put(HEURISTICS_FIELD_NAME, heuristicsMap);
         metadataMap.put(INTERNAL_FIELD_NAME, internalMap);
         metadataMap.put(DISPLAY_FIELD_NAME, displayMap);
+        metadataMap.put(MODEL_IDENTITY_FIELD_NAME, modelIdentityMap);
         metadataMap.put(REGIONS_FIELD_NAME, List.of(regionMap));
         metadataMap.put(DENIED_BY_REGION_POLICY_FIELD_NAME, true);
 
@@ -128,7 +150,9 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         assertThat(result.display(), equalTo(new EndpointMetadata.Display(MY_ENDPOINT, MY_ENDPOINT_CREATOR)));
 
-        assertThat(result.regions(), equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"))));
+        assertThat(result.modelIdentity(), equalTo(new EndpointMetadata.ModelIdentity("test_ai", "test_model", "test_tier", "4.2")));
+
+        assertThat(result.regions(), equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", null))));
         assertTrue(result.deniedByRegionPolicy());
     }
 
@@ -306,13 +330,14 @@ public class EndpointMetadataParserTests extends ESTestCase {
         regionMap.put(CSP_FIELD.getPreferredName(), "aws");
         regionMap.put(REGION_FIELD.getPreferredName(), "us-east-1");
         regionMap.put(GEO_FIELD.getPreferredName(), "us");
+        regionMap.put(REGION_DISPLAY_NAME_FIELD.getPreferredName(), "US East (N. Virginia)");
 
         var map = new HashMap<String, Object>();
         map.put(REGIONS_FIELD_NAME, List.of(regionMap));
 
         var result = EndpointMetadataParser.regionsFromMap(map, ROOT);
 
-        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"))));
+        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", "US East (N. Virginia)"))));
     }
 
     public void testRegionsFromMap_ParsesMultipleRegions() {
@@ -335,8 +360,8 @@ public class EndpointMetadataParserTests extends ESTestCase {
             result,
             equalTo(
                 List.of(
-                    new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us"),
-                    new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu")
+                    new EndpointMetadata.EndpointRegion("aws", "us-east-1", "us", null),
+                    new EndpointMetadata.EndpointRegion("gcp", "europe-west1", "eu", null)
                 )
             )
         );
@@ -348,7 +373,7 @@ public class EndpointMetadataParserTests extends ESTestCase {
 
         var result = EndpointMetadataParser.regionsFromMap(map, ROOT);
 
-        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion(null, null, null))));
+        assertThat(result, equalTo(List.of(new EndpointMetadata.EndpointRegion(null, null, null, null))));
     }
 
     public void testRegionsFromMap_Throws_WhenItemIsNotAMap() {
@@ -379,5 +404,189 @@ public class EndpointMetadataParserTests extends ESTestCase {
         map.put(DENIED_BY_REGION_POLICY_FIELD_NAME, false);
 
         assertFalse(EndpointMetadataParser.deniedByRegionPolicyFromMap(map, ROOT));
+    }
+
+    public void testModelIdentityFromMap_ReturnsEmpty_WhenMapIsNull() {
+        assertThat(EndpointMetadataParser.modelIdentityFromMap(null, ROOT), sameInstance(EndpointMetadata.ModelIdentity.EMPTY_INSTANCE));
+    }
+
+    public void testModelIdentityFromMap_ReturnsEmpty_WhenMapIsEmpty() {
+        assertThat(
+            EndpointMetadataParser.modelIdentityFromMap(Map.of(), ROOT),
+            sameInstance(EndpointMetadata.ModelIdentity.EMPTY_INSTANCE)
+        );
+    }
+
+    public void testModelIdentityFromMap_ReturnsEmpty_WhenAllFieldsAreNull() {
+        var map = new HashMap<String, Object>();
+        map.put(CREATOR_FIELD, null);
+        map.put(FAMILY_FIELD, null);
+        map.put(TIER_FIELD, null);
+        map.put(VERSION_FIELD, null);
+
+        assertThat(EndpointMetadataParser.modelIdentityFromMap(map, ROOT), sameInstance(EndpointMetadata.ModelIdentity.EMPTY_INSTANCE));
+    }
+
+    public void testModelIdentityFromMap_ParsesAllFields() {
+        var map = new HashMap<String, Object>();
+        map.put(CREATOR_FIELD, "anthropic");
+        map.put(FAMILY_FIELD, "claude");
+        map.put(TIER_FIELD, "sonnet");
+        map.put(VERSION_FIELD, "4.6");
+
+        var result = EndpointMetadataParser.modelIdentityFromMap(map, ROOT);
+
+        assertThat(result, equalTo(new EndpointMetadata.ModelIdentity("anthropic", "claude", "sonnet", "4.6")));
+    }
+
+    public void testModelIdentityFromMap_ParsesPartialFields() {
+        var map = new HashMap<String, Object>();
+        map.put(CREATOR_FIELD, "elastic");
+        map.put(FAMILY_FIELD, "elser");
+
+        var result = EndpointMetadataParser.modelIdentityFromMap(map, ROOT);
+
+        assertThat(result, equalTo(new EndpointMetadata.ModelIdentity("elastic", "elser", null, null)));
+    }
+
+    public void testModelIdentityFromMap_Throws_WhenCreatorWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(CREATOR_FIELD, 999);
+
+        var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.modelIdentityFromMap(map, ROOT));
+        assertThat(e.getMessage(), containsString(CREATOR_FIELD));
+    }
+
+    public void testCapabilitiesFromMap_ReturnsEmpty_WhenMapIsNull() {
+        assertThat(EndpointMetadataParser.capabilitiesFromMap(null, ROOT), sameInstance(EndpointMetadata.Capabilities.EMPTY_INSTANCE));
+    }
+
+    public void testCapabilitiesFromMap_ReturnsEmpty_WhenMapIsEmpty() {
+        assertThat(
+            EndpointMetadataParser.capabilitiesFromMap(new HashMap<>(), ROOT),
+            sameInstance(EndpointMetadata.Capabilities.EMPTY_INSTANCE)
+        );
+    }
+
+    public void testCapabilitiesFromMap_ReturnsFullCapabilities() {
+        var reasoningMap = new HashMap<String, Object>();
+        reasoningMap.put(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, List.of("high", "medium", "low"));
+        reasoningMap.put(DEFAULT_EFFORT_LEVEL_FIELD_NAME, "medium");
+
+        var contextWindowMap = new HashMap<String, Object>();
+        contextWindowMap.put(MAX_INPUT_TOKENS_FIELD_NAME, 1050000);
+        contextWindowMap.put(MAX_OUTPUT_TOKENS_FIELD_NAME, 128000);
+
+        var map = new HashMap<String, Object>();
+        map.put(REASONING_FIELD_NAME, reasoningMap);
+        map.put(CONTEXT_WINDOW_FIELD_NAME, contextWindowMap);
+
+        var result = EndpointMetadataParser.capabilitiesFromMap(map, ROOT);
+
+        assertThat(
+            result.reasoning().supportedEffortLevels(),
+            equalTo(List.of(ReasoningEffort.HIGH, ReasoningEffort.MEDIUM, ReasoningEffort.LOW))
+        );
+        assertThat(result.reasoning().defaultEffortLevel(), equalTo(ReasoningEffort.MEDIUM));
+        assertThat(result.contextWindow().maxInputTokens(), equalTo(1050000));
+        assertThat(result.contextWindow().maxOutputTokens(), equalTo(128000));
+    }
+
+    public void testCapabilitiesFromMap_ReasoningOnly() {
+        var reasoningMap = new HashMap<String, Object>();
+        reasoningMap.put(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, List.of("high"));
+
+        var map = new HashMap<String, Object>();
+        map.put(REASONING_FIELD_NAME, reasoningMap);
+
+        var result = EndpointMetadataParser.capabilitiesFromMap(map, ROOT);
+
+        assertThat(result.reasoning().supportedEffortLevels(), equalTo(List.of(ReasoningEffort.HIGH)));
+        assertThat(result.contextWindow(), nullValue());
+    }
+
+    public void testCapabilitiesFromMap_ContextWindowOnly() {
+        var contextWindowMap = new HashMap<String, Object>();
+        contextWindowMap.put(MAX_INPUT_TOKENS_FIELD_NAME, 200000);
+
+        var map = new HashMap<String, Object>();
+        map.put(CONTEXT_WINDOW_FIELD_NAME, contextWindowMap);
+
+        var result = EndpointMetadataParser.capabilitiesFromMap(map, ROOT);
+
+        assertThat(result.reasoning(), nullValue());
+        assertThat(result.contextWindow().maxInputTokens(), equalTo(200000));
+        assertThat(result.contextWindow().maxOutputTokens(), nullValue());
+    }
+
+    public void testReasoningCapabilityFromMap_FiltersUnknownEffortValues() {
+        var map = new HashMap<String, Object>();
+        map.put(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, List.of("high", "unknown_future_value", "low"));
+        map.put(DEFAULT_EFFORT_LEVEL_FIELD_NAME, "unknown_future_value");
+
+        var result = EndpointMetadataParser.reasoningCapabilityFromMap(map, ROOT);
+
+        assertThat(result.supportedEffortLevels(), equalTo(List.of(ReasoningEffort.HIGH, ReasoningEffort.LOW)));
+        assertThat(result.defaultEffortLevel(), nullValue());
+    }
+
+    public void testContextWindowFromMap_AcceptsLongTokenCounts() {
+        var map = new HashMap<String, Object>();
+        map.put(MAX_INPUT_TOKENS_FIELD_NAME, 1050000L);
+        map.put(MAX_OUTPUT_TOKENS_FIELD_NAME, 128000L);
+
+        var result = EndpointMetadataParser.contextWindowFromMap(map, ROOT);
+
+        assertThat(result.maxInputTokens(), equalTo(1050000));
+        assertThat(result.maxOutputTokens(), equalTo(128000));
+    }
+
+    public void testContextWindowFromMap_Throws_WhenMaxInputTokensWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(MAX_INPUT_TOKENS_FIELD_NAME, "not-a-number");
+
+        var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.contextWindowFromMap(map, ROOT));
+        assertThat(e.getMessage(), containsString(MAX_INPUT_TOKENS_FIELD_NAME));
+    }
+
+    public void testReasoningCapabilityFromMap_Throws_WhenSupportedEffortLevelsWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, "high");
+
+        var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.reasoningCapabilityFromMap(map, ROOT));
+        assertThat(e.getMessage(), containsString(SUPPORTED_EFFORT_LEVELS_FIELD_NAME));
+    }
+
+    /**
+     * Sub-maps are extracted with an unchecked cast, matching the sibling {@code display} and {@code regions} parsers.
+     */
+    public void testCapabilitiesFromMap_Throws_WhenContextWindowWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(CONTEXT_WINDOW_FIELD_NAME, "not-an-object");
+
+        expectThrows(ClassCastException.class, () -> EndpointMetadataParser.capabilitiesFromMap(map, ROOT));
+    }
+
+    public void testFromMap_ParsesCapabilitiesBlock() {
+        var reasoningMap = new HashMap<String, Object>();
+        reasoningMap.put(SUPPORTED_EFFORT_LEVELS_FIELD_NAME, List.of("high", "low"));
+        reasoningMap.put(DEFAULT_EFFORT_LEVEL_FIELD_NAME, "high");
+
+        var capabilitiesMap = new HashMap<String, Object>();
+        capabilitiesMap.put(REASONING_FIELD_NAME, reasoningMap);
+
+        var metadataMap = new HashMap<String, Object>();
+        metadataMap.put(HEURISTICS_FIELD_NAME, new HashMap<>());
+        metadataMap.put(INTERNAL_FIELD_NAME, new HashMap<>());
+        metadataMap.put(DISPLAY_FIELD_NAME, new HashMap<>());
+        metadataMap.put(CAPABILITIES_FIELD_NAME, capabilitiesMap);
+
+        var map = new HashMap<String, Object>();
+        map.put(METADATA_FIELD_NAME, metadataMap);
+
+        var result = EndpointMetadataParser.fromMap(map);
+
+        assertThat(result.capabilities().reasoning().supportedEffortLevels(), equalTo(List.of(ReasoningEffort.HIGH, ReasoningEffort.LOW)));
+        assertThat(result.capabilities().reasoning().defaultEffortLevel(), equalTo(ReasoningEffort.HIGH));
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
+import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,9 +37,8 @@ public class CrossClusterApiKeySigningConfigReloaderTests extends ESTestCase {
     private ThreadPool threadPool;
     private Settings.Builder settingsBuilder;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initResources() throws Exception {
         crossClusterApiKeySignatureManager = mock(CrossClusterApiKeySignatureManager.class);
         when(crossClusterApiKeySignatureManager.getDependentSigningFiles(any())).thenReturn(List.of());
         Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();

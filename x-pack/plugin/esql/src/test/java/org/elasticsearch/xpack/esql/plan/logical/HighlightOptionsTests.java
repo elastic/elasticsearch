@@ -99,13 +99,10 @@ public class HighlightOptionsTests extends ESTestCase {
     }
 
     public void testMaxAnalyzedOffsetIsParsed() {
-        MapExpression map = map(
-            Highlight.MAX_ANALYZED_OFFSET,
-            Literal.integer(Source.EMPTY, 500),
-            Highlight.PHRASE_LIMIT,
-            Literal.integer(Source.EMPTY, 64)
+        HighlightOptions options = HighlightOptions.from(
+            map(Highlight.MAX_ANALYZED_OFFSET, Literal.integer(Source.EMPTY, 500)),
+            FoldContext.small()
         );
-        HighlightOptions options = HighlightOptions.from(map, FoldContext.small());
         assertThat(options.maxAnalyzedOffset(), equalTo(500));
     }
 
@@ -133,12 +130,20 @@ public class HighlightOptionsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Option [max_analyzed_offset] must be a positive integer, or -1"));
     }
 
-    public void testPhraseLimitIsAcceptedButIgnored() {
-        HighlightOptions options = HighlightOptions.from(
-            map(Highlight.PHRASE_LIMIT, Literal.integer(Source.EMPTY, -1), Highlight.NUMBER_OF_FRAGMENTS, Literal.integer(Source.EMPTY, 3)),
-            FoldContext.small()
-        );
-        assertThat(options.numberOfFragments(), equalTo(3));
+    public void testIntegerOptionsRejectValuesAboveIntRange() {
+        long value = (1L << 32) + 1;
+        for (String name : List.of(
+            Highlight.MAX_ANALYZED_OFFSET,
+            Highlight.NUMBER_OF_FRAGMENTS,
+            Highlight.FRAGMENT_SIZE,
+            Highlight.NO_MATCH_SIZE
+        )) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> HighlightOptions.from(map(name, Literal.fromLong(Source.EMPTY, value)), FoldContext.small())
+            );
+            assertThat(e.getMessage(), containsString("Option [" + name + "] must be <= " + Integer.MAX_VALUE + ", found [" + value + "]"));
+        }
     }
 
     public void testTagAsScalarString() {

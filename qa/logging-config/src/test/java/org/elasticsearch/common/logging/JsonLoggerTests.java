@@ -29,6 +29,8 @@ import org.elasticsearch.xcontent.ParseField;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -63,18 +65,16 @@ public class JsonLoggerTests extends ESTestCase {
         JsonLogsTestSetup.init();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void configureLogging() throws Exception {
         LogConfigurator.registerErrorListener();
         setupLogging("json_layout");
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void shutdownLogging() throws Exception {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
         Configurator.shutdown(context);
-        super.tearDown();
     }
 
     public void testDeprecationWarnMessage() throws IOException {

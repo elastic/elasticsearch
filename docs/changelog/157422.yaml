@@ -1,0 +1,6 @@
+area: Infra/REST API
+issues:
+ - 157382
+pr: 157422
+summary: Add mandatory date header to HTTP responses
+type: bug

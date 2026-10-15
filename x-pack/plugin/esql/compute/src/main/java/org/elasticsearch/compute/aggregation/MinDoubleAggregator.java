@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
 @Aggregator({ @IntermediateState(name = "min", type = "DOUBLE"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 class MinDoubleAggregator {
 
     public static double init() {
@@ -21,5 +21,9 @@ class MinDoubleAggregator {
 
     public static double combine(double current, double v) {
         return Math.min(current, v);
+    }
+
+    public static void combine(DoubleArrayState state, int groupId, double v) {
+        state.min(groupId, v);
     }
 }

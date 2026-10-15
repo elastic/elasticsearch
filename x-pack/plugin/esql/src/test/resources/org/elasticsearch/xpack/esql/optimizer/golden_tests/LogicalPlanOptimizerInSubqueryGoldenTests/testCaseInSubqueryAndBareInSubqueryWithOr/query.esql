@@ -1,0 +1,4 @@
+FROM employees
+| WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
+  OR salary > 50000
+  OR languages IN (FROM employees | KEEP languages)

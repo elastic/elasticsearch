@@ -171,12 +171,12 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
             }
             SourceLoader sourceLoader = null;
             if (storedFieldsSpec.requiresSource()) {
-                sourceLoader = operator.shardContexts.get(shard).newSourceLoader().apply(storedFieldsSpec.sourcePaths());
+                sourceLoader = operator.sourceLoader(shard, storedFieldsSpec.sourcePaths());
                 storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
             }
             storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
-                sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
+                sourceLoader != null ? sourceLoader.leaf(ctx, null) : null
             );
             if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
                 operator.trackStoredFields(storedFieldsSpec, false);

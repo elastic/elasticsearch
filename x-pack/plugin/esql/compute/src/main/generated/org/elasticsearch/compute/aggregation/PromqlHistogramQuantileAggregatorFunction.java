@@ -33,7 +33,7 @@ public final class PromqlHistogramQuantileAggregatorFunction implements Aggregat
 
   private final DriverContext driverContext;
 
-  private final PromqlHistogramQuantileStates.SingleState state;
+  private final PromqlHistogramStates.Quantile.SingleState state;
 
   private final List<Integer> channels;
 

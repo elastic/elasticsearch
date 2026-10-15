@@ -55,14 +55,16 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         ClusterSettings clusterSettings,
-        WarmingRatioProvider warmingRatioProvider
+        WarmingRatioProvider warmingRatioProvider,
+        SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
     ) {
         return new DelayWarmCacheUntilShardStartedService(
             cacheService,
             threadPool,
             telemetryProvider,
             clusterSettings,
-            warmingRatioProvider
+            warmingRatioProvider,
+            searchRecoveryTimeoutCalculationService
         );
     }
 
@@ -85,9 +87,17 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            WarmingRatioProvider warmingRatioProvider,
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
-            super(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
+            super(
+                cacheService,
+                threadPool,
+                telemetryProvider,
+                clusterSettings,
+                warmingRatioProvider,
+                searchRecoveryTimeoutCalculationService
+            );
             this.clusterSettings = clusterSettings;
         }
 

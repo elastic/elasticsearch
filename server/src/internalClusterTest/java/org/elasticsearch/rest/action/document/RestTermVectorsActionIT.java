@@ -55,10 +55,8 @@ public class RestTermVectorsActionIT extends ESIntegTestCase {
     }
 
     private void seedDoc(String index, String id, String slice) throws Exception {
-        Request seed = new Request("POST", "/" + index + "/_doc/" + id);
-        if (slice != null) {
-            seed.addParameter("_slice", slice);
-        }
+        String path = slice == null ? "/" + index + "/_doc/" + id : "/" + index + "/" + slice + "/_doc/" + id;
+        Request seed = new Request("POST", path);
         seed.addParameter("refresh", "true");
         seed.setJsonEntity(Strings.format("""
             {
@@ -75,16 +73,14 @@ public class RestTermVectorsActionIT extends ESIntegTestCase {
         seedDoc("slice-tv-it", "1", "s2");
 
         // The id resolves within the requested slice...
-        Request inSlice = new Request("GET", "/slice-tv-it/_termvectors/1");
-        inSlice.addParameter("_slice", "s1");
+        Request inSlice = new Request("GET", "/slice-tv-it/s1/_termvectors/1");
         ObjectPath found = ObjectPath.createFromResponse(getRestClient().performRequest(inSlice));
         assertThat(found.evaluate("found"), equalTo(Boolean.TRUE));
         assertThat(found.evaluate("_id"), equalTo("1"));
         assertThat(found.evaluate("term_vectors.field"), notNullValue());
 
         // ...and a slice that has no copy of the id reports not-found rather than another slice's doc.
-        Request otherSlice = new Request("GET", "/slice-tv-it/_termvectors/2");
-        otherSlice.addParameter("_slice", "s1");
+        Request otherSlice = new Request("GET", "/slice-tv-it/s1/_termvectors/2");
         ObjectPath notFound = ObjectPath.createFromResponse(getRestClient().performRequest(otherSlice));
         assertThat(notFound.evaluate("found"), equalTo(Boolean.FALSE));
 
@@ -138,8 +134,7 @@ public class RestTermVectorsActionIT extends ESIntegTestCase {
         seedDoc("slice-mtv-default-it", "1", "s1");
 
         // The top-level _slice acts as the per-item default, so the ids form (which has no place for a per-item _slice) works.
-        Request mtv = new Request("POST", "/slice-mtv-default-it/_mtermvectors");
-        mtv.addParameter("_slice", "s1");
+        Request mtv = new Request("POST", "/slice-mtv-default-it/s1/_mtermvectors");
         mtv.setJsonEntity("""
             {
               "ids": [ "1" ]
@@ -168,8 +163,7 @@ public class RestTermVectorsActionIT extends ESIntegTestCase {
         assertThat(bodyOf(routingAndSliceException), containsString("[routing] is not allowed together with [_slice]"));
 
         // The reserved _all value is not a valid write-side slice.
-        Request reservedSlice = new Request("GET", "/slice-tv-invalid-it/_termvectors/1");
-        reservedSlice.addParameter("_slice", "_all");
+        Request reservedSlice = new Request("GET", "/slice-tv-invalid-it/_all/_termvectors/1");
         ResponseException reservedSliceException = expectThrows(
             ResponseException.class,
             () -> getRestClient().performRequest(reservedSlice)
@@ -183,8 +177,7 @@ public class RestTermVectorsActionIT extends ESIntegTestCase {
         seedDoc("slice-tv-disabled-it", "1", null);
 
         // Single API: a hard 400 at the coordinating node.
-        Request single = new Request("GET", "/slice-tv-disabled-it/_termvectors/1");
-        single.addParameter("_slice", "s1");
+        Request single = new Request("GET", "/slice-tv-disabled-it/s1/_termvectors/1");
         ResponseException singleException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(single));
         assertThat(bodyOf(singleException), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
 
@@ -205,8 +198,7 @@ public class RestTermVectorsActionIT extends ESIntegTestCase {
 
     public void testTermVectorsSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Request single = new Request("GET", "/test_index/_termvectors/1");
-        single.addParameter("_slice", "s1");
+        Request single = new Request("GET", "/test_index/s1/_termvectors/1");
         ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(single));
         assertThat(bodyOf(exception), containsString("request does not support [_slice]"));
     }

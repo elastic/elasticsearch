@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 160364
+pr: 160529
+summary: Reject grouping functions in agg parameters
+type: bug

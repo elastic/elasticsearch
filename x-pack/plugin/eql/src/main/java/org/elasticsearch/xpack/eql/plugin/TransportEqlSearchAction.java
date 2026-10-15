@@ -134,7 +134,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         TaskId parentTaskId,
         Map<String, String> headers,
         Map<String, String> originHeaders,
-        AsyncExecutionId asyncExecutionId
+        AsyncExecutionId asyncExecutionId,
+        TimeValue keepAlive
     ) {
         return new EqlSearchTask(
             id,
@@ -145,7 +146,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             headers,
             originHeaders,
             asyncExecutionId,
-            request.keepAlive()
+            keepAlive
         );
     }
 

@@ -30,6 +30,16 @@ public interface Warnings {
     void registerException(Class<? extends Exception> exceptionClass, String message);
 
     /**
+     * Register a warning that is not an error, for example that a result was truncated. ESQL overrides this to
+     * prefix the message with the location and text of the expression in the original query, as it does for the
+     * same warning raised by an evaluator, so the message reads the same from either path. The default keeps the
+     * interface usable as a lambda and reports the message through {@link #registerException} so it is never lost.
+     */
+    default void registerWarning(String message) {
+        registerException(IllegalArgumentException.class, message);
+    }
+
+    /**
      * Register the canonical warning for when a single-value only function encounters
      * a multivalued field.
      */

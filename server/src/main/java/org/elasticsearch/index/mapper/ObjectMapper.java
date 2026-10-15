@@ -19,11 +19,11 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -44,14 +44,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(ObjectMapper.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
-    static final NodeFeature SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX = new NodeFeature("mapper.subobjects_false_mapping_update_fix");
-
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
 
@@ -108,6 +105,12 @@ public class ObjectMapper extends Mapper {
             DynamicFieldsBuilder getDynamicFieldsBuilder() {
                 return DynamicFieldsBuilder.DYNAMIC_RUNTIME;
             }
+        },
+        FLATTENED {
+            @Override
+            DynamicFieldsBuilder getDynamicFieldsBuilder() {
+                return DynamicFieldsBuilder.DYNAMIC_FLATTENED;
+            }
         };
 
         DynamicFieldsBuilder getDynamicFieldsBuilder() {
@@ -117,11 +120,18 @@ public class ObjectMapper extends Mapper {
         /**
          * Get the root-level dynamic setting for a Mapping
          *
-         * If no dynamic settings are explicitly configured, we default to {@link #TRUE}
+         * If no dynamic settings are explicitly configured, we default to {@link #TRUE}, unless the implicit flattened
+         * {@code _unmapped} sink is present, in which case unmapped fields default to being absorbed ({@link #FLATTENED}).
          */
         static Dynamic getRootDynamic(MappingLookup mappingLookup) {
             Dynamic rootDynamic = mappingLookup.getMapping().getRoot().dynamic;
-            return rootDynamic == null ? Defaults.DYNAMIC : rootDynamic;
+            if (rootDynamic != null) {
+                return rootDynamic;
+            }
+            if (mappingLookup.getMapping().getMetadataMapperByName(FlattenedFieldMapper.UNMAPPED_SINK_NAME) != null) {
+                return FLATTENED;
+            }
+            return Defaults.DYNAMIC;
         }
     }
 
@@ -247,10 +257,13 @@ public class ObjectMapper extends Mapper {
         }
 
         protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
+            // Assuming all features are supported is safe here. Builders that went through a merge have no duplicates left, and the
+            // duplicates added while building a dynamic mapping update are copies of the same object, so merging them changes nothing.
+            // That update is merged again on the master, which checks the features the cluster supports.
             Map<String, Mapper.Builder> dedupedBuilders = flattenBuildersIfNeeded(
                 mappersBuilders,
                 mapperBuilderContext,
-                MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE)
+                MapperMergeContext.fromBuilderContext(mapperBuilderContext, Long.MAX_VALUE, f -> true)
             );
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : dedupedBuilders.values()) {
@@ -370,7 +383,7 @@ public class ObjectMapper extends Mapper {
             MapperMergeContext mergeContext
         ) {
             // Intra-mapping duplicates use unlimited budget since they're from the same source
-            MapperMergeContext dedupContext = MapperMergeContext.from(builderContext, Long.MAX_VALUE);
+            MapperMergeContext dedupContext = mergeContext.withUnlimitedParseFieldLimitsBudget(builderContext);
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
                 // Nested builders are a genuine document boundary and must survive subobjects:false rather than
@@ -510,6 +523,9 @@ public class ObjectMapper extends Mapper {
 
                 if (existingBuilder == null) {
                     Mapper.Builder incomingBuilder = entry.getValue();
+                    if (incomingBuilder instanceof NestedObjectMapper.Builder) {
+                        objectMergeContext.checkNestedFieldCount();
+                    }
                     if (objectMergeContext.decrementFieldBudgetIfPossible(incomingBuilder.getTotalFieldsCount())) {
                         mergedBuilders.put(incomingName, incomingBuilder);
                     } else if (incomingBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
@@ -740,8 +756,11 @@ public class ObjectMapper extends Mapper {
                                 + " Check the documentation."
                         );
                     }
+                    // Count multi-fields before parsing so they are claimed atomically with the parent.
+                    int multiFieldCount = propNode.get("fields") instanceof Map<?, ?> fieldsMap ? fieldsMap.size() : 0;
                     Mapper.Builder fieldBuilder;
                     if (objBuilder.subobjects.value() != Subobjects.ENABLED) {
+                        parserContext.checkFieldNameLength(fieldName);
                         fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");
@@ -750,16 +769,20 @@ public class ObjectMapper extends Mapper {
                         }
                         String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                         validateFieldName(realFieldName, parserContext.indexVersionCreated());
+                        parserContext.checkFieldNameLength(realFieldName);
                         fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                         for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                             String intermediateObjectName = fieldNameParts[i];
                             validateFieldName(intermediateObjectName, parserContext.indexVersionCreated());
+                            parserContext.checkFieldNameLength(intermediateObjectName);
                             Builder intermediate = new Builder(intermediateObjectName, Defaults.SUBOBJECTS);
                             intermediate.add(fieldBuilder);
                             fieldBuilder = intermediate;
                         }
                     }
-                    objBuilder.add(fieldBuilder);
+                    if (parserContext.tryAddFields(1 + multiFieldCount)) {
+                        objBuilder.add(fieldBuilder);
+                    }
                     propNode.remove("type");
                     MappingParser.checkNoRemainingFields(fieldName, propNode);
                     iterator.remove();
@@ -986,12 +1009,13 @@ public class ObjectMapper extends Mapper {
 
         int count = 0;
         for (Mapper mapper : sortedMappers) {
-            if ((mapper instanceof MetadataFieldMapper) == false) {
-                if (count++ == 0) {
-                    builder.startObject("properties");
-                }
-                mapper.toXContent(builder, params);
+            if (mapper instanceof MetadataFieldMapper) {
+                continue;
             }
+            if (count++ == 0) {
+                builder.startObject("properties");
+            }
+            mapper.toXContent(builder, params);
         }
         if (count > 0) {
             builder.endObject();
@@ -1036,47 +1060,6 @@ public class ObjectMapper extends Mapper {
         }
 
         return null;
-    }
-
-    private static SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(Mapper mapper, SourceFilter sourceFilter) {
-        if (sourceFilter != null && sourceFilter.isPathFiltered(mapper.fullPath(), false)) {
-            return null;
-        }
-        if (mapper instanceof ObjectMapper objMapper) {
-            return objMapper.syntheticVectorsLoader(sourceFilter);
-        } else if (mapper instanceof FieldMapper fieldMapper) {
-            return fieldMapper.syntheticVectorsLoader();
-        } else {
-            return null;
-        }
-    }
-
-    SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceFilter sourceFilter) {
-        var loaders = mappers.values()
-            .stream()
-            .map(m -> syntheticVectorsLoader(m, sourceFilter))
-            .filter(l -> l != null)
-            .collect(Collectors.toList());
-        if (loaders.isEmpty()) {
-            return null;
-        }
-        return context -> {
-            final List<SourceLoader.SyntheticVectorsLoader.Leaf> leaves = new ArrayList<>();
-            for (var loader : loaders) {
-                var leaf = loader.leaf(context);
-                if (leaf != null) {
-                    leaves.add(leaf);
-                }
-            }
-            if (leaves.isEmpty()) {
-                return null;
-            }
-            return (doc, acc) -> {
-                for (var leaf : leaves) {
-                    leaf.load(doc, acc);
-                }
-            };
-        };
     }
 
     SourceLoader.SyntheticFieldLoader syntheticFieldLoader(

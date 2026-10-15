@@ -18,11 +18,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -82,6 +83,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         inferenceFeatureServiceMock = mock(InferenceFeatureService.class);
         when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(true);
         when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION)).thenReturn(true);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE)).thenReturn(true);
         mockRegistry = mock(ModelRegistry.class);
         mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         mockClient = mock(Client.class);
@@ -116,6 +118,18 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
     public void testDoesNotSendAuthorizationRequest_WhenClusterMissingInternalDeleteEndpointsFeature() {
         when(mockRegistry.isReady()).thenReturn(true);
         when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION)).thenReturn(false);
+        var action = createAction();
+
+        var future = new TestPlainActionFuture<ActionResponse.Empty>();
+        action.doExecute(null, new RefreshAuthorizedEndpointsAction.Request(), future);
+
+        assertThat(future.actionGet(), is(ActionResponse.Empty.INSTANCE));
+        verify(mockAuthHandler, never()).getAuthorization(any(), any());
+    }
+
+    public void testDoesNotSendAuthorizationRequest_WhenClusterMissingDocumentExtractionTaskTypeFeature() {
+        when(mockRegistry.isReady()).thenReturn(true);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE)).thenReturn(false);
         var action = createAction();
 
         var future = new TestPlainActionFuture<ActionResponse.Empty>();
@@ -188,7 +202,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         var sparseModel3 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "my_matching_fingerprint_3");
 
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getMinimalServiceSettings(Set.of(sparseModel1.id(), sparseModel2.id(), sparseModel3.id()), false)).thenReturn(
+        when(mockRegistry.getEndpointClusterState(Set.of(sparseModel1.id(), sparseModel2.id(), sparseModel3.id()), false)).thenReturn(
             Map.of(
                 sparseModel1.id(),
                 createEisSparseSettingsWithFingerprintAndVersion(null, ENDPOINT_SCHEMA_VERSION),
@@ -214,7 +228,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         var sparseModel3 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "some_fingerprint_3");
 
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getMinimalServiceSettings(Set.of(sparseModel1.id(), sparseModel2.id(), sparseModel3.id()), false)).thenReturn(
+        when(mockRegistry.getEndpointClusterState(Set.of(sparseModel1.id(), sparseModel2.id(), sparseModel3.id()), false)).thenReturn(
             Map.of(
                 sparseModel2.id(),
                 createEisSparseSettingsWithFingerprintAndVersion("my_matching_fingerprint_2", ENDPOINT_SCHEMA_VERSION)
@@ -235,7 +249,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         var sparseModel3 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "my_changed_fingerprint_3");
 
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getMinimalServiceSettings(Set.of(sparseModel1.id(), sparseModel2.id(), sparseModel3.id()), false)).thenReturn(
+        when(mockRegistry.getEndpointClusterState(Set.of(sparseModel1.id(), sparseModel2.id(), sparseModel3.id()), false)).thenReturn(
             Map.of(
                 sparseModel1.id(),
                 createEisSparseSettingsWithFingerprintAndVersion(null, ENDPOINT_SCHEMA_VERSION),
@@ -260,7 +274,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         var sparseModel3 = createAuthorizedEndpoint(TaskType.SPARSE_EMBEDDING, () -> "my_matching_fingerprint_3");
 
         when(mockRegistry.isReady()).thenReturn(true);
-        when(mockRegistry.getMinimalServiceSettings(Set.of(sparseModel1.id(), sparseModel2.id(), sparseModel3.id()), false)).thenReturn(
+        when(mockRegistry.getEndpointClusterState(Set.of(sparseModel1.id(), sparseModel2.id(), sparseModel3.id()), false)).thenReturn(
             Map.of(
                 sparseModel1.id(),
                 createEisSparseSettingsWithFingerprintAndVersion(null, -1L),
@@ -419,6 +433,7 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
                     endpoint.modelName(),
                     url,
                     new EndpointMetadata(
+                        EndpointMetadata.ModelIdentity.EMPTY_INSTANCE,
                         new EndpointMetadata.Heuristics(
                             List.of(),
                             StatusHeuristic.fromString(endpoint.status()),
@@ -437,21 +452,15 @@ public class TransportRefreshAuthorizedEndpointsActionTests extends ESTestCase {
         assertThat(capturedRequest.getModels(), containsInAnyOrder(expectedModels.toArray()));
     }
 
-    private static EndpointMetadata createEndpointMetadataWithInternal(EndpointMetadata.Internal internal) {
-        return new EndpointMetadata(
-            EndpointMetadata.Heuristics.EMPTY_INSTANCE,
-            internal,
-            EndpointMetadata.Display.EMPTY_INSTANCE,
-            List.of(),
-            false
-        );
+    private static EndpointMetadataClusterState createEndpointMetadataWithInternal(EndpointMetadata.Internal internal) {
+        return new EndpointMetadataClusterState(EndpointMetadata.Heuristics.EMPTY_INSTANCE, internal);
     }
 
-    private static MinimalServiceSettings createEisSparseSettingsWithFingerprintAndVersion(
+    private static EndpointClusterState createEisSparseSettingsWithFingerprintAndVersion(
         @Nullable String fingerprint,
         @Nullable Long version
     ) {
-        return new MinimalServiceSettings(
+        return new EndpointClusterState(
             "eis",
             TaskType.SPARSE_EMBEDDING,
             null,

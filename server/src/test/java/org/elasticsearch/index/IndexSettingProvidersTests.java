@@ -106,27 +106,36 @@ public class IndexSettingProvidersTests extends ESTestCase {
         IndexVersion version = IndexVersionUtils.randomVersion();
 
         var invoked = new AtomicInteger();
-        IndexSettingProvider provider = (
-            index,
-            dataStream,
-            mode,
-            registry,
-            project,
-            resolved,
-            settings,
-            combinedMappings,
-            indexVersion,
-            additional) -> {
-            invoked.incrementAndGet();
-            assertThat(index, equalTo(indexName));
-            assertThat(dataStream, equalTo(dataStreamName));
-            assertThat(mode, equalTo(indexMode));
-            assertThat(registry, equalTo(registryInstalled));
-            assertThat(project, sameInstance(projectMetadata));
-            assertThat(resolved, equalTo(resolvedAt));
-            assertThat(settings, equalTo(templateAndRequest));
-            assertThat(combinedMappings, equalTo(mappings));
-            assertThat(indexVersion, equalTo(version));
+        IndexSettingProvider provider = new IndexSettingProvider() {
+            @Override
+            public void provideAdditionalSettings(
+                String index,
+                String dataStream,
+                IndexMode mode,
+                boolean registry,
+                ProjectMetadata project,
+                Instant resolved,
+                Settings settings,
+                List<CompressedXContent> combinedMappings,
+                IndexVersion indexVersion,
+                Settings.Builder additional
+            ) {
+                invoked.incrementAndGet();
+                assertThat(index, equalTo(indexName));
+                assertThat(dataStream, equalTo(dataStreamName));
+                assertThat(mode, equalTo(indexMode));
+                assertThat(registry, equalTo(registryInstalled));
+                assertThat(project, sameInstance(projectMetadata));
+                assertThat(resolved, equalTo(resolvedAt));
+                assertThat(settings, equalTo(templateAndRequest));
+                assertThat(combinedMappings, equalTo(mappings));
+                assertThat(indexVersion, equalTo(version));
+            }
+
+            @Override
+            public Set<String> affectedSettings() {
+                return Set.of();
+            }
         };
         IndexSettingProviders.collectAdditionalSettings(
             List.of(provider),
@@ -315,6 +324,92 @@ public class IndexSettingProvidersTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("is not allowed to be set via an IndexSettingProvider"));
     }
 
+    /**
+     * When a setting subset is given, providers that cannot influence any of these settings are not invoked at all, so they do not
+     * contribute any setting.
+     */
+    public void testSettingSubsetSkipsProvidersThatDoNotInfluenceIt() {
+        var relevantInvocations = new AtomicInteger();
+        var irrelevantInvocations = new AtomicInteger();
+        var additionalSettings = collect(
+            List.of(
+                countingProvider(Settings.builder().put("index.a", "a").build(), relevantInvocations),
+                countingProvider(Settings.builder().put("index.b", "b").build(), irrelevantInvocations)
+            ),
+            Set.of("index.a", "index.c")
+        );
+        assertThat(relevantInvocations.get(), equalTo(1));
+        assertThat(irrelevantInvocations.get(), equalTo(0));
+        assertThat(additionalSettings.settings(), equalTo(Settings.builder().put("index.a", "a").build()));
+    }
+
+    /**
+     * The subset filters which providers run, not which settings they contribute: a provider that influences at least one of the
+     * requested settings contributes all of its settings.
+     */
+    public void testSettingSubsetRunsMatchingProviderInFull() {
+        var invocations = new AtomicInteger();
+        var additionalSettings = collect(
+            List.of(countingProvider(Settings.builder().put("index.a", "a").put("index.b", "b").build(), invocations)),
+            Set.of("index.a")
+        );
+        assertThat(invocations.get(), equalTo(1));
+        assertThat(additionalSettings.settings(), equalTo(Settings.builder().put("index.a", "a").put("index.b", "b").build()));
+    }
+
+    public void testNullSettingSubsetRunsAllProviders() {
+        var firstInvocations = new AtomicInteger();
+        var secondInvocations = new AtomicInteger();
+        var additionalSettings = collect(
+            List.of(
+                countingProvider(Settings.builder().put("index.a", "a").build(), firstInvocations),
+                countingProvider(Settings.builder().put("index.b", "b").build(), secondInvocations)
+            ),
+            null
+        );
+        assertThat(firstInvocations.get(), equalTo(1));
+        assertThat(secondInvocations.get(), equalTo(1));
+        assertThat(additionalSettings.settings(), equalTo(Settings.builder().put("index.a", "a").put("index.b", "b").build()));
+    }
+
+    public void testEmptySettingSubsetRunsNoProviders() {
+        var invocations = new AtomicInteger();
+        var additionalSettings = collect(List.of(countingProvider(Settings.builder().put("index.a", "a").build(), invocations)), Set.of());
+        assertThat(invocations.get(), equalTo(0));
+        assertThat(additionalSettings.settings(), equalTo(Settings.EMPTY));
+        assertThat(additionalSettings.overrulingSettings(), equalTo(Set.of()));
+    }
+
+    /**
+     * Only the providers that run are validated, so a conflict with a skipped provider does not fail the collection.
+     */
+    public void testSkippedProviderDoesNotConflict() {
+        Settings settings = Settings.builder().put("index.a", "a").build();
+        var additionalSettings = collect(
+            List.of(
+                provider(settings, false),
+                provider(settings, randomBoolean()),
+                provider(Settings.builder().put("index.b", "b").build(), false)
+            ),
+            Set.of("index.b")
+        );
+        assertThat(additionalSettings.settings(), equalTo(Settings.builder().put("index.b", "b").build()));
+    }
+
+    public void testOverrulingSettingsOfSkippedProvidersAreIgnored() {
+        var additionalSettings = collect(
+            List.of(
+                provider(Settings.builder().put("index.a", "overruling").build(), true),
+                provider(Settings.builder().put("index.b", "overruling").build(), true)
+            ),
+            Set.of("index.b")
+        );
+        assertThat(additionalSettings.overrulingSettings(), equalTo(Set.of("index.b")));
+        Settings effective = applyTo(additionalSettings, Settings.builder().put("index.a", "configured").put("index.b", "configured"));
+        assertThat(effective.get("index.a"), equalTo("configured"));
+        assertThat(effective.get("index.b"), equalTo("overruling"));
+    }
+
     private static Settings applyTo(IndexSettingProviders.AdditionalSettings additionalSettings, Settings.Builder resolvedSettings) {
         return additionalSettings.applyTo(resolvedSettings.build());
     }
@@ -332,6 +427,63 @@ public class IndexSettingProvidersTests extends ESTestCase {
             List.of(),
             IndexVersion.current()
         );
+    }
+
+    private static IndexSettingProviders.AdditionalSettings collect(List<IndexSettingProvider> providers, Set<String> settingSubset) {
+        return IndexSettingProviders.collectAdditionalSettings(
+            providers,
+            "index",
+            null,
+            null,
+            false,
+            ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
+            Instant.now(),
+            Settings.EMPTY,
+            List.of(),
+            IndexVersion.current(),
+            settingSubset
+        );
+    }
+
+    /**
+     * A provider that always contributes the given settings and counts how often it was invoked.
+     */
+    private static IndexSettingProvider countingProvider(Settings settings, AtomicInteger invocations) {
+        IndexSettingProvider delegate = provider(settings, false);
+        return new IndexSettingProvider() {
+            @Override
+            public void provideAdditionalSettings(
+                String indexName,
+                String dataStreamName,
+                IndexMode templateIndexMode,
+                boolean registryInstalledTemplate,
+                ProjectMetadata projectMetadata,
+                Instant resolvedAt,
+                Settings indexTemplateAndCreateRequestSettings,
+                List<CompressedXContent> combinedTemplateMappings,
+                IndexVersion indexVersion,
+                Settings.Builder additionalSettings
+            ) {
+                invocations.incrementAndGet();
+                delegate.provideAdditionalSettings(
+                    indexName,
+                    dataStreamName,
+                    templateIndexMode,
+                    registryInstalledTemplate,
+                    projectMetadata,
+                    resolvedAt,
+                    indexTemplateAndCreateRequestSettings,
+                    combinedTemplateMappings,
+                    indexVersion,
+                    additionalSettings
+                );
+            }
+
+            @Override
+            public Set<String> affectedSettings() {
+                return delegate.affectedSettings();
+            }
+        };
     }
 
     /**
@@ -353,6 +505,11 @@ public class IndexSettingProvidersTests extends ESTestCase {
                 Settings.Builder additionalSettings
             ) {
                 additionalSettings.put(settings);
+            }
+
+            @Override
+            public Set<String> affectedSettings() {
+                return settings.keySet();
             }
 
             @Override

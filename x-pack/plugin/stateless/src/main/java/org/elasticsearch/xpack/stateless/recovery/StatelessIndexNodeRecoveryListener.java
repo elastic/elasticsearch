@@ -30,6 +30,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
@@ -178,6 +179,12 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
         final var lastCommitBlobs = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.lastCommitBlobs();
         final var lastCommitIsHollow = recoveryInfoFromSource != null && recoveryInfoFromSource.lastCommitIsHollow();
         final var hasRecentIdLookup = recoveryInfoFromSource != null && recoveryInfoFromSource.hasRecentIdLookup();
+        final Set<BlobFile> region0Blobs;
+        if (lastCommitIsHollow) {
+            region0Blobs = sourceBlobsInfo == null ? null : Set.of(sourceBlobsInfo.latestBlobFile());
+        } else {
+            region0Blobs = lastCommitBlobs;
+        }
         final long readIndexingShardStateStartMillis = threadPool.relativeTimeInMillis();
         SubscribableListener.<ObjectStoreService.IndexingShardState>newForked(l -> {
             if (shardContainer == null) {
@@ -186,11 +193,11 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             }
 
             final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
-            if (lastCommitBlobs != null && lastCommitIsHollow == false) {
+            if (region0Blobs != null) {
                 warmingService.warmCacheForBCCHeadersRead(
                     indexShard,
                     directory,
-                    lastCommitBlobs,
+                    region0Blobs,
                     ActionListener.wrap(
                         v -> {},
                         e -> logger.warn("[{}] failed to pre-warm region 0 before BCC header reads", indexShard.shardId(), e)

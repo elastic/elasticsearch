@@ -971,7 +971,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Opens a Parquet reader using the shared {@link #parsedFooters} cache so that the Thrift
-     * footer deserialization runs at most once per {@code (path, length)} key. On a cache miss the
+     * footer deserialization runs at most once per {@code (path, length, version)} key. On a cache miss the
      * loader parses the full footer (no range filter) so the cached {@link ParquetMetadata} remains
      * usable for any subsequent split of the same file; the per-call read options are then applied
      * when opening the reader against the cached metadata.
@@ -1021,29 +1021,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // The loader runs only on a cache miss, so the flag distinguishes hit from miss.
         boolean[] missed = { false };
         try {
-            ParquetMetadata footer = parsedFooters.getOrLoad(adapter.cacheKey(), key -> {
+            ParquetMetadata footer;
+            if (adapter.cacheKey() == null) {
+                // An unversioned object has no key to cache under, so its footer is always read from storage.
                 missed[0] = true;
-                // Always parse the full footer (no range filter) so the cached entry is reusable
-                // by any split. ParquetFileReader.open with a range only retains blocks whose
-                // midpoint falls in the range, which would make getFooter() unusable for other
-                // splits. The underlying FooterByteCache ensures the tail bytes are fetched from
-                // storage only once on the first parse.
-                //
-                // Note: this variant of readFooter doesn't close the stream.
-                try (SeekableInputStream stream = adapter.newStream()) {
-                    // The async path's read cap, before anything is charged or parsed, so an oversized footer is
-                    // the same 400 on both. A missing or corrupt trailer is left to readFooter, whose message names
-                    // the file and what it found there.
-                    int footerLength = declaredFooterLength(adapter, stream);
-                    long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
-                    if (footerLength > 0 && footerRegion <= adapter.getLength() && footerRegion > maxFooterReadBytes) {
-                        throw new InvalidFooterException(footerOverReadCap(footerLength));
-                    }
-                    try (Releasable parseCharge = chargeFooterParse(footerLength, adapter.getLength())) {
-                        return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
-                    }
-                }
-            });
+                footer = readUncachedFooter(adapter);
+            } else {
+                footer = parsedFooters.getOrLoad(adapter.cacheKey(), key -> {
+                    missed[0] = true;
+                    return readFooterFromStorage(adapter);
+                });
+            }
             if (counters != null) {
                 counters.recordFooterCache(missed[0] == false);
             }
@@ -1061,6 +1049,41 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 throw invalid.invalid;
             }
             throw newInvalidParquetFileException((Exception) cause);
+        }
+    }
+
+    /**
+     * Reads and parses the footer of {@code adapter} from storage, for a cache miss or an unversioned object. Always
+     * parses the full footer (no range filter) so the cached entry is reusable by any split. ParquetFileReader.open with
+     * a range only retains blocks whose midpoint falls in the range, which would make getFooter() unusable for other
+     * splits. The underlying FooterByteCache ensures the tail bytes are fetched from storage only once on the first parse.
+     */
+    private ParquetMetadata readFooterFromStorage(ParquetStorageObjectAdapter adapter) throws IOException {
+        // Note: this variant of readFooter doesn't close the stream.
+        try (SeekableInputStream stream = adapter.newStream()) {
+            // The async path's read cap, before anything is charged or parsed, so an oversized footer is
+            // the same 400 on both. A missing or corrupt trailer is left to readFooter, whose message names
+            // the file and what it found there.
+            int footerLength = declaredFooterLength(adapter, stream);
+            long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
+            if (footerLength > 0 && footerRegion <= adapter.getLength() && footerRegion > maxFooterReadBytes) {
+                throw new InvalidFooterException(footerOverReadCap(footerLength));
+            }
+            try (Releasable parseCharge = chargeFooterParse(footerLength, adapter.getLength())) {
+                return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
+            }
+        }
+    }
+
+    /**
+     * The uncached counterpart of {@link ParsedFooterCache#getOrLoad}. Failures are wrapped in an
+     * {@link ExecutionException} so the caller maps them exactly as it maps a failed cache load.
+     */
+    private ParquetMetadata readUncachedFooter(ParquetStorageObjectAdapter adapter) throws ExecutionException {
+        try {
+            return readFooterFromStorage(adapter);
+        } catch (IOException | RuntimeException e) {
+            throw new ExecutionException(e);
         }
     }
 
@@ -1232,7 +1255,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         final long length;
         try {
             cacheKey = FooterByteCache.Key.keyFor(object);
-            length = cacheKey.fileLength();
+            length = cacheKey != null ? cacheKey.fileLength() : object.lengthForFooterCacheKey();
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -1240,6 +1263,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
         if (length < PARQUET_TRAILER_BYTES) {
             listener.onFailure(invalidParquet("is not a Parquet file (length is too low: " + length + ")"));
+            return;
+        }
+
+        if (cacheKey == null) {
+            // An unversioned object has no key to cache under, so its footer is read from storage every time.
+            prefetchAndParseFooterAsync(object, length, null, executor, listener);
             return;
         }
 
@@ -1492,8 +1521,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Where the tail came from. Only bytes this flight read from storage are stored, so a cache-served tail
-     * cannot be given a fresh write time.
+     * Where the tail came from. Only bytes this flight read from storage are stored. Re-storing a
+     * cache-served tail would at best relink the LRU for an entry the serving read already renewed, and at
+     * worst revive a key the cache has since released: this guard is evaluated on the executor after the
+     * parse, so the entry may have expired or been evicted against the byte budget by then, and the value
+     * going back would have no storage read behind it.
      */
     private enum TailSource {
         STORAGE_READ,
@@ -1508,7 +1540,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * byte budget and force a blocking re-read on the executor thread). Bytes read from storage are
      * additionally offered to the cache best-effort after a successful parse so a later split-discovery
      * pass can reuse them, but correctness never depends on that. Bytes the cache served are not stored
-     * again, so an entry's write time stays the read that produced it. {@code listener} is the
+     * again, so a key the cache has released is not revived with no storage read behind it. {@code listener} is the
      * {@link ParsedFooterCache#getOrLoadAsync} flight listener: {@code release} uncharges the GET
      * (or the heap copy) after parse, success or failure, and always before that listener is
      * notified so waiters run {@link #buildFooterMetadata} / {@link #rangesFromFooter} after the
@@ -1531,7 +1563,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             executor.execute(() -> {
                 try {
                     ParquetMetadata footer = parseParsedFooterFromTail(object, length, tailBytes);
-                    if (tailSource == TailSource.STORAGE_READ) {
+                    if (tailSource == TailSource.STORAGE_READ && cacheKey != null) {
                         footerBytes.put(cacheKey, tailBytes);
                     }
                     released.onResponse(footer);
@@ -2153,7 +2185,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         } catch (Exception e) {
             return null;
         }
-        if (cacheKey.fileLength() < PARQUET_TRAILER_BYTES) {
+        if (cacheKey == null || cacheKey.fileLength() < PARQUET_TRAILER_BYTES) {
             return null;
         }
         ParquetMetadata parsed = parsedFooters.get(cacheKey);
@@ -2438,7 +2470,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // Footer resolution order:
         // 1. context.fileContext() — per-producer fast path, single-writer/single-reader, no map
         // lookup; carries the footer across successive splits of the same file on one thread.
-        // 2. parsedFooters ({@link ParsedFooterCache}): node-wide LRU keyed by (path, length);
+        // 2. parsedFooters ({@link ParsedFooterCache}): node-wide LRU keyed by (path, length, version);
         // shared across producer threads and across queries within the access TTL. The loader
         // explicitly uses unranged read options so the cached value is the full file footer (all
         // row groups) and is reusable by any split. The underlying FooterByteCache ensures the
@@ -3141,6 +3173,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         @Override
         public SubscribableListener<Void> waitForReady() {
             return delegate.waitForReady();
+        }
+
+        @Override
+        public boolean isExhausted() {
+            return delegate.isExhausted();
         }
 
         @Override

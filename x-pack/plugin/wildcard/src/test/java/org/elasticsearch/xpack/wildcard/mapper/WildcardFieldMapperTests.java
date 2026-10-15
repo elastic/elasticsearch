@@ -758,18 +758,46 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void testQueryCachingEqualityFromAutomaton() {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
-        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, false);
-        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, true, false);
+        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            pattern,
+            false,
+            false,
+            NoopCircuitBreaker.INSTANCE
+        );
+        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            pattern,
+            true,
+            false,
+            NoopCircuitBreaker.INSTANCE
+        );
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
-        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, false);
+        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            pattern,
+            false,
+            false,
+            NoopCircuitBreaker.INSTANCE
+        );
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
 
         // Different arrayOrder should not be equal
-        Query arrayOrderQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, true);
+        Query arrayOrderQ = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            pattern,
+            false,
+            true,
+            NoopCircuitBreaker.INSTANCE
+        );
         assertNotEquals(csQ, arrayOrderQ);
         assertNotEquals(csQ.hashCode(), arrayOrderQ.hashCode());
     }

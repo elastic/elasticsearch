@@ -1099,6 +1099,71 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES, Map.of("nanos_view", "FROM sample_data_ts_nanos", "mixed_view", "FROM sample_data, (FROM sample_data_ts_nanos)"));
     }
 
+    public void testForkNullFillsImplicitDateNanosCastColumnInFirstBranch() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (KEEP message) (KEEP @timestamp, message)
+            | KEEP @timestamp, _fork
+            """, STAGES);
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnInSecondBranch() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (KEEP @timestamp, message) (KEEP message)
+            | KEEP @timestamp, _fork
+            """, STAGES);
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnAfterNestedSubquery() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos, (FROM sample_data))
+            | FORK (KEEP @timestamp) (KEEP message)
+            | KEEP @timestamp, _fork
+            """, STAGES);
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnWithEval() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (EVAL x = @timestamp) (WHERE true)
+            | KEEP x, _fork
+            """, STAGES);
+    }
+
+    public void testForkNullFillsImplicitDateNanosCastColumnWithStats() {
+        runGoldenTest("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (STATS m = MAX(@timestamp)) (WHERE true | KEEP @timestamp)
+            | KEEP m, @timestamp
+            """, STAGES);
+    }
+
+    public void testForkNullFillsAtEveryLevelOfNestedUnionAlls() {
+        runGoldenTest("""
+            FROM (FROM (FROM sample_data, (FROM sample_data_ts_nanos)
+                        | FORK (KEEP @timestamp, message) (KEEP message)),
+                       (FROM sample_data | KEEP @timestamp, message)
+                  | FORK (EVAL t = @timestamp) (KEEP message)),
+                 (FROM sample_data_ts_nanos | KEEP @timestamp, message)
+            | RENAME t AS u
+            | KEEP @timestamp, u, message, _fork
+            | SORT @timestamp, u
+            """, STAGES);
+    }
+
+    public void testForkNullFillsInsideAndAfterUnionAllThroughViews() {
+        runGoldenTest("""
+            FROM (FROM fork_over_union_view, (FROM sample_data | KEEP @timestamp, message)
+                      | FORK (WHERE message IS NOT NULL) (KEEP message)),
+                     (FROM sample_data | KEEP @timestamp, message)
+                | KEEP @timestamp, message, _fork
+                | SORT @timestamp
+            """, STAGES, Map.of("fork_over_union_view", """
+            FROM sample_data, (FROM sample_data_ts_nanos) | FORK (KEEP @timestamp, message) (KEEP message)
+            """));
+    }
+
     // implicit casting field referenced in functions, test fix to collectAliasesNeedingTypeUpdate
     public void testStatsMaxKeepOverImplicitDateNanosCast() {
         runGoldenTest("""

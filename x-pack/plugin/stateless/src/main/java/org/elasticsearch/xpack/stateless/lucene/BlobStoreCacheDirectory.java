@@ -132,13 +132,20 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     }
 
     /**
-     * Schedules an async eviction of cache regions that are no longer referenced by the current metadata,
+     * Schedules an async eviction of cache regions that are no longer referenced by the live files of the current metadata,
      * unless one is already running. Concurrent calls while a task is executing are coalesced into a single follow-up.
      */
     protected void maybeScheduleObsoleteRegionsEviction() {
         if (submittedObsoleteRegionsEvictionTasks.incrementAndGet() == 1) {
             submitObsoleteRegionsEviction();
         }
+    }
+
+    /**
+     * Whether a file of the current metadata is still in use, so that its cache regions must not be evicted as obsolete.
+     */
+    protected boolean isLiveFile(String fileName) {
+        return true;
     }
 
     private void submitObsoleteRegionsEviction() {
@@ -151,7 +158,11 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             final Map<Long, BitSet> activeRegionsByBccGen = new HashMap<>();
             long maxBccGeneration = -1L;
 
-            for (var file : metadata.values()) {
+            for (var entry : metadata.entrySet()) {
+                if (isLiveFile(entry.getKey()) == false) {
+                    continue;
+                }
+                final var file = entry.getValue();
                 long bccGen = file.getBatchedCompoundCommitTermAndGeneration().generation();
                 int startRegion = cacheService.getRegion(file.fileOffset());
                 int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());

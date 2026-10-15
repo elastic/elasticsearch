@@ -23,11 +23,14 @@ import org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 
 public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
+
+    private volatile Set<String> liveFiles = Set.of();
 
     public IndexBlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
         super(cacheService, shardId);
@@ -41,6 +44,19 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         @Nullable LongFunction<BlobContainer> blobContainerFunction
     ) {
         super(cacheService, shardId, totalBytesRead, totalBytesWarmed, blobContainerFunction);
+    }
+
+    /**
+     * Updates the files that Lucene has not deleted yet. Files of the metadata that are not part of this set are considered obsolete
+     * even if the batched compound commit they belong to is still referenced.
+     */
+    public void updateLiveFiles(Set<String> liveFiles) {
+        this.liveFiles = liveFiles;
+    }
+
+    @Override
+    protected boolean isLiveFile(String fileName) {
+        return liveFiles.contains(fileName);
     }
 
     @Override

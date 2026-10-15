@@ -508,6 +508,7 @@ public class IndexDirectory extends ByteSizeDirectory {
             assert blobFileRanges.keySet().containsAll(uploadedFiles);
 
             cacheDirectory.updateMetadata(blobFileRanges, dataSizeInBytes);
+            cacheDirectory.updateLiveFiles(Set.copyOf(localFiles.keySet()));
             uploadedFiles.forEach(file -> {
                 var localFile = localFiles.get(file);
                 if (localFile != null) {

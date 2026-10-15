@@ -45,6 +45,13 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
             .build();
     }
 
+    @Override
+    protected boolean resetNodeAfterTest() {
+        // queue_size of 0 causes the executor to immediately reject tasks after it has spun up size worker threads, even if the
+        // workers are idle, because when worker_threads have spun up, ThreadPoolExecutor routes tasks through the queue first.
+        return true;
+    }
+
     public void testRejectedExecutionExceptionContainsNodeName() {
         // GET does not wrap runnable in TimedRunnable
         runThreadPoolExecutorTest(1, ThreadPool.Names.GET);
@@ -57,13 +64,7 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
     private void runThreadPoolExecutorTest(final int fill, final String executor) {
         final CountDownLatch latch = new CountDownLatch(1);
         for (int i = 0; i < fill; i++) {
-            node().injector().getInstance(ThreadPool.class).executor(executor).execute(() -> {
-                try {
-                    latch.await();
-                } catch (final InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+            node().injector().getInstance(ThreadPool.class).executor(executor).execute(() -> safeAwait(latch));
         }
 
         final AtomicBoolean rejected = new AtomicBoolean();

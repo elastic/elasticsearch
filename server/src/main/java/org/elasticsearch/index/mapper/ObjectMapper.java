@@ -128,8 +128,7 @@ public class ObjectMapper extends Mapper {
             if (rootDynamic != null) {
                 return rootDynamic;
             }
-            if (mappingLookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME) instanceof FlattenedFieldMapper sink
-                && sink.isUnmappedSink()) {
+            if (mappingLookup.getMapping().getMetadataMapperByName(FlattenedFieldMapper.UNMAPPED_SINK_NAME) != null) {
                 return FLATTENED;
             }
             return Defaults.DYNAMIC;
@@ -1010,8 +1009,7 @@ public class ObjectMapper extends Mapper {
 
         int count = 0;
         for (Mapper mapper : sortedMappers) {
-            // The implicit _unmapped sink is injected on every mapping-source parse, so it must never be serialized back out.
-            if (mapper instanceof MetadataFieldMapper || (mapper instanceof FlattenedFieldMapper flattened && flattened.isUnmappedSink())) {
+            if (mapper instanceof MetadataFieldMapper) {
                 continue;
             }
             if (count++ == 0) {

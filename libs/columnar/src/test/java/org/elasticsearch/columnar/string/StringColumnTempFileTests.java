@@ -58,12 +58,14 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                         StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                         ColumNARDocValuesFormat.MAX_BLOCK_SIZE
                     ),
-                    StringColumnOptions.DEFAULT_SINGLE_VALUED
+                    StringColumnOptions.DEFAULT_SINGLE_VALUED,
+                    StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
                 ),
                 null,
                 dir,
                 IOContext.DEFAULT,
-                out.outputs()
+                out.outputs(),
+                out.skipIndex()
             );
         }
     }

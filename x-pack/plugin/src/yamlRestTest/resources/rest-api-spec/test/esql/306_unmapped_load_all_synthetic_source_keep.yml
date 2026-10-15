@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
       reason: >
         index.mapping.synthetic_source_keep controls how faithfully synthetic source rebuilds a MAPPED
         field: with "none" an array comes back sorted and deduplicated from doc values, with "arrays"

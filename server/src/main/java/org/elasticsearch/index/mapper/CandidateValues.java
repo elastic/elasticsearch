@@ -81,26 +81,73 @@ public final class CandidateValues {
     /**
      * One clause: a value spelling any of {@code needles}, compared without ASCII case, holds what it asks. The
      * needles are every way a value could spell one of the clause's terms, so a value spelling none of them holds
-     * none of those terms.
+     * none of those terms. The {@code terms} are the clause's own, which a stretch of a value spelling one of them
+     * as a whole token holds for certain.
      */
-    private record Clause(BytesRef[] needles) {}
+    private record Clause(BytesRef[] needles, BytesRef[] terms) {}
+
+    /**
+     * Where the tokens of the values are runs of the values themselves, which lets a stretch of one be read as a
+     * token rather than only as bytes that may spell one. Null where the analyzer is not one of those, and then
+     * nothing is answered yes.
+     */
+    @Nullable
+    private final TokenBoundaries boundaries;
+
+    /** Whether spelling what the clauses ask answers the query, rather than only being required by it. */
+    private final boolean spellingAnswers;
+
+    /** The most occurrences of one needle a value is read for before the read gives up and the value is analyzed. */
+    static final int MOST_OCCURRENCES_READ = 32;
+
+    /** What a value's bytes say about the query that asked for it. */
+    public enum Answer {
+        /** The value holds what the query asks, so it is answered without being analyzed. */
+        YES,
+        /** The value spells none of the terms the query cannot be answered without. */
+        NO,
+        /** The bytes do not say, so the value is analyzed as it would have been. */
+        MAYBE
+    }
 
     private CandidateValues(List<Clause> clauses) {
+        this(clauses, null, false);
+    }
+
+    private CandidateValues(List<Clause> clauses, @Nullable TokenBoundaries boundaries, boolean spellingAnswers) {
         this.clauses = clauses;
+        this.boundaries = boundaries;
+        this.spellingAnswers = spellingAnswers;
     }
 
-    /** Values spelling any one of {@code terms}, which is what a match asks of them. */
+    /**
+     * The same read, able to answer yes where {@code analyzer} leaves its tokens spelled as the value spells them
+     * and where spelling the terms answers the query rather than only being required by it. A term the analyzer
+     * would not leave whole, or would leave out, is read as it was.
+     */
+    public CandidateValues readingTokensOf(@Nullable Analyzer analyzer) {
+        if (reads() == false || spellingAnswers == false) {
+            return this;
+        }
+        final TokenBoundaries reading = TokenBoundaries.of(analyzer);
+        return reading == null ? this : new CandidateValues(clauses, reading, true);
+    }
+
+    /** Values spelling any one of {@code terms}, which is what a match asks of them and all that it asks. */
     public static CandidateValues anyOf(Collection<BytesRef> terms) {
-        return terms.isEmpty() ? ANY : readingFor(List.<BytesRef[]>of(terms.toArray(BytesRef[]::new)));
+        return terms.isEmpty() ? ANY : readingFor(List.<BytesRef[]>of(terms.toArray(BytesRef[]::new)), true);
     }
 
-    /** Values spelling every one of {@code terms}, which is what a phrase asks of a value. */
+    /**
+     * Values spelling every one of {@code terms}, which is what a phrase asks of a value. Holding them is not
+     * answering it: a phrase asks for them in an order, which their bytes alone do not give.
+     */
     public static CandidateValues allOf(Collection<BytesRef> terms) {
         final List<BytesRef[]> clauses = new ArrayList<>(terms.size());
         for (BytesRef term : new LinkedHashSet<>(terms)) {
             clauses.add(new BytesRef[] { term });
         }
-        return readingFor(clauses);
+        return readingFor(clauses, false);
     }
 
     /**
@@ -108,7 +155,7 @@ public final class CandidateValues {
      * whose terms can be spelled more ways than that is not read for in part: a part of a clause would rule out a
      * value that spells one of the ways left out.
      */
-    private static CandidateValues readingFor(List<BytesRef[]> terms) {
+    private static CandidateValues readingFor(List<BytesRef[]> terms, boolean spellingAnswers) {
         final List<Clause> clauses = new ArrayList<>(terms.size());
         int needles = 0;
         for (BytesRef[] alternatives : terms) {
@@ -121,9 +168,9 @@ public final class CandidateValues {
                 ofClause.addAll(spellings);
             }
             needles += ofClause.size();
-            clauses.add(new Clause(ofClause.toArray(BytesRef[]::new)));
+            clauses.add(new Clause(ofClause.toArray(BytesRef[]::new), alternatives));
         }
-        return needles == 0 || needles > MOST_TERMS_READ_FOR ? ANY : new CandidateValues(clauses);
+        return needles == 0 || needles > MOST_TERMS_READ_FOR ? ANY : new CandidateValues(clauses, null, spellingAnswers);
     }
 
     /** Whether this reads anything at all, which a caller skipping the read for a whole document goes by. */
@@ -161,17 +208,74 @@ public final class CandidateValues {
      */
     public static CandidateValues of(Query query, String field) {
         final List<BytesRef[]> clauses = new ArrayList<>();
-        return required(query, field, clauses) ? readingFor(clauses) : ANY;
+        final boolean[] spellingAnswers = { true };
+        return required(query, field, clauses, spellingAnswers) ? readingFor(clauses, spellingAnswers[0]) : ANY;
     }
 
     /** Whether one value's bytes could hold what is required, which is the only answer read from them. */
     public boolean mayHold(BytesRef value) {
         for (Clause clause : clauses) {
-            if (someNeedleMayBeHeld(value, clause) == false) {
+            if (clauseAnswer(value, clause) == Answer.NO) {
                 return false;
             }
         }
         return true;
+    }
+
+    /** What one value's bytes say: they hold what the query asks, they hold none of its terms, or they do not say. */
+    public Answer held(BytesRef value) {
+        Answer answer = Answer.YES;
+        for (Clause clause : clauses) {
+            final Answer ofClause = clauseAnswer(value, clause);
+            if (ofClause == Answer.NO) {
+                return Answer.NO;
+            }
+            if (ofClause == Answer.MAYBE) {
+                answer = Answer.MAYBE;
+            }
+        }
+        return spellingAnswers ? answer : (answer == Answer.NO ? Answer.NO : Answer.MAYBE);
+    }
+
+    /**
+     * What the values of one document say, where a term spelled by any of them is spelled by the document. A
+     * document holding every clause between its values holds what the query asks of it.
+     */
+    public Answer held(List<Object> values) {
+        Answer answer = Answer.YES;
+        for (Clause clause : clauses) {
+            final Answer ofClause = valuesAnswer(values, clause);
+            if (ofClause == Answer.NO) {
+                return Answer.NO;
+            }
+            if (ofClause == Answer.MAYBE) {
+                answer = Answer.MAYBE;
+            }
+        }
+        return spellingAnswers ? answer : (answer == Answer.NO ? Answer.NO : Answer.MAYBE);
+    }
+
+    private Answer valuesAnswer(List<Object> values, Clause clause) {
+        Answer answer = Answer.NO;
+        for (Object value : values) {
+            if (value == null) {
+                continue;
+            }
+            if (value instanceof BytesRef bytes) {
+                final Answer ofValue = clauseAnswer(bytes, clause);
+                if (ofValue == Answer.YES) {
+                    return Answer.YES;
+                }
+                if (ofValue == Answer.MAYBE) {
+                    answer = Answer.MAYBE;
+                }
+            } else {
+                // A value that did not arrive as bytes would have to be spelled out again to be read, which is the
+                // work this is here to leave out, so it is left undecided.
+                return Answer.MAYBE;
+            }
+        }
+        return answer;
     }
 
     /** Reads one of a document's values, for a caller holding them in a shape of its own. */
@@ -189,7 +293,7 @@ public final class CandidateValues {
         for (Clause clause : clauses) {
             boolean spelled = false;
             for (int value = 0; value < count && spelled == false; value++) {
-                spelled = someNeedleMayBeHeld(values.value(value), clause);
+                spelled = clauseAnswer(values.value(value), clause) != Answer.NO;
             }
             if (spelled == false) {
                 return false;
@@ -198,38 +302,91 @@ public final class CandidateValues {
         return true;
     }
 
+    /**
+     * What the {@code count} values of one document say, for a caller holding them in a shape of its own.
+     */
+    public Answer held(int count, ValueReader values) throws IOException {
+        Answer answer = Answer.YES;
+        for (Clause clause : clauses) {
+            Answer ofClause = Answer.NO;
+            for (int value = 0; value < count && ofClause != Answer.YES; value++) {
+                final Answer ofValue = clauseAnswer(values.value(value), clause);
+                if (ofValue != Answer.NO) {
+                    ofClause = ofValue;
+                }
+            }
+            if (ofClause == Answer.NO) {
+                return Answer.NO;
+            }
+            if (ofClause == Answer.MAYBE) {
+                answer = Answer.MAYBE;
+            }
+        }
+        return spellingAnswers ? answer : (answer == Answer.NO ? Answer.NO : Answer.MAYBE);
+    }
+
     /** The same over values already spelled out, where one not read as bytes is left undecided. */
     public boolean mayHold(List<Object> values) {
         for (Clause clause : clauses) {
-            if (someValueMayHold(values, clause) == false) {
+            if (valuesAnswer(values, clause) == Answer.NO) {
                 return false;
             }
         }
         return true;
     }
 
-    private static boolean someValueMayHold(List<Object> values, Clause clause) {
-        for (Object value : values) {
-            if (value == null) {
-                continue;
-            }
-            if (value instanceof BytesRef bytes) {
-                if (someNeedleMayBeHeld(bytes, clause)) {
-                    return true;
+    /**
+     * What one value says about one clause. Every occurrence of every way the clause's terms could be spelled is
+     * read: an occurrence standing as a whole token holds the term, one running on into a longer token holds
+     * nothing, and one the bytes around do not settle leaves the value to be analyzed.
+     *
+     * <p>Without the boundaries to read, every occurrence is unsettled, which is the answer this gave before them.
+     */
+    private Answer clauseAnswer(BytesRef value, Clause clause) {
+        if (boundaries == null) {
+            // Nothing here can answer yes, so the first occurrence of any needle is as much as there is to find.
+            return someNeedleMayBeHeld(value, clause) ? Answer.MAYBE : Answer.NO;
+        }
+        boolean unsettled = false;
+        for (BytesRef needle : clause.needles()) {
+            int from = value.offset;
+            int remaining = value.length;
+            for (int occurrences = 0; occurrences < MOST_OCCURRENCES_READ; occurrences++) {
+                final int at = ESVectorUtil.indexOfCandidateIgnoringAsciiCase(
+                    value.bytes,
+                    from,
+                    remaining,
+                    needle.bytes,
+                    needle.offset,
+                    needle.length
+                );
+                if (at < 0) {
+                    break;
                 }
-            } else {
-                // A value that did not arrive as bytes would have to be spelled out again to be read, which is the
-                // work this is here to leave out, so it is left undecided.
-                return true;
+                switch (verdictOf(value, at, needle, clause)) {
+                    case TOKEN -> {
+                        return Answer.YES;
+                    }
+                    case UNKNOWN -> unsettled = true;
+                    case PART_OF_ONE -> {
+                    }
+                }
+                from = at + 1;
+                remaining = value.offset + value.length - from;
+                if (remaining < needle.length) {
+                    break;
+                }
+                if (occurrences + 1 == MOST_OCCURRENCES_READ) {
+                    // A value spelling one needle this often is read no further: it is cheaper to analyze than to
+                    // keep looking for an occurrence that stands on its own.
+                    unsettled = true;
+                }
             }
         }
-        return false;
+        return unsettled ? Answer.MAYBE : Answer.NO;
     }
 
-    // TODO: read the characters either side of a match. For an analyzer whose tokens are delimited runs of their
-    // input, a match between two boundaries is the token itself, so a value could be answered yes without being
-    // analyzed, which asks this for three answers rather than two; and a match whose neighbour continues a token
-    // is no match at all, which rules out a candidate before its bytes are compared.
+    /** Whether any way the clause's terms could be spelled appears in the value at all. */
     private static boolean someNeedleMayBeHeld(BytesRef value, Clause clause) {
         for (BytesRef needle : clause.needles()) {
             if (ESVectorUtil.mayContainIgnoringAsciiCase(
@@ -247,15 +404,36 @@ public final class CandidateValues {
     }
 
     /**
+     * What an occurrence of {@code needle} at {@code at} says. A needle is only read as a token where it spells one
+     * of the clause's terms as that term stands, since the search for it compares a little more than the term does.
+     */
+    private TokenBoundaries.Verdict verdictOf(BytesRef value, int at, BytesRef needle, Clause clause) {
+        if (boundaries == null) {
+            return TokenBoundaries.Verdict.UNKNOWN;
+        }
+        final TokenBoundaries.Verdict verdict = boundaries.verdictAt(value, at, needle.length);
+        if (verdict != TokenBoundaries.Verdict.TOKEN) {
+            return verdict;
+        }
+        for (BytesRef term : clause.terms()) {
+            if (term.length == needle.length && boundaries.canReadTokensOf(term) && TokenBoundaries.spellsTerm(value, at, term)) {
+                return TokenBoundaries.Verdict.TOKEN;
+            }
+        }
+        // A token, but one spelled by a character this reads as another, so what it holds is left to the analyzer.
+        return TokenBoundaries.Verdict.UNKNOWN;
+    }
+
+    /**
      * Collects into {@code clauses} the terms {@code query} cannot be answered without, and answers whether it
      * requires any at all.
      */
-    private static boolean required(Query query, String field, List<BytesRef[]> clauses) {
+    private static boolean required(Query query, String field, List<BytesRef[]> clauses, boolean[] spellingAnswers) {
         if (query instanceof BoostQuery boost) {
-            return required(boost.getQuery(), field, clauses);
+            return required(boost.getQuery(), field, clauses, spellingAnswers);
         }
         if (query instanceof ConstantScoreQuery constant) {
-            return required(constant.getQuery(), field, clauses);
+            return required(constant.getQuery(), field, clauses, spellingAnswers);
         }
         if (query instanceof TermQuery term) {
             if (term.getTerm().field().equals(field) == false) {
@@ -288,38 +466,51 @@ public final class CandidateValues {
                 return false;
             }
             // Wherever the slop lets the terms sit, a document answering the phrase holds every one of them.
+            // Holding them is not answering it, since the order they sit in is not read from their bytes.
+            spellingAnswers[0] = false;
             for (Term term : phrase.getTerms()) {
                 clauses.add(new BytesRef[] { term.bytes() });
             }
             return true;
         }
         if (query instanceof BooleanQuery bool) {
-            return required(bool, field, clauses);
+            return required(bool, field, clauses, spellingAnswers);
         }
         return false;
     }
 
-    private static boolean required(BooleanQuery query, String field, List<BytesRef[]> clauses) {
+    private static boolean required(BooleanQuery query, String field, List<BytesRef[]> clauses, boolean[] spellingAnswers) {
         final List<Query> answeredByEvery = new ArrayList<>();
         final List<Query> answeredByOne = new ArrayList<>();
         for (BooleanClause clause : query) {
             switch (clause.occur()) {
                 case MUST, FILTER -> answeredByEvery.add(clause.query());
                 case SHOULD -> answeredByOne.add(clause.query());
-                // A clause a document must not answer only takes documents away, so it requires nothing of them.
-                case MUST_NOT -> {
-                }
+                // A clause a document must not answer only takes documents away, so it requires nothing of them;
+                // what it takes away is not read from the bytes, so holding the rest does not answer the query.
+                case MUST_NOT -> spellingAnswers[0] = false;
             }
+        }
+        if (query.getMinimumNumberShouldMatch() > 1) {
+            // Holding one of the alternatives answers one clause, and this asks for more than one of them.
+            spellingAnswers[0] = false;
         }
         if (answeredByEvery.isEmpty() == false) {
             // Every one of these is answered, so whatever any of them requires is required.
             boolean anyRequires = false;
             for (Query clause : answeredByEvery) {
                 final List<BytesRef[]> ofOne = new ArrayList<>();
-                if (required(clause, field, ofOne)) {
+                if (required(clause, field, ofOne, spellingAnswers)) {
                     clauses.addAll(ofOne);
                     anyRequires = true;
+                } else {
+                    // A clause nothing is read for is answered by documents the rest of the read says nothing about.
+                    spellingAnswers[0] = false;
                 }
+            }
+            if (answeredByOne.isEmpty() == false) {
+                // The clauses that must be answered are read for; what one more of them would add is not.
+                spellingAnswers[0] = false;
             }
             return anyRequires;
         }
@@ -331,12 +522,17 @@ public final class CandidateValues {
         final List<BytesRef> alternatives = new ArrayList<>();
         for (Query clause : answeredByOne) {
             final List<BytesRef[]> ofOne = new ArrayList<>();
-            if (required(clause, field, ofOne) == false) {
+            if (required(clause, field, ofOne, spellingAnswers) == false) {
                 // This clause can be answered by a document holding none of the terms named anywhere here.
                 return false;
             }
             // Answering a clause spells every term of its first requirement, so one of those is spelled here.
             assert ofOne.isEmpty() == false : "a clause requiring terms named none: " + clause;
+            if (ofOne.size() > 1) {
+                // This clause asks for more than the one requirement read for it, so spelling that one answers
+                // the clause only as far as the read goes.
+                spellingAnswers[0] = false;
+            }
             alternatives.addAll(List.of(ofOne.get(0)));
         }
         clauses.add(alternatives.toArray(BytesRef[]::new));

@@ -84,9 +84,10 @@ public final class RuntimeSearch {
     }
 
     /**
-     * One row's values matched by analyzing them, with {@code candidates} read from each value's bytes first so a
-     * value spelling none of the query's terms is never analyzed. The bytes are whatever the block holds, so this
-     * reads a runtime column, a {@code TO_TEXT} expression and an external dataset alike.
+     * One row's values matched by analyzing them, with {@code candidates} read from each value's bytes first: a
+     * value spelling none of the query's terms is never analyzed, and one holding a term where the bytes around it
+     * say it stands as a token answers without being analyzed either. The bytes are whatever the block holds, so
+     * this reads a runtime column, a {@code TO_TEXT} expression and an external dataset alike.
      */
     @Evaluator(extraName = "Text", warnExceptions = { IOException.class }, allNullsIsNull = false)
     static boolean processText(
@@ -107,8 +108,13 @@ public final class RuntimeSearch {
         for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
             boolean foundMatch;
             scratch = fieldBlock.getBytesRef(valueIndex, scratch);
-            if (candidates.mayHold(scratch) == false) {
+            final CandidateValues.Answer held = candidates.held(scratch);
+            if (held == CandidateValues.Answer.NO) {
                 continue;
+            }
+            if (held == CandidateValues.Answer.YES) {
+                // The value holds a term this matcher matches on, as a token, which is what analyzing it would say.
+                return true;
             }
             // The analyzed token stream is matched directly; queries with options (or phrase queries under a
             // non-standard analyzer, where position gaps matter) take the Lucene MemoryIndex path instead.
@@ -155,7 +161,9 @@ public final class RuntimeSearch {
             fieldEvaluator,
             withPositionIncrementGap(values),
             luceneQuery,
-            CandidateValues.valuesSpellTheirTokens(values) ? CandidateValues.of(luceneQuery, CONTENT_FIELD) : CandidateValues.ANY,
+            CandidateValues.valuesSpellTheirTokens(values)
+                ? CandidateValues.of(luceneQuery, CONTENT_FIELD).readingTokensOf(values)
+                : CandidateValues.ANY,
             context -> new MemoryIndex(),
             context -> new BytesRef()
         );
@@ -261,8 +269,16 @@ public final class RuntimeSearch {
         // The values are read for the query's terms before any of them is indexed, over the row as a whole, since
         // that is the document the query is run against.
         final BytesRef read = scratch;
-        if (candidates.mayHold(valueCount, index -> fieldBlock.getBytesRef(startIndex + index, read)) == false) {
-            return false;
+        switch (candidates.held(valueCount, index -> fieldBlock.getBytesRef(startIndex + index, read))) {
+            case NO -> {
+                return false;
+            }
+            case YES -> {
+                // The values hold what the query asks, as tokens, so indexing them would answer the same.
+                return true;
+            }
+            case MAYBE -> {
+            }
         }
 
         // All values of the position form one document, like an indexed multivalued text field: query terms may

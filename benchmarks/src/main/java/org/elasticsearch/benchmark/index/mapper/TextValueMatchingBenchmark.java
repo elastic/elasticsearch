@@ -154,7 +154,7 @@ public class TextValueMatchingBenchmark {
         }
         query = queryTerms == 1 ? new TermQuery(new Term(FIELD, spelling(0))) : anyTerm.build();
         matcher = new TokenStreamMatching.AnyTerm(terms);
-        candidates = CandidateValues.of(query, FIELD);
+        candidates = CandidateValues.of(query, FIELD).readingTokensOf(analyzer);
         if (candidates.reads() == false) {
             throw new AssertionError("the query names no term its values can be read for");
         }
@@ -320,6 +320,25 @@ public class TextValueMatchingBenchmark {
         for (BytesRef value : values) {
             if (candidates.mayHold(value) && indexAndSearch(value) > 0) {
                 answered++;
+            }
+        }
+        return answered;
+    }
+
+    /** The read that answers for itself where it can, analyzing only the values its bytes leave unsettled. */
+    @Benchmark
+    public int heldThenTokenStream() throws IOException {
+        int answered = 0;
+        for (BytesRef value : values) {
+            switch (candidates.held(value)) {
+                case YES -> answered++;
+                case MAYBE -> {
+                    if (matchOnTokenStream(value)) {
+                        answered++;
+                    }
+                }
+                case NO -> {
+                }
             }
         }
         return answered;

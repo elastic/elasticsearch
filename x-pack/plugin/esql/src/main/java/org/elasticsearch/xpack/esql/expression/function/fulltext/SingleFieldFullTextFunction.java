@@ -210,7 +210,9 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
         final TokenStreamMatching.Matcher matcher = matcherBuilder.apply(queryTerms);
         // Only an analyzer whose tokens its values spell can be read for, and only it decides whether they are.
-        final CandidateValues candidates = CandidateValues.valuesSpellTheirTokens(analyzer) ? matcher.candidates() : CandidateValues.ANY;
+        final CandidateValues candidates = CandidateValues.valuesSpellTheirTokens(analyzer)
+            ? matcher.candidates().readingTokensOf(analyzer)
+            : CandidateValues.ANY;
         return new RuntimeSearchTextEvaluator.Factory(
             source(),
             toEvaluator.apply(field()),

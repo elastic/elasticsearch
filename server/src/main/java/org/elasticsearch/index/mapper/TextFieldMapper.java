@@ -1320,13 +1320,19 @@ public final class TextFieldMapper extends FieldMapper {
                 valueFetcherProvider(context, readsValueBytes(query, context)),
                 context.getIndexAnalyzer(f -> null),
                 true,
-                valuesSpellTheirTokens(context)
+                valuesAnalyzer(context)
             );
         }
 
-        /** Whether this field's values can be read for the terms a query asks about before they are analyzed. */
-        private boolean valuesSpellTheirTokens(SearchExecutionContext context) {
-            return CandidateValues.valuesSpellTheirTokens(context.getIndexAnalyzer(name()));
+        /**
+         * This field's own analyzer, where its values can be read for the terms a query asks about before they are
+         * analyzed, and null where they cannot. It is the field's analyzer and not the index-wide one a query is
+         * built with, which wraps every field's and is none of them.
+         */
+        @Nullable
+        private NamedAnalyzer valuesAnalyzer(SearchExecutionContext context) {
+            final NamedAnalyzer analyzer = context.getIndexAnalyzer(name());
+            return CandidateValues.valuesSpellTheirTokens(analyzer) ? analyzer : null;
         }
 
         /** Whether this field can read its parent's values, which a multi-field keeping none of its own does. */
@@ -1362,7 +1368,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         /** Whether {@code query} is answered by reading the values' own bytes before any of them is analyzed. */
         private boolean readsValueBytes(Query query, SearchExecutionContext context) {
-            return scansEveryDocument() && valuesSpellTheirTokens(context) && CandidateValues.of(query, name()).reads();
+            return scansEveryDocument() && valuesAnalyzer(context) != null && CandidateValues.of(query, name()).reads();
         }
 
         /** {@code query} as it stands where the field indexed positions, confirmed against its values where it did not. */
@@ -1375,7 +1381,7 @@ public final class TextFieldMapper extends FieldMapper {
                 valueFetcherProvider(context, readsValueBytes(query, context)),
                 context.getIndexAnalyzer(f -> null),
                 scansEveryDocument(),
-                valuesSpellTheirTokens(context)
+                valuesAnalyzer(context)
             );
         }
 

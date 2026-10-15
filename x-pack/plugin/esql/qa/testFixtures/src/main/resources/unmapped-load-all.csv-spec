@@ -5725,7 +5725,7 @@ u1 | flattened_paths_unmapped | null | "{""attributes.host"":""d"",""attributes.
 // GROK reads a mapped field and adds a named column; the unmapped leaves stay in _unmapped_fields (projected away here by the named KEEP).
 grokOnMappedField
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_grok_dissect
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -5747,7 +5747,7 @@ FROM partial_mapping_sample_data
 // DISSECT reads a mapped field; rows whose value does not match the pattern (no delimiter, e.g. "42") yield null for every key.
 dissectOnMappedField
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_grok_dissect
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -5769,7 +5769,7 @@ FROM partial_mapping_sample_data
 // GROK reads an unmapped field by name (unmapped_message), proving LOAD_ALL exposes unmapped leaves as GROK/DISSECT input.
 grokOnUnmappedField
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_grok_dissect
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -5791,7 +5791,7 @@ FROM partial_mapping_sample_data
 // DISSECT also reads an unmapped field by name; "43" has no delimiter so both keys are null.
 dissectOnUnmappedField
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_grok_dissect
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -5814,7 +5814,7 @@ FROM partial_mapping_sample_data
 // dropped from _unmapped_fields, exactly as EVAL shadowing behaves.
 grokOutputShadowsUnmappedField
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_grok_dissect
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -5832,6 +5832,28 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""unmapped_message"":""Disconnected from 10.1.0.1""}" | Connected
 ;
 
+// A DISSECT output column named like an unmapped field (language_code) shadows it: the column holds the GROK value and language_code is
+// dropped from _unmapped_fields, exactly as EVAL shadowing behaves.
+dissectOutputShadowsUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| DISSECT message "%{language_code} %{rest}"
+| SORT @timestamp
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | language_code:keyword | rest:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232 | Connected to 10.1.0.3! | "{""unmapped_event_duration"":""3450234"",""unmapped.nested"":""g"",""unmapped_message"":""Disconnected from 10.1.0.3""}" | Connected | to 10.1.0.3!
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888 | Connected to 10.1.0.2! | "{""unmapped_event_duration"":""2764890"",""unmapped.nested"":""f"",""unmapped_message"":""Disconnected from 10.1.0.2""}" | Connected | to 10.1.0.2!
+2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | "{""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""unmapped_message"":""43""}" | null | null
+2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | "{""unmapped_event_duration"":""725449"",""unmapped.nested"":""d"",""unmapped_message"":""Disconnection error""}" | Connection | error?
+2024-10-23T13:52:55.015Z | 173.21.3.15 | 8268152 | Connection error? | "{""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c"",""unmapped_message"":""Disconnection error""}" | Connection | error?
+2024-10-23T13:53:55.832Z | 173.21.3.15 | 5033754 | Connection error? | "{""unmapped_event_duration"":""5033756"",""unmapped.nested"":""b"",""unmapped_message"":""Disconnection error""}" | Connection | error?
+2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""unmapped_message"":""Disconnected from 10.1.0.1""}" | Connected | to 10.1.0.1!
+;
+
 ###############################################
 # MV_EXPAND under LOAD_ALL (#157189)          #
 ###############################################
@@ -5840,7 +5862,7 @@ FROM partial_mapping_sample_data
 // column, so it no longer appears in _unmapped_fields (projected away here by the named KEEP).
 mvExpandUnmappedField
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_mv_expand
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_mv_sample_data
@@ -5870,7 +5892,7 @@ FROM partial_mapping_mv_sample_data
 // repeated across the rows produced for one source document.
 mvExpandUnmappedFieldRepeatsUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_mv_expand
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_mv_sample_data
@@ -5887,7 +5909,7 @@ FROM partial_mapping_mv_sample_data
 // MV_EXPAND of a mapped multivalued column (here built with EVAL) repeats the whole _unmapped_fields object across the produced rows.
 mvExpandMappedFieldRepeatsUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_mv_expand
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -5910,7 +5932,7 @@ FROM partial_mapping_sample_data
 // the output deterministic - the same loose-sampling trick the dedicated sample.csv-spec tests use.
 sampleKeepsUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_sample
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -5932,7 +5954,7 @@ FROM partial_mapping_sample_data
 // unmapped field.
 sampleComposesWithPipeline
 required_capability: optional_fields_load_all_single_source_column
-required_capability: optional_fields_load_all_sample
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data

@@ -114,6 +114,15 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
 
+    /** Number of hash-shuffle partitions per data node; zero disables shuffle planning. */
+    public static final Setting<Integer> SHUFFLE_PARTITIONS_PER_NODE = Setting.intSetting("shuffle_partitions_per_node", 0, 0);
+
+    /** Enables hash-shuffle aggregation when shuffle planning is enabled. */
+    public static final Setting<Boolean> SHUFFLE_AGG = Setting.boolSetting("shuffle_agg", false);
+
+    /** Enables hash-shuffle joins when shuffle planning is enabled. */
+    public static final Setting<Boolean> SHUFFLE_JOIN = Setting.boolSetting("shuffle_join", false);
+
     /**
      * Query-level override for the IN subquery hash join threshold.
      * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#IN_SUBQUERY_HASH_JOIN_THRESHOLD} is used.
@@ -261,6 +270,9 @@ public final class QueryPragmas implements Writeable {
         ROUNDTO_PUSHDOWN_THRESHOLD,
         MAX_KEYWORD_SORT_FIELDS,
         EXTERNAL_DISTRIBUTION,
+        SHUFFLE_PARTITIONS_PER_NODE,
+        SHUFFLE_AGG,
+        SHUFFLE_JOIN,
         IN_SUBQUERY_HASH_JOIN_THRESHOLD,
         BRANCH_PARALLEL_DEGREE,
         MAX_BRANCH_COUNT,
@@ -416,6 +428,22 @@ public final class QueryPragmas implements Writeable {
 
     public String externalDistribution() {
         return EXTERNAL_DISTRIBUTION.get(settings);
+    }
+
+    public int shufflePartitionsPerNode() {
+        return SHUFFLE_PARTITIONS_PER_NODE.get(settings);
+    }
+
+    public boolean shuffleAgg() {
+        return SHUFFLE_AGG.get(settings);
+    }
+
+    public boolean shuffleJoin() {
+        return SHUFFLE_JOIN.get(settings);
+    }
+
+    public boolean shuffleEnabled() {
+        return shufflePartitionsPerNode() > 0;
     }
 
     public int parsingParallelism() {

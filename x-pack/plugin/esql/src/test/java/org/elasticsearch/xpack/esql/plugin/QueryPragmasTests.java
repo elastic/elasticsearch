@@ -62,6 +62,29 @@ public class QueryPragmasTests extends ESTestCase {
         );
     }
 
+    public void testShufflePragmas() {
+        QueryPragmas defaults = QueryPragmas.EMPTY;
+        assertThat(defaults.shufflePartitionsPerNode(), equalTo(0));
+        assertFalse(defaults.shuffleAgg());
+        assertFalse(defaults.shuffleJoin());
+        assertFalse(defaults.shuffleEnabled());
+
+        QueryPragmas pragmas = new QueryPragmas(
+            Settings.builder()
+                .put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), 3)
+                .put(QueryPragmas.SHUFFLE_AGG.getKey(), true)
+                .put(QueryPragmas.SHUFFLE_JOIN.getKey(), true)
+                .build()
+        );
+        assertThat(pragmas.shufflePartitionsPerNode(), equalTo(3));
+        assertTrue(pragmas.shuffleAgg());
+        assertTrue(pragmas.shuffleJoin());
+        assertTrue(pragmas.shuffleEnabled());
+        assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey()));
+        assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.SHUFFLE_AGG.getKey()));
+        assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.SHUFFLE_JOIN.getKey()));
+    }
+
     public void testTimeSeriesPragmaIsDecoupledFromRegularAggregationPragmas() {
         // Only the regular pragma is set: it reaches the regular accessor and leaves the time-series one at its default.
         QueryPragmas regularOnly = new QueryPragmas(

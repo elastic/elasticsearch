@@ -537,3 +537,5 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
   method: test {upgradedNodes=2 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/162240
+- class: org.elasticsearch.search.heappressure.FuzzyHighlightHeapPressureIT
+  issue: https://github.com/elastic/elasticsearch/issues/149983

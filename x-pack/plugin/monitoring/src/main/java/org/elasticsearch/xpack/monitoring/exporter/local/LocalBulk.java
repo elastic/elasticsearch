@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -150,7 +149,7 @@ public class LocalBulk extends ExportBulk {
      * @param exception The {@link ExportException} containing the doc-level exceptions
      */
     private void logLimitedExceptionSummary(ExportException exception) {
-        final Set<Class<?>> loggedCauses = new HashSet<>();
+        final var loggedCauses = new HashSet<>();
         int skippedCount = 0;
         int loggedCount = 0;
 

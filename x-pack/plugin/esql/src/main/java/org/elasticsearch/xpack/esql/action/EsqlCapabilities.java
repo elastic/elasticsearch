@@ -4400,6 +4400,13 @@ public class EsqlCapabilities {
         FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
 
         /**
+         * PromQL durations can be the difference of two timestamp parameters, such as {@code [?_tend - ?_tstart]}, so an
+         * instant query can cover a dashboard's whole time range:
+         * <a href="https://github.com/elastic/elasticsearch/issues/161115">#161115</a>
+         */
+        PROMQL_TIME_RANGE_PARAMS,
+
+        /**
          * A whole number in an external dataset column declared or inferred as {@code date_nanos}, without a
          * {@code format}, is read as epoch milliseconds widened to nanoseconds, matching {@code date} columns. Parquet
          * filter pushdown and TopN pruning scale their bounds the same way. Older nodes read such a number as epoch

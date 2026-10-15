@@ -114,7 +114,7 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *  {@code ViewResolver} and {@code InSubqueryResolver} to do the view and IN subquery resolution respectively.
  */
 public class ViewResolver {
-    public static final int MAX_EXPANDED_SIZE = 50_000;
+    public static final int MAX_EXPANDED_SIZE = 20_000;
 
     protected Logger log = LogManager.getLogger(getClass());
     private final Executor executor;

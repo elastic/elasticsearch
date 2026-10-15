@@ -158,13 +158,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             assert regionsEvictionTasks > 0 : regionsEvictionTasks;
 
             final Map<String, BlobFileRanges> metadata = currentMetadata;
-            final Set<String> liveFiles = liveFilesSupplier != null ? liveFilesSupplier.get() : metadata.keySet();
+            final Set<String> liveFiles = liveFilesSupplier != null ? liveFilesSupplier.get() : null;
 
             final Map<Long, BitSet> activeRegionsByBccGen = new HashMap<>();
             long maxBccGeneration = -1L;
 
             for (var entry : metadata.entrySet()) {
-                if (liveFiles.contains(entry.getKey()) == false) {
+                if (liveFiles != null && liveFiles.contains(entry.getKey()) == false) {
                     continue;
                 }
                 final var file = entry.getValue();

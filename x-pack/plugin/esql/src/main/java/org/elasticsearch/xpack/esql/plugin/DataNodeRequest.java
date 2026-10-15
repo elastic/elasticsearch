@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.shard.ShardId;
@@ -52,6 +53,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     public static final TransportVersion ESQL_REMOTE_FETCH_RETAINED_CONTEXTS = TransportVersion.fromName(
         "esql_remote_fetch_retained_contexts"
     );
+    public static final TransportVersion ESQL_SHUFFLE_STAGE_WIRING = TransportVersion.fromName("esql_shuffle_stage_wiring");
     private static final TransportVersion EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST = TransportVersion.fromName(
         "esql_external_splits_in_data_node_request"
     );
@@ -73,10 +75,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private final boolean retainSearchContexts;
     private final boolean singleNodeOptimizations;
     private final List<ExternalSplit> externalSplits;
+    @Nullable
+    private final StageWiring stageWiring;
 
-    /**
-     * Constructor with all parameters including externalSplits.
-     */
+    /** Constructor with external splits and no stage wiring. */
     DataNodeRequest(
         String sessionId,
         Configuration configuration,
@@ -92,6 +94,41 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         boolean singleNodeOptimizations,
         List<ExternalSplit> externalSplits
     ) {
+        this(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            plan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            retainSearchContexts,
+            singleNodeOptimizations,
+            externalSplits,
+            null
+        );
+    }
+
+    /** Constructor with external splits and optional stage wiring. */
+    DataNodeRequest(
+        String sessionId,
+        Configuration configuration,
+        String clusterAlias,
+        List<Shard> shards,
+        Map<Index, AliasFilter> aliasFilters,
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization,
+        boolean retainSearchContexts,
+        boolean singleNodeOptimizations,
+        List<ExternalSplit> externalSplits,
+        @Nullable StageWiring stageWiring
+    ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
         this.clusterAlias = clusterAlias;
@@ -105,6 +142,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.retainSearchContexts = retainSearchContexts;
         this.singleNodeOptimizations = singleNodeOptimizations;
         this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
+        this.stageWiring = stageWiring;
     }
 
     /**
@@ -187,6 +225,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.externalSplits = List.of();
         }
+        if (in.getTransportVersion().supports(ESQL_SHUFFLE_STAGE_WIRING)) {
+            this.stageWiring = in.readOptionalWriteable(StageWiring::new);
+        } else {
+            this.stageWiring = null;
+        }
     }
 
     @Override
@@ -216,6 +259,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         }
         if (out.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             out.writeNamedWriteableCollection(externalSplits);
+        }
+        if (out.getTransportVersion().supports(ESQL_SHUFFLE_STAGE_WIRING)) {
+            out.writeOptionalWriteable(stageWiring);
         }
     }
 
@@ -309,6 +355,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return externalSplits;
     }
 
+    @Nullable
+    StageWiring stageWiring() {
+        return stageWiring;
+    }
+
     @Override
     public String getDescription() {
         String desc = "shards=" + shards + " plan=" + plan;
@@ -347,7 +398,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && reductionLateMaterialization == request.reductionLateMaterialization
             && retainSearchContexts == request.retainSearchContexts
             && singleNodeOptimizations == request.singleNodeOptimizations
-            && externalSplits.equals(request.externalSplits);
+            && externalSplits.equals(request.externalSplits)
+            && Objects.equals(stageWiring, request.stageWiring);
     }
 
     @Override
@@ -365,7 +417,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization,
             retainSearchContexts,
             singleNodeOptimizations,
-            externalSplits
+            externalSplits,
+            stageWiring
         );
     }
 
@@ -383,7 +436,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             reductionLateMaterialization,
             retainSearchContexts,
             singleNodeOptimizations,
-            externalSplits
+            externalSplits,
+            stageWiring
         );
     }
 

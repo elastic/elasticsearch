@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -99,6 +100,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             new Index("concrete-index", "n/a"),
             AliasFilter.of(new TermQueryBuilder("id", "1"), "alias-1")
         );
+        StageWiring stageWiring = randomBoolean() ? randomStageWiring() : null;
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
             randomConfiguration(query, randomTables()),
@@ -111,7 +113,9 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            randomBoolean()
+            randomBoolean(),
+            List.of(),
+            stageWiring
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
@@ -210,9 +214,10 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var reductionLateMaterialization = in.reductionLateMaterialization();
         var retainSearchContexts = in.retainSearchContexts();
         var singleNodeOptimizations = in.singleNodeOptimizations();
+        var stageWiring = in.stageWiring();
         TaskId parentTask = in.getParentTask();
 
-        switch (between(0, 11)) {
+        switch (between(0, 12)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(20));
             case 1 -> configuration = randomValueOtherThan(configuration, () -> randomConfiguration());
             case 2 -> shards = randomValueOtherThan(
@@ -262,6 +267,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             }
             case 10 -> retainSearchContexts = retainSearchContexts == false;
             case 11 -> singleNodeOptimizations = singleNodeOptimizations == false;
+            case 12 -> stageWiring = stageWiring == null ? randomStageWiring() : null;
             default -> throw new AssertionError("invalid value");
         }
 
@@ -277,10 +283,23 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             runNodeLevelReduction,
             reductionLateMaterialization,
             retainSearchContexts,
-            singleNodeOptimizations
+            singleNodeOptimizations,
+            in.externalSplits(),
+            stageWiring
         );
         request.setParentTask(parentTask);
         return request;
+    }
+
+    private StageWiring randomStageWiring() {
+        return new StageWiring(
+            randomAlphaOfLength(10),
+            randomIntBetween(0, 100),
+            randomFrom(StagedPlanner.StagePlacement.values()),
+            randomList(0, 10, () -> randomIntBetween(0, 10)),
+            randomList(0, 3, () -> new StageWiring.Input(randomAlphaOfLength(10), randomList(0, 3, () -> randomAlphaOfLength(10)))),
+            new StageWiring.Output(randomAlphaOfLength(10), randomFrom(ExchangeDistribution.values()), randomIntBetween(0, 10))
+        );
     }
 
     static Versioned<LogicalPlan> parse(String query) {

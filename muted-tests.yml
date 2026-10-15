@@ -516,3 +516,6 @@ tests:
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162192
+- class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldWildcardHeapPressureIT
+  method: testPausedHeavyWildcardsTripBreaker
+  issue: https://github.com/elastic/elasticsearch/issues/162207

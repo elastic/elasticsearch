@@ -6,8 +6,8 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_name_collision_warning ]
-      reason: The single _unmapped_fields column only exists on nodes with the single-column layout.
+          capabilities: [ optional_fields_load_all_name_collision_warning ]
+      reason: A query with a column named _unmapped_fields warns that the unmapped fields are not returned in it, on newer nodes only.
 
   # _unmapped_fields is not a reserved name: the documents hold a source field called that, next to an ordinary unmapped one.
   - do:
@@ -54,6 +54,8 @@ teardown:
 ---
 'a reference to _unmapped_fields that is not kept still wins over the discovered fields':
   - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_name | WHERE _unmapped_fields == "src" | KEEP id | LIMIT 10'

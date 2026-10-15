@@ -58,7 +58,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  *
  * <p>The rule also leaves the plan untouched when the query has a column named {@code _unmapped_fields} of its own, at any
  * node: a mapped or demand-loaded field, an {@code EVAL} or {@code RENAME} target, an {@code ENRICH} or {@code LOOKUP JOIN}
- * field. The query's column wins, and a warning says so unless no unmapped field could have been returned anyway. Adding the
+ * field. The query's column wins, and a warning says so. Adding the
  * {@link UnmappedFieldsAttribute} next to it would not work, since {@code EVAL} shadows by name and union and fork branches line
  * their columns up by name.
  *
@@ -93,10 +93,9 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return plan;
         }
         if (plan.anyMatch(p -> p.output().stream().anyMatch(a -> a.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)))) {
-            // Nothing is lost when no unmapped field could have been returned anyway, e.g. after an exact KEEP.
-            if (computeUnmappedFieldsToKeep(plan).isNone() == false) {
-                context.deferredHeaderWarnings().add(UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
-            }
+            // Warn even if no unmapped field could have been returned anyway, e.g. after an exact KEEP: the column of that name is
+            // then the query's own, which is not what a user reading its name expects.
+            context.deferredHeaderWarnings().add(UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
             return plan;
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);

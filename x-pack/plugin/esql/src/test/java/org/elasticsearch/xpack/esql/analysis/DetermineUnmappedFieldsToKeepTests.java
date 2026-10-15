@@ -410,10 +410,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      * {@code _unmapped_fields} is not a reserved name. A query referencing it gets an ordinary source field demand-loaded as a
      * keyword, which is an explicit column of the relation, and a column of that name wins over the {@link UnmappedFieldsAttribute},
      * which is only named like the column it becomes. A pattern-less KEEP of that name therefore yields no such attribute at all.
+     * The query still warns: the column of that name holds the source field, not what its name suggests.
      */
     public void testKeepUnmappedFieldsIsAnOrdinarySourceField() {
-        // No warning: an exact KEEP could not have returned any unmapped field anyway.
-        assertNoUnmappedFieldsAttribute("FROM test | KEEP _unmapped_fields");
+        assertUnmappedFieldsNameTaken("FROM test | KEEP _unmapped_fields");
     }
 
     /**
@@ -561,11 +561,15 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = unmapped_extra::keyword");
     }
 
-    /** No warning when nothing could have been returned anyway: the exact KEEP leaves no pattern for unmapped fields to match. */
-    public void testNoWarningWhenNoUnmappedFieldCouldBeReturnedAnyway() {
+    /**
+     * The query warns even when no unmapped field could have been returned anyway, e.g. after an exact KEEP or a STATS: a column
+     * of that name is still not what its name suggests. The identical warnings of the queries collapse into one.
+     */
+    public void testNameTakenWarnsEvenWhenNoUnmappedFieldCouldBeReturnedAnyway() {
         assertNoUnmappedFieldsAttribute("FROM test | WHERE _unmapped_fields == \"x\" | KEEP emp_no");
         assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no, _unmapped_fields");
         assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = \"mine\" | STATS c = COUNT(*) BY _unmapped_fields");
+        assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
     }
 
     /** A field of the lookup index named like the column of unmapped fields is a column of the query, and wins. */

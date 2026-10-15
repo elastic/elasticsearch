@@ -122,7 +122,7 @@ public final class BehaviorWritePlan {
     }
 
     /**
-     * Force merges {@code indexName} down to this plan's post-check segment target, failing if any shard copy does
+     * Force merges {@code indexName} down to this plan's post-check segment target, failing if a primary shard does
      * not reach it so the merged comparison never runs on unmerged segments.
      */
     public void forceMergeAfterChecks(final Client client, final String indexName) {
@@ -145,7 +145,8 @@ public final class BehaviorWritePlan {
         final IndexSegments segments = client.admin().indices().prepareSegments(indexName).get().getIndices().get(indexName);
         for (final IndexShardSegments shard : segments.getShards().values()) {
             for (final ShardSegments copy : shard) {
-                if (copy.getSegments().size() > maxSegments) {
+                // NOTE: a replica can report more segments after the merge, so only the primary is checked.
+                if (copy.getShardRouting().primary() && copy.getSegments().size() > maxSegments) {
                     throw new AssertionError(
                         "force merge of ["
                             + indexName

@@ -264,7 +264,7 @@ public class ObjectMapper extends Mapper {
             Map<String, Mapper.Builder> dedupedBuilders = flattenBuildersIfNeeded(
                 mappersBuilders,
                 mapperBuilderContext,
-                MapperMergeContext.fromBuilderContext(mapperBuilderContext, Long.MAX_VALUE)
+                MapperMergeContext.fromBuilderContext(mapperBuilderContext, Long.MAX_VALUE, f -> true)
             );
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : dedupedBuilders.values()) {

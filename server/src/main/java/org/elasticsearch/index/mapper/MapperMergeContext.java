@@ -25,16 +25,6 @@ public final class MapperMergeContext {
     private final ParseFieldLimits fieldLimits;
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    private MapperMergeContext(
-        MapperBuilderContext mapperBuilderContext,
-        ParseFieldLimits fieldLimits,
-        Predicate<NodeFeature> clusterSupportsFeature
-    ) {
-        this.mapperBuilderContext = mapperBuilderContext;
-        this.fieldLimits = fieldLimits;
-        this.clusterSupportsFeature = clusterSupportsFeature;
-    }
-
     /**
      * The root context, to be used when merging a tree of mappers
      */
@@ -55,17 +45,33 @@ public final class MapperMergeContext {
     }
 
     /**
-     * Creates a new {@link MapperMergeContext} from a {@link MapperBuilderContext}
+     * Creates a new {@link MapperMergeContext} from a {@link MapperBuilderContext}.
+     *
      * @param mapperBuilderContext the {@link MapperBuilderContext} for this {@link MapperMergeContext}
      * @param newFieldsBudget limits how many fields can be added during the merge process
+     * @param clusterSupportsFeature the cluster feature check
      * @return a new {@link MapperMergeContext}, wrapping the provided {@link MapperBuilderContext}
      */
-    public static MapperMergeContext fromBuilderContext(MapperBuilderContext mapperBuilderContext, long newFieldsBudget) {
+    static MapperMergeContext fromBuilderContext(
+        MapperBuilderContext mapperBuilderContext,
+        long newFieldsBudget,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return new MapperMergeContext(
             mapperBuilderContext,
             ParseFieldLimits.withBudget(NewFieldsBudget.dropping(newFieldsBudget)),
-            f -> true
+            clusterSupportsFeature
         );
+    }
+
+    private MapperMergeContext(
+        MapperBuilderContext mapperBuilderContext,
+        ParseFieldLimits fieldLimits,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
+        this.mapperBuilderContext = mapperBuilderContext;
+        this.fieldLimits = fieldLimits;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     /**

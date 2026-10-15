@@ -19,9 +19,6 @@ import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_U
 
 public class MapperMergeContextTests extends ESTestCase {
 
-    private static final NodeFeature FEATURE_A = new NodeFeature("test.feature_a");
-    private static final NodeFeature FEATURE_B = new NodeFeature("test.feature_b");
-
     public void testAddFieldIfPossibleUnderLimit() {
         MapperMergeContext context = new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).newFieldsBudget(1).build();
         assertTrue(context.decrementFieldBudgetIfPossible(1));
@@ -46,12 +43,17 @@ public class MapperMergeContextTests extends ESTestCase {
     }
 
     public void testClusterHasFeatureUsesPredicate() {
+        final NodeFeature FEATURE_A = new NodeFeature("test.feature_a");
+        final NodeFeature FEATURE_B = new NodeFeature("test.feature_b");
+        final Set<NodeFeature> supportedFeatures = Set.of(FEATURE_A);
         final Consumer<MapperMergeContext> assertFeatures = c -> {
             assertTrue(c.clusterHasFeature(FEATURE_A));
             assertFalse(c.clusterHasFeature(FEATURE_B));
         };
 
-        MapperMergeContext context = contextWithFeatures(Set.of(FEATURE_A));
+        MapperMergeContext context = new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).clusterSupportsFeature(
+            supportedFeatures::contains
+        ).build();
         assertFeatures.accept(context);
         assertFeatures.accept(context.createChildContext("child", null));
         assertFeatures.accept(context.withUnlimitedParseFieldLimitsBudget());
@@ -60,15 +62,5 @@ public class MapperMergeContextTests extends ESTestCase {
         MapperMergeContext withOtherBuilderContext = context.withUnlimitedParseFieldLimitsBudget(otherBuilderContext);
         assertFeatures.accept(withOtherBuilderContext);
         assertSame(otherBuilderContext, withOtherBuilderContext.getMapperBuilderContext());
-    }
-
-    public void testFromBuilderContextAssumesAllFeatures() {
-        MapperMergeContext from = MapperMergeContext.fromBuilderContext(MapperBuilderContext.root(false, false), Long.MAX_VALUE);
-        assertTrue(from.clusterHasFeature(FEATURE_A));
-        assertTrue(from.clusterHasFeature(FEATURE_B));
-    }
-
-    private static MapperMergeContext contextWithFeatures(Set<NodeFeature> supportedFeatures) {
-        return new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).clusterSupportsFeature(supportedFeatures::contains).build();
     }
 }

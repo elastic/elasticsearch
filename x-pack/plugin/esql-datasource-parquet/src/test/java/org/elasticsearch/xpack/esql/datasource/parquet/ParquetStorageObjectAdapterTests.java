@@ -1590,6 +1590,33 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     }
 
     /**
+     * An object with no version has no cache key at all: {@link FooterByteCache.Key#keyFor} returns null and its
+     * footer is never cached. The adapter must still open and read it. The admission predicate dereferences the
+     * key for its file length, so without the null conjunct this constructor throws.
+     */
+    public void testUnversionedObjectIsNeitherKeyedNorRefilled() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject unversioned = createRecordingRangeReadStorageObject(data, rangeGets, null);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(unversioned, footerByteCache, breaker);
+
+        assertNull("an object with no version has no cache key", adapter.cacheKey());
+
+        adapter.refillWholeFileFooter();
+        assertEquals("nothing to refill without a key", 0, rangeGets.size());
+
+        // The object is still readable; it just never reaches the byte cache.
+        byte[] read = new byte[data.length];
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(0);
+            stream.readFully(read);
+        }
+        assertArrayEquals(data, read);
+        assertEquals("the read went to storage", 1, rangeGets.size());
+    }
+
+    /**
      * A refill whose read fails does not fail the caller: the bytes have no consumer of their own, so the scan
      * still runs on its own coalesced GETs. It also leaves nothing behind: no cache entry, no open stream, and
      * no window charge on the breaker or the node byte budget. Storage sees the failure twice because
@@ -2691,13 +2718,18 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     }
 
     private StorageObject createRecordingRangeReadStorageObject(byte[] data, List<long[]> rangeGets) {
+        return createRecordingRangeReadStorageObject(data, rangeGets, "v1");
+    }
+
+    /** As {@link #createRecordingRangeReadStorageObject(byte[], List)}, with the given version. */
+    private StorageObject createRecordingRangeReadStorageObject(byte[] data, List<long[]> rangeGets, String version) {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
             public String version() {
-                return "v1";
+                return version;
             }
 
             @Override

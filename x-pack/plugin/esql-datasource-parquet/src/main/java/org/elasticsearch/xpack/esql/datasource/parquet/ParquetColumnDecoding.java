@@ -84,19 +84,6 @@ final class ParquetColumnDecoding {
                 case NANOS -> Math.floorDiv(raw, 1_000_000L);
             };
         }
-        // A TIME column takes the same unit arithmetic, for the same reason convertTemporalToNanos gives: the file
-        // states a unit and the caller wants millis. What the value counts from differs -- a TIMESTAMP is an offset
-        // from the epoch, a TIME a time of day, which `date` renders as an instant on 1970-01-01 -- but the scale
-        // is the unit's, not the origin's. Without this arm a declared `date` over TIME(MICROS) would return its
-        // microsecond-of-day as a millisecond-of-day, which testTimeMicrosDeclaredDatetimeNarrowsToTheMillisecondOfDay
-        // pins against.
-        if (logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
-            return switch (time.getUnit()) {
-                case MILLIS -> raw;
-                case MICROS -> Math.floorDiv(raw, 1_000L);
-                case NANOS -> Math.floorDiv(raw, 1_000_000L);
-            };
-        }
         return raw;
     }
 

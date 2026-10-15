@@ -1240,7 +1240,7 @@ public final class IndexSettings {
      */
     public static final Setting<ByteSizeValue> MAX_BINARY_DOC_VALUE_LENGTH_SETTING = Setting.byteSizeSetting(
         "index.mapping.binary_doc_values.max_value_length",
-        ByteSizeValue.of(10, ByteSizeUnit.MB),
+        ByteSizeValue.of(1, ByteSizeUnit.MB),
         ByteSizeValue.ofBytes(IndexWriter.MAX_TERM_LENGTH),
         ByteSizeValue.ofBytes(Integer.MAX_VALUE),
         Property.IndexScope,

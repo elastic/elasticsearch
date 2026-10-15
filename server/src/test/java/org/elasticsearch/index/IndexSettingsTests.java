@@ -867,10 +867,10 @@ public class IndexSettingsTests extends ESTestCase {
     public void testMaxBinaryDocValueLengthSetting() {
         assertThat(
             newIndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY).getMaxBinaryDocValueLength(),
-            equalTo(10 * 1024 * 1024)
+            equalTo(1024 * 1024)
         );
-        Settings custom = Settings.builder().put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "1mb").build();
-        assertThat(newIndexSettings(newIndexMeta("index", custom), Settings.EMPTY).getMaxBinaryDocValueLength(), equalTo(1024 * 1024));
+        Settings custom = Settings.builder().put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "2mb").build();
+        assertThat(newIndexSettings(newIndexMeta("index", custom), Settings.EMPTY).getMaxBinaryDocValueLength(), equalTo(2 * 1024 * 1024));
 
         Settings belowTermLimit = Settings.builder()
             .put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), IndexWriter.MAX_TERM_LENGTH - 1 + "b")

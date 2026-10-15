@@ -36,7 +36,7 @@ The following metadata fields are available in {{esql}}:
 
 ## Usage and limitations
 
-- Most metadata fields are only available when the data source is an index. When a field is not available for a given source, `null` is returned. This includes `_score` when you request it on a view or subquery that does not produce it. {applies_to}`stack: ga 9.6` `_class` and `_name` are available on every source: indices, [views](esql-views.md#views-with-metadata), [subqueries](esql-from-subquery.md#subqueries-with-metadata), and [datasets](esql-data-federation-querying.md#use-metadata-columns).
+- Most metadata fields are only available when the data source is an index. When a field is not available for a given source, `null` is returned. {applies_to}`stack: ga 9.6` `_class` and `_name` are available on every source: indices, [views](esql-views.md#views-with-metadata), [subqueries](esql-from-subquery.md#subqueries-with-metadata), and [datasets](esql-data-federation-querying.md#use-metadata-columns).
 - The `_source` type is not supported by functions
 - Only the `FROM` command supports the `METADATA` directive
 - Once enabled, metadata fields work like regular index fields

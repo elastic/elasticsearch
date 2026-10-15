@@ -18,15 +18,20 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.columnar.numeric.MultiLevelSkipIndexCodec;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.SkipIndexCodec;
+import org.elasticsearch.core.CheckedFunction;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.NavigableSet;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -76,17 +81,45 @@ public class DictionaryStringColumnSkipperTests extends ColumnarStringTestCase {
     }
 
     public void testRangeMatchesWhatAScanFinds() throws IOException {
-        final int count = INTERVAL * between(3, 6);
-        final BytesRef[][] docSlots = randomDocSlots(count, between(2, 32), between(2, 4), false);
-        for (int doc = count - between(1, 5); doc < count; doc++) {
-            docSlots[doc] = randomBoolean() ? null : new BytesRef[0];
-        }
-        assertRangesMatchAScan(docSlots, true);
+        assertRangesMatchAScan(sparseClusteredDocSlots(), true);
+    }
+
+    public void testTermPrefixAndAnyOfMatchWhatAScanFinds() throws IOException {
+        final BytesRef[][] docSlots = sparseClusteredDocSlots();
+        final List<BytesRef> pool = values(docSlots);
+        withColumn(docSlots, options(), (metadata, reader) -> {
+            assertNotNull(skipperOf(metadata));
+            for (int query = 0; query < 20; query++) {
+                final BytesRef term = rarely() ? new BytesRef(randomAlphaOfLength(between(1, 6))) : pool.get(between(0, pool.size() - 1));
+                assertMatches(docSlots, value -> value.equals(term), reader.matchTerm(term));
+                final BytesRef prefix = new BytesRef(term.utf8ToString().substring(0, between(0, term.length)));
+                assertMatches(docSlots, value -> StringHelper.startsWith(value, prefix), reader.matchPrefix(prefix));
+                final NavigableSet<BytesRef> terms = new TreeSet<>();
+                for (int i = between(1, 4); i > 0; i--) {
+                    terms.add(pool.get(between(0, pool.size() - 1)));
+                }
+                assertMatches(docSlots, terms::contains, reader.matchAnyOf(terms, terms));
+            }
+        });
     }
 
     public void testRangeMatchesWhatAScanFindsWithEscapes() throws IOException {
         final int count = between(256, INTERVAL * 6);
         assertRangesMatchAScan(randomDocSlots(count, between(2, 64), between(1, 4), true), false);
+    }
+
+    private static BytesRef[][] sparseClusteredDocSlots() {
+        final int count = INTERVAL * between(3, 6);
+        final BytesRef[][] docSlots = randomDocSlots(count, between(2, 32), between(2, 4), false);
+        for (int doc = count - between(1, 5); doc < count; doc++) {
+            docSlots[doc] = randomBoolean() ? null : new BytesRef[0];
+        }
+        return docSlots;
+    }
+
+    private static void assertMatches(BytesRef[][] docSlots, Predicate<BytesRef> matches, DocIdSetIterator iterator) throws IOException {
+        final List<Integer> expected = expectedWhere(docSlots, matches);
+        assertEquals(expected, matched(iterator));
     }
 
     private void assertRangesMatchAScan(BytesRef[][] docSlots, boolean indexed) throws IOException {
@@ -159,6 +192,31 @@ public class DictionaryStringColumnSkipperTests extends ColumnarStringTestCase {
         });
     }
 
+    public void testTermPrefixAndAnyOfDecodeOnlyTheOrdinalBlocksOfTheIntervalsTheyCanMatch() throws IOException {
+        final int count = INTERVAL * between(12, 16);
+        final BytesRef[][] docSlots = clustered(count, 2, 40);
+        final int term = between(5, 30);
+        final BytesRef target = term(term);
+        final BytesRef prefix = new BytesRef(target.utf8ToString().substring(0, 9));
+        final NavigableSet<BytesRef> terms = new TreeSet<>(List.of(term(term), term(term + 1)));
+        final long wholeColumn = ordinalBlocksDecoded(docSlots, term(0), term(39));
+        assertThat(
+            "blocks decoded for one term",
+            ordinalBlocksDecoded(docSlots, reader -> reader.matchTerm(target), value -> value.equals(target)) * 2,
+            lessThanOrEqualTo(wholeColumn)
+        );
+        assertThat(
+            "blocks decoded for a prefix",
+            ordinalBlocksDecoded(docSlots, reader -> reader.matchPrefix(prefix), value -> StringHelper.startsWith(value, prefix)) * 2,
+            lessThanOrEqualTo(wholeColumn)
+        );
+        assertThat(
+            "blocks decoded for two terms",
+            ordinalBlocksDecoded(docSlots, reader -> reader.matchAnyOf(terms, terms), terms::contains) * 2,
+            lessThanOrEqualTo(wholeColumn)
+        );
+    }
+
     public void testAColumnWithSeveralSlotsInTermOrderStillGetsAnIndex() throws IOException {
         final int count = INTERVAL * between(8, 12);
         final BytesRef[][] docSlots = new BytesRef[count][];
@@ -194,12 +252,24 @@ public class DictionaryStringColumnSkipperTests extends ColumnarStringTestCase {
     }
 
     private long ordinalBlocksDecoded(BytesRef[][] docSlots, BytesRef lower, BytesRef upper) throws IOException {
+        return ordinalBlocksDecoded(
+            docSlots,
+            reader -> reader.matchRange(lower, true, upper, true),
+            value -> inRange(value, lower, true, upper, true)
+        );
+    }
+
+    private long ordinalBlocksDecoded(
+        BytesRef[][] docSlots,
+        CheckedFunction<StringColumnReader, DocIdSetIterator, IOException> query,
+        Predicate<BytesRef> matching
+    ) throws IOException {
         final AtomicLong seeks = new AtomicLong();
         final long[] decoded = new long[1];
         withColumnAndSkipIndex(docSlots, options(), directory -> new SeekCountingDirectory(directory, seeks), (metadata, reader, skip) -> {
             final long before = seeks.get();
-            final List<Integer> matches = matched(reader.matchRange(lower, true, upper, true));
-            assertEquals(expectedInRange(docSlots, lower, true, upper, true), matches);
+            final List<Integer> matches = matched(query.apply(reader));
+            assertEquals(expectedWhere(docSlots, matching), matches);
             assertFalse(matches.isEmpty());
             decoded[0] = seeks.get() - before;
         });
@@ -332,13 +402,17 @@ public class DictionaryStringColumnSkipperTests extends ColumnarStringTestCase {
         BytesRef upper,
         boolean includeUpper
     ) {
+        return expectedWhere(docSlots, value -> inRange(value, lower, includeLower, upper, includeUpper));
+    }
+
+    private static List<Integer> expectedWhere(BytesRef[][] docSlots, Predicate<BytesRef> matches) {
         final List<Integer> docs = new ArrayList<>();
         for (int doc = 0; doc < docSlots.length; doc++) {
             if (docSlots[doc] == null) {
                 continue;
             }
             for (BytesRef value : docSlots[doc]) {
-                if (value != null && inRange(value, lower, includeLower, upper, includeUpper)) {
+                if (value != null && matches.test(value)) {
                     docs.add(doc);
                     break;
                 }

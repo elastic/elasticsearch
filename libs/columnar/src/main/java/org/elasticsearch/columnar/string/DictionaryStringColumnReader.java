@@ -421,7 +421,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             SlotBlocks.of(ordinals),
             windowRanges(lowOrdinal, highOrdinal, escapeOrdinal, escapesCanMatch)
         );
-        final Slots candidates = slotsHeld(window);
+        final Slots candidates = slotsHeld(window, presenceForOrdinalRange(lowOrdinal, highOrdinal - 1L));
         if (escapesCanMatch == false) {
             return settledBy(candidates);
         }
@@ -701,7 +701,9 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         if (escapesCanMatch == false) {
             final long[] runs = runsOf(matching, end, MAX_WINDOW_RUNS);
             if (runs != null) {
-                return settledBy(slotsHeld(new SlotWindow(SlotBlocks.of(ordinals), runs)));
+                return settledBy(
+                    slotsHeld(new SlotWindow(SlotBlocks.of(ordinals), runs), presenceForOrdinalRange(runs[0], runs[runs.length - 1]))
+                );
             }
         }
         final ColumnIterator presence = iterator();

@@ -24,7 +24,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Telemetry for time series data, only time series data streams (TSDS) are tracked. For each TSDS we track:
+ * Telemetry for time series data, only time series data streams (TSDS) are tracked. The doc and byte totals ({@code num_docs},
+ * {@code size_in_bytes}) cover all indices using the time series index mode, gathered via {@code IndexModeStatsActionType}.
+ * For each TSDS we track:
  * - their time series backing indices
  * - their downsampled backing indices
  * - the downsampled data streams, backing indices and downsampling rounds split by feature (ILM or DLM)
@@ -36,6 +38,8 @@ import java.util.Objects;
  *      "available": true,
  *      "data_stream_count": 10,
  *      "index_count": 100,
+ *      "num_docs": 1000000,
+ *      "size_in_bytes": 52428800,
  *      "downsampling": {
  *         "index_count_per_interval": {
  *           "5m": 5,
@@ -83,9 +87,12 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
 
     private static final TransportVersion TIME_SERIES_TELEMETRY = TransportVersion.fromName("time_series_telemetry");
     private static final TransportVersion ADD_DOWNSAMPLING_METHOD_TELEMETRY = TransportVersion.fromName("add_downsample_method_telemetry");
+    public static final TransportVersion TIME_SERIES_USAGE_DOC_STATS = TransportVersion.fromName("time_series_usage_doc_stats");
 
     private final long timeSeriesDataStreamCount;
     private final long timeSeriesIndexCount;
+    private final long numDocs;
+    private final long sizeInBytes;
     private final DownsamplingUsage downsamplingUsage;
 
     public TimeSeriesFeatureSetUsage(StreamInput input) throws IOException {
@@ -98,6 +105,13 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
             this.timeSeriesIndexCount = input.readVLong();
             this.downsamplingUsage = input.readOptionalWriteable(DownsamplingUsage::read);
         }
+        if (input.getTransportVersion().supports(TIME_SERIES_USAGE_DOC_STATS)) {
+            this.numDocs = input.readVLong();
+            this.sizeInBytes = input.readVLong();
+        } else {
+            this.numDocs = 0;
+            this.sizeInBytes = 0;
+        }
     }
 
     /**
@@ -107,21 +121,36 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
     public TimeSeriesFeatureSetUsage(
         long timeSeriesDataStreamCount,
         long timeSeriesIndexCount,
+        long numDocs,
+        long sizeInBytes,
         DownsamplingFeatureStats dlmDownsamplingStats,
         Map<String, Long> indexCountPerInterval
     ) {
-        this(timeSeriesDataStreamCount, timeSeriesIndexCount, null, null, dlmDownsamplingStats, indexCountPerInterval);
+        this(
+            timeSeriesDataStreamCount,
+            timeSeriesIndexCount,
+            numDocs,
+            sizeInBytes,
+            null,
+            null,
+            dlmDownsamplingStats,
+            indexCountPerInterval
+        );
     }
 
     public TimeSeriesFeatureSetUsage(
         long timeSeriesDataStreamCount,
         long timeSeriesIndexCount,
+        long numDocs,
+        long sizeInBytes,
         DownsamplingFeatureStats ilmDownsamplingStats,
         IlmPolicyStats ilmPolicyStats,
         DownsamplingFeatureStats dlmDownsamplingStats,
         Map<String, Long> indexCountPerInterval
     ) {
         super(XPackField.TIME_SERIES_DATA_STREAMS, true, true);
+        this.numDocs = numDocs;
+        this.sizeInBytes = sizeInBytes;
         this.timeSeriesDataStreamCount = timeSeriesDataStreamCount;
         if (timeSeriesDataStreamCount == 0) {
             this.timeSeriesIndexCount = 0;
@@ -146,7 +175,10 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
             out.writeVLong(timeSeriesIndexCount);
             out.writeOptionalWriteable(downsamplingUsage);
         }
-
+        if (out.getTransportVersion().supports(TIME_SERIES_USAGE_DOC_STATS)) {
+            out.writeVLong(numDocs);
+            out.writeVLong(sizeInBytes);
+        }
     }
 
     @Override
@@ -162,6 +194,14 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
         return timeSeriesIndexCount;
     }
 
+    public long getNumDocs() {
+        return numDocs;
+    }
+
+    public long getSizeInBytes() {
+        return sizeInBytes;
+    }
+
     public DownsamplingUsage getDownsamplingUsage() {
         return downsamplingUsage;
     }
@@ -173,6 +213,8 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
         if (timeSeriesDataStreamCount > 0) {
             builder.field("index_count", timeSeriesIndexCount);
         }
+        builder.field("num_docs", numDocs);
+        builder.field("size_in_bytes", sizeInBytes);
         if (downsamplingUsage != null) {
             builder.field("downsampling", downsamplingUsage);
         }
@@ -185,7 +227,7 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public int hashCode() {
-        return Objects.hash(timeSeriesDataStreamCount, timeSeriesIndexCount, downsamplingUsage);
+        return Objects.hash(timeSeriesDataStreamCount, timeSeriesIndexCount, numDocs, sizeInBytes, downsamplingUsage);
     }
 
     @Override
@@ -199,6 +241,8 @@ public class TimeSeriesFeatureSetUsage extends XPackFeatureUsage {
         TimeSeriesFeatureSetUsage other = (TimeSeriesFeatureSetUsage) obj;
         return timeSeriesDataStreamCount == other.timeSeriesDataStreamCount
             && timeSeriesIndexCount == other.timeSeriesIndexCount
+            && numDocs == other.numDocs
+            && sizeInBytes == other.sizeInBytes
             && Objects.equals(downsamplingUsage, other.downsamplingUsage);
     }
 

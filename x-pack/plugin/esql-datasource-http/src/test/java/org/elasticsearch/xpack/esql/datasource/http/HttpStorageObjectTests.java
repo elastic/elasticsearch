@@ -67,7 +67,7 @@ import static org.mockito.Mockito.when;
 @SuppressWarnings("unchecked")
 public class HttpStorageObjectTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     public void testPath() {
         HttpClient mockClient = mock(HttpClient.class);
@@ -466,8 +466,8 @@ public class HttpStorageObjectTests extends ESTestCase {
     }
 
     /**
-     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
-     * the bytes read from the response.
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters. Bytes are
+     * received-body, so a close with no read books 0.
      */
     public void testRangeNewStreamIncrementsMetrics() throws Exception {
         long rangeBytes = 1024L;
@@ -489,9 +489,31 @@ public class HttpStorageObjectTests extends ESTestCase {
 
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
-        assertEquals(rangeBytes, metrics.bytesRead());
+        assertEquals(0L, metrics.bytesRead());
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
+    }
+
+    public void testRangeNewStreamDrainCountsReceivedBytes() throws Exception {
+        long rangeBytes = 1024L;
+        int drained = between(1, (int) rangeBytes);
+        HttpResponse<java.io.InputStream> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(HttpStatus.SC_PARTIAL_CONTENT);
+        when(mockResponse.headers()).thenReturn(
+            HttpHeaders.of(java.util.Map.of("Content-Length", java.util.List.of(Long.toString(rangeBytes))), (a, b) -> true)
+        );
+        when(mockResponse.body()).thenReturn(new ByteArrayInputStream(new byte[(int) rangeBytes]));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(mockResponse).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+        try (InputStream stream = obj.newStream(0, rangeBytes)) {
+            assertEquals(drained, stream.read(new byte[drained]));
+        }
+        assertEquals(1L, obj.metrics().requestCount());
+        assertEquals(drained, obj.metrics().bytesRead());
     }
 
     public void testSecondGetSendsIfMatchOfFirstEtag() throws Exception {
@@ -630,10 +652,11 @@ public class HttpStorageObjectTests extends ESTestCase {
     /**
      * A store's error body routinely names the bucket or object in plain text, with no storage-URI scheme and no
      * absolute path for {@code safeForUserMessage} to catch. It must never reach the exception message; it is
-     * logged at DEBUG for the admin instead.
+     * logged at WARN for the admin (at most once a minute per node), and at DEBUG otherwise.
      */
-    @TestLogging(value = "org.elasticsearch.xpack.esql.datasource.http.HttpStorageObject:DEBUG", reason = "asserts the DEBUG body log")
+    @TestLogging(value = "org.elasticsearch.xpack.esql.datasource.http.HttpStorageObject:DEBUG", reason = "asserts the body log")
     public void testErrorBodyIsLoggedNotForwarded() throws Exception {
+        HttpStorageObject.ERROR_BODY_WARN.reset();
         String body = "{\"error\":{\"code\":404,\"message\":\"No such object: my-bucket/tenant-a/x.csv\"}}";
 
         MockLog.assertThatLogger(() -> {
@@ -645,9 +668,18 @@ public class HttpStorageObjectTests extends ESTestCase {
             new MockLog.SeenEventExpectation(
                 "error body",
                 HttpStorageObject.class.getCanonicalName(),
-                Level.DEBUG,
+                Level.WARN,
                 "*my-bucket/tenant-a/x.csv*"
             )
+        );
+
+        MockLog.assertThatLogger(() -> {
+            for (int i = 0; i < 10; i++) {
+                expectThrows(IOException.class, () -> objectAnsweringWithBody(HttpStatus.SC_NOT_FOUND, body).newStream());
+            }
+        },
+            HttpStorageObject.class,
+            new MockLog.UnseenEventExpectation("throttled", HttpStorageObject.class.getCanonicalName(), Level.WARN, "*")
         );
     }
 

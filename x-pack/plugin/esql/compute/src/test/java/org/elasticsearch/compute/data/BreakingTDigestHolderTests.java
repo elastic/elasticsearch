@@ -36,7 +36,7 @@ public class BreakingTDigestHolderTests extends ESTestCase {
         double max = source.getMax();
         double sum = source.getSum();
 
-        try (BreakingTDigestHolder copy = BreakingTDigestHolder.create(new NoopCircuitBreaker("test-breaker"))) {
+        try (BreakingTDigestHolder copy = BreakingTDigestHolder.create(NoopCircuitBreaker.INSTANCE)) {
             copy.set(source);
             assertThat(copy.accessor(), equalTo(source));
 
@@ -62,7 +62,7 @@ public class BreakingTDigestHolderTests extends ESTestCase {
     }
 
     public void testSetFromTDigestReadView() {
-        NoopCircuitBreaker breaker = new NoopCircuitBreaker("test-breaker");
+        NoopCircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         MemoryTrackingTDigestArrays arrays = new MemoryTrackingTDigestArrays(breaker);
         try (
             TDigest digest = TDigest.createMergingDigest(arrays, 100.0);
@@ -115,7 +115,7 @@ public class BreakingTDigestHolderTests extends ESTestCase {
     }
 
     private TDigestHolder randomStandaloneTDigestHolder() {
-        NoopCircuitBreaker breaker = new NoopCircuitBreaker("random-holder");
+        NoopCircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         MemoryTrackingTDigestArrays arrays = new MemoryTrackingTDigestArrays(breaker);
         try (
             TDigest digest = TDigest.createMergingDigest(arrays, 100.0);

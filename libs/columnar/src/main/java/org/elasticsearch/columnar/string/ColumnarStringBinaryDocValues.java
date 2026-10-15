@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * A string column at the {@code BINARY} surface. The API carries one {@link BytesRef} per document, so a
  * document's slots are re-encoded on the way out: {@link #binaryValue} rebuilds the {@link StringBinaryPayload}
- * the mapper wrote, count and all, which is what every reader of these fields decodes.
+ * the mapper wrote, count and all, or hands back the value's own bytes for a single-valued column.
  *
  * <p>Ingest is the mirror image — {@link #decodePayloads} splits the payload the mapper writes.
  *
@@ -68,6 +68,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     @Override
     public StringColumnReader reader() {
         return reader;
+    }
+
+    @Override
+    public boolean singleValued() {
+        return singleValued;
     }
 
     @Override
@@ -175,6 +180,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     @Override
     public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
         iterator.intoBitSet(upTo, bitSet, offset);
+    }
+
+    @Override
+    public int docIDRunEnd() throws IOException {
+        return iterator.docIDRunEnd();
     }
 
     @Override

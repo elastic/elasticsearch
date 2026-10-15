@@ -12,6 +12,8 @@ package org.elasticsearch.action.fieldcaps;
 import org.apache.lucene.index.FieldInfos;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -340,6 +342,176 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             "attributes.foo must not be synthesized as an implicit object under a subobjects:false passthrough mapper",
             response.get("attributes.foo")
         );
+    }
+
+    public void testSynthesizedObjectWithoutMapperIsNotPassthrough() throws IOException {
+        // With subobjects:false at the root, "host.name" is a leaf and "host" is synthesized as an object without a backing
+        // ObjectMapper. It must report the same passthrough status (false) as a real plain object, so that field caps of
+        // such an index (e.g. logsdb) do not conflict with those of an index that maps "host" as a regular object.
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("subobjects", false);
+            b.startObject("properties").startObject("host.name").field("type", "keyword").endObject().endObject();
+        }));
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+
+        IndexFieldCapabilities host = response.get("host");
+        assertNotNull(host);
+        assertEquals("object", host.type());
+        assertEquals(Boolean.FALSE, host.isPassthrough());
+        assertNull(response.get("host.name").isPassthrough());
+    }
+
+    public void testAutoFlattenedPassthroughObjectIsFlagged() throws IOException {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, topMapping(b -> {
+                b.field("subobjects", false);
+                b.startObject("properties");
+                b.startObject("resource.attributes").field("type", "passthrough").field("priority", 10);
+                b.startObject("properties").startObject("host.name").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.endObject();
+            }));
+            SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+            Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+                sec,
+                s -> true,
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                FieldPredicate.ACCEPT_ALL,
+                getMockIndexShard(),
+                true
+            );
+
+            IndexFieldCapabilities attributes = response.get("resource.attributes");
+            assertNotNull(attributes);
+            assertEquals("object", attributes.type());
+            assertEquals(Boolean.TRUE, attributes.isPassthrough());
+            assertEquals(Boolean.FALSE, response.get("resource").isPassthrough());
+            assertNull(response.get("resource.attributes.host.name").isPassthrough());
+        }
+    }
+
+    public void testPassthroughObjectIsFlagged() throws IOException {
+        // Passthrough sources keep their regular type ("object" / "flattened") but are additionally flagged as passthrough.
+        // Plain objects and flattened fields, which could have been passthrough, are explicitly flagged as not passthrough,
+        // while everything else (nested objects, leaf fields) carries no passthrough status at all.
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "attributes" : {
+                  "type" : "passthrough",
+                  "priority" : 10,
+                  "properties" : {
+                    "host.name" : { "type" : "keyword" }
+                  }
+                },
+                "resource" : {
+                  "properties" : {
+                    "attributes" : {
+                      "type" : "passthrough",
+                      "priority" : 20,
+                      "properties" : {
+                        "host.name" : { "type" : "keyword" }
+                      }
+                    }
+                  }
+                },
+                "plain" : {
+                  "properties" : {
+                    "field" : { "type" : "keyword" }
+                  }
+                },
+                "nested" : {
+                  "type" : "nested",
+                  "properties" : {
+                    "field" : { "type" : "keyword" }
+                  }
+                },
+                "labels" : {
+                  "type" : "flattened",
+                  "passthrough" : { "priority" : 30 },
+                  "properties" : {
+                    "service.name" : { "type" : "keyword" }
+                  }
+                },
+                "plain_flattened" : { "type" : "flattened" }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+
+        IndexFieldCapabilities attributes = response.get("attributes");
+        assertNotNull(attributes);
+        assertEquals("object", attributes.type());
+        assertEquals(Boolean.TRUE, attributes.isPassthrough());
+
+        IndexFieldCapabilities resourceAttributes = response.get("resource.attributes");
+        assertNotNull(resourceAttributes);
+        assertEquals("object", resourceAttributes.type());
+        assertEquals(Boolean.TRUE, resourceAttributes.isPassthrough());
+
+        // the parent of a passthrough object is a plain object
+        IndexFieldCapabilities resource = response.get("resource");
+        assertNotNull(resource);
+        assertEquals("object", resource.type());
+        assertEquals(Boolean.FALSE, resource.isPassthrough());
+
+        IndexFieldCapabilities plain = response.get("plain");
+        assertNotNull(plain);
+        assertEquals("object", plain.type());
+        assertEquals(Boolean.FALSE, plain.isPassthrough());
+
+        // nested objects cannot be passthrough, so they carry no status
+        IndexFieldCapabilities nested = response.get("nested");
+        assertNotNull(nested);
+        assertEquals("nested", nested.type());
+        assertNull(nested.isPassthrough());
+
+        // flattened fields are passthrough sources when configured as such
+        IndexFieldCapabilities labels = response.get("labels");
+        assertNotNull(labels);
+        assertEquals("flattened", labels.type());
+        assertEquals(Boolean.TRUE, labels.isPassthrough());
+
+        IndexFieldCapabilities plainFlattened = response.get("plain_flattened");
+        assertNotNull(plainFlattened);
+        assertEquals("flattened", plainFlattened.type());
+        assertEquals(Boolean.FALSE, plainFlattened.isPassthrough());
+
+        // leaf fields, including passthrough sub-fields and their root-level aliases, carry no passthrough status
+        assertNotNull(response.get("attributes.host.name"));
+        assertNull(response.get("attributes.host.name").isPassthrough());
+        assertNotNull(response.get("host.name"));
+        assertNull(response.get("host.name").isPassthrough());
+        assertNotNull(response.get("labels.service.name"));
+        assertNull(response.get("labels.service.name").isPassthrough());
+        assertNotNull(response.get("service.name"));
+        assertNull(response.get("service.name").isPassthrough());
+        // intermediate segments of dotted sub-field names must not be synthesized as objects
+        assertNull(response.get("attributes.host"));
+        assertNull(response.get("labels.service"));
     }
 
     public void testIndexLocalAnalyzerNameIsDropped() throws IOException {

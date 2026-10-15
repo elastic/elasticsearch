@@ -72,7 +72,7 @@ You can speed up prefix queries using the [`index_prefixes`](/reference/elastics
 
 ### Allow expensive queries [prefix-query-allow-expensive-queries]
 
-Prefix queries will not be executed if [`search.allow_expensive_queries`](/reference/query-languages/querydsl.md#query-dsl-allow-expensive-queries) is set to false. However, if [`index_prefixes`](/reference/elasticsearch/mapping-reference/index-prefixes.md) are enabled, an optimised query is built which is not considered slow, and will be executed in spite of this setting.
+Prefix queries will not be executed if [`search.allow_expensive_queries`](/reference/query-languages/querydsl.md#query-dsl-allow-expensive-queries) is set to false. However, if [`index_prefixes`](/reference/elasticsearch/mapping-reference/index-prefixes.md) are enabled, an optimised query is built which is not considered slow, and will be executed in spite of this setting. This applies to prefixes that have from `min_chars` minus 1 to `max_chars` characters. For other prefix lengths, the query is rejected while the setting is `false`.
 
 
 

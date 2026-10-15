@@ -1289,6 +1289,29 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
     }
 
+    /**
+     * A long chain of {@code EVAL}s where every fourth one is a pure alias (like the machine-generated JSON flattening queries seen in
+     * production) is turned into {@code Eval, Eval, Eval, Project, Eval, ...} by {@code ReplaceAliasingEvalWithProject}. Pushing an
+     * {@code Eval} past all of those {@code Project}s used to cost one optimizer pass per {@code Project}, so the number of passes grew
+     * with the number of aliases and a big enough chain hit the batch's rule execution limit even though every pass made progress.
+     */
+    public void testPushDownEvalPastManyAliasingProjects() {
+        int evals = 450;
+        StringBuilder query = new StringBuilder("from test | where salary > 0 | eval e0 = salary");
+        // Starting at 1 as 0 is used above
+        for (int i = 1; i <= evals; i++) {
+            query.append(" | eval e").append(i).append(" = e").append(i - 1);
+            if (i % 4 != 0) {
+                query.append(" + 1");
+            }
+        }
+        query.append(" | keep emp_no, e").append(evals).append(" | sort emp_no | limit 11");
+
+        LogicalPlan plan = optimizedPlan(query.toString());
+
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("emp_no", "e" + evals)));
+    }
+
     public void testPushDownDissectPastProject() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -7376,6 +7399,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * a TS STATS aggregate alias that collides with a grouping key must be shadowed (grouping wins)
      * when TranslateTimeSeriesAggregate builds the PackDims Project, matching non-TS STATS behavior.
      */
+    /**
+     * Grouping by a non-dimension TEXT field while dropping all aggregates must not change the output type to KEYWORD.
+     */
+    public void testMetricsTextGroupingKeepsTypeWhenAggregatesDropped() {
+        var plan = planMetrics("TS k8s | STATS x = absent(events_received) BY event_log | DROP x");
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("event_log")));
+    }
+
     public void testMetricsAggregateAliasCollidesWithGroupingKey() {
         assumeTrue(
             "Requires fix for TS STATS alias/grouping shadowing",

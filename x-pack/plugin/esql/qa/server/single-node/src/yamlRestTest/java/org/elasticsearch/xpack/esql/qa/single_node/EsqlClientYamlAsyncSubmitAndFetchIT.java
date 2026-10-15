@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -26,7 +27,7 @@ import java.util.Map;
  * Run the ESQL yaml tests async and then fetch the results with a long wait time.
  */
 public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlIT {
-    public EsqlClientYamlAsyncSubmitAndFetchIT(final ClientYamlTestCandidate testCandidate) {
+    public EsqlClientYamlAsyncSubmitAndFetchIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
@@ -72,6 +73,10 @@ public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlI
                 );
 
                 String id = startResponse.evaluate("id");
+                if (id == null) {
+                    // Non-XContent formats (csv, tsv, txt, md, arrow) have no parsed body to carry the id; it only comes in this header.
+                    id = startResponse.getHeaders("X-Elasticsearch-Async-Id").stream().findFirst().orElse(null);
+                }
                 boolean finishedEarly = id == null;
                 if (finishedEarly) {
                     /*
@@ -97,6 +102,10 @@ public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlI
                 String dropNullColumns = original.getApiCallSection().getParams().get("drop_null_columns");
                 if (dropNullColumns != null) {
                     params.put("drop_null_columns", dropNullColumns);
+                }
+                String format = original.getApiCallSection().getParams().get("format");
+                if (format != null) {
+                    params.put("format", format);
                 }
                 ClientYamlTestResponse fetchResponse = executionContext.callApi(
                     "esql.async_query_get",

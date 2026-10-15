@@ -226,7 +226,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     }
 
     /**
-     * Returns the cache key identifying this file by {@code (path, length)}. Shared with
+     * Returns the cache key identifying this file by {@code (path, length, version)}. Shared with
      * {@link FooterByteCache} and the parsed-footer cache held by {@link ParquetFormatReader} so
      * that callers reusing this adapter can hit those caches without recomputing the key.
      */
@@ -465,7 +465,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             // Charge before getOrLoad so a breaker trip does not issue that cold-tail GET.
             getOrAllocateWindow();
             boolean isTailRead = wholeFileFill == false && fetchPos + toRead == length;
-            if (isTailRead && toRead <= tailCache.maxEntryBytes()) {
+            if (cacheKey != null && isTailRead && toRead <= tailCache.maxEntryBytes()) {
                 try {
                     byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> readTailBytes(fetchPos, (int) toRead));
                     if (tailBytes.length > 0 && fillFromCachedTail(tailBytes, fetchPos, (int) toRead)) {
@@ -523,7 +523,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
             // put() copies the window. Skip that copy when the entry would be rejected, and never
             // cache a whole-file fill (see isTailRead above).
-            if (wholeFileFill == false
+            if (cacheKey != null
+                && wholeFileFill == false
                 && windowLength > 0
                 && windowStart + windowLength == length
                 && windowLength <= tailCache.maxEntryBytes()) {
@@ -566,6 +567,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         }
 
         private boolean fillFromTailCache(FooterByteCache tailCache, long pos, int toRead) {
+            if (cacheKey == null) {
+                return false;
+            }
             byte[] cached = tailCache.get(cacheKey);
             return cached != null && fillFromCachedTail(cached, pos, toRead);
         }

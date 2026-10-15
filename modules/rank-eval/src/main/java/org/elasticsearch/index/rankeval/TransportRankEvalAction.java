@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -184,8 +185,10 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             for (Item response : multiSearchResponse.getResponses()) {
                 RatedRequest specification = specifications[responsePosition];
                 if (response.isFailure() == false) {
-                    SearchHit[] hits = response.getResponse().getHits().getHits();
+                    SearchResponse searchResponse = response.getResponse();
+                    SearchHit[] hits = searchResponse.getHits().getHits();
                     EvalQueryQuality queryQuality = this.metric.evaluate(specification.getId(), hits, specification.getRatedDocs());
+                    queryQuality.setTook(searchResponse.getTookInMillis());
                     responseDetails.put(specification.getId(), queryQuality);
                 } else {
                     errors.put(specification.getId(), response.getFailure());

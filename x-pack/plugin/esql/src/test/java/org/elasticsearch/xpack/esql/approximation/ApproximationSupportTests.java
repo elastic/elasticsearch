@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -80,7 +81,6 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
-import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -210,6 +210,7 @@ public class ApproximationSupportTests extends ESTestCase {
         AntiJoin.class,
         Dedup.class,
         Drop.class,
+        FillNull.class,
         InnerJoin.class,
         InlineStats.class,
         Keep.class,
@@ -217,7 +218,6 @@ public class ApproximationSupportTests extends ESTestCase {
         Lookup.class,
         LookupJoin.class,
         ParameterizedQuery.class,
-        RemoteFetchSource.class,
         Rename.class,
         ResolvingProject.class,
         SemiJoin.class,

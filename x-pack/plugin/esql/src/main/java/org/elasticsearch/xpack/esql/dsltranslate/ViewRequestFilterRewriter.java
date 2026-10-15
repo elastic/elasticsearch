@@ -166,20 +166,18 @@ public final class ViewRequestFilterRewriter {
             warnPushedIntoSources(analyzed);
             return analyzed;
         }
-        // Walk down and stop at the first ViewUnionAll on each path: the filter belongs on the output of the views the
-        // *query* names, and a view nested inside another view's definition is an implementation detail of the outer
-        // view, not a boundary the request filter addresses. Filtering an inner boundary too would apply the predicate
-        // before the outer view's own processing — the very mistake the Lucene push-in path makes — and for a field the
-        // outer view computes it would bind to NULL there and silently drop every row.
+        // Walk down and stop at view branches: the filter belongs on the output of the views the *query* names, and a
+        // view nested inside another view's definition is an implementation detail of the outer view, not a boundary
+        // the request filter addresses. Filtering an inner boundary too would apply the predicate before the outer
+        // view's own processing — the very mistake the Lucene push-in path makes — and for a field the outer view
+        // computes it would bind to NULL there and silently drop every row. Non-view branches are different: a
+        // user-written subquery can nest a view the query itself names (FROM (FROM my_view | LIMIT 5), idx — the LIMIT
+        // keeps the view's boundary from flattening into the outer union), so the walk continues through them; stopping
+        // there would leave the nested view both unfiltered here and shielded from the raw-DSL path by the Mapper's
+        // view-fragment marking, leaking its rows entirely unfiltered.
         Set<String> skipped = new LinkedHashSet<>();
         Set<String> gated = new LinkedHashSet<>();
-        LogicalPlan rewritten = analyzed.transformDownSkipBranch((plan, skipBranch) -> {
-            if (plan instanceof ViewUnionAll vua) {
-                skipBranch.set(true);
-                return applyRequestFilterToViewBranches(vua, requestFilter, configuration, skipped, gated, minimumVersion);
-            }
-            return plan;
-        });
+        LogicalPlan rewritten = filterViewBoundaries(analyzed, requestFilter, configuration, skipped, gated, minimumVersion);
         if (skipped.isEmpty() == false || gated.isEmpty() == false) {
             warnUnsupportedClauses(skipped, gated);
         }
@@ -189,11 +187,30 @@ public final class ViewRequestFilterRewriter {
         return rewritten;
     }
 
+    /** The walk {@link #rewrite} starts and {@link #applyRequestFilterToViewBranches} continues under non-view branches. */
+    private static LogicalPlan filterViewBoundaries(
+        LogicalPlan plan,
+        QueryBuilder requestFilter,
+        Configuration configuration,
+        Set<String> skipped,
+        Set<String> gated,
+        TransportVersion minimumVersion
+    ) {
+        return plan.transformDownSkipBranch((p, skipBranch) -> {
+            if (p instanceof ViewUnionAll vua) {
+                skipBranch.set(true);
+                return applyRequestFilterToViewBranches(vua, requestFilter, configuration, skipped, gated, minimumVersion);
+            }
+            return p;
+        });
+    }
+
     /**
      * Installs the filter above every actual view branch of {@code vua}, bound against that branch's output schema.
      *
-     * <p>Bare-index and literal-subquery branches are left alone — they are not view branches and the existing
-     * Lucene-scan path handles them. {@link ViewUnionAll#isViewBranch(String)} is the test to use: {@code key != null}
+     * <p>Bare-index and literal-subquery branches are not filtered here — they are not view branches and the existing
+     * Lucene-scan path handles them — but the walk continues into them, because a user-written subquery can nest a
+     * view boundary the query names. {@link ViewUnionAll#isViewBranch(String)} is the test to use: {@code key != null}
      * is not sufficient, because bare-index branches carry {@code "main"} and literal subqueries carry
      * {@code "unnamed_view_<n>"}. Unsupported constructs are recorded in {@code skipped} as {@code [construct] on view [name]}
      * and the translatable remainder is installed; the caller warns once for the whole plan.
@@ -212,7 +229,9 @@ public final class ViewRequestFilterRewriter {
             String key = entry.getKey();
             LogicalPlan child = entry.getValue();
             if (vua.isViewBranch(key) == false) {
-                newSubqueries.put(key, child);
+                LogicalPlan newChild = filterViewBoundaries(child, requestFilter, configuration, skipped, gated, minimumVersion);
+                newSubqueries.put(key, newChild);
+                changed |= newChild != child;
             } else {
                 QueryDslTranslator.TranslationResult result = translateFilter(child.output(), requestFilter, configuration, minimumVersion);
                 // The same construct can fail more than once on one view (two wildcard clauses, say); the set keeps the header short.

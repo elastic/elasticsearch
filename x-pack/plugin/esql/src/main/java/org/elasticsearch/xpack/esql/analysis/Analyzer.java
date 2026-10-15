@@ -2084,7 +2084,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
             // FORK always copies a mention to siblings. LOAD_ALL subqueries do too. LOAD does not: a mention in one
             // independent-source branch loads that branch and Eval-nulls siblings.
-            // TODO(esql-planning#2273): VIEW-kind branches (ViewUnionAll.branchIdentity) should be excluded from
+            // TODO: VIEW-kind branches (ViewUnionAll.branchIdentity) should be excluded from
             // unmapped-field materialization here — _source loading must not reach through the view boundary; the view
             // branch should null-fill like a dataset would, pending the design discussion.
             boolean alignMentionedUnmapped = alignUnmappedAcrossBranches

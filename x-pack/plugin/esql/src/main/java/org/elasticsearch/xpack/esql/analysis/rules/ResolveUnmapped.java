@@ -92,7 +92,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-        // TODO(esql-planning#2273): unmapped-field resolution must not reach inside view branches. A view is a virtual
+        // TODO: unmapped-field resolution must not reach inside view branches. A view is a virtual
         // index, and SET unmapped_fields is an ES-index concept (loading from _source) that its callers should not see
         // through the view boundary — the same principle that keeps the raw request-filter DSL out of a view's source
         // scans. ViewUnionAll.branchIdentity() now says which branches are views; once the design discussion settles,
@@ -261,6 +261,9 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
                 // (KEEP/DROP/RENAME Project subclasses) now that branches are no longer wrapped in Subquery nodes:
                 // such an explicit column list must keep hiding what it hides, otherwise a broadcast load would
                 // e.g. resurrect a DROPped unmapped field inside that branch.
+                // TODO: keying on the exact class is fragile. Either have resolveMergePlan emit ResolvingProject
+                // (which passes unmapped fields through by design) or add an explicit merge-injected marker on
+                // Project, and match on that instead.
                 if (plan.getClass() == Project.class) {
                     plan = patchMergeProject(project);
                     if (plan != project) {

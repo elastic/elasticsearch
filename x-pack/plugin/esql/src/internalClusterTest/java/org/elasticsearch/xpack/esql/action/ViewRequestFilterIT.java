@@ -400,6 +400,27 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * A view nested inside a user-written subquery branch is still named by the query, so the request filter must
+     * reach its output. The inner LIMIT blocks compaction from flattening the subquery, so the view's boundary
+     * survives nested below the outer union — where the rewriter used to stop at the outer union and never visit it,
+     * while the view-fragment marking also kept the raw DSL out of the view's source scan: the view's rows leaked
+     * entirely unfiltered. The bare-index sibling takes the Lucene path, where the computed field matches nothing.
+     */
+    public void testFilterReachesViewNestedInSubqueryBranch() {
+        String view = "vrf_eval_nested";
+        createView(view, "FROM " + INDEX + " | EVAL region_upper = TO_UPPER(region)");
+
+        assertThat(
+            "the view nested under the subquery is filtered at its output, below the user's LIMIT",
+            rows(
+                "FROM (FROM " + view + " | LIMIT 1000), (FROM " + INDEX + ") | KEEP id, region_upper | SORT id ASC",
+                QueryBuilders.termQuery("region_upper", "EU")
+            ),
+            equalTo(List.of(List.of(0, "EU"), List.of(2, "EU"), List.of(4, "EU")))
+        );
+    }
+
+    /**
      * A view that shifts {@code @timestamp}, over sources whose raw timestamps differ. The filter belongs on the view's output, so it
      * must not also be used to prune the view's sources during index resolution.
      *

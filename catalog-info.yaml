@@ -463,7 +463,7 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: buildkite-pipeline-elasticsearch-pull-request-validate-prometheus-compliance
+  name: buildkite-pipeline-elasticsearch-pull-request-prom-compliance
   description: Elasticsearch pull request PromQL compliance validation
   links:
     - title: Pipeline

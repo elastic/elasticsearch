@@ -2192,11 +2192,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             ByteVector blockLast = ByteVector.fromArray(BYTE_SPECIES, value, i + termLength - 1);
             long mask = blockFirst.eq(firstVec).and(blockLast.eq(lastVec)).toLong();
             while (mask != 0) {
-                int pos = Long.numberOfTrailingZeros(mask);
-                int absPos = i + pos;
-                if (absPos > maxPos) {
-                    break;
-                }
+                int absPos = i + Long.numberOfTrailingZeros(mask);
                 if (middleBytesMatch(value, absPos, term, termOffset, termLength)) {
                     return true;
                 }
@@ -2210,6 +2206,80 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     private static boolean middleBytesMatch(byte[] value, int valuePos, byte[] term, int termOffset, int termLength) {
         for (int k = 1; k < termLength - 1; k++) {
             if (value[valuePos + k] != term[termOffset + k]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean mayContainIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        return indexOfCandidateIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength) >= 0;
+    }
+
+    @Override
+    public int indexOfCandidateIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        // Scalar logic is faster for short values (below approximately 24 bytes)
+        if (valueLength < 24) {
+            return ByteArrayUtils.indexOfCandidateIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength);
+        }
+
+        // The term's own bytes are folded once here; the value's are folded a block at a time below.
+        byte first = ByteArrayUtils.foldAsciiCase(term[termOffset]);
+        byte last = ByteArrayUtils.foldAsciiCase(term[termOffset + termLength - 1]);
+        int maxPos = valueOffset + valueLength - termLength;
+
+        ByteVector firstVec = ByteVector.broadcast(BYTE_SPECIES, first);
+        ByteVector lastVec = ByteVector.broadcast(BYTE_SPECIES, last);
+        int vectorSize = BYTE_SPECIES.length();
+        int i = valueOffset;
+        int loopBound = maxPos - vectorSize + 1;
+        for (; i <= loopBound; i += vectorSize) {
+            ByteVector blockFirst = ByteVector.fromArray(BYTE_SPECIES, value, i).or((byte) 0x20);
+            ByteVector blockLast = ByteVector.fromArray(BYTE_SPECIES, value, i + termLength - 1).or((byte) 0x20);
+            long mask = blockFirst.eq(firstVec).and(blockLast.eq(lastVec)).toLong();
+            while (mask != 0) {
+                int absPos = i + Long.numberOfTrailingZeros(mask);
+                if (middleBytesFoldOnto(value, absPos, term, termOffset, termLength)) {
+                    return absPos;
+                }
+                mask &= mask - 1;
+            }
+        }
+        return ByteArrayUtils.indexOfCandidateIgnoringAsciiCase(value, i, valueOffset + valueLength - i, term, termOffset, termLength);
+    }
+
+    @Override
+    public boolean anyNonAscii(byte[] value, int offset, int length) {
+        int vectorSize = BYTE_SPECIES.length();
+        int i = offset;
+        int loopBound = offset + length - vectorSize;
+        for (; i <= loopBound; i += vectorSize) {
+            if (ByteVector.fromArray(BYTE_SPECIES, value, i).compare(VectorOperators.LT, (byte) 0).anyTrue()) {
+                return true;
+            }
+        }
+        return ByteArrayUtils.anyNonAscii(value, i, offset + length - i);
+    }
+
+    /** The same as {@link #middleBytesMatch}, comparing the ASCII letters without their case. */
+    private static boolean middleBytesFoldOnto(byte[] value, int valuePos, byte[] term, int termOffset, int termLength) {
+        for (int k = 1; k < termLength - 1; k++) {
+            if (ByteArrayUtils.foldAsciiCase(value[valuePos + k]) != ByteArrayUtils.foldAsciiCase(term[termOffset + k])) {
                 return false;
             }
         }

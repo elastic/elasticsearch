@@ -118,7 +118,8 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             "runtime_anywhere",
             "fused_field_load_fix",
             "to_text_on_indexed_field_fix",
-            "to_string_on_indexed_field_fix"
+            "to_string_on_indexed_field_fix",
+            "stats_where_analyzer_fix"
         )
         .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(

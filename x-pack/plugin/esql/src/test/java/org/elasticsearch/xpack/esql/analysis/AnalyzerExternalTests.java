@@ -233,23 +233,14 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
-     * KNN function requires vector field from index; an external dataset is rejected, and the message names the
-     * federated-source limitation.
+     * KNN function can operate on dense_vector fields in external dataset via runtime search
      */
-    public void testWithKnnFunctionRejected() {
+    public void testWithKnnFunction() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         List<Attribute> schema = List.of(referenceAttribute("id", LONG), referenceAttribute("vector", DENSE_VECTOR));
         var testAnalyzer = analyzer().externalSourceUnresolved(S3_PATH, schema);
 
-        datasetError(
-            testAnalyzer,
-            S3_PATH,
-            "FROM " + DATASET_NAME + " | WHERE KNN(vector, [3, 100, 0])",
-            containsString(
-                "function cannot operate on [vector], which is not a field from an index mapping "
-                    + "(the source is a federated data source, not an index)"
-            )
-        );
+        analyzeDataset(testAnalyzer, S3_PATH, "FROM " + DATASET_NAME + " | WHERE KNN(vector, [3, 100, 0])");
     }
 
     /**

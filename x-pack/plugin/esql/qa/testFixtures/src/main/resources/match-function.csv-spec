@@ -2517,6 +2517,39 @@ content:text
 the Fox jumped
 ;
 
+matchOnRuntimeTextWithWhitespaceAnalyzerInStatsWhere
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fn_match_stats_where_analyzer_fix
+
+// the aggregate filter has to honor the declared values analyzer too: whitespace does not lowercase, so only one
+// row counts; the standard analyzer would count both. The unfiltered total keeps the filter on the aggregate.
+ROW content = to_text(["the Fox jumped", "the fox jumped"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| STATS c = COUNT(*) WHERE match(content, "Fox"), total = COUNT(*)
+;
+
+c:long | total:long
+1      | 2
+;
+
+matchOnRuntimeTextWithWhitespaceAnalyzerInGroupedStatsWhere
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fn_match_stats_where_analyzer_fix
+
+ROW content = to_text(["the Fox jumped", "the fox jumped", "a Fox ran"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| EVAL initial = SUBSTRING(content, 1, 1)
+| STATS c = COUNT(*) WHERE match(content, "Fox") BY initial
+| SORT initial
+;
+
+c:long | initial:keyword
+1      | a
+1      | t
+;
+
 matchOnRuntimeTextAfterForkHonorsValuesAnalyzer
 required_capability: match_function
 required_capability: fn_to_text_analyzer

@@ -42,7 +42,10 @@ public class GenerativeIT extends PerFeatureGenerativeRestTest {
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster();
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
+        spec.setting("esql.query.settings.wildcards_match_datasets", randomFrom("false", "true"));
+        spec.setting("esql.query.settings.wildcards_match_views", randomFrom("false", "true"));
+    });
 
     @BeforeClass
     public static void loadS3Fixtures() {

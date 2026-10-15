@@ -12,8 +12,10 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -24,11 +26,13 @@ import java.util.concurrent.ExecutionException;
  *   <li>Thundering-herd protection via {@link Cache#computeIfAbsent} — concurrent callers for the
  *       same key coalesce into a single load; exactly one thread performs I/O while others wait
  *       for the result</li>
- *   <li>Time-based expiration via {@link CacheBuilder#setExpireAfterAccess} — entries expire after
- *       the configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) of inactivity,
- *       bounding staleness: the key carries no modification time, so a same-length overwrite may
- *       be served until the TTL lapses (see the key-design section below). Within a single query,
- *       concurrent splits keep the entry alive by resetting the access timer on every read.</li>
+ *   <li>Time-based expiration via two clocks. The primary clock ({@link CacheBuilder#setExpireAfterAccess})
+ *       expires an entry the configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) after it
+ *       was last read — a working set that keeps being read keeps its entries, and entries no longer all expire
+ *       together at one TTL. A write cap ({@link #WRITE_CAP_MULTIPLIER} × TTL) forces expiry at most
+ *       {@code WRITE_CAP_MULTIPLIER × TTL} after an entry was written, regardless of reads. The cap bounds how
+ *       long a stale footer (one for a same-length overwritten object) may be served; the access clock is the
+ *       normal release path — see {@link Key}.</li>
  * </ul>
  *
  * <h2>Why one instance per root format reader instead of per-query?</h2>
@@ -49,14 +53,23 @@ import java.util.concurrent.ExecutionException;
  * reader ({@code withConfig}, {@code withPushedFilter}, ...) shares the root's instance via its
  * copy constructor, so all concurrent queries on a node coalesce on one cache. When a
  * query-scoped context is introduced into the format reader API, this cache should migrate to an
- * instance held by that context. Until then, the access-based TTL bounds cross-query staleness.
+ * instance held by that context. Until then cross-query staleness is bounded by the write cap
+ * (six times {@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) rather than by the key — see
+ * the next section.
  *
  * <h2>Cache key design</h2>
- * The key is {@code (path, fileLength)}. Adding {@code lastModified} was considered but rejected
- * because range splits are created via {@code StorageProvider.newObject(path, length)} with no
- * pre-populated modification time — calling {@code lastModified()} would trigger an extra HEAD
- * request per split, defeating the purpose of the cache. The access-based TTL provides bounded
- * staleness instead.
+ * The key is {@code (storageIdentity, path, fileLength)}. It names the object, not the version of it, so
+ * two versions of an object at the same byte length share an entry and the earlier one's footer answers for
+ * the later. That is a property of the key and it is tracked as elastic/esql-planning#2094. The write cap
+ * above bounds staleness at {@code 6 × TTL}: every entry is force-expired by then whether or not it is
+ * still being read, discarding footers that did not move alongside the ones that did. The fix belongs in
+ * the key (see #2094).
+ * <p>
+ * A version component was once rejected on cost: range splits come from
+ * {@code StorageProvider.newObject(path, length)} with no modification time in hand, and calling
+ * {@code lastModified()} would mean a HEAD request per split. That objection would be answered by taking
+ * the version from the listing, or from the probe that already resolves a single file, rather than asking
+ * the store again — that is the design tracked in #2094, not yet implemented here.
  *
  * <p>Cached {@code byte[]} entries must be treated as immutable by all callers.
  */
@@ -70,20 +83,38 @@ public class FooterByteCache {
     public static final long DEFAULT_MAX_ENTRY_BYTES = 2L * 1024 * 1024;
 
     /**
-     * Cache key identifying a file by its storage path and total length. Uses {@code (path, length)}
-     * only — not {@code lastModified} — so that all range splits of the same file share one cache
-     * entry regardless of any timing jitter in {@code StorageObject.lastModified()}.
+     * The write-cap multiplier: both footer caches are built with a write cap of this many times the
+     * access TTL. Shared by {@link ParsedFooterCache} so the two caches always agree on the policy.
      */
-    public record Key(String path, long fileLength) {
+    static final long WRITE_CAP_MULTIPLIER = 6L;
+
+    /**
+     * Cache key identifying a file by its storage configuration, path, and total length. Uses
+     * {@code (storageIdentity, path, length)} — the storage identity is set by the storage provider to encode endpoint
+     * and credential identity so that two data sources pointing at different stores never share an
+     * entry for an object at the same path with the same length. {@code lastModified} is excluded
+     * so that all range splits of the same file share one cache entry regardless of any timing
+     * jitter in {@code StorageObject.lastModified()}.
+     */
+    public record Key(StorageIdentity storageIdentity, String path, long fileLength) {
+
+        /**
+         * Rejects a null identity: {@link StorageIdentity} is a plugin SPI, and a {@code null} from any
+         * implementation would put all of its objects in one shared scope instead of failing.
+         */
+        public Key {
+            Objects.requireNonNull(storageIdentity, "storageIdentity must not be null");
+        }
 
         /**
          * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},
-         * using its path string and {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}.
+         * using its storage identity, path string, and
+         * {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}.
          * Prefer this over {@link #keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject, long)} so range
          * views ({@code RangeStorageObject}) share one entry per file.
          */
         public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject) throws IOException {
-            return new Key(storageObject.path().toString(), storageObject.lengthForFooterCacheKey());
+            return new Key(storageObject.storageIdentity(), storageObject.path().toString(), storageObject.lengthForFooterCacheKey());
         }
 
         /**
@@ -95,13 +126,14 @@ public class FooterByteCache {
          * not a range-view span.
          */
         public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject, long length) {
-            return new Key(storageObject.path().toString(), length);
+            return new Key(storageObject.storageIdentity(), storageObject.path().toString(), length);
         }
     }
 
     private final Cache<Key, byte[]> cache;
     private final long maxEntryBytes;
     private final TimeValue expireAfterAccess;
+    private final TimeValue expireAfterWrite;
 
     /**
      * Creates a cache sized from node settings ({@link ExternalSourceCacheSettings#FOOTER_CACHE_SIZE},
@@ -120,20 +152,29 @@ public class FooterByteCache {
     FooterByteCache(long maxBytes, long maxEntryBytes, TimeValue expireAfterAccess) {
         this.maxEntryBytes = maxEntryBytes;
         this.expireAfterAccess = expireAfterAccess;
+        long accessNanos = expireAfterAccess.nanos();
+        long capNanos = accessNanos <= Long.MAX_VALUE / WRITE_CAP_MULTIPLIER ? accessNanos * WRITE_CAP_MULTIPLIER : Long.MAX_VALUE;
+        this.expireAfterWrite = TimeValue.timeValueNanos(capNanos);
         this.cache = CacheBuilder.<Key, byte[]>builder()
             .setMaximumWeight(maxBytes)
             .setExpireAfterAccess(expireAfterAccess)
+            .setExpireAfterWrite(expireAfterWrite)
             .weigher((key, value) -> value.length)
             .build();
     }
 
     /**
-     * The expire-after-access TTL this cache was built with. The paired {@link ParsedFooterCache}
-     * is constructed with the same value so the byte and parsed caches age out together. If the
-     * bytes are stale, the parse derived from them is stale too.
+     * The expire-after-access TTL this cache was built with. The paired {@link ParsedFooterCache} is
+     * constructed with the same value, but the two no longer age out together: a reader that answers from
+     * the parsed cache does not read bytes, so a parsed entry can be renewed while its bytes go cold.
      */
     public TimeValue expireAfterAccess() {
         return expireAfterAccess;
+    }
+
+    /** The write cap this cache was built with: six times the access TTL. */
+    public TimeValue expireAfterWrite() {
+        return expireAfterWrite;
     }
 
     /** Maximum byte size for a single cache entry. */

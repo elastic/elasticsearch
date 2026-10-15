@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160108
+summary: "The `DENSE_VECTOR` command is now available in technical preview"
+type: feature

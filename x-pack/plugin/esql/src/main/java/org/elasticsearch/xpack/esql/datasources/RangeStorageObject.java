@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -28,7 +30,7 @@ import java.util.concurrent.Executor;
  * Used for every {@link FileSplit} so format readers and splittable decompressors
  * only see the split's compressed byte span (including offset {@code 0}).
  */
-class RangeStorageObject implements StorageObject {
+class RangeStorageObject implements StorageObject, ResumeBypassingStorageObject {
 
     private final StorageObject delegate;
     private final long offset;
@@ -111,6 +113,11 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
+    public long offsetForFooterCache(long position) {
+        return Math.addExact(offset, position);
+    }
+
+    @Override
     public Instant lastModified() throws IOException {
         return delegate.lastModified();
     }
@@ -126,11 +133,22 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
+    public StorageIdentity storageIdentity() {
+        return delegate.storageIdentity();
+    }
+
+    @Override
     public void abortStream(InputStream stream) throws IOException {
         // Forward to the underlying StorageObject so providers like S3 can perform a
         // non-draining abort (e.g. Abortable.abort()). Falling through to the SPI default
         // stream.close() would drain the entire response body for partial reads.
         delegate.abortStream(stream);
+    }
+
+    @Override
+    public InputStream withoutResume(InputStream stream) {
+        // Streams pass through unwrapped, so route to the delegate the same way abortStream does.
+        return ResumeBypassingStorageObject.withoutResume(delegate, stream);
     }
 
     @Override
@@ -152,6 +170,18 @@ class RangeStorageObject implements StorageObject {
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
+        return startReadBytesAsync(position, length, factory, executor, listener, false);
+    }
+
+    @Override
+    public Releasable startReadBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener,
+        boolean barge
+    ) {
         if (position >= this.length) {
             // Allocate a zero-length buffer through the factory so the returned DirectReadBuffer
             // is direct and allocator-owned, consistent with the StorageObject.readBytesAsync
@@ -164,7 +194,7 @@ class RangeStorageObject implements StorageObject {
             return () -> {};
         }
         long cappedLength = Math.min(length, this.length - position);
-        return delegate.startReadBytesAsync(Math.addExact(offset, position), cappedLength, factory, executor, listener);
+        return delegate.startReadBytesAsync(Math.addExact(offset, position), cappedLength, factory, executor, listener, barge);
     }
 
     @Override
@@ -208,6 +238,16 @@ class RangeStorageObject implements StorageObject {
     @Override
     public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
         delegate.attachMetrics(metrics, scheme);
+    }
+
+    @Override
+    public void bindRowGroup(RowGroupIo io) {
+        delegate.bindRowGroup(io);
+    }
+
+    @Override
+    public long admissionWaitTimeoutMs() {
+        return delegate.admissionWaitTimeoutMs();
     }
 
     StorageObject rawDelegate() {

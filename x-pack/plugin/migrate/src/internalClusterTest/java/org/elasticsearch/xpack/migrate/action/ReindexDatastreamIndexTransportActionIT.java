@@ -145,7 +145,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         ensureHealth(sourceIndex);
 
         // add timestamp to source mapping
-        indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING).get();
 
         // call reindex
         var destIndex = safeGet(
@@ -172,7 +172,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         ensureHealth(sourceIndex);
 
         // add timestamp to source mapping
-        indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING).get();
 
         // call reindex
         var destIndex = safeGet(
@@ -222,7 +222,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         ensureHealth(sourceIndex);
 
         // add timestamp to source mapping
-        indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING).get();
 
         String destIndex = safeGet(
             client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))

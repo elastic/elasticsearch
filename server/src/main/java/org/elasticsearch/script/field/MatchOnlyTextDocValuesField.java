@@ -9,11 +9,11 @@
 
 package org.elasticsearch.script.field;
 
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 
 public class MatchOnlyTextDocValuesField extends BaseKeywordDocValuesField {
 
-    public MatchOnlyTextDocValuesField(SortedBinaryDocValues input, String name) {
+    public MatchOnlyTextDocValuesField(SortableBinaryDocValues input, String name) {
         super(input, name);
     }
 }

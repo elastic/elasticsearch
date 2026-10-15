@@ -17,6 +17,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
+import java.util.List;
+
 import static org.elasticsearch.analysis.common.NGramTokenizerFactory.parseTokenChars;
 
 public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
@@ -25,11 +27,15 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
     private final int maxGram;
     private final CharMatcher matcher;
 
+    private final Object sharingKey;
+
     EdgeNGramTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         this.matcher = parseTokenChars(settings);
+        // custom_token_chars builds a lambda matcher with no value equality; don't share those configs.
+        this.sharingKey = settings.hasValue("custom_token_chars") ? this : new Key(minGram, maxGram, settings.getAsList("token_chars"));
     }
 
     @Override
@@ -45,4 +51,11 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
             };
         }
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int minGram, int maxGram, List<String> tokenChars) {}
 }

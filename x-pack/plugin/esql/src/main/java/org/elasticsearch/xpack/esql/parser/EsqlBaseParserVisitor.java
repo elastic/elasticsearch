@@ -233,6 +233,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#expressionModeIdentifierPattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitExpressionModeIdentifierPattern(EsqlBaseParser.ExpressionModeIdentifierPatternContext ctx);
+  /**
    * Visit a parse tree produced by the {@code inputParam}
    * labeled alternative in {@link EsqlBaseParser#parameter}.
    * @param ctx the parse tree
@@ -521,6 +527,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fillNullCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fillNullValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFillNullValue(EsqlBaseParser.FillNullValueContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
    * @param ctx the parse tree

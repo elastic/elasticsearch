@@ -31,6 +31,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -115,7 +116,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         /**
          * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
-         * we no longer need to support calling this action remotely.
+         * we no longer need to support calling this action remotely. No need to add here fields that were added in 9.0.
          */
         @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         public Request(StreamInput in) throws IOException {
@@ -197,6 +198,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             ManagedBy(String displayValue) {
                 this.displayValue = displayValue;
             }
+
+            public static ManagedBy fromLifecycleManagedBy(DataStream.LifecycleManagedBy lifecycleManagedBy) {
+                return switch (lifecycleManagedBy) {
+                    case ILM -> ILM;
+                    case DLM -> LIFECYCLE;
+                    case UNMANAGED -> UNMANAGED;
+                };
+            }
         }
 
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
@@ -219,6 +228,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField NEXT_GENERATION_INDEX_MANAGED_BY = new ParseField("next_generation_managed_by");
             public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
             public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
+            public static final ParseField MINIMUM_LIFECYCLE_ENABLED_FIELD = new ParseField("minimum_lifecycle_enabled");
             public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
             public static final ParseField SYSTEM_FIELD = new ParseField("system");
             public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
@@ -249,8 +259,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final boolean templatePreferIlmValue;
             @Nullable
             private final Long maximumTimestamp;
-            @Nullable
-            private final String indexMode;
+            private final IndexMode templateIndexMode;
+            // This flag indicated if this data stream has the minimum lifecycle enabled.
+            private final boolean minimumLifecycleEnabled;
 
             public DataStreamInfo(
                 DataStream dataStream,
@@ -262,7 +273,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 Map<Index, IndexProperties> indexSettingsValues,
                 boolean templatePreferIlmValue,
                 @Nullable Long maximumTimestamp,
-                @Nullable String indexMode
+                @Nullable IndexMode templateIndexMode,
+                boolean minimumLifecycleEnabled
             ) {
                 this.dataStream = dataStream;
                 this.failureStoreEffectivelyEnabled = failureStoreEffectivelyEnabled;
@@ -273,7 +285,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.indexSettingsValues = indexSettingsValues;
                 this.templatePreferIlmValue = templatePreferIlmValue;
                 this.maximumTimestamp = maximumTimestamp;
-                this.indexMode = indexMode;
+                // Default to standard mode if not specified; should we set this to "unset" or "unspecified" instead?
+                this.templateIndexMode = templateIndexMode == null ? IndexMode.STANDARD : templateIndexMode;
+                this.minimumLifecycleEnabled = dataStream.isMinimumLifecycleApplicable(minimumLifecycleEnabled);
             }
 
             public DataStream getDataStream() {
@@ -316,14 +330,17 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return maximumTimestamp;
             }
 
-            @Nullable
+            public IndexMode getTemplateIndexMode() {
+                return templateIndexMode;
+            }
+
             public String getIndexModeName() {
-                return indexMode;
+                return templateIndexMode.getName();
             }
 
             /**
              * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
-             * we no longer need to support calling this action remotely.
+             * we no longer need to support calling this action remotely. No need to add here fields that were added in 9.0.
              */
             @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
             @Override
@@ -338,7 +355,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeBoolean(templatePreferIlmValue);
                 out.writeOptionalVLong(maximumTimestamp);
                 if (out.getTransportVersion().supports(INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
-                    out.writeOptionalString(indexMode);
+                    out.writeOptionalString(templateIndexMode.getName());
                 }
             }
 
@@ -378,6 +395,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
                     dataStream.getDataLifecycle()
                         .toXContent(builder, params, rolloverConfiguration, dataGlobalRetention, dataStream.isInternal());
+                } else if (minimumLifecycleEnabled) {
+                    builder.field(MINIMUM_LIFECYCLE_ENABLED_FIELD.getPreferredName(), minimumLifecycleEnabled);
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -392,9 +411,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (this.maximumTimestamp != null) {
                     builder.field(MAXIMUM_TIMESTAMP.getPreferredName(), this.maximumTimestamp);
                 }
-                if (this.indexMode != null) {
-                    builder.field(INDEX_MODE.getPreferredName(), indexMode);
-                }
+                builder.field(INDEX_MODE.getPreferredName(), templateIndexMode.getName());
                 addAutoShardingEvent(builder, params, dataStream.getAutoShardingEvent());
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());
@@ -486,20 +503,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
              * Computes and returns which system will manage the next generation for this data stream.
              */
             public ManagedBy getNextGenerationManagedBy() {
-                // both ILM and DSL are configured so let's check the prefer_ilm setting to see which system takes precedence
-                if (ilmPolicyName != null && dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
-                    return templatePreferIlmValue ? ManagedBy.ILM : ManagedBy.LIFECYCLE;
-                }
-
-                if (ilmPolicyName != null) {
-                    return ManagedBy.ILM;
-                }
-
-                if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
-                    return ManagedBy.LIFECYCLE;
-                }
-
-                return ManagedBy.UNMANAGED;
+                return ManagedBy.fromLifecycleManagedBy(
+                    DataStream.lifecycleManagedBy(
+                        ilmPolicyName,
+                        dataStream.getEffectiveDataLifecycle(minimumLifecycleEnabled),
+                        () -> templatePreferIlmValue,
+                        templateIndexMode
+                    )
+                );
             }
 
             @Override
@@ -520,7 +531,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     && Objects.equals(timeSeries, that.timeSeries)
                     && Objects.equals(indexSettingsValues, that.indexSettingsValues)
                     && Objects.equals(maximumTimestamp, that.maximumTimestamp)
-                    && Objects.equals(indexMode, that.indexMode);
+                    && Objects.equals(templateIndexMode, that.templateIndexMode)
+                    && minimumLifecycleEnabled == that.minimumLifecycleEnabled;
             }
 
             @Override
@@ -535,7 +547,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     indexSettingsValues,
                     templatePreferIlmValue,
                     maximumTimestamp,
-                    indexMode
+                    templateIndexMode,
+                    minimumLifecycleEnabled
                 );
             }
         }
@@ -544,7 +557,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             /**
              * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
-             * we no longer need to support calling this action remotely.
+             * we no longer need to support calling this action remotely. No need to add here fields that were added in 9.0.
              */
             @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
             @Override
@@ -641,7 +654,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         /**
          * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
-         * we no longer need to support calling this action remotely.
+         * we no longer need to support calling this action remotely. No need to add here fields that were added in 9.0.
          */
         @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         @Override

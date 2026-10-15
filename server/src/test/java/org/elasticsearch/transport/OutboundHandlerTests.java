@@ -92,7 +92,7 @@ public class OutboundHandlerTests extends ESTestCase {
 
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(this.recycler);
-        final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
+        final Supplier<CircuitBreaker> breaker = () -> NoopCircuitBreaker.INSTANCE;
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
             try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {

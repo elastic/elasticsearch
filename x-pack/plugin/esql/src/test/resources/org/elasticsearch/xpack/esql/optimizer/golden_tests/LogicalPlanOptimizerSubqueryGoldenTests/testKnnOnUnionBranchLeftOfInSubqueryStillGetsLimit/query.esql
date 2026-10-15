@@ -1,0 +1,5 @@
+FROM colors,
+     (FROM colors METADATA _score
+      | WHERE knn(rgb_vector, "007800")
+      | WHERE id IN (FROM colors | KEEP id))
+| LIMIT 5

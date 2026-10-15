@@ -49,8 +49,9 @@ This endpoint evaluates a PromQL expression over a time window and returns matri
 | `end` | Yes | Range end, [Timestamp](#promql-http-api-param-timestamp) |
 | `step` | Yes | Resolution between samples, [Step width](#promql-http-api-param-step) |
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
+| `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 
-The `timeout`, `lookback_delta`, and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md#promql-limitations-unsupported-query-params)).
+The `lookback_delta` and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md#promql-limitations-unsupported-query-params)).
 
 ### Instant query [promql-http-api-query-instant]
 
@@ -66,8 +67,9 @@ This endpoint evaluates at a single instant and returns vector data (`resultType
 | `query` | Yes | PromQL expression |
 | `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). The handler still uses an internal five-minute range ending at this time (see [Limitations](promql-limitations.md)) |
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
+| `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 
-The `timeout`, `lookback_delta`, and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md#promql-limitations-unsupported-query-params)).
+The `lookback_delta` and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md#promql-limitations-unsupported-query-params)).
 
 ## Metadata and discovery endpoints [promql-http-api-metadata]
 
@@ -200,6 +202,14 @@ The `step` query parameter accepts:
 
 - A non-negative decimal integer string: seconds between samples (for example, `15` for 15s resolution).
 - Or Prometheus-style duration literals such as `30s`, `5m`, or `1h30m`: a non-negative integer plus a unit suffix (`ms`, `s`, `m`, `h`, `d`, `w`, or `y`), repeated and concatenated when needed (for example, `1h30m`). See Prometheus [float literals and time durations](https://prometheus.io/docs/prometheus/latest/querying/basics/#float-literals-and-time-durations).
+
+### `timeout` [promql-http-api-timeout]
+
+The `timeout` parameter of the [range](#promql-http-api-query-range) and [instant](#promql-http-api-query-instant) query endpoints accepts the same formats as [`step`](#promql-http-api-param-step): a decimal integer number of seconds, or a Prometheus-style duration literal such as `30s` or `1m30s`. The timeout must be positive.
+
+The dynamic cluster setting `xpack.prometheus.query.timeout` (default: `2m`) is both the default and the maximum timeout, like the Prometheus `-query.timeout` flag. A `timeout` parameter can only lower it. Set `xpack.prometheus.query.timeout` to `-1` to remove the default and the maximum. Unlike in Prometheus, where a timeout of `0` makes every query time out immediately, `0` is rejected.
+
+When the timeout elapses, {{es}} cancels the query and, once the cancelled query has stopped, returns HTTP `503 Service Unavailable` with `errorType: timeout`. Queries are also cancelled when the client closes the connection before receiving the response.
 
 ### `limit` [promql-http-api-limit]
 

@@ -94,8 +94,10 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
     ) {
         for (DataType spatialType : dataTypes) {
             TestCaseSupplier.TypedDataSupplier geometrySupplier = testCaseSupplier(spatialType, false);
-            // Limit precision for geo_shape to avoid generating millions of cells for complex geometries
-            int maxPrecision = spatialType == GEO_SHAPE ? 4 : 8;
+            // Limit precision for geo_shape to avoid generating millions of cells for complex geometries. Points go up to 12,
+            // the only geohash precision whose long cell ids can be negative, so the -1 out-of-bounds sentinel is exercised
+            // alongside valid negative ids.
+            int maxPrecision = spatialType == GEO_SHAPE ? 4 : 12;
             for (boolean literalPrecision : List.of(true)) {
                 // TODO: add 'false' case once we support non-literal precision
                 String testName = spatialType.typeName() + (literalPrecision ? " with literal precision" : " with precision");

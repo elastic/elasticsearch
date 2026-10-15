@@ -49,7 +49,7 @@ public class ArrowToBlockConverterTests extends ESTestCase {
     @Before
     public void setup() {
         allocator = new RootAllocator();
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     @After

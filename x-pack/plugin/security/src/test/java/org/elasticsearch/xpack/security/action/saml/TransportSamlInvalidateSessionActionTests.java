@@ -51,7 +51,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -79,7 +78,6 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.TokenServiceTests;
@@ -257,9 +255,6 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         when(projectIndex.getCreationTime()).thenReturn(Clock.systemUTC().instant());
         when(projectIndex.aliasName()).thenReturn(".security");
 
-        final MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
-
         final ClusterService clusterService;
         try (var ignored = threadContext.newStoredContext()) {
             defaultContext.restore();
@@ -273,7 +268,6 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             settings,
             Clock.systemUTC(),
             client,
-            licenseState,
             securityContext,
             securityIndex,
             securityIndex,

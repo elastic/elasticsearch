@@ -11,7 +11,6 @@ package org.elasticsearch.columnar.substrate;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.IndexInput;
 
 import java.io.IOException;
 
@@ -92,18 +91,18 @@ public record ChunkIndexMetadata(
         );
     }
 
-    /** Opens the byte stream this describes over {@code data}. */
-    public ChunkedBytesReader open(IndexInput data) throws IOException {
+    /** Opens the byte stream this describes: the chunks in the data, located by the index in the navigation. */
+    public ChunkedBytesReader open(ColumnInputs inputs) throws IOException {
         if (numChunks == 0) {
             // No bytes were written, so there is no index to open; only zero-length reads can follow.
-            return new ChunkedBytesReader(data, ChunkCodec.forId(codecId), 0, null, null, 0);
+            return new ChunkedBytesReader(inputs.data(), ChunkCodec.forId(codecId), 0, null, null, 0);
         }
         return new ChunkedBytesReader(
-            data,
+            inputs.data(),
             ChunkCodec.forId(codecId),
             dataOffset,
-            MonotonicReader.open(data, startsMeta, numChunks + 1L, startsDataOffset, startsDataLength),
-            MonotonicReader.open(data, fileOffsetsMeta, numChunks + 1L, fileOffsetsDataOffset, fileOffsetsDataLength),
+            MonotonicReader.open(inputs.navigation(), startsMeta, numChunks + 1L, startsDataOffset, startsDataLength),
+            MonotonicReader.open(inputs.navigation(), fileOffsetsMeta, numChunks + 1L, fileOffsetsDataOffset, fileOffsetsDataLength),
             numChunks
         );
     }

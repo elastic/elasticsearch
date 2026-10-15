@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
@@ -853,6 +854,38 @@ public class ESVectorUtil {
     }
 
     /**
+     * Searches for the first occurrence of one of {@link java.util.regex.Pattern}'s 5 default
+     * {@linkplain java.util.regex.Pattern##lt line terminators} ({@code \n}, {@code \r},
+     * {@code \u0085}, {@code \u2028}, {@code \u2029}) in the specified range of the array.
+     *
+     * <p>The search starts at {@code offset} and examines at most {@code length} bytes. The return
+     * value is the relative index of the first byte that is a <em>candidate</em> occurrence of one
+     * of them within this slice, or {@code -1} if none is found -- not every candidate is a
+     * confirmed terminator, so callers must verify the full sequence at that index themselves.
+     *
+     * <p>Most useful for cheaply proving the <em>absence</em> of a line terminator in a range: a
+     * single {@code -1} result is a definitive negative, whereas confirming presence requires the
+     * caller to also validate the candidate's full byte sequence and keep scanning past any false
+     * positive.
+     *
+     * <p><b>Implementation note:</b> actually searches for just the 4 distinct UTF-8 lead bytes of
+     * those terminators -- {@code 0x0A}, {@code 0x0D}, {@code 0xC2} (leads {@code \u0085}), and
+     * {@code 0xE2} (leads both {@code \u2028} and {@code \u2029}, which share a UTF-8 prefix). A hit
+     * on {@code 0xC2}/{@code 0xE2} is only a candidate, not confirmed, because both bytes also occur
+     * in unrelated code points.
+     *
+     * @param bytes  the byte array to search
+     * @param offset the starting index within the array
+     * @param length the number of bytes to examine
+     * @return the relative index (0..length-1) of the first candidate match, or {@code -1} if none
+     *         is found
+     */
+    public static int indexOfLineTerminatorLeadByte(byte[] bytes, int offset, int length) {
+        Objects.checkFromIndexSize(offset, length, bytes.length);
+        return IMPL.indexOfLineTerminatorLeadByte(bytes, offset, length);
+    }
+
+    /**
      * Checks whether the byte sequence {@code term} appears as a contiguous subsequence
      * within {@code value}.
      *
@@ -1095,9 +1128,9 @@ public class ESVectorUtil {
      * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
      * Result C is (m x n).
      */
-    public static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n) {
+    public static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n, TaskExecutor executor) {
         float[] result = new float[m * n];
-        matrixMultiply(a, b, m, k, n, result);
+        matrixMultiply(a, b, m, k, n, result, executor);
         return result;
     }
 
@@ -1105,7 +1138,7 @@ public class ESVectorUtil {
      * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
      * Result C is (m x n).
      */
-    public static void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result) {
+    public static void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
         if (a.length != m * k) {
             throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
         }
@@ -1115,7 +1148,7 @@ public class ESVectorUtil {
         if (result.length != m * n) {
             throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
         }
-        IMPL.matrixMultiply(a, b, m, k, n, result);
+        IMPL.matrixMultiply(a, b, m, k, n, result, executor);
     }
 
     /**

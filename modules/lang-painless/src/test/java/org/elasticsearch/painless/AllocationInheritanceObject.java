@@ -26,6 +26,14 @@ public class AllocationInheritanceObject implements AllocationInheritanceInterfa
         return 0;
     }
 
+    /**
+     * Shares its name and arity with the annotated {@code AllocationEstimatorTestObject.constantAllocating()} but carries no
+     * annotation itself, so a {@code def} call landing here must charge nothing.
+     */
+    public int constantAllocating() {
+        return 0;
+    }
+
     /** Estimator for the interface's {@code inheritedDynamic(int)} — receiver-first, matching the annotated method's signature. */
     public static long inheritedDynamicEstimate(AllocationInheritanceInterface receiver, int n) {
         return n * 10L;

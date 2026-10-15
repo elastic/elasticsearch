@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.versionfield;
 
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
 
 public class VersionTests extends ESTestCase {
 
@@ -86,4 +89,91 @@ public class VersionTests extends ESTestCase {
         return VersionEncoder.encodeVersion(version).bytesRef;
     }
 
+    public void testDocValueReadEstimators() throws IOException {
+        VersionStringDocValuesField field = versionField("1.2.3", "2.0.0-alpha.1");
+        VersionScriptDocValues values = (VersionScriptDocValues) field.toScriptDocValues();
+
+        // The encoding is at least as long as the decoded text, so the estimate covers the String the read builds.
+        for (int i = 0; i < 2; i++) {
+            long encoded = field.encodedLength(i);
+            assertTrue(encoded >= field.getInternal(i).length());
+            long expected = ((16 + encoded + 7) & ~7L) + 32 + 32 + 2 * encoded;
+            assertEquals(expected, VersionAllocationEstimators.versionReadBytes(values, i));
+            assertEquals(expected, VersionAllocationEstimators.versionStringBytes(field, i, null));
+            assertEquals(expected + 32, VersionAllocationEstimators.versionObjectBytes(field, i, null));
+        }
+        assertEquals(VersionAllocationEstimators.versionReadBytes(values, 0), VersionAllocationEstimators.versionReadBytes(values));
+        assertEquals(
+            32 + ((16 + 8 * 2 + 7) & ~7L) + VersionAllocationEstimators.versionReadBytes(values, 0) + VersionAllocationEstimators
+                .versionReadBytes(values, 1),
+            VersionAllocationEstimators.versionStringsBytes(field)
+        );
+
+        // Out of range reads throw or return the default, so they cost nothing; neither does an empty field.
+        assertEquals(0, VersionAllocationEstimators.versionReadBytes(values, 2));
+        assertEquals(0, VersionAllocationEstimators.versionObjectBytes(field, -1, null));
+        VersionStringDocValuesField empty = versionField();
+        assertEquals(0, VersionAllocationEstimators.versionStringsBytes(empty));
+        assertEquals(0, VersionAllocationEstimators.versionStringBytes(empty, null));
+    }
+
+    /** A version field over one document holding {@code versions}, already on that document. */
+    private static VersionStringDocValuesField versionField(String... versions) throws IOException {
+        BytesRef[] encoded = new BytesRef[versions.length];
+        for (int i = 0; i < versions.length; i++) {
+            encoded[i] = VersionEncoder.encodeVersion(versions[i]).bytesRef;
+        }
+        SortedSetDocValues docValues = new SortedSetDocValues() {
+            private int next;
+
+            @Override
+            public boolean advanceExact(int target) {
+                next = 0;
+                return target == 0 && encoded.length > 0;
+            }
+
+            @Override
+            public long nextOrd() {
+                return next++;
+            }
+
+            @Override
+            public int docValueCount() {
+                return encoded.length;
+            }
+
+            @Override
+            public BytesRef lookupOrd(long ord) {
+                return encoded[(int) ord];
+            }
+
+            @Override
+            public long getValueCount() {
+                return encoded.length;
+            }
+
+            @Override
+            public int docID() {
+                return 0;
+            }
+
+            @Override
+            public int nextDoc() {
+                return NO_MORE_DOCS;
+            }
+
+            @Override
+            public int advance(int target) {
+                return NO_MORE_DOCS;
+            }
+
+            @Override
+            public long cost() {
+                return 1;
+            }
+        };
+        VersionStringDocValuesField field = new VersionStringDocValuesField(docValues, "test");
+        field.setNextDocId(0);
+        return field;
+    }
 }

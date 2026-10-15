@@ -146,6 +146,11 @@
         "description": "If set to true segment stats will include stats for segments that are not currently loaded into memory",
         "default": false
       },
+      "include_auto_calibration": {
+        "type": "boolean",
+        "description": "If set to true, auto-calibration parameters are included in dense_vector field stats (only applies at index or shard level)",
+        "default": false
+      },
       "expand_wildcards": {
         "type": "list",
         "options": [

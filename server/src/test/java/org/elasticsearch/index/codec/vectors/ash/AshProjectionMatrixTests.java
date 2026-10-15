@@ -25,7 +25,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
         int originalDim = 768;
         int nDims = 384;
         float[] wT = new float[originalDim * nDims];
-        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims);
+        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims, true);
         assertEquals(originalDim, pm.originalDim());
         assertEquals(nDims, pm.nDims());
     }
@@ -35,7 +35,7 @@ public class AshProjectionMatrixTests extends ESTestCase {
         int nDims = randomIntBetween(2, originalDim);
         float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
 
-        AshProjectionMatrix original = new AshProjectionMatrix(wT, originalDim, nDims);
+        AshProjectionMatrix original = new AshProjectionMatrix(wT, originalDim, nDims, true);
 
         AshProjectionMatrix restored = writeAndRead(original);
 
@@ -49,19 +49,34 @@ public class AshProjectionMatrixTests extends ESTestCase {
         int nDims = randomIntBetween(2, originalDim);
         float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
 
-        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims);
+        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims, true);
 
         ByteBuffersDataOutput dataOut = new ByteBuffersDataOutput();
         try (ByteBuffersIndexOutput out = new ByteBuffersIndexOutput(dataOut, "test", "test")) {
             pm.write(out);
         }
 
-        long expectedSize = Integer.BYTES * 2L + (long) originalDim * nDims * Float.BYTES;
+        long expectedSize = Integer.BYTES * 2L + Byte.BYTES + (long) originalDim * nDims * Float.BYTES;
         assertEquals(expectedSize, pm.byteSize());
+        assertEquals(pm.byteSize(), dataOut.size());
+    }
+
+    public void testLearnedFlagRoundTrips() throws IOException {
+        int originalDim = randomIntBetween(4, 50);
+        int nDims = randomIntBetween(2, originalDim);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
+
+        for (boolean learned : new boolean[] { true, false }) {
+            AshProjectionMatrix original = new AshProjectionMatrix(wT, originalDim, nDims, learned);
+            assertEquals(learned, original.isLearned());
+            AshProjectionMatrix restored = writeAndRead(original);
+            assertEquals(learned, restored.isLearned());
+            assertArrayEquals(wT, restored.wT(), 0f);
+        }
     }
 
     public void testEmptyMatrix() throws IOException {
-        AshProjectionMatrix pm = new AshProjectionMatrix(new float[0], 0, 0);
+        AshProjectionMatrix pm = new AshProjectionMatrix(new float[0], 0, 0, true);
         assertEquals(0, pm.originalDim());
         assertEquals(0, pm.nDims());
 

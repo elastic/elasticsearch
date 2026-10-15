@@ -17,6 +17,8 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
+import org.elasticsearch.search.profile.rescore.RescoreProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -26,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,7 +73,10 @@ public class LearningToRankRescorer implements Rescorer {
         List<LeafReaderContext> leaves = ltrRescoreContext.executionContext.searcher().getIndexReader().leaves();
         LeafReaderContext currentSegment = null;
         boolean changedSegment = true;
-        List<FeatureExtractor> featureExtractors = ltrRescoreContext.buildFeatureExtractors(searcher);
+        RescoreProfiler profiler = rescoreContext.profiler();
+        Map<String, QueryProfileBreakdown> featureProfiles = profiler == null ? null : new LinkedHashMap<>();
+        long featureExtractionStart = profiler == null ? 0L : System.nanoTime();
+        List<FeatureExtractor> featureExtractors = ltrRescoreContext.buildFeatureExtractors(searcher, featureProfiles);
         List<Map<String, Object>> docFeatures = new ArrayList<>(topDocIDs.size());
         int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
         int count = 0;
@@ -105,6 +111,7 @@ public class LearningToRankRescorer implements Rescorer {
             docFeatures.add(features);
             hitUpto++;
         }
+        long inferenceStart = profiler == null ? 0L : System.nanoTime();
         for (int i = 0; i < hitsToRescore.length; i++) {
             if (i % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
                 rescoreContext.checkCancellation();
@@ -122,6 +129,13 @@ public class LearningToRankRescorer implements Rescorer {
             } catch (Exception ex) {
                 logger.warn("Failure rescoring doc...", ex);
             }
+        }
+        if (profiler != null) {
+            profiler.addDebugInfo("feature_extraction_time_in_nanos", inferenceStart - featureExtractionStart);
+            profiler.addDebugInfo("inference_time_in_nanos", System.nanoTime() - inferenceStart);
+            Map<String, Long> queryFeatureTimes = new LinkedHashMap<>();
+            featureProfiles.forEach((featureName, featureProfile) -> queryFeatureTimes.put(featureName, featureProfile.toNodeTime()));
+            profiler.addDebugInfo("query_feature_time_in_nanos", queryFeatureTimes);
         }
         assert rescoreContext.getWindowSize() >= hitsToRescore.length
             : "unexpected, windows size [" + rescoreContext.getWindowSize() + "] should be gte [" + hitsToRescore.length + "]";
@@ -160,7 +174,7 @@ public class LearningToRankRescorer implements Rescorer {
 
         int targetDoc = topLevelDocId - currentSegment.docBase;
 
-        List<FeatureExtractor> featureExtractors = ltrContext.buildFeatureExtractors(searcher);
+        List<FeatureExtractor> featureExtractors = ltrContext.buildFeatureExtractors(searcher, null);
         int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
 
         Map<String, Object> extractedFeatures = Maps.newMapWithExpectedSize(featureSize);

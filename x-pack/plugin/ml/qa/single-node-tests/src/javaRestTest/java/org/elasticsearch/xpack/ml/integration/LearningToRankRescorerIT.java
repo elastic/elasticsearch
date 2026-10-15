@@ -20,8 +20,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class LearningToRankRescorerIT extends InferenceTestCase {
 
@@ -87,8 +92,8 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
     }
 
     /**
-     * The feature queries of the model must be reported under the rescore node of the profile, one root per feature query in the order
-     * of the model's feature extractors, and must not be reported as part of the main query.
+     * The feature queries of the model are profiled next to the main query, and the rescore node of the profile reports how the
+     * rescorer's time splits between feature extraction and inference, and how long each query feature took.
      */
     @SuppressWarnings("unchecked")
     public void testLearningToRankRescoreProfile() throws Exception {
@@ -113,33 +118,40 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
         Map<String, Object> shard = shards.get(0);
 
         List<Map<String, Object>> searches = (List<Map<String, Object>>) shard.get("searches");
-        List<Map<String, Object>> mainQueries = (List<Map<String, Object>>) searches.get(0).get("query");
-        assertThat(mainQueries.size(), equalTo(1));
-        assertThat(mainQueries.get(0).get("description"), equalTo("product:Laptop"));
+        List<Map<String, Object>> queries = (List<Map<String, Object>>) searches.get(0).get("query");
+        assertThat(queries.get(0).get("description"), equalTo("product:Laptop"));
+        assertThat(
+            queries.stream().skip(1).map(query -> (String) query.get("type")).toList(),
+            containsInAnyOrder(
+                "ScriptScoreQuery",
+                "ConstantScoreQuery",
+                "ConstantScoreQuery",
+                "ConstantScoreQuery",
+                "ScriptScoreQuery",
+                "TermQuery"
+            )
+        );
 
         List<Map<String, Object>> rescorers = (List<Map<String, Object>>) shard.get("rescore");
         assertThat(rescorers.size(), equalTo(1));
         Map<String, Object> rescorer = rescorers.get(0);
         assertThat(rescorer.get("type"), equalTo("learning_to_rank"));
-        assertThat(XContentMapValues.extractValue("debug.window_size", rescorer), equalTo(10));
-        assertThat(XContentMapValues.extractValue("debug.docs_before_rescore", rescorer), equalTo(3));
-        assertThat(XContentMapValues.extractValue("debug.docs_after_rescore", rescorer), equalTo(3));
-        List<String> featureQueryTypes = ((List<Map<String, Object>>) rescorer.get("children")).stream()
-            .map(child -> (String) child.get("type"))
-            .toList();
-        assertThat(
-            featureQueryTypes,
-            equalTo(
-                List.of(
-                    "ScriptScoreQuery",
-                    "ConstantScoreQuery",
-                    "ConstantScoreQuery",
-                    "ConstantScoreQuery",
-                    "ScriptScoreQuery",
-                    "TermQuery"
-                )
-            )
-        );
+        assertThat(rescorer.get("children"), nullValue());
+        Map<String, Object> debug = (Map<String, Object>) rescorer.get("debug");
+        assertThat(debug.get("window_size"), equalTo(10));
+        assertThat(debug.get("docs_before_rescore"), equalTo(3));
+        assertThat(debug.get("docs_after_rescore"), equalTo(3));
+        long rescoreTime = ((Number) rescorer.get("time_in_nanos")).longValue();
+        long featureExtractionTime = ((Number) debug.get("feature_extraction_time_in_nanos")).longValue();
+        long inferenceTime = ((Number) debug.get("inference_time_in_nanos")).longValue();
+        assertThat(featureExtractionTime, greaterThan(0L));
+        assertThat(inferenceTime, greaterThan(0L));
+        assertThat(featureExtractionTime + inferenceTime, lessThanOrEqualTo(rescoreTime));
+        Map<String, Object> queryFeatureTimes = (Map<String, Object>) debug.get("query_feature_time_in_nanos");
+        assertThat(queryFeatureTimes.keySet(), containsInAnyOrder("cost", "type_tv", "type_vcr", "type_laptop", "two", "product_bm25"));
+        for (Object queryFeatureTime : queryFeatureTimes.values()) {
+            assertThat(((Number) queryFeatureTime).longValue(), allOf(greaterThan(0L), lessThanOrEqualTo(featureExtractionTime)));
+        }
     }
 
     public void testLearningToRankRescoreSmallWindow() throws Exception {

@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -317,6 +318,7 @@ public class PlanExecutor {
             x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin, client),
             ex -> onQueryFailure(
                 request,
+                session.planSnapshot().settings(),
                 releasingListener,
                 ex,
                 clientId,
@@ -359,7 +361,7 @@ public class PlanExecutor {
     private void onQuerySuccess(
         EsqlQueryRequest request,
         ActionListener<Versioned<Result>> listener,
-        Versioned<Result> x,
+        Versioned<Result> result,
         PlanTelemetry planTelemetry,
         UsageService usageService,
         EsqlExecutionInfo executionInfo,
@@ -367,7 +369,7 @@ public class PlanExecutor {
         String client
     ) {
         planTelemetryManager.publish(planTelemetry, true);
-        boolean partial = x != null && x.inner().completionInfo().partial();
+        boolean partial = result != null && result.inner().completionInfo().partial();
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
             queryLabels(client, planTelemetry),
@@ -376,7 +378,7 @@ public class PlanExecutor {
             partial,
             null
         );
-        queryLog.onQueryPhase(x, request.queryDescription());
+        queryLog.onQueryPhase(result, request.queryDescription());
         // record routing usage telemetry
         usageService.getProjectRoutingUsageHolder()
             .recordEsql(
@@ -384,11 +386,12 @@ public class PlanExecutor {
                 planTelemetry.settings().containsKey("PROJECT_ROUTING"),
                 executionInfo.isHasLinkedProjects()
             );
-        listener.onResponse(x);
+        listener.onResponse(result);
     }
 
     private void onQueryFailure(
         EsqlQueryRequest request,
+        ResolvedSettings settings,
         ActionListener<Versioned<Result>> listener,
         Exception ex,
         QueryMetric clientId,
@@ -411,7 +414,7 @@ public class PlanExecutor {
             false,
             ex
         );
-        queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
+        queryLog.onQueryFailure(request.queryDescription(), settings, ex, System.nanoTime() - begin);
         // Matched by condition, not class: a failure from a remote data node arrives as a wrapper that keeps only the condition.
         if (cacheService != null && ExternalException.hasCondition(ex, ExternalException.Condition.OBJECT_CHANGED)) {
             // The object was rewritten after the listing this query used was cached. Drop the entries this query read, so the

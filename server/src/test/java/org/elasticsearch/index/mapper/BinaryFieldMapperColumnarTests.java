@@ -89,16 +89,17 @@ public class BinaryFieldMapperColumnarTests extends MapperServiceTestCase {
         assertThat(e.getCause().getMessage(), containsString("multi_value=false"));
     }
 
-    /** The codec off, a columnar index keeps the layout binary fields always had. */
+    /** The codec off, a columnar index keeps the layout binary fields always had, and {@code columnar_stored} patches nothing in. */
     public void testWithoutTheCodecKeepsTheCustomLayout() throws IOException {
         final Settings settings = Settings.builder()
-            .put(settings(randomSourceMode()))
+            .put(settings(SourceFieldMapper.Mode.COLUMNAR_STORED))
             .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false)
             .build();
         final MapperService mapperService = createMapperService(settings, binaryMapping(null));
         final BinaryFieldMapper mapper = (BinaryFieldMapper) mapperService.mappingLookup().getMapper("bin");
         assertThat(mapper.fieldType().columnarFormat(), nullValue());
         assertThat(mapper.columnarStringOptions(), nullValue());
+        assertThat("the custom layout sorts its values, so nothing is patched", mapper.syntheticVectorsLoader(), nullValue());
         final ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("bin", A)));
         assertThat(doc.rootDoc().getField("bin"), instanceOf(BinaryFieldMapper.CustomBinaryDocValuesField.class));
     }
@@ -119,14 +120,21 @@ public class BinaryFieldMapperColumnarTests extends MapperServiceTestCase {
         }
     }
 
-    /** Under {@code on_failure: ignore} a second value goes to the failure column, and synthetic source still returns both. */
+    /**
+     * Under {@code on_failure: ignore} a second value is set aside, and both source modes still return every value: synthetic source
+     * from the failure column, {@code columnar_stored} from the source blob, which keeps the field rather than patching it.
+     */
     public void testSingleValuedIgnoresASecondValue() throws IOException {
-        final MapperService mapperService = createMapperService(settings(SourceFieldMapper.Mode.SYNTHETIC), mapping(b -> {
-            b.startObject("bin").field("type", "binary");
-            b.startObject("doc_values").field("multi_value", false).field("on_failure", "ignore").endObject();
-            b.endObject();
-        }));
-        assertSource(mapperService, b -> b.array("bin", A, B), Map.of("bin", List.of(A, B)));
+        for (SourceFieldMapper.Mode mode : List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED)) {
+            final MapperService mapperService = createMapperService(settings(mode), mapping(b -> {
+                b.startObject("bin").field("type", "binary");
+                b.startObject("doc_values").field("multi_value", false).field("on_failure", "ignore").endObject();
+                b.endObject();
+                b.startObject("kwd").field("type", "keyword").endObject();
+            }));
+            assertSource(mapperService, b -> b.array("bin", A, B, A).field("kwd", "k"), Map.of("bin", List.of(A, B, A), "kwd", "k"));
+            assertSource(mapperService, b -> b.field("bin", A), Map.of("bin", A));
+        }
     }
 
     /** Under {@code columnar_stored} the values live in doc values only: the source blob leaves them out. */

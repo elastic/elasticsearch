@@ -789,7 +789,9 @@ public class AuthorizationService {
                 if (profileUid != null) {
                     PROFILE_UID_VALUE.set(threadContext, profileUid);
                 }
-            }, e -> logger.debug("failed to resolve profile uid for [{}]", requestInfo.getAuthentication(), e)), proceed));
+            }, e -> logger.debug(() -> Strings.format("failed to resolve profile uid for [%s]", requestInfo.getAuthentication()), e)),
+                proceed
+            ));
         } else {
             proceed.run();
         }

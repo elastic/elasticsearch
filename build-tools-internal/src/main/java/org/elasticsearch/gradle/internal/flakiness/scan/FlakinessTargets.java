@@ -106,7 +106,9 @@ public final class FlakinessTargets {
         }
         List<String> candidateTaskPaths = unionTasks(left.candidateTaskPaths(), right.candidateTaskPaths());
         if (left.runnable() == false) {
-            return right.runnable() ? targetWith(right, right.runnableTasks(), candidateTaskPaths, null) : targetWith(left, List.of(), candidateTaskPaths, left.skipReason());
+            return right.runnable()
+                ? targetWith(right, right.runnableTasks(), candidateTaskPaths, null)
+                : targetWith(left, List.of(), candidateTaskPaths, left.skipReason());
         }
         if (right.runnable() == false) {
             return targetWith(left, left.runnableTasks(), candidateTaskPaths, null);
@@ -115,7 +117,12 @@ public final class FlakinessTargets {
         return targetWith(left, runnableTasks, candidateTaskPaths, null);
     }
 
-    private static BaseTarget targetWith(BaseTarget target, List<String> runnableTasks, List<String> candidateTaskPaths, String skipReason) {
+    private static BaseTarget targetWith(
+        BaseTarget target,
+        List<String> runnableTasks,
+        List<String> candidateTaskPaths,
+        String skipReason
+    ) {
         return new BaseTarget(
             target.gradleProject(),
             target.sourceSet(),

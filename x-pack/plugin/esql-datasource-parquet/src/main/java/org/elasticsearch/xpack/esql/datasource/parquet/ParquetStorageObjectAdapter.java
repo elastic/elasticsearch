@@ -588,15 +588,25 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                     }
                     totalRead += n;
                 }
-                if (totalRead <= 0) {
-                    return new byte[0];
+                if (totalRead != toRead) {
+                    // A short read here used to be cached as-is, and every consumer reads a cache entry as the
+                    // file's SUFFIX: fillFromCachedTail and lookupFooterCacheHit both derive the entry's start as
+                    // length - entry.length. A prefix stored under that contract is served at the wrong offset,
+                    // silently, as column-chunk data for an object small enough to be cached whole. The window
+                    // fill below already rejects the same event; this is the one path that did not.
+                    throw new IOException(
+                        "Unexpected end of stream while reading ["
+                            + toRead
+                            + "] bytes at position ["
+                            + pos
+                            + "] of ["
+                            + length
+                            + "]: read ["
+                            + totalRead
+                            + "]"
+                    );
                 }
-                if (totalRead == toRead) {
-                    return buf;
-                }
-                byte[] result = UninitializedArrays.newByteArray(totalRead);
-                System.arraycopy(buf, 0, result, 0, totalRead);
-                return result;
+                return buf;
             }
         }
 

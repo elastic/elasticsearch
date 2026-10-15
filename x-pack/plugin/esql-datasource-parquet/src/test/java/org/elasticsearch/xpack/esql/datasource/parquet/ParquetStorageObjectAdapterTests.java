@@ -1621,6 +1621,71 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         assertEquals("the failed refill refunds its window on the node budget", 0, watermark.used());
     }
 
+    /**
+     * A stream that ends early must not leave a short entry behind. Every consumer reads a cache entry as the
+     * file's suffix — {@code fillFromCachedTail} and {@code lookupFooterCacheHit} both derive its start as
+     * {@code length - entry.length} — so a prefix cached under that contract is served at the wrong offset as
+     * column-chunk data, with no error raised.
+     */
+    public void testRefillWholeFileFooterRejectsAShortReadAndStoresNothing() {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        AtomicInteger attempts = new AtomicInteger();
+        StorageObject truncating = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException("Full GET not supported in truncating harness");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                attempts.incrementAndGet();
+                // Ends after a third of what was asked for, without throwing.
+                return new ByteArrayInputStream(data, (int) position, data.length / 3);
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://refill-short-read.parquet");
+            }
+        };
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        CircuitBreaker limited = new LimitedBreaker("refill-short", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(truncating, footerByteCache, limited, watermark);
+
+        IOException failure = expectThrows(IOException.class, adapter::refillWholeFileFooter);
+        // The loader rejects the short read; fetchWindowAt's direct-I/O retry then reports the same event,
+        // so the message the caller sees is the window fill's. Either way the stream ended early and said so.
+        assertTrue("reports the early end of stream: " + failure.getMessage(), failure.getMessage().contains("Unexpected end of stream"));
+        assertNull("a short read stores nothing", footerByteCache.get(adapter.cacheKey()));
+        assertEquals("the short read leaves no stream open", 0, adapter.trackedStreamCount());
+        assertEquals("the short read refunds its window on the breaker", 0, limited.getUsed());
+        assertEquals("the short read refunds its window on the node budget", 0, watermark.used());
+    }
+
     /** An object larger than the footer prefetch is never served whole from the cache, so there is nothing to refill. */
     public void testRefillWholeFileFooterIsNoopAboveFooterPrefetch() throws IOException {
         byte[] data = new byte[ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES + 1];

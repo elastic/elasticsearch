@@ -454,7 +454,7 @@ public class ProfileServiceTests extends ESTestCase {
         );
         for (Authentication authentication : authentications) {
             final PlainActionFuture<String> future = new PlainActionFuture<>();
-            profileService.resolveProfileUid(authentication, future);
+            profileService.resolve(authentication, future);
             assertThat(authentication.toString(), future.actionGet(), nullValue());
         }
         verify(client, never()).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
@@ -482,7 +482,7 @@ public class ProfileServiceTests extends ESTestCase {
         // No profile document: resolves to null and the absence is cached.
         for (int i = 0; i < 3; i++) {
             final PlainActionFuture<String> future = new PlainActionFuture<>();
-            profileService.resolveProfileUid(authentication, future);
+            profileService.resolve(authentication, future);
             assertThat(future.actionGet(), nullValue());
         }
         verify(client, times(1)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
@@ -499,7 +499,7 @@ public class ProfileServiceTests extends ESTestCase {
         expectThrows(RuntimeException.class, activateFuture::actionGet);
 
         final PlainActionFuture<String> future = new PlainActionFuture<>();
-        profileService.resolveProfileUid(authentication, future);
+        profileService.resolve(authentication, future);
         assertThat(future.actionGet(), nullValue());
         // One search for activation plus one for the fresh resolution.
         verify(client, times(3)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());

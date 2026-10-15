@@ -18,8 +18,6 @@ import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -88,11 +86,7 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
     }
 
     public void testDocLevelSecurityTemplateWithProfileUid() throws Exception {
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .realm()
-            .user(new User("alice", "role1"))
-            .build(false)
-            .copyWithProfileUid("u_alice_0");
+        final User user = new User("alice", "role1");
 
         final MustacheScriptEngine mustache = new MustacheScriptEngine(Settings.EMPTY);
         when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenAnswer(inv -> {
@@ -111,16 +105,12 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
               }
             }""";
 
-        String evaluated = SecurityQueryTemplateEvaluator.evaluateTemplate(template, scriptService, authentication);
+        String evaluated = SecurityQueryTemplateEvaluator.evaluateTemplate(template, scriptService, user, "u_alice_0");
         assertThat(evaluated, equalTo("""
             {"term":{"scope_id":"user://u_alice_0"}}"""));
 
         // Without a resolved profile uid the variable renders empty, so a scope term can match nothing.
-        String unresolved = SecurityQueryTemplateEvaluator.evaluateTemplate(
-            template,
-            scriptService,
-            AuthenticationTestHelper.builder().realm().user(new User("alice", "role1")).build(false)
-        );
+        String unresolved = SecurityQueryTemplateEvaluator.evaluateTemplate(template, scriptService, user, null);
         assertThat(unresolved, equalTo("""
             {"term":{"scope_id":"user://"}}"""));
     }
@@ -168,7 +158,7 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
     public void testSkipTemplating() throws Exception {
         XContentBuilder builder = jsonBuilder();
         String querySource = Strings.toString(new TermQueryBuilder("field", "value").toXContent(builder, ToXContent.EMPTY_PARAMS));
-        String result = SecurityQueryTemplateEvaluator.evaluateTemplate(querySource, scriptService, (User) null);
+        String result = SecurityQueryTemplateEvaluator.evaluateTemplate(querySource, scriptService, null);
         assertThat(result, sameInstance(querySource));
         verifyNoMoreInteractions(scriptService);
     }

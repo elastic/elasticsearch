@@ -21,10 +21,10 @@ import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -91,7 +91,8 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
             if (documentPermissions.hasDocumentLevelPermissions()) {
                 BooleanQuery filterQuery = documentPermissions.filter(
-                    getAuthentication(),
+                    getUser(),
+                    AuthorizationServiceField.PROFILE_UID_VALUE.get(securityContext.getThreadContext()),
                     scriptService,
                     shardId,
                     searchExecutionContextProvider
@@ -120,8 +121,8 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
         return indicesAccessControl;
     }
 
-    protected Authentication getAuthentication() {
-        return Objects.requireNonNull(securityContext.getAuthentication());
+    protected User getUser() {
+        return Objects.requireNonNull(securityContext.getUser());
     }
 
 }

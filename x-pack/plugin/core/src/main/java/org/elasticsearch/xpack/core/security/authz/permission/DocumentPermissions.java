@@ -24,7 +24,6 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
@@ -128,16 +127,16 @@ public final class DocumentPermissions implements CacheKey {
     }
 
     /**
-     * As {@link #filter(User, ScriptService, ShardId, Function)}, but templates are evaluated against the whole
-     * {@link Authentication} so they can also refer to the user's profile uid.
+     * As {@link #filter(User, ScriptService, ShardId, Function)}, additionally exposing the user's profile uid to templates.
      */
     public BooleanQuery filter(
-        Authentication authentication,
+        User user,
+        @Nullable String profileUid,
         ScriptService scriptService,
         ShardId shardId,
         Function<ShardId, SearchExecutionContext> searchExecutionContextProvider
     ) throws IOException {
-        return filter(SecurityQueryTemplateEvaluator.wrap(authentication, scriptService), shardId, searchExecutionContextProvider);
+        return filter(SecurityQueryTemplateEvaluator.wrap(user, profileUid, scriptService), shardId, searchExecutionContextProvider);
     }
 
     private BooleanQuery filter(

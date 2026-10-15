@@ -24,12 +24,21 @@ public final class AuthorizationServiceField {
     );
     public static final ThreadContextTransient<AuthorizationEngine.AuthorizationInfo> AUTHORIZATION_INFO_VALUE = ThreadContextTransient
         .transientValue("_authz_info", AuthorizationEngine.AuthorizationInfo.class);
+    /**
+     * The profile uid of the effective user, resolved while authorizing an index action whose document level security
+     * refers to {@code _user.profile_uid}. Absent when no such query applies or the user has no profile.
+     */
+    public static final ThreadContextTransient<String> PROFILE_UID_VALUE = ThreadContextTransient.transientValue(
+        "_security_profile_uid",
+        String.class
+    );
 
     // Most often, transient authorisation headers are scoped (i.e. set, read and cleared) for the authorisation and execution
     // of individual actions (i.e. there is a different scope between the parent and the child actions)
     public static final Collection<String> ACTION_SCOPE_AUTHORIZATION_KEYS = List.of(
         INDICES_PERMISSIONS_VALUE.getKey(),
-        AUTHORIZATION_INFO_VALUE.getKey()
+        AUTHORIZATION_INFO_VALUE.getKey(),
+        PROFILE_UID_VALUE.getKey()
     );
 
     private AuthorizationServiceField() {}

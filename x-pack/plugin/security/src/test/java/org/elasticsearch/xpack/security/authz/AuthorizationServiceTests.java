@@ -206,6 +206,7 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
+import org.elasticsearch.xpack.security.profile.ProfileUidResolver;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.junit.Before;
@@ -387,7 +388,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
     }
 
@@ -1374,7 +1376,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1461,7 +1464,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             originOnlyRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1518,7 +1522,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2099,7 +2104,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2154,7 +2160,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3752,7 +3759,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3917,7 +3925,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
             projectRoutingResolver,
-            new UsageService()
+            new UsageService(),
+            ProfileUidResolver.NONE
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {
@@ -4269,7 +4278,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             routingResolver,
-            usageService
+            usageService,
+            ProfileUidResolver.NONE
         );
     }
 

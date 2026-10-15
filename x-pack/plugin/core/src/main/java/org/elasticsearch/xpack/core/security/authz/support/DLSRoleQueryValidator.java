@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -150,18 +149,19 @@ public final class DLSRoleQueryValidator {
     }
 
     /**
-     * As {@link #evaluateAndVerifyRoleQuery(BytesReference, ScriptService, NamedXContentRegistry, User)}, evaluating the
-     * template against the whole {@link Authentication} so it can also refer to the user's profile uid.
+     * As {@link #evaluateAndVerifyRoleQuery(BytesReference, ScriptService, NamedXContentRegistry, User)}, additionally
+     * exposing the user's profile uid to the template.
      */
     @Nullable
     public static QueryBuilder evaluateAndVerifyRoleQuery(
         BytesReference query,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
-        Authentication authentication
+        User user,
+        @Nullable String profileUid
     ) {
         if (query != null) {
-            String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(query.utf8ToString(), scriptService, authentication);
+            String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(query.utf8ToString(), scriptService, user, profileUid);
             try {
                 return evaluateAndVerifyRoleQuery(templateResult, xContentRegistry);
             } catch (ElasticsearchParseException | ParsingException | XContentParseException | IOException e) {

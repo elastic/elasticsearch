@@ -438,29 +438,6 @@ public final class Authentication implements ToXContentObject {
         return copyWithMetadata(Collections.unmodifiableMap(metadataCopy));
     }
 
-    /**
-     * The profile uid resolved for the authenticated user when this authentication was established, or {@code null}
-     * when none was: the subject is not a realm user, has not activated a profile, or is a run-as target. DLS role
-     * query templates read it as {@code _user.profile_uid}.
-     */
-    @Nullable
-    public String getProfileUid() {
-        if (isRunAs()) {
-            return null;
-        }
-        return (String) authenticatingSubject.getMetadata().get(AuthenticationField.PROFILE_UID_KEY);
-    }
-
-    /**
-     * Creates a copy of this Authentication instance carrying {@code profileUid} in the authenticating subject's metadata.
-     */
-    public Authentication copyWithProfileUid(final String profileUid) {
-        Objects.requireNonNull(profileUid);
-        final Map<String, Object> metadataCopy = new HashMap<>(authenticatingSubject.getMetadata());
-        metadataCopy.put(AuthenticationField.PROFILE_UID_KEY, profileUid);
-        return copyWithMetadata(Collections.unmodifiableMap(metadataCopy));
-    }
-
     public Authentication copyWithEmptyMetadata() {
         if (logger.isTraceEnabled() && false == authenticatingSubject.getMetadata().isEmpty()) {
             logger.trace(

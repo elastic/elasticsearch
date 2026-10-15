@@ -113,7 +113,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Avai
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 
-public class ProfileService {
+public class ProfileService implements ProfileUidResolver {
 
     public static final Setting<ByteSizeValue> MAX_SIZE_SETTING = Setting.byteSizeSetting(
         "xpack.security.profile.max_size",
@@ -155,15 +155,16 @@ public class ProfileService {
     }
 
     /**
-     * Resolves the profile uid of the authenticated user so that {@code AuthenticatorChain} can attach it to the
-     * {@link Authentication} (see {@link Authentication#copyWithProfileUid}) and DLS role query templates can read
-     * it as {@code _user.profile_uid}. Only realm users have profiles, so API keys, service accounts, internal and
-     * anonymous users and run-as targets resolve to {@code null} without a lookup, as does a user whose profile has
-     * not been activated. Results, including the absence of a profile, are cached per subject for
-     * {@link #PROFILE_UID_CACHE_TTL} and dropped when that subject activates its profile through this node. A lookup
-     * failure resolves to {@code null} rather than failing authentication.
+     * Resolves the profile uid of the authenticated user so that {@code AuthorizationService} can expose it to DLS role
+     * query templates as {@code _user.profile_uid} while authorizing an index action that needs it. Only realm users
+     * have profiles, so API keys, service accounts, internal and anonymous users and run-as targets resolve to
+     * {@code null} without a lookup, as does a user whose profile has not been activated. Results, including the
+     * absence of a profile, are cached per subject for {@link #PROFILE_UID_CACHE_TTL} and dropped when that subject
+     * activates its profile through this node. A lookup failure resolves to {@code null} rather than failing
+     * authorization.
      */
-    public void resolveProfileUid(Authentication authentication, ActionListener<String> listener) {
+    @Override
+    public void resolve(Authentication authentication, ActionListener<String> listener) {
         final Subject subject = authentication.getEffectiveSubject();
         if (authentication.isRunAs()
             || Subject.Type.USER != subject.getType()

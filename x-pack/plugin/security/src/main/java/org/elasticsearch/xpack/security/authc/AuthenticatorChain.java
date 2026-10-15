@@ -48,7 +48,6 @@ class AuthenticatorChain {
     private final boolean isAnonymousUserEnabled;
     private final AuthenticationContextSerializer authenticationSerializer;
     private final RealmsAuthenticator realmsAuthenticator;
-    private final AuthenticationService.ProfileUidResolver profileUidResolver;
     private final List<Authenticator> allAuthenticators;
 
     AuthenticatorChain(
@@ -60,8 +59,7 @@ class AuthenticatorChain {
         ServiceAccountAuthenticator serviceAccountAuthenticator,
         OAuth2TokenAuthenticator oAuth2TokenAuthenticator,
         ApiKeyAuthenticator apiKeyAuthenticator,
-        RealmsAuthenticator realmsAuthenticator,
-        AuthenticationService.ProfileUidResolver profileUidResolver
+        RealmsAuthenticator realmsAuthenticator
     ) {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.runAsEnabled = AuthenticationServiceField.RUN_AS_ENABLED.get(settings);
@@ -70,7 +68,6 @@ class AuthenticatorChain {
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.authenticationSerializer = authenticationSerializer;
         this.realmsAuthenticator = realmsAuthenticator;
-        this.profileUidResolver = profileUidResolver;
 
         List<Authenticator> authenticators = new ArrayList<>();
         if (pluggableAuthenticatorChain.hasCustomAuthenticators()) {
@@ -321,8 +318,7 @@ class AuthenticatorChain {
 
     /**
      * Finishes the authentication process by ensuring the returned user is enabled and that the run as user is enabled if there is
-     * one. If authentication is successful, this method also attaches the user's profile uid, when one resolves, and ensures that
-     * the authentication is written to the ThreadContext
+     * one. If authentication is successful, this method also ensures that the authentication is written to the ThreadContext
      */
     void finishAuthentication(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
         if (authentication.getEffectiveSubject().getUser().enabled() == false
@@ -331,13 +327,7 @@ class AuthenticatorChain {
             logger.debug("user [{}] is disabled. failing authentication", authentication.getEffectiveSubject().getUser());
             listener.onFailure(context.getRequest().authenticationFailed(context.getMostRecentAuthenticationToken()));
         } else {
-            profileUidResolver.resolve(authentication, ActionListener.wrap(profileUid -> {
-                final Authentication withProfileUid = profileUid == null ? authentication : authentication.copyWithProfileUid(profileUid);
-                writeAuthToContext(context, withProfileUid, listener);
-            }, e -> {
-                logger.debug(() -> format("Failed to resolve profile uid for [%s]", authentication), e);
-                writeAuthToContext(context, authentication, listener);
-            }));
+            writeAuthToContext(context, authentication, listener);
         }
     }
 

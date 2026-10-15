@@ -1218,7 +1218,6 @@ public class Security extends Plugin
                 serviceAccountService,
                 operatorPrivilegesService.get(),
                 pluggableAuthenticatorChain,
-                profileService::resolveProfileUid,
                 telemetryProvider.getMeterRegistry()
             )
         );
@@ -1275,7 +1274,8 @@ public class Security extends Plugin
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            usageService
+            usageService,
+            profileService
         );
 
         components.add(nativeRolesStore); // used by roles actions

@@ -379,7 +379,6 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            AuthenticationService.ProfileUidResolver.NONE,
             MeterRegistry.NOOP
         );
     }
@@ -679,7 +678,6 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            AuthenticationService.ProfileUidResolver.NONE,
             MeterRegistry.NOOP
         );
         User user = new User("_username", "r1");
@@ -1065,7 +1063,6 @@ public class AuthenticationServiceTests extends ESTestCase {
                 serviceAccountService,
                 operatorPrivilegesService,
                 mock(),
-                AuthenticationService.ProfileUidResolver.NONE,
                 MeterRegistry.NOOP
             );
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -1118,7 +1115,6 @@ public class AuthenticationServiceTests extends ESTestCase {
                     serviceAccountService,
                     operatorPrivilegesService,
                     mock(),
-                    AuthenticationService.ProfileUidResolver.NONE,
                     MeterRegistry.NOOP
                 );
                 threadContext2.putHeader(AuthenticationField.AUTHENTICATION_KEY, authHeaderRef.get());
@@ -1144,7 +1140,6 @@ public class AuthenticationServiceTests extends ESTestCase {
                 serviceAccountService,
                 operatorPrivilegesService,
                 mock(),
-                AuthenticationService.ProfileUidResolver.NONE,
                 MeterRegistry.NOOP
             );
             service.authenticate("_action", new InternalRequest(), InternalUsers.SYSTEM_USER, ActionListener.wrap(result -> {
@@ -1209,7 +1204,6 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            AuthenticationService.ProfileUidResolver.NONE,
             MeterRegistry.NOOP
         );
 
@@ -1256,7 +1250,6 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            AuthenticationService.ProfileUidResolver.NONE,
             MeterRegistry.NOOP
         );
         doAnswer(invocationOnMock -> {
@@ -1323,7 +1316,6 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            AuthenticationService.ProfileUidResolver.NONE,
             MeterRegistry.NOOP
         );
         RestRequest request = new FakeRestRequest();
@@ -1362,7 +1354,6 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            AuthenticationService.ProfileUidResolver.NONE,
             MeterRegistry.NOOP
         );
         RestRequest request = new FakeRestRequest();
@@ -1396,7 +1387,6 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            AuthenticationService.ProfileUidResolver.NONE,
             MeterRegistry.NOOP
         );
         InternalRequest message = new InternalRequest();
@@ -1434,7 +1424,6 @@ public class AuthenticationServiceTests extends ESTestCase {
             serviceAccountService,
             operatorPrivilegesService,
             mock(),
-            AuthenticationService.ProfileUidResolver.NONE,
             MeterRegistry.NOOP
         );
 

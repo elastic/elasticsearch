@@ -14,7 +14,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.support.MustacheTemplateEvaluator;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -52,21 +51,12 @@ public final class SecurityQueryTemplateEvaluator {
     }
 
     /**
-     * As {@link #evaluateTemplate(String, ScriptService, User)} for the effective user of {@code authentication}, additionally
-     * exposing {@link Authentication#getProfileUid()} as {@code _user.profile_uid}. The variable is absent, and so renders
-     * empty, when no profile uid was resolved for the authentication.
+     * As {@link #evaluateTemplate(String, ScriptService, User)}, additionally exposing {@code profileUid} as
+     * {@code _user.profile_uid}. The variable is absent, and so renders empty, when {@code profileUid} is {@code null}.
+     * The uid is resolved during authorization and carried in the thread context as
+     * {@code AuthorizationServiceField.PROFILE_UID_VALUE}.
      */
     public static String evaluateTemplate(
-        final String querySource,
-        final ScriptService scriptService,
-        final Authentication authentication
-    ) {
-        return authentication == null
-            ? evaluateTemplate(querySource, scriptService, null, null)
-            : evaluateTemplate(querySource, scriptService, authentication.getEffectiveSubject().getUser(), authentication.getProfileUid());
-    }
-
-    private static String evaluateTemplate(
         final String querySource,
         final ScriptService scriptService,
         final User user,
@@ -111,8 +101,8 @@ public final class SecurityQueryTemplateEvaluator {
         return q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user);
     }
 
-    public static DlsQueryEvaluationContext wrap(Authentication authentication, ScriptService scriptService) {
-        return q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, authentication);
+    public static DlsQueryEvaluationContext wrap(User user, @Nullable String profileUid, ScriptService scriptService) {
+        return q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user, profileUid);
     }
 
     @FunctionalInterface

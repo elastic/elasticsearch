@@ -424,7 +424,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view1", "FROM emp1");
         viewService.addDataset(projectId, "view_ds");
         LogicalPlan plan = query("FROM view*,-view_ds");
-        // The exclusion removes the only non-view match, so the pattern is consumed by the view as before.
         assertThat(replaceViews(plan, true, true), matchesPlan(query("FROM emp1")));
     }
 

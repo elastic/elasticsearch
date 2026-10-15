@@ -174,11 +174,17 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             RowGroupIo lease = new RowGroupIo();
             adapter.bindRowGroup(lease);
             assertThat(lease.untracked(), Matchers.greaterThan(0L));
-            IllegalStateException error = expectThrows(
-                IllegalStateException.class,
-                () -> budget.admitAsync(5, lease, () -> false, Runnable::run)
-            );
-            assertTrue(error.getMessage(), error.getMessage().contains("untracked bytes"));
+            CountDownLatch failed = new CountDownLatch(1);
+            AtomicReference<Exception> error = new AtomicReference<>();
+            budget.admitAsync(5, lease, () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+                hold.close();
+                fail("waiting lease with untracked window bytes must not grant");
+            }, e -> {
+                error.set(e);
+                failed.countDown();
+            }));
+            assertTrue(failed.await(5, TimeUnit.SECONDS));
+            assertTrue(error.get().getMessage(), error.get().getMessage().contains("untracked bytes"));
         } finally {
             owner.get().close();
             budget.clearOwner(owner.get().lease());
@@ -412,6 +418,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -1078,6 +1089,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1141,6 +1157,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         StorageObject countingStorageObject = new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -1212,6 +1233,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1279,6 +1305,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         StorageObject rangeOnlyCounting = new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -1369,6 +1400,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         StorageObject measuringStorageObject = new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -1504,6 +1540,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1577,6 +1618,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -1925,6 +1971,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -2100,6 +2151,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -2358,6 +2414,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -2401,6 +2462,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -2490,6 +2556,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {

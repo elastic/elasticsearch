@@ -61,7 +61,7 @@ final class SwappableLogRecordExporter implements LogRecordExporter {
     private CompletableResultCode withDelegate(Function<LogRecordExporter, CompletableResultCode> operation) {
         final ExporterHolder holder = acquireCurrent();
         if (holder == null) {
-            return CompletableResultCode.ofFailure();
+            return CompletableResultCode.ofExceptionalFailure(new IllegalStateException("log exporter is shut down"));
         }
 
         CompletableResultCode result = null;

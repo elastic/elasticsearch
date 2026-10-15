@@ -21,6 +21,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SwappableLogRecordExporterTests extends ESTestCase {
 
@@ -191,8 +192,12 @@ public class SwappableLogRecordExporterTests extends ESTestCase {
         assertFalse(shutdown.isDone());
         assertThat(old.shutdowns.get(), equalTo(1));
         assertThat(current.shutdowns.get(), equalTo(1));
-        assertFalse(exporter.export(List.of()).isSuccess());
-        assertFalse(exporter.flush().isSuccess());
+        for (CompletableResultCode result : List.of(exporter.export(List.of()), exporter.flush())) {
+            assertTrue(result.isDone());
+            assertFalse(result.isSuccess());
+            assertThat(result.getFailureThrowable(), instanceOf(IllegalStateException.class));
+            assertThat(result.getFailureThrowable().getMessage(), equalTo("log exporter is shut down"));
+        }
         assertThat(current.exports.get(), equalTo(1));
         assertThat(current.flushes.get(), equalTo(0));
 

@@ -21,6 +21,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Estimates how much heap each node is using from the shards currently placed on it,
+ * plus a fixed overhead that stays on the node when those shards move.
+ */
 public final class NodeHeapUsageCalculator {
 
     private NodeHeapUsageCalculator() {}

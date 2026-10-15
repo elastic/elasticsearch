@@ -36,7 +36,7 @@ The following metadata fields are available in {{esql}}:
 
 ## Usage and limitations
 
-- Most metadata fields are only available when the data source is an index. {applies_to}`stack: ga 9.6` When a field is not available for a given source, `null` is returned. `_class` and `_name` are available on every source: indices, [views](esql-views.md#views-with-metadata), [subqueries](esql-from-subquery.md#subqueries-with-metadata), and [datasets](esql-data-federation-querying.md#use-metadata-columns)
+- Most metadata fields are only available when the data source is an index. When a field is not available for a given source, `null` is returned. This includes `_score` when you request it on a view or subquery that does not produce it. {applies_to}`stack: ga 9.6` `_class` and `_name` are available on every source: indices, [views](esql-views.md#views-with-metadata), [subqueries](esql-from-subquery.md#subqueries-with-metadata), and [datasets](esql-data-federation-querying.md#use-metadata-columns).
 - The `_source` type is not supported by functions
 - Only the `FROM` command supports the `METADATA` directive
 - Once enabled, metadata fields work like regular index fields
@@ -87,6 +87,25 @@ FROM products METADATA _score
 :::{tip}
 Refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md#esql-for-search-scoring) for more information on relevance scoring and how to use `_score` in your queries.
 :::
+
+### Metadata over mixed sources
+
+A [subquery](esql-from-subquery.md#subqueries-with-metadata) or [view](esql-views.md#views-with-metadata) returns `null` for a metadata field that its body does not produce. An index returns a real value. This query reads a subquery over `languages` and the `languages` index together:
+
+```esql
+FROM (FROM languages), languages METADATA _score
+| WHERE MATCH(language_name, "English") OR MATCH(language_name, "French")
+| SORT _score DESC NULLS LAST, language_code
+```
+
+| language_code:integer | language_name:keyword | _score:double |
+| --- | --- | --- |
+| 1 | English | 1.2039728164672852 |
+| 2 | French | 1.2039728164672852 |
+| 1 | English | null |
+| 2 | French | null |
+
+The `WHERE` filter applies to both sources. The index rows return a score from `MATCH`. The subquery rows return `null`, because the subquery does not produce `_score`.
 
 ### Retrieving _source
 

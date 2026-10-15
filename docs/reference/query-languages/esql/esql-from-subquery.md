@@ -209,6 +209,7 @@ per-`cluster` aggregates, and the `ROW` subquery provides the synthesized
 ### Subqueries with METADATA [subqueries-with-metadata]
 
 The [`METADATA` directive](/reference/query-languages/esql/esql-metadata-fields.md) is supported both inside and outside a subquery.
+
 If the directive is used only outside the subquery, it will report `null` for the values within the subquery:
 
 :::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_metadata_outer.md
@@ -224,7 +225,17 @@ If you only have the directive within the subquery, null values will be returned
 :::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_metadata_inner.md
 :::
 
-{applies_to}`stack: ga 9.6` `_class` and `_name` do not follow this rule. The outer `FROM` answers them for each subquery on its own. `_class` is `subquery`. `_name` is `null`, because a subquery has no name. You do not need the directive inside the subquery. If the subquery body also declares `_class` or `_name`, the outer values replace them.
+:::{warning}
+In 9.4, `METADATA` on the outer `FROM` is not handled consistently.
+
+If the `FROM` contains only a subquery, the directive is ignored. For example, `FROM (FROM employees) METADATA _index` behaves like `FROM employees` and returns no `_index` column.
+
+If the `FROM` combines a subquery with other sources, you might get `null` values, as in the examples above. This is a side effect of aligning the columns of the sources, not intended behavior.
+
+Do not rely on either result. To get metadata values, declare the field inside the subquery.
+:::
+
+{applies_to}`stack: ga 9.6+` `_class` and `_name` are the only metadata fields that work on a subquery without the subquery body declaring them. The outer `FROM` answers them for each subquery on its own. `_class` is `subquery`. `_name` is `null`, because a subquery has no name. You do not need the directive inside the subquery. If the subquery body also declares `_class` or `_name`, the outer values replace them.
 
 :::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_class_and_name.md
 :::

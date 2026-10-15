@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -1075,6 +1076,51 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(
                 Booleans.parseBoolean(enabled.toString()),
                 getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrate()
+            );
+        }
+    }
+
+    public void testAutoCalibrateUpdateRequiresClusterFeature() throws IOException {
+        // Only withhold the updatability feature so that profile names still parse
+        final Supplier<MapperService> createMapperService = () -> new TestMapperServiceBuilder().settings(EXPERIMENTAL_FEATURES_ENABLED)
+            .clusterSupportsFeature(f -> f != MapperFeatures.BBQ_DISK_UPDATABLE_AUTO_CALIBRATE)
+            .build();
+
+        // Values that don't change the profile are not updates
+        {
+            MapperService mapperService = createMapperService.get();
+            merge(mapperService, autoCalibrateMapping(false));
+            for (Object value : List.of(false, "false", "disabled")) {
+                merge(mapperService, autoCalibrateMapping(value));
+                assertEquals(
+                    IvfAutoCalibrationProfile.DISABLED,
+                    getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+                );
+            }
+        }
+
+        // Updates from disabled, with the profile expected when using MAPPING_RECOVERY
+        List<Tuple<Object, IvfAutoCalibrationProfile>> updates = List.of(
+            Tuple.tuple(true, IvfAutoCalibrationProfile.ISO_SIZING),
+            Tuple.tuple("true", IvfAutoCalibrationProfile.ISO_SIZING),
+            Tuple.tuple("iso_sizing", IvfAutoCalibrationProfile.ISO_SIZING),
+            Tuple.tuple("quality", IvfAutoCalibrationProfile.QUALITY)
+        );
+        for (Tuple<Object, IvfAutoCalibrationProfile> update : updates) {
+            String message = "update to [" + update.v1() + "]";
+            MapperService mapperService = createMapperService.get();
+            merge(mapperService, autoCalibrateMapping(false));
+
+            XContentBuilder mapping = autoCalibrateMapping(update.v1());
+            Exception e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping));
+            assertThat(message, e.getMessage(), containsString("cannot update [auto_calibrate] until all nodes in the cluster support it"));
+
+            // Recovery assumes all features are supported
+            merge(mapperService, MapperService.MergeReason.MAPPING_RECOVERY, mapping);
+            assertEquals(
+                message,
+                update.v2(),
+                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
             );
         }
     }

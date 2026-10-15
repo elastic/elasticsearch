@@ -42,10 +42,7 @@ public record DenseVectorAutoCalibrate(@Nullable Object originalValue, IvfAutoCa
     }
 
     static DenseVectorAutoCalibrate defaultAutoCalibrate(IndexVersion indexVersion) {
-        if (indexVersion.onOrAfter(DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT)) {
-            return DEFAULT_ENABLED_ISO_SIZING;
-        }
-        return DEFAULT_DISABLED;
+        return indexVersion.onOrAfter(DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT) ? DEFAULT_ENABLED_ISO_SIZING : DEFAULT_DISABLED;
     }
 
     /** Accepts a boolean, a boolean string, or a profile name. */

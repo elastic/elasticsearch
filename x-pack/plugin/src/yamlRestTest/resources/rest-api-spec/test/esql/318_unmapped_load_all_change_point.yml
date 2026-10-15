@@ -1,0 +1,73 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_change_point, change_point ]
+      reason: CHANGE_POINT under unmapped_fields="LOAD_ALL" requires the single-column layout and the change point capability.
+
+  - do:
+      indices.create:
+        index: la_change_point
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: long
+              value:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "la_change_point", "_id": "1" } }
+          - { "id": 1, "value": 10, "note": "a" }
+          - { "index": { "_index": "la_change_point", "_id": "2" } }
+          - { "id": 2, "value": 20, "note": "b" }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: la_change_point
+        ignore_unavailable: true
+
+---
+'CHANGE_POINT appends type and pvalue and carries _unmapped_fields through':
+  - do:
+      allowed_warnings_regex:
+        - ".*evaluation of \\[CHANGE_POINT value ON id\\] failed, treating result as null.*"
+        - ".*not enough buckets to calculate change_point.*"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_change_point | CHANGE_POINT value ON id | SORT id | LIMIT 10'
+  - length: { columns: 5 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: value }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.3.name: type }
+  - match: { columns.4.name: pvalue }
+  - match: { values.0: [ 1, 10, { note: a }, null, null ] }
+  - match: { values.1: [ 2, 20, { note: b }, null, null ] }
+
+---
+'CHANGE_POINT composes with a KEEP that names an unmapped field':
+  - do:
+      allowed_warnings_regex:
+        - ".*evaluation of \\[CHANGE_POINT value ON id\\] failed, treating result as null.*"
+        - ".*not enough buckets to calculate change_point.*"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_change_point | CHANGE_POINT value ON id | WHERE id == 1 | KEEP id, note, type, pvalue | SORT id | LIMIT 10'
+  - length: { columns: 4 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: note }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: type }
+  - match: { columns.3.name: pvalue }
+  - match: { values: [ [ 1, a, null, null ] ] }

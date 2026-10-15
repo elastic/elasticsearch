@@ -5876,3 +5876,34 @@ FROM partial_mapping_sample_data
 @timestamp:datetime | unmapped_message:keyword
 2024-10-23T13:33:34.937Z | 43
 ;
+
+###############################################
+# CHANGE_POINT under LOAD_ALL (#157189)       #
+###############################################
+
+// CHANGE_POINT only appends its type and pvalue columns and passes the input rows through, so the _unmapped_fields column is carried
+// through unchanged. The 7-row sample is well below the detection threshold, so no change point is found: type and pvalue are null on
+// every row and a warning is emitted.
+changePointKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| CHANGE_POINT event_duration ON @timestamp
+| SORT @timestamp
+;
+
+warning:Line 3:3: evaluation of [CHANGE_POINT event_duration ON @timestamp] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:3: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [7]
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | type:keyword | pvalue:double
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232 | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped_event_duration"":""3450234"",""unmapped.nested"":""g"",""unmapped_message"":""Disconnected from 10.1.0.3""}" | null | null
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888 | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped_event_duration"":""2764890"",""unmapped.nested"":""f"",""unmapped_message"":""Disconnected from 10.1.0.2""}" | null | null
+2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | "{""language_code"":""2"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""unmapped_message"":""43""}" | null | null
+2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | "{""language_code"":""1"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d"",""unmapped_message"":""Disconnection error""}" | null | null
+2024-10-23T13:52:55.015Z | 173.21.3.15 | 8268152 | Connection error? | "{""language_code"":""3"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c"",""unmapped_message"":""Disconnection error""}" | null | null
+2024-10-23T13:53:55.832Z | 173.21.3.15 | 5033754 | Connection error? | "{""language_code"":""2"",""unmapped_event_duration"":""5033756"",""unmapped.nested"":""b"",""unmapped_message"":""Disconnection error""}" | null | null
+2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""unmapped_message"":""Disconnected from 10.1.0.1""}" | null | null
+;

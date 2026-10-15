@@ -1517,16 +1517,20 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
-        for (var commandAndLabel : List.of(Tuple.tuple("| CHANGE_POINT salary ON emp_no", "ChangePoint"))) {
-            test().statementError(
-                setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
-                        + commandAndLabel.v2()
-                        + "] is not supported yet"
-                )
-            );
+        for (var commandAndLabel : List.of(
+            Tuple.tuple("| RERANK \"food\" ON first_name WITH { \"inference_id\" : \"reranking-inference-id\" }", "RERANK")
+        )) {
+            test().addAnalysisTestsInferenceResolution()
+                .statementError(
+                    setUnmappedLoadAll("FROM test METADATA _score " + commandAndLabel.v1()),
+                    containsString(
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
+                            + "SAMPLE, CHANGE_POINT, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
+                            + "subquery commands; ["
+                            + commandAndLabel.v2()
+                            + "] is not supported yet"
+                    )
+                );
         }
     }
 
@@ -1582,6 +1586,20 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             | KEEP first_name, salary
             """));
         assertThat(Expressions.names(plan.output()), equalTo(List.of("first_name", "salary")));
+    }
+
+    /**
+     * {@code CHANGE_POINT} is supported under LOAD_ALL. It only appends its {@code type} and {@code pvalue} columns and passes the input
+     * rows through, so the {@code _unmapped_fields} column is carried through unchanged and the allow-list of
+     * {@link Verifier#checkLoadAllModeSupportedCommands} permits it.
+     */
+    public void testLoadAllModeAllowsChangePoint() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test
+            | CHANGE_POINT salary ON emp_no
+            | KEEP emp_no, salary, type, pvalue
+            """));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("emp_no", "salary", "type", "pvalue")));
     }
 
     public void testLoadAllModeAllowsInlineStats() {
@@ -1861,8 +1879,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
-                        + "[TS] is not supported yet"
+                        + "SAMPLE, CHANGE_POINT, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
+                        + "subquery commands; [TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
@@ -1870,8 +1888,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
-                        + "[TS] is not supported yet"
+                        + "SAMPLE, CHANGE_POINT, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
+                        + "subquery commands; [TS] is not supported yet"
                 )
             );
     }

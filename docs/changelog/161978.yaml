@@ -1,6 +1,5 @@
 area: ES|QL
-issues:
- - 158614
+issues: []
 pr: 161978
 summary: Sum `dense_vector` values in double precision
 type: bug

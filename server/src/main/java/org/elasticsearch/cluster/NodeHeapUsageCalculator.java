@@ -50,7 +50,7 @@ public final class NodeHeapUsageCalculator {
      * @param shardHeapUsageEstimates  shard and index heap for each shard, plus the default for a shard with no metrics yet
      * @return node estimates keyed by node id
      */
-    public static NodeHeapEstimatesAndMaxPostingsHeapUsage calculateForRoutingNodes(
+    public static RoutingNodeHeapCalculation calculateForRoutingNodes(
         ClusterState clusterState,
         long nonShardHeapUsage,
         ShardHeapUsageEstimates shardHeapUsageEstimates
@@ -82,7 +82,7 @@ public final class NodeHeapUsageCalculator {
                 )
             );
 
-        return new NodeHeapEstimatesAndMaxPostingsHeapUsage(nodeHeapEstimates, postingsHeapUsageForTotal);
+        return new RoutingNodeHeapCalculation(nodeHeapEstimates, postingsHeapUsageForTotal);
     }
 
     /**
@@ -193,8 +193,8 @@ public final class NodeHeapUsageCalculator {
     /**
      * Estimated node heap usages, plus the max index-node postings heap included in those nodes' totals.
      */
-    public record NodeHeapEstimatesAndMaxPostingsHeapUsage(Map<String, NodeHeapEstimates> nodeHeapEstimates, long maxPostingsHeapUsage) {
-        public NodeHeapEstimatesAndMaxPostingsHeapUsage {
+    public record RoutingNodeHeapCalculation(Map<String, NodeHeapEstimates> nodeHeapEstimates, long maxPostingsHeapUsage) {
+        public RoutingNodeHeapCalculation {
             nodeHeapEstimates = Map.copyOf(nodeHeapEstimates);
             assert maxPostingsHeapUsage >= 0;
         }

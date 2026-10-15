@@ -164,7 +164,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             threadPool,
             telemetryProvider,
             clusterSettings,
-            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, () -> Integer.MAX_VALUE)
+            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, ByteSizeValue.ZERO)
         ) {
             @Override
             protected void warmCache(

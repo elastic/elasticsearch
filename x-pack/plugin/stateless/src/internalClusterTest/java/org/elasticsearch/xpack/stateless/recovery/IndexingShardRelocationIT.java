@@ -1494,9 +1494,9 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         var cacheService = internalCluster().getInstance(StatelessPlugin.SharedBlobCacheServiceSupplier.class, indexNode2).get();
         // In case of hollow being disabled, we expect to have created one BCC which fits in one region, and thus we expect one cache write.
         // In case of hollow being enabled, we expect to have 2 BCCs, due to one more being created due to the hollow flush, and only the
-        // 2nd hollow BCC to be read.
+        // 2nd hollow BCC to be read. Its region 0 is prewarmed before the BCC header is read, so the read is a cache hit.
         assertThat(cacheService.getStats().writeCount(), equalTo(1L));
-        assertThat(cacheService.getStats().missCount(), equalTo(1L));
+        assertThat(cacheService.getStats().missCount(), equalTo(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowNodeSettings) ? 0L : 1L));
         assertThat(cacheService.getStats().numberOfRegions(), greaterThan(1));
     }
 

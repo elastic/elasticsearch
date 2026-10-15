@@ -105,6 +105,10 @@ tasks.named('javaRestTestTestingConventions').configure {
   baseClass 'org.elasticsearch.test.ESTestCase'
 }
 
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+}
+
 tasks.named('javaRestTest') {
   usesDefaultDistribution('needs repository-azure, workload-identity, and bundled ESQL datasource modules')
   maxParallelForks = 1

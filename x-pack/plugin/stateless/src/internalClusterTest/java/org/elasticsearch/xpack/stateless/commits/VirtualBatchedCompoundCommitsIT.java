@@ -1185,7 +1185,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
         indexNodeTransportService.addMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action) {
+            public void onResponseSent(long requestId, String action, int networkMessageSize) {
                 if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")
                     && awaitingChunk1TransportSendComplete.compareAndSet(true, false)) {
                     // Channel send has completed, but OutboundHandler has not yet released the zero-copy chunk bytes.

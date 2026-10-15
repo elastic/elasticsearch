@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -45,7 +46,7 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
             threadPool,
             telemetryProvider,
             clusterSettings,
-            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, () -> Integer.MAX_VALUE)
+            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, ByteSizeValue.ZERO)
         ) {
             @Override
             protected void scheduleWarmingTask(AbstractWarmingTask task) {

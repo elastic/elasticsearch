@@ -37,7 +37,7 @@ public final class EscfBatch implements SourceBatch {
     private final Releasable releasable;
     private BytesReference serialized;
 
-    /** In-memory construction path used by {@link EscfEncoder#buildPartition(int)}. */
+    /** In-memory construction path used by {@link EscfEncoder#build()}. */
     EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
         this(schema, docCount, columnData, null, releasable);
     }

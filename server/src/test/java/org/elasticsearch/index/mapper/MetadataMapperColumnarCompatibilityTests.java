@@ -312,10 +312,10 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
         final BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, requests[0]), new BulkItemRequest(1, requests[1]) };
 
         try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, false)) {
-            encoder.addDocument(rowBacked, XContentType.JSON, 0);
-            encoder.addDocument(withSource, XContentType.JSON, 0);
+            encoder.addDocument(rowBacked, XContentType.JSON);
+            encoder.addDocument(withSource, XContentType.JSON);
             try (
-                EscfBatch escfBatch = encoder.buildPartition(0);
+                EscfBatch escfBatch = encoder.build();
                 BatchMappingContext ctx = new BatchMappingContext(
                     IndexOperationBatch.initFromBulk(items, 0, items.length, escfBatch, Engine.Operation.Origin.PRIMARY, 0L, 0L),
                     mapperService.mappingLookup(),

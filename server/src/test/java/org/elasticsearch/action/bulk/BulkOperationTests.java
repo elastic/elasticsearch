@@ -307,7 +307,7 @@ public class BulkOperationTests extends ESTestCase {
 
     /**
      * Same scenario as {@link #testTsdbTimestampErrorDuringRoutingRedirectsToFailureStore}, but with the x-content batch path active.
-     * The {@code TimestampError} is thrown from {@code getConcreteWriteIndex} before {@code BatchModeRouter.route} is reached, so both
+     * The {@code TimestampError} is thrown from {@code getConcreteWriteIndex} before {@code BatchRouterSet.route} is reached, so both
      * paths exercise the same {@code catch (DataStream.TimestampError)} block and produce identical behavior.
      */
     public void testTsdbTimestampErrorDuringRoutingRedirectsToFailureStoreBatchMode() throws Exception {

@@ -13,12 +13,14 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -28,7 +30,7 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
  * Creates a new snapshot
  */
 @ServerlessScope(Scope.INTERNAL)
-public class RestCreateSnapshotAction extends BaseRestHandler {
+public class RestCreateSnapshotAction extends BaseRestHandler implements RestRequestFilter {
 
     @Override
     public List<Route> routes() {
@@ -48,5 +50,12 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
         request.applyContentParser(p -> createSnapshotRequest.source(p.mapOrdered()));
         createSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         return channel -> client.admin().cluster().createSnapshot(createSnapshotRequest, new RestToXContentListener<>(channel));
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Set.of("encrypted_data.password");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

@@ -15,19 +15,19 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.snapshots.SnapshotEncryptedData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 
 /**
  * Emits a Warning response header and log message when a snapshot is requested and the cluster
- * contains data encrypted under the project encryption key (PEK). That data is excluded from
- * snapshots until full snapshot/restore support for PEK-encrypted data is available, and must
- * be reconfigured after a restore.
+ * contains data encrypted under the project encryption key (PEK) that the snapshot will exclude:
+ * all of it while the snapshot encryption feature flag is disabled, otherwise the data of customs
+ * not written into snapshots, plus everything else when no {@code encrypted_data} is supplied.
  */
 class SnapshotEncryptedDataWarningFilter implements MappedActionFilter {
 
@@ -63,17 +63,23 @@ class SnapshotEncryptedDataWarningFilter implements MappedActionFilter {
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
-        if (((CreateSnapshotRequest) request).includeGlobalState()) {
-            warnIfEncryptedDataPresent();
+        final CreateSnapshotRequest createSnapshotRequest = (CreateSnapshotRequest) request;
+        if (createSnapshotRequest.includeGlobalState()) {
+            warnIfEncryptedDataExcluded(createSnapshotRequest.encryptedData() != null);
         }
         chain.proceed(task, action, request, listener);
     }
 
-    private void warnIfEncryptedDataPresent() {
+    private void warnIfEncryptedDataExcluded(boolean encryptedDataSupplied) {
         try {
             var projectMetadata = projectResolver.getProjectState(clusterService.state()).metadata();
-            boolean hasEncryptedData = handlerRegistry.handlers().stream().anyMatch(h -> hasData(h, projectMetadata));
-            if (hasEncryptedData) {
+            boolean excluded = handlerRegistry.handlers()
+                .stream()
+                .anyMatch(
+                    h -> EncryptedDataHandlerRegistry.hasData(h, projectMetadata)
+                        && (encryptedDataSupplied == false || includable(h, projectMetadata) == false)
+                );
+            if (excluded) {
                 logger.warn(WARNING_MESSAGE);
                 HeaderWarning.addWarning(WARNING_MESSAGE);
             }
@@ -82,9 +88,7 @@ class SnapshotEncryptedDataWarningFilter implements MappedActionFilter {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T extends Metadata.ProjectCustom> boolean hasData(EncryptedDataHandler<T> handler, ProjectMetadata projectMetadata) {
-        T current = (T) projectMetadata.custom(handler.customName());
-        return handler.hasData(current);
+    private static boolean includable(EncryptedDataHandler<?> handler, ProjectMetadata projectMetadata) {
+        return SnapshotEncryptedData.FEATURE_FLAG.isEnabled() && EncryptedDataHandlerRegistry.writtenToSnapshot(handler, projectMetadata);
     }
 }

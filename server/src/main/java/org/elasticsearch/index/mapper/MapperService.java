@@ -424,9 +424,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (newMappingMetadata != null) {
             String type = newMappingMetadata.type();
             CompressedXContent incomingMappingSource = newMappingMetadata.source();
-            // The master already validated this mapping, including any cluster feature checks, before persisting it in cluster state, and
-            // this runs on the cluster applier thread where the cluster state cannot be read to answer a feature check. So parse it like a
-            // recovered mapping, which assumes all features are supported, as the mapping is built just below.
+            /*
+             * The master already validated this mapping before saving it in the cluster state, so we don't validate it again here.
+             * Parsing it as a recovered mapping skips two checks that the master already ran:
+             * - Field limits, such as the maximum field name length and the maximum number of nested fields.
+             * - Cluster feature checks. These need to read the cluster state, which can't be done here because this runs on the
+             *   cluster applier thread.
+             */
             MappingBuilder incomingBuilder = mappingParser.parseToBuilder(type, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
             DocumentMapper previousMapper;
             synchronized (this) {

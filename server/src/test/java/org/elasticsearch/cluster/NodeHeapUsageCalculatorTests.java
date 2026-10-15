@@ -76,7 +76,7 @@ public class NodeHeapUsageCalculatorTests extends ESTestCase {
         final ShardId shard1 = new ShardId(index, 1);
         final long nonShardHeapUsage = 50L;
 
-        final var result = NodeHeapUsageCalculator.calculateForResidentShardIds(
+        final var result = NodeHeapUsageCalculator.calculateForShardEstimates(
             nonShardHeapUsage,
             new ShardHeapUsageEstimates(
                 Map.of(shard0, new ShardAndIndexHeapUsage(10L, 100L, 5L), shard1, new ShardAndIndexHeapUsage(20L, 100L, 7L)),

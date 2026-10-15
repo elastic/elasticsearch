@@ -321,7 +321,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             getNodeBaseHeapEstimateInBytes(totalIndices),
             Math.addExact(largeIndexingOpsHeapBytes, mergeMemoryEstimateBytes)
         );
-        return NodeHeapUsageCalculator.calculateForResidentShardIds(
+        return NodeHeapUsageCalculator.calculateForShardEstimates(
             nonShardHeapUsage,
             new ShardHeapUsageEstimates(shardHeapUsages, ShardAndIndexHeapUsage.ZERO)
         );

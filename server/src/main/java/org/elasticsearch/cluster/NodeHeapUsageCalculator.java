@@ -92,7 +92,7 @@ public final class NodeHeapUsageCalculator {
      * that snapshot is included, regardless of routing state, and the total uses this node's own postings because there is no cluster-wide
      * maximum for a one-node calculation.
      */
-    public static NodeHeapEstimates calculateForResidentShardIds(
+    public static NodeHeapEstimates calculateForShardEstimates(
         long nonShardHeapUsage,
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {

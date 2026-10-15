@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -233,11 +234,12 @@ public class ViewService {
     /**
      * Rejects views that use TS without a following STATS.
      * The parser turns the first STATS after TS into a TimeSeriesAggregate, so its absence means TS is not aggregated.
+     * PROMQL is also a time series source, but it is always aggregated: it is transpiled to TS followed by STATS.
      * Subqueries are not checked yet.
      */
     private static void validateTsView(String viewName, LogicalPlan plan) {
         if (hasOuterMatch(plan, p -> p instanceof UnresolvedRelation ur && ur.indexMode().isTsdb())
-            && hasOuterMatch(plan, p -> p instanceof TimeSeriesAggregate) == false) {
+            && hasOuterMatch(plan, p -> p instanceof TimeSeriesAggregate || p instanceof PromqlCommand) == false) {
             throw new IllegalArgumentException("view [" + viewName + "] uses TS, which must be followed by a STATS command");
         }
     }

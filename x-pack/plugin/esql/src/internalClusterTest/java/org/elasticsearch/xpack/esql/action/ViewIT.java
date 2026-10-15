@@ -122,6 +122,11 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         assertAcked(createView("ts-view", "TS metrics | STATS max(cpu) BY host"));
     }
 
+    public void testPromqlIsAccepted() {
+        assertAcked(createView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu))"));
+        assertAcked(createView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | WHERE cpu_avg > 1 | KEEP cpu_avg"));
+    }
+
     public void testCannotCreateAliasToView() {
         assertAcked(createView("my-view", "FROM not-validated"));
 

@@ -5763,3 +5763,73 @@ FROM partial_mapping_sample_data
 2024-10-23T13:53:55.832Z | 173.21.3.15 | 5033754 | Connection error? | "{""unmapped_event_duration"":""5033756"",""unmapped.nested"":""b"",""unmapped_message"":""Disconnection error""}" | Connection
 2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""unmapped_message"":""Disconnected from 10.1.0.1""}" | Connected
 ;
+
+###############################################
+# MV_EXPAND under LOAD_ALL (#157189)          #
+###############################################
+
+// MV_EXPAND resolves an unmapped multivalued field by name and expands it into one row per value. The expanded field becomes a real
+// column, so it no longer appears in _unmapped_fields (projected away here by the named KEEP).
+mvExpandUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_mv_expand
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_mv_sample_data
+| MV_EXPAND unmapped_mv
+| KEEP @timestamp, unmapped_mv
+| SORT @timestamp, unmapped_mv
+| LIMIT 20
+;
+
+@timestamp:datetime | unmapped_mv:keyword
+2024-10-23T12:15:03.360Z | k
+2024-10-23T12:15:03.360Z | l
+2024-10-23T12:15:03.360Z | m
+2024-10-23T12:27:28.948Z | j
+2024-10-23T13:33:34.937Z | h
+2024-10-23T13:33:34.937Z | i
+2024-10-23T13:51:54.732Z | g
+2024-10-23T13:52:55.015Z | d
+2024-10-23T13:52:55.015Z | e
+2024-10-23T13:52:55.015Z | f
+2024-10-23T13:53:55.832Z | c
+2024-10-23T13:55:01.543Z | a
+2024-10-23T13:55:01.543Z | b
+;
+
+// Expanding the unmapped field promotes it out of _unmapped_fields (leaving only unmapped_message), and that surviving column is
+// repeated across the rows produced for one source document.
+mvExpandUnmappedFieldRepeatsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_mv_expand
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_mv_sample_data
+| WHERE @timestamp == "2024-10-23T13:33:34.937Z"
+| MV_EXPAND unmapped_mv
+| SORT unmapped_mv
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | unmapped_mv:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | h | "{""unmapped_message"":""43""}"
+2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | i | "{""unmapped_message"":""43""}"
+;
+
+// MV_EXPAND of a mapped multivalued column (here built with EVAL) repeats the whole _unmapped_fields object across the produced rows.
+mvExpandMappedFieldRepeatsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_mv_expand
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE @timestamp == "2024-10-23T13:55:01.543Z"
+| EVAL pair = MV_APPEND(message, TO_UPPER(message))
+| MV_EXPAND pair
+| SORT pair
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | pair:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""unmapped_message"":""Disconnected from 10.1.0.1""}" | CONNECTED TO 10.1.0.1!
+2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""unmapped_message"":""Disconnected from 10.1.0.1""}" | Connected to 10.1.0.1!
+;

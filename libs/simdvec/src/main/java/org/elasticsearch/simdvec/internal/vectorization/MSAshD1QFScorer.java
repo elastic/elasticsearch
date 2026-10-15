@@ -18,6 +18,8 @@ import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.Offsets;
+import org.elasticsearch.simdvec.internal.HeapOffsets;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -90,17 +92,22 @@ final class MSAshD1QFScorer implements AshScorer<float[]> {
     }
 
     @Override
-    public void scoreBulkOffsets(float[] queryTransformed, int[] offsets, int offsetsCount, float[] scores, int blockSize)
-        throws IOException {
+    public Offsets createOffsetStorage(int capacity) {
+        return new HeapOffsets(capacity);
+    }
+
+    @Override
+    public void scoreBulkOffsets(float[] queryTransformed, Offsets offsets, float[] scores, int blockSize) throws IOException {
         float querySum = ESVectorUtil.sum(queryTransformed, nDims);
         float centerOffset = 0.5f;
         long totalBytes = (long) planeBytes * blockSize;
+        int offsetsCount = offsets.count();
 
         if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
             IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
                 int next = 0;
                 for (int j = 0; j < blockSize; j++) {
-                    if (next < offsetsCount && offsets[next] == j) {
+                    if (next < offsetsCount && offsets.get(next) == j) {
                         next++;
                         long offset = (long) j * planeBytes;
                         float ipfb = ipFloatBitSegment256(queryTransformed, seg, offset, nDims);
@@ -113,7 +120,7 @@ final class MSAshD1QFScorer implements AshScorer<float[]> {
             IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
                 int next = 0;
                 for (int j = 0; j < blockSize; j++) {
-                    if (next < offsetsCount && offsets[next] == j) {
+                    if (next < offsetsCount && offsets.get(next) == j) {
                         next++;
                         long offset = (long) j * planeBytes;
                         float ipfb = ipFloatBitSegment128(queryTransformed, seg, offset, nDims);

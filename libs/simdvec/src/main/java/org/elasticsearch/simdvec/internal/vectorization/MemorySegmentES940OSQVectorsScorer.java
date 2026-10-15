@@ -23,6 +23,8 @@ import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
+import org.elasticsearch.simdvec.Offsets;
+import org.elasticsearch.simdvec.internal.HeapOffsets;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -119,6 +121,11 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
     }
 
     @Override
+    public Offsets createOffsetStorage() {
+        return scorer.createOffsetStorage();
+    }
+
+    @Override
     public long quantizeScore(byte[] q) throws IOException {
         long score = scorer.quantizeScore(q);
         if (score != Long.MIN_VALUE) {
@@ -136,10 +143,10 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
     }
 
     @Override
-    public void quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        boolean scored = scorer.quantizeScoreBulkOffsets(q, offsets, offsetsCount, scores, count);
+    public void quantizeScoreBulkOffsets(byte[] q, Offsets offsets, float[] scores, int count) throws IOException {
+        boolean scored = scorer.quantizeScoreBulkOffsets(q, offsets, scores, count);
         if (scored == false) {
-            super.quantizeScoreBulkOffsets(q, offsets, offsetsCount, scores, count);
+            super.quantizeScoreBulkOffsets(q, offsets, scores, count);
         }
     }
 
@@ -227,8 +234,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        int[] offsets,
-        int offsetsCount,
+        Offsets offsets,
         float[] scores,
         int count
     ) throws IOException {
@@ -241,7 +247,6 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             similarityFunction,
             centroidDp,
             offsets,
-            offsetsCount,
             scores,
             count
         );
@@ -257,7 +262,6 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             similarityFunction,
             centroidDp,
             offsets,
-            offsetsCount,
             scores,
             count
         );
@@ -312,17 +316,23 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         }
 
         /**
+         * Creates the {@link Offsets} to pass to {@link #quantizeScoreBulkOffsets} and {@link #scoreBulkOffsets}.
+         */
+        Offsets createOffsetStorage() {
+            return new HeapOffsets(bulkSize);
+        }
+
+        /**
          * Re-adjust scores based on the scored offsets positions.
-         * Native code uses {@param offsets} to compute {@param offsetsCount} scores, placing them in the first {@param offsetsCount}
-         * positions of {@param scores}.
+         * Native code uses {@param offsets} to compute {@code offsets.count()} scores, placing them in the first
+         * {@code offsets.count()} positions of {@param scores}.
          * This method re-positions them, placing each score at the index indicated in {@param offsets}.
-         * @param offsets scored offsets array
-         * @param offsetsCount number of scored offsets
+         * @param offsets scored offsets
          * @param scores scores array
          */
-        static void repositionScoresMatchingOffsets(int[] offsets, int offsetsCount, float[] scores) {
-            for (int i = offsetsCount - 1; i >= 0; i--) {
-                int finalScoreIndex = offsets[i];
+        static void repositionScoresMatchingOffsets(Offsets offsets, float[] scores) {
+            for (int i = offsets.count() - 1; i >= 0; i--) {
+                int finalScoreIndex = offsets.get(i);
                 if (i < finalScoreIndex) {
                     scores[finalScoreIndex] = scores[i];
                     scores[i] = 0;
@@ -350,7 +360,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
          * Quantized scoring bulk-with-offsets operation. Returns {@code false}
          * if this scorer does not implement this scoring.
          */
-        boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+        boolean quantizeScoreBulkOffsets(byte[] q, Offsets offsets, float[] scores, int count) throws IOException {
             return false;
         }
 
@@ -407,8 +417,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             float queryAdditionalCorrection,
             VectorSimilarityFunction similarityFunction,
             float centroidDp,
-            int[] offsets,
-            int offsetsCount,
+            Offsets offsets,
             float[] scores,
             int count
         ) throws IOException {

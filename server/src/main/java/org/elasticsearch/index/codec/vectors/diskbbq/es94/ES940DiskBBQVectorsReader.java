@@ -31,7 +31,6 @@ import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader.QueryTarget;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
@@ -40,6 +39,7 @@ import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.Offsets;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -768,7 +768,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         final int[] correctionsSum = new int[BULK_SIZE];
         final float[] correctionsAdd = new float[BULK_SIZE];
         final int[] docIdsScratch = new int[BULK_SIZE];
-        final int[] offsetsScratch = new int[BULK_SIZE];
+        final Offsets offsetsScratch;
         byte docEncoding;
         int docBase = 0;
 
@@ -809,6 +809,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 BULK_SIZE,
                 bitEncoding
             );
+            offsetsScratch = osqVectorsScorer.createOffsetStorage();
         }
 
         @Override
@@ -876,18 +877,17 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             return maxScore;
         }
 
-        private static int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
+        private static int docToBulkScore(int[] docIds, Offsets offsets, Bits acceptDocs, int bulkSize) {
             assert acceptDocs != null : "acceptDocs must not be null";
-            int docToScore = 0;
+            offsets.reset();
             for (int i = 0; i < bulkSize; i++) {
                 if (acceptDocs.get(docIds[i]) == false) {
                     docIds[i] = -1;
                 } else {
-                    offsets[docToScore] = i;
-                    docToScore++;
+                    offsets.add(i);
                 }
             }
-            return docToScore;
+            return offsets.count();
         }
 
         private void collectBulk(KnnCollector knnCollector, float[] scores, int bulkSize) {
@@ -940,7 +940,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                         fieldInfo.getVectorSimilarityFunction(),
                         0f,
                         offsetsScratch,
-                        docsToBulkScore,
                         scores,
                         BULK_SIZE
                     );
@@ -985,7 +984,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                             fieldInfo.getVectorSimilarityFunction(),
                             0f,
                             offsetsScratch,
-                            docsToBulkScore,
                             scores,
                             tailSize
                         );

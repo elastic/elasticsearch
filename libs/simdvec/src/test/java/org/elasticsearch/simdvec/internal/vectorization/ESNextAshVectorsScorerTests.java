@@ -21,6 +21,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.BaseVectorizationTests;
+import org.elasticsearch.simdvec.Offsets;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
 import java.io.IOException;
@@ -236,38 +237,37 @@ public class ESNextAshVectorsScorerTests extends BaseVectorizationTests {
      */
     private <T> void assertOffsetsMatchBulk(AshScorer<T> bulkScorer, AshScorer<T> offsetsScorer, T query, int numVectors)
         throws IOException {
-        int[] offsets = new int[BULK_SIZE];
+        Offsets offsets = offsetsScorer.createOffsetStorage(BULK_SIZE);
         float[] bulkScores = new float[BULK_SIZE];
         float[] offsetsScores = new float[BULK_SIZE];
 
         for (int base = 0; base < numVectors; base += BULK_SIZE) {
             int blockSize = Math.min(BULK_SIZE, numVectors - base);
-            int offsetsCount = randomOffsets(offsets, blockSize);
+            randomOffsets(offsets, blockSize);
 
             bulkScorer.scoreBulk(query, blockSize, bulkScores);
             Arrays.fill(offsetsScores, Float.NaN);
-            offsetsScorer.scoreBulkOffsets(query, offsets, offsetsCount, offsetsScores, blockSize);
+            offsetsScorer.scoreBulkOffsets(query, offsets, offsetsScores, blockSize);
 
             // entries not listed in the offsets are unspecified, so only the requested ones are compared
-            for (int k = 0; k < offsetsCount; k++) {
-                int j = offsets[k];
+            for (int k = 0; k < offsets.count(); k++) {
+                int j = offsets.get(k);
                 assertEquals("vector " + (base + j) + " " + describe(), bulkScores[j], offsetsScores[j], 1e-3f);
             }
         }
     }
 
     /** Random ascending, non-empty subset of {@code [0, blockSize)}; callers skip the whole block rather than pass an empty set */
-    private int randomOffsets(int[] offsets, int blockSize) {
-        int count = 0;
+    private void randomOffsets(Offsets offsets, int blockSize) {
+        offsets.reset();
         for (int j = 0; j < blockSize; j++) {
             if (randomBoolean()) {
-                offsets[count++] = j;
+                offsets.add(j);
             }
         }
-        if (count == 0) {
-            offsets[count++] = randomIntBetween(0, blockSize - 1);
+        if (offsets.count() == 0) {
+            offsets.add(randomIntBetween(0, blockSize - 1));
         }
-        return count;
     }
 
     /**

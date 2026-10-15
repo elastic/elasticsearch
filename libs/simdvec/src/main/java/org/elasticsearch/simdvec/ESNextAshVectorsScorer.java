@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec;
 
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.simdvec.internal.HeapOffsets;
 
 import java.io.IOException;
 
@@ -61,14 +62,19 @@ public final class ESNextAshVectorsScorer {
         }
 
         @Override
-        public void scoreBulkOffsets(float[] queryTransformed, int[] offsets, int offsetsCount, float[] scores, int blockSize)
-            throws IOException {
+        public Offsets createOffsetStorage(int capacity) {
+            return new HeapOffsets(capacity);
+        }
+
+        @Override
+        public void scoreBulkOffsets(float[] queryTransformed, Offsets offsets, float[] scores, int blockSize) throws IOException {
             float sum = ESVectorUtil.sum(queryTransformed, nDims);
             int numLevels = 1 << bitsPerDim;
             float centerOffset = (numLevels - 1) / 2.0f;
+            int offsetsCount = offsets.count();
             int next = 0;
             for (int j = 0; j < blockSize; j++) {
-                if (next < offsetsCount && offsets[next] == j) {
+                if (next < offsetsCount && offsets.get(next) == j) {
                     next++;
                     scores[j] = scoreFloatSingle(queryTransformed, sum, centerOffset);
                 } else {

@@ -70,6 +70,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             ESNextDiskASHVectorsFormat.VERSION_START,
             ESNextDiskASHVectorsFormat.VERSION_CURRENT,
             ESNextDiskASHVectorsFormat.VERSION_DIRECT_IO,
+            ESNextDiskASHVectorsFormat.VERSION_ON_DISK_MERGE,
             ESNextDiskASHVectorsFormat.DYNAMIC_VISIT_RATIO
         );
         this.ashMatrixCache = new ConcurrentHashMap<>();
@@ -220,6 +221,23 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 throw new UncheckedIOException(e);
             }
         });
+    }
+
+    /**
+     * Returns the trained ASH projection matrix W for the given field, or {@code null} if this
+     * segment does not have one (e.g. an empty field, or a field that was not ASH-encoded).
+     * <p>
+     * Used at merge time to seed the merged segment's projection matrix from an existing input
+     * segment instead of re-learning W from scratch. W is a global orthonormal projection of
+     * centered/normalized vectors, so it is effectively centroid-independent and can be reused
+     * across a merge without re-training.
+     */
+    AshProjectionMatrix getProjectionMatrix(FieldInfo fieldInfo) {
+        final ASHFieldEntry fieldEntry = fields.get(fieldInfo.number);
+        if (fieldEntry == null || fieldEntry.preconditionerLength <= 0) {
+            return null;
+        }
+        return getAshProjectionMatrix(fieldInfo);
     }
 
     @Override

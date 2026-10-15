@@ -43,10 +43,9 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * <p>Aggregation runs in two phases. In the first phase, incoming pages are queued on an input
  * exchange and workers compete to drain it, each aggregating the pages it processes into its own
- * private {@link HashAggregationOperator}. Whenever a worker's state grows beyond
- * {@link #partitionKeysThreshold} keys, the worker splits that state into partitions and hands them
- * off to a shared registry. After the last input page has been processed, every worker performs
- * one final split.
+ * private {@link HashAggregationOperator}. Whenever a worker's state exceeds its key-count or
+ * memory threshold, the worker splits that state into partitions and hands them off to a shared
+ * registry. After the last input page has been processed, every worker performs one final split.
  *
  * <p>The second phase begins once all workers have completed their final split. Workers claim
  * partitions from the registry, merge the slices of that partition produced by all the splits,
@@ -470,7 +469,9 @@ public final class ParallelHashAggregationOperator implements Operator {
         void processOnePage(Page page) {
             if (initialized == false) {
                 try {
-                    op.blockHash.ensureCapacity(partitionKeysThreshold);
+                    if (partitionKeysThreshold < Integer.MAX_VALUE) {
+                        op.blockHash.ensureCapacity(partitionKeysThreshold);
+                    }
                     initialized = true;
                 } finally {
                     if (initialized == false) {
@@ -479,7 +480,7 @@ public final class ParallelHashAggregationOperator implements Operator {
                 }
             }
             op.addInput(page);
-            if (op.blockHash.numKeys() >= partitionKeysThreshold) {
+            if (op.partitioningThresholdReached()) {
                 split();
             }
         }

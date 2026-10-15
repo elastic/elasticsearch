@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -37,6 +38,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements.NO_BOOSTED_OR_UNBOOSTED_CACHE_REQUIREMENT;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecisionWithNoExplanation;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -125,19 +128,27 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         final RoutingNode searchNode = routingAllocation.routingNodes().node(SEARCH_NODE_ID);
 
         final Decision decision = decider.canAllocate(shardRouting, searchNode, routingAllocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NOT_PREFERRED));
         assertThat(
-            decision.getExplanation(),
-            containsString(
-                "node ["
-                    + searchNode.getShortNodeDescription()
-                    + "] cache commitment ["
-                    + overWatermarkCommitmentBytes
-                    + "] bytes already exceeds the low "
-                    + "watermark ["
-                    + LOW_WATERMARK_BYTES
-                    + "]"
+            decision,
+            isNotPreferredDecisionWithExplanationMatching(
+                SharedCacheCapacityAllocationDecider.NAME,
+                containsString(
+                    "node ["
+                        + searchNode.getShortNodeDescription()
+                        + "] cache commitment ["
+                        + ByteSizeValue.ofBytes(overWatermarkCommitmentBytes)
+                        + "] already exceeds the low watermark ["
+                        + ByteSizeValue.ofBytes(LOW_WATERMARK_BYTES)
+                        + "]"
+                )
             )
+        );
+
+        // without debug the label is retained but there is no explanation
+        routingAllocation.debugDecision(false);
+        assertThat(
+            decider.canAllocate(shardRouting, searchNode, routingAllocation),
+            isNotPreferredDecisionWithNoExplanation(SharedCacheCapacityAllocationDecider.NAME)
         );
     }
 
@@ -183,17 +194,26 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         );
         final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
 
-        final Decision decision = decider.canAllocate(
-            shardRouting,
-            routingAllocation.routingNodes().node(SEARCH_NODE_ID),
-            routingAllocation
-        );
-        assertThat(decision.type(), equalTo(Decision.Type.NOT_PREFERRED));
+        final RoutingNode searchNode = routingAllocation.routingNodes().node(SEARCH_NODE_ID);
         assertThat(
-            decision.getExplanation(),
-            containsString(
-                "would raise its cache commitment from [" + belowWatermarkCommitmentBytes + "] to [" + newCommitmentBytes + "] bytes"
+            decider.canAllocate(shardRouting, searchNode, routingAllocation),
+            isNotPreferredDecisionWithExplanationMatching(
+                SharedCacheCapacityAllocationDecider.NAME,
+                containsString(
+                    "would raise its cache commitment from ["
+                        + ByteSizeValue.ofBytes(belowWatermarkCommitmentBytes)
+                        + "] to ["
+                        + ByteSizeValue.ofBytes(newCommitmentBytes)
+                        + "]"
+                )
             )
+        );
+
+        // without debug the label is retained but there is no explanation
+        routingAllocation.debugDecision(false);
+        assertThat(
+            decider.canAllocate(shardRouting, searchNode, routingAllocation),
+            isNotPreferredDecisionWithNoExplanation(SharedCacheCapacityAllocationDecider.NAME)
         );
     }
 
@@ -222,7 +242,11 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         assertThat(
             decision.getExplanation(),
             containsString(
-                "would raise its cache commitment from [" + belowWatermarkCommitmentBytes + "] to [" + newCommitmentBytes + "] bytes"
+                "would raise its cache commitment from ["
+                    + ByteSizeValue.ofBytes(belowWatermarkCommitmentBytes)
+                    + "] to ["
+                    + ByteSizeValue.ofBytes(newCommitmentBytes)
+                    + "]"
             )
         );
     }
@@ -262,7 +286,11 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         assertThat(
             boostedDecision.getExplanation(),
             containsString(
-                "would raise its cache commitment from [" + lowBoostedCommitmentBytes + "] to [" + newBoostedCommitmentBytes + "] bytes"
+                "would raise its cache commitment from ["
+                    + ByteSizeValue.ofBytes(lowBoostedCommitmentBytes)
+                    + "] to ["
+                    + ByteSizeValue.ofBytes(newBoostedCommitmentBytes)
+                    + "]"
             )
         );
 
@@ -271,18 +299,19 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         final RoutingAllocation totalAllocation = createRoutingAllocation(totalDecider, shardRouting, clusterInfo);
         final RoutingNode totalSearchNode = totalAllocation.routingNodes().node(SEARCH_NODE_ID);
         final Decision totalDecision = totalDecider.canAllocate(shardRouting, totalSearchNode, totalAllocation);
-        assertThat(totalDecision.type(), equalTo(Decision.Type.NOT_PREFERRED));
         assertThat(
-            totalDecision.getExplanation(),
-            containsString(
-                "node ["
-                    + totalSearchNode.getShortNodeDescription()
-                    + "] cache commitment ["
-                    + totalCommitmentBytes
-                    + "] bytes already exceeds the low watermark "
-                    + "["
-                    + LOW_WATERMARK_BYTES
-                    + "]"
+            totalDecision,
+            isNotPreferredDecisionWithExplanationMatching(
+                SharedCacheCapacityAllocationDecider.NAME,
+                containsString(
+                    "node ["
+                        + totalSearchNode.getShortNodeDescription()
+                        + "] cache commitment ["
+                        + ByteSizeValue.ofBytes(totalCommitmentBytes)
+                        + "] already exceeds the low watermark ["
+                        + ByteSizeValue.ofBytes(LOW_WATERMARK_BYTES)
+                        + "]"
+                )
             )
         );
     }
@@ -314,7 +343,13 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         // The sentinel boosted requirement must contribute zero bytes to the total, not be treated as -1.
         assertThat(
             decision.getExplanation(),
-            containsString("would raise its cache commitment from [" + unboostedCommitmentBytes + "] to [" + newCommitmentBytes + "] bytes")
+            containsString(
+                "would raise its cache commitment from ["
+                    + ByteSizeValue.ofBytes(unboostedCommitmentBytes)
+                    + "] to ["
+                    + ByteSizeValue.ofBytes(newCommitmentBytes)
+                    + "]"
+            )
         );
     }
 
@@ -413,26 +448,30 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
         final RoutingAllocation routingAllocation = createRoutingAllocation(decider, shardRouting, clusterInfo);
         final RoutingNode searchNode = routingAllocation.routingNodes().node(SEARCH_NODE_ID);
 
-        final Decision decision = decider.canRemain(
-            indexMetadata(routingAllocation, shardRouting),
-            shardRouting,
-            searchNode,
-            routingAllocation
-        );
-        assertThat(decision.type(), equalTo(Decision.Type.NOT_PREFERRED));
+        final IndexMetadata indexMetadata = indexMetadata(routingAllocation, shardRouting);
         assertThat(
-            decision.getExplanation(),
-            containsString(
-                "node ["
-                    + searchNode.getShortNodeDescription()
-                    + "] cache commitment ["
-                    + overWatermarkCommitmentBytes
-                    + "] bytes exceeds the high watermark ["
-                    + highWatermarkBytes
-                    + "] bytes (["
-                    + HIGH_WATERMARK_PERCENT
-                    + ".00%]"
+            decider.canRemain(indexMetadata, shardRouting, searchNode, routingAllocation),
+            isNotPreferredDecisionWithExplanationMatching(
+                SharedCacheCapacityAllocationDecider.NAME,
+                containsString(
+                    "node ["
+                        + searchNode.getShortNodeDescription()
+                        + "] cache commitment ["
+                        + ByteSizeValue.ofBytes(overWatermarkCommitmentBytes)
+                        + "] exceeds the high watermark ["
+                        + ByteSizeValue.ofBytes(highWatermarkBytes)
+                        + "] (["
+                        + HIGH_WATERMARK_PERCENT
+                        + ".00%]"
+                )
             )
+        );
+
+        // without debug the label is retained but there is no explanation
+        routingAllocation.debugDecision(false);
+        assertThat(
+            decider.canRemain(indexMetadata, shardRouting, searchNode, routingAllocation),
+            isNotPreferredDecisionWithNoExplanation(SharedCacheCapacityAllocationDecider.NAME)
         );
     }
 
@@ -469,10 +508,10 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                 "node ["
                     + searchNode.getShortNodeDescription()
                     + "] cache commitment ["
-                    + belowHighWatermarkCommitmentBytes
-                    + "] bytes is below the high watermark ["
-                    + highWatermarkBytes
-                    + "] bytes (["
+                    + ByteSizeValue.ofBytes(belowHighWatermarkCommitmentBytes)
+                    + "] is below the high watermark ["
+                    + ByteSizeValue.ofBytes(highWatermarkBytes)
+                    + "] (["
                     + HIGH_WATERMARK_PERCENT
                     + ".00%]"
             )
@@ -515,10 +554,10 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
                 "node ["
                     + boostedSearchNode.getShortNodeDescription()
                     + "] cache commitment ["
-                    + lowBoostedCommitmentBytes
-                    + "] bytes is below the high watermark ["
-                    + highWatermarkBytes
-                    + "] bytes (["
+                    + ByteSizeValue.ofBytes(lowBoostedCommitmentBytes)
+                    + "] is below the high watermark ["
+                    + ByteSizeValue.ofBytes(highWatermarkBytes)
+                    + "] (["
                     + HIGH_WATERMARK_PERCENT
                     + ".00%]"
             )
@@ -534,19 +573,21 @@ public class SharedCacheCapacityAllocationDeciderTests extends ESAllocationTestC
             totalSearchNode,
             totalAllocation
         );
-        assertThat(totalDecision.type(), equalTo(Decision.Type.NOT_PREFERRED));
         assertThat(
-            totalDecision.getExplanation(),
-            containsString(
-                "node ["
-                    + totalSearchNode.getShortNodeDescription()
-                    + "] cache commitment ["
-                    + totalCommitmentBytes
-                    + "] bytes exceeds the high watermark ["
-                    + highWatermarkBytes
-                    + "] bytes (["
-                    + HIGH_WATERMARK_PERCENT
-                    + ".00%]"
+            totalDecision,
+            isNotPreferredDecisionWithExplanationMatching(
+                SharedCacheCapacityAllocationDecider.NAME,
+                containsString(
+                    "node ["
+                        + totalSearchNode.getShortNodeDescription()
+                        + "] cache commitment ["
+                        + ByteSizeValue.ofBytes(totalCommitmentBytes)
+                        + "] exceeds the high watermark ["
+                        + ByteSizeValue.ofBytes(highWatermarkBytes)
+                        + "] (["
+                        + HIGH_WATERMARK_PERCENT
+                        + ".00%]"
+                )
             )
         );
     }

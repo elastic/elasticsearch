@@ -345,6 +345,21 @@ public class ValidationTests extends ESTestCase {
         assertThat(UserManagedServiceAccounts.validatePrincipal(null).toString(), containsString("principal is missing"));
     }
 
+    public void testUserManagedServiceAccountDescriptionIsOnlyBoundedInLength() {
+        final int max = UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH;
+        assertThat(UserManagedServiceAccounts.validateDescription(null), nullValue());
+        assertThat(UserManagedServiceAccounts.validateDescription(""), nullValue());
+        // Any character is allowed: the description means nothing to Elasticsearch.
+        assertThat(UserManagedServiceAccounts.validateDescription("Deploys my-app (nightly) — see https://example.com/*"), nullValue());
+        assertThat(UserManagedServiceAccounts.validateDescription(randomAlphaOfLength(max)), nullValue());
+        assertThat(
+            UserManagedServiceAccounts.validateDescription(randomAlphaOfLength(max + 1)).toString(),
+            containsString(
+                "a service account description may not be more than " + max + " characters long, but [" + (max + 1) + "] were given"
+            )
+        );
+    }
+
     public void testUserManagedServiceAccountIdRejectsMalformedPrincipal() {
         final String noSeparator = randomUserManagedComponent();
         assertThat(

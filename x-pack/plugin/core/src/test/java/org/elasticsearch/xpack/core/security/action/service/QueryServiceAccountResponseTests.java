@@ -27,10 +27,10 @@ public class QueryServiceAccountResponseTests extends ESTestCase {
             42,
             List.of(
                 new QueryServiceAccountResponse.Item(
-                    new ServiceAccountInfo.UserManaged("apps/worker_1", List.of("role-a", "role-b"), true),
+                    new ServiceAccountInfo.UserManaged("apps/worker_1", List.of("role-a", "role-b"), true, "Worker one"),
                     new Object[] { "apps/worker_1" }
                 ),
-                new QueryServiceAccountResponse.Item(new ServiceAccountInfo.UserManaged("apps/worker_2", List.of(), false), null)
+                new QueryServiceAccountResponse.Item(new ServiceAccountInfo.UserManaged("apps/worker_2", List.of(), false, null), null)
             )
         );
 
@@ -56,6 +56,8 @@ public class QueryServiceAccountResponseTests extends ESTestCase {
                             List.of("role-a", "role-b"),
                             "enabled",
                             true,
+                            "description",
+                            "Worker one",
                             "_sort",
                             List.of("apps/worker_1")
                         ),
@@ -71,7 +73,7 @@ public class QueryServiceAccountResponseTests extends ESTestCase {
     }
 
     public void testEqualityIncludesTheSortValues() {
-        final ServiceAccountInfo.UserManaged info = new ServiceAccountInfo.UserManaged("apps/worker_1", List.of("role-a"), true);
+        final ServiceAccountInfo.UserManaged info = new ServiceAccountInfo.UserManaged("apps/worker_1", List.of("role-a"), true, null);
         final QueryServiceAccountResponse.Item sorted = new QueryServiceAccountResponse.Item(info, new Object[] { "apps/worker_1" });
         assertThat(sorted, equalTo(new QueryServiceAccountResponse.Item(info, new Object[] { "apps/worker_1" })));
         assertThat(sorted.hashCode(), equalTo(new QueryServiceAccountResponse.Item(info, new Object[] { "apps/worker_1" }).hashCode()));

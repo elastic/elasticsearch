@@ -41,7 +41,14 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
         WarmingRatioProvider warmingRatioProvider,
         Map<String, WarmTaskInfo> warmTasksForBCCs
     ) {
-        return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
+        return new SharedBlobCacheWarmingService(
+            cacheService,
+            threadPool,
+            telemetryProvider,
+            clusterSettings,
+            warmingRatioProvider,
+            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, () -> Integer.MAX_VALUE)
+        ) {
             @Override
             protected void scheduleWarmingTask(AbstractWarmingTask task) {
                 if (task instanceof AbstractWarmer.WarmBlobByteRangeTask warmTask) {

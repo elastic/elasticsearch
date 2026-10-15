@@ -78,7 +78,7 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.getArchive;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isSafeAccessRequired;
-import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafeForGets;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
@@ -298,10 +298,11 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
         var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
         var map = indexEngine.getLiveVersionMap();
-        if (randomBoolean()) {
+        final boolean forceUnsafe = randomBoolean();
+        if (forceUnsafe) {
             // Make sure the map is marked as unsafe
             indexDocs(indexName, randomIntBetween(1, 10));
-            assertTrue(isUnsafe(map));
+            assertTrue(isUnsafeForGets(map));
         }
         // Enforce safe access mode
         client().prepareIndex(indexName).setId(randomIdentifier()).setSource("field1", randomUnicodeOfLength(10)).get();
@@ -313,12 +314,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertNoFailures(bulkResponse);
         assertNotNull(get(map, "1"));
         assertTrue(getFromTranslog(indexShard, "1").getResult().isExists());
+        if (forceUnsafe) {
+            // The map was unsafe, so the get above forced a flush and the archive stays unsafe until the search shard acks that
+            // commit. A second get before the ack forces another flush, whose ack can prune "1" from the archive before the
+            // engine looks it up, making the get legitimately return null. Wait for the ack so the next get is deterministic.
+            assertBusy(() -> assertFalse(isUnsafeForGets(map)));
+        }
         // A local refresh doesn't prune the LVM archive
         indexEngine.refresh("test");
         assertNotNull(get(map, "1"));
         assertTrue(getFromTranslog(indexShard, "1").getResult().isExists());
         final long lastUnsafeGenerationForGets = indexEngine.getLastUnsafeSegmentGenerationForGets();
-        // Create a new commit explicitly where once ack'ed by the unpronmotables we are sure the docs that were
+        // Create a new commit explicitly where once ack'ed by the unpromotables we are sure the docs that were
         // in the archive are visible on the unpromotable shards.
         indexDocs(indexName, randomIntBetween(1, 10));
         safeGet(client().admin().indices().refresh(new RefreshRequest(indexName)));
@@ -376,20 +383,20 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         var indexShard = findIndexShard(indexName);
         var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
         var map = indexEngine.getLiveVersionMap();
-        assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         // While map is unsafe and unpromotable refresh is inflight, index more
         safeAwait(sendUnpromotableRefreshStarted);
         var id = client().prepareIndex(indexName).setSource("field", randomIdentifier()).get().getId();
         // Still unsafe and `id` is not in the previous commit
-        assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         // Local refresh happens (sets minSafeGeneration).
         indexEngine.refresh("local");
         var archive = (StatelessLiveVersionMapArchive) getArchive(map);
         assertThat(archive.getMinSafeGeneration(), equalTo(indexEngine.getCurrentGeneration() + 1));
-        // After unpromotable refresh comes back, map should still be unsafe
+        // After unpromotable refresh comes back, map should still be unsafe for gets
         continueSendUnpromotableRefresh.countDown();
         refreshFuture.get();
-        assertTrue(isUnsafe(map));
+        assertTrue(isUnsafeForGets(map));
         var getResponse = client().prepareGet(indexName, id).get();
         assertTrue(getResponse.isExists());
     }

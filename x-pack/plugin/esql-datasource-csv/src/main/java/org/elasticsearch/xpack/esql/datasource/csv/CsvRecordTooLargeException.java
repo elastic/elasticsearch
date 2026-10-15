@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+
 import java.io.IOException;
 
 /**
@@ -16,6 +18,6 @@ import java.io.IOException;
  */
 final class CsvRecordTooLargeException extends IOException {
     CsvRecordTooLargeException(int maxRecordBytes) {
-        super("CSV record exceeded external_max_record_size [" + maxRecordBytes + "]");
+        super("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "], possibly an unclosed quote or bracket");
     }
 }

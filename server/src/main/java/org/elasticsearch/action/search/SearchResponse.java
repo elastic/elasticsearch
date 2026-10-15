@@ -27,6 +27,8 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -103,6 +105,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * {@link TransportMultiSearchAction} when multi-search buffering completes.
      */
     private transient long queryPhaseAggregationBreakerBytes = 0;
+
+    // Coordinator fetch-breaker charge for the hits below, released when this response is.
+    @Nullable
+    private transient Releasable coordinatorFetchCharge;
 
     // SearchHits from top_hits aggs to release when this response is released.
     private final List<SearchHits> topHitsToRelease;
@@ -227,6 +233,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             searchResponseSections.transferCompletionOptionHitsToRelease()
         );
         this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
+        this.coordinatorFetchCharge = searchResponseSections.transferCoordinatorFetchCharge();
         if (this.profileResults != null) {
             this.profileResults.setOriginalSource(source);
             this.profileResults.setRequestIndices(indices);
@@ -315,6 +322,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 hit.decRef();
             }
             hits.decRef();
+            Releasables.closeExpectNoException(coordinatorFetchCharge);
             return true;
         }
         return false;
@@ -484,6 +492,24 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     void setQueryPhaseAggregationBreakerBytes(long queryPhaseAggregationBreakerBytes) {
         assert queryPhaseAggregationBreakerBytes >= 0 : "bytes must be non-negative";
         this.queryPhaseAggregationBreakerBytes = queryPhaseAggregationBreakerBytes;
+    }
+
+    boolean hasCoordinatorFetchCharge() {
+        return coordinatorFetchCharge != null;
+    }
+
+    /**
+     * Hands the coordinating node's fetch charge for the hits to a caller that keeps the hits alive past this response.
+     * The sections hand their charge to the response when it is built (see
+     * {@link SearchResponseSections#transferCoordinatorFetchCharge()}), so from then on it can only be taken from here.
+     *
+     * @return the charge, or {@code null} if there is none
+     */
+    @Nullable
+    Releasable transferCoordinatorFetchCharge() {
+        Releasable charge = coordinatorFetchCharge;
+        coordinatorFetchCharge = null;
+        return charge;
     }
 
     @Override

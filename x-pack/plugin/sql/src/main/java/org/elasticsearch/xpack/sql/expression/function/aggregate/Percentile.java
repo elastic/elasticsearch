@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
-public class Percentile extends PercentileAggregate {
+public class Percentile extends PercentileAggregate implements SingleValueIdentityAgg {
 
     public Percentile(Source source, Expression field, Expression percent, Expression method, Expression methodParameter) {
         super(source, field, percent, method, methodParameter);

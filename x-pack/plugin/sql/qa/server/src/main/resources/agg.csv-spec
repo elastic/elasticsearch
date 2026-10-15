@@ -1199,6 +1199,58 @@ GROUP BY gender HAVING max > 155000 or min > 36000 ORDER BY gender;
 151745.40000000002|36720.0           |M
 ;
 
+// A group is down to one row by the time HAVING/ORDER BY is evaluated, so SUM/AVG/MIN/MAX/PERCENTILE over an
+// aggregate alias return that one value unchanged. The next two must therefore agree row for row.
+identityAggregateOverAggregateAliasInHaving
+schema::gender:s|s:l
+SELECT gender, SUM(salary) AS s FROM test_emp WHERE gender IS NOT NULL GROUP BY gender HAVING SUM(s) > 2000000 ORDER BY gender;
+
+    gender     |       s
+---------------+---------------
+M              |2671054
+;
+
+identityAggregateOverAggregateAliasInHavingWithoutTheWrapper
+schema::gender:s|s:l
+SELECT gender, SUM(salary) AS s FROM test_emp WHERE gender IS NOT NULL GROUP BY gender HAVING s > 2000000 ORDER BY gender;
+
+    gender     |       s
+---------------+---------------
+M              |2671054
+;
+
+// the outer and inner aggregates need not match: only the outer one has to be an identity over a single value
+identityAggregateOverDifferentAggregateAlias
+schema::gender:s|m:i
+SELECT gender, MIN(salary) AS m FROM test_emp WHERE gender IS NOT NULL GROUP BY gender HAVING AVG(m) > 25950 ORDER BY gender;
+
+    gender     |       m
+---------------+---------------
+F              |25976
+;
+
+// AVG is DOUBLE while MIN(<integer>) is not, so this pins down that dropping the wrapper keeps the HAVING
+// arithmetic on doubles: M only qualifies because 25945 / 2 is 12972.5 rather than 12972
+identityAggregateOverAggregateAliasInHavingArithmetic
+schema::gender:s|m:i
+SELECT gender, MIN(salary) AS m FROM test_emp WHERE gender IS NOT NULL GROUP BY gender HAVING AVG(m) / 2 > 12972 ORDER BY gender;
+
+    gender     |       m
+---------------+---------------
+F              |25976
+M              |25945
+;
+
+identityAggregateOverAggregateAliasInOrderBy
+schema::gender:s|m:i
+SELECT gender, MIN(salary) AS m FROM test_emp WHERE gender IS NOT NULL GROUP BY gender ORDER BY MIN(m);
+
+    gender     |       m
+---------------+---------------
+M              |25945
+F              |25976
+;
+
 percentileAggregateFunctionsWithScalars
 schema::percentile:d|percentile_rank:d|gender:s
 SELECT PERCENTILE(CASE WHEN (salary / 2) > 10000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END, 80) AS "percentile",

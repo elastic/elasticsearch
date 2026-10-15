@@ -554,30 +554,35 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
         client().prepareBulk()
             .add(new IndexRequest("ts_hosts").source("@timestamp", "2024-01-01T00:00:00Z", "host", "a", "status", "fox", "cpu", 1))
-            .add(new IndexRequest("ts_hosts").source("@timestamp", "2024-01-01T00:00:01Z", "host", "b", "status", "dog", "cpu", 2))
+            .add(new IndexRequest("ts_hosts").source("@timestamp", "2024-01-01T00:00:01Z", "host", "b", "status", "red fox", "cpu", 2))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow("ts_hosts");
 
-        var rejected = "TS ts_hosts | WHERE MATCH(status, \"fox\")";
-        var error = expectThrows(VerificationException.class, () -> run(rejected));
-        assertThat(
-            error.getMessage(),
-            containsString(
-                "[MATCH] function cannot operate on [status], supplied by an index [ts_hosts] in non-STANDARD mode [time_series]"
-            )
-        );
+        // Exact/keyword semantics: "red fox" isn't exactly "fox", so only host=a matches.
+        var direct = """
+            TS ts_hosts
+            | WHERE MATCH(status, "fox")
+            | KEEP host, status
+            | SORT host
+            """;
+        try (var resp = run(direct)) {
+            assertColumnNames(resp.columns(), List.of("host", "status"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "keyword"));
+            assertValues(resp.values(), List.of(List.of("a", "fox")));
+        }
 
-        var accepted = """
+        // Analyzed/text semantics: "red fox" contains "fox" as an analyzed token, so both hosts match.
+        var converted = """
             TS ts_hosts
             | WHERE MATCH(TO_TEXT(status), "fox")
             | KEEP host, status
             | SORT host
             """;
-        try (var resp = run(accepted)) {
+        try (var resp = run(converted)) {
             assertColumnNames(resp.columns(), List.of("host", "status"));
             assertColumnTypes(resp.columns(), List.of("keyword", "keyword"));
-            assertValues(resp.values(), List.of(List.of("a", "fox")));
+            assertValues(resp.values(), List.of(List.of("a", "fox"), List.of("b", "red fox")));
         }
     }
 
@@ -648,23 +653,27 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             .get();
         ensureYellow("ts_hosts_text");
 
-        var rejected = "TS ts_hosts_text | WHERE MATCH(status, \"fox\")";
-        var error = expectThrows(VerificationException.class, () -> run(rejected));
-        assertThat(
-            error.getMessage(),
-            containsString(
-                "[MATCH] function cannot operate on [status], supplied by an index [ts_hosts_text] in non-STANDARD mode [time_series]"
-            )
-        );
+        // Analyzed/text semantics: "red fox" contains "fox" as an analyzed token, so both hosts match.
+        var direct = """
+            TS ts_hosts_text
+            | WHERE MATCH(status, "fox")
+            | KEEP host, status
+            | SORT host
+            """;
+        try (var resp = run(direct)) {
+            assertColumnNames(resp.columns(), List.of("host", "status"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "text"));
+            assertValues(resp.values(), List.of(List.of("a", "fox"), List.of("b", "red fox")));
+        }
 
         // Exact/keyword semantics: "red fox" contains "fox" as an analyzed token but isn't exactly "fox", so only host=a matches.
-        var accepted = """
+        var converted = """
             TS ts_hosts_text
             | WHERE MATCH(TO_STRING(status), "fox")
             | KEEP host, status
             | SORT host
             """;
-        try (var resp = run(accepted)) {
+        try (var resp = run(converted)) {
             assertColumnNames(resp.columns(), List.of("host", "status"));
             assertColumnTypes(resp.columns(), List.of("keyword", "text"));
             assertValues(resp.values(), List.of(List.of("a", "fox")));
@@ -1082,7 +1091,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testMatchRuntimeEvalNonTextTypeWithOptionsThrowsError() {
+    public void testMatchRuntimeEvalNonTextTypeWithUnsupportedOptionThrowsError() {
         var query = """
              FROM test
              | EVAL new_id = to_long(id)
@@ -1091,23 +1100,65 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [new_id]")
+            containsString("[analyzer] option is not supported for [MATCH] on non-index-mapped, non-TEXT field [new_id]")
         );
     }
 
-    public void testMatchRuntimeEvalWithIncompatibleLongValueThrowsError() {
+    public void testMatchRuntimeEvalWithIncompatibleLongValueIsLenientByDefault() {
         var query = """
             FROM test
             | EVAL new_id = to_long(id)
             | WHERE match(new_id, "not_a_number")
+            | KEEP id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
+    }
+
+    public void testMatchRuntimeEvalWithIncompatibleLongValueAndLenientFalseThrowsError() {
+        var query = """
+            FROM test
+            | EVAL new_id = to_long(id)
+            | WHERE match(new_id, "not_a_number", {"lenient": false})
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([long]) of non-index-mapped field [new_id]",
-            error.getMessage()
+        assertThat(
+            error.getMessage(),
+            containsString("[MATCH] query value [\"not_a_number\"] does not match the type ([long]) of non-index-mapped field [new_id]")
         );
+    }
+
+    public void testMatchRuntimeEvalWithIncompatibleLongValueAndLenientTrue() {
+        var query = """
+            FROM test
+            | EVAL new_id = to_long(id)
+            | WHERE match(new_id, "not_a_number", {"lenient": true})
+            | KEEP id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
+    }
+
+    public void testMatchRuntimeEvalWithConvertibleStringQueryMatches() {
+        // Lenient's happy path: a text query that converts to the numeric field type matches.
+        var query = """
+            FROM test
+            | EVAL new_id = id
+            | WHERE match(new_id, "1", {"lenient": true})
+            | KEEP id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertValues(resp.values(), List.of(List.of(1)));
+        }
     }
 
     public void testMatchRuntimeWithAnalyzerOption() {
@@ -1284,7 +1335,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("Options are not supported for [MATCH] function call on non-index-mapped, non-TEXT field [content]")
+            containsString("[fuzziness] option is not supported for [MATCH] on non-index-mapped, non-TEXT field [content]")
         );
     }
 
@@ -1310,95 +1361,85 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MATCH] function failed to build query for non-index-mapped field [new_content]"));
     }
 
-    public void testMatchRuntimeRowWithIncompatibleIpValueThrowsError() {
+    public void testMatchRuntimeRowWithIncompatibleIpValueIsLenientByDefault() {
         var query = """
             ROW my_ip = to_ip("192.168.1.1")
             | WHERE match(my_ip, "not_an_ip")
+            | KEEP my_ip
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 2:22: [MATCH] query value [\"not_an_ip\"] does not match the type ([ip]) of non-index-mapped field [my_ip]",
-            error.getMessage()
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("my_ip"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
-    public void testMatchRuntimeEvalWithIncompatibleIntegerValueThrowsError() {
+    public void testMatchRuntimeEvalWithIncompatibleIntegerValueIsLenientByDefault() {
         var query = """
             FROM test
             | EVAL new_id = to_integer(id)
             | WHERE match(new_id, "not_a_number")
+            | KEEP id
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([integer]) of non-index-mapped field "
-                + "[new_id]",
-            error.getMessage()
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
-    public void testMatchRuntimeEvalWithIncompatibleDoubleValueThrowsError() {
+    public void testMatchRuntimeEvalWithIncompatibleDoubleValueIsLenientByDefault() {
         var query = """
             FROM test
             | EVAL new_id = to_double(id)
             | WHERE match(new_id, "not_a_number")
+            | KEEP id
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([double]) of non-index-mapped field [new_id]",
-            error.getMessage()
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
-    public void testMatchRuntimeEvalWithIncompatibleUnsignedLongValueThrowsError() {
+    public void testMatchRuntimeEvalWithIncompatibleUnsignedLongValueIsLenientByDefault() {
         var query = """
             FROM test
             | EVAL new_id = to_unsigned_long(id)
             | WHERE match(new_id, "not_a_number")
+            | KEEP id
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 3:23: [MATCH] query value [\"not_a_number\"] does not match the type ([unsigned_long]) of non-index-mapped field "
-                + "[new_id]",
-            error.getMessage()
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
-    public void testMatchRuntimeRowWithIncompatibleDatetimeValueThrowsError() {
+    public void testMatchRuntimeRowWithIncompatibleDatetimeValueIsLenientByDefault() {
         var query = """
             ROW my_date = to_datetime("2024-01-01")
             | WHERE match(my_date, "not_a_date")
+            | KEEP my_date
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 2:24: [MATCH] query value [\"not_a_date\"] does not match the type ([datetime]) of non-index-mapped field "
-                + "[my_date]",
-            error.getMessage()
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("my_date"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
-    public void testMatchRuntimeRowWithIncompatibleDateNanosValueThrowsError() {
+    public void testMatchRuntimeRowWithIncompatibleDateNanosValueIsLenientByDefault() {
         var query = """
             ROW my_date = to_date_nanos("2024-01-01")
             | WHERE match(my_date, "not_a_date")
+            | KEEP my_date
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertEquals(
-            "Found 1 problem\n"
-                + "line 2:24: [MATCH] query value [\"not_a_date\"] does not match the type ([date_nanos]) of non-index-mapped field "
-                + "[my_date]",
-            error.getMessage()
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("my_date"));
+            assertThat(getValuesList(resp), Matchers.empty());
+        }
     }
 
     public void testMatchOnMappedTextAfterForkThrowsError() {

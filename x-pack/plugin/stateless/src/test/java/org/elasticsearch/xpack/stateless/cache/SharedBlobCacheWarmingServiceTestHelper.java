@@ -38,7 +38,6 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         ClusterSettings clusterSettings,
-        WarmingRatioProvider warmingRatioProvider,
         Map<String, WarmTaskInfo> warmTasksForBCCs
     ) {
         return new SharedBlobCacheWarmingService(

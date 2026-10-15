@@ -106,16 +106,16 @@ public class BatchBulkIT extends ESIntegTestCase {
             .build();
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // DataStreamsPlugin is needed by the pre-built-batch tests that target a data stream rather than a
         // concrete index. MapperExtrasPlugin registers match_only_text, used by testColumnarTextBatchMode.
         // MockTransportService holds shard requests in testBatchPagesComeFromTheNodeRecycler.
         return CollectionUtils.appendToCopyNoNullElements(
-            CollectionUtils.appendToCopyNoNullElements(
-                CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), DataStreamsPlugin.class),
-                MapperExtrasPlugin.class
-            ),
+            super.nodePlugins(),
+            DataStreamsPlugin.class,
+            MapperExtrasPlugin.class,
             MockTransportService.TestPlugin.class
         );
     }
@@ -573,12 +573,30 @@ public class BatchBulkIT extends ESIntegTestCase {
     /**
      * Batch pages come from the coordinating node's recycler. The mock recycler installed by {@link NodeMocksPlugin} charges each page
      * to the request breaker, so the breaker rises while the shard requests are held and drops back once the bulk completes. The
-     * production recycler does not charge a breaker.
+     * production recycler does not charge a breaker. The same bulk is first sent with batch indexing off as a control, so anything
+     * else that charges the request breaker during the held window cancels out instead of satisfying the assertion on its own.
      */
     public void testBatchPagesComeFromTheNodeRecycler() throws Exception {
         String index = randomIndexName();
         createBatchIndex(index, 2, 0);
         String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(20, 100);
+
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false));
+        long rowPathDelta;
+        try {
+            rowPathDelta = requestBreakerDeltaWhileShardRequestsHeld(coordinatingNode, index, numDocs);
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
+        }
+        long batchPathDelta = requestBreakerDeltaWhileShardRequestsHeld(coordinatingNode, index, numDocs);
+
+        // Both runs must charge the breaker the same way apart from the batch pages. If the request breaker starts charging something
+        // that varies between two otherwise identical bulks, this comparison flakes rather than going vacuous.
+        assertThat(batchPathDelta, greaterThanOrEqualTo(rowPathDelta + PageCacheRecycler.BYTE_PAGE_SIZE));
+    }
+
+    private long requestBreakerDeltaWhileShardRequestsHeld(String coordinatingNode, String index, int numDocs) throws Exception {
         CircuitBreaker requestBreaker = internalCluster().getInstance(CircuitBreakerService.class, coordinatingNode)
             .getBreaker(CircuitBreaker.REQUEST);
         long baseline = requestBreaker.getUsed();
@@ -596,7 +614,6 @@ public class BatchBulkIT extends ESIntegTestCase {
         }
         try {
             BulkRequestBuilder bulk = client(coordinatingNode).prepareBulk();
-            int numDocs = randomIntBetween(20, 100);
             for (int i = 0; i < numDocs; i++) {
                 bulk.add(
                     new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE)
@@ -605,11 +622,12 @@ public class BatchBulkIT extends ESIntegTestCase {
             }
             ActionFuture<BulkResponse> response = bulk.execute();
             safeAwait(shardRequestArrived);
-            assertThat(requestBreaker.getUsed(), greaterThanOrEqualTo(baseline + PageCacheRecycler.BYTE_PAGE_SIZE));
+            long delta = requestBreaker.getUsed() - baseline;
 
             releaseShardRequests.countDown();
             assertNoFailures(safeGet(response));
             assertBusy(() -> assertThat(requestBreaker.getUsed(), lessThanOrEqualTo(baseline)));
+            return delta;
         } finally {
             releaseShardRequests.countDown();
             for (String node : nodes) {

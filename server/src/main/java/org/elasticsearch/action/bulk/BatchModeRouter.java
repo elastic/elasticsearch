@@ -728,7 +728,7 @@ final class BatchModeRouter implements Releasable {
         }
     }
 
-    /** Releases the encoders and the provided batch. */
+    /** Releases the encoders and the provided batch. Safe to call more than once. */
     @Override
     public void close() {
         if (closed) {

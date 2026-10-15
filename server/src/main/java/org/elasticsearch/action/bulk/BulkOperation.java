@@ -450,13 +450,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ClusterState clusterState,
         Runnable onRequestsCompleted
     ) {
+        if (requestsByShard.isEmpty()) {
+            assert shardBatches.isEmpty() : "no shard requests but " + shardBatches.size() + " shard batches";
+            onRequestsCompleted.run();
+            return;
+        }
+
         Map<ShardId, SourceBatch> undispatchedBatches = new HashMap<>(shardBatches);
         try {
-            if (requestsByShard.isEmpty()) {
-                onRequestsCompleted.run();
-                return;
-            }
-
             BatchModeRouter.validateBatchAlignment(requestsByShard, shardBatches);
 
             String nodeId = clusterService.localNode().getId();

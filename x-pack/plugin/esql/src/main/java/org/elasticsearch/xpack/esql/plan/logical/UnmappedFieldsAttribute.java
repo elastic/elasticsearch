@@ -30,17 +30,16 @@ import java.util.Objects;
  * is in effect.
  *
  * <p>Added to {@link EsRelation#output()} by {@code DetermineUnmappedFieldsToKeep} in the
- * Finish Analysis batch. The carried {@link UnmappedFieldsPattern} describes which additional
- * (currently unmapped) source fields are loaded into the JSON object value of the column.
+ * Finish Analysis batch, when the carried {@link UnmappedFieldsPattern} can match an unmapped field. The value of the
+ * column is a JSON object of the unmapped fields of a document that the pattern includes, which the shard reads.
  *
  * <p>Note that {@link #synthetic()} stays {@code false} despite the synthetic name:
  * {@code Analyzer.planWithoutSyntheticAttributes} projects away every attribute for which it returns
  * {@code true}, and it runs after {@code DetermineUnmappedFieldsToKeep}, so the column would be gone
- * before the coordinator ever got to flatten it. The {@code $$} name is what keeps the column
+ * before it is returned. The {@code $$} name is what keeps the column
  * unreachable from a query — user field names cannot start with it.
  *
- * <p>The column carries only the pattern, which is the one thing a data node reads. The coordinator replaces it with a
- * single {@code _unmapped_fields} column, so no ordering state rides along to the data nodes.
+ * <p>The column is returned as {@code _unmapped_fields}, with the values the data nodes loaded.
  */
 public final class UnmappedFieldsAttribute extends TypedAttribute {
     public static final String ATTRIBUTE_NAME = Attribute.rawTemporaryName("unmapped_fields");

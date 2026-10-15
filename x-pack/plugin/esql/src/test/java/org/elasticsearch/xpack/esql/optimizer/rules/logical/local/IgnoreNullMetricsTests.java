@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
+
+import java.util.Map;
 
 import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -136,6 +139,25 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         IsNotNull condition = as(filter.condition(), IsNotNull.class);
         FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
         assertEquals("metric_1", attribute.fieldName().string());
+    }
+
+    /**
+     * A metric converted between counter and gauge has a value exactly where the metric has one, so the aggregate reading the
+     * conversion filters on the metric too, although the conversion is computed in an eval below the aggregate.
+     */
+    public void testConvertedMetricsAreFiltered() {
+        for (var conversion : Map.of("to_gauge", "network.total_bytes_in", "to_counter", "network.eth0.tx").entrySet()) {
+            String query = Strings.format("""
+                TS k8s
+                | STATS max(last_over_time(%s(%s)))
+                | LIMIT 10
+                """, conversion.getKey(), conversion.getValue());
+            LogicalPlan actual = ts().localPlan(query);
+            Filter filter = actual.collect(Filter.class).getFirst();
+            IsNotNull condition = as(filter.condition(), IsNotNull.class);
+            FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
+            assertEquals(query, conversion.getValue(), attribute.fieldName().string());
+        }
     }
 
     /**

@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -34,10 +38,17 @@ import java.util.Set;
 public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSeriesAggregate> {
     @Override
     public LogicalPlan rule(TimeSeriesAggregate agg) {
+        // Only evals directly below the aggregate: every field they read passes through them, so the filter can reference it.
+        AttributeMap.Builder<Expression> evaluated = AttributeMap.builder();
+        for (LogicalPlan child = agg.child(); child instanceof Eval eval; child = eval.child()) {
+            eval.fields().forEach(alias -> evaluated.put(alias.toAttribute(), alias.child()));
+        }
+        AttributeMap<Expression> definitions = evaluated.build();
         Set<Attribute> metrics = new HashSet<>();
         agg.forEachExpression(Attribute.class, attr -> {
-            if (attr.isMetric()) {
-                metrics.add(attr);
+            Attribute metric = metricOf(attr, definitions);
+            if (metric != null) {
+                metrics.add(metric);
             }
         });
         if (metrics.isEmpty()) {
@@ -54,6 +65,24 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
             }
         }
         return agg.replaceChild(new Filter(agg.source(), agg.child(), conditional));
+    }
+
+    /**
+     * The metric {@code expression} reads, directly or through a conversion between counter and gauge, or {@code null} if it
+     * reads none. A conversion between counter and gauge keeps every value, so a row without the metric has no value of the
+     * expression either, and filtering on the metric drops nothing the aggregate reads.
+     */
+    private static Attribute metricOf(Expression expression, AttributeMap<Expression> definitions) {
+        return switch (expression) {
+            case Attribute attr when attr.isMetric() -> attr;
+            case Attribute attr -> {
+                Expression definition = definitions.get(attr);
+                yield definition == null ? null : metricOf(definition, definitions);
+            }
+            case ToGauge toGauge -> metricOf(toGauge.field(), definitions);
+            case ToCounter toCounter -> metricOf(toCounter.field(), definitions);
+            default -> null;
+        };
     }
 
     /**

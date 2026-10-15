@@ -1,6 +1,6 @@
 Limit[10000[INTEGER],false,false]
 \_Limit[5[INTEGER],false,false]
-  \_ViewUnionAll[[null, unnamed_view_1]]
+  \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
     |_Project[[color{f}#0, hex_code{f}#1, id{f}#2, primary{f}#3, rgb_byte_vector{f}#4, rgb_vector{f}#5, _score{r}#6]]
     | \_Eval[[null[DOUBLE] AS _score#6]]
     |   \_EsRelation[colors][color{f}#0, hex_code{f}#1, id{f}#2, primary{f}#3, rgb_byte_vector{f}#4, rgb_vector{f}#5]

@@ -1,7 +1,7 @@
 Project[[@timestamp{r}#0, client_ip{r}#1, event_duration{r}#2, message{r}#3, does_not_exist{r}#4, d{r}#5]]
 \_Eval[[TODEGREES(event_duration{r}#2) AS d#5]]
   \_Limit[1000[INTEGER],false,false]
-    \_ViewUnionAll[[unnamed_view_2, unnamed_view_1, unnamed_view_2~2]]
+    \_BranchPlan[[unnamed_view_2=SUBQUERY, unnamed_view_1=SUBQUERY, unnamed_view_2~2=SUBQUERY]]
       |_Project[[@timestamp{f}#6, client_ip{f}#7, event_duration{f}#8, $$event_duration$converted_to$double{r$}#9, message{f}#10, does_not_exist{f(MissingEsField)}#11]]
       | \_Filter[$$event_duration$converted_to$double{r$}#9 > 0[INTEGER] OR ISNOTNULL(does_not_exist{f(MissingEsField)}#11)]
       |   \_Eval[[TODOUBLE(event_duration{f}#8) AS $$event_duration$converted_to$double#9]]

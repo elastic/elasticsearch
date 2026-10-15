@@ -1,5 +1,5 @@
 Limit[1000[INTEGER],false,false]
-\_ViewUnionAll[[unnamed_view_1, unnamed_view_2]]
+\_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY]]
   |_Project[[language_code{f}#0, language_name{f}#1, does_not_exist1{f(PotentiallyUnmappedKeywordEsField)}#2, @timestamp{r}#3, client_ip{r}#4, event_duration{r}#5, message{f(PotentiallyUnmappedKeywordEsField)}#6, _unmapped_fields{m}#7]]
   | \_Eval[[TODATETIME(@timestamp{f(PotentiallyUnmappedKeywordEsField)}#8) AS @timestamp#3, TO_IP(client_ip{f(PotentiallyUnmappedKeywordEsField)}#9) AS client_ip#4, TOLONG(event_duration{f(PotentiallyUnmappedKeywordEsField)}#10) AS event_duration#5]]
   |   \_Filter[TOLONG(does_not_exist1{f(PotentiallyUnmappedKeywordEsField)}#2) > 1[INTEGER]]

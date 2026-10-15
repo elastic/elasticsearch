@@ -3,7 +3,7 @@ Project[[!avg_worked_seconds, birth_date{r}#0, !first_name, !gender, height{r}#1
   \_OrderBy[[Order[emp_no{r}#16,ASC,LAST]]]
     \_Filter[emp_no{r}#16 > 10000[INTEGER]]
       \_Eval[[$$emp_no$converted_to$long{r$}#17 AS emp_no#16]]
-        \_ViewUnionAll[[null, unnamed_view_1]]
+        \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
           |_Project[[avg_worked_seconds{r}#18, birth_date{f}#19, emp_no{r}#20, $$emp_no$converted_to$long{r$}#21, first_name{r}#22, gender{r}#23, height{f}#24, height.float{f}#25, height.half_float{f}#26, height.scaled_float{f}#27, hire_date{r}#28, is_rehired{r}#29, job_positions{r}#30, languages{f}#31, languages.byte{f}#32, languages.long{f}#33, languages.short{f}#34, last_name{r}#35, salary{r}#36, salary_change{f}#37, salary_change.int{f}#38, salary_change.keyword{f}#39, salary_change.long{f}#40, still_hired{r}#41, height.double{r}#42, languages.int{r}#43]]
           | \_Eval[[null[KEYWORD] AS avg_worked_seconds#18, null[KEYWORD] AS emp_no#20, null[KEYWORD] AS first_name#22, null[KEYWORD] AS gender#23, TODATENANOS(hire_date{f}#44) AS hire_date#28, null[KEYWORD] AS is_rehired#29, null[KEYWORD] AS job_positions#30, null[KEYWORD] AS last_name#35, null[KEYWORD] AS salary#36, null[KEYWORD] AS still_hired#41]]
           |   \_Eval[[TOLONG(emp_no{f}#45) AS $$emp_no$converted_to$long#21]]

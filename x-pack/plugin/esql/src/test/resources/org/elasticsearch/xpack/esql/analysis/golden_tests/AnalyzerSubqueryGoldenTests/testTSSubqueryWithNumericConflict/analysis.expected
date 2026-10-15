@@ -1,5 +1,5 @@
 Limit[10000[INTEGER],false,false]
-\_ViewUnionAll[[unnamed_view_1, unnamed_view_2]]
+\_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY]]
   |_Project[[m{r}#0, @timestamp{r}#1, client_ip{r}#2, event_duration{r}#3, message{r}#4]]
   | \_Eval[[null[KEYWORD] AS m#0]]
   |   \_Eval[[null[DATETIME] AS @timestamp#1, null[IP] AS client_ip#2, null[LONG] AS event_duration#3, null[KEYWORD] AS message#4]]

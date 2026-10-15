@@ -1,6 +1,6 @@
 Limit[1000[INTEGER],false,false]
 \_Project[[@timestamp{r}#0]]
-  \_ViewUnionAll[[null, main, unnamed_view_1~1, unnamed_view_1~2]]
+  \_BranchPlan[[null=INDEX, main=INDEX, unnamed_view_1~1=SUBQUERY, unnamed_view_1~2=SUBQUERY]]
     |_Project[[@timestamp{r}#1, client_ip{f}#2, event_duration{f}#3, message{f}#4, _fork{r}#5]]
     | \_Eval[[TODATENANOS(@timestamp{f}#6) AS @timestamp#1]]
     |   \_Eval[[null[KEYWORD] AS _fork#5]]

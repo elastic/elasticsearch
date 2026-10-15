@@ -1,6 +1,6 @@
 Limit[1000[INTEGER],false,false]
 \_Aggregate[[BUCKET(@timestamp{r}#0,PT1H[TIME_DURATION]) AS m#1],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#2, m{r}#1]]
-  \_ViewUnionAll[[null, unnamed_view_1]]
+  \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
     |_Project[[@timestamp{r}#3, client_ip{f}#4, event_duration{f}#5, message{f}#6]]
     | \_Eval[[TODATENANOS(@timestamp{f}#7) AS @timestamp#3]]
     |   \_EsRelation[sample_data][@timestamp{f}#7, client_ip{f}#4, event_duration{f}#5, message{f}#6]

@@ -1,5 +1,5 @@
 Limit[1000[INTEGER],false,false]
-\_ViewUnionAll[[unnamed_view_1, unnamed_view_2]]
+\_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY]]
   |_Project[[@timestamp{f}#0, client.ip{f}#1, cluster{f}#2, event{f}#3, event_city{f}#4, event_city_boundary{f}#5, event_location{f}#6, event_log{f}#7, event_shape{f}#8, events_received{f}#9, network.bytes_in{f}#10, network.cost{f}#11, network.eth0.currently_connected_clients{f}#12, network.eth0.firmware_version{f}#13, network.eth0.last_up{f}#14, network.eth0.rx{f}#15, network.eth0.tx{f}#16, network.eth0.up{f}#17, network.total_bytes_in{r}#18, network.total_cost{r}#19, pod{f}#20, client_ip{r}#21, event_duration{r}#22, message{r}#23]]
   | \_Eval[[TOLONG(network.total_bytes_in{f}#24) AS network.total_bytes_in#18, TODOUBLE(network.total_cost{f}#25) AS network.total_cost#19]]
   |   \_Eval[[null[IP] AS client_ip#21, null[LONG] AS event_duration#22, null[KEYWORD] AS message#23]]

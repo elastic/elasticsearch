@@ -4,7 +4,7 @@ Project[[!avg_worked_seconds, birth_date{r}#0, !first_name, !gender, height{r}#1
     \_Eval[[$$still_hired$converted_to$keyword{r$}#19 AS still_hired#17, $$is_rehired$converted_to$keyword{r$}#20 AS is_rehired#18]]
       \_Filter[emp_no{r}#16 > 10000[INTEGER]]
         \_Eval[[$$emp_no$converted_to$long{r$}#21 AS emp_no#16]]
-          \_ViewUnionAll[[null, unnamed_view_1]]
+          \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
             |_Project[[avg_worked_seconds{r}#22, birth_date{f}#23, emp_no{r}#24, $$emp_no$converted_to$long{r$}#25, first_name{r}#26, gender{r}#27, height{f}#28, height.float{f}#29, height.half_float{f}#30, height.scaled_float{f}#31, hire_date{r}#32, is_rehired{r}#33, $$is_rehired$converted_to$keyword{r$}#34, job_positions{r}#35, languages{f}#36, languages.byte{f}#37, languages.long{f}#38, languages.short{f}#39, last_name{r}#40, salary{r}#41, salary_change{f}#42, salary_change.int{f}#43, salary_change.keyword{f}#44, salary_change.long{f}#45, still_hired{r}#46, $$still_hired$converted_to$keyword{r$}#47, height.double{r}#48, languages.int{r}#49]]
             | \_Eval[[null[KEYWORD] AS avg_worked_seconds#22, null[KEYWORD] AS emp_no#24, null[KEYWORD] AS first_name#26, null[KEYWORD] AS gender#27, TODATENANOS(hire_date{f}#50) AS hire_date#32, null[KEYWORD] AS is_rehired#33, null[KEYWORD] AS job_positions#35, null[KEYWORD] AS last_name#40, null[KEYWORD] AS salary#41, null[KEYWORD] AS still_hired#46]]
             |   \_Eval[[TOLONG(emp_no{f}#51) AS $$emp_no$converted_to$long#25, TO_STRING(is_rehired{f}#52) AS $$is_rehired$converted_to$keyword#34, TO_STRING(still_hired{f}#53) AS $$still_hired$converted_to$keyword#47]]

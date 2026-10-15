@@ -1,7 +1,7 @@
 Limit[1000[INTEGER],false,false]
 \_InlineStats[]
   \_Aggregate[[language_name{r}#0],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#1, language_name{r}#0]]
-    \_ViewUnionAll[[unnamed_view_2, unnamed_view_1, unnamed_view_2~2]]
+    \_BranchPlan[[unnamed_view_2=SUBQUERY, unnamed_view_1=SUBQUERY, unnamed_view_2~2=SUBQUERY]]
       |_Project[[language_code{f}#2, language_name{f}#3, avg_worked_seconds{r}#4, birth_date{r}#5, emp_no{r}#6, first_name{r}#7, gender{r}#8, height{r}#9, height.float{r}#10, height.half_float{r}#11, height.scaled_float{r}#12, hire_date{r}#13, is_rehired{r}#14, job_positions{r}#15, languages{r}#16, languages.byte{r}#17, languages.long{r}#18, languages.short{r}#19, last_name{r}#20, salary{r}#21, salary_change{r}#22, salary_change.int{r}#23, salary_change.keyword{r}#24, salary_change.long{r}#25, still_hired{r}#26]]
       | \_Eval[[null[LONG] AS avg_worked_seconds#4, null[DATETIME] AS birth_date#5, null[INTEGER] AS emp_no#6, null[KEYWORD] AS first_name#7, null[KEYWORD] AS gender#8, null[DOUBLE] AS height#9, null[DOUBLE] AS height.float#10, null[DOUBLE] AS height.half_float#11, null[DOUBLE] AS height.scaled_float#12, null[DATETIME] AS hire_date#13, null[BOOLEAN] AS is_rehired#14, null[KEYWORD] AS job_positions#15, null[INTEGER] AS languages#16, null[INTEGER] AS languages.byte#17, null[LONG] AS languages.long#18, null[INTEGER] AS languages.short#19, null[KEYWORD] AS last_name#20, null[INTEGER] AS salary#21, null[DOUBLE] AS salary_change#22, null[INTEGER] AS salary_change.int#23, null[KEYWORD] AS salary_change.keyword#24, null[LONG] AS salary_change.long#25, null[BOOLEAN] AS still_hired#26]]
       |   \_EsRelation[languages][language_code{f}#2, language_name{f}#3]

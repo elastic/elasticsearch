@@ -2,7 +2,7 @@ Project[[avg_worked_seconds{r}#0, birth_date{r}#1, emp_no{r}#2, first_name{r}#3,
 \_Limit[1000[INTEGER],false,false]
   \_Filter[emp_no_long{r}#23 > 0[INTEGER]]
     \_Eval[[$$emp_no$converted_to$long{r$}#24 AS emp_no_long#23]]
-      \_ViewUnionAll[[null, unnamed_view_1]]
+      \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
         |_Project[[avg_worked_seconds{f}#25, birth_date{f}#26, emp_no{f}#27, $$emp_no$converted_to$long{r$}#28, first_name{f}#29, gender{f}#30, height{f}#31, height.float{f}#32, height.half_float{f}#33, height.scaled_float{f}#34, hire_date{f}#35, is_rehired{f}#36, job_positions{f}#37, languages{f}#38, languages.byte{f}#39, languages.long{f}#40, languages.short{f}#41, last_name{f}#42, salary{f}#43, salary_change{f}#44, salary_change.int{f}#45, salary_change.keyword{f}#46, salary_change.long{f}#47, still_hired{f}#48]]
         | \_Eval[[TOLONG(emp_no{f}#27) AS $$emp_no$converted_to$long#28]]
         |   \_EsRelation[employees][avg_worked_seconds{f}#25, birth_date{f}#26, emp_no{f}#27, first_name{f}#29, gender{f}#30, height{f}#31, height.float{f}#32, height.half_float{f}#33, height.scaled_float{f}#34, hire_date{f}#35, is_rehired{f}#36, job_positions{f}#37, languages{f}#38, languages.byte{f}#39, languages.long{f}#40, languages.short{f}#41, last_name{f}#42, salary{f}#43, salary_change{f}#44, salary_change.int{f}#45, salary_change.keyword{f}#46, salary_change.long{f}#47, still_hired{f}#48]

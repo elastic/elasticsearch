@@ -1,6 +1,6 @@
 Project[[$$value$converted_to$long{r$}#0 AS l#1, $$value$converted_to$double{r$}#2 AS d#3]]
 \_Limit[10[INTEGER],false,false]
-  \_ViewUnionAll[[unnamed_view_2, unnamed_view_1, unnamed_view_2~2]]
+  \_BranchPlan[[unnamed_view_2=SUBQUERY, unnamed_view_1=SUBQUERY, unnamed_view_2~2=SUBQUERY]]
     |_Project[[value{r}#4, $$value$converted_to$long{r$}#5, $$value$converted_to$double{r$}#6]]
     | \_Eval[[3[LONG] AS $$value$converted_to$long#5, 3.0[DOUBLE] AS $$value$converted_to$double#6]]
     |   \_LocalRelation[[value{r}#4],Page{blocks=[BytesRefVectorBlock[vector=ConstantBytesRefVector[positions=1, value=[33]]]]}]

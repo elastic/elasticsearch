@@ -1,5 +1,5 @@
 Limit[1000[INTEGER],false,false]
-\_ViewUnionAll[[unnamed_view_1, unnamed_view_2, unnamed_view_3]]
+\_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY, unnamed_view_3=SUBQUERY]]
   |_Project[[a{r}#0, b{r}#1, c{r}#2, d{r}#3, e{r}#4, f{r}#5]]
   | \_Eval[[null[KEYWORD] AS c#2, null[BOOLEAN] AS d#3, null[DOUBLE] AS e#4, null[INTEGER] AS f#5]]
   |   \_Row[[1[INTEGER] AS a#0, [10, 20, 30][INTEGER] AS b#1]]

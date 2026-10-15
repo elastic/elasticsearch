@@ -1,6 +1,6 @@
 Limit[10000[INTEGER],false,false]
 \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#0]]
-  \_ViewUnionAll[[null, unnamed_view_1]]
+  \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
     |_Project[[color{f}#1, hex_code{f}#2, id{f}#3, primary{f}#4, rgb_byte_vector{f}#5, rgb_vector{f}#6]]
     | \_EsRelation[colors][color{f}#1, hex_code{f}#2, id{f}#3, primary{f}#4, rgb_byte_vector{f}#5, rgb_vector{f}#6]
     \_Project[[color{f}#7, hex_code{f}#8, id{f}#9, primary{f}#10, rgb_byte_vector{f}#11, rgb_vector{f}#12]]

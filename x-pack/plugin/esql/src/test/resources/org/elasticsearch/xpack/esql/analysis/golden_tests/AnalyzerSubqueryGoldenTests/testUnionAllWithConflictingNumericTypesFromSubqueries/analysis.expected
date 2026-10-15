@@ -1,6 +1,6 @@
 Limit[1000[INTEGER],false,false]
 \_Project[[!emp_no]]
-  \_ViewUnionAll[[null, unnamed_view_1]]
+  \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
     |_Project[[avg_worked_seconds{r}#0, birth_date{f}#1, emp_no{r}#2, first_name{r}#3, gender{r}#4, height{f}#5, height.float{f}#6, height.half_float{f}#7, height.scaled_float{f}#8, hire_date{r}#9, is_rehired{r}#10, job_positions{r}#11, languages{f}#12, languages.byte{f}#13, languages.long{f}#14, languages.short{f}#15, last_name{r}#16, salary{r}#17, salary_change{f}#18, salary_change.int{f}#19, salary_change.keyword{f}#20, salary_change.long{f}#21, still_hired{r}#22, height.double{r}#23, languages.int{r}#24]]
     | \_Eval[[null[KEYWORD] AS avg_worked_seconds#0, null[KEYWORD] AS emp_no#2, null[KEYWORD] AS first_name#3, null[KEYWORD] AS gender#4, TODATENANOS(hire_date{f}#25) AS hire_date#9, null[KEYWORD] AS is_rehired#10, null[KEYWORD] AS job_positions#11, null[KEYWORD] AS last_name#16, null[KEYWORD] AS salary#17, null[KEYWORD] AS still_hired#22]]
     |   \_Eval[[null[DOUBLE] AS height.double#23, null[INTEGER] AS languages.int#24]]

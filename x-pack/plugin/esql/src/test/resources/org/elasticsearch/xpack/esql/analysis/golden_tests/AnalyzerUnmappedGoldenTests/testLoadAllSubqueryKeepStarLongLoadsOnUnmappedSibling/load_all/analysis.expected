@@ -1,5 +1,5 @@
 Limit[1000[INTEGER],false,false]
-\_ViewUnionAll[[unnamed_view_1, unnamed_view_2]]
+\_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY]]
   |_Project[[@timestamp{f}#0, client_ip{f}#1, event_duration{r}#2, message{f}#3, _unmapped_fields{m}#4]]
   | \_Eval[[null[KEYWORD] AS event_duration#2]]
   |   \_EsRelation[partial_mapping_sample_data][@timestamp{f}#0, client_ip{f}#1, event_duration{f}#5, message{f}#3, _unmapped_fields{m}#4]

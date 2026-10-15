@@ -2,7 +2,7 @@ Project[[avg_worked_seconds{r}#0, birth_date{r}#1, emp_no{r}#2, first_name{r}#3,
 \_Limit[1000[INTEGER],false,false]
   \_Eval[[does_not_exist3{r}#27 AS x#28]]
     \_Filter[$$does_not_exist2$converted_to$long{r$}#29 < 10[INTEGER]]
-      \_ViewUnionAll[[null, unnamed_view_1, unnamed_view_2]]
+      \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY]]
         |_Project[[avg_worked_seconds{f}#30, birth_date{f}#31, emp_no{r}#32, first_name{f}#33, gender{f}#34, height{f}#35, height.float{f}#36, height.half_float{f}#37, height.scaled_float{f}#38, hire_date{f}#39, is_rehired{f}#40, job_positions{f}#41, languages{f}#42, languages.byte{f}#43, languages.long{f}#44, languages.short{f}#45, last_name{f}#46, salary{f}#47, salary_change{f}#48, salary_change.int{f}#49, salary_change.keyword{f}#50, salary_change.long{f}#51, still_hired{f}#52, c{r}#53, does_not_exist1{r}#54, a{r}#55, does_not_exist2{f(MissingEsField)}#56, $$does_not_exist2$converted_to$long{r$}#57, does_not_exist3{f(MissingEsField)}#58]]
         | \_Eval[[TOLONG(does_not_exist2{f(MissingEsField)}#56) AS $$does_not_exist2$converted_to$long#57]]
         |   \_Eval[[null[KEYWORD] AS emp_no#32]]

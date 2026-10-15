@@ -426,7 +426,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (newMappingMetadata != null) {
             String type = newMappingMetadata.type();
             CompressedXContent incomingMappingSource = newMappingMetadata.source();
-            MappingBuilder incomingBuilder = mappingParser.parseToBuilder(type, MergeReason.MAPPING_UPDATE, incomingMappingSource);
+            // The master already validated this mapping, including any cluster feature checks, before persisting it in cluster state, and
+            // this runs on the cluster applier thread where the cluster state cannot be read to answer a feature check. So parse it like a
+            // recovered mapping, which assumes all features are supported, as the mapping is built just below.
+            MappingBuilder incomingBuilder = mappingParser.parseToBuilder(type, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;

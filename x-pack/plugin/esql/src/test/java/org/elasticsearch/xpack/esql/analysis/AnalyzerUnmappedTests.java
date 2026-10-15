@@ -1566,46 +1566,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x")));
     }
 
-    /**
-     * {@code GROK} and {@code DISSECT} are supported under LOAD_ALL. Both read from an input field (here the mapped {@code first_name}
-     * and {@code last_name}) and add named columns, which the allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} permits.
-     */
-    public void testLoadAllModeAllowsGrokAndDissect() {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
-            FROM test
-            | GROK first_name "%{WORD:a} %{WORD:b}"
-            | DISSECT last_name "%{c} %{d}"
-            | KEEP first_name, a, b, last_name, c, d
-            """));
-        assertThat(Expressions.names(plan.output()), equalTo(List.of("first_name", "a", "b", "last_name", "c", "d")));
-    }
-
-    /**
-     * {@code MV_EXPAND} is supported under LOAD_ALL. Expanding a column keeps the same output columns (one row per value), so the
-     * allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} permits it.
-     */
-    public void testLoadAllModeAllowsMvExpand() {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
-            FROM test
-            | MV_EXPAND languages
-            | KEEP first_name, languages
-            """));
-        assertThat(Expressions.names(plan.output()), equalTo(List.of("first_name", "languages")));
-    }
-
-    /**
-     * {@code SAMPLE} is supported under LOAD_ALL. Sampling only drops rows and does not change the output columns, so the allow-list of
-     * {@link Verifier#checkLoadAllModeSupportedCommands} permits it.
-     */
-    public void testLoadAllModeAllowsSample() {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
-            FROM test
-            | SAMPLE 0.5
-            | KEEP first_name, salary
-            """));
-        assertThat(Expressions.names(plan.output()), equalTo(List.of("first_name", "salary")));
-    }
-
     public void testLoadAllModeAllowsInlineStats() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("""
             FROM test

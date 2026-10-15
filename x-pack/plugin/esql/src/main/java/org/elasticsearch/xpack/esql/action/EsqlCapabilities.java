@@ -3678,26 +3678,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_FORK(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
-         * Support for {@code GROK} and {@code DISSECT} under {@code unmapped_fields="LOAD_ALL"}. Both read from an input field
-         * (mapped or unmapped) and add named columns; a column shadows the unmapped field of the same name. Only meaningful when
+         * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
+         * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
+         * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}
+         * value across the produced rows, while expanding an unmapped field by name promotes it to a real column. {@code SAMPLE} only
+         * drops rows, so {@code _unmapped_fields} is carried through unchanged. Only meaningful when
          * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/157189.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_GROK_DISSECT(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
-
-        /**
-         * Support for {@code MV_EXPAND} under {@code unmapped_fields="LOAD_ALL"}. Expanding a mapped multivalued field repeats the
-         * {@code _unmapped_fields} value across the produced rows; expanding an unmapped field by name promotes it to a real column,
-         * shadowing it out of {@code _unmapped_fields}. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
-         * See https://github.com/elastic/elasticsearch/issues/157189.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_MV_EXPAND(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
-
-        /**
-         * Support for {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}. Sampling only drops rows, so the {@code _unmapped_fields}
-         * column is carried through unchanged on the surviving rows. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is
-         * available. See https://github.com/elastic/elasticsearch/issues/157189.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_SAMPLE(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_GROK_DISSECT_MV_EXPAND_SAMPLE(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},

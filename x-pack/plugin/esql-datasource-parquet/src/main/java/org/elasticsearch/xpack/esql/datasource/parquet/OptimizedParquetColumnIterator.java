@@ -873,7 +873,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         if (rowGroupDominatedByThreshold(granted.block)) {
             discardUnusedGrant(granted);
-            signalReady();
+            if (closed.get() || ticketAbandoned.get() || exhausted) {
+                // close() already published DONE; setPhase(DECODING) would overwrite it.
+                signalReady();
+                return;
+            }
+            // Unpark waiters so advanceRowGroup can skip this group. Bare signalReady() leaves
+            // GROUP_TICKET_PENDING / OPEN_PENDING and waitForReady parks with nothing outstanding.
+            setPhase(ReadinessPhase.DECODING);
             return;
         }
         boolean reserved = true;
@@ -1249,6 +1256,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
         }
         return emitReadyPage();
+    }
+
+    @Override
+    public boolean isExhausted() {
+        throwIfFailed();
+        return closed.get() || exhausted || budgetExhausted();
     }
 
     private boolean budgetExhausted() {

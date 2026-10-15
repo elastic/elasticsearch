@@ -291,7 +291,7 @@ public class SliceCompositeIdIT extends ESIntegTestCase {
         assertThat(missing.getFailure(), not(equalTo(null)));
         assertThat(
             missing.getFailure().getFailure().getMessage(),
-            containsString("[slice] is required when [index.slice.enabled] is true")
+            containsString("[_slice] is required when [index.slice.enabled] is true")
         );
     }
 

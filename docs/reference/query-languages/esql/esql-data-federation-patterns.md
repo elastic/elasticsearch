@@ -262,7 +262,6 @@ Writing `"resource": "s3://logs-bucket/access/{year}/*.parquet"` instead would r
 [`partition_spec`](esql-data-federation-partition-spec.md).
 
 ### Exclude non-data objects
-
 ```{applies_to}
 stack: experimental 9.6+
 ```

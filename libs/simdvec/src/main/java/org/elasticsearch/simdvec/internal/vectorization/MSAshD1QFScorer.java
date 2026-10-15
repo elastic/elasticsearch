@@ -15,9 +15,9 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.internal.BufferScratch;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -42,7 +42,7 @@ final class MSAshD1QFScorer implements AshScorer<float[]> {
     private final IndexInput in;
     private final int nDims;
     private final int planeBytes;
-    private final BufferScratch scratch = new BufferScratch();
+    private final SegmentBufferScratch scratch = new SegmentBufferScratch();
 
     MSAshD1QFScorer(IndexInput in, int nDims, int planeBytes) {
         this.in = in;

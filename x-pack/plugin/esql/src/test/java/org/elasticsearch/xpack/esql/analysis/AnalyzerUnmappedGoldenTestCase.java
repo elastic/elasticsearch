@@ -73,9 +73,7 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
     @Override
     protected List<String> filteredWarnings() {
         var filtered = new ArrayList<>(super.filteredWarnings());
-        filtered.add(
-            "has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
-        );
+        filtered.add("no implicit conversion from KEYWORD; ");
         return filtered;
     }
 }

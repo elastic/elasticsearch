@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.function.LongSupplier;
 
 /**
  * Node-wide cache for file footer bytes (Parquet footers, ORC postscripts) shared across columnar
@@ -150,6 +151,16 @@ public class FooterByteCache {
     }
 
     FooterByteCache(long maxBytes, long maxEntryBytes, TimeValue expireAfterAccess) {
+        this(maxBytes, maxEntryBytes, expireAfterAccess, System::nanoTime);
+    }
+
+    /**
+     * Creates a cache that expires against {@code relativeTimeProvider} rather than {@link System#nanoTime()}. Only a
+     * test for the expiry policy itself has reason to pass one: stepping the time source asserts where an entry stands
+     * relative to its TTL without sleeping for it, and without the assertion depending on whether the host paused the
+     * test for longer than the TTL.
+     */
+    FooterByteCache(long maxBytes, long maxEntryBytes, TimeValue expireAfterAccess, LongSupplier relativeTimeProvider) {
         this.maxEntryBytes = maxEntryBytes;
         this.expireAfterAccess = expireAfterAccess;
         long accessNanos = expireAfterAccess.nanos();
@@ -159,6 +170,7 @@ public class FooterByteCache {
             .setMaximumWeight(maxBytes)
             .setExpireAfterAccess(expireAfterAccess)
             .setExpireAfterWrite(expireAfterWrite)
+            .setRelativeTimeProvider(relativeTimeProvider)
             .weigher((key, value) -> value.length)
             .build();
     }

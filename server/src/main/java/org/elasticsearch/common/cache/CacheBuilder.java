@@ -12,6 +12,7 @@ package org.elasticsearch.common.cache;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
+import java.util.function.LongSupplier;
 import java.util.function.ToLongBiFunction;
 
 public class CacheBuilder<K, V> {
@@ -20,6 +21,7 @@ public class CacheBuilder<K, V> {
     private long expireAfterWriteNanos = -1;
     private ToLongBiFunction<K, V> weigher;
     private RemovalListener<K, V> removalListener;
+    private LongSupplier relativeTimeProvider;
 
     public static <K, V> CacheBuilder<K, V> builder() {
         return new CacheBuilder<>();
@@ -79,6 +81,19 @@ public class CacheBuilder<K, V> {
         return this;
     }
 
+    /**
+     * Sets the source of relative time the cache expires against, in nanoseconds, in place of {@link System#nanoTime()}.
+     * This exists for tests of an expiry policy: a stepped time source expires entries where the test says so, so the
+     * test neither sleeps for a TTL nor fails because the host paused it for one. Production code leaves it unset.
+     *
+     * @param relativeTimeProvider a source of monotonically non-decreasing nanosecond timestamps. Must not be {@code null}.
+     */
+    public CacheBuilder<K, V> setRelativeTimeProvider(LongSupplier relativeTimeProvider) {
+        Objects.requireNonNull(relativeTimeProvider);
+        this.relativeTimeProvider = relativeTimeProvider;
+        return this;
+    }
+
     public Cache<K, V> build() {
         Cache<K, V> cache = new Cache<>();
         if (maximumWeight != -1) {
@@ -95,6 +110,9 @@ public class CacheBuilder<K, V> {
         }
         if (removalListener != null) {
             cache.setRemovalListener(removalListener);
+        }
+        if (relativeTimeProvider != null) {
+            cache.setRelativeTimeProvider(relativeTimeProvider);
         }
         return cache;
     }

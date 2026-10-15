@@ -12,6 +12,8 @@ package org.elasticsearch.common.cache;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 import static org.hamcrest.Matchers.containsString;
 
 public class CacheBuilderTests extends ESTestCase {
@@ -40,5 +42,24 @@ public class CacheBuilderTests extends ESTestCase {
         final TimeValue timeValue = randomPositiveTimeValue();
         Cache<Object, Object> cache = CacheBuilder.builder().setExpireAfterWrite(timeValue).build();
         assertEquals(timeValue.getNanos(), cache.getExpireAfterWriteNanos());
+    }
+
+    public void testSettingRelativeTimeProvider() {
+        expectThrows(NullPointerException.class, () -> CacheBuilder.builder().setRelativeTimeProvider(null));
+
+        final TimeValue expireAfterAccess = TimeValue.timeValueMinutes(5);
+        final AtomicLong relativeTimeNanos = new AtomicLong();
+        Cache<String, String> cache = CacheBuilder.<String, String>builder()
+            .setExpireAfterAccess(expireAfterAccess)
+            .setRelativeTimeProvider(relativeTimeNanos::get)
+            .build();
+
+        cache.put("key", "value");
+        relativeTimeNanos.addAndGet(expireAfterAccess.getNanos());
+        assertEquals("the entry is served while the supplied time stays within the TTL", "value", cache.get("key"));
+
+        // The read above renewed the entry at that instant, so expiry is a further TTL away from there.
+        relativeTimeNanos.addAndGet(expireAfterAccess.getNanos() + 1);
+        assertNull("the cache expires against the supplied time rather than the wall clock", cache.get("key"));
     }
 }

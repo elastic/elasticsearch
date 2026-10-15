@@ -57,14 +57,39 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
     }
 
     public void testQueueTime() {
-        assertEquals(0L, shardSearchStatsListener.queueTimeCount());
+        assertEquals(0.0, shardSearchStatsListener.queueTimeTaskCount(), 0.0);
         assertEquals(0L, shardSearchStatsListener.totalQueueTimeInNanos());
 
         shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
         shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toNanos(2 * TEN_MILLIS));
 
-        assertEquals(2L, shardSearchStatsListener.queueTimeCount());
+        assertEquals(2.0, shardSearchStatsListener.queueTimeTaskCount(), 1e-9);
         assertEquals(TimeUnit.MILLISECONDS.toNanos(3 * TEN_MILLIS), shardSearchStatsListener.totalQueueTimeInNanos());
+    }
+
+    /** A task shared by several shards adds its wait and one task in total across them, so means stay exact. */
+    public void testQueueTimeShare() {
+        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+        ShardSearchStats shardA = shardSearchStatsListener;
+        ShardSearchStats shardB = new ShardSearchStats(new SearchStatsSettings(clusterSettings));
+
+        // a 40 ms task shared by 2 shards, and a 20 ms task on shard A only
+        long sharedWait = TimeUnit.MILLISECONDS.toNanos(40);
+        shardA.onQueueTimeShare(sharedWait, 2);
+        shardB.onQueueTimeShare(sharedWait, 2);
+        shardA.onQueueTime(TimeUnit.MILLISECONDS.toNanos(20));
+
+        assertEquals(1.5, shardA.queueTimeTaskCount(), 1e-9);
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(40), shardA.totalQueueTimeInNanos());
+        assertEquals(0.5, shardB.queueTimeTaskCount(), 1e-9);
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(20), shardB.totalQueueTimeInNanos());
+
+        assertEquals("tasks add up across shards", 2.0, shardA.queueTimeTaskCount() + shardB.queueTimeTaskCount(), 1e-9);
+        assertEquals(
+            "waits add up across shards",
+            TimeUnit.MILLISECONDS.toNanos(60),
+            shardA.totalQueueTimeInNanos() + shardB.totalQueueTimeInNanos()
+        );
     }
 
     public void testDfsPhase() {

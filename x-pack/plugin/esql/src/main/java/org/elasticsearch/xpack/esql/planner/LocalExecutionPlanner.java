@@ -3016,7 +3016,7 @@ public class LocalExecutionPlanner {
             var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
             // node_reduce shares the shard contexts but does not read them
             if (description.equals(ComputeService.DATA_DESCRIPTION) && shardContexts.isEmpty() == false) {
-                driverContext.setQueueTimeListener(recordQueueTimeForAllShards(shardContexts));
+                driverContext.setQueueTimeListener(shareQueueTimeAcrossShards(shardContexts));
             }
             try {
                 source = physicalOperation.source(driverContext);
@@ -3046,10 +3046,10 @@ public class LocalExecutionPlanner {
         }
 
         /**
-         * A data driver reads slices from a queue shared by all the shards of its batch, so each wait is recorded in full for every
-         * shard. Per shard means are right, but sums over shards count a wait once per shard.
+         * A data driver reads slices from a queue shared by all the shards of its batch, so each wait is shared evenly between them,
+         * and sums over the shards add up to the wait and to one task.
          */
-        private static LongConsumer recordQueueTimeForAllShards(IndexedByShardId<? extends ShardContext> shardContexts) {
+        private static LongConsumer shareQueueTimeAcrossShards(IndexedByShardId<? extends ShardContext> shardContexts) {
             final ShardSearchStats[] stats = new ShardSearchStats[shardContexts.size()];
             int i = 0;
             for (ShardContext shardContext : shardContexts.iterable()) {
@@ -3057,7 +3057,7 @@ public class LocalExecutionPlanner {
             }
             return queueTimeNanos -> {
                 for (ShardSearchStats shardStats : stats) {
-                    shardStats.onQueueTime(queueTimeNanos);
+                    shardStats.onQueueTimeShare(queueTimeNanos, stats.length);
                 }
             };
         }

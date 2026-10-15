@@ -36,6 +36,7 @@ import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.PageBudget;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
@@ -102,17 +103,28 @@ public class ColumnarTermsCollectionBenchmark {
     private static final String FIELD = "kw";
 
     /**
-     * Distinct values in the field. 5 is a version string. The larger one is where a page repeats little and a
-     * dictionary has less to save.
+     * Distinct values in the field. 5 is a version string and 100 a service name. From about 5,000 a page repeats little
+     * and a dictionary has less to save.
      */
-    @Param({ "5", "100" })
+    @Param({ "5", "100", "1000", "5000" })
     private int distinctValues;
 
-    @Param({ "2000000" })
+    /**
+     * How often each value is drawn. {@code skewed}: a few values are common and there is a long tail, with the most
+     * common taking {@code 1 / sqrt(distinctValues)} of the draws. {@code uniform}: all alike, which is the worst case
+     * for a page, since it repeats the least.
+     */
+    @Param({ "skewed", "uniform" })
+    private String distribution;
+
+    @Param({ "1000000" })
     private int docCount;
 
-    /** {@code single}: one value a document. {@code multi}: one in ten holds two or three, some repeated. */
-    @Param({ "single", "multi" })
+    /**
+     * Values in a document. {@code single}: one. {@code multi2}: one to three, picked at random. A value is drawn from the
+     * vocabulary each time, so a document can hold one more than once.
+     */
+    @Param({ "single", "multi2" })
     private String arity;
 
     /**
@@ -127,7 +139,7 @@ public class ColumnarTermsCollectionBenchmark {
     @Param({ "4096" })
     private int pageDocs;
 
-    /** Fewest documents a batch needs to be read as a page. Zero is what the collector chooses for the column. */
+    /** Fewest documents a batch needs to be read as a page. Zero reads every batch as a page. */
     @Param({ "0" })
     private int minPageDocs;
 
@@ -167,6 +179,18 @@ public class ColumnarTermsCollectionBenchmark {
         if (reader.leaves().size() != 1) {
             throw new IllegalStateException("expected one segment, found " + reader.leaves().size());
         }
+        // Which reader serves the column decides what a page is made of, so say which it is.
+        final StringColumnReader column = ColumnarPayloadSortableBinaryDocValues.from(reader.leaves().get(0).reader(), FIELD)
+            .columnSource()
+            .reader();
+        System.out.println(
+            "columnar reader "
+                + column.getClass().getSimpleName()
+                + ", dictionary size "
+                + column.dictionarySize()
+                + ", value addresses "
+                + column.hasValueAddresses()
+        );
         searcher = new IndexSearcher(reader);
         // A cached result would be collected without the scorer that produces the streams being measured.
         searcher.setQueryCache(null);
@@ -220,9 +244,7 @@ public class ColumnarTermsCollectionBenchmark {
                         if (pages == false) {
                             return perDocument;
                         }
-                        return minPageDocs == 0
-                            ? new ColumnarPageTermsCollector(values.columnSource().reader(), buckets, perDocument)
-                            : new ColumnarPageTermsCollector(values.columnSource().reader(), buckets, perDocument, minPageDocs);
+                        return new ColumnarPageTermsCollector(values.columnSource().reader(), buckets, perDocument, minPageDocs);
                     }
 
                     @Override
@@ -263,16 +285,19 @@ public class ColumnarTermsCollectionBenchmark {
 
     /** A document's value or values, skewed towards the first few of the vocabulary as a real field is. */
     private BytesRef payload(Random random) {
-        final int slots = arity.equals("multi") && random.nextInt(10) == 0 ? 2 + random.nextInt(2) : 1;
+        final int slots = switch (arity) {
+            case "single" -> 1;
+            case "multi2" -> 1 + random.nextInt(3);
+            default -> throw new IllegalStateException("unknown arity [" + arity + "]");
+        };
         final List<BytesRef> values = new ArrayList<>(slots);
         for (int s = 0; s < slots; s++) {
-            // A repeat of the previous slot now and then, which a document holding a value twice does.
-            if (s > 0 && random.nextInt(4) == 0) {
-                values.add(values.get(s - 1));
-            } else {
-                final int index = (int) (distinctValues * Math.pow(random.nextDouble(), 2.0));
-                values.add(new BytesRef("9." + index / 100 + "." + index % 100));
-            }
+            final int index = switch (distribution) {
+                case "skewed" -> (int) (distinctValues * Math.pow(random.nextDouble(), 2.0));
+                case "uniform" -> random.nextInt(distinctValues);
+                default -> throw new IllegalStateException("unknown distribution [" + distribution + "]");
+            };
+            values.add(new BytesRef("9." + index / 100 + "." + index % 100));
         }
         return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(values));
     }

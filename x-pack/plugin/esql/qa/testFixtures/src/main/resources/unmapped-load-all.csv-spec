@@ -5833,3 +5833,46 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""unmapped_message"":""Disconnected from 10.1.0.1""}" | CONNECTED TO 10.1.0.1!
 2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""unmapped_message"":""Disconnected from 10.1.0.1""}" | Connected to 10.1.0.1!
 ;
+
+###############################################
+# SAMPLE under LOAD_ALL (#157189)             #
+###############################################
+
+// SAMPLE only drops rows, so _unmapped_fields is carried through unchanged. A probability of (almost) 1 keeps every row, which makes
+// the output deterministic - the same loose-sampling trick the dedicated sample.csv-spec tests use.
+sampleKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_sample
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| SAMPLE .9999999999999999
+| SORT @timestamp
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232 | Connected to 10.1.0.3! | "{""language_code"":""4"",""unmapped_event_duration"":""3450234"",""unmapped.nested"":""g"",""unmapped_message"":""Disconnected from 10.1.0.3""}"
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888 | Connected to 10.1.0.2! | "{""language_code"":""3"",""unmapped_event_duration"":""2764890"",""unmapped.nested"":""f"",""unmapped_message"":""Disconnected from 10.1.0.2""}"
+2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | "{""language_code"":""2"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""unmapped_message"":""43""}"
+2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | "{""language_code"":""1"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d"",""unmapped_message"":""Disconnection error""}"
+2024-10-23T13:52:55.015Z | 173.21.3.15 | 8268152 | Connection error? | "{""language_code"":""3"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c"",""unmapped_message"":""Disconnection error""}"
+2024-10-23T13:53:55.832Z | 173.21.3.15 | 5033754 | Connection error? | "{""language_code"":""2"",""unmapped_event_duration"":""5033756"",""unmapped.nested"":""b"",""unmapped_message"":""Disconnection error""}"
+2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""language_code"":""1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""unmapped_message"":""Disconnected from 10.1.0.1""}"
+;
+
+// SAMPLE composes with the rest of the pipeline: an (almost) full sample followed by a WHERE on a mapped field and a KEEP that names an
+// unmapped field.
+sampleComposesWithPipeline
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_sample
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| SAMPLE .9999999999999999
+| WHERE message == "42"
+| KEEP @timestamp, unmapped_message
+;
+
+@timestamp:datetime | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 43
+;

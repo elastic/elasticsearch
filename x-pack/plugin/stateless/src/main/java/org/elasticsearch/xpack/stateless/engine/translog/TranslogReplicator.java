@@ -452,6 +452,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private final BlobTranslogFileImpl translogFile;
         private final RefCounted bytesToClose;
         private int uploadTryNumber = 0;
+        private static final long UNSET = -1L;
         private long firstAttemptStartMillis;
         private volatile boolean isUploaded = false;
 
@@ -488,6 +489,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     translog.bytes().data(),
                     ActionListener.releaseAfter(ActionListener.wrap(unused -> {
                         logger.debug(() -> format("uploaded translog file [%s]", translog.metadata().name()));
+                        assert uploadTryNumber >= 1 && firstAttemptStartMillis != UNSET; // just have an assert in case of a bug
                         translogUploadAttemptsHistogram.record(uploadTryNumber);
                         translogUploadTotalDurationHistogram.record(threadPool.relativeTimeInMillis() - firstAttemptStartMillis);
                         listener.onResponse(this);

@@ -30,6 +30,10 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "view-index");
             }
+            try (var response = run(syncEsqlQueryRequest("FROM test-view,-view-index"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "view-index"); // exclusion is not carried into inner view
+            }
         }
     }
 
@@ -53,9 +57,25 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 assertOk(response);
                 assertResultConcreteIndices(response, "test-index", "view-index"); // views are opt in
             }
-            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*,-view-*"))) {
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*,-test-view"))) {
                 assertOk(response);
-                assertResultConcreteIndices(response, "test-index"); // views can be excluded
+                assertResultConcreteIndices(response, "test-index"); // views can be excluded using concrete expression
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*,-*-view"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index"); // views can be excluded using wildcard expression
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*,-*-index"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "view-index"); // index can be excluded using wildcard expression
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*,-view-index"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");// does not exclude inner index by concrete expression
+            }
+            try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM test-*,-view-index"))) {
+                assertOk(response);
+                assertResultConcreteIndices(response, "test-index", "view-index");// does not exclude inner index by wildcard expression
             }
         }
     }

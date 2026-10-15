@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
@@ -175,6 +177,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -270,6 +273,72 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields().size(), equalTo(1));
         assertThat(eval.fields().get(0).child(), instanceOf(Score.class));
+    }
+
+    public void testScorePredicateStaysWithRuntimeSearch() {
+        String prefix = "from test metadata _score | eval t = to_text(concat(first_name, last_name)) | ";
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "where match(t, \"cat\") and _score > 1.5 | keep _score"));
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "where match(t, \"cat\") | where _score > 1.5 | keep _score"));
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "where _score < 0.5 | where match(t, \"cat\") | keep _score"));
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "where match(t, \"cat\") | eval s = _score | where s > 1.5 | keep s"));
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "where match(t, \"cat\") | rename _score as s | where s > 1.5 | keep s"));
+    }
+
+    public void testScoreCopiedBeforeRuntimeSearchStaysWithIt() {
+        String prefix = "from test metadata _score | eval t = to_text(concat(first_name, last_name)), s = _score | ";
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "where s < 0.5 | where match(t, \"cat\") | keep s"));
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "where s < 0.5 and match(t, \"cat\") | keep s"));
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "where match(t, \"cat\") | where s > 1.5 | keep s"));
+
+        String renamed = "from test metadata _score | eval t = to_text(concat(first_name, last_name)) | rename _score as s | ";
+        assertScoreFilteredWithRuntimeSearch(plan(renamed + "where s < 0.5 | where match(t, \"cat\") | keep s"));
+        assertScoreFilteredWithRuntimeSearch(plan(renamed + "where s < 0.5 and match(t, \"cat\") | keep s"));
+    }
+
+    public void testScorePredicateUnderSimplifiableBooleansStaysWithRuntimeSearch() {
+        String prefix = "from test metadata _score | eval t = to_text(concat(first_name, last_name)) | where ";
+        String scored = "(match(t, \"cat\") and _score > 1.5)";
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "not (not " + scored + ") | keep _score"));
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + scored + " == true | keep _score"));
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + scored + " or false | keep _score"));
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + scored + " or (1 == 2) | keep _score"));
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + scored + " or (match(t, \"cat\") and emp_no == 10001) | keep _score"));
+    }
+
+    public void testScorePredicateStaysWithRuntimeSearchAfterFork() {
+        String prefix = "from test metadata _score | eval t = to_text(concat(first_name, last_name)) "
+            + "| fork (where emp_no > 10010) (where emp_no <= 10010) | ";
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "where match(t, \"cat\") and _score > 1.5 | keep _score"));
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "where match(t, \"cat\") | where _score > 1.5 | keep _score"));
+    }
+
+    public void testScorePredicateStaysWithRuntimeSearchAfterSubqueries() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String t = " | eval t = to_text(concat(first_name, last_name))";
+        String prefix = "from (from test metadata _score | where emp_no > 10010"
+            + t
+            + "), (from test metadata _score | where emp_no <= 10010"
+            + t
+            + ") | ";
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "where match(t, \"cat\") and _score > 1.5 | keep _score"));
+        assertScoreFilteredWithRuntimeSearch(plan(prefix + "where match(t, \"cat\") | where _score > 1.5 | keep _score"));
+    }
+
+    /**
+     * Asserts that every filter holding a runtime search also holds the predicate on {@code _score}, rather than having
+     * it pushed below the search, where it would see the score from before it.
+     */
+    private static void assertScoreFilteredWithRuntimeSearch(LogicalPlan plan) {
+        Predicate<LogicalPlan> scoreFilter = p -> p instanceof Filter f && f.condition().anyMatch(MetadataAttribute::isScoreAttribute);
+        List<Filter> searches = plan.collect(
+            Filter.class,
+            f -> f.condition().anyMatch(e -> e instanceof FullTextFunction ftf && ftf.isRuntimeSearch() && ftf.contributesToScore())
+        );
+        assertThat(plan.toString(), searches, not(empty()));
+        for (Filter search : searches) {
+            assertTrue(plan.toString(), scoreFilter.test(search));
+            assertFalse(plan.toString(), search.child().anyMatch(scoreFilter));
+        }
     }
 
     public void testEmptyProjections() {

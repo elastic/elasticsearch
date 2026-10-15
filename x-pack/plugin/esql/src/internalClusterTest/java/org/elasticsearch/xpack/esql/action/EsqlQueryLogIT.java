@@ -44,13 +44,10 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.VIEW_RESOLUTI
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_TYPE;
-import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_QUERY;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_SUCCESS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS;
-import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX;
-import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -206,13 +203,11 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
                             INFERENCE_RESOLUTION,
                             ANALYSIS
                         )) {
-                            long timingTook = Long.valueOf(
-                                msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timing + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX)
-                            );
+                            // Spelled out rather than rebuilt from ELASTICSEARCH_QUERYLOG_PREFIX so that a
+                            // missing separator cannot pass unnoticed on both sides.
+                            long timingTook = Long.valueOf(msg.get("elasticsearch.querylog." + timing + ".took"));
                             long timingTookMillisExpected = timingTook / 1_000_000;
-                            long timingTookMillis = Long.valueOf(
-                                msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timing + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX)
-                            );
+                            long timingTookMillis = Long.valueOf(msg.get("elasticsearch.querylog." + timing + ".took_millis"));
                             assertThat(timingTook, greaterThanOrEqualTo(0L));
                             assertThat(timingTookMillis, is(timingTookMillisExpected));
                             assertThat(took, greaterThan(timingTook));

@@ -40,12 +40,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_QUERY;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS;
-import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX;
-import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -126,15 +123,14 @@ public class EsqlQueryLogTests extends ESTestCase {
                 assertThat(took, is(actualTook[i]));
                 assertThat(tookMillis, is(tookMillisExpected));
 
-                // Checks values for all planning timespans
+                // Checks values for all planning timespans. The key is spelled out rather than rebuilt from
+                // ELASTICSEARCH_QUERYLOG_PREFIX so that a missing separator cannot pass unnoticed on both sides.
                 for (TimeSpanMarker timeSpan : warnQuery.queryProfile().timeSpanMarkers()) {
-                    String tookValue = msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX);
+                    String tookValue = msg.get("elasticsearch.querylog." + timeSpan.name() + ".took");
                     assertNotNull(tookValue);
                     Long timeSpanTook = Long.valueOf(tookValue);
                     long timeSpanTookMillisExpected = timeSpanTook / 1_000_000;
-                    String tookValueMillis = msg.get(
-                        ELASTICSEARCH_QUERYLOG_PREFIX + timeSpan.name() + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX
-                    );
+                    String tookValueMillis = msg.get("elasticsearch.querylog." + timeSpan.name() + ".took_millis");
                     assertNotNull(tookValueMillis);
                     long timeSpanTookMillis = Long.valueOf(tookValueMillis);
                     assertThat(timeSpanTookMillis, is(timeSpanTookMillisExpected));

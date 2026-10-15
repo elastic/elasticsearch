@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.anonymizer;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -19,10 +21,13 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -71,6 +76,36 @@ public final class PlanAnonymizer {
         String schema = schemaSource == null ? "" : renderSchema(schemaSource);
 
         return new AnonymizedPlans(schema, parsedText, analyzedText, optimizedText, physicalText);
+    }
+
+    /**
+     * Renders the settings the user supplied, one {@code name=value} per line, tagged with the surface
+     * it arrived on. A setting whose value domain is closed — an enum constant, a boolean, a number, per
+     * {@link QuerySettings#hasClosedValueDomain} — is emitted verbatim, because it cannot carry user data
+     * and is what failure triage actually needs to see (for instance {@code unmapped_fields=LOAD_ALL}).
+     * Every other value is user-supplied text and goes through the per-submission literal tokens, so two
+     * settings sharing a value still visibly share a token without the value itself leaking.
+     * <p>Returns the empty string when no settings were supplied, so the caller can omit the section.
+     */
+    public String anonymizeSettings(List<QuerySettings.SuppliedSetting> settings) {
+        StringBuilder sb = new StringBuilder();
+        for (QuerySettings.SuppliedSetting setting : settings) {
+            QuerySettingDef<?> def = QuerySettings.lookup(setting.name());
+            // An in-query SET carries the value as an unresolved expression; resolution to the setting's
+            // own type happens later, so a literal is unwrapped here to compare like with like.
+            Object value = setting.value() instanceof Literal literal ? literal.value() : setting.value();
+            // An unknown name reaches here only if the catalog and the parser disagree; anonymize it
+            // rather than assume the value is safe.
+            String rendered = def != null && QuerySettings.hasClosedValueDomain(def)
+                ? BytesRefs.toString(value)
+                : mapper.literal(value, DataType.KEYWORD);
+            sb.append(setting.name())
+                .append('=')
+                .append(rendered)
+                .append(setting.fromRequestBody() ? " (request body)" : " (query)")
+                .append('\n');
+        }
+        return sb.toString();
     }
 
     /**

@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSinkExec;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -972,6 +973,81 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
     }
 
+    private void runStageOnDataNode(DataNodeRequest request, CancellableTask task, ActionListener<DataNodeComputeResponse> listener) {
+        if ((request.plan() instanceof StageSinkExec) == false) {
+            listener.onFailure(new IllegalStateException("expected a stage sink for SHARDS stage but got " + request.plan()));
+            return;
+        }
+        StageSinkExec stagePlan = (StageSinkExec) request.plan();
+        final Tuple<ExchangeSinkExec, PhysicalPlan> split;
+        try {
+            split = StagedPlanner.splitShardsStage(stagePlan);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        final Map<ShardId, Exception> shardLevelFailures = new HashMap<>();
+        final AcquiredSearchContexts searchContexts = new AcquiredSearchContexts(request.shards().size());
+        ActionListener<DataNodeComputeResponse> responseListener = ActionListener.releaseAfter(listener, searchContexts);
+        try (
+            ComputeListener computeListener = new ComputeListener(
+                computeService.cancelQueryOnFailure(task),
+                responseListener.map(info -> new DataNodeComputeResponse(info, shardLevelFailures))
+            )
+        ) {
+            ActionListener<Void> parentListener = computeListener.acquireAvoid();
+            LocalExchange internalExchange = new LocalExchange(request.pragmas().exchangeBufferSize());
+            try {
+                EsqlFlags flags = computeService.createFlags();
+                int maxConcurrentShards = request.pragmas().maxConcurrentShardsPerNode();
+                DataNodeRequest internal = new DataNodeRequest(
+                    nodeReduceSessionId(request.sessionId()),
+                    request.configuration(),
+                    request.clusterAlias(),
+                    request.shards(),
+                    request.aliasFilters(),
+                    split.v1(),
+                    request.indices(),
+                    request.indicesOptions(),
+                    false,
+                    false,
+                    false,
+                    false,
+                    request.externalSplits()
+                );
+                task.addListener(() -> internalExchange.finish(true));
+                DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
+                    flags,
+                    internal,
+                    task,
+                    internalExchange,
+                    null,
+                    internal.sessionId(),
+                    maxConcurrentShards,
+                    true,
+                    false,
+                    shardLevelFailures,
+                    computeListener,
+                    searchContexts
+                );
+                dataNodeRequestExecutor.start();
+                stageComputeHandler.runStage(
+                    task,
+                    request,
+                    split.v2(),
+                    internalExchange::exchangeSource,
+                    searchContexts.globalView(),
+                    computeListener.acquireCompute()
+                );
+                parentListener.onResponse(null);
+            } catch (Exception e) {
+                internalExchange.finish(true);
+                parentListener.onFailure(e);
+            }
+        }
+    }
+
     @Override
     public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
         ActionListener<DataNodeComputeResponse> channelListener = new ChannelActionListener<>(channel);
@@ -996,7 +1072,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
         if (request.stageWiring() != null) {
             if (request.stageWiring().placement() == StagedPlanner.StagePlacement.SHARDS) {
-                listener.onFailure(new UnsupportedOperationException("SHARDS stage execution is not yet supported"));
+                runStageOnDataNode(request, (CancellableTask) task, listener);
             } else {
                 stageComputeHandler.runStage(
                     (CancellableTask) task,

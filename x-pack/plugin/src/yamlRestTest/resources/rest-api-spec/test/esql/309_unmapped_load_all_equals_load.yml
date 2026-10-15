@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2, optional_fields_fix_unmapped_object_value ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2, optional_fields_fix_unmapped_object_value ]
       reason: >
         For a field referenced BY NAME, LOAD_ALL is the same as LOAD. A named field is never also discovered (aka read
         from _source forcibly by LOAD_ALL).
@@ -112,7 +112,7 @@ teardown:
   - match: { values.1: [ "2", null, null, null ] }
 
 ---
-'the one divergence: only LOAD_ALL adds columns nobody named':
+'the one divergence: only LOAD_ALL adds an _unmapped_fields column with what nobody named':
   - do:
       esql.query:
         body:
@@ -125,15 +125,20 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_eq | SORT id | LIMIT 5'
-  - length: { columns: 9 }
+  - length: { columns: 3 }
   - match: { columns.0.name: id }
   - match: { columns.1.name: mapped_kw }
-  - match: { columns.2.name: arr }
-  - match: { columns.3.name: flag }
-  - match: { columns.4.name: number }
-  - match: { columns.5.name: obj.deep.leaf }
-  - match: { columns.6.name: obj.leaf }
-  - match: { columns.7.name: objarr.k }
-  - match: { columns.8.name: scalar }
-  - match: { values.0: [ "1", "m1", [ "z", "a", "z" ], "true", "42", "o2", "o1", [ "p", "q" ], "s1" ] }
-  - match: { values.1: [ "2", "m2", null, null, null, null, null, null, "s2" ] }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.2.type: _source }
+  - match:
+      values.0:
+        - "1"
+        - "m1"
+        - arr: [ "z", "a", "z" ]
+          flag: true
+          number: 42
+          obj.deep.leaf: "o2"
+          obj.leaf: "o1"
+          objarr.k: [ "p", "q" ]
+          scalar: "s1"
+  - match: { values.1: [ "2", "m2", { scalar: s2 } ] }

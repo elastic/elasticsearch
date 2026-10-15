@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -36,6 +38,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEF
  */
 @ServerlessScope(Scope.PUBLIC)
 public class PrometheusInstantQueryRestAction extends BaseRestHandler {
+
+    private static final Logger logger = LogManager.getLogger(PrometheusInstantQueryRestAction.class);
 
     private static final String INDEX_PARAM = "index";
     private static final String QUERY_PARAM = "query";
@@ -74,6 +78,17 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        try {
+            return prepareQuery(request, client);
+        } catch (Exception e) {
+            // report invalid parameters in the Prometheus error format rather than the standard Elasticsearch one, and mark the
+            // parameters that weren't read before the failure as consumed so that they aren't reported as unrecognized instead
+            request.params().keySet().forEach(request::param);
+            return channel -> PrometheusErrorResponse.send(channel, e, logger);
+        }
+    }
+
+    private RestChannelConsumer prepareQuery(RestRequest request, NodeClient client) {
         String query = getRequiredParam(request, QUERY_PARAM);
         String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);

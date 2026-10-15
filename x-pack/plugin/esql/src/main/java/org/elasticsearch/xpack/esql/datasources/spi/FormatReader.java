@@ -333,7 +333,7 @@ public interface FormatReader extends Closeable {
      * null (CSV/TSV emit a warning), never a silent positional fallback.
      * <p>
      * Keyed on provenance, not on whether any column declared a {@code path}. {@code dynamic} controls only whether a
-     * schema is inferred; it does not leak into how columns bind (esql-planning#1307).
+     * schema is inferred; it does not leak into how columns bind.
      * <p>
      * Only the text readers need it to bind. Parquet/ORC bind by footer name and NDJSON by object key under either
      * provenance. NDJSON and Parquet still override it, to lift the file-width cap ({@code schema_max_fields}) on a

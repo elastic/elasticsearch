@@ -152,7 +152,10 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
 
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("invalid parameter \\\"timeout\\\""));
+        ObjectPath errorPath = ObjectPath.createFromResponse(e.getResponse());
+        assertThat(errorPath.evaluate("status"), equalTo("error"));
+        assertThat(errorPath.evaluate("errorType"), equalTo("bad_data"));
+        assertThat(errorPath.evaluate("error"), equalTo("invalid parameter \"timeout\": cannot parse \"soon\" to a valid duration"));
     }
 
     public void testQueryRangeSumByEachLabel() throws Exception {
@@ -498,6 +501,14 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
         wipeDefaultStream();
         ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
         assertBinopRangeGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantOrConstantVector}. */
+    public void testRangeOrConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("tx or vector(0)", 10, 30, 12, 0);
+        assertBinopRangeValues("sum(tx) or vector(0)", 52);
+        assertBinopRangeValues("sum(tx{host=~\"nope\"}) or vector(0)", 0);
     }
 
     /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantEmptyLabelValueIsAbsent}. */

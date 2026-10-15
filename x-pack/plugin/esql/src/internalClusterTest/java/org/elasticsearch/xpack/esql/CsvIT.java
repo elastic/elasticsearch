@@ -15,17 +15,23 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -346,6 +352,7 @@ public class CsvIT extends ESTestCase {
                 AnalyticsPlugin.class,
                 CommonAnalysisPlugin.class,
                 ConstantKeywordMapperPlugin.class,
+                DataStreamsPlugin.class,
                 EnrichPlugin.class,
                 IngestCommonPlugin.class,
                 LocalStateInferencePlugin.class,
@@ -652,7 +659,34 @@ public class CsvIT extends ESTestCase {
             }
             String mapping = indexLoadStrategy.transformMapping(dataset, CsvTestsDataLoader.readMappingFile(dataset));
             Settings settings = indexLoadStrategy.transformSettings(dataset, dataset.loadSettings());
-            assertAcked(cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings));
+            if (dataset.dataStream()) {
+                assertAcked(
+                    cluster.client()
+                        .execute(
+                            TransportPutComposableIndexTemplateAction.TYPE,
+                            new TransportPutComposableIndexTemplateAction.Request(
+                                CsvTestsDataLoader.DATA_STREAM_TEMPLATE_PREFIX + dataset.indexName()
+                            ).indexTemplate(
+                                ComposableIndexTemplate.builder()
+                                    .indexPatterns(List.of(dataset.indexName()))
+                                    .template(Template.builder().settings(settings).mappings(new CompressedXContent(mapping)).build())
+                                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                                    .build()
+                            )
+                        )
+                );
+                assertAcked(
+                    cluster.client()
+                        .execute(
+                            CreateDataStreamAction.INSTANCE,
+                            new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataset.indexName())
+                        )
+                );
+            } else {
+                assertAcked(
+                    cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings)
+                );
+            }
             if (dataset.dataFileName() != null) {
                 var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -662,6 +696,9 @@ public class CsvIT extends ESTestCase {
                         .prepareIndex(dataset.indexName())
                         .setId(document.id())
                         .setSource(source, XContentType.JSON);
+                    if (dataset.dataStream()) {
+                        indexRequestBuilder.setCreate(true);
+                    }
                     if (document.slice() != null) {
                         indexRequestBuilder.setRouting(document.slice());
                         indexRequestBuilder.setRoutingFromSlice(true);

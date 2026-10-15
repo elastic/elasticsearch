@@ -654,8 +654,30 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     matchesMap().extraOk().entry("breakers", matchesMap().extraOk().entry("request", breakersEmpty))
                 );
             }
-            assertMap("circuit breakers not reset to 0", stats, matchesMap().extraOk().entry("nodes", nodesMatcher));
+            assertMap(requestBreakerResetMessage(nodes), stats, matchesMap().extraOk().entry("nodes", nodesMatcher));
         });
+    }
+
+    /**
+     * Names the 64-byte unit charges when a spec suite leaves exactly that on the request breaker, so CI
+     * does not have to guess HeaderBudget vs interned-schema vs listing-object shell.
+     */
+    private static String requestBreakerResetMessage(Map<?, ?> nodes) {
+        long leftover = 0L;
+        for (Object node : nodes.values()) {
+            if (node instanceof Map<?, ?> nodeMap
+                && nodeMap.get("breakers") instanceof Map<?, ?> breakersMap
+                && breakersMap.get("request") instanceof Map<?, ?> requestMap
+                && requestMap.get("estimated_size_in_bytes") instanceof Number size) {
+                leftover = Math.max(leftover, size.longValue());
+            }
+        }
+        if (leftover == 64L) {
+            return "circuit breakers not reset to 0; 64b unit charge is esql-external-planning "
+                + "(SchemaInterner schema shell or GenericFileList listing header) or csv_header_columns "
+                + "(HeaderBudget SET_ENTRY_BYTES, only as part of a larger per-column formula)";
+        }
+        return "circuit breakers not reset to 0";
     }
 
     protected boolean supportsTook() {

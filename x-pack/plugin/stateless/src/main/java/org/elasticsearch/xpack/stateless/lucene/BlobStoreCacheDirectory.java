@@ -31,6 +31,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -38,11 +39,15 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
@@ -62,6 +67,11 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     protected final ShardId shardId;
     protected final StatelessSharedBlobCacheService cacheService;
     protected final AtomicReference<LongFunction<BlobContainer>> blobContainer = new AtomicReference<>();
+
+    /**
+     * Tracks the number of obsolete regions eviction requests that have not yet been processed
+     */
+    private final AtomicLong submittedObsoleteRegionsEvictionTasks = new AtomicLong();
 
     private final AtomicReference<String> corruptionMarker = new AtomicReference<>();
     private final LockFactory lockFactory = new SingleInstanceLockFactory();
@@ -119,6 +129,96 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
 
     public boolean isMarkedAsCorrupted() {
         return corruptionMarker.get() != null;
+    }
+
+    /**
+     * Schedules an async eviction of cache regions that are no longer referenced by the current metadata,
+     * unless one is already running. Concurrent calls while a task is executing are coalesced into a single follow-up.
+     */
+    protected void maybeScheduleObsoleteRegionsEviction() {
+        if (submittedObsoleteRegionsEvictionTasks.incrementAndGet() == 1) {
+            submitObsoleteRegionsEviction();
+        }
+    }
+
+    private void submitObsoleteRegionsEviction() {
+        cacheService.submitAsyncEviction(() -> {
+            final long regionsEvictionTasks = submittedObsoleteRegionsEvictionTasks.get();
+            assert regionsEvictionTasks > 0 : regionsEvictionTasks;
+
+            final Map<String, BlobFileRanges> metadata = currentMetadata;
+
+            final Map<Long, BitSet> activeRegionsByBccGen = new HashMap<>();
+            long maxBccGeneration = -1L;
+
+            for (var file : metadata.values()) {
+                long bccGen = file.getBatchedCompoundCommitTermAndGeneration().generation();
+                int startRegion = cacheService.getRegion(file.fileOffset());
+                int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());
+                activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet()).set(startRegion, endRegion + 1);
+                maxBccGeneration = Math.max(maxBccGeneration, bccGen);
+
+                if (file.hasReplicatedRanges()) {
+                    file.forEachReplicatedRange(
+                        (offset, length) -> activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet())
+                            .set(cacheService.getRegion(offset), cacheService.getEndingRegion(offset + length) + 1)
+                    );
+                }
+            }
+
+            final long maxBccGen = maxBccGeneration;
+            cacheService.forceEvict(shardId, (key, region) -> {
+                final String blobName = key.fileName();
+                final long bccGeneration = BatchedCompoundCommit.parseGenerationFromBlobName(blobName);
+
+                BitSet activeRegions = activeRegionsByBccGen.get(bccGeneration);
+                if (activeRegions != null && activeRegions.get(region)) {
+                    return false; // Region is active, keep it
+                }
+
+                if (bccGeneration < maxBccGen) {
+                    logger.debug(
+                        "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}] < max [{}])",
+                        shardId,
+                        region,
+                        blobName,
+                        bccGeneration,
+                        maxBccGen
+                    );
+                    return true; // BCC is older and region is not active, evict
+                }
+                if (bccGeneration == maxBccGen) {
+                    assert activeRegions != null : "activeRegions should not be null for maxBccGen";
+                    int maxKnownRegion = activeRegions.length() - 1;
+                    if (region <= maxKnownRegion) {
+                        logger.debug(
+                            "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}], max known region [{}])",
+                            shardId,
+                            region,
+                            blobName,
+                            bccGeneration,
+                            maxKnownRegion
+                        );
+                        return true;
+                    }
+                    return false;
+                }
+                return false;
+            });
+
+            final long remainingTasks = submittedObsoleteRegionsEvictionTasks.addAndGet(-regionsEvictionTasks);
+            assert remainingTasks >= 0 : remainingTasks;
+            if (remainingTasks > 0) {
+                submitObsoleteRegionsEviction();
+            }
+        });
+    }
+
+    /// For test usage only. Returns the number of obsolete-region eviction tasks scheduled by [#maybeScheduleObsoleteRegionsEviction]
+    /// that have not yet completed. Draining this to zero lets a test wait out any in-flight eviction instead of racing it,
+    /// so a "nothing was evicted" assertion can be made deterministically rather than against a not-yet-run async task.
+    long pendingObsoleteRegionsEvictionTasks() {
+        return submittedObsoleteRegionsEvictionTasks.get();
     }
 
     /**
@@ -346,6 +446,15 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
     }
 
+    /**
+     * @return the executor on which cache misses of this directory's reads claim their gaps, or {@code null} to claim them on the calling
+     * thread
+     */
+    @Nullable
+    protected Executor claimExecutor() {
+        return null;
+    }
+
     private SharedBlobCacheService<FileCacheKey>.CacheFile getCacheFile(BlobFileRanges blobFileRanges) {
         long timestampMillis = resolveRegionTimestampMillis(blobFileRanges.timestampRange());
         return cacheService.getCacheFile(
@@ -358,7 +467,8 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             blobFileRanges.fileOffset() + blobFileRanges.fileLength(),
             // todo: time-source
             new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime),
-            timestampMillis
+            timestampMillis,
+            claimExecutor()
         );
     }
 

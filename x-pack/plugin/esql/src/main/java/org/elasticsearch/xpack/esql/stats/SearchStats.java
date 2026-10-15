@@ -68,6 +68,25 @@ public interface SearchStats {
     }
 
     /**
+     * Whether a document of any shard behind these stats may hold, in {@code _source}, a field that the shard's mapping does
+     * not declare. When this returns {@code false}, {@code unmapped_fields="LOAD_ALL"} has nothing to discover on this node.
+     * See {@code SearchExecutionContext#mayHoldUnmappedFields} for what decides it.
+     */
+    default boolean mayHoldUnmappedFields() {
+        return true;
+    }
+
+    /**
+     * Whether reading {@code name} from {@code _source} can return a value on a shard behind these stats that does not map
+     * it. That takes either a shard that {@link #mayHoldUnmappedFields() may hold unmapped fields}, or one that maps a
+     * field above {@code name}: a mapped field keeps its whole value under its own name, so the keys of an object-valued
+     * one are read from {@code _source} without being fields of their own.
+     */
+    default boolean mayHoldUnmappedField(FieldName name) {
+        return true;
+    }
+
+    /**
      * Returns the mapped field type for the given field name, or null if the field is not found.
      */
     default MappedFieldType fieldType(FieldName name) {

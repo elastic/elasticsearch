@@ -209,3 +209,7 @@ $$$ignore-dynamic-beyond-limit$$$
 `index.mapping.dimension_fields.limit`
 :   (Dynamic, integer) Maximum number of [time series dimensions](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-dimension) for the index. Defaults to `32768`.
 
+$$$binary-doc-values-max-value-length$$$
+`index.mapping.binary_doc_values.max_value_length` {applies_to}`stack: ga 9.6` {applies_to}`serverless: all`
+:   (Static, byte value) Maximum size of a single `keyword` or `flattened` value that is written only to binary doc values. Fields that are indexed, or that use sorted-set doc values, keep Lucene's term limit of `32766` bytes. For a `flattened` field the size covers the key and the value together. Defaults to `10mb`. The minimum value is `32766b` and the maximum is `2147483647b`. You can set this setting only when you create the index. You cannot change it afterwards.
+

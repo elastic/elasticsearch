@@ -1014,10 +1014,10 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
 
     public void testNoIndexValueLongerThanBinaryDocValueLimitThrows() throws IOException {
         final MapperService mapperService = createMapperService(
-            columnarSettings(),
+            Settings.builder().put(columnarSettings()).put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "64kb").build(),
             mapping(b -> b.startObject(FIELD).field("type", "keyword").field("index", false).endObject())
         );
-        final String longValue = "a".repeat(MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH + 1);
+        final String longValue = "a".repeat(64 * 1024 + 1);
         expectThrows(IllegalArgumentException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"" + longValue + "\"}"));
     }
 

@@ -56,6 +56,7 @@ class FlattenedFieldParser {
     private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
 
     private final boolean writeDimensionRouting;
+    private final int maxBinaryDocValueLength;
 
     FlattenedFieldParser(
         String rootFieldFullPath,
@@ -72,7 +73,8 @@ class FlattenedFieldParser {
         FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
         IndexVersion indexVersion,
         boolean writeDimensionRouting,
-        boolean usesArrayOrderBinaryDocValues
+        boolean usesArrayOrderBinaryDocValues,
+        int maxBinaryDocValueLength
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -89,6 +91,7 @@ class FlattenedFieldParser {
         this.preserveLeafArrays = preserveLeafArrays;
         this.indexVersion = indexVersion;
         this.writeDimensionRouting = writeDimensionRouting;
+        this.maxBinaryDocValueLength = maxBinaryDocValueLength;
     }
 
     public void parse(final DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) throws IOException {
@@ -156,9 +159,7 @@ class FlattenedFieldParser {
      * writes only binary doc values gets a separate, higher ceiling.
      */
     private int maxKeyedValueLength() {
-        return fieldType.indexType().hasTerms() || usesBinaryDocValues == false
-            ? IndexWriter.MAX_TERM_LENGTH
-            : MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH;
+        return fieldType.indexType().hasTerms() || usesBinaryDocValues == false ? IndexWriter.MAX_TERM_LENGTH : maxBinaryDocValueLength;
     }
 
     private void addField(Context context, ContentPath path, String currentName, String value) throws IOException {

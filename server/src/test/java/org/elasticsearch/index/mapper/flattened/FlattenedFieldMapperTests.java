@@ -887,16 +887,18 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testKeyedValueLongerThanBinaryDocValueLimitIsRejected() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "flattened").field("index", false)));
-        String value = "x".repeat(MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH + 1);
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened").field("index", false)))
+            .documentMapper();
+        String value = "x".repeat(64 * 1024);
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", Map.of("key", value))))
         );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("allowed max length of " + MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH + " bytes")
-        );
+        assertThat(e.getCause().getMessage(), containsString("allowed max length of 65536 bytes"));
     }
 
     public void testNullValues() throws Exception {

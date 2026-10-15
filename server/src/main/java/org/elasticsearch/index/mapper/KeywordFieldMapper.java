@@ -1580,7 +1580,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.maxValueLength = this.fieldType.indexOptions() != IndexOptions.NONE
             || this.fieldType.docValuesType() == DocValuesType.SORTED_SET
                 ? MAX_TERM_LENGTH
-                : MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH;
+                : builder.indexSettings.getMaxBinaryDocValueLength();
         this.normalizerName = builder.normalizer.getValue();
         this.normalizerSkipStoreOriginalValue = builder.normalizerSkipStoreOriginalValue.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();

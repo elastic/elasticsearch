@@ -981,19 +981,22 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Binary doc values have a separate, higher ceiling that keeps values from degrading storage and scanning.
+     * Binary doc values have a separate, configurable ceiling that keeps values from degrading storage and scanning.
      */
     public void testKeywordFieldLongerThanBinaryDocValueLimitNotIndexedInColumnarModeIsRejected() throws Exception {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index", false)));
-        String longValue = "x".repeat(MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH + 1);
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("index", false)))
+            .documentMapper();
+        String longValue = "x".repeat(64 * 1024 + 1);
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", longValue)))
         );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("longer than the max length " + MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH)
-        );
+        assertThat(e.getCause().getMessage(), containsString("longer than the max length 65536"));
+        mapper.parse(source(b -> b.field("field", "x".repeat(64 * 1024))));
     }
 
     /**

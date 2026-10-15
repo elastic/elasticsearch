@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
-import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
@@ -423,16 +422,20 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
     }
 
     public void testKeyedValueLongerThanBinaryDocValueLimitIsRejectedOnBatchPath() {
-        String immenseValue = "v".repeat(MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH);
+        String immenseValue = "v".repeat(64 * 1024);
+        Settings settings = Settings.builder()
+            .put(columnarSettings())
+            .put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> assertColumnarMatchesXContent(
                 mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
-                columnarSettings(),
+                settings,
                 batch("immense keyed value", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"" + immenseValue + "\"}}"))
             )
         );
         assertThat(e.getMessage(), containsString("immense field"));
-        assertThat(e.getMessage(), containsString(String.valueOf(MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH)));
+        assertThat(e.getMessage(), containsString("allowed max length of 65536 bytes"));
     }
 }

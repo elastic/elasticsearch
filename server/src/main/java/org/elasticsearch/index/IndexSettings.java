@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.elasticsearch.Build;
@@ -1232,6 +1233,21 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Largest value, in bytes, that a keyword or flattened field may write to binary doc values. Lucene imposes no limit there,
+     * so this bounds storage and scan cost. Fields that also feed the inverted index or sorted-set doc values keep Lucene's
+     * {@link IndexWriter#MAX_TERM_LENGTH} instead.
+     */
+    public static final Setting<ByteSizeValue> MAX_BINARY_DOC_VALUE_LENGTH_SETTING = Setting.byteSizeSetting(
+        "index.mapping.binary_doc_values.max_value_length",
+        ByteSizeValue.of(10, ByteSizeUnit.MB),
+        ByteSizeValue.ofBytes(IndexWriter.MAX_TERM_LENGTH),
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
         settings -> String.valueOf(getIgnoreAboveDefaultValue(settings)),
@@ -1498,6 +1514,7 @@ public final class IndexSettings {
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
     private final int ignoreAbove;
+    private final int maxBinaryDocValueLength;
     private final boolean useDocValuesSkipper;
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
@@ -1732,6 +1749,7 @@ public final class IndexSettings {
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         ignoreAbove = scopedSettings.get(IGNORE_ABOVE_SETTING);
+        maxBinaryDocValueLength = Math.toIntExact(scopedSettings.get(MAX_BINARY_DOC_VALUE_LENGTH_SETTING).getBytes());
         useDocValuesSkipper = scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
@@ -2557,6 +2575,10 @@ public final class IndexSettings {
 
     public int getIgnoreAbove() {
         return ignoreAbove;
+    }
+
+    public int getMaxBinaryDocValueLength() {
+        return maxBinaryDocValueLength;
     }
 
     public boolean useDocValuesSkipper() {

@@ -47,6 +47,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.oteldata.OTelPlugin;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
@@ -96,6 +97,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     private final ClusterService clusterService;
     private final BatchIndexingEnabled batchIndexingEnabled;
     private final Recycler<BytesRef> bytesRefRecycler;
+    private volatile boolean exemplarIngestionEnabled;
 
     @Inject
     public OTLPMetricsTransportAction(
@@ -113,6 +115,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         clusterSettings.addSettingsUpdateConsumer(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, histogramFieldTypeSetting -> {
             defaultMappingHints = MappingHints.fromSettings(histogramFieldTypeSetting);
         });
+        clusterSettings.initializeAndWatch(XPackSettings.METRIC_EXEMPLARS_ENABLED, enabled -> exemplarIngestionEnabled = enabled);
         this.clusterService = clusterService;
         this.batchIndexingEnabled = new BatchIndexingEnabled(clusterSettings);
         this.bytesRefRecycler = bigArrays.bytesRefRecycler();
@@ -147,8 +150,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         List<DataPointGroupingContext.DataPointGroup> allGroups = new ArrayList<>();
         context.consume(allGroups::add);
 
-        boolean exemplarIngestionEnabled = OTelPlugin.METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled();
-
+        // Snapshot volatile setting to have it consistent for this request
+        boolean exemplarIngestionEnabled = this.exemplarIngestionEnabled;
         if (canUseBatchIndexing(exemplarIngestionEnabled, projectMetadata, allGroups)) {
             String firstTarget = allGroups.getFirst().targetIndex().index();
             MetricColumnarBuilder metricColumnarBuilder = new MetricColumnarBuilder(defaultMappingHints);

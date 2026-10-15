@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
@@ -174,6 +175,23 @@ public class RetryableStorageProviderTests extends ESTestCase {
         assertEquals(2, calls.get());
     }
 
+    public void testObjectMetadataRetriesOnTransientFailure() throws IOException {
+        AtomicInteger calls = new AtomicInteger();
+        StorageProvider delegate = new StubStorageProvider() {
+            @Override
+            public StorageEntry objectMetadata(StoragePath path) throws IOException {
+                if (calls.incrementAndGet() < 2) {
+                    throw new SocketTimeoutException("timeout");
+                }
+                return new StorageEntry(path, 42L, Instant.EPOCH);
+            }
+        };
+        RetryableStorageProvider provider = new RetryableStorageProvider(delegate, new RetryPolicy(3, 1, 10));
+
+        assertEquals(42L, provider.objectMetadata(StoragePath.of("s3://bucket/file.csv")).length());
+        assertEquals(2, calls.get());
+    }
+
     public void testSupportedSchemesDelegates() {
         StorageProvider delegate = new StubStorageProvider() {
             @Override
@@ -188,6 +206,9 @@ public class RetryableStorageProviderTests extends ESTestCase {
     public void testReadBytesAsyncRetriesOnTransientFailure() throws Exception {
         AtomicInteger asyncCalls = new AtomicInteger();
         StorageObject inner = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -274,6 +295,9 @@ public class RetryableStorageProviderTests extends ESTestCase {
     private static StorageObject stubObject(String location, IOStreamSupplier streamSupplier) {
         StoragePath path = StoragePath.of(location);
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

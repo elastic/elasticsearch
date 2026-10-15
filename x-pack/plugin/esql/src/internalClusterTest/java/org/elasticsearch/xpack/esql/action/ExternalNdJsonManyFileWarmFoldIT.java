@@ -104,7 +104,7 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
         ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
             .cacheService();
         // Evict by directory substring so the count is deterministic regardless of what the tiny LRU
-        // budget already dropped; the dataset-aggregate entry (marker-keyed) is deliberately spared.
+        // budget already dropped; the dataset-aggregate entry, which its file-set fingerprint identifies, is deliberately spared.
         ExternalSourceCacheTestAccess.invalidatePerFileSchemaEntries(cacheService, dir.getFileName().toString());
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, total);

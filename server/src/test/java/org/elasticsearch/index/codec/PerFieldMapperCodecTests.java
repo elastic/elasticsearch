@@ -47,9 +47,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -750,6 +752,59 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             StringColumnOptions.DEFAULT_DICTIONARY,
             supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).dictionary()
         );
+    }
+
+    public void testStringColumnOptionsKeepEachFieldsFramingInEveryColumnarMode() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR));
+        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            modes.add(IndexMode.VECTORDB_COLUMNAR);
+        }
+        final String mapping = """
+            {
+                "properties": {
+                    "category": { "type": "keyword" },
+                    "host": { "type": "keyword", "doc_values": { "multi_value": false } },
+                    "body": { "type": "text" }
+                }
+            }
+            """;
+        for (IndexMode mode : modes) {
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), mode)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, randomColumnarEligibleIndexVersion())
+                .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
+                .build();
+            final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings, "test");
+            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            final PerFieldFormatSupplier supplier = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+            for (String field : List.of("category", "host", "body")) {
+                assertThat(
+                    "mode=" + mode + " " + field,
+                    supplier.getDocValuesFormatForField(field),
+                    instanceOf(ColumNARDocValuesFormat.class)
+                );
+            }
+            assertFalse("mode=" + mode, supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).singleValued());
+            assertTrue("mode=" + mode, supplier.resolveStringColumnOptions("host", ColumnarFieldType.STRING).singleValued());
+            assertFalse("mode=" + mode, supplier.resolveStringColumnOptions("body", ColumnarFieldType.STRING).singleValued());
+        }
+    }
+
+    public void testStringColumnOptionsAreNotGuessedForAFieldWithoutThem() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            randomColumnarEligibleIndexVersion(),
+            true
+        );
+        for (String field : List.of("unmapped", "size")) {
+            final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> supplier.resolveStringColumnOptions(field, ColumnarFieldType.STRING)
+            );
+            assertThat(e.getMessage(), containsString("field [" + field + "]"));
+        }
     }
 
     private static IndexMode randomColumnarMode() {

@@ -24,8 +24,11 @@ import java.util.Iterator;
 public interface CloseableIterator<T> extends Iterator<T>, Closeable {
 
     /**
-     * Returns a listener that completes when {@link #hasNext()} can be called without blocking on
-     * upstream production. The default — appropriate for synchronous iterators — completes immediately.
+     * Returns a listener that completes when iterator state has changed such that
+     * {@link #tryAdvance()} may return an element, or {@link #isExhausted()} may have become true.
+     * A done listener is not EOF: it means state changed, not that the iterator is drained.
+     * The default completes immediately. Drain loops must not call {@link #hasNext()}:
+     * {@code hasNext()} may start and await the next GET even after this listener was done.
      */
     default SubscribableListener<Void> waitForReady() {
         return SubscribableListener.newSucceeded(null);
@@ -34,9 +37,15 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
     /**
      * Non-blocking single-step advance: returns the next element, or {@code null} if none is
      * immediately available (either because upstream is still producing or because the iterator
-     * is exhausted). Callers distinguish "not yet" from "EOF" via {@link #waitForReady()}: a
-     * {@code null} return paired with an immediately-done {@code waitForReady()} means EOF;
-     * a {@code null} paired with a non-done listener means more data may arrive.
+     * is exhausted). Callers distinguish "not yet" from "EOF" via {@link #isExhausted()} after
+     * a done {@link #waitForReady()}. A done {@code waitForReady()} means state changed, not EOF;
+     * a non-done listener means more data may arrive.
+     *
+     * <p>A page may arrive in the race between {@code tryAdvance()} returning null and the
+     * recheck of {@code waitForReady()}. Drain loops retry {@code tryAdvance()} while
+     * {@code waitForReady()} is done and {@link #isExhausted()} is false. They must not call
+     * {@link #hasNext()}: {@code hasNext()} may start and await the next unit of I/O even after
+     * {@code waitForReady()} was done.
      *
      * <p>The default delegates to {@link #hasNext()}/{@link #next()} and is therefore blocking
      * for iterators whose {@code hasNext()} blocks. Async iterators should override this to
@@ -45,6 +54,19 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
      */
     default T tryAdvance() {
         return hasNext() ? next() : null;
+    }
+
+    /**
+     * True when a null {@link #tryAdvance()} after a done {@link #waitForReady()} is terminal EOF.
+     * Call only in that window, and only from the consumer thread — same as {@link #tryAdvance()}.
+     * Some implementations mutate consumer-only state (for example skipping POISON markers).
+     * The default is {@code true}: synchronous iterators already used {@link #hasNext()} inside
+     * {@link #tryAdvance()}, so a null return is EOF. Async iterators must override this. Do not
+     * implement as {@code hasNext() == false}: wrappers would start I/O. Every {@link #waitForReady()}
+     * override must override this; a forgotten override is silent EOF at the outer wrapper.
+     */
+    default boolean isExhausted() {
+        return true;
     }
 
     /**

@@ -483,7 +483,13 @@ public class CsvTestsDataLoader {
             .withTypeMapping(Map.of("@timestamp", "date_nanos")),
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
         new TestDataset("date_fn_fields", "mapping-date_fn_fields.json", "date_fn_fields.csv"),
-        new TestDataset("trim_test")
+        new TestDataset("trim_test"),
+        new TestDataset(
+            ".ml-anomalies-shared",
+            ".ml-anomalies-shared-mappings.json",
+            ".ml-anomalies-shared.csv",
+            ".ml-anomalies-shared-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.ML_ANOMALIES)
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:

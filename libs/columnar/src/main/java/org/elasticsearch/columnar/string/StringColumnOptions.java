@@ -203,6 +203,30 @@ public record StringColumnOptions(
         DEFAULT_SINGLE_VALUED
     );
 
+    /**
+     * What closes a chunk of a payload column. Payloads compress little and a read of one decompresses every chunk it
+     * touches, so chunks stay small.
+     */
+    public static final ChunkBounds PAYLOAD_PLAIN_CHUNKS = new ChunkBounds(32 * 1024, DEFAULT_VALUES_PER_BLOCK);
+
+    /** For a field whose values are payloads stored and read back whole: no dictionary, and small chunks. */
+    public static final StringColumnOptions PAYLOADS = new StringColumnOptions(
+        DictionaryPolicy.NONE,
+        SummaryPolicy.NONE,
+        ChunkCodec.ZSTD,
+        new Sizes(
+            DEFAULT_VALUES_PER_BLOCK,
+            PAYLOAD_PLAIN_CHUNKS,
+            DEFAULT_ESCAPE_CHUNKS,
+            DEFAULT_PACKED_ORDINAL_BLOCK_SIZE,
+            DEFAULT_COMPRESSED_ORDINAL_BLOCK_SIZE,
+            DEFAULT_ESCAPE_RANK_BLOCK_SIZE,
+            DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
+            DEFAULT_LENGTH_BLOCK_SIZE
+        ),
+        DEFAULT_SINGLE_VALUED
+    );
+
     public StringColumnOptions {
         if (dictionary == null) {
             throw new IllegalArgumentException("a dictionary policy is required; use DictionaryPolicy.NONE to store the values");

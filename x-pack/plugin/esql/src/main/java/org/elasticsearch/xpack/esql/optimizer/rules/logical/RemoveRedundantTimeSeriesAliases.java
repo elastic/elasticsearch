@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -28,6 +29,14 @@ import java.util.Set;
 public final class RemoveRedundantTimeSeriesAliases extends Rule<LogicalPlan, LogicalPlan> {
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
+        // Merge inputs are aligned by name, independently of their output ids. These aliases define the
+        // resolved branch schema, so they are not redundant even when a branch has only one metadata field.
+        Set<NameId> mergeInputs = new HashSet<>();
+        plan.forEachDown(MergePlan.class, merge -> {
+            for (LogicalPlan child : merge.children()) {
+                child.output().forEach(attribute -> mergeInputs.add(attribute.id()));
+            }
+        });
         Set<NameId> renamed = new HashSet<>();
         LogicalPlan result = plan.transformUp(TimeSeriesAggregate.class, aggregate -> {
             var metadata = aggregate.child().output().stream().filter(TimeSeriesMetadataAttribute.class::isInstance).toList();
@@ -44,6 +53,9 @@ public final class RemoveRedundantTimeSeriesAliases extends Rule<LogicalPlan, Lo
                 return aggregate;
             }
             Alias alias = (Alias) metadataGroupings.getFirst();
+            if (mergeInputs.contains(alias.id())) {
+                return aggregate;
+            }
             Attribute field = metadata.getFirst();
             Attribute replacement = field.withId(alias.id());
             var groupings = new ArrayList<Expression>(aggregate.groupings());

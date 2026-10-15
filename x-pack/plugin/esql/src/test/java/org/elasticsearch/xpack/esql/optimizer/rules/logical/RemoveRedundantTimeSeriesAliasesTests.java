@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.List;
 import java.util.Set;
@@ -56,6 +58,23 @@ public class RemoveRedundantTimeSeriesAliasesTests extends ESTestCase {
             assertEquals("labels", result.projections().get(1).name());
             assertEquals(explicitAlias.id(), result.projections().get(1).id());
             assertSame(result, new RemoveRedundantTimeSeriesAliases().apply(result));
+        }
+    }
+
+    public void testUnionRetainsBranchColumnNames() {
+        for (var origin : TimeSeriesAggregate.Origin.values()) {
+            var field = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("cluster"));
+            var alias = new Alias(Source.EMPTY, "WITHOUT(cluster)", field);
+            var aggregate = aggregate(List.of(field), List.of(alias), origin);
+            var filter = new Filter(Source.EMPTY, aggregate, new IsNotNull(Source.EMPTY, alias.toAttribute()));
+            var project = new Project(Source.EMPTY, filter, List.of(alias.toAttribute()));
+            var otherField = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("cluster"));
+            var otherAlias = new Alias(Source.EMPTY, alias.name(), otherField);
+            var other = aggregate(List.of(otherField), List.of(otherAlias), origin);
+            var union = new UnionAll(Source.EMPTY, List.of(project, other), List.of(alias.toAttribute().withId(new NameId())));
+
+            // Merge columns are aligned by name and have independent ids. Renaming an input breaks that alignment.
+            assertSame(union, new RemoveRedundantTimeSeriesAliases().apply(union));
         }
     }
 

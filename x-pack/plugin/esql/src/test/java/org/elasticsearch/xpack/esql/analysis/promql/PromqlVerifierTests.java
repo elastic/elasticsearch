@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.analysis.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -462,18 +465,6 @@ public class PromqlVerifierTests extends ESTestCase {
      */
     public void testUnmatchedOperandsMustAggregateAlike() {
         String query = "PROMQL index=test step=5m ";
-        for (String expression : List.of(
-            "sum(network.bytes_in) / network.connections",
-            "network.connections * max by (host) (network.bytes_in)",
-            "stddev(network.bytes_in) + network.connections",
-            "sum by (host) (network.bytes_in) / topk(2, network.connections)"
-        )) {
-            if (EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled()) {
-                tsdb.query(query + expression);
-            } else {
-                tsdb.error(query + expression, containsString("binary operations between vectors with mismatched grouping keys"));
-            }
-        }
         for (String rejected : List.of(
             "scalar(sum(network.bytes_in)) * network.connections",
             "network.connections / scalar(network.bytes_in)",
@@ -518,6 +509,30 @@ public class PromqlVerifierTests extends ESTestCase {
             "abs(topk(1, network.bytes_in))"
         )) {
             assertNotNull(accepted, tsdb.query(query + accepted));
+        }
+    }
+
+    public void testUnmatchedOperandsWithMultipleMetadataProjections() {
+        for (TransportVersion version : List.of(
+            TransportVersion.current(),
+            TransportVersionUtils.getPreviousVersion(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA)
+        )) {
+            tsdb.minimumTransportVersion(version);
+            for (String expression : List.of(
+                "sum(network.bytes_in) / network.connections",
+                "network.connections * max by (host) (network.bytes_in)",
+                "stddev(network.bytes_in) + network.connections",
+                "sum by (host) (network.bytes_in) / topk(2, network.connections)"
+            )) {
+                String query = "PROMQL index=test step=5m " + expression;
+                if (EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled() == false) {
+                    tsdb.error(query, containsString("binary operations between vectors with mismatched grouping keys"));
+                } else if (version.supports(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA)) {
+                    tsdb.query(query);
+                } else {
+                    tsdb.error(query, containsString("Multiple time-series metadata projections require a newer version"));
+                }
+            }
         }
     }
 

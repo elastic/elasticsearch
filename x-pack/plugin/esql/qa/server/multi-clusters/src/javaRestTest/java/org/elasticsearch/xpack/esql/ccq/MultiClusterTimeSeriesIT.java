@@ -251,6 +251,10 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
     /** Existing single-projection shapes keep working when a remote cluster predates multiple projections. */
     public void testPromqlMetadataSingleProjection() throws Exception {
         requirePromqlMetadataCoordinator();
+        assumeTrue(
+            "requires PromQL end-labeled buckets on the remote",
+            capabilitiesSupportedNewAndOld(List.of(EsqlCapabilities.Cap.FIX_PROMQL_TIME_BUCKET_V2.capabilityName()))
+        );
         for (String expression : List.of("cpu", "sum without (host) (cpu)")) {
             var result = run(promqlMetadataQuery("hosts-local,*:hosts-remote", expression, "_timeseries"), false);
             var expected = run(promqlMetadataQuery("all-data", expression, "_timeseries"), false);

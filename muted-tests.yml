@@ -457,3 +457,6 @@ tests:
 - class: org.elasticsearch.search.fieldcaps.FieldCapsHasValueTests
   method: testUnmappedFieldsWithValueAfterRestart
   issue: https://github.com/elastic/elasticsearch/issues/162114
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {yaml=snapshot.restore/10_basic/Create a snapshot and then restore single index from it}
+  issue: https://github.com/elastic/elasticsearch/issues/162242

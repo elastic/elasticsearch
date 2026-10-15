@@ -647,6 +647,29 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    /**
+     * A view nested inside a user-written subquery branch is a view the query names, so the request filter applies to its
+     * output just as it does to a view at the top level. {@code cnt} exists only in the stats view's output, so it can
+     * only be filtered there; its fragments are marked as view-branch fragments and skipped by the Lucene push-in path,
+     * so without an output filter the nested view would leak every bucket.
+     */
+    public void testRequestFilterOnViewNestedInLiteralSubqueryBranch() {
+        assertThat(
+            rows(
+                "FROM " + STATS_VIEW + ", (FROM " + STATS_VIEW + " | WHERE cnt > 0) | KEEP region, cnt",
+                QueryBuilders.termQuery("region", "eu")
+            ),
+            equalTo(List.of(List.of("eu", 3L), List.of("eu", 3L)))
+        );
+        assertThat(
+            rows(
+                "FROM " + PASSTHROUGH_VIEW + ", (FROM " + STATS_VIEW + " | WHERE cnt > 0) | KEEP region, cnt | SORT region",
+                QueryBuilders.rangeQuery("cnt").gte(3)
+            ),
+            equalTo(List.of(List.of("eu", 3L), List.of("us", 3L)))
+        );
+    }
+
     // ─── Unsupported DSL construct is dropped with a warning ─────────────────────
 
     /**

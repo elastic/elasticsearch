@@ -1532,9 +1532,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    // Binary doc values have no Lucene length limit; this ceiling only keeps values from degrading storage and scan cost.
-    static final int MAX_BINARY_DOC_VALUE_LENGTH = 1 << 20; // 2^20 = 1,048,576 bytes = 1 MiB
-
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
@@ -1581,7 +1578,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         // Lucene enforces MAX_TERM_LENGTH only in the inverted index and in SORTED_SET doc values.
         this.maxValueLength = this.fieldType.indexOptions() != IndexOptions.NONE
-            || this.fieldType.docValuesType() == DocValuesType.SORTED_SET ? MAX_TERM_LENGTH : MAX_BINARY_DOC_VALUE_LENGTH;
+            || this.fieldType.docValuesType() == DocValuesType.SORTED_SET
+                ? MAX_TERM_LENGTH
+                : MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH;
         this.normalizerName = builder.normalizer.getValue();
         this.normalizerSkipStoreOriginalValue = builder.normalizerSkipStoreOriginalValue.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();

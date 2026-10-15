@@ -13,7 +13,6 @@ import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
@@ -1979,7 +1978,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                                         + "] exceeds ignore_above; the ignored-values channel is not yet supported"
                                 );
                             }
-                            if (keyPrefix.length + value.length > IndexWriter.MAX_TERM_LENGTH) {
+                            if (keyPrefix.length + value.length > MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH) {
                                 throw immenseKeyedValueException(relativeKeys[k], value.length);
                             }
                         }
@@ -2043,7 +2042,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 + fieldType().name()
                 + "] contains one immense field"
                 + " whose keyed encoding is longer than the allowed max length of "
-                + IndexWriter.MAX_TERM_LENGTH
+                + MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH
                 + " bytes. Key length: "
                 + key.length()
                 + ", value length: "

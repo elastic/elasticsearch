@@ -985,14 +985,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      */
     public void testKeywordFieldLongerThanBinaryDocValueLimitNotIndexedInColumnarModeIsRejected() throws Exception {
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index", false)));
-        String longValue = "x".repeat(KeywordFieldMapper.MAX_BINARY_DOC_VALUE_LENGTH + 1);
+        String longValue = "x".repeat(MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH + 1);
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", longValue)))
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("longer than the max length " + KeywordFieldMapper.MAX_BINARY_DOC_VALUE_LENGTH)
+            containsString("longer than the max length " + MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH)
         );
     }
 

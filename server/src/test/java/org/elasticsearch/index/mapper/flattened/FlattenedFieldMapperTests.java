@@ -866,6 +866,39 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         );
     }
 
+    /**
+     * A non-indexed flattened field in strictly columnar mode writes only binary doc values, which Lucene does not limit in
+     * length, so a keyed value longer than {@link IndexWriter#MAX_TERM_LENGTH} is accepted and round-trips.
+     */
+    public void testKeyedValueLongerThan32766NotIndexedInColumnarModeIsAccepted() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "flattened").field("index", false)));
+        String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        assertEquals("{\"field\":{\"key\":\"" + value + "\"}}", syntheticSource(mapper, b -> b.field("field", Map.of("key", value))));
+    }
+
+    public void testKeyedValueLongerThan32766IndexedInColumnarModeIsRejected() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "flattened").field("index", true)));
+        String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("key", value))))
+        );
+        assertThat(e.getCause().getMessage(), containsString("allowed max length of " + IndexWriter.MAX_TERM_LENGTH + " bytes"));
+    }
+
+    public void testKeyedValueLongerThanBinaryDocValueLimitIsRejected() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "flattened").field("index", false)));
+        String value = "x".repeat(MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH + 1);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", Map.of("key", value))))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("allowed max length of " + MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH + " bytes")
+        );
+    }
+
     public void testNullValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("field").field("type", "flattened").endObject();

@@ -1017,7 +1017,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
             columnarSettings(),
             mapping(b -> b.startObject(FIELD).field("type", "keyword").field("index", false).endObject())
         );
-        final String longValue = "a".repeat(KeywordFieldMapper.MAX_BINARY_DOC_VALUE_LENGTH + 1);
+        final String longValue = "a".repeat(MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH + 1);
         expectThrows(IllegalArgumentException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"" + longValue + "\"}"));
     }
 

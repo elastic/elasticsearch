@@ -151,6 +151,16 @@ class FlattenedFieldParser {
         }
     }
 
+    /**
+     * Lucene enforces {@link IndexWriter#MAX_TERM_LENGTH} only in the inverted index and in sorted-set doc values. A field that
+     * writes only binary doc values gets a separate, higher ceiling.
+     */
+    private int maxKeyedValueLength() {
+        return fieldType.indexType().hasTerms() || usesBinaryDocValues == false
+            ? IndexWriter.MAX_TERM_LENGTH
+            : MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH;
+    }
+
     private void addField(Context context, ContentPath path, String currentName, String value) throws IOException {
         String key = path.pathAsText(currentName);
         if (key.contains(SEPARATOR)) {
@@ -200,12 +210,13 @@ class FlattenedFieldParser {
 
         // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time
         // in that case we can already throw a more user friendly exception here which includes the offending fields key and value lengths
-        if (bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
+        int maxKeyedValueLength = maxKeyedValueLength();
+        if (bytesKeyedValue.length > maxKeyedValueLength) {
             String msg = "Flattened field ["
                 + rootFieldFullPath
                 + "] contains one immense field"
                 + " whose keyed encoding is longer than the allowed max length of "
-                + IndexWriter.MAX_TERM_LENGTH
+                + maxKeyedValueLength
                 + " bytes. Key length: "
                 + key.length()
                 + ", value length: "

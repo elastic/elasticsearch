@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
@@ -406,8 +407,23 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
         );
     }
 
-    public void testImmenseKeyedValueIsRejectedOnBatchPath() {
-        String immenseValue = "v".repeat(IndexWriter.MAX_TERM_LENGTH);
+    public void testKeyedValueLongerThanMaxTermLengthMatchesRowPath() throws IOException {
+        // Strict columnar mode does not index the field by default, so only binary doc values are written.
+        String longValue = "v".repeat(IndexWriter.MAX_TERM_LENGTH);
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            columnarSettings(),
+            batch(
+                "keyed value longer than max term length",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"k\":\"" + longValue + "\"}}"),
+                doc("d2", 2L, "{\"flat\":{\"k\":\"short\"}}")
+            )
+        );
+    }
+
+    public void testKeyedValueLongerThanBinaryDocValueLimitIsRejectedOnBatchPath() {
+        String immenseValue = "v".repeat(MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> assertColumnarMatchesXContent(
@@ -417,6 +433,6 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
             )
         );
         assertThat(e.getMessage(), containsString("immense field"));
-        assertThat(e.getMessage(), containsString(String.valueOf(IndexWriter.MAX_TERM_LENGTH)));
+        assertThat(e.getMessage(), containsString(String.valueOf(MultiValuedBinaryDocValuesField.MAX_BINARY_DOC_VALUE_LENGTH)));
     }
 }

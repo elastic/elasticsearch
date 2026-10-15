@@ -56,6 +56,9 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     // see BytesStreamOutput.writeVInt()
     public static final int VINT_MAX_BYTES = 5;
 
+    // Binary doc values have no Lucene length limit; this ceiling only keeps values from degrading storage and scan cost.
+    public static final int MAX_BINARY_DOC_VALUE_LENGTH = 10 << 20; // 10 MiB
+
     /**
      * Controls how values are collected and ordered in a multi-valued binary doc values field.
      */

@@ -16,6 +16,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.Directory;
@@ -308,6 +309,55 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
                 assertEquals(new BytesRef("zebra"), maxDvs.binaryValue());
             }
         }
+    }
+
+    /**
+     * An index sorted by this field, flushed with a document that holds only nulls among multi-valued ones. That document writes its
+     * {@code .counts} but no binary value, so the counts are dense where the binary values are sparse; the flush-time sort has to keep
+     * the two in step by document rather than by position, or every document after the gap is decoded with its neighbour's count.
+     */
+    public void testArrayOrder_indexSortAtFlush_documentWithoutValue() throws IOException {
+        for (boolean maxMode : new boolean[] { false, true }) {
+            final SortField sortField = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, maxMode, true);
+            try (
+                Directory dir = newDirectory();
+                IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setIndexSort(new Sort(sortField)))
+            ) {
+                addArrayOrderDoc(w, "zebra", "bob");
+                addArrayOrderDoc(w, (String) null);
+                addArrayOrderDoc(w, "mango", "apple", "orange");
+                addArrayOrderDoc(w, "delta", "charlie");
+                try (DirectoryReader reader = DirectoryReader.open(w)) {
+                    LeafReader leaf = getOnlyLeafReader(reader);
+                    BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, maxMode, true)
+                        .getSortKeyDocValues(leaf);
+                    final String[] expected = maxMode
+                        ? new String[] { "delta", "orange", "zebra", null }
+                        : new String[] { "apple", "bob", "charlie", null };
+                    for (int doc = 0; doc < expected.length; doc++) {
+                        if (expected[doc] == null) {
+                            assertFalse("maxMode=" + maxMode + " doc=" + doc, dvs.advanceExact(doc));
+                        } else {
+                            assertTrue("maxMode=" + maxMode + " doc=" + doc, dvs.advanceExact(doc));
+                            assertEquals("maxMode=" + maxMode + " doc=" + doc, new BytesRef(expected[doc]), dvs.binaryValue());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Adds a document whose {@code name} holds {@code values} in document order, a {@code null} element being a null slot. */
+    private static void addArrayOrderDoc(IndexWriter w, String... values) throws IOException {
+        LuceneDocument doc = new LuceneDocument();
+        for (String value : values) {
+            if (value == null) {
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(doc, "name");
+            } else {
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, "name", new BytesRef(value));
+            }
+        }
+        w.addDocument(doc);
     }
 
     // =========================================================================

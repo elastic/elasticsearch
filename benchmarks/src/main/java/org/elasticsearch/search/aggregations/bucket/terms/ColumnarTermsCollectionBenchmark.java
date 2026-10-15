@@ -24,7 +24,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
@@ -75,8 +74,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Collecting a {@code terms} aggregation over a columnar keyword field, one segment, through a real Lucene search so
- * that the documents reach the collector the way a query gives them: all of them as one run, or a share of them in
- * windows found in a bit set.
+ * that the documents reach the collector the way a query gives them: a share of them, in windows found in a bit set.
  *
  * <p>The {@code perDocument} benchmarks hand the aggregator's loop for this field to Lucene as it is today, which
  * decodes every document's value, copies its bytes and hashes them. The {@code pages} benchmarks wrap the same loop in
@@ -102,11 +100,6 @@ public class ColumnarTermsCollectionBenchmark {
     }
 
     private static final String FIELD = "kw";
-    /**
-     * Shares of the documents a filter matches. A window of 4,096 documents then holds about forty to twelve hundred
-     * matches, which is the size of the page the collector reads for each, so this is a sweep of page sizes.
-     */
-    private static final int[] PERCENTS = { 1, 2, 5, 10, 20, 30 };
 
     /**
      * Distinct values in the field. 5 is a version string. The larger one is where a page repeats little and a
@@ -122,9 +115,21 @@ public class ColumnarTermsCollectionBenchmark {
     @Param({ "single", "multi" })
     private String arity;
 
+    /**
+     * Percent of the documents the filter matches. A window of 4,096 documents then holds about forty to twelve hundred
+     * matches, which is the size of the page the collector reads for each, so this is a sweep of page sizes. Only the
+     * field for the share in use is indexed, which keeps setup short, so the index is built again for each share.
+     */
+    @Param({ "1", "5", "10", "30" })
+    private int percent;
+
     /** Documents read as one page: the length of the array the collector copies a stream's doc IDs into. */
     @Param({ "4096" })
     private int pageDocs;
+
+    /** Fewest documents a batch needs to be read as a page. Zero is what the collector chooses for the column. */
+    @Param({ "0" })
+    private int minPageDocs;
 
     private final BigArrays bigArrays = new BigArrays(new PageCacheRecycler(Settings.EMPTY), null, "REQUEST");
 
@@ -132,9 +137,7 @@ public class ColumnarTermsCollectionBenchmark {
     private Directory directory;
     private DirectoryReader reader;
     private IndexSearcher searcher;
-    private final Query all = new MatchAllDocsQuery();
-    /** One filter for each of {@link #PERCENTS}, matching that share of the documents. */
-    private final Query[] filters = new Query[PERCENTS.length];
+    private final Query filter = new TermQuery(new Term("share", "yes"));
 
     @Setup
     public void setup() throws IOException {
@@ -155,9 +158,7 @@ public class ColumnarTermsCollectionBenchmark {
             for (int i = 0; i < docCount; i++) {
                 final Document doc = new Document();
                 doc.add(new Field(FIELD, payload(random), type));
-                for (int percent : PERCENTS) {
-                    doc.add(new StringField("share" + percent, random.nextInt(100) < percent ? "yes" : "no", Field.Store.NO));
-                }
+                doc.add(new StringField("share", random.nextInt(100) < percent ? "yes" : "no", Field.Store.NO));
                 writer.addDocument(doc);
             }
             writer.forceMerge(1);
@@ -166,25 +167,16 @@ public class ColumnarTermsCollectionBenchmark {
         if (reader.leaves().size() != 1) {
             throw new IllegalStateException("expected one segment, found " + reader.leaves().size());
         }
-        for (int i = 0; i < PERCENTS.length; i++) {
-            filters[i] = new TermQuery(new Term("share" + PERCENTS[i], "yes"));
-        }
         searcher = new IndexSearcher(reader);
         // A cached result would be collected without the scorer that produces the streams being measured.
         searcher.setQueryCache(null);
 
-        // The two have to agree, for every query, before either is worth timing.
-        final List<Query> queries = new ArrayList<>(List.of(all));
-        queries.addAll(List.of(filters));
-        for (Query query : queries) {
-            try (Buckets expected = search(query, false); Buckets actual = search(query, true)) {
-                final TreeMap<String, Long> want = expected.snapshot();
-                final TreeMap<String, Long> got = actual.snapshot();
-                if (want.equals(got) == false) {
-                    throw new IllegalStateException(
-                        "pages and per-document counts differ for " + query + ": " + got.size() + " terms against " + want.size()
-                    );
-                }
+        // The two have to agree before either is worth timing.
+        try (Buckets expected = search(false); Buckets actual = search(true)) {
+            final TreeMap<String, Long> want = expected.snapshot();
+            final TreeMap<String, Long> got = actual.snapshot();
+            if (want.equals(got) == false) {
+                throw new IllegalStateException("pages and per-document counts differ: " + got.size() + " terms against " + want.size());
             }
         }
     }
@@ -196,85 +188,25 @@ public class ColumnarTermsCollectionBenchmark {
     }
 
     @Benchmark
-    public void perDocumentAll(Blackhole bh) throws IOException {
-        consume(bh, all, false);
+    public void perDocument(Blackhole bh) throws IOException {
+        consume(bh, false);
     }
 
     @Benchmark
-    public void pagesAll(Blackhole bh) throws IOException {
-        consume(bh, all, true);
+    public void pages(Blackhole bh) throws IOException {
+        consume(bh, true);
     }
 
-    @Benchmark
-    public void perDocument1(Blackhole bh) throws IOException {
-        consume(bh, filters[0], false);
-    }
-
-    @Benchmark
-    public void pages1(Blackhole bh) throws IOException {
-        consume(bh, filters[0], true);
-    }
-
-    @Benchmark
-    public void perDocument2(Blackhole bh) throws IOException {
-        consume(bh, filters[1], false);
-    }
-
-    @Benchmark
-    public void pages2(Blackhole bh) throws IOException {
-        consume(bh, filters[1], true);
-    }
-
-    @Benchmark
-    public void perDocument5(Blackhole bh) throws IOException {
-        consume(bh, filters[2], false);
-    }
-
-    @Benchmark
-    public void pages5(Blackhole bh) throws IOException {
-        consume(bh, filters[2], true);
-    }
-
-    @Benchmark
-    public void perDocument10(Blackhole bh) throws IOException {
-        consume(bh, filters[3], false);
-    }
-
-    @Benchmark
-    public void pages10(Blackhole bh) throws IOException {
-        consume(bh, filters[3], true);
-    }
-
-    @Benchmark
-    public void perDocument20(Blackhole bh) throws IOException {
-        consume(bh, filters[4], false);
-    }
-
-    @Benchmark
-    public void pages20(Blackhole bh) throws IOException {
-        consume(bh, filters[4], true);
-    }
-
-    @Benchmark
-    public void perDocument30(Blackhole bh) throws IOException {
-        consume(bh, filters[5], false);
-    }
-
-    @Benchmark
-    public void pages30(Blackhole bh) throws IOException {
-        consume(bh, filters[5], true);
-    }
-
-    private void consume(Blackhole bh, Query query, boolean pages) throws IOException {
-        try (Buckets buckets = search(query, pages)) {
+    private void consume(Blackhole bh, boolean pages) throws IOException {
+        try (Buckets buckets = search(pages)) {
             bh.consume(buckets.ords.size());
         }
     }
 
-    /** One search of the segment, counting what it matches into fresh buckets. */
-    private Buckets search(Query query, boolean pages) throws IOException {
+    /** One search of the segment for the filter, counting what it matches into fresh buckets. */
+    private Buckets search(boolean pages) throws IOException {
         final Buckets buckets = new Buckets();
-        searcher.search(query, new CollectorManager<Collector, Void>() {
+        searcher.search(filter, new CollectorManager<Collector, Void>() {
             @Override
             public Collector newCollector() {
                 return new Collector() {
@@ -285,7 +217,12 @@ public class ColumnarTermsCollectionBenchmark {
                             FIELD
                         );
                         final LeafBucketCollector perDocument = perDocumentCollector(values, buckets);
-                        return pages ? new ColumnarPageTermsCollector(values.columnSource().reader(), buckets, perDocument) : perDocument;
+                        if (pages == false) {
+                            return perDocument;
+                        }
+                        return minPageDocs == 0
+                            ? new ColumnarPageTermsCollector(values.columnSource().reader(), buckets, perDocument)
+                            : new ColumnarPageTermsCollector(values.columnSource().reader(), buckets, perDocument, minPageDocs);
                     }
 
                     @Override

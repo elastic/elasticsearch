@@ -522,3 +522,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
   method: testUnsetMultilineFieldsFailsOnQuotedMultilineRows
   issue: https://github.com/elastic/elasticsearch/issues/162215
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
+  method: testRandomizedQuotedCsvCountsExactlyAcrossSplits
+  issue: https://github.com/elastic/elasticsearch/issues/162217

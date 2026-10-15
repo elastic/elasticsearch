@@ -53,14 +53,18 @@ public class ColumnarNegatedQueryTests extends ESTestCase {
     private static final ScanBudget NO_BUDGET = s -> {};
 
     public void testAsFilterAcceptsAnExclusionThatScansAColumn() {
-        final Query contains = ColumnarStringTermQuery.contains("f", new BytesRef("x"), NO_BUDGET);
+        final Query contains = ColumnarStringTermQuery.contains("f", new BytesRef("x"), false, NO_BUDGET);
         assertEquals(new ColumnarNegatedQuery(contains), ColumnarNegatedQuery.asFilter(contains));
-        assertNotNull(ColumnarNegatedQuery.asFilter(ColumnarStringTermQuery.prefix("f", new BytesRef("x"), NO_BUDGET)));
+        assertNotNull(ColumnarNegatedQuery.asFilter(ColumnarStringTermQuery.prefix("f", new BytesRef("x"), false, NO_BUDGET)));
         assertNotNull(
-            ColumnarNegatedQuery.asFilter(new ColumnarStringRangeQuery("f", new BytesRef("a"), true, new BytesRef("z"), true, NO_BUDGET))
+            ColumnarNegatedQuery.asFilter(
+                new ColumnarStringRangeQuery("f", new BytesRef("a"), true, new BytesRef("z"), true, false, NO_BUDGET)
+            )
         );
         assertNotNull(
-            ColumnarNegatedQuery.asFilter(new ColumnarStringAnyOfQuery("f", List.of(new BytesRef("a"), new BytesRef("b")), NO_BUDGET))
+            ColumnarNegatedQuery.asFilter(
+                new ColumnarStringAnyOfQuery("f", List.of(new BytesRef("a"), new BytesRef("b")), false, NO_BUDGET)
+            )
         );
     }
 
@@ -69,20 +73,21 @@ public class ColumnarNegatedQueryTests extends ESTestCase {
      * so Lucene's exclusion handling already suits it. Requiring it would add a check per document for nothing.
      */
     public void testAsFilterLeavesAWholeValueExclusionProhibited() {
-        assertNull(ColumnarNegatedQuery.asFilter(ColumnarStringTermQuery.term("f", new BytesRef("x"), NO_BUDGET)));
-        assertNull(ColumnarNegatedQuery.asFilter(ColumnarStringTermQuery.term("f", new BytesRef(""), NO_BUDGET)));
+        assertNull(ColumnarNegatedQuery.asFilter(ColumnarStringTermQuery.term("f", new BytesRef("x"), false, NO_BUDGET)));
+        assertNull(ColumnarNegatedQuery.asFilter(ColumnarStringTermQuery.term("f", new BytesRef(""), false, NO_BUDGET)));
     }
 
     public void testAsFilterStillAcceptsAWholeValueTermBesideACostlyScan() {
-        final Query query = new BooleanQuery.Builder().add(ColumnarStringTermQuery.term("f", new BytesRef("x"), NO_BUDGET), Occur.SHOULD)
-            .add(ColumnarStringTermQuery.contains("g", new BytesRef("y"), NO_BUDGET), Occur.SHOULD)
-            .build();
+        final Query query = new BooleanQuery.Builder().add(
+            ColumnarStringTermQuery.term("f", new BytesRef("x"), false, NO_BUDGET),
+            Occur.SHOULD
+        ).add(ColumnarStringTermQuery.contains("g", new BytesRef("y"), false, NO_BUDGET), Occur.SHOULD).build();
         assertNotNull(ColumnarNegatedQuery.asFilter(query));
     }
 
     public void testAsFilterSeesThroughWrappers() {
         // ES|QL wraps what it pushes down in single-value checks and filters, so the scan is rarely the clause itself.
-        final Query term = ColumnarStringTermQuery.contains("f", new BytesRef("x"), NO_BUDGET);
+        final Query term = ColumnarStringTermQuery.contains("f", new BytesRef("x"), false, NO_BUDGET);
         assertNotNull(ColumnarNegatedQuery.asFilter(new ConstantScoreQuery(term)));
         assertNotNull(ColumnarNegatedQuery.asFilter(new BoostQuery(term, 2f)));
         assertNotNull(
@@ -94,7 +99,7 @@ public class ColumnarNegatedQueryTests extends ESTestCase {
 
     public void testAsFilterAcceptsADisjunctionContainingAScan() {
         // A disjunction reaches every document any of its clauses reaches, so one scan makes the whole of it a scan.
-        final Query scan = ColumnarStringTermQuery.contains("f", new BytesRef("x"), NO_BUDGET);
+        final Query scan = ColumnarStringTermQuery.contains("f", new BytesRef("x"), false, NO_BUDGET);
         assertNotNull(
             ColumnarNegatedQuery.asFilter(
                 new BooleanQuery.Builder().add(new TermQuery(new Term("f", "y")), Occur.SHOULD).add(scan, Occur.SHOULD).build()
@@ -104,7 +109,7 @@ public class ColumnarNegatedQueryTests extends ESTestCase {
 
     public void testAsFilterIgnoresAScanThatIsItselfAnExclusion() {
         // The scan inside a nested MUST_NOT is not what makes this exclusion read the column.
-        final Query scan = ColumnarStringTermQuery.contains("f", new BytesRef("x"), NO_BUDGET);
+        final Query scan = ColumnarStringTermQuery.contains("f", new BytesRef("x"), false, NO_BUDGET);
         assertNull(
             ColumnarNegatedQuery.asFilter(
                 new BooleanQuery.Builder().add(new TermQuery(new Term("f", "y")), Occur.MUST).add(scan, Occur.MUST_NOT).build()
@@ -116,7 +121,7 @@ public class ColumnarNegatedQueryTests extends ESTestCase {
     public void testAsFilterAcceptsAConjunctionContainingAScan() {
         // Left as a known, cheap over-approximation: another clause may lead the conjunction, but the negation is only
         // ever confirmed on the documents the other clauses of the enclosing query kept.
-        final Query scan = ColumnarStringTermQuery.contains("f", new BytesRef("x"), NO_BUDGET);
+        final Query scan = ColumnarStringTermQuery.contains("f", new BytesRef("x"), false, NO_BUDGET);
         assertNotNull(
             ColumnarNegatedQuery.asFilter(
                 new BooleanQuery.Builder().add(new TermQuery(new Term("f", "y")), Occur.MUST).add(scan, Occur.MUST).build()

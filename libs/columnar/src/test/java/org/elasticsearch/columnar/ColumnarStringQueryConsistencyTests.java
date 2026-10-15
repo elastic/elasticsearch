@@ -290,8 +290,14 @@ public class ColumnarStringQueryConsistencyTests extends ESTestCase {
         cases.add(
             new Case(
                 "contains [google] and negated contains [.google.]",
-                new BooleanQuery.Builder().add(ColumnarStringTermQuery.contains(FIELD, new BytesRef("google"), s -> {}), Occur.FILTER)
-                    .add(new ColumnarNegatedQuery(ColumnarStringTermQuery.contains(FIELD, new BytesRef(".google."), s -> {})), Occur.FILTER)
+                new BooleanQuery.Builder().add(
+                    ColumnarStringTermQuery.contains(FIELD, new BytesRef("google"), singleValued, s -> {}),
+                    Occur.FILTER
+                )
+                    .add(
+                        new ColumnarNegatedQuery(ColumnarStringTermQuery.contains(FIELD, new BytesRef(".google."), singleValued, s -> {})),
+                        Occur.FILTER
+                    )
                     .build(),
                 v -> any(v, x -> x.contains("google")) && any(v, x -> x.contains(".google.")) == false
             )

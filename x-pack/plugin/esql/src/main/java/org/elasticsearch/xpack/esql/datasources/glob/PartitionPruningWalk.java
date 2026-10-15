@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -44,9 +45,9 @@ import java.util.Set;
      * {@code WHERE <partition> AND <data column>} is the everyday shape, so the walk never descends speculatively
      * on a {@code **} glob. A keyed glob ({@code key=*} / {@code key=literal} segments) may descend an
      * unhinted leading identity key when a hinted key of that glob is still pending.
- * Survivors are finished with one recursive listing each, but only when something was pruned and the survivor
- * count satisfies {@link #MAX_FINISH_SURVIVORS} / {@link #MAX_FINISH_SURVIVOR_FRACTION}; otherwise one flat
- * listing is cheaper.
+ * Survivors are finished with one recursive listing each, but only when something was pruned and
+ * {@link #cheaperToFinish} says those listings cost no more LIST pages than one flat listing of the prefix;
+ * otherwise the walk returns {@code null} and the caller flat-lists.
  *
  * <p><b>Trust boundary.</b> Pruning on {@code year} is sound only if {@code year} really is a partition column, and
  * the walk cannot see inside pruned folders. The caller must therefore verify that every {@link
@@ -81,24 +82,79 @@ final class PartitionPruningWalk {
     static final int MAX_LISTED_CHILDREN = 10_000;
 
     /**
-     * Absolute ceiling on surviving directories that {@link #finishSurvivors} will enumerate individually.
-     * Overridden by {@link #MAX_FINISH_SURVIVOR_FRACTION} when the level was wide and the kept fraction is small:
-     * on a 100-entry level with 5 surviving directories (5 %) individual listings are cheaper than one flat listing
-     * of the whole prefix regardless of the absolute count.
+     * LIST page size used by {@link #cheaperToFinish}. S3 ListObjectsV2's default; {@link StorageProvider} does
+     * not expose a page size.
      */
-    static final int MAX_FINISH_SURVIVORS = 4;
+    static final int LIST_PAGE_SIZE = 1000;
 
     /**
-     * Maximum fraction of a hinted level's children that {@link #finishSurvivors} treats as "few enough to finish
-     * individually". When survivors exceed {@link #MAX_FINISH_SURVIVORS} but the kept ratio is at or below this
-     * threshold, the pruning was significant enough that individual recursive listings are cheaper than re-listing
-     * the whole prefix (which includes the pruned entries). 0.2 (20 %) handles the common {@code IN (handful)}
-     * over a wide partition level — e.g. 5 of 100 customer-id folders — without inflating cost on shallow trees
-     * where a flat listing is cheaper (e.g. 6 of 10 years, ratio 60 %, would still fall back).
+     * Test-only override of {@link #finishSurvivors}' cost check. Production always uses {@link FinishMode#RULE}.
      */
-    static final double MAX_FINISH_SURVIVOR_FRACTION = 0.2;
+    enum FinishMode {
+        RULE,
+        ALWAYS_FINISH,
+        ALWAYS_FLAT
+    }
+
+    private static final ThreadLocal<FinishMode> FINISH_MODE = ThreadLocal.withInitial(() -> FinishMode.RULE);
 
     private PartitionPruningWalk() {}
+
+    /**
+     * Runs {@code body} with a test-only {@link #finishSurvivors} policy. Restores the previous mode even if
+     * {@code body} throws.
+     */
+    static <T> T withFinishMode(FinishMode mode, CheckedSupplier<T, IOException> body) throws IOException {
+        FinishMode previous = FINISH_MODE.get();
+        FINISH_MODE.set(mode);
+        try {
+            return body.get();
+        } finally {
+            if (previous == FinishMode.RULE) {
+                FINISH_MODE.remove();
+            } else {
+                FINISH_MODE.set(previous);
+            }
+        }
+    }
+
+    /** Test-only. Clears a leaked {@link FinishMode} override on the current thread. */
+    static void clearFinishMode() {
+        FINISH_MODE.remove();
+    }
+
+    /**
+     * True when finishing {@code survivors} directories of {@code objectsUnderFirst} objects each costs no more
+     * LIST pages than flattening {@code estimatedPrefixWidth} directories of the same size:
+     * {@code S * ceil(k / P) <= ceil(L * k / P)}. {@code estimatedPrefixWidth} is the product, over walked
+     * levels, of average partition-shaped children per listed directory.
+     */
+    static boolean cheaperToFinish(int survivors, long objectsUnderFirst, double estimatedPrefixWidth) {
+        return cheaperToFinish(survivors, objectsUnderFirst, estimatedPrefixWidth, LIST_PAGE_SIZE);
+    }
+
+    static boolean cheaperToFinish(int survivors, long objectsUnderFirst, double estimatedPrefixWidth, int pageSize) {
+        if (survivors <= 0) {
+            return true;
+        }
+        if (pageSize <= 0) {
+            throw new IllegalArgumentException("pageSize must be positive: " + pageSize);
+        }
+        // An empty LIST still costs one page. Billing k=0 as 1 keeps an empty first survivor from
+        // making every remaining listing look free.
+        long k = Math.max(1L, objectsUnderFirst);
+        double finishPages = (double) survivors * ceilDiv(k, pageSize);
+        double flatPages = Math.ceil(estimatedPrefixWidth * k / pageSize);
+        return finishPages <= flatPages;
+    }
+
+    /** Ceiling of {@code n / d} for non-negative {@code n}; 0 when {@code n} is 0. */
+    static long ceilDiv(long n, int d) {
+        if (n <= 0) {
+            return 0;
+        }
+        return (n + d - 1L) / d;
+    }
 
     /**
      * A walked listing: the matched files (unsorted), the columns folders were pruned on (which the caller must
@@ -207,10 +263,10 @@ final class PartitionPruningWalk {
         boolean anyLevelHinted = false;
         List<StoragePath> dirs = List.of(prefix);
         int listings = 0;
-        // Total shaped dirs at the last hinted level (before pruning). Tracked so finishSurvivors can
-        // decide whether the survived fraction is small enough to justify individual recursive listings
-        // even when the absolute count exceeds MAX_FINISH_SURVIVORS.
-        int lastHintedLevelPeerCount = 0;
+        // Product over walked levels of (shaped children / listed directories). Estimates how many dirs
+        // of the current grain sit under the prefix, so finishSurvivors can compare S * ceil(k/P) against
+        // a flat listing of L * k objects.
+        double estimatedPrefixWidth = 1.0;
         // All raw values seen for each partition key, used to infer the "full" column type. Populated from normal
         // walk listings AND from retroactive peeks into pruned dirs (see below).
         Map<String, List<String>> seenValues = new LinkedHashMap<>();
@@ -230,11 +286,12 @@ final class PartitionPruningWalk {
                     dirs,
                     prunedColumns,
                     inferColumnTypes(seenValues),
-                    lastHintedLevelPeerCount,
+                    estimatedPrefixWidth,
                     prunedDirs
                 );
             }
 
+            int listedDirs = dirs.size();
             List<StoragePath> shapedDirs = new ArrayList<>();
             List<String> shapedKeys = new ArrayList<>();
             List<String> shapedValues = new ArrayList<>();
@@ -358,6 +415,7 @@ final class PartitionPruningWalk {
                     for (StorageEntry file : levelFiles) {
                         collector.add(file);
                     }
+                    estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, listedDirs, shapedDirs.size());
                     dirs = next;
                     continue;
                 }
@@ -372,13 +430,14 @@ final class PartitionPruningWalk {
                 // LIST per directory — and `WHERE <partition> AND <data column>` is the everyday shape. Keep the
                 // pruning already done and finish by recursively listing each surviving PARENT dir (dirs), not each
                 // child (next): listing the parent once enumerates the same files with one round trip instead of N.
+                // Do not bump L: survivors are the parents, whose width is already in estimatedPrefixWidth.
                 return finishSurvivors(
                     collector,
                     provider,
                     dirs,
                     prunedColumns,
                     inferColumnTypes(seenValues),
-                    lastHintedLevelPeerCount,
+                    estimatedPrefixWidth,
                     prunedDirs
                 );
             }
@@ -387,7 +446,7 @@ final class PartitionPruningWalk {
                 collector.add(file);
             }
             anyLevelHinted = true;
-            lastHintedLevelPeerCount = shapedDirs.size();
+            estimatedPrefixWidth = bumpPrefixWidth(estimatedPrefixWidth, listedDirs, shapedDirs.size());
             dirs = next;
         }
         return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
@@ -462,17 +521,21 @@ final class PartitionPruningWalk {
         return types;
     }
 
+    /** Product update: skip empty levels so a file-only listing does not zero the prefix-width estimate. */
+    private static double bumpPrefixWidth(double estimatedPrefixWidth, int listedDirs, int shapedCount) {
+        if (listedDirs <= 0 || shapedCount <= 0) {
+            return estimatedPrefixWidth;
+        }
+        return estimatedPrefixWidth * ((double) shapedCount / listedDirs);
+    }
+
     /**
      * Ends a walk whose remaining subtrees no hint can narrow: one recursive listing per survivor, but only when
-     * something was pruned and individual listings are cheaper than one flat listing of the whole prefix —
-     * otherwise {@code null} to signal a flat fallback.
+     * something was pruned and {@link #cheaperToFinish} says those listings cost no more LIST pages than one
+     * flat listing of the prefix — otherwise {@code null} to signal a flat fallback.
      *
-     * <p>Individual listings are cheaper when either: (a) the absolute survivor count is small
-     * ({@link #MAX_FINISH_SURVIVORS}), or (b) the kept fraction of the last hinted level is small enough
-     * ({@link #MAX_FINISH_SURVIVOR_FRACTION}) that the pruned entries would inflate the flat listing significantly.
-     * The fraction guard handles wide levels: {@code IN (5 of 100)} customer-id folders costs 5 individual listings
-     * vs a flat listing covering all 100, while {@code year >= 2020} keeping 6 of 10 years falls back to flat
-     * because both the absolute count and the fraction are above their respective thresholds.
+     * <p>The first survivor is listed before the decision so {@code k} is measured rather than guessed. If the
+     * rule then flattens, that one LIST is wasted; the collector is discarded with the {@code null} return.
      */
     @Nullable
     private static WalkResult finishSurvivors(
@@ -481,22 +544,40 @@ final class PartitionPruningWalk {
         List<StoragePath> dirs,
         Set<String> prunedColumns,
         Map<String, DataType> columnFullTypes,
-        int lastHintedLevelPeerCount,
+        double estimatedPrefixWidth,
         List<StoragePath> prunedDirs
     ) throws IOException {
         if (prunedColumns.isEmpty()) {
             return null;
         }
-        boolean tooManyAbsolute = dirs.size() > MAX_FINISH_SURVIVORS;
-        boolean tooLargeFraction = lastHintedLevelPeerCount > 0
-            && (double) dirs.size() / lastHintedLevelPeerCount > MAX_FINISH_SURVIVOR_FRACTION;
-        if (tooManyAbsolute && tooLargeFraction) {
+        FinishMode mode = FINISH_MODE.get();
+        if (mode == FinishMode.ALWAYS_FLAT) {
             return null;
         }
-        for (StoragePath dir : dirs) {
-            collector.addRecursively(provider, dir);
+        if (dirs.isEmpty()) {
+            return collector.result(prunedColumns, columnFullTypes, prunedDirs);
+        }
+        List<StorageEntry> firstBatch = listDir(provider, dirs.get(0));
+        if (mode == FinishMode.RULE && cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth) == false) {
+            return null;
+        }
+        for (StorageEntry entry : firstBatch) {
+            collector.add(entry);
+        }
+        for (int i = 1; i < dirs.size(); i++) {
+            collector.addRecursively(provider, dirs.get(i));
         }
         return collector.result(prunedColumns, columnFullTypes, prunedDirs);
+    }
+
+    private static List<StorageEntry> listDir(StorageProvider provider, StoragePath dir) throws IOException {
+        List<StorageEntry> entries = new ArrayList<>();
+        try (StorageIterator iterator = provider.listObjects(dir, true)) {
+            while (iterator.hasNext()) {
+                entries.add(iterator.next());
+            }
+        }
+        return entries;
     }
 
     /**

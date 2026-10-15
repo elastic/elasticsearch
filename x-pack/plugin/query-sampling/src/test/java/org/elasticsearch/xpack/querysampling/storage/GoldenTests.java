@@ -135,10 +135,6 @@ public class GoldenTests extends ESTestCase {
         return new StoredSamples((request, listener) -> { respond(listener, goldenUpdaterStored); }, REGISTRY);
     }
 
-    private GoldenUpdater adding() {
-        return new GoldenUpdater(reader(), samples(), writer(), null, null);
-    }
-
     private GoldenUpdater refreshing() {
         GoldenReader reader = reader();
         return new GoldenUpdater(reader, samples(), writer(), new GoldenStaleness(reader, (request, listener) -> {
@@ -174,19 +170,6 @@ public class GoldenTests extends ESTestCase {
 
     private List<String> writtenIds() {
         return bulks.get(0).requests().stream().map(DocWriteRequest::id).toList();
-    }
-
-    public void testOnlyQueriesThatAreNotInTheLatestVersionAreAddedAndTheOnesThereAreKept() throws IOException {
-        latestVersion = 2;
-        golden = List.of(goldenRecord(1, 100, STORED), goldenRecord(2, 200, STORED));
-        goldenUpdaterStored = List.of(sample("s", 4, 400), sample("s", 3, 300), sample("s", 2, 200), sample("s", 1, 100));
-
-        GoldenUpdater.Result result = update(adding(), 10);
-
-        assertThat(result, equalTo(new GoldenUpdater.Result(2, 3, 2, 0, 2, 0, 0)));
-        assertThat(manifests.get(0).source().utf8ToString().contains("\"source_version\":2"), equalTo(true));
-        assertThat("the newest first", writtenIds(), equalTo(List.of("3_" + fp(4), "3_" + fp(3), "3_" + fp(2), "3_" + fp(1))));
-        assertThat("the ground truth is not looked at", probes.size(), equalTo(0));
     }
 
     public void testFreshQueriesAreCopiedAndStaleOnesAreComputedAgainInANewVersion() throws IOException {

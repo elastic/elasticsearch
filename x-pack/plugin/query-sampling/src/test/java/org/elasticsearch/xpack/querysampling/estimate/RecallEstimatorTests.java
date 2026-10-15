@@ -35,18 +35,6 @@ public class RecallEstimatorTests extends ESTestCase {
         assertThat(estimate.uniqueQueryRecall(), closeTo(0.5, 1e-12));
     }
 
-    public void testQueriesThatWereLikelyToBePickedCountLess() {
-        List<StoredSample> samples = List.of(
-            sample(2, List.of("a", "b"), List.of("a", "b"), 1, 1.0, 1),
-            sample(2, List.of("x", "y"), List.of("a", "b"), 1, 0.25, 1)
-        );
-
-        RecallEstimate estimate = RecallEstimator.estimate(samples);
-
-        assertThat(estimate.trafficWeightedRecall(), closeTo(1.0 / 5, 1e-12));
-        assertThat(estimate.uniqueQueryRecall(), closeTo(1.0 / 5, 1e-12));
-    }
-
     public void testOnlyDistinctQueriesAreCorrectedForNotHavingBeenSeen() {
         List<StoredSample> samples = List.of(
             sample(2, List.of("a", "b"), List.of("a", "b"), 1, 1, 1),

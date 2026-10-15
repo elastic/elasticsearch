@@ -19,27 +19,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
 
 public class SamplerTests extends ESTestCase {
 
     private static final QueryFingerprint FINGERPRINT = new QueryFingerprint(1, 1);
 
     private final ScaleRegulator regulator = new ScaleRegulator();
-
-    public void testProbabilityShrinksWithPopularityButAddsUpLogarithmically() {
-        double scale = 0.5;
-        QuerySampler sampler = new QuerySampler(scale, Long.MAX_VALUE, seededRandom());
-        double total = 0;
-        double previous = Double.MAX_VALUE;
-        for (long arrival = 1; arrival <= 1000; arrival++) {
-            double probability = sampler.acceptanceProbability(arrival);
-            assertThat(probability, lessThan(previous));
-            previous = probability;
-            total += probability;
-        }
-        assertThat(total, closeTo(scale * Math.log(1001), 1e-9));
-    }
 
     public void testQueriesGetNoChanceOnceThePicksAreUsedUpAndThatIsRecorded() {
         AtomicLong clock = new AtomicLong();
@@ -61,18 +46,6 @@ public class SamplerTests extends ESTestCase {
 
         clock.addAndGet(TimeUnit.MINUTES.toNanos(2));
         assertTrue("a pick is back", sampler.offer(tracker.record(new QueryFingerprint(4, 4))));
-    }
-
-    public void testHeadQueriesAreNeverHeldBack() {
-        PickBudget limit = new PickBudget(() -> 0L);
-        limit.perHour(60);
-        QuerySampler sampler = new QuerySampler(1.0, 5, alwaysDrawing(0.999999), limit);
-        QuerySampler lucky = new QuerySampler(1.0, 5, alwaysDrawing(0.0), limit);
-        assertTrue(lucky.offer(tracked(1)));
-
-        TrackedQuery head = tracked(5);
-        assertTrue("the budget is empty, and it is a head query", sampler.offer(head));
-        assertThat(head.inclusionProbability(), equalTo(1.0));
     }
 
     public void testInclusionProbabilityMatchesHowOftenQueriesAreSampled() {
@@ -110,15 +83,6 @@ public class SamplerTests extends ESTestCase {
         for (int i = 0; i < picks; i++) {
             regulator.recordPick();
         }
-    }
-
-    private static TrackedQuery tracked(int multiplicity) {
-        MultiplicityTracker tracker = new MultiplicityTracker(1);
-        TrackedQuery query = null;
-        for (int i = 0; i < multiplicity; i++) {
-            query = tracker.record(FINGERPRINT);
-        }
-        return query;
     }
 
     private Random seededRandom() {

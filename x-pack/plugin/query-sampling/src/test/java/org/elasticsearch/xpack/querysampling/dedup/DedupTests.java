@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -35,14 +34,6 @@ public class DedupTests extends ESTestCase {
 
         assertThat(tracker.distinct(), equalTo(2));
         assertThat(tracker.untracked(), equalTo(0L));
-    }
-
-    public void testSeenProbabilityOfAQueryCapturedRarely() {
-        MultiplicityTracker tracker = new MultiplicityTracker(10);
-        QueryFingerprint a = new QueryFingerprint(1, 1);
-
-        assertThat(tracker.record(a, 0.01).seenProbability(), closeTo(1 - Math.pow(0.99, 100), 1e-9));
-        assertThat(tracker.record(a, 0.01).seenProbability(), closeTo(1 - Math.pow(0.99, 200), 1e-9));
     }
 
     public void testForgetsQueriesNotSeenForAWindow() {

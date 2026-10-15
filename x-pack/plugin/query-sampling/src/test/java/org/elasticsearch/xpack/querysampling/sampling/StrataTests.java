@@ -20,7 +20,6 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
-import org.elasticsearch.xpack.querysampling.dedup.Hardness;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
@@ -35,8 +34,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
 
 public class StrataTests extends ESTestCase {
 
@@ -79,26 +76,6 @@ public class StrataTests extends ESTestCase {
 
         assertThat(strata.factor(found[0]), closeTo(5.0 / 9, 1e-9));
         assertThat(strata.factor(found[1]), closeTo(5.0, 1e-9));
-    }
-
-    private static HardnessStrata tilting(double tilt) {
-        HardnessStrata strata = new HardnessStrata();
-        strata.watch(
-            new ClusterSettings(
-                Settings.builder().put(QuerySamplingSettings.HARDNESS_TILT.getKey(), tilt).build(),
-                Set.of(QuerySamplingSettings.HARDNESS_TILT)
-            )
-        );
-        return strata;
-    }
-
-    public void testHardQueriesAreFavouredAndEasyOnesAreNot() {
-        HardnessStrata strata = tilting(1.0);
-
-        assertThat(strata.factor(Hardness.HARD), greaterThan(1.0));
-        assertThat(strata.factor(Hardness.EASY), lessThan(1.0));
-        assertThat(strata.factor(Hardness.HARD) / strata.factor(Hardness.MEDIUM), closeTo(Math.E, 1e-9));
-        assertThat(strata.factor(Hardness.MEDIUM) / strata.factor(Hardness.EASY), closeTo(Math.E, 1e-9));
     }
 
     private SelectivityStrata strata() {

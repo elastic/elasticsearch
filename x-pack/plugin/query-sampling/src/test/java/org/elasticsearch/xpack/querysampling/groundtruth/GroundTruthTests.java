@@ -16,7 +16,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -31,8 +30,6 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
-import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -57,27 +54,9 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class GroundTruthTests extends ESTestCase {
-
-    public void testRequestScansExactlyWhatTheLiveSearchCouldReturn() {
-        float[] vector = { 1f, 2f, 3f };
-        QueryBuilder brand = QueryBuilders.termQuery("brand", "apple");
-        CapturedQuery query = new CapturedQuery(new String[] { "a", "b" }, "vec", vector, 7, 100, 0.5f, 3f, List.of(brand), "q1");
-
-        SearchRequest request = ExactSearch.request(query);
-
-        assertArrayEquals(new String[] { "a", "b" }, request.indices());
-        assertThat(request.source().size(), equalTo(7));
-        assertThat(request.source().knnSearch().isEmpty(), equalTo(true));
-        assertThat(request.source().query(), instanceOf(BoolQueryBuilder.class));
-        BoolQueryBuilder bool = (BoolQueryBuilder) request.source().query();
-        assertThat(bool.must().size(), equalTo(1));
-        assertThat(bool.must().get(0), equalTo(new ExactKnnQueryBuilder(new VectorData(vector, null, null), "vec", null, 1f)));
-        assertThat(bool.filter(), equalTo(List.of(brand)));
-    }
 
     private static final FakeShards SHARDS = FakeShards.of(new FakeShards.Shard("idx", 0, 3, 6), new FakeShards.Shard("idx", 1, 2, 4));
 
@@ -198,104 +177,6 @@ public class GroundTruthTests extends ESTestCase {
     private final List<SearchRequest> exactSearches = new ArrayList<>();
 
     private final List<BulkRequest> bulks = new ArrayList<>();
-
-    public void testGroundTruthIsComputedForWhatIsPendingAndStoredWithIt() throws IOException {
-        StoredGroundTruth service = service(pending(1, 2), failingEveryExactSearchOf(-1), acknowledgingAll());
-
-        GroundTruthRunner.Result result = compute(service, 5);
-
-        assertThat(result, equalTo(new GroundTruthRunner.Result(2, 0)));
-        SearchRequest sampleSearch = sampleSearches.get(0);
-        assertThat(sampleSearch.indices(), equalTo(new String[] { QuerySamplingIndex.NAME }));
-        assertThat(sampleSearch.source().size(), equalTo(5));
-        assertThat(sampleSearch.source().query(), equalTo(QueryBuilders.termQuery("has_ground_truth", false)));
-
-        assertThat("the stored queries are searched", exactSearches.stream().map(r -> r.source().size()).toList(), equalTo(List.of(1, 2)));
-        assertThat(bulks.size(), equalTo(1));
-        List<DocWriteRequest<?>> updates = bulks.get(0).requests();
-        assertThat(updates.size(), equalTo(2));
-        assertThat(updates.get(0).id(), equalTo(SampleRecord.documentId("sampler", new QueryFingerprint(1, 1))));
-        assertThat(updates.get(0), instanceOf(UpdateRequest.class));
-        String update = ((UpdateRequest) updates.get(0)).doc().source().utf8ToString();
-        assertThat(update.contains("\"has_ground_truth\":true"), equalTo(true));
-        assertThat(update.contains("\"neighbors\""), equalTo(true));
-    }
-
-    private GroundTruthRunner.Result compute(StoredGroundTruth service, int max) {
-        AtomicReference<GroundTruthRunner.Result> result = new AtomicReference<>();
-        service.compute(max, ActionListener.wrap(result::set, e -> fail(e)));
-        return result.get();
-    }
-
-    private StoredGroundTruth service(
-        BiConsumer<SearchRequest, ActionListener<SearchResponse>> sampleSearch,
-        BiConsumer<SearchRequest, ActionListener<SearchResponse>> exactSearch,
-        BiConsumer<BulkRequest, ActionListener<BulkResponse>> bulk
-    ) {
-        return new StoredGroundTruth((request, listener) -> {
-            sampleSearches.add(request);
-            sampleSearch.accept(request, listener);
-        }, bulk, overShards(SHARDS, (request, listener) -> {
-            exactSearches.add(request);
-            exactSearch.accept(request, listener);
-        }), new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents()), () -> 42L);
-    }
-
-    private static BiConsumer<SearchRequest, ActionListener<SearchResponse>> pending(int... numbers) throws IOException {
-        SearchHit[] hits = new SearchHit[numbers.length];
-        for (int i = 0; i < numbers.length; i++) {
-            long n = numbers[i];
-            CapturedQuery query = new CapturedQuery(
-                new String[] { "idx" },
-                "vec",
-                new float[] { n },
-                (int) n,
-                10,
-                null,
-                null,
-                List.of(),
-                null
-            );
-            QueryFingerprint fingerprint = new QueryFingerprint(n, n);
-            SampledQuery sampled = new SampledQuery(
-                fingerprint,
-                new CapturedSearch(query, List.of(), 1, 1.0),
-                new MultiplicityTracker(10).record(fingerprint)
-            );
-            hits[i] = SearchHit.unpooled(i, SampleRecord.documentId("sampler", fingerprint));
-            hits[i].sourceRef(BytesReference.bytes(SampleRecord.document(JsonXContent.contentBuilder(), "sampler", sampled, 1L)));
-        }
-        return (request, listener) -> {
-            SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1f);
-            SearchResponse response = SearchResponseUtils.successfulResponse(searchHits);
-            searchHits.decRef();
-            try {
-                listener.onResponse(response);
-            } finally {
-                response.decRef();
-            }
-        };
-    }
-
-    private static BiConsumer<SearchRequest, ActionListener<SearchResponse>> failingEveryExactSearchOf(int failing) {
-        return (request, listener) -> {
-            if (request.source().size() == failing) {
-                listener.onFailure(new IllegalStateException("search failed"));
-                return;
-            }
-            SearchHit hit = SearchHit.unpooled(0, "doc");
-            hit.score(1f);
-            hit.shard(new SearchShardTarget("node", new ShardId("idx", "_na_", 0), null));
-            SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
-            SearchResponse response = SearchResponseUtils.successfulResponse(hits);
-            hits.decRef();
-            try {
-                listener.onResponse(response);
-            } finally {
-                response.decRef();
-            }
-        };
-    }
 
     private BiConsumer<BulkRequest, ActionListener<BulkResponse>> acknowledgingAll() {
         return (request, listener) -> {

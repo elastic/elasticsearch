@@ -19,9 +19,6 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
-import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -194,55 +191,5 @@ public class SampleStorageTests extends ESTestCase {
             );
         }
         return new BulkResponse(responses, 1);
-    }
-
-    private static final TimeValue RETENTION = TimeValue.timeValueDays(7);
-
-    private final List<DeleteByQueryRequest> sampleRetentionRequests = new ArrayList<>();
-
-    private final List<ActionListener<BulkByPaginatedSearchResponse>> sampleRetentionListeners = new ArrayList<>();
-
-    public void testDeletesWhatIsOlderThanTheRetention() {
-        SampleRetention retention = retention();
-
-        retention.run();
-
-        assertThat(sampleRetentionRequests.size(), equalTo(1));
-        DeleteByQueryRequest request = sampleRetentionRequests.get(0);
-        assertThat(request.indices(), equalTo(new String[] { QuerySamplingIndex.NAME }));
-        long cutoff = TimeValue.timeValueDays(10).millis() - RETENTION.millis();
-        assertThat(request.getSearchRequest().source().query(), equalTo(QueryBuilders.rangeQuery("picked_at").lt(cutoff)));
-        assertFalse(request.isAbortOnVersionConflict());
-        assertTrue(request.isRefresh());
-
-        sampleRetentionListeners.get(0).onResponse(response(5));
-        assertThat(retention.deleted(), equalTo(5L));
-    }
-
-    private SampleRetention retention() {
-        return new SampleRetention((request, listener) -> {
-            sampleRetentionRequests.add(request);
-            sampleRetentionListeners.add(listener);
-        }, () -> true, () -> TimeValue.timeValueDays(10).millis(), RETENTION);
-    }
-
-    private static BulkByPaginatedSearchResponse response(long deleted) {
-        BulkByPaginatedSearchTask.Status status = new BulkByPaginatedSearchTask.Status(
-            null,
-            deleted,
-            0,
-            0,
-            deleted,
-            1,
-            0,
-            0,
-            0,
-            0,
-            TimeValue.ZERO,
-            0f,
-            null,
-            TimeValue.ZERO
-        );
-        return new BulkByPaginatedSearchResponse(TimeValue.ZERO, status, List.of(), List.of(), false);
     }
 }

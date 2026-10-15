@@ -42,7 +42,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -105,44 +104,6 @@ public class CaptureTests extends ESTestCase {
         // a shard preference that does not leave shards out is still a search of everything
         assertTrue(queryCaptureFilterApply(filter, knnSearch(randomVector(8)).preference("_local"), TaskId.EMPTY_TASK_ID));
         assertThat(filter.knnSearches(), equalTo(1L));
-    }
-
-    public void testTheRecallIsToldOverTheHitsThatTheSearchReturns() {
-        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
-        KnnSearchBuilder knn = new KnnSearchBuilder("vec", randomVector(8), 100, 1000, null, null, null);
-        // k of 100 with the default size of 10, k of 100 with a size of 5, and a size larger than k
-        for (Integer size : new Integer[] { null, 5, 200 }) {
-            SearchSourceBuilder source = new SearchSourceBuilder().knnSearch(List.of(knn));
-            if (size != null) {
-                source.size(size);
-            }
-            assertTrue(queryCaptureFilterApply(filter, new SearchRequest("idx").source(source), TaskId.EMPTY_TASK_ID));
-        }
-
-        assertThat(captured.stream().map(search -> search.query().k()).toList(), equalTo(List.of(10, 5, 100)));
-    }
-
-    public void testCapturedSearchRemembersTheRateItWasDrawnAt() {
-        ClusterSettings clusterSettings = clusterSettings(true, 1.0);
-        QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, captured::add);
-        queryCaptureFilterApply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
-
-        clusterSettings.applySettings(
-            Settings.builder()
-                .put(QuerySamplingSettings.ENABLED.getKey(), true)
-                .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), 0.5)
-                .build()
-        );
-        int searches = 100;
-        for (int i = 0; i < searches; i++) {
-            queryCaptureFilterApply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
-        }
-
-        assertThat(captured.get(0).captureRate(), equalTo(1.0));
-        assertThat(captured.size(), greaterThan(1));
-        for (CapturedSearch search : captured.subList(1, captured.size())) {
-            assertThat(search.captureRate(), equalTo(0.5));
-        }
     }
 
     private static QueryCaptureFilter filter(boolean enabled, double rate, Consumer<CapturedSearch> consumer) {

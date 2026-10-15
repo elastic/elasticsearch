@@ -7,29 +7,36 @@
 
 package org.elasticsearch.xpack.esql.common.spatial;
 
-import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
-import org.elasticsearch.lucene.spatial.Component2DVisitor;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.DimensionalShapeType;
-import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
-import org.elasticsearch.lucene.spatial.TriangleTreeVisitor;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
- * Wraps a geo_shape WKB as a triangle-tree for intersection testing against grid cells.
- * All types are from server/Lucene — no dependency on the spatial plugin.
+ * Wraps a geo_shape doc value (a serialized triangle tree) for intersection testing against grid cells.
+ * <p>
+ * The doc-value header (centroid, shape type, extent) is decoded here, and the triangle tree is traversed with
+ * ES|QL's own {@link TriangleTreeReader} and {@link TriangleTreeVisitor} rather than the server's equivalents:
+ * see {@link TriangleTreeVisitor} for why that duplication is deliberate. The binary format itself is owned by
+ * the server's {@code GeometryDocValueWriter}/{@code TriangleTreeWriter}, which also write the values this class
+ * reads on the WKB path in {@link #from}.
  */
 public class GeoShapeDocValues {
-    private final GeometryDocValueReader reader;
+    private final ByteArrayStreamInput input;
+    private final int treeOffset;
+    private final Extent extent;
+    private final int encodedCentroidX;
+    private final int encodedCentroidY;
     private final double minLon;
     private final double maxLon;
     private final double minLat;
@@ -37,19 +44,23 @@ public class GeoShapeDocValues {
     private final boolean singlePoint;
 
     private GeoShapeDocValues(
-        GeometryDocValueReader reader,
-        double minLon,
-        double maxLon,
-        double minLat,
-        double maxLat,
-        boolean singlePoint
+        ByteArrayStreamInput input,
+        int treeOffset,
+        Extent extent,
+        DimensionalShapeType shapeType,
+        int encodedCentroidX,
+        int encodedCentroidY
     ) {
-        this.reader = reader;
-        this.minLon = minLon;
-        this.maxLon = maxLon;
-        this.minLat = minLat;
-        this.maxLat = maxLat;
-        this.singlePoint = singlePoint;
+        this.input = input;
+        this.treeOffset = treeOffset;
+        this.extent = extent;
+        this.encodedCentroidX = encodedCentroidX;
+        this.encodedCentroidY = encodedCentroidY;
+        this.minLon = CoordinateEncoder.GEO.decodeX(extent.minX());
+        this.maxLon = CoordinateEncoder.GEO.decodeX(extent.maxX());
+        this.minLat = CoordinateEncoder.GEO.decodeY(extent.minY());
+        this.maxLat = CoordinateEncoder.GEO.decodeY(extent.maxY());
+        this.singlePoint = shapeType == DimensionalShapeType.POINT && extent.minX() == extent.maxX() && extent.minY() == extent.maxY();
     }
 
     public double minLon() {
@@ -70,7 +81,10 @@ public class GeoShapeDocValues {
 
     /** Visits the triangle tree, for example with a {@code GeoHexVisitor} to relate it to an H3 cell. */
     public void visit(TriangleTreeVisitor visitor) throws IOException {
-        reader.visit(visitor);
+        if (visitor.push(extent.minX(), extent.minY(), extent.maxX(), extent.maxY())) {
+            input.setPosition(treeOffset);
+            TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY());
+        }
     }
 
     /**
@@ -83,13 +97,13 @@ public class GeoShapeDocValues {
     }
 
     /** Longitude of the centroid, which for a {@link #isSinglePoint() single point} is the point itself. */
-    public double centroidLon() throws IOException {
-        return CoordinateEncoder.GEO.decodeX(reader.getCentroidX());
+    public double centroidLon() {
+        return CoordinateEncoder.GEO.decodeX(encodedCentroidX);
     }
 
     /** Latitude of the centroid, which for a {@link #isSinglePoint() single point} is the point itself. */
-    public double centroidLat() throws IOException {
-        return CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
+    public double centroidLat() {
+        return CoordinateEncoder.GEO.decodeY(encodedCentroidY);
     }
 
     /**
@@ -108,26 +122,25 @@ public class GeoShapeDocValues {
      * {@link #from(BytesRef, GeoShapeIndexer)} from WKB. Both paths therefore compute cells on the same representation.
      */
     public static GeoShapeDocValues fromDocValue(BytesRef encoded) throws IOException {
-        GeometryDocValueReader reader = new GeometryDocValueReader();
-        reader.reset(encoded);
-        var extent = reader.getExtent();
-        double minLon = CoordinateEncoder.GEO.decodeX(extent.minX());
-        double maxLon = CoordinateEncoder.GEO.decodeX(extent.maxX());
-        double minLat = CoordinateEncoder.GEO.decodeY(extent.minY());
-        double maxLat = CoordinateEncoder.GEO.decodeY(extent.maxY());
-        boolean singlePoint = reader.getDimensionalShapeType() == DimensionalShapeType.POINT
-            && extent.minX() == extent.maxX()
-            && extent.minY() == extent.maxY();
-        return new GeoShapeDocValues(reader, minLon, maxLon, minLat, maxLat, singlePoint);
+        ByteArrayStreamInput input = new ByteArrayStreamInput();
+        input.reset(encoded.bytes, encoded.offset, encoded.length);
+        int encodedCentroidX = input.readInt();
+        int encodedCentroidY = input.readInt();
+        DimensionalShapeType shapeType = DimensionalShapeType.readFrom(input);
+        input.readVLong(); // sum of centroid weights, not needed for grid functions
+        Extent extent = new Extent();
+        Extent.readFromCompressed(input, extent);
+        int treeOffset = input.getPosition();
+        return new GeoShapeDocValues(input, treeOffset, extent, shapeType, encodedCentroidX, encodedCentroidY);
     }
 
     /**
      * Tests whether this geometry intersects the given {@link Component2D}.
      */
     public boolean intersects(Component2D component) throws IOException {
-        Component2DVisitor visitor = Component2DVisitor.getVisitor(component, ShapeField.QueryRelation.INTERSECTS, CoordinateEncoder.GEO);
+        Component2DIntersectsVisitor visitor = new Component2DIntersectsVisitor(component, CoordinateEncoder.GEO);
         visitor.reset();
-        reader.visit(visitor);
+        visit(visitor);
         return visitor.matches();
     }
 }

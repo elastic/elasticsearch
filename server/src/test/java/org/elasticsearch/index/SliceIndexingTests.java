@@ -176,6 +176,10 @@ public class SliceIndexingTests extends ESTestCase {
     public void testIsPathBasedSliceSearch() {
         assertTrue(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/tenant-a/_search")));
         assertTrue(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/tenant-a/_count")));
+        assertTrue(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/tenant-a/_delete_by_query")));
+        assertTrue(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/tenant-a/_update_by_query")));
+        assertFalse(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/_delete_by_query")));
+        assertFalse(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/_update_by_query")));
         assertTrue(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/tenant-a/_search/template")));
         assertTrue(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/tenant-a/_fleet/_fleet_search")));
         assertFalse(SliceIndexing.isPathBasedSliceSearch(pathSliceRequest("/my-index/_search")));

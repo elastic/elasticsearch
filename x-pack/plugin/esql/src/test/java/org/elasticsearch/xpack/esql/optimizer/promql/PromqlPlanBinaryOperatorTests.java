@@ -856,7 +856,6 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "node_memory_MemAvailable_bytes > bool node_memory_MemTotal_bytes",
             "rate(node_cpu_seconds_total[5m]) / node_memory_MemTotal_bytes",
             "(node_memory_MemAvailable_bytes + 1) * node_memory_MemTotal_bytes",
-            "sum(node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes",
             "sum by (instance) (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)"
         )) {
             VerificationException e = expectThrows(VerificationException.class, () -> planPrometheusLayout(promql));
@@ -865,6 +864,23 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
                 e.getMessage(),
                 containsString("binary operations between different metrics require aggregating both operands by the labels to match on")
             );
+        }
+    }
+
+    /** Join translation can match separate metric series without folding them into the same frame. */
+    public void testJoinedOperandsAllowedInSeparateSeries() {
+        assumeTrue(
+            "requires multiple metadata projections",
+            minimumVersion.supports(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA)
+        );
+        for (String promql : List.of(
+            "sum(node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes",
+            "node_memory_MemAvailable_bytes / sum(node_memory_MemTotal_bytes)",
+            "node_memory_MemAvailable_bytes / on (instance) group_left node_memory_MemTotal_bytes",
+            "node_memory_MemAvailable_bytes / on (instance) group_left sum by (instance) (node_memory_MemTotal_bytes)",
+            "sum by (instance) (node_memory_MemAvailable_bytes) / on (instance) group_right node_memory_MemTotal_bytes"
+        )) {
+            assertNotNull(promql, planPrometheusLayout(promql));
         }
     }
 

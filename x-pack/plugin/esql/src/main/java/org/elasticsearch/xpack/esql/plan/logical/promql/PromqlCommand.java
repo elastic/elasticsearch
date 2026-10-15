@@ -568,17 +568,17 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         } else if (returnsScalar(left) == false
                             && returnsScalar(right) == false
                             && pairsMetricsInSeparateSeries(binaryOperator)) {
-                            // Implicit ignoring(__name__) over opaque operands needs runtime-defined match keys.
-                            // https://github.com/elastic/elasticsearch/issues/157669
-                            failures.add(
-                                fail(
-                                    lp,
-                                    "binary operations between different metrics require aggregating both operands by the "
-                                        + "labels to match on, such as sum by (instance) (a) / sum by (instance) (b) [{}]",
-                                    lp.sourceText()
-                                )
-                            );
-                        }
+                                // Implicit ignoring(__name__) over opaque operands needs runtime-defined match keys.
+                                // https://github.com/elastic/elasticsearch/issues/157669
+                                failures.add(
+                                    fail(
+                                        lp,
+                                        "binary operations between different metrics require aggregating both operands by the "
+                                            + "labels to match on, such as sum by (instance) (a) / sum by (instance) (b) [{}]",
+                                        lp.sourceText()
+                                    )
+                                );
+                            }
                     }
 
                     if (binaryOperator instanceof VectorBinaryComparison comp) {

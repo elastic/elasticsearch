@@ -20,14 +20,8 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.QUERY_SAMPLING_ORIGIN;
 
 /**
- * The sample itself (tier 1): the short-term but durable home of the queries picked from live traffic. There is one
- * document per sampled query, holding the query, what the live search answered and what is needed to weight it
- * correctly. Search nodes do not keep anything that cannot be lost, so whatever the sample is later used for reads it
- * from here.
- * <p>
- * A document belongs to one sampler, that is one run of the sampler on one node, as its weights only make sense
- * against the counts that sampler kept. Documents of different samplers are independent samples of the same
- * traffic and are combined when they are read.
+ * Durable home of the sampled queries, one document per query. A document belongs to one sampler run because its
+ * weights only make sense against that sampler's counts; documents of different samplers are combined on read.
  */
 public final class QuerySamplingIndex {
 
@@ -55,10 +49,7 @@ public final class QuerySamplingIndex {
             .build();
     }
 
-    /**
-     * The query, the live hits and the ground truth are only ever read back whole, so they are kept in the source
-     * and not indexed. What is searched on or aggregated is listed explicitly.
-     */
+    // query, live hits and ground truth are only read back whole, so they stay in the source and are not indexed
     static XContentBuilder mappings() {
         try {
             XContentBuilder builder = jsonBuilder();

@@ -23,10 +23,7 @@ import org.elasticsearch.xpack.querysampling.QuerySamplingService;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * Collects the query sampling stats of every selected node. Sampling state is kept per coordinating
- * node, so this is also the place where a cluster-wide view is assembled.
- */
+/** Collects per-node stats, since sampling state is per coordinating node. */
 public final class TransportQuerySamplingStatsAction extends TransportNodesAction<
     QuerySamplingStatsRequest,
     QuerySamplingStatsResponse,

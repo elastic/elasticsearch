@@ -37,27 +37,16 @@ import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 /**
- * Writes a new version of the golden dataset, however its queries came to be.
- * <p>
- * A version is made in three steps. Its number is given out by creating its manifest, which only one writer can do for a
- * number, so that two that run at the same time do not write to the same version. Then the records are written, and last
- * the manifest is completed with how many there are. A writer that dies half way leaves a version that was never completed,
- * which no reader is to use.
+ * Writes a new golden version in three steps: claim its number by creating the manifest (only one concurrent writer can win a
+ * number), write the records, then complete the manifest. A writer that dies half way leaves an incomplete version that readers skip.
  */
 public final class GoldenWriter {
 
     private static final Logger logger = LogManager.getLogger(GoldenWriter.class);
 
-    /**
-     * How many times a number is tried for if it was taken by another writer in the meantime.
-     */
+    // tries for a version number taken by another writer in the meantime
     private static final int ATTEMPTS = 5;
 
-    /**
-     * @param version the version that was made
-     * @param written queries that are in the version
-     * @param failed  queries that could not be written to it
-     */
     public record Written(long version, int written, int failed) {}
 
     private final BiConsumer<SearchRequest, ActionListener<SearchResponse>> search;
@@ -66,12 +55,7 @@ public final class GoldenWriter {
     private final BiConsumer<UpdateRequest, ActionListener<UpdateResponse>> update;
     private final LongSupplier clock;
 
-    /**
-     * All of them are done as the plugin, as nobody else may touch the golden dataset.
-     *
-     * @param search searches the golden dataset
-     * @param clock  milliseconds since the epoch
-     */
+    /** All requests run as the plugin, as nobody else may touch the golden dataset. */
     public GoldenWriter(
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> search,
         BiConsumer<IndexRequest, ActionListener<DocWriteResponse>> index,
@@ -86,11 +70,7 @@ public final class GoldenWriter {
         this.clock = clock;
     }
 
-    /**
-     * Makes a new version of the dataset that has these queries, each with the ground truth it has.
-     *
-     * @param sourceVersion the version that the queries come from, if they come from one, which is kept in the manifest
-     */
+    /** @param sourceVersion the version the queries come from, if any, kept in the manifest */
     public void write(List<StoredSample> queries, @Nullable Long sourceVersion, ActionListener<Written> listener) {
         latestVersion(
             ActionListener.wrap(
@@ -105,9 +85,7 @@ public final class GoldenWriter {
         );
     }
 
-    /**
-     * The number of the latest version, completed or not, 0 if there is none.
-     */
+    // latest version, completed or not, 0 if none
     private void latestVersion(ActionListener<Long> listener) {
         SearchRequest request = new SearchRequest(GoldenIndex.NAME).source(
             new SearchSourceBuilder().query(QueryBuilders.termQuery("kind", GoldenIndex.VERSION))
@@ -126,10 +104,7 @@ public final class GoldenWriter {
         }));
     }
 
-    /**
-     * Takes a number for a version by making its manifest, which fails if it exists. If the number was taken by another
-     * writer since it was looked up, the next one is tried.
-     */
+    // creating the manifest fails if the number exists, then the next one is tried
     private void claim(long version, int attempt, @Nullable Long sourceVersion, ActionListener<Long> listener) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             IndexRequest request = new IndexRequest(GoldenIndex.NAME).id(GoldenRecord.manifestId(version))
@@ -178,8 +153,7 @@ public final class GoldenWriter {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             UpdateRequest request = new UpdateRequest(GoldenIndex.NAME, GoldenRecord.manifestId(version)).retryOnConflict(3)
                 .doc(GoldenRecord.completion(builder, written))
-                // the next update looks for this version by a search, so what was written has to be visible by then: the dataset is on
-                // one shard, so this makes the manifest and the records visible too
+                // the next update finds this version by a search; the dataset is on one shard, so this also makes the records visible
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             update.accept(
                 request,

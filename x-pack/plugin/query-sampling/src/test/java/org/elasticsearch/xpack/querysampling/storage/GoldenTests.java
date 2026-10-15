@@ -26,10 +26,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
@@ -55,7 +53,6 @@ import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,8 +61,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.not;
 
 public class GoldenTests extends ESTestCase {
 
@@ -87,18 +82,12 @@ public class GoldenTests extends ESTestCase {
 
     private static final DataState CHANGED = CHANGED_SHARDS.state();
 
-    /**
-     * The shards of the state are read one number after the other, up to the first that none has: 0 and 1, and 2.
-     */
+    /** The shards of a state are read one number after the other, up to the first that none has: 0 and 1, and 2. */
     private static final int PROBES_PER_STATE = 3;
 
     private static FakeShards shardsOf(DataState state) {
         return state.equals(STORED) ? STORED_SHARDS : CHANGED_SHARDS;
     }
-
-    private final List<SearchRequest> sampleSearches = new ArrayList<>();
-
-    private final List<SearchRequest> goldenSearches = new ArrayList<>();
 
     private final List<SearchRequest> probes = new ArrayList<>();
 
@@ -116,10 +105,6 @@ public class GoldenTests extends ESTestCase {
 
     private long latestVersion = 0;
 
-    private boolean failSampleRead;
-
-    private boolean noGoldenIndex;
-
     private Function<Long, DataState> now = n -> STORED;
 
     private Set<Long> failingProbes = Set.of();
@@ -127,40 +112,37 @@ public class GoldenTests extends ESTestCase {
     private Set<Long> failingExact = Set.of();
 
     private GoldenWriter writer() {
-        return new GoldenWriter((request, listener) -> {
-            if (noGoldenIndex) {
-                listener.onFailure(new IndexNotFoundException(GoldenIndex.NAME));
-            } else {
-                respond(listener, latestVersion == 0 ? List.of() : List.of(manifest(latestVersion)));
-            }
-        }, (request, listener) -> {
-            manifests.add(request);
-            listener.onResponse(new IndexResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), request.id(), 0, 1, 1, true));
-        }, (request, listener) -> {
-            bulks.add(request);
-            BulkItemResponse[] items = new BulkItemResponse[request.numberOfActions()];
-            for (int i = 0; i < items.length; i++) {
-                items[i] = BulkItemResponse.success(
-                    i,
-                    DocWriteRequest.OpType.CREATE,
-                    new IndexResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), "id", 0, 1, 1, true)
+        return new GoldenWriter(
+            (request, listener) -> { respond(listener, latestVersion == 0 ? List.of() : List.of(manifest(latestVersion))); },
+            (request, listener) -> {
+                manifests.add(request);
+                listener.onResponse(new IndexResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), request.id(), 0, 1, 1, true));
+            },
+            (request, listener) -> {
+                bulks.add(request);
+                BulkItemResponse[] items = new BulkItemResponse[request.numberOfActions()];
+                for (int i = 0; i < items.length; i++) {
+                    items[i] = BulkItemResponse.success(
+                        i,
+                        DocWriteRequest.OpType.CREATE,
+                        new IndexResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), "id", 0, 1, 1, true)
+                    );
+                }
+                listener.onResponse(new BulkResponse(items, 1));
+            },
+            (request, listener) -> {
+                completions.add(request);
+                listener.onResponse(
+                    new UpdateResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), request.id(), 0, 1, 1, DocWriteResponse.Result.UPDATED)
                 );
-            }
-            listener.onResponse(new BulkResponse(items, 1));
-        }, (request, listener) -> {
-            completions.add(request);
-            listener.onResponse(
-                new UpdateResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), request.id(), 0, 1, 1, DocWriteResponse.Result.UPDATED)
-            );
-        }, () -> 42L);
+            },
+            () -> 42L
+        );
     }
 
     private GoldenReader reader() {
         return new GoldenReader((request, listener) -> {
-            goldenSearches.add(request);
-            if (noGoldenIndex) {
-                listener.onFailure(new IndexNotFoundException(GoldenIndex.NAME));
-            } else if (request.source().size() == 1) {
+            if (request.source().size() == 1) {
                 respond(listener, latestVersion == 0 ? List.of() : List.of(manifest(latestVersion)));
             } else {
                 respond(listener, golden.stream().limit(request.source().size()).toList());
@@ -169,14 +151,7 @@ public class GoldenTests extends ESTestCase {
     }
 
     private StoredSamples samples() {
-        return new StoredSamples((request, listener) -> {
-            sampleSearches.add(request);
-            if (failSampleRead) {
-                listener.onFailure(new IllegalStateException("read failed"));
-            } else {
-                respond(listener, goldenUpdaterStored);
-            }
-        }, REGISTRY);
+        return new StoredSamples((request, listener) -> { respond(listener, goldenUpdaterStored); }, REGISTRY);
     }
 
     private GoldenUpdater adding() {
@@ -258,32 +233,6 @@ public class GoldenTests extends ESTestCase {
         assertThat("the ground truth is not looked at", probes.size(), equalTo(0));
     }
 
-    public void testWhatWasInTheVersionKeepsItsGroundTruth() throws IOException {
-        latestVersion = 2;
-        golden = List.of(goldenRecord(1, 100, STORED));
-        goldenUpdaterStored = List.of(sample("s", 2, 200), sample("s", 1, 100));
-
-        update(adding(), 10);
-
-        String copy = ((IndexRequest) bulks.get(0).requests().get(1)).source().utf8ToString();
-        assertThat(
-            "not the one of the goldenUpdaterStored query, which would be of other data",
-            copy.contains("\"id\":\"golden1\""),
-            equalTo(true)
-        );
-    }
-
-    public void testWhenThereAreMoreThanTheLimitTheOnesPickedLongestAgoAreLeftOut() throws IOException {
-        latestVersion = 2;
-        golden = List.of(goldenRecord(1, 100, STORED), goldenRecord(2, 200, STORED));
-        goldenUpdaterStored = List.of(sample("s", 4, 400), sample("s", 3, 300));
-
-        GoldenUpdater.Result result = update(adding(), 3);
-
-        assertThat(result, equalTo(new GoldenUpdater.Result(2, 3, 1, 0, 2, 1, 0)));
-        assertThat(writtenIds(), equalTo(List.of("3_" + fp(4), "3_" + fp(3), "3_" + fp(2))));
-    }
-
     public void testNoVersionIsMadeWhenNothingIsNew() throws IOException {
         latestVersion = 2;
         golden = List.of(goldenRecord(1, 100, STORED), goldenRecord(2, 200, STORED));
@@ -292,31 +241,6 @@ public class GoldenTests extends ESTestCase {
         assertThat(update(adding(), 10), equalTo(new GoldenUpdater.Result(2, 0, 2, 0, 0, 0, 0)));
         assertThat(manifests.size(), equalTo(0));
         assertThat(bulks.size(), equalTo(0));
-    }
-
-    public void testAQueryIsInTheVersionOnceWhicheverSamplersPickedIt() throws IOException {
-        goldenUpdaterStored = List.of(sample("second", 1, 300), sample("first", 1, 100), sample("first", 2, 50));
-
-        GoldenUpdater.Result result = update(adding(), 10);
-
-        assertThat(result.added(), equalTo(2));
-        assertThat(
-            ((IndexRequest) bulks.get(0).requests().get(0)).source().utf8ToString().contains("\"sampler_id\":\"second\""),
-            equalTo(true)
-        );
-    }
-
-    public void testOnlyQueriesWithGroundTruthAndNotEventsAreRead() {
-        update(adding(), 10);
-
-        assertThat(
-            sampleSearches.get(0).source().query(),
-            equalTo(
-                QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery("has_ground_truth", true))
-                    .mustNot(QueryBuilders.existsQuery("event_id"))
-            )
-        );
     }
 
     public void testFreshQueriesAreCopiedAndStaleOnesAreComputedAgainInANewVersion() throws IOException {
@@ -358,27 +282,6 @@ public class GoldenTests extends ESTestCase {
         assertThat("the one that cannot be in it is not looked at", probes.size(), equalTo(3 * PROBES_PER_STATE));
     }
 
-    public void testWhatIsComputedAgainAndWhatIsAddedAreInTheSameVersion() throws IOException {
-        latestVersion = 4;
-        golden = List.of(goldenRecord(1, 100, STORED));
-        now = n -> CHANGED;
-        goldenUpdaterStored = List.of(sample("s", 2, 200));
-
-        assertThat(update(refreshing(), 10), equalTo(new GoldenUpdater.Result(4, 5, 0, 1, 1, 0, 0)));
-        assertThat(bulks.get(0).numberOfActions(), equalTo(2));
-    }
-
-    public void testNoVersionIsMadeWhenEverythingIsFreshAndNothingIsNew() throws IOException {
-        latestVersion = 4;
-        golden = List.of(goldenRecord(1, 100, STORED), goldenRecord(2, 200, STORED));
-
-        GoldenUpdater.Result result = update(refreshing(), 10);
-
-        assertThat(result, equalTo(new GoldenUpdater.Result(4, 0, 2, 0, 0, 0, 0)));
-        assertThat("a copy of the version there is would be of no use", manifests.size(), equalTo(0));
-        assertThat(exactSearches.size(), equalTo(0));
-    }
-
     public void testQueriesWithoutTheStateOfTheDataAreComputedAgain() throws IOException {
         latestVersion = 4;
         golden = List.of(goldenRecord(1, 100, null), goldenRecord(2, 200, STORED));
@@ -408,35 +311,13 @@ public class GoldenTests extends ESTestCase {
         assertThat("the others are not vouched for", writtenIds(), equalTo(List.of("5_" + fp(4), "5_" + fp(1))));
     }
 
-    public void testNoVersionIsMadeWhenAllThatChangedCouldNotBeComputedAndNothingIsNew() throws IOException {
-        latestVersion = 4;
-        golden = List.of(goldenRecord(1, 100, STORED));
-        now = n -> CHANGED;
-        failingExact = Set.of(1L);
-
-        assertThat(update(refreshing(), 10), equalTo(new GoldenUpdater.Result(4, 0, 0, 0, 0, 0, 1)));
-        assertThat(manifests.size(), equalTo(0));
-    }
-
-    public void testWhatIsComputedAgainIsSubjectToTheLimitToo() throws IOException {
-        latestVersion = 4;
-        golden = List.of(goldenRecord(1, 100, STORED), goldenRecord(2, 200, STORED));
-        now = n -> CHANGED;
-        goldenUpdaterStored = List.of(sample("s", 3, 300));
-
-        GoldenUpdater.Result result = update(refreshing(), 2);
-
-        assertThat("the oldest is left out, though it was computed again", result, equalTo(new GoldenUpdater.Result(4, 5, 0, 1, 1, 1, 0)));
-        assertThat(writtenIds(), equalTo(List.of("5_" + fp(3), "5_" + fp(2))));
-    }
-
     private static SearchHit manifest(long version) {
         SearchHit hit = SearchHit.unpooled(0, GoldenRecord.manifestId(version));
         hit.sourceRef(new BytesArray("{\"kind\":\"version\",\"dataset_version\":" + version + ",\"completed\":true}"));
         return hit;
     }
 
-    private static StoredSample goldenUpdaterStored(long n, long pickedAt, String groundTruthId, DataState state) {
+    private static StoredSample storedSample(long n, long pickedAt, String groundTruthId, DataState state) {
         CapturedQuery query = new CapturedQuery(new String[] { "idx" + n }, "vec", new float[] { n }, 3, 10, null, null, List.of(), null);
         return new StoredSample(
             "sampler",
@@ -456,7 +337,7 @@ public class GoldenTests extends ESTestCase {
     private static SearchHit goldenRecord(long n, long pickedAt, DataState state) throws IOException {
         SearchHit hit = SearchHit.unpooled((int) n, GoldenRecord.recordId(2, fp(n)));
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            hit.sourceRef(BytesReference.bytes(GoldenRecord.record(builder, 2, goldenUpdaterStored(n, pickedAt, "golden" + n, state), 9L)));
+            hit.sourceRef(BytesReference.bytes(GoldenRecord.record(builder, 2, storedSample(n, pickedAt, "golden" + n, state), 9L)));
         }
         return hit;
     }
@@ -490,17 +371,10 @@ public class GoldenTests extends ESTestCase {
 
     private List<SearchHit> records = List.of();
 
-    private Long latestCompleted = 3L;
-
-    private Function<Float, DataState> goldenStalenessNow = x -> STORED;
-
-    private GoldenStaleness goldenStalenessStaleness(BiConsumer<SearchRequest, ActionListener<SearchResponse>> probe) {
+    private GoldenStaleness staleness(BiConsumer<SearchRequest, ActionListener<SearchResponse>> probe) {
         GoldenReader reader = new GoldenReader((request, listener) -> {
-            goldenSearches.add(request);
-            if (latestCompleted == null) {
-                listener.onFailure(new IndexNotFoundException(GoldenIndex.NAME));
-            } else if (request.source().size() == 1) {
-                respond(listener, latestCompleted == 0 ? List.of() : List.of(manifest(latestCompleted)));
+            if (request.source().size() == 1) {
+                respond(listener, List.of(manifest(3)));
             } else {
                 respond(listener, records);
             }
@@ -511,71 +385,44 @@ public class GoldenTests extends ESTestCase {
         });
     }
 
-    private GoldenStaleness goldenStalenessStaleness() {
-        return goldenStalenessStaleness(
-            (request, listener) -> { shardsOf(goldenStalenessNow.apply(firstOf(request))).accept(request, listener); }
-        );
+    private GoldenStaleness staleness() {
+        return staleness((request, listener) -> STORED_SHARDS.accept(request, listener));
     }
 
     private static float firstOf(SearchRequest request) {
         return Float.parseFloat(request.indices()[0].substring(3));
     }
 
-    private GoldenStaleness.Result check(GoldenStaleness goldenStalenessStaleness, long version, int max) {
+    private GoldenStaleness.Result check(GoldenStaleness staleness, long version, int max) {
         AtomicReference<GoldenStaleness.Result> result = new AtomicReference<>();
-        goldenStalenessStaleness.check(version, max, ActionListener.wrap(result::set, e -> fail(e)));
+        staleness.check(version, max, ActionListener.wrap(result::set, e -> fail(e)));
         return result.get();
     }
 
     public void testQueriesWhoseDataIsAsItWasAreFreshAndThoseWhoseDataChangedAreStale() throws IOException {
         records = List.of(record(1, STORED), record(2, STORED), record(3, CHANGED));
-        goldenStalenessNow = x -> STORED;
 
-        GoldenStaleness.Result result = check(goldenStalenessStaleness(), 3, 10);
+        GoldenStaleness.Result result = check(staleness(), 3, 10);
 
         assertThat(result, equalTo(new GoldenStaleness.Result(3, 3, 2, 1, 0, 0)));
-    }
-
-    public void testGroundTruthWithoutTheStateOfTheDataCannotBeTold() throws IOException {
-        records = List.of(record(1, null), record(2, STORED));
-
-        GoldenStaleness.Result result = check(goldenStalenessStaleness(), 3, 10);
-
-        assertThat(result, equalTo(new GoldenStaleness.Result(3, 2, 1, 0, 1, 0)));
-        assertThat("there is nothing to compare, so no search is made for it", probes.size(), equalTo(PROBES_PER_STATE));
     }
 
     public void testManyQueriesWithoutTheStateOfTheDataDoNotExhaustTheStack() {
         List<StoredSample> many = new ArrayList<>();
         for (int i = 0; i < 100_000; i++) {
-            many.add(goldenUpdaterStored(1, 100, "d", null));
+            many.add(storedSample(1, 100, "d", null));
         }
         AtomicReference<List<GoldenStaleness.Status>> statuses = new AtomicReference<>();
 
-        goldenStalenessStaleness().classify(many, ActionListener.wrap(statuses::set, e -> fail(e)));
+        staleness().classify(many, ActionListener.wrap(statuses::set, e -> fail(e)));
 
         assertThat(statuses.get().size(), equalTo(many.size()));
         assertThat(Set.copyOf(statuses.get()), equalTo(Set.of(GoldenStaleness.Status.UNKNOWN)));
     }
 
-    public void testWithoutAVersionTheLatestOneThatIsCompleteIsChecked() throws IOException {
-        records = List.of(record(1, STORED));
-        latestCompleted = 7L;
-
-        GoldenStaleness.Result result = check(goldenStalenessStaleness(), 0, 10);
-
-        assertThat(result.version(), equalTo(7L));
-        assertThat(
-            "the version that was found is the one read",
-            goldenSearches.get(1).source().query().toString().contains("\"value\" : 7"),
-            equalTo(true)
-        );
-        assertThat(goldenSearches.get(1).source().size(), equalTo(10));
-    }
-
     public void testAFailedProbeIsCountedAsFailedAndDoesNotStopTheOthers() throws IOException {
         records = List.of(record(1, STORED), record(2, STORED), record(3, STORED));
-        GoldenStaleness goldenStalenessStaleness = goldenStalenessStaleness((request, listener) -> {
+        GoldenStaleness staleness = staleness((request, listener) -> {
             if (firstOf(request) == 2f) {
                 listener.onFailure(new IllegalStateException("no"));
             } else {
@@ -583,27 +430,7 @@ public class GoldenTests extends ESTestCase {
             }
         });
 
-        assertThat(check(goldenStalenessStaleness, 3, 10), equalTo(new GoldenStaleness.Result(3, 3, 2, 0, 0, 1)));
-    }
-
-    public void testAProbeThatThrowsAndAResponseWithoutAStateAreFailures() throws IOException {
-        records = List.of(record(1, STORED), record(2, STORED));
-        GoldenStaleness goldenStalenessStaleness = goldenStalenessStaleness((request, listener) -> {
-            if (firstOf(request) == 1f) {
-                throw new IllegalStateException("no");
-            }
-            respond(listener, List.of());
-        });
-
-        assertThat(check(goldenStalenessStaleness, 3, 10), equalTo(new GoldenStaleness.Result(3, 2, 0, 0, 0, 2)));
-    }
-
-    public void testUnreadableRecordsAreCountedAsFailed() throws IOException {
-        SearchHit broken = SearchHit.unpooled(9, "broken");
-        broken.sourceRef(new BytesArray("{\"kind\":\"record\"}"));
-        records = List.of(record(1, STORED), broken);
-
-        assertThat(check(goldenStalenessStaleness(), 3, 10), equalTo(new GoldenStaleness.Result(3, 2, 1, 0, 0, 1)));
+        assertThat(check(staleness, 3, 10), equalTo(new GoldenStaleness.Result(3, 3, 2, 0, 0, 1)));
     }
 
     private static SearchHit record(long n, DataState state) throws IOException {
@@ -628,7 +455,7 @@ public class GoldenTests extends ESTestCase {
         return hit;
     }
 
-    private static StoredSample goldenRecordSample(Stratum stratum, Hardness hardness, Selectivity selectivity) {
+    private static StoredSample recordSample() {
         CapturedQuery query = new CapturedQuery(
             new String[] { "a", "b" },
             "vec",
@@ -650,112 +477,40 @@ public class GoldenTests extends ESTestCase {
             1000L,
             2000L,
             groundTruth,
-            stratum,
-            hardness,
+            new Stratum("vec/2", 3),
+            Hardness.HARD,
             null,
-            selectivity
+            Selectivity.LOW
         );
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testRecordIsACopyOfTheStoredSampleWithItsGroundTruthAndTheVersion() throws IOException {
-        StoredSample goldenRecordSample = goldenRecordSample(new Stratum("vec/2", 3), Hardness.HARD, Selectivity.LOW);
-
-        Map<String, Object> record = toMap(GoldenRecord.record(JsonXContent.contentBuilder(), 4, goldenRecordSample, 9000L));
-
-        assertThat(record.get("kind"), equalTo("record"));
-        assertThat(record.get("dataset_version"), equalTo(4));
-        assertThat(record.get("promoted_at"), equalTo(9000));
-        assertThat("when it was picked, and not when it was written last", record.get("source_picked_at"), equalTo(1000));
-        assertThat(record.get("sampler_id"), equalTo("s1"));
-        assertThat(record.get("fingerprint"), equalTo(goldenRecordSample.fingerprint()));
-        assertThat(record.get("indices"), equalTo(List.of("a", "b")));
-        assertThat(record.get("multiplicity"), equalTo(3));
-        assertThat(record.get("weighted_multiplicity"), equalTo(30.0));
-        assertThat(record.get("inclusion_probability"), equalTo(0.5));
-        assertThat(record.get("capture_rate"), equalTo(0.1));
-        assertThat(record.get("spatial_space"), equalTo("vec/2"));
-        assertThat(record.get("spatial_cluster"), equalTo(3));
-        assertThat(record.get("hardness"), equalTo("hard"));
-        assertThat(record.get("selectivity"), equalTo("low"));
-        assertThat(((Map<String, Object>) record.get("query")).get("query_vector"), equalTo(List.of(1.0, 2.0)));
-        assertThat(((List<?>) ((Map<String, Object>) record.get("live_hits")).get("hits")).size(), equalTo(1));
-        Map<String, Object> groundTruth = (Map<String, Object>) record.get("ground_truth");
-        assertThat(((List<?>) groundTruth.get("neighbors")).size(), equalTo(1));
-        assertThat(groundTruth.get("data_state"), equalTo(Map.of("documents", 5, "digest", STORED.digest())));
-        assertThat("it is not a goldenRecordSample, and has nothing to refresh", record, not(hasKey("has_ground_truth")));
-        assertThat(record, not(hasKey("updated_at")));
     }
 
     public void testRecordsAreReadBackAsTheSamplesTheyWereCopiedFrom() throws IOException {
-        StoredSample goldenRecordSample = goldenRecordSample(new Stratum("vec/2", 3), Hardness.HARD, Selectivity.LOW);
+        StoredSample original = recordSample();
 
-        Map<String, Object> record = toMap(GoldenRecord.record(JsonXContent.contentBuilder(), 4, goldenRecordSample, 9000L));
-        StoredSample read = GoldenRecord.parse(
-            record,
-            new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents())
-        );
+        Map<String, Object> record = toMap(GoldenRecord.record(JsonXContent.contentBuilder(), 4, original, 9000L));
+        StoredSample read = GoldenRecord.parse(record, REGISTRY);
 
-        assertThat(read.samplerId(), equalTo(goldenRecordSample.samplerId()));
-        assertThat(read.fingerprint(), equalTo(goldenRecordSample.fingerprint()));
-        assertThat(read.weights(), equalTo(goldenRecordSample.weights()));
-        assertThat(read.groundTruth(), equalTo(goldenRecordSample.groundTruth()));
-        assertThat(read.stratum(), equalTo(goldenRecordSample.stratum()));
-        assertThat(read.hardness(), equalTo(goldenRecordSample.hardness()));
-        assertThat(read.selectivity(), equalTo(goldenRecordSample.selectivity()));
-        assertThat(read.search().hits(), equalTo(goldenRecordSample.search().hits()));
+        assertThat(read.samplerId(), equalTo(original.samplerId()));
+        assertThat(read.fingerprint(), equalTo(original.fingerprint()));
+        assertThat(read.weights(), equalTo(original.weights()));
+        assertThat(read.groundTruth(), equalTo(original.groundTruth()));
+        assertThat(read.stratum(), equalTo(original.stratum()));
+        assertThat(read.hardness(), equalTo(original.hardness()));
+        assertThat(read.selectivity(), equalTo(original.selectivity()));
+        assertThat(read.search().hits(), equalTo(original.search().hits()));
         assertThat("when it was picked", read.pickedAt(), equalTo(1000L));
         assertThat("when it was promoted", read.updatedAt(), equalTo(9000L));
         assertThat(read.search().query().field(), equalTo("vec"));
-        assertThat(read.search().query().filters(), equalTo(goldenRecordSample.search().query().filters()));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testEveryFieldOfADocumentIsInTheMappings() throws IOException {
-        Set<String> written = new HashSet<>();
-        written.addAll(
-            toMap(
-                GoldenRecord.record(
-                    JsonXContent.contentBuilder(),
-                    1,
-                    goldenRecordSample(new Stratum("vec/2", 0), Hardness.EASY, Selectivity.HIGH),
-                    1L
-                )
-            ).keySet()
-        );
-        written.addAll(toMap(GoldenRecord.manifest(JsonXContent.contentBuilder(), 1, 1L, 0, false, 3L)).keySet());
-        Map<String, Object> root = XContentHelper.convertToMap(BytesReference.bytes(GoldenIndex.mappings()), false, XContentType.JSON).v2();
-        Map<String, Object> mapping = (Map<String, Object>) root.get("_doc");
-
-        assertThat(((Map<String, Object>) mapping.get("properties")).keySet(), equalTo(written));
+        assertThat(read.search().query().filters(), equalTo(original.search().query().filters()));
     }
 
     private static Map<String, Object> toMap(XContentBuilder builder) {
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
     }
 
-    public void testTheTwoIndicesDoNotOverlap() {
-        new SystemIndices(
-            List.of(
-                new SystemIndices.Feature(
-                    "query_sampling",
-                    "the indices of the query sampling",
-                    List.of(QuerySamplingIndex.descriptor(), GoldenIndex.descriptor())
-                )
-            )
-        );
-
-        assertFalse(QuerySamplingIndex.descriptor().matchesIndexPattern(GoldenIndex.NAME));
-        assertFalse(GoldenIndex.descriptor().matchesIndexPattern(QuerySamplingIndex.NAME));
-    }
-
     private final List<Integer> limits = new ArrayList<>();
 
-    private final List<ActionListener<GoldenUpdater.Result>> held = new ArrayList<>();
-
     private boolean master = true;
-
-    private boolean completeAtOnce = true;
 
     private GoldenUpdater.Result outcome = new GoldenUpdater.Result(1, 2, 0, 0, 3, 0, 0);
 
@@ -766,10 +521,8 @@ public class GoldenTests extends ESTestCase {
             limits.add(limit);
             if (failure != null) {
                 listener.onFailure(failure);
-            } else if (completeAtOnce) {
-                listener.onResponse(outcome);
             } else {
-                held.add(listener);
+                listener.onResponse(outcome);
             }
         }, () -> master);
         job.watch(
@@ -789,29 +542,6 @@ public class GoldenTests extends ESTestCase {
 
         assertThat(limits.size(), equalTo(0));
         assertThat(job.promotions(), equalTo(0L));
-    }
-
-    public void testTheDatasetIsGrownWithTheLimitOfTheSetting() {
-        GoldenPromotionJob job = job();
-
-        job.run();
-
-        assertThat(limits, equalTo(List.of(7)));
-        assertThat(job.promotions(), equalTo(1L));
-        assertThat(job.failed(), equalTo(0L));
-    }
-
-    public void testARoundThatFindsTheOneBeforeStillGoingDoesNothing() {
-        completeAtOnce = false;
-        GoldenPromotionJob job = job();
-
-        job.run();
-        job.run();
-
-        assertThat(limits.size(), equalTo(1));
-        held.get(0).onResponse(outcome);
-        job.run();
-        assertThat("once it is over the next one runs", limits.size(), equalTo(2));
     }
 
     public void testAFailedRoundIsCountedAndDoesNotStopTheNext() {

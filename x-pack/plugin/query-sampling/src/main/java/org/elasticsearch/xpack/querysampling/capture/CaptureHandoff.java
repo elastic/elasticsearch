@@ -12,11 +12,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 
-/**
- * Moves captured searches off the search thread. The queue in front of the executor is bounded and a
- * search never waits for room in it: when the queue is full the capture is dropped and counted.
- * Losing a capture only costs a little statistical precision, slowing down a search would cost much more.
- */
+/** Hands captures to an executor; if its bounded queue is full the capture is dropped, never blocking the search. */
 public final class CaptureHandoff implements Consumer<CapturedSearch> {
 
     private final Executor executor;

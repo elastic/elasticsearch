@@ -16,11 +16,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * A query that was picked for the sample.
- * <p>
- * It is created when the query is picked. What a use of the sample needs to know about it beyond that,
- * such as the ground truth for recall estimation, is attached later under an {@link AttachmentKey}; until
- * then the attachment is {@code null}.
+ * A query that was picked for the sample. Later results, such as the ground truth, are attached under an
+ * {@link AttachmentKey} and are {@code null} until then.
  */
 public final class SampledQuery {
 
@@ -31,10 +28,8 @@ public final class SampledQuery {
     private final Map<AttachmentKey<?>, Object> attachments = new ConcurrentHashMap<>();
 
     /**
-     * @param fingerprint identity of the query
-     * @param search      the arrival that got the query picked, with what the cluster answered at that time
-     * @param tracked     live counters of the query: its multiplicity and inclusion probability keep changing
-     *                    as the query is seen again, so they are read when needed and not copied
+     * @param tracked live counters that keep changing as the query is seen again, so they are read when needed and
+     *                not copied
      */
     public SampledQuery(QueryFingerprint fingerprint, CapturedSearch search, TrackedQuery tracked) {
         this(fingerprint, search, tracked, null);
@@ -48,18 +43,13 @@ public final class SampledQuery {
     }
 
     /**
-     * An arrival that was kept as an event, see {@link org.elasticsearch.xpack.querysampling.sampling.EventSlice}. Unlike a
-     * picked query it is just that arrival, and its weights are final.
-     *
-     * @param eventId tells it from the other events of the same query
+     * An arrival kept as an event, see {@link org.elasticsearch.xpack.querysampling.sampling.EventSlice}; its weights
+     * are final.
      */
     public static SampledQuery event(QueryFingerprint fingerprint, CapturedSearch search, TrackedQuery tracked, String eventId) {
         return new SampledQuery(fingerprint, search, tracked, eventId);
     }
 
-    /**
-     * The id of the event, or {@code null} for a query that was picked by the sampler.
-     */
     @Nullable
     public String eventId() {
         return eventId;
@@ -81,18 +71,12 @@ public final class SampledQuery {
         return tracked;
     }
 
-    /**
-     * The payload attached under the key, or {@code null} if there is none yet.
-     */
     @Nullable
     public <T> T attachment(AttachmentKey<T> key) {
         return key.type().cast(attachments.get(key));
     }
 
-    /**
-     * Attaches a payload, replacing the one under the same key if there is one. Payloads are usually
-     * produced later than the query is picked, possibly on another thread.
-     */
+    /** Payloads are produced after the query is picked, possibly on another thread. */
     public <T> void attach(AttachmentKey<T> key, T value) {
         attachments.put(key, value);
     }

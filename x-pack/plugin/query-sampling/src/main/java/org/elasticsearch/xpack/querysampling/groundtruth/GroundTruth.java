@@ -14,12 +14,8 @@ import org.elasticsearch.xpack.querysampling.storage.AttachmentKey;
 import java.util.List;
 
 /**
- * The true nearest neighbours of a query at the time they were computed, in rank order. Comparing them with
- * the hits the live search returned tells how much of the true answer the approximate search found.
- *
- * @param neighbors the exact top-k, best first
- * @param dataState what the data was like when it was computed, which tells later if it went out of date. {@code null}
- *                  if that was not taken
+ * The exact top-k of a query when it was computed, best first, with the {@link DataState} (if taken) that tells later if it
+ * went out of date.
  */
 public record GroundTruth(List<CapturedSearch.Hit> neighbors, @Nullable DataState dataState) {
 

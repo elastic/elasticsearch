@@ -14,17 +14,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- * Asks for the ground truth of some of the stored sampled queries to be computed. It is only run by the node
- * that receives it, which reads the pending queries from the index of the sample, so it is never sent anywhere.
- */
+/** Run only on the receiving node; never sent over the wire. */
 public final class QuerySamplingGroundTruthRequest extends ActionRequest {
 
     private final int max;
 
-    /**
-     * @param max the most queries to compute the ground truth of, so that how much work one call starts is bounded
-     */
     public QuerySamplingGroundTruthRequest(int max) {
         this.max = max;
     }

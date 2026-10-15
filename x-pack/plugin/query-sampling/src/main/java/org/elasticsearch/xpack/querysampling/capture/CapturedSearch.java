@@ -10,20 +10,11 @@ package org.elasticsearch.xpack.querysampling.capture;
 import java.util.List;
 
 /**
- * A captured kNN search together with what the cluster answered, in rank order. The answer is what
- * lets recall of the live system be observed later, without running the query again.
+ * A captured kNN search with the hits returned, in rank order.
  *
- * @param query      the search as it was received
- * @param hits       the hits returned to the user
- * @param tookMillis time the search took on the coordinating node
- * @param captureRate probability this search had of being captured, which is the {@code capture_rate} in
- *                    force when it arrived. It is dynamic, so it has to travel with each search for the
- *                    traffic to be estimated from what was captured
+ * @param captureRate probability this search had of being captured; it is dynamic, so it travels with the search
  */
 public record CapturedSearch(CapturedQuery query, List<Hit> hits, long tookMillis, double captureRate) {
 
-    /**
-     * A returned document. The id alone is not enough because the same id can exist in several indices.
-     */
     public record Hit(String index, String id, float score) {}
 }

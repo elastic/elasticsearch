@@ -13,19 +13,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 import java.util.List;
 
 /**
- * A kNN search picked by the capture gate, copied out of the request so the rest of the pipeline can
- * work on it off the search thread.
+ * A kNN search copied out of the request so it can be processed off the search thread.
  *
- * @param indices         index expressions of the search, as given by the user
- * @param field           the dense vector field searched
- * @param queryVector     a copy of the query vector
- * @param k               number of nearest neighbours the search returns: its {@code k}, or fewer if it asks for fewer hits
- * @param numCandidates   candidates considered per shard
- * @param visitPercentage visit percentage for IVF-style indices, if set
- * @param oversample      rescore oversampling factor, if set
- * @param filters         the kNN pre-filters, empty for an unfiltered search
- * @param opaqueId        the request's {@code X-Opaque-Id}; a diagnostic label only, it must never
- *                        influence sampling decisions
+ * @param k        neighbours returned: the search's {@code k}, or fewer if it asks for fewer hits
+ * @param opaqueId the request's {@code X-Opaque-Id}; a diagnostic label that must never influence sampling
  */
 public record CapturedQuery(
     String[] indices,

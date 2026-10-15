@@ -14,25 +14,12 @@ import java.util.List;
 /**
  * What the sampled queries say about the recall of the search.
  *
- * @param records                   sampled queries that were looked at
- * @param recordsWithGroundTruth    of those, queries that could be used because their ground truth is known
- * @param trafficWeightedRecall     recall of the search as users experience it: a query counts as often as it is
- *                                  searched. {@code null} if no query could be used
- * @param trafficEffectiveSize      how many equally weighted queries this estimate is worth. It is the number that
- *                                  tells how much to trust the estimate: it falls when a few queries carry most of the
- *                                  weight
- * @param uniqueQueryRecall         recall averaged over distinct queries, each counting once however often it is
- *                                  searched. {@code null} if no query could be used
- * @param uniqueQueryEffectiveSize  the same measure for the estimate over distinct queries
- * @param byHardness                the same estimates for the queries of each hardness, those that have one
- * @param byCluster                 the same estimates for the queries of each cluster of the vector space, those that
- *                                  have one. A region where the recall is low is not seen in the averages of all the
- *                                  queries when most of them are somewhere else
- * @param bySelectivity             the same estimates for the queries that have no filters, and for those of each selectivity:
- *                                  how much of the vectors their filters leave. Queries that leave little of them are
- *                                  often the ones that do worst
- * @param events                    what the uniform sample of arrivals says: the recall of the traffic, estimated without
- *                                  the weights of the sampler
+ * @param trafficWeightedRecall  recall as users experience it (a query counts as often as it is searched), or {@code null}
+ *                               if no query could be used
+ * @param trafficEffectiveSize   how many equally weighted queries the estimate is worth; falls when a few carry most weight
+ * @param uniqueQueryRecall      recall averaged over distinct queries, each counting once, or {@code null} if none could be used
+ * @param byCluster              low-recall regions are hidden in the overall average when most queries are elsewhere
+ * @param events                 the recall of the traffic from the uniform sample of arrivals, without the sampler's weights
  */
 public record RecallEstimate(
     int records,
@@ -48,21 +35,12 @@ public record RecallEstimate(
 ) {
 
     /**
-     * The estimate from the arrivals that were kept as events. Each is a search, so the average is that of the traffic,
-     * and it is weighted only by the probability of having been kept.
-     *
-     * @param records                 events that were looked at
-     * @param recordsWithGroundTruth  of those, events that could be used because their ground truth is known
-     * @param recall                  recall of the search as users experience it, {@code null} if no event could be used
-     * @param effectiveSize           how many equally weighted events the estimate is worth
+     * The estimate from events; each is a search, so it is weighted only by the probability of having been kept.
      */
     public record EventEstimate(int records, int recordsWithGroundTruth, @Nullable Double recall, double effectiveSize) {}
 
     /**
-     * The estimates for the queries of one stratum, in the same terms as those of all the queries.
-     *
-     * @param key                      the stratum: the hardness, or the space of the vectors and the number of the cluster
-     * @param recordsWithGroundTruth   queries of the stratum that could be used
+     * The estimates for one stratum, in the same terms as those of all the queries.
      */
     public record GroupEstimate(
         String key,

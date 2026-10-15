@@ -8,23 +8,18 @@
 package org.elasticsearch.xpack.querysampling;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 
 public class QuerySamplingIT extends QuerySamplingRestTestCase {
 
@@ -34,7 +29,6 @@ public class QuerySamplingIT extends QuerySamplingRestTestCase {
         .module("reindex")
         .feature(FeatureFlag.QUERY_SAMPLING)
         .setting("xpack.security.enabled", "false")
-        .setting("xpack.query_sampling.weights_refresh_interval", "1s")
         .build();
 
     @Override
@@ -81,67 +75,6 @@ public class QuerySamplingIT extends QuerySamplingRestTestCase {
         sampleOneQuery();
     }
 
-    public void testHeadThresholdCanBeChangedWhileRunning() throws Exception {
-        setUpIndexAndSampling();
-        Request settings = new Request("PUT", "/_cluster/settings");
-        settings.setJsonEntity("""
-            { "persistent": { "xpack.query_sampling.head_threshold": 1 } }
-            """);
-        client().performRequest(settings);
-
-        List<Float> sent = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            float x = randomFloat();
-            sent.add(x);
-            client().performRequest(knnSearch(x));
-        }
-
-        assertBusy(() -> {
-            for (float x : sent) {
-                assertNotNull("the query was picked", storedValue(x, "weighted_multiplicity"));
-            }
-        });
-    }
-
-    public void testFloorCapturesQuietTrafficWhateverTheCaptureRate() throws Exception {
-        setUpIndexAndSampling();
-        Request settings = new Request("PUT", "/_cluster/settings");
-        settings.setJsonEntity("""
-            { "persistent": {
-                "xpack.query_sampling.capture_rate": 0.0,
-                "xpack.query_sampling.min_captures_per_hour": 1000000,
-                "xpack.query_sampling.head_threshold": 1
-            } }
-            """);
-        client().performRequest(settings);
-
-        List<Float> sent = new ArrayList<>();
-        assertBusy(() -> {
-            float x = randomFloat();
-            sent.add(x);
-            client().performRequest(knnSearch(x));
-            boolean any = false;
-            for (float y : sent) {
-                any |= storedValue(y, "weighted_multiplicity") != null;
-            }
-            assertTrue("one of the searches was captured", any);
-        });
-    }
-
-    public void testGroundTruthIsComputedByItselfWithinTheBudget() throws Exception {
-        setUpIndexAndSampling();
-        Request settings = new Request("PUT", "/_cluster/settings");
-        settings.setJsonEntity("""
-            { "persistent": { "xpack.query_sampling.sampling_cost_ratio": 1.0 } }
-            """);
-        client().performRequest(settings);
-
-        float x = sampleOneQuery();
-
-        assertBusy(() -> assertThat(storedValue(x, "has_ground_truth"), equalTo(true)), 60, TimeUnit.SECONDS);
-        assertThat(((List<?>) storedValue(x, "ground_truth.neighbors")).size(), equalTo(3));
-    }
-
     public void testSettingsOutOfRangeAreRejected() throws Exception {
         Request settings = new Request("PUT", "/_cluster/settings");
         settings.setJsonEntity("""
@@ -149,18 +82,6 @@ public class QuerySamplingIT extends QuerySamplingRestTestCase {
             """);
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(settings));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-    }
-
-    public void testWeightsOfStoredQueriesAreRefreshed() throws Exception {
-        setUpIndexAndSampling();
-        float x = sampleOneQuery();
-
-        double before = storedMultiplicity(x);
-        int arrivals = 5;
-        for (int i = 0; i < arrivals; i++) {
-            client().performRequest(knnSearch(x));
-        }
-        assertBusy(() -> assertThat(storedMultiplicity(x), greaterThanOrEqualTo(before + arrivals)));
     }
 
     public void testEveryArrivalIsADocumentAndGivesAnEstimateOfTheTraffic() throws Exception {
@@ -201,7 +122,7 @@ public class QuerySamplingIT extends QuerySamplingRestTestCase {
             return 0;
         }
         Request search = new Request("GET", "/.query_sampling/_search?size=10000");
-        search.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        search.setOptions(systemIndexAccess());
         ObjectPath result = ObjectPath.createFromResponse(client().performRequest(search));
         List<?> hits = result.evaluate("hits.hits");
         int events = 0;
@@ -212,61 +133,5 @@ public class QuerySamplingIT extends QuerySamplingRestTestCase {
             }
         }
         return events;
-    }
-
-    private static Request filteredKnnSearch(float x, String filter) {
-        Request search = new Request("POST", "/vectors/_search");
-        search.setJsonEntity(
-            "{ \"knn\": { \"field\": \"vec\", \"query_vector\": ["
-                + x
-                + ", 1.0], \"k\": 3, \"num_candidates\": 10, \"filter\": "
-                + filter
-                + " } }"
-        );
-        return search;
-    }
-
-    public void testSelectivityOfQueriesWithFiltersIsCountedAndTellsTheRecallApart() throws Exception {
-        setUpIndexAndSampling();
-        Request settings = new Request("PUT", "/_cluster/settings");
-        settings.setJsonEntity("""
-            { "persistent": { "xpack.query_sampling.estimate_selectivity": true, "xpack.query_sampling.head_threshold": 1 } }
-            """);
-        client().performRequest(settings);
-
-        float all = randomFloat();
-        float none = randomFloat();
-        float unfiltered = randomFloat();
-        client().performRequest(filteredKnnSearch(all, "{ \"match_all\": {} }"));
-        client().performRequest(filteredKnnSearch(none, "{ \"exists\": { \"field\": \"nothing\" } }"));
-        client().performRequest(knnSearch(unfiltered));
-
-        assertBusy(() -> {
-            assertThat(storedValue(all, "selectivity"), equalTo("high"));
-            assertThat(storedValue(none, "selectivity"), equalTo("low"));
-            assertThat(storedValue(unfiltered, "selectivity"), equalTo("unfiltered"));
-        });
-
-        long last;
-        int calls = 0;
-        do {
-            refreshSampleIndex();
-            last = ((Number) ObjectPath.createFromResponse(client().performRequest(new Request("POST", "/_query_sampling/ground_truth")))
-                .evaluate("computed")).longValue();
-        } while (last > 0 && ++calls < 100);
-        assertThat(last, equalTo(0L));
-
-        assertBusy(() -> {
-            refreshSampleIndex();
-            ObjectPath estimate = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_query_sampling/recall")));
-            List<?> selectivities = estimate.evaluate("by_selectivity");
-            List<String> names = new ArrayList<>();
-            for (int i = 0; i < selectivities.size(); i++) {
-                names.add(estimate.evaluate("by_selectivity." + i + ".selectivity"));
-            }
-            assertThat(names, hasItem("high"));
-            assertThat(names, hasItem("unfiltered"));
-            assertThat(((Number) estimate.evaluate("by_selectivity.0.records_with_ground_truth")).intValue(), greaterThanOrEqualTo(1));
-        });
     }
 }

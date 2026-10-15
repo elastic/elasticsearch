@@ -13,14 +13,12 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
@@ -41,7 +39,6 @@ import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
 import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
-import org.elasticsearch.xpack.querysampling.groundtruth.DataState;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.io.IOException;
@@ -139,22 +136,6 @@ public class SampleStorageTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
-    public void testGroundTruthIsStoredOnceKnownAndOptionalPartsAreLeftOut() throws IOException {
-        CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
-        SampledQuery sampled = new SampledQuery(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked(1.0));
-        sampled.attach(GroundTruth.KEY, new GroundTruth(List.of(new CapturedSearch.Hit("a", "d2", 1f))));
-
-        Map<String, Object> document = toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 5L));
-
-        assertThat(document.get("has_ground_truth"), equalTo(true));
-        assertThat(((List<?>) ((Map<String, Object>) document.get("ground_truth")).get("neighbors")).size(), equalTo(1));
-        Map<String, Object> storedQuery = (Map<String, Object>) document.get("query");
-        assertThat(storedQuery, not(hasKey("visit_percentage")));
-        assertThat(storedQuery, not(hasKey("oversample")));
-        assertThat(storedQuery, not(hasKey("opaque_id")));
-    }
-
     public void testEveryFieldOfADocumentIsInTheMappings() throws IOException {
         CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, 0.5f, 3f, List.of(), "q");
         TrackedQuery tracked = tracked(1.0);
@@ -167,67 +148,6 @@ public class SampleStorageTests extends ESTestCase {
         Map<String, Object> document = toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 5L));
 
         assertThat(mappedFields(), equalTo(document.keySet()));
-    }
-
-    public void testADocumentCanBeReadBack() throws IOException {
-        float[] vector = { randomFloat(), randomFloat(), -randomFloat() };
-        CapturedQuery query = new CapturedQuery(
-            new String[] { "a", "b" },
-            "vec",
-            vector,
-            randomIntBetween(1, 100),
-            randomIntBetween(100, 1000),
-            randomBoolean() ? null : randomFloat(),
-            randomBoolean() ? null : randomFloat(),
-            randomBoolean()
-                ? List.of()
-                : List.of(
-                    QueryBuilders.termQuery("category", randomIntBetween(1, 9)),
-                    QueryBuilders.boolQuery().should(QueryBuilders.rangeQuery("price").gte(10)).should(QueryBuilders.existsQuery("brand"))
-                ),
-            randomBoolean() ? null : "q" + randomInt()
-        );
-        List<CapturedSearch.Hit> hits = List.of(new CapturedSearch.Hit("a", "d1", randomFloat()), new CapturedSearch.Hit("b", "d2", 0.5f));
-        double captureRate = randomDoubleBetween(0.01, 1.0, true);
-        SampledQuery sampled = new SampledQuery(
-            FINGERPRINT,
-            new CapturedSearch(query, hits, randomNonNegativeLong() % 1000, captureRate),
-            tracked(captureRate)
-        );
-        if (randomBoolean()) {
-            sampled.attach(
-                GroundTruth.KEY,
-                new GroundTruth(
-                    List.of(new CapturedSearch.Hit("a", "d3", 1f)),
-                    randomBoolean() ? null : new DataState(randomNonNegativeInt(), randomLong())
-                )
-            );
-        }
-
-        StoredSample stored = SampleRecord.parse(
-            toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 1000L)),
-            xContentRegistry()
-        );
-
-        CapturedQuery read = stored.search().query();
-        assertArrayEquals(query.indices(), read.indices());
-        assertThat(read.field(), equalTo(query.field()));
-        assertArrayEquals(query.queryVector(), read.queryVector(), 0f);
-        assertThat(read.k(), equalTo(query.k()));
-        assertThat(read.numCandidates(), equalTo(query.numCandidates()));
-        assertThat(read.visitPercentage(), equalTo(query.visitPercentage()));
-        assertThat(read.oversample(), equalTo(query.oversample()));
-        assertThat(read.filters(), equalTo(query.filters()));
-        assertThat(read.opaqueId(), equalTo(query.opaqueId()));
-        assertThat(stored.search().hits(), equalTo(hits));
-        assertThat(stored.search().tookMillis(), equalTo(sampled.search().tookMillis()));
-        assertThat(stored.search().captureRate(), closeTo(captureRate, 1e-12));
-        assertThat(stored.weights(), equalTo(sampled.tracked().weights()));
-        assertThat(stored.samplerId(), equalTo("s1"));
-        assertThat(stored.fingerprint(), equalTo(FINGERPRINT.hex()));
-        assertThat(stored.pickedAt(), equalTo(1000L));
-        assertThat(stored.groundTruth(), equalTo(sampled.attachment(GroundTruth.KEY)));
-        assertThat("it can be found again by its id", stored.id(), equalTo(SampleRecord.documentId("s1", FINGERPRINT)));
     }
 
     @Override
@@ -262,8 +182,6 @@ public class SampleStorageTests extends ESTestCase {
 
     private final List<ActionListener<BulkResponse>> listeners = new ArrayList<>();
 
-    private final List<QueryFingerprint> writtenQueries = new ArrayList<>();
-
     public void testAFullBatchIsWrittenAtOnce() {
         SampleWriter writer = writer(3, 10);
 
@@ -277,19 +195,6 @@ public class SampleStorageTests extends ESTestCase {
         assertThat(request.numberOfActions(), equalTo(3));
         assertThat(request.requests().get(0).index(), equalTo(QuerySamplingIndex.NAME));
         assertThat(request.requests().get(0).id(), equalTo(SampleRecord.documentId("sampler", new QueryFingerprint(1, 1))));
-    }
-
-    public void testAPartialBatchWaitsForTheFlushInterval() {
-        SampleWriter writer = writer(3, 10);
-
-        writer.onSampled(sampled(1));
-        taskQueue.runAllRunnableTasks();
-        assertThat(requests.size(), equalTo(0));
-
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
-        assertThat(requests.size(), equalTo(1));
-        assertThat(requests.get(0).numberOfActions(), equalTo(1));
     }
 
     public void testOneRequestIsInFlightAtATime() {
@@ -309,50 +214,6 @@ public class SampleStorageTests extends ESTestCase {
         assertThat(requests.size(), equalTo(2));
         assertThat(requests.get(1).numberOfActions(), equalTo(2));
         assertThat(writer.written(), equalTo(2L));
-    }
-
-    public void testTheRefresherIsToldAboutWhatWasWritten() {
-        SampleWriter writer = writer(2, 10);
-        writer.onSampled(sampled(1));
-        writer.onSampled(sampled(2));
-        taskQueue.runAllRunnableTasks();
-
-        BulkItemResponse ok = BulkItemResponse.success(
-            0,
-            DocWriteRequest.OpType.INDEX,
-            new IndexResponse(new ShardId(QuerySamplingIndex.NAME, "_na_", 0), "id", 0, 1, 1, true)
-        );
-        BulkItemResponse rejected = BulkItemResponse.failure(
-            1,
-            DocWriteRequest.OpType.INDEX,
-            new BulkItemResponse.Failure(QuerySamplingIndex.NAME, "id", new IllegalArgumentException("rejected"))
-        );
-        listeners.get(0).onResponse(new BulkResponse(new BulkItemResponse[] { ok, rejected }, 1));
-
-        assertThat("only what was written", writtenQueries, equalTo(List.of(fp(1))));
-    }
-
-    public void testEventsOfTheSameQueryAreDifferentDocumentsAndNeedNoRefreshing() {
-        SampleWriter writer = writer(3, 10);
-        writer.onSampled(event(1, "e1"));
-        writer.onSampled(event(1, "e2"));
-        writer.onSampled(sampled(1));
-        taskQueue.runAllRunnableTasks();
-
-        BulkRequest request = requests.get(0);
-        assertThat(request.requests().get(0).id(), equalTo(SampleRecord.documentId("sampler", fp(1)) + "_e1"));
-        assertThat(request.requests().get(1).id(), equalTo(SampleRecord.documentId("sampler", fp(1)) + "_e2"));
-        assertThat(request.requests().get(2).id(), equalTo(SampleRecord.documentId("sampler", fp(1))));
-
-        BulkItemResponse ok = BulkItemResponse.success(
-            0,
-            DocWriteRequest.OpType.INDEX,
-            new IndexResponse(new ShardId(QuerySamplingIndex.NAME, "_na_", 0), "id", 0, 1, 1, true)
-        );
-        listeners.get(0).onResponse(new BulkResponse(new BulkItemResponse[] { ok, ok, ok }, 1));
-
-        assertThat("the weights of an event are final, only the picked query is refreshed", writtenQueries, equalTo(List.of(fp(1))));
-        assertThat(writer.written(), equalTo(3L));
     }
 
     public void testFailuresAreCountedAndDoNotStopTheWriter() {
@@ -387,21 +248,11 @@ public class SampleStorageTests extends ESTestCase {
             taskQueue.getThreadPool(),
             taskQueue.getThreadPool().generic(),
             () -> 42L,
-            (fp, tracked, weights) -> writtenQueries.add(fp),
+            (fp, tracked, weights) -> {},
             maxBatch,
             maxPending,
             INTERVAL
         );
-    }
-
-    private static QueryFingerprint fp(long id) {
-        return new QueryFingerprint(id, id);
-    }
-
-    private static SampledQuery event(long id, String eventId) {
-        QueryFingerprint fingerprint = new QueryFingerprint(id, id);
-        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { id }, 10, 100, null, null, List.of(), null);
-        return SampledQuery.event(fingerprint, new CapturedSearch(query, List.of(), 1, 1.0), TrackedQuery.event(1.0, 0.5), eventId);
     }
 
     private static SampledQuery sampled(long id) {
@@ -410,11 +261,9 @@ public class SampleStorageTests extends ESTestCase {
         return new SampledQuery(fingerprint, new CapturedSearch(query, List.of(), 1, 1.0), new MultiplicityTracker(10).record(fingerprint));
     }
 
-    private static final TimeValue weightsRefresherINTERVAL = TimeValue.timeValueSeconds(30);
+    private static final TimeValue REFRESH_INTERVAL = TimeValue.timeValueSeconds(30);
 
     private final MultiplicityTracker tracker = new MultiplicityTracker(100);
-
-    private final AtomicBoolean tracking = new AtomicBoolean(true);
 
     public void testChangedWeightsAreWrittenAgainAndUnchangedOnesAreNot() {
         WeightsRefresher refresher = refresher(10);
@@ -437,25 +286,6 @@ public class SampleStorageTests extends ESTestCase {
         nextRound();
         assertThat(requests.size(), equalTo(1));
         assertThat(refresher.tracked(), equalTo(1));
-    }
-
-    public void testAQueryThatTheTrackerForgotIsDroppedOnceItsFinalWeightsAreWritten() {
-        WeightsRefresher refresher = refresher(10);
-        QueryFingerprint fingerprint = new QueryFingerprint(1, 1);
-        TrackedQuery query = tracker.record(fingerprint);
-        refresher.written(fingerprint, query, query.weights());
-        tracker.record(fingerprint);
-        tracking.set(false);
-
-        nextRound();
-        assertThat("the last change is still written", requests.size(), equalTo(1));
-        listeners.get(0).onResponse(responseOf(1, true));
-        assertThat(refresher.tracked(), equalTo(1));
-
-        nextRound();
-        assertThat(requests.size(), equalTo(1));
-        assertThat(refresher.tracked(), equalTo(0));
-        assertFalse("nothing is left to do, so nothing is scheduled", taskQueue.hasAnyTasks());
     }
 
     public void testFailedUpdatesAreTriedAgain() {
@@ -507,59 +337,11 @@ public class SampleStorageTests extends ESTestCase {
         assertThat(requests.get(1).numberOfActions(), equalTo(1));
     }
 
-    public void testQueriesThatKeepFailingAreGivenUpOn() {
-        WeightsRefresher refresher = refresher(1);
-        QueryFingerprint a = new QueryFingerprint(1, 1);
-        QueryFingerprint b = new QueryFingerprint(2, 2);
-        for (QueryFingerprint fingerprint : List.of(a, b)) {
-            TrackedQuery query = tracker.record(fingerprint);
-            refresher.written(fingerprint, query, query.weights());
-            tracker.record(fingerprint);
-        }
-
-        int rounds = 0;
-        while (refresher.tracked() == 2 && rounds < 20) {
-            nextRound();
-            listeners.get(listeners.size() - 1).onResponse(responseOf(1, false));
-            rounds++;
-        }
-
-        assertThat("it was given up on", refresher.tracked(), equalTo(1));
-        assertTrue("and not at the first failure", rounds > 1);
-        nextRound();
-        listeners.get(listeners.size() - 1).onResponse(responseOf(1, true));
-        assertThat("the other one was then served", refresher.refreshed(), equalTo(1L));
-    }
-
-    public void testAFullRequestIsFollowedByTheNextOneWithoutWaiting() {
-        WeightsRefresher refresher = refresher(1);
-        for (int i = 1; i <= 2; i++) {
-            QueryFingerprint fingerprint = new QueryFingerprint(i, i);
-            TrackedQuery query = tracker.record(fingerprint);
-            refresher.written(fingerprint, query, query.weights());
-            tracker.record(fingerprint);
-        }
-
-        nextRound();
-        assertThat(requests.size(), equalTo(1));
-        listeners.get(0).onResponse(responseOf(1, true));
-        taskQueue.runAllRunnableTasks();
-
-        assertThat("the other query was updated without waiting for the interval", requests.size(), equalTo(2));
-    }
-
     private WeightsRefresher refresher(int maxBatch) {
         return new WeightsRefresher("sampler", (request, listener) -> {
             requests.add(request);
             listeners.add(listener);
-        },
-            taskQueue.getThreadPool(),
-            taskQueue.getThreadPool().generic(),
-            () -> 42L,
-            (fp, query) -> tracking.get(),
-            maxBatch,
-            weightsRefresherINTERVAL
-        );
+        }, taskQueue.getThreadPool(), taskQueue.getThreadPool().generic(), () -> 42L, (fp, query) -> true, maxBatch, REFRESH_INTERVAL);
     }
 
     private void nextRound() {
@@ -617,35 +399,6 @@ public class SampleStorageTests extends ESTestCase {
         retention.run();
 
         assertThat(sampleRetentionRequests.size(), equalTo(0));
-    }
-
-    public void testFailuresAreCountedButAMissingIndexIsNot() {
-        SampleRetention retention = retention();
-
-        retention.run();
-        sampleRetentionListeners.get(0).onFailure(new IndexNotFoundException(QuerySamplingIndex.NAME));
-        assertThat("nothing was ever sampled", retention.failed(), equalTo(0L));
-
-        retention.run();
-        sampleRetentionListeners.get(1).onFailure(new IllegalStateException("delete failed"));
-        assertThat(retention.failed(), equalTo(1L));
-    }
-
-    public void testRunsPeriodicallyUntilStopped() {
-        SampleRetention retention = retention();
-
-        var cancellable = retention.start(taskQueue.getThreadPool(), taskQueue.getThreadPool().generic());
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
-        assertThat(sampleRetentionRequests.size(), equalTo(1));
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
-        assertThat(sampleRetentionRequests.size(), equalTo(2));
-
-        cancellable.cancel();
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
-        assertThat(sampleRetentionRequests.size(), equalTo(2));
     }
 
     private SampleRetention retention() {

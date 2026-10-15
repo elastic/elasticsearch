@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.querysampling.dedup;
 
 /**
- * The part of the vector space a query is in, which is what the sampler balances the sample over.
+ * The part of the vector space a query is in, which the sampler balances over.
  *
- * @param space   what the vectors are of, a field and its dimensions: clusters of different spaces have nothing to do with each other
- * @param cluster the cluster of the space that the query is nearest to
+ * @param space   a field and its dimensions; clusters of different spaces are unrelated
+ * @param cluster the nearest cluster of the space
  */
 public record Stratum(String space, int cluster) {}

@@ -16,14 +16,9 @@ import java.util.Random;
 import java.util.function.Supplier;
 
 /**
- * Decides which captured searches are also kept as events: a small uniform sample of the arrivals themselves, in
- * which a query is as likely to be there as often as it was searched, and appears again for each time it is picked.
- * <p>
- * The sampler picks distinct queries, and favours the rare ones, which is what is wanted to know how the search does
- * for the different kinds of queries. For the recall that users get, in which a query counts as often as it is
- * searched, a plain random sample of the searches is the better one: every event weighs the same, so nothing has
- * to be corrected for, but the rate of the capture. The two samples do not depend on each other, and an arrival can
- * be in both.
+ * Keeps a small uniform sample of captured searches as events, so each event weighs the same and the recall users
+ * see (where a query counts as often as it is searched) needs no correction beyond the rate. Independent of the
+ * query sampler; an arrival can be in both.
  */
 public final class EventSlice {
 
@@ -34,33 +29,23 @@ public final class EventSlice {
         this(Randomness::get);
     }
 
-    /**
-     * @param random the source of the draws, which is looked up for every one
-     */
     public EventSlice(Supplier<Random> random) {
         this.random = random;
     }
 
-    /**
-     * Follows the rate setting, now and when it changes.
-     */
     public void watch(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(QuerySamplingSettings.EVENT_SLICE_RATE, value -> this.rate = value);
     }
 
     /**
-     * Draws for one captured search.
-     *
-     * @return the probability the search had of being kept if it was, which is what it is weighted with, or 0 if it was not
+     * @return the inclusion probability (the weight) if the search was kept, or 0 if not
      */
     public double draw() {
         double rate = this.rate;
         return rate > 0 && random.get().nextDouble() < rate ? rate : 0.0;
     }
 
-    /**
-     * A new id for an event. Events of the same query are different documents, so it is unique whatever the source of the draws is.
-     */
+    /** Events of the same query are distinct documents, so the id is random rather than derived from the query. */
     public String newId() {
         return UUIDs.randomBase64UUID();
     }

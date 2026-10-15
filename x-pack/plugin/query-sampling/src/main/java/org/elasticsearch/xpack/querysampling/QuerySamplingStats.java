@@ -16,29 +16,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Where the searches seen by one node ended up, stage by stage. Every number only counts what happened on
- * this node since it started.
+ * Per-node counters of where captured searches ended up, since the node started.
  *
- * @param knnSearches        eligible kNN searches the capture gate looked at
- * @param captured           of those, searches the gate picked
- * @param dropped            captures lost because the hand-off queue was full
- * @param distinctQueries    distinct queries being counted
- * @param untrackedArrivals  arrivals of queries that could not be counted because the counter was full
- * @param picked             distinct queries picked for the sample
- * @param written            picked queries written to the index of the sample
- * @param writeFailures      picked queries that could not be written
- * @param writeDropped       picked queries turned away because too many were waiting to be written
- * @param weightsRefreshed   updates of the weights of written queries
- * @param expired            sampled queries deleted from the index because they were older than the retention
- * @param groundTruthComputed  queries whose ground truth this node computed by itself
- * @param groundTruthFailed    queries whose ground truth this node tried to compute by itself and could not
- * @param starved            arrivals of queries that had no chance to be picked because the limit on the picks per hour was reached
- * @param effectiveCaptureRate the probability a search is captured with right now: the {@code capture_rate}, or higher
- *                             if the traffic is so low that the floor of captures per hour asks for it
- * @param effectiveAcceptanceScale γ as it is now: the {@code acceptance_scale}, multiplied with what keeps the picks at
- *                             their target when there is one
- * @param groundTruthCreditMillis what this node may still spend on exact searches, in milliseconds of search time,
- *                             negative if it is in debt
+ * @param untrackedArrivals arrivals not counted because the tracker was full
+ * @param starved           arrivals that could not be picked because the picks-per-hour limit was reached
+ * @param groundTruthCreditMillis exact-search time this node may still spend, negative if in debt
  */
 public record QuerySamplingStats(
     long knnSearches,

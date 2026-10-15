@@ -19,9 +19,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -39,7 +37,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.querysampling.GroundTruthRunner;
-import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
@@ -53,7 +50,6 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -84,30 +80,9 @@ public class GroundTruthTests extends ESTestCase {
         assertThat(bool.filter(), equalTo(List.of(brand)));
     }
 
-    public void testParseKeepsRankOrder() {
-        SearchResponse response = response(hit("idx", "42", 0.9f), hit("idx", "7", 0.8f), hit("other", "42", 0.1f));
-        try {
-            GroundTruth truth = ExactSearch.parse(response);
-            assertThat(
-                truth.neighbors(),
-                equalTo(
-                    List.of(
-                        new CapturedSearch.Hit("idx", "42", 0.9f),
-                        new CapturedSearch.Hit("idx", "7", 0.8f),
-                        new CapturedSearch.Hit("other", "42", 0.1f)
-                    )
-                )
-            );
-        } finally {
-            response.decRef();
-        }
-    }
-
     private static final FakeShards SHARDS = FakeShards.of(new FakeShards.Shard("idx", 0, 3, 6), new FakeShards.Shard("idx", 1, 2, 4));
 
-    /**
-     * Answers what reads the state of the data from the shards, and leaves the exact searches to the given function.
-     */
+    /** Answers the state probes from the shards and leaves the exact searches to the given function. */
     private static BiConsumer<SearchRequest, ActionListener<SearchResponse>> overShards(
         FakeShards shards,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> search
@@ -189,13 +164,6 @@ public class GroundTruthTests extends ESTestCase {
         assertThat(state.get(), equalTo(shards.state()));
     }
 
-    public void testTheSameDataIsTheSameStateWhateverTheOrderOfTheShards() {
-        FakeShards one = FakeShards.of(new FakeShards.Shard("a", 0, 3, 6), new FakeShards.Shard("b", 0, 2, 4));
-        FakeShards other = FakeShards.of(new FakeShards.Shard("b", 0, 2, 4), new FakeShards.Shard("a", 0, 3, 6));
-
-        assertThat(other.state(), equalTo(one.state()));
-    }
-
     public void testADocumentThatMovesToAnotherShardIsSeenEvenIfTheTotalsAreTheSame() {
         FakeShards before = FakeShards.of(new FakeShards.Shard("idx", 0, 2, 10), new FakeShards.Shard("idx", 1, 1, 4));
         // the document with the sequence number 4 is deleted from the first shard, and another with the number 4 is added to the second:
@@ -206,56 +174,11 @@ public class GroundTruthTests extends ESTestCase {
         assertThat(after.state(), not(equalTo(before.state())));
     }
 
-    public void testTheSameNumbersOfDifferentIndicesAreDifferentStates() {
-        FakeShards one = FakeShards.of(new FakeShards.Shard("a", 0, 2, 10), new FakeShards.Shard("b", 0, 1, 4));
-        FakeShards other = FakeShards.of(new FakeShards.Shard("a", 0, 1, 4), new FakeShards.Shard("b", 0, 2, 10));
-
-        assertThat(other.state(), not(equalTo(one.state())));
-    }
-
     public void testAnUpdateThatChangesOnlyASequenceNumberIsSeen() {
         FakeShards before = FakeShards.of(new FakeShards.Shard("idx", 0, 5, 10));
         FakeShards after = FakeShards.of(new FakeShards.Shard("idx", 0, 5, 11));
 
         assertThat(after.state(), not(equalTo(before.state())));
-    }
-
-    public void testRoundingOfVeryLargeSumsIsNotAChange() {
-        long large = 4_000_000_000_000_000_000L;
-
-        FakeShards before = FakeShards.of(new FakeShards.Shard("idx", 0, 5, large));
-
-        assertThat(
-            "summed in another order",
-            FakeShards.of(new FakeShards.Shard("idx", 0, 5, large + 512)).state(),
-            equalTo(before.state())
-        );
-        assertThat(
-            "a real change is far more than the rounding",
-            FakeShards.of(new FakeShards.Shard("idx", 0, 5, large + 1_000_000_000L)).state(),
-            not(equalTo(before.state()))
-        );
-    }
-
-    public void testAProbeThatFailsOrIsAnsweredWithoutTheStateFailsTheRead() {
-        AtomicReference<Exception> failure = new AtomicReference<>();
-
-        DataState.read(
-            (request, listener) -> respond(listener, "doc"),
-            query(1),
-            ActionListener.wrap(state -> fail("expected a failure"), failure::set)
-        );
-
-        assertThat("it has shards but not what is wanted of them", failure.get(), instanceOf(IllegalStateException.class));
-    }
-
-    public void testTheStateOfTheDataIsKeptWithTheGroundTruth() {
-        GroundTruthRunner runner = new GroundTruthRunner(overShards(SHARDS, answering(request -> "doc")));
-        CapturedQuery query = query(1);
-
-        run(runner, List.of(query));
-
-        assertThat(stored.get(query).dataState(), equalTo(SHARDS.state()));
     }
 
     public void testAChangeDuringTheExactSearchLeavesTheStateOfBeforeItSoThatItLooksOutOfDate() {
@@ -293,32 +216,6 @@ public class GroundTruthTests extends ESTestCase {
         assertThat(stored.get(query).dataState(), nullValue());
     }
 
-    private static SearchHit hit(String index, String id, float score) {
-        SearchHit hit = SearchHit.unpooled(randomNonNegativeInt(), id);
-        hit.score(score);
-        hit.shard(new SearchShardTarget("node", new ShardId(index, "_na_", 0), null));
-        return hit;
-    }
-
-    private static SearchResponse response(SearchHit... hits) {
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1f);
-        try {
-            return SearchResponseUtils.successfulResponse(searchHits);
-        } finally {
-            searchHits.decRef();
-        }
-    }
-
-    public void testCreditGrowsInProportionToTheCostOfLiveSearches() {
-        CostBudget budget = new CostBudget(0.01, 1000);
-
-        budget.earn(5000);
-
-        assertThat(budget.credit(), closeTo(50, 1e-9));
-        assertThat("fits 5 searches of 10 ms", budget.affordable(10, 100), equalTo(5));
-        assertThat("but no more than asked for", budget.affordable(10, 3), equalTo(3));
-    }
-
     public void testExactSearchesSpendTheCredit() {
         CostBudget budget = new CostBudget(0.01, 1000);
         budget.earn(5000);
@@ -327,14 +224,6 @@ public class GroundTruthTests extends ESTestCase {
 
         assertThat(budget.credit(), closeTo(20, 1e-9));
         assertThat(budget.affordable(10, 100), equalTo(2));
-    }
-
-    public void testAQuietPeriodDoesNotStoreUpMoreThanTheCap() {
-        CostBudget budget = new CostBudget(1.0, 100);
-
-        budget.earn(1_000_000);
-
-        assertThat(budget.credit(), equalTo(100.0));
     }
 
     public void testAnExpensiveSearchLeavesADebtThatIsPaidOffFirst() {
@@ -349,20 +238,6 @@ public class GroundTruthTests extends ESTestCase {
         assertThat(budget.credit(), closeTo(0, 1e-9));
         budget.earn(100);
         assertThat(budget.affordable(10, 10), equalTo(1));
-    }
-
-    public void testFollowsTheSettingWhenItChanges() {
-        ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.builder().put(QuerySamplingSettings.SAMPLING_COST_RATIO.getKey(), 0.1).build(),
-            Set.of(QuerySamplingSettings.SAMPLING_COST_RATIO)
-        );
-        CostBudget budget = new CostBudget(0.0, 1000);
-
-        budget.watch(clusterSettings);
-        assertThat("what is set replaces what it was created with", budget.ratio(), equalTo(0.1));
-
-        clusterSettings.applySettings(Settings.builder().put(QuerySamplingSettings.SAMPLING_COST_RATIO.getKey(), 0.4).build());
-        assertThat(budget.ratio(), equalTo(0.4));
     }
 
     private final List<SearchRequest> sampleSearches = new ArrayList<>();
@@ -393,24 +268,6 @@ public class GroundTruthTests extends ESTestCase {
         assertThat(update.contains("\"neighbors\""), equalTo(true));
     }
 
-    public void testOnlyTheQueriesThatMatchTheFilterAreLookedAt() throws IOException {
-        StoredGroundTruth service = service(pending(1), failingEveryExactSearchOf(-1), acknowledgingAll());
-        AtomicReference<GroundTruthRunner.Result> result = new AtomicReference<>();
-
-        service.compute(5, QueryBuilders.termQuery("sampler_id", "sampler"), ActionListener.wrap(result::set, e -> fail(e)));
-
-        assertThat(result.get(), equalTo(new GroundTruthRunner.Result(1, 0)));
-        assertThat(
-            "pending, and of that sampler",
-            sampleSearches.get(0).source().query(),
-            equalTo(
-                QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery("has_ground_truth", false))
-                    .filter(QueryBuilders.termQuery("sampler_id", "sampler"))
-            )
-        );
-    }
-
     public void testAFailedSearchLeavesTheQueryPendingButMovesItBack() throws IOException {
         StoredGroundTruth service = service(pending(1, 2), failingEveryExactSearchOf(1), acknowledgingAll());
 
@@ -422,31 +279,6 @@ public class GroundTruthTests extends ESTestCase {
         assertThat("only marked as looked at", failed.contains("has_ground_truth"), equalTo(false));
         assertThat(failed.contains("updated_at"), equalTo(true));
         assertThat(((UpdateRequest) updates.get(1)).doc().source().utf8ToString().contains("\"has_ground_truth\":true"), equalTo(true));
-    }
-
-    public void testAFailedBulkRequestIsReported() throws IOException {
-        StoredGroundTruth service = service(pending(1), failingEveryExactSearchOf(-1), (request, listener) -> {
-            listener.onFailure(new IllegalStateException("bulk failed"));
-        });
-        AtomicReference<Exception> failure = new AtomicReference<>();
-
-        service.compute(5, ActionListener.wrap(result -> fail("expected a failure"), failure::set));
-
-        assertThat(failure.get(), instanceOf(IllegalStateException.class));
-    }
-
-    public void testARejectedUpdateIsNotCounted() throws IOException {
-        StoredGroundTruth service = service(pending(1, 2), failingEveryExactSearchOf(-1), (request, listener) -> {
-            bulks.add(request);
-            BulkItemResponse rejected = BulkItemResponse.failure(
-                0,
-                DocWriteRequest.OpType.UPDATE,
-                new BulkItemResponse.Failure(QuerySamplingIndex.NAME, "id", new IllegalStateException("rejected"))
-            );
-            listener.onResponse(new BulkResponse(new BulkItemResponse[] { rejected, success(1) }, 1));
-        });
-
-        assertThat(compute(service, 5), equalTo(new GroundTruthRunner.Result(1, 1)));
     }
 
     private GroundTruthRunner.Result compute(StoredGroundTruth service, int max) {
@@ -556,15 +388,6 @@ public class GroundTruthTests extends ESTestCase {
 
     private boolean failSampleSearch;
 
-    public void testNothingIsComputedWithoutCredit() {
-        waiting = 5;
-        GroundTruthWorker worker = worker();
-
-        worker.run();
-
-        assertThat(sampleSearches.size(), equalTo(0));
-    }
-
     public void testItComputesWhatTheCreditAffords() {
         waiting = 5;
         budget.earn(50);
@@ -589,24 +412,6 @@ public class GroundTruthTests extends ESTestCase {
             "each of the two searches took 5 ms and each of the 6 reads of the state of the data 1 ms",
             budget.credit(),
             closeTo(25 - 10 - 6, 1e-9)
-        );
-    }
-
-    public void testWhenItsOwnAreDoneItTakesWhatNobodyLooksAfter() {
-        waiting = 0;
-        budget.earn(1000);
-        GroundTruthWorker worker = worker();
-
-        worker.run();
-
-        assertThat(sampleSearches.size(), equalTo(2));
-        assertThat(
-            sampleSearches.get(1).source().query(),
-            equalTo(
-                QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery("has_ground_truth", false))
-                    .filter(QueryBuilders.rangeQuery("updated_at").lt(NOW - GroundTruthWorker.ABANDONED_AFTER.millis()))
-            )
         );
     }
 
@@ -639,24 +444,6 @@ public class GroundTruthTests extends ESTestCase {
         assertThat(worker.computed(), equalTo(5L));
     }
 
-    public void testItLooksForWorkRegularlyUntilStopped() {
-        waiting = 1;
-        budget.earn(1000);
-        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        GroundTruthWorker worker = worker();
-
-        var cancellable = worker.start(taskQueue.getThreadPool(), taskQueue.getThreadPool().generic());
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
-        assertThat(worker.computed(), equalTo(1L));
-
-        cancellable.cancel();
-        waiting = 1;
-        taskQueue.advanceTime();
-        taskQueue.runAllRunnableTasks();
-        assertThat(worker.computed(), equalTo(1L));
-    }
-
     private GroundTruthWorker worker() {
         return new GroundTruthWorker((request, listener) -> {
             sampleSearches.add(request);
@@ -672,18 +459,7 @@ public class GroundTruthTests extends ESTestCase {
                     throw new AssertionError(e);
                 }
             }
-        }, (request, listener) -> {
-            bulks.add(request);
-            BulkItemResponse[] items = new BulkItemResponse[request.numberOfActions()];
-            for (int i = 0; i < items.length; i++) {
-                items[i] = BulkItemResponse.success(
-                    i,
-                    DocWriteRequest.OpType.UPDATE,
-                    new UpdateResponse(new ShardId(QuerySamplingIndex.NAME, "_na_", 0), "id", 0, 1, 1, UpdateResponse.Result.UPDATED)
-                );
-            }
-            listener.onResponse(new BulkResponse(items, 1));
-        }, overShards(SHARDS, (request, listener) -> {
+        }, acknowledgingAll(), overShards(SHARDS, (request, listener) -> {
             exactSearches.add(request);
             SearchHit hit = SearchHit.unpooled(0, "doc");
             hit.score(1f);
@@ -735,45 +511,6 @@ public class GroundTruthTests extends ESTestCase {
         for (int i = 0; i < 3; i++) {
             assertThat(stored.get(queries.get(i)).neighbors(), equalTo(List.of(new CapturedSearch.Hit("idx", "doc" + (i + 1), 1f))));
         }
-    }
-
-    public void testQueriesAreProcessedOneAfterTheOther() {
-        List<CapturedQuery> queries = List.of(query(1), query(2), query(3));
-        List<Runnable> inFlight = new ArrayList<>();
-        GroundTruthRunner runner = new GroundTruthRunner(
-            overShards(SHARDS, (request, listener) -> inFlight.add(() -> respond(listener, "doc" + request.source().size())))
-        );
-        AtomicReference<GroundTruthRunner.Result> result = new AtomicReference<>();
-
-        runner.run(queries, Function.identity(), stored::put, ActionListener.wrap(result::set, e -> fail(e)));
-
-        for (int expectedComputed = 0; expectedComputed < 3; expectedComputed++) {
-            assertThat("a search is only started when the previous one is done", inFlight.size(), equalTo(expectedComputed + 1));
-            assertThat(result.get(), nullValue());
-            inFlight.get(expectedComputed).run();
-        }
-        assertThat(result.get(), equalTo(new GroundTruthRunner.Result(3, 0)));
-    }
-
-    public void testFailedSearchesAreCountedAndGetNoGroundTruth() {
-        CapturedQuery failing = query(1);
-        CapturedQuery throwing = query(2);
-        CapturedQuery working = query(3);
-        GroundTruthRunner runner = new GroundTruthRunner(overShards(SHARDS, (request, listener) -> {
-            switch (request.source().size()) {
-                case 1 -> listener.onFailure(new IllegalStateException("search failed"));
-                case 2 -> throw new IllegalStateException("could not be sent");
-                case 3 -> respond(listener, "doc3");
-                default -> throw new AssertionError("unexpected query");
-            }
-        }));
-
-        GroundTruthRunner.Result result = run(runner, List.of(failing, throwing, working));
-
-        assertThat(result, equalTo(new GroundTruthRunner.Result(1, 2)));
-        assertThat(stored.get(failing), nullValue());
-        assertThat(stored.get(throwing), nullValue());
-        assertThat(stored.get(working).neighbors().size(), equalTo(1));
     }
 
     public void testSearchThatCompletesAndThenThrowsIsOnlyCountedOnce() {

@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.querysampling.action;
 
 import org.elasticsearch.action.ActionType;
 
-/**
- * Estimates the recall of the search from the stored sampled queries whose ground truth is known.
- */
 public final class QuerySamplingRecallAction extends ActionType<QuerySamplingRecallResponse> {
 
     public static final QuerySamplingRecallAction INSTANCE = new QuerySamplingRecallAction();

@@ -20,10 +20,6 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-/**
- * Computes the ground truth of the stored sampled queries that do not have it. Each query costs an exact search
- * over the index, so how many are done per call is bounded by {@code max}.
- */
 @ServerlessScope(Scope.INTERNAL)
 public final class RestQuerySamplingGroundTruthAction extends BaseRestHandler {
 

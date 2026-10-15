@@ -25,35 +25,26 @@ import java.util.List;
 import java.util.function.BiConsumer;
 
 /**
- * Reads sampled queries back from {@link QuerySamplingIndex}, the one place that knows how to do it so that what
- * works on the stored sample does not each need to.
+ * Reads sampled queries back from {@link QuerySamplingIndex}.
  */
 public final class StoredSamples {
 
     private static final Logger logger = LogManager.getLogger(StoredSamples.class);
 
     /**
-     * @param samples    the queries that could be read
-     * @param unreadable documents that matched but could not be read
+     * @param unreadable documents that matched but could not be parsed
      */
     public record Read(List<StoredSample> samples, int unreadable) {}
 
     private final BiConsumer<SearchRequest, ActionListener<SearchResponse>> search;
     private final NamedXContentRegistry registry;
 
-    /**
-     * @param search   searches the index of the sample, as the plugin
-     * @param registry needed to read the filters of the stored queries
-     */
     public StoredSamples(BiConsumer<SearchRequest, ActionListener<SearchResponse>> search, NamedXContentRegistry registry) {
         this.search = search;
         this.registry = registry;
     }
 
-    /**
-     * Reads up to {@code max} of the stored queries that match. An index that does not exist, because nothing was
-     * ever sampled, has none.
-     */
+    /** A missing index, because nothing was ever sampled, reads as empty. */
     public void read(QueryBuilder query, String sortField, SortOrder order, int max, ActionListener<Read> listener) {
         SearchRequest request = new SearchRequest(QuerySamplingIndex.NAME).source(
             new SearchSourceBuilder().query(query).sort(sortField, order).size(max)
@@ -67,9 +58,6 @@ public final class StoredSamples {
         }));
     }
 
-    /**
-     * Copies the stored queries out of the response, which cannot be kept.
-     */
     private Read read(SearchResponse response) {
         List<StoredSample> samples = new ArrayList<>();
         int unreadable = 0;

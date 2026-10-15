@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.querysampling;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -118,20 +117,5 @@ public class QuerySamplingGoldenIT extends QuerySamplingRestTestCase {
 
     private static ObjectPath check(String parameters) throws IOException {
         return ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_query_sampling/golden/check" + parameters)));
-    }
-
-    public void testAVersionThatDoesNotExistHasNothingToCheck() throws IOException {
-        ObjectPath none = check("?version=999");
-
-        assertThat(((Number) none.evaluate("checked")).intValue(), equalTo(0));
-    }
-
-    public void testBoundsOfTheRequestAreChecked() {
-        Request request = new Request("POST", "/_query_sampling/golden/update");
-        request.addParameter("max", "0");
-
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
-
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 }

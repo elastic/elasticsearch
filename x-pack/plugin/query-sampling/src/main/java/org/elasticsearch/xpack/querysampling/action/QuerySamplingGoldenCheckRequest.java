@@ -14,24 +14,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- * Asks for the queries of a version of the golden dataset to be checked for ground truth that is out of date. It is only run
- * by the node that receives it, so it is never sent anywhere.
- */
+/** Run only on the receiving node; never sent over the wire. */
 public final class QuerySamplingGoldenCheckRequest extends ActionRequest {
 
-    /**
-     * The most queries that can be checked at once, which is what one search of the golden dataset can return.
-     */
+    // what one search of the stored index can return
     public static final int MAX_QUERIES = 10_000;
 
     private final long version;
     private final int max;
 
-    /**
-     * @param version the version to check, 0 for the latest that is complete
-     * @param max     the most queries to check, so that how many searches one call makes is bounded
-     */
     public QuerySamplingGoldenCheckRequest(long version, int max) {
         this.version = version;
         this.max = max;

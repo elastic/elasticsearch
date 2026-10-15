@@ -14,22 +14,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- * Asks for the golden dataset to be brought up to date by a version. It is only run by the node that receives it, which reads the
- * queries from the indices of the plugin, so it is never sent anywhere.
- */
+/** Run only on the receiving node; never sent over the wire. */
 public final class QuerySamplingGoldenUpdateRequest extends ActionRequest {
 
-    /**
-     * The most queries that a version can have, which is what one search of the golden dataset can return.
-     */
+    // what one search of the stored index can return
     public static final int MAX_QUERIES = 10_000;
 
     private final int max;
 
-    /**
-     * @param max the most queries of the version that is made, so that how much one call writes and computes is bounded
-     */
     public QuerySamplingGoldenUpdateRequest(int max) {
         this.max = max;
     }

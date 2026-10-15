@@ -17,9 +17,6 @@ import org.elasticsearch.xpack.querysampling.storage.GoldenUpdater;
 
 import java.io.IOException;
 
-/**
- * What an update of the golden dataset did. Like the request it stays on the node that ran it.
- */
 public final class QuerySamplingGoldenUpdateResponse extends ActionResponse implements ToXContentObject {
 
     private final GoldenUpdater.Result result;

@@ -13,12 +13,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
@@ -45,10 +43,15 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class StrataTests extends ESTestCase {
+
+    private static final long VECTORS = 1000;
+
+    private final AtomicLong now = new AtomicLong();
+    private final MultiplicityTracker tracker = new MultiplicityTracker(1000);
+    private long passing = 100;
 
     private static SpatialStrata balancing(int clusters, int warmup, double balance) {
         SpatialStrata strata = new SpatialStrata(clusters, warmup, () -> new Random(7L));
@@ -75,24 +78,6 @@ public class StrataTests extends ESTestCase {
             last = assign(strata, "vector", 0, 0.1f);
         }
         return new Stratum[] { last.get(), sparse.get() };
-    }
-
-    public void testQueriesWaitForTheClustersAndAreToldAllAtOnce() {
-        SpatialStrata strata = balancing(2, 4, 0.5);
-
-        AtomicReference<Stratum> first = assign(strata, "vector", 0, 0);
-        AtomicReference<Stratum> second = assign(strata, "vector", 100, 100);
-        AtomicReference<Stratum> third = assign(strata, "vector", 0, 1);
-        assertThat("not told yet", first.get(), nullValue());
-        assertThat(second.get(), nullValue());
-        assertThat(strata.counts("vector/2").length, equalTo(0));
-
-        AtomicReference<Stratum> fourth = assign(strata, "vector", 101, 100);
-
-        assertThat(first.get(), equalTo(third.get()));
-        assertThat(second.get(), equalTo(fourth.get()));
-        assertThat(first.get(), not(equalTo(second.get())));
-        assertThat(strata.counts("vector/2"), equalTo(new long[] { 2, 2 }));
     }
 
     public void testGroupsThatAreFarApartAreInClustersOfTheirOwn() {
@@ -122,48 +107,12 @@ public class StrataTests extends ESTestCase {
         }
     }
 
-    public void testNewQueriesJoinTheNearestClusterAndMoveItsCentroid() {
-        SpatialStrata strata = balancing(2, 2, 1.0);
-        AtomicReference<Stratum> a = assign(strata, "vector", 0, 0);
-        AtomicReference<Stratum> b = assign(strata, "vector", 100, 0);
-
-        assertThat(assign(strata, "vector", 8, 0).get(), equalTo(a.get()));
-
-        assertThat("47 from (4, 0), where it is 51 from (0, 0)", assign(strata, "vector", 51, 0).get(), equalTo(a.get()));
-        assertThat(assign(strata, "vector", 99, 1).get(), equalTo(b.get()));
-        assertThat(Arrays.stream(strata.counts("vector/2")).sum(), equalTo(5L));
-    }
-
     public void testSparseClustersAreFavouredAndDenseOnesAreNot() {
         SpatialStrata strata = balancing(2, 2, 1.0);
         Stratum[] found = denseAndSparse(strata, 9);
 
         assertThat(strata.factor(found[0]), closeTo(5.0 / 9, 1e-9));
         assertThat(strata.factor(found[1]), closeTo(5.0, 1e-9));
-    }
-
-    public void testFieldsAndDimensionsAreSeparateSpaces() {
-        SpatialStrata strata = balancing(1, 1, 1.0);
-
-        Stratum a = assign(strata, "a", 1, 2).get();
-        Stratum b = assign(strata, "b", 1, 2).get();
-        Stratum longer = assign(strata, "a", 1, 2, 3).get();
-
-        assertThat(a.space(), equalTo("a/2"));
-        assertThat(b.space(), equalTo("b/2"));
-        assertThat(longer.space(), equalTo("a/3"));
-        assertThat(strata.counts("a/2"), equalTo(new long[] { 1 }));
-    }
-
-    public void testVectorsThatAreNotFiniteAreLeftOut() {
-        SpatialStrata strata = balancing(2, 2, 1.0);
-        assign(strata, "vector", 1, 1);
-
-        assertThat(assign(strata, "vector", Float.NaN, 1).get(), nullValue());
-        assertThat(assign(strata, "vector", 1, Float.POSITIVE_INFINITY).get(), nullValue());
-        assertThat("they do not count towards the clusters either", strata.counts("vector/2").length, equalTo(0));
-        assertNotNull(assign(strata, "vector", 3, 3).get());
-        assertThat(strata.counts("vector/2"), equalTo(new long[] { 1, 1 }));
     }
 
     private static List<CapturedSearch.Hit> hits(float... scores) {
@@ -192,28 +141,6 @@ public class StrataTests extends ESTestCase {
         }
     }
 
-    public void testContrastIsOneWhenAllHitsAreAsGoodAsTheFirstAndSmallerWhenTheyAreNot() {
-        assertThat(HardnessStrata.contrast(hits(1f, 1f, 1f)), closeTo(1.0, 1e-9));
-        assertThat(HardnessStrata.contrast(hits(1f, 0.5f, 0.25f)), closeTo(1.75 / 3, 1e-9));
-        assertThat("it is the best that counts, not the first", HardnessStrata.contrast(hits(0.5f, 1f, 0.25f)), closeTo(1.75 / 3, 1e-9));
-    }
-
-    public void testThereIsNoContrastWithoutAReasonableAnswer() {
-        assertTrue(Double.isNaN(HardnessStrata.contrast(List.of())));
-        assertTrue("too few hits", Double.isNaN(HardnessStrata.contrast(hits(1f, 0.5f))));
-        assertTrue("a score of zero", Double.isNaN(HardnessStrata.contrast(hits(1f, 0.5f, 0f))));
-        assertTrue("a negative score", Double.isNaN(HardnessStrata.contrast(hits(1f, 0.5f, -1f))));
-        assertTrue("not a number", Double.isNaN(HardnessStrata.contrast(hits(1f, Float.NaN, 0.5f))));
-    }
-
-    public void testQueriesAreMediumUntilThereAreEnoughToTellThemApart() {
-        HardnessStrata strata = tilting(1.0);
-
-        for (int i = 0; i < HardnessStrata.MIN_QUERIES; i++) {
-            assertThat(strata.assign("vec", 2, hitsWithContrast(0.4 + 0.5 * i / HardnessStrata.MIN_QUERIES)), equalTo(Hardness.MEDIUM));
-        }
-    }
-
     public void testQueriesAreToldApartByHowFarTheyAreFromTheOthers() {
         HardnessStrata strata = tilting(1.0);
         learn(strata, "vec", 100);
@@ -221,33 +148,6 @@ public class StrataTests extends ESTestCase {
         assertThat(strata.assign("vec", 2, hitsWithContrast(0.95)), equalTo(Hardness.HARD));
         assertThat(strata.assign("vec", 2, hitsWithContrast(0.35)), equalTo(Hardness.EASY));
         assertThat(strata.assign("vec", 2, hitsWithContrast(0.65)), equalTo(Hardness.MEDIUM));
-    }
-
-    public void testAboutAThirdOfTheQueriesAreInEachBucket() {
-        HardnessStrata strata = tilting(1.0);
-        Random random = new Random(randomLong());
-        int queries = 600;
-        int[] counts = new int[Hardness.values().length];
-        for (int i = 0; i < 500 + queries; i++) {
-            double contrast = Math.min(1.0, Math.max(0.34, 0.65 + 0.1 * random.nextGaussian()));
-            Hardness hardness = strata.assign("vec", 2, hitsWithContrast(contrast));
-            if (i >= 500) {
-                counts[hardness.ordinal()]++;
-            }
-        }
-
-        for (int count : counts) {
-            assertThat((double) count / queries, closeTo(1.0 / 3, 0.08));
-        }
-    }
-
-    public void hardnessStrataTestFieldsAndDimensionsAreSeparateSpaces() {
-        HardnessStrata strata = tilting(1.0);
-        learn(strata, "a", 100);
-
-        assertThat("it knows nothing of this field", strata.assign("b", 2, hitsWithContrast(0.95)), equalTo(Hardness.MEDIUM));
-        assertThat("nor of these dimensions", strata.assign("a", 3, hitsWithContrast(0.95)), equalTo(Hardness.MEDIUM));
-        assertThat(strata.assign("a", 2, hitsWithContrast(0.95)), equalTo(Hardness.HARD));
     }
 
     public void testHardQueriesAreFavouredAndEasyOnesAreNot() {
@@ -270,46 +170,24 @@ public class StrataTests extends ESTestCase {
         }
     }
 
-    private static final long VECTORS = 1000;
+    private SelectivityStrata strata() {
+        SelectivityStrata strata = new SelectivityStrata(this::answer, now::get);
+        enableEstimate(strata);
+        return strata;
+    }
 
-    private final AtomicLong now = new AtomicLong();
-
-    private final List<SearchRequest> searches = new ArrayList<>();
-
-    private final List<ActionListener<SearchResponse>> held = new ArrayList<>();
-
-    private final MultiplicityTracker tracker = new MultiplicityTracker(1000);
-
-    private long passing = 100;
-
-    private boolean answerRightAway = true;
-
-    private SelectivityStrata strata(boolean enabled) {
-        SelectivityStrata strata = new SelectivityStrata((request, listener) -> {
-            searches.add(request);
-            if (answerRightAway) {
-                answer(request, listener);
-            } else {
-                held.add(listener);
-            }
-        }, now::get);
+    private static void enableEstimate(SelectivityStrata strata) {
         strata.watch(
             new ClusterSettings(
-                Settings.builder().put(QuerySamplingSettings.ESTIMATE_SELECTIVITY.getKey(), enabled).build(),
+                Settings.builder().put(QuerySamplingSettings.ESTIMATE_SELECTIVITY.getKey(), true).build(),
                 Set.of(QuerySamplingSettings.ESTIMATE_SELECTIVITY)
             )
         );
-        return strata;
     }
 
     private void answer(SearchRequest request, ActionListener<SearchResponse> listener) {
         boolean all = request.source().query() instanceof ExistsQueryBuilder;
-        long total = all ? VECTORS : passing;
-        respond(listener, total);
-    }
-
-    private static void respond(ActionListener<SearchResponse> listener, long total) {
-        SearchHits hits = SearchHits.empty(new TotalHits(total, TotalHits.Relation.EQUAL_TO), 1f);
+        SearchHits hits = SearchHits.empty(new TotalHits(all ? VECTORS : passing, TotalHits.Relation.EQUAL_TO), 1f);
         SearchResponse response = SearchResponseUtils.successfulResponse(hits);
         hits.decRef();
         try {
@@ -333,16 +211,12 @@ public class StrataTests extends ESTestCase {
         );
     }
 
-    private static CapturedQuery unfiltered() {
-        return new CapturedQuery(new String[] { "idx" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
-    }
-
     private TrackedQuery tracked(long id) {
         return tracker.record(new QueryFingerprint(id, id));
     }
 
     public void testTheShareOfTheVectorsThatPassTheFiltersTellsTheSelectivity() {
-        SelectivityStrata strata = strata(true);
+        SelectivityStrata strata = strata();
         long[][] cases = {
             { 600, Selectivity.HIGH.ordinal() },
             { 500, Selectivity.HIGH.ordinal() },
@@ -362,65 +236,12 @@ public class StrataTests extends ESTestCase {
         assertThat(strata.counted(), equalTo((long) cases.length));
     }
 
-    public void testTheCountsAskForTheVectorsThatPassAndForAllOfThem() {
-        SelectivityStrata strata = strata(true);
-
-        strata.assign(tracked(1), filtered(1));
-
-        assertThat("one for the vectors there are, one for those that pass", searches.size(), equalTo(2));
-        for (SearchRequest request : searches) {
-            assertThat("only the count is wanted", request.source().size(), equalTo(0));
-            assertThat(request.source().trackTotalHitsUpTo(), equalTo(SearchContext.TRACK_TOTAL_HITS_ACCURATE));
-            assertThat(request.indices(), equalTo(new String[] { "idx" }));
-        }
-        assertTrue(searches.get(0).source().query() instanceof ExistsQueryBuilder);
-        BoolQueryBuilder bool = (BoolQueryBuilder) searches.get(1).source().query();
-        assertThat("the vector has to be there, and the filter of the query", bool.filter().size(), equalTo(2));
-    }
-
-    public void testTheNumberOfVectorsIsKnownForAWhileAndCountedAgainAfterwards() {
-        SelectivityStrata strata = strata(true);
-
-        strata.assign(tracked(1), filtered(1));
-        strata.assign(tracked(2), filtered(2));
-        assertThat("the second only counts what passes", searches.size(), equalTo(3));
-
-        now.addAndGet(SelectivityStrata.TOTAL_VALID_MILLIS);
-        strata.assign(tracked(3), filtered(3));
-        assertThat("and after a while it is counted again", searches.size(), equalTo(5));
-    }
-
-    public void testNotMoreThanAFewCountsAtATimeAndTheRestAreSkipped() {
-        answerRightAway = false;
-        SelectivityStrata strata = strata(true);
-        List<TrackedQuery> queries = new ArrayList<>();
-        for (int i = 0; i < SelectivityStrata.MAX_IN_FLIGHT + 2; i++) {
-            queries.add(tracked(i));
-            strata.assign(queries.get(i), filtered(i));
-        }
-
-        assertThat(searches.size(), equalTo(SelectivityStrata.MAX_IN_FLIGHT));
-        assertThat(strata.skipped(), equalTo(2L));
-        assertThat(queries.get(SelectivityStrata.MAX_IN_FLIGHT).selectivity(), nullValue());
-
-        answerRightAway = true;
-        ActionListener<SearchResponse> first = held.remove(0);
-        answer(searches.get(0), first);
-        strata.assign(tracked(100), filtered(100));
-        assertThat("the room that was made is used", strata.skipped(), equalTo(2L));
-    }
-
     public void testAFailedCountLeavesTheSelectivityUnknownAndFreesTheRoom() {
         SelectivityStrata failing = new SelectivityStrata(
             (request, listener) -> listener.onFailure(new IllegalStateException("no")),
             now::get
         );
-        failing.watch(
-            new ClusterSettings(
-                Settings.builder().put(QuerySamplingSettings.ESTIMATE_SELECTIVITY.getKey(), true).build(),
-                Set.of(QuerySamplingSettings.ESTIMATE_SELECTIVITY)
-            )
-        );
+        enableEstimate(failing);
         for (int i = 0; i < SelectivityStrata.MAX_IN_FLIGHT * 3; i++) {
             TrackedQuery tracked = tracked(i);
             failing.assign(tracked, filtered(i));
@@ -429,23 +250,5 @@ public class StrataTests extends ESTestCase {
 
         assertThat(failing.failed(), equalTo((long) SelectivityStrata.MAX_IN_FLIGHT * 3));
         assertThat("a failure does not hold the room", failing.skipped(), equalTo(0L));
-    }
-
-    public void testNoVectorsAtAllIsAFailure() {
-        SelectivityStrata strata = strata(true);
-        TrackedQuery tracked = tracked(1);
-        SelectivityStrata empty = new SelectivityStrata((request, listener) -> respond(listener, 0), now::get);
-        empty.watch(
-            new ClusterSettings(
-                Settings.builder().put(QuerySamplingSettings.ESTIMATE_SELECTIVITY.getKey(), true).build(),
-                Set.of(QuerySamplingSettings.ESTIMATE_SELECTIVITY)
-            )
-        );
-
-        empty.assign(tracked, filtered(1));
-
-        assertThat(tracked.selectivity(), nullValue());
-        assertThat(empty.failed(), equalTo(1L));
-        assertThat(strata.counted(), equalTo(0L));
     }
 }

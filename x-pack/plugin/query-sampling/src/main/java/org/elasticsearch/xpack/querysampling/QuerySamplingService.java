@@ -16,11 +16,7 @@ import org.elasticsearch.xpack.querysampling.storage.SampleRetention;
 import org.elasticsearch.xpack.querysampling.storage.SampleWriter;
 import org.elasticsearch.xpack.querysampling.storage.WeightsRefresher;
 
-/**
- * Node-local owner of the query sampling state. Each coordinating node samples the slice of traffic it
- * receives on its own; there is no coordination between nodes on the search path, and per-node state is
- * only combined when it is read.
- */
+/** Node-local owner of the sampling state; nodes do not coordinate on the search path, state is combined on read. */
 public class QuerySamplingService {
 
     private final QueryCaptureFilter filter;

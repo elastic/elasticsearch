@@ -10,18 +10,10 @@ package org.elasticsearch.xpack.querysampling.sampling;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Steers the pick rate towards a target by scaling γ, the acceptance scale of the sampler, up and down. How many
- * queries are picked depends on how many different queries are searched, which nobody can know when choosing γ, so
- * this lets γ follow the traffic instead.
- * <p>
- * The adjustment only ever changes the probability of arrivals that come after it. Every arrival records the
- * probability it was drawn with, so the inclusion probabilities, and with them the estimates, stay right however γ
- * moves. A pick budget works for the same reason, but it only cuts the picks off when they are used up, where this
- * keeps the rate even.
- * <p>
- * The pick rate is measured over a window long enough for the target to give about {@value #PICKS_PER_WINDOW} picks,
- * and that is the only time the adjustment moves, so that a handful of picks is not taken for a trend. The step
- * is the square root of how far off the rate is, and at most a factor of two, which settles without overshooting.
+ * Steers the pick rate towards a target by scaling γ. It only affects later arrivals, each of which records the
+ * probability it was drawn with, so estimates stay unbiased. The rate is measured over a window long enough for about
+ * {@value #PICKS_PER_WINDOW} picks, and each step is the square root of the error, capped at a factor of two, to
+ * settle without overshooting.
  */
 final class ScaleRegulator {
 
@@ -38,31 +30,20 @@ final class ScaleRegulator {
     private long picksAtLastWindow;
     private double secondsInWindow;
 
-    /**
-     * @param perHour the pick rate to aim for, 0 to leave γ as it is set
-     */
+    /** 0 leaves γ as it is set. */
     void targetPerHour(long perHour) {
         this.targetPerHour = perHour;
     }
 
-    /**
-     * What γ is multiplied with.
-     */
     double adjustment() {
         return adjustment;
     }
 
-    /**
-     * Counts a pick that the sampler had a say in, which is every one apart from those of the head queries.
-     */
+    /** Head-query picks are not recorded, as the sampler has no say in them. */
     void recordPick() {
         picks.increment();
     }
 
-    /**
-     * Looks at the picks since the last call, which was {@code seconds} ago, and moves the adjustment if a window
-     * has passed.
-     */
     synchronized void observe(double seconds) {
         long target = targetPerHour;
         long total = picks.sum();

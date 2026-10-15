@@ -32,13 +32,9 @@ import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 /**
- * Writes the queries picked for the sample to {@link QuerySamplingIndex}, so that nothing that matters is
- * only kept in the memory of a node that can go away.
- * <p>
- * The pipeline thread only queues the query. A batch is written when it is full or, if it is not, once the
- * flush interval has passed, so a quiet node does not sit on queries. One bulk request is in flight at a time,
- * and at most {@code maxPending} queries wait behind it: a node that cannot keep up drops queries, which is
- * harmless for the sample as which ones are dropped does not depend on the query.
+ * Writes picked queries to {@link QuerySamplingIndex} in batches, one bulk request in flight at a time. A node that
+ * cannot keep up drops queries beyond {@code maxPending}, which is harmless as which ones are dropped does not
+ * depend on the query.
  */
 public final class SampleWriter implements SampleListener {
 
@@ -62,13 +58,6 @@ public final class SampleWriter implements SampleListener {
     private final LongAdder failed = new LongAdder();
     private final LongAdder dropped = new LongAdder();
 
-    /**
-     * @param samplerId     identifies this run of the sampler in the documents it writes
-     * @param bulk          how bulk requests are sent, which decides who they are sent as
-     * @param executor      where batches are built and sent, so that the pipeline thread is not used for it
-     * @param clock         milliseconds since the epoch
-     * @param onWritten     told about every query that was written, with the weights that were written
-     */
     public SampleWriter(
         String samplerId,
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> bulk,
@@ -108,10 +97,7 @@ public final class SampleWriter implements SampleListener {
         requestFlush();
     }
 
-    /**
-     * Makes sure the pending queries will be written: right away if there is a full batch, otherwise once the
-     * flush interval has passed. Nothing is done while a bulk request is in flight, its completion asks again.
-     */
+    // flushes right away on a full batch, else after the flush interval; while a bulk is in flight its completion asks again
     private void requestFlush() {
         boolean now;
         synchronized (this) {
@@ -208,23 +194,14 @@ public final class SampleWriter implements SampleListener {
         requestFlush();
     }
 
-    /**
-     * Queries that were written to the index.
-     */
     public long written() {
         return written.sum();
     }
 
-    /**
-     * Queries that could not be written, because the request failed or a document was rejected.
-     */
     public long failed() {
         return failed.sum();
     }
 
-    /**
-     * Queries that were turned away because too many were waiting to be written.
-     */
     public long dropped() {
         return dropped.sum();
     }

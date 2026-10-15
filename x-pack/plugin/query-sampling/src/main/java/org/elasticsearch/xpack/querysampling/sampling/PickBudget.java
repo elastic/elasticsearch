@@ -10,11 +10,8 @@ package org.elasticsearch.xpack.querysampling.sampling;
 import java.util.function.LongSupplier;
 
 /**
- * Limits how many queries are picked per hour, as a token bucket: every pick takes a token, tokens come back at a
- * steady pace, and when there is none the sampler gives the queries that arrive no chance to be picked.
- * <p>
- * The bucket holds what is earned in minute, so a quiet spell does not store up more than a short burst. A limit of
- * zero means there is none.
+ * Token bucket limiting picks per hour. It holds one minute of tokens so a quiet spell cannot bank a large burst;
+ * a limit of zero means unlimited.
  */
 public final class PickBudget {
 
@@ -32,21 +29,15 @@ public final class PickBudget {
         this.lastRefill = nanoTime.getAsLong();
     }
 
-    /**
-     * @param picksPerHour the most queries that are picked per hour, or 0 for no limit
-     */
     public synchronized void perHour(long picksPerHour) {
         boolean wasLimited = tokensPerSecond > 0;
         tokensPerSecond = picksPerHour / SECONDS_PER_HOUR;
         capacity = Math.max(1, tokensPerSecond * SECONDS_PER_BURST);
         lastRefill = nanoTime.getAsLong();
-        // a limit that has just been set starts with a full bucket, one that is changed keeps what it has
+        // a newly set limit starts with a full bucket, a changed one keeps its tokens
         tokens = wasLimited ? Math.min(tokens, capacity) : capacity;
     }
 
-    /**
-     * Whether a query may be picked now.
-     */
     public synchronized boolean available() {
         if (tokensPerSecond <= 0) {
             return true;
@@ -55,9 +46,6 @@ public final class PickBudget {
         return tokens >= 1;
     }
 
-    /**
-     * A query was picked.
-     */
     public synchronized void take() {
         if (tokensPerSecond > 0) {
             refill();

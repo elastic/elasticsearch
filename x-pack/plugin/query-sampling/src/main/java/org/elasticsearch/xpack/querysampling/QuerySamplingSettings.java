@@ -12,15 +12,10 @@ import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
 
-/**
- * Settings of the query sampling pipeline. What decides how much is sampled is dynamic, so that sampling can be
- * switched on, tuned or switched off without a restart.
- */
+/** Settings of the query sampling pipeline; the sampling knobs are dynamic so it can be tuned without a restart. */
 public final class QuerySamplingSettings {
 
-    /**
-     * Master switch. When {@code false} the pipeline must not do any work on the search path.
-     */
+    /** When false the pipeline does no work on the search path. */
     public static final Setting<Boolean> ENABLED = Setting.boolSetting(
         "xpack.query_sampling.enabled",
         false,
@@ -28,10 +23,7 @@ public final class QuerySamplingSettings {
         Setting.Property.Dynamic
     );
 
-    /**
-     * Probability that an eligible kNN search is captured. Each search is an independent coin flip, so
-     * the captured stream is a uniform sample of the traffic regardless of how requests arrive in time.
-     */
+    /** Probability that an eligible kNN search is captured; each search is an independent coin flip. */
     public static final Setting<Double> CAPTURE_RATE = Setting.doubleSetting(
         "xpack.query_sampling.capture_rate",
         0.01,
@@ -41,10 +33,6 @@ public final class QuerySamplingSettings {
         Setting.Property.Dynamic
     );
 
-    /**
-     * How often the weights stored with the sampled queries are brought up to date. It only matters for how
-     * stale they can be, and is read when the node starts.
-     */
     public static final Setting<TimeValue> WEIGHTS_REFRESH_INTERVAL = Setting.timeSetting(
         "xpack.query_sampling.weights_refresh_interval",
         TimeValue.timeValueSeconds(30),
@@ -52,10 +40,7 @@ public final class QuerySamplingSettings {
         Setting.Property.NodeScope
     );
 
-    /**
-     * How long a sampled query is kept, counted from when it was picked. The sample is meant to follow the current
-     * traffic, so what is older than this is of no use and is deleted.
-     */
+    /** How long a sampled query is kept, counted from when it was picked. */
     public static final Setting<TimeValue> RETENTION = Setting.timeSetting(
         "xpack.query_sampling.retention",
         TimeValue.timeValueDays(7),
@@ -64,9 +49,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * The number of searches per hour that should be captured on a node even if that takes a higher rate than
-     * {@code capture_rate}, so that a node with little traffic still contributes to the sample. A node whose traffic
-     * is high enough captures more than that at the configured rate and is not affected. 0 means no floor.
+     * Per-node floor of captures per hour, raising the rate above {@code capture_rate} for low-traffic nodes. 0
+     * means no floor.
      */
     public static final Setting<Long> MIN_CAPTURES_PER_HOUR = Setting.longSetting(
         "xpack.query_sampling.min_captures_per_hour",
@@ -77,9 +61,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * The share of the time that live kNN searches take that exact searches may take, which is how much ground truth
-     * a node computes by itself. Exact searches scan the whole index, so this keeps them from competing with the
-     * searches they measure. 0 means that nothing is computed unless it is asked for.
+     * Share of live kNN search time that exact (ground truth) searches may take. 0 computes nothing unless asked
+     * for.
      */
     public static final Setting<Double> SAMPLING_COST_RATIO = Setting.doubleSetting(
         "xpack.query_sampling.sampling_cost_ratio",
@@ -90,10 +73,7 @@ public final class QuerySamplingSettings {
         Setting.Property.Dynamic
     );
 
-    /**
-     * The most queries that a node picks per hour, apart from the hottest ones, which are always picked. It keeps the
-     * sample from growing without limit when many different queries are searched. 0 means there is no limit.
-     */
+    /** Most queries a node picks per hour, apart from the hottest ones. 0 means no limit. */
     public static final Setting<Long> MAX_PICKS_PER_HOUR = Setting.longSetting(
         "xpack.query_sampling.max_picks_per_hour",
         0L,
@@ -103,9 +83,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * The rate of picks per hour that the acceptance scale is steered towards, apart from the picks of the hottest queries.
-     * The setting of the scale is what it starts from, and it is multiplied with what is needed to get to this rate. 0
-     * leaves the scale as it is set. Unlike {@link #MAX_PICKS_PER_HOUR} it is not a limit: it only aims for a rate.
+     * Picks per hour (apart from the hottest queries) that the acceptance scale is steered towards; unlike the
+     * max it is only a target. 0 leaves the scale as set.
      */
     public static final Setting<Long> TARGET_PICKS_PER_HOUR = Setting.longSetting(
         "xpack.query_sampling.target_picks_per_hour",
@@ -116,10 +95,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * The number of clusters that the query vectors of a field are grouped in, to balance the sample over the vector
-     * space, see {@link #SPATIAL_BALANCE}. 0 does not group them. The clusters are made on every node, from the
-     * queries that it captures, once it has seen enough different ones of a field (at least 200, and ten for each cluster),
-     * and are lost when the node stops.
+     * Number of clusters of query vectors per field used to balance the sample, see {@link #SPATIAL_BALANCE}. 0
+     * disables. Built per node, in memory.
      */
     public static final Setting<Integer> SPATIAL_CLUSTERS = Setting.intSetting(
         "xpack.query_sampling.spatial_clusters",
@@ -130,9 +107,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * How much the sample is balanced over the clusters of the vector space: 0 follows the traffic, so that the
-     * dense parts of the space have most of the queries, and 1 picks as many queries of each cluster. Between the
-     * two, it is a compromise. It has no effect without {@link #SPATIAL_CLUSTERS}.
+     * 0 follows the traffic, 1 picks as many queries from each cluster. No effect without {@link
+     * #SPATIAL_CLUSTERS}.
      */
     public static final Setting<Double> SPATIAL_BALANCE = Setting.doubleSetting(
         "xpack.query_sampling.spatial_balance",
@@ -144,11 +120,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * How much the sample is tilted towards the queries that are hard to answer, those whose hits are all about as good
-     * as the first one. The probability of picking a query is multiplied with a factor that is above one for the hardest
-     * third of the queries of a field and below one for the easiest third, by {@code e^η} and {@code e^-η} over their
-     * average. 0 does not tilt. It is not local intrinsic dimensionality, but a measure taken from the scores of
-     * the hits.
+     * Tilts picking towards hard queries (hits all about as good as the first) by {@code e^η} for the hardest
+     * third and {@code e^-η} for the easiest. 0 does not tilt.
      */
     public static final Setting<Double> HARDNESS_TILT = Setting.doubleSetting(
         "xpack.query_sampling.hardness_tilt",
@@ -160,10 +133,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * The share of the captured searches that are also kept as events: a uniform sample of the arrivals themselves, which
-     * gives the recall that users get its own estimate. Where a picked query is in the sample once, whatever the number of
-     * times it was searched, an event is as likely to be of a query as often as it was searched, and appears again for every
-     * time it is kept. 0 keeps none.
+     * Share of captured searches also kept as events (a uniform sample of arrivals, unlike the once-per-query
+     * sample). 0 keeps none.
      */
     public static final Setting<Double> EVENT_SLICE_RATE = Setting.doubleSetting(
         "xpack.query_sampling.event_slice_rate",
@@ -174,12 +145,7 @@ public final class QuerySamplingSettings {
         Setting.Property.Dynamic
     );
 
-    /**
-     * Whether to count how much of the vectors the filters of a query leave, so that the recall can be told for the queries
-     * that leave little of them apart from the others. Every distinct query with filters that is seen for the first time costs
-     * two searches that return no hits, which are done as the plugin and not more than a few at a time, so it is off unless asked
-     * for.
-     */
+    /** Whether to estimate filter selectivity; costs two no-hit searches per new filtered query, so off by default. */
     public static final Setting<Boolean> ESTIMATE_SELECTIVITY = Setting.boolSetting(
         "xpack.query_sampling.estimate_selectivity",
         false,
@@ -188,9 +154,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * How often the golden dataset is grown by itself: every so often the stored sampled queries that have ground truth and are
-     * not in the dataset yet are added to a new version of it, see {@link #GOLDEN_MAX_QUERIES}. Only the elected master does it.
-     * 0 does not grow it by itself, and queries are only promoted when asked for.
+     * How often the elected master grows the golden dataset with new queries that have ground truth. 0 only
+     * promotes when asked.
      */
     public static final Setting<TimeValue> GOLDEN_PROMOTION_INTERVAL = Setting.timeSetting(
         "xpack.query_sampling.golden_promotion_interval",
@@ -200,9 +165,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * The most queries that a version of the golden dataset has when it is grown by itself. When there are more, those that
-     * were picked longest ago are left out of the new version, which is what keeps the dataset from growing without limit.
-     * Versions that were made when asked for are not held to it.
+     * Cap on a self-grown golden version; the longest-ago picked queries are dropped. Versions made on request
+     * are not capped.
      */
     public static final Setting<Integer> GOLDEN_MAX_QUERIES = Setting.intSetting(
         "xpack.query_sampling.golden_max_queries",
@@ -214,9 +178,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * γ, the scale of the probability with which a query is picked: how likely a query seen for the first time is
-     * picked (about 0.69·γ), and how fast that falls as the query is searched more. A bigger value samples more
-     * queries, and more of the popular ones.
+     * γ, the scale of the pick probability: a first-seen query is picked with about 0.69·γ, falling as it is
+     * searched more.
      */
     public static final Setting<Double> ACCEPTANCE_SCALE = Setting.doubleSetting(
         "xpack.query_sampling.acceptance_scale",
@@ -228,9 +191,8 @@ public final class QuerySamplingSettings {
     );
 
     /**
-     * Estimated number of searches from which a query is always picked. The hottest queries carry a large part of
-     * the traffic, leaving them to chance would make the estimates swing on one coin flip. A value of 1 picks every
-     * query that is captured.
+     * Estimated search count from which a query is always picked, so that estimates do not hinge on one coin
+     * flip. 1 picks every captured query.
      */
     public static final Setting<Long> HEAD_THRESHOLD = Setting.longSetting(
         "xpack.query_sampling.head_threshold",
@@ -240,10 +202,7 @@ public final class QuerySamplingSettings {
         Setting.Property.Dynamic
     );
 
-    /**
-     * How long a query is remembered after its last search. Its count, and so how likely it is to be picked, only
-     * covers the searches within this time. A query that is not seen for between one and two windows is forgotten.
-     */
+    /** How long a query is remembered after its last search; its count only covers this window. */
     public static final Setting<TimeValue> MULTIPLICITY_WINDOW = Setting.timeSetting(
         "xpack.query_sampling.multiplicity_window",
         TimeValue.timeValueHours(1),

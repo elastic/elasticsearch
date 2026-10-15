@@ -71,11 +71,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.QUERY_SAMPLING_ORIGIN;
 
-/**
- * Keeps a small, continuously maintained sample of live kNN queries so that production recall can be
- * estimated without replaying all traffic. The pipeline runs on the coordinating node and is designed
- * to stay off the search critical path.
- */
+/** Samples live kNN queries to estimate production recall; runs on the coordinating node, off the search path. */
 public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
 
     public static final FeatureFlag QUERY_SAMPLING_FEATURE_FLAG = new FeatureFlag("query_sampling");
@@ -83,7 +79,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
     static final String THREAD_POOL_NAME = "query_sampling";
     private static final int QUEUE_SIZE = 1000;
     private static final int MAX_DISTINCT_QUERIES = 100_000;
-    // the most exact searching that can be saved up or owed, in milliseconds of search time
+    // millis of exact-search time that can be saved up or owed
     private static final double MAX_EXACT_SEARCH_CREDIT_MILLIS = 10_000;
     private static final int WRITE_BATCH_SIZE = 100;
     private static final int MAX_PENDING_WRITES = 1000;
@@ -96,10 +92,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         return QuerySamplingSettings.getSettings();
     }
 
-    /**
-     * One thread is plenty: it only has to keep up with the captured fraction of the traffic, and a
-     * burst beyond what the queue holds is dropped rather than slowing searches down.
-     */
+    // one thread suffices; a burst beyond the queue is dropped rather than slowing searches
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         return List.of(
@@ -119,7 +112,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         ClusterSettings clusterSettings = services.clusterService().getClusterSettings();
         MultiplicityTracker tracker = new MultiplicityTracker(MAX_DISTINCT_QUERIES, TimeValue.timeValueHours(1), System::nanoTime);
         tracker.watch(clusterSettings);
-        // a new id for every run of the sampler: its weights only make sense against the counts it keeps
+        // new id per run: weights only make sense against the counts this run keeps
         OriginSettingClient client = new OriginSettingClient(services.client(), QUERY_SAMPLING_ORIGIN);
         String samplerId = UUIDs.randomBase64UUID();
         WeightsRefresher refresher = new WeightsRefresher(
@@ -153,8 +146,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             retention.start(services.threadPool(), services.threadPool().generic());
         }
         GoldenReader goldenReader = new GoldenReader(client::search, services.xContentRegistry());
-        // the schedule only adds: computing the ground truth again is a search over the data of the users, which is done as
-        // whoever asks for it
+        // the schedule only adds; recomputing ground truth searches user data, so it runs as the caller
         GoldenUpdater goldenUpdater = new GoldenUpdater(
             goldenReader,
             new StoredSamples(client::search, services.xContentRegistry()),
@@ -171,7 +163,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() && goldenInterval.millis() > 0) {
             goldenPromotion.start(services.threadPool(), services.threadPool().generic(), goldenInterval);
         }
-        // the values below only stand until the settings are read
+        // placeholders until the settings are read
         QuerySampler sampler = new QuerySampler(
             1.0,
             100,
@@ -187,7 +179,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         SelectivityStrata selectivity = new SelectivityStrata(client::search, services.threadPool()::relativeTimeInMillis);
         selectivity.watch(clusterSettings);
         SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(writer), budget, eventSlice, selectivity);
-        // the exact searches are done as the plugin: nobody is asking for them
+        // runs as the plugin since no user asked for these searches
         GroundTruthWorker groundTruthWorker = new GroundTruthWorker(
             client::search,
             client::bulk,
@@ -261,7 +253,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
 
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
-        // the settings stay registered either way, but without the flag nothing may act on them
+        // settings stay registered, but without the flag nothing may act on them
         if (QUERY_SAMPLING_FEATURE_FLAG.isEnabled() == false) {
             return List.of();
         }

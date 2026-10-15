@@ -27,41 +27,18 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * Estimates the recall of the search from the sampled queries whose ground truth is known.
- * <p>
- * The sample is not uniform: a query was more likely to be picked the less it was searched, and it may not even
- * have been captured. A plain average of the recalls would therefore describe the sample and not the traffic, so
- * every query is weighted by the inverse of its chance to be in the sample, as in a Horvitz–Thompson estimate.
- * Two things can be estimated:
- * <ul>
- * <li>the recall over the traffic. A query counts as often as it was searched, which is the estimated number of
- * its arrivals, and the chance to have been picked is {@code π}. A query that was not captured at all has no
- * arrivals to count, so there is nothing more to correct for;</li>
- * <li>the recall over distinct queries, each counting once. A distinct query also has to have been captured at all
- * to be known, which has the chance {@code s}, so its weight is {@code 1 / (π · s)}.</li>
- * </ul>
- * Both are ratios of weighted sums, which makes them insensitive to how many queries there happen to be in the
- * sample. For each the effective sample size of Kish is given, {@code (Σw)² / Σw²}: how many equally weighted
- * queries the estimate is worth.
- * <p>
- * The arrivals that were kept as events are a sample of the searches themselves, with the same chance for each but
- * for the capture rate it had. They are not part of the estimates above, which are those of the picked queries, and
- * make one of their own: the weighted average of their recalls, with weights of {@code 1 / π}. Where that is
- * available it needs no correction for how often a query is searched.
- * <p>
- * The same is done for the queries of each hardness, of each cluster of the vector space and of each selectivity. Their weights are the
- * ones they have among all the queries, so each is an estimate for a part of the population, and the parts show what
- * the average of all of them hides.
+ * Estimates recall from sampled queries with known ground truth. The sample is not uniform, so each query is weighted by the
+ * inverse of its chance to be in it (Horvitz-Thompson): for the traffic, searches times {@code 1 / π}; for distinct queries,
+ * {@code 1 / (π · s)}, where {@code s} is the chance of being captured at all. Kish's effective sample size
+ * {@code (Σw)² / Σw²} says how much to trust each. Events are a sample of searches and make their own estimate with
+ * weights of {@code 1 / π}. Strata use the weights they have among all queries.
  */
 public final class RecallEstimator {
 
     private RecallEstimator() {}
 
     /**
-     * Recall of one query: the share of the true nearest neighbours that the live search returned. A document is
-     * identified by its index and its id. Only the first {@code k} hits count, which is what was asked for.
-     *
-     * @return the recall, or nothing if the ground truth is not known or empty
+     * Only the first {@code k} live hits count. Empty if the ground truth is not known or empty.
      */
     public static OptionalDouble recall(StoredSample sample) {
         GroundTruth groundTruth = sample.groundTruth();
@@ -82,8 +59,7 @@ public final class RecallEstimator {
     }
 
     /**
-     * @param samples the sampled queries: those that have no ground truth, or a probability of zero to be there, are
-     *                left out
+     * Samples without ground truth, or with a zero probability of being in the sample, are left out.
      */
     public static RecallEstimate estimate(List<StoredSample> samples) {
         Estimates all = new Estimates();
@@ -114,8 +90,7 @@ public final class RecallEstimator {
             double trafficWeight = weights.weightedMultiplicity() / weights.inclusionProbability();
             double uniqueWeight = 1.0 / (weights.inclusionProbability() * weights.seenProbability());
             all.add(trafficWeight, uniqueWeight, recall.getAsDouble());
-            // each stratum is a part of the population, and the weights of its queries are what they are for all the queries:
-            // the same ratio of weighted sums, over those of the stratum only
+            // strata keep the weights the queries have among all queries
             if (sample.hardness() != null) {
                 byHardness.computeIfAbsent(sample.hardness(), key -> new Estimates())
                     .add(trafficWeight, uniqueWeight, recall.getAsDouble());
@@ -148,9 +123,6 @@ public final class RecallEstimator {
         );
     }
 
-    /**
-     * Both estimates, of the traffic and of the distinct queries, over a set of queries.
-     */
     private static final class Estimates {
         private final Accumulator traffic = new Accumulator();
         private final Accumulator unique = new Accumulator();
@@ -176,9 +148,6 @@ public final class RecallEstimator {
 
     private record DocumentKey(String index, String id) {}
 
-    /**
-     * Weighted sums, from which both the mean and the effective sample size follow.
-     */
     private static final class Accumulator {
         private double weights;
         private double squaredWeights;

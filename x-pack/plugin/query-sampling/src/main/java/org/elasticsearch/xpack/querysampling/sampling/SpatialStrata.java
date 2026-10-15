@@ -23,46 +23,21 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * Keeps the sample from being made of the dense parts of the query space only. Queries are traffic, and traffic
- * has hotspots: a sample that follows it has many queries about the same few things and none about the rest, where
- * the recall may be quite different.
- * <p>
- * The query vectors of a space are grouped in a fixed number of clusters. The first distinct queries are kept
- * until there are enough to fit the clusters on, by k-means with k-means++ seeding. Taking the first queries as the
- * centroids instead, and moving them as the next ones join, does not work on embeddings: they are all alike, one
- * centroid ends up nearest to nearly every query and the others to hardly any. A query that arrives before the fit
- * has no cluster, and the sampler leaves it alone, until the fit gives it one. After the fit each new query joins the
- * nearest cluster and moves its centroid a little towards itself.
- * <p>
- * The clusters count the distinct queries that joined them. A query of a cluster with fewer than the average is
- * picked more often, by the factor {@code (average / count)^β}, and one of a cluster with more is picked less often.
- * With a balance β of 0 there is no effect, and with 1 every cluster is expected to have as many picks, whatever its
- * share of the queries. Replays of recorded traffic showed no gain from a balance near 1 where the recall does not
- * differ between the regions, and a loss of precision from the unequal weights, so it is meant to be used mildly.
- * <p>
- * The factor is worked out from the counts at the moment of the arrival and recorded in the probability of the
- * draw, like any other factor, so that the estimates stay right.
+ * Balances picks over the dense and sparse parts of the query space: query vectors are grouped in clusters (k-means
+ * with k-means++ seeding on the first distinct queries, since online centroids from the first queries collapse on
+ * embeddings), and a cluster with fewer distinct queries than average is picked more by {@code (average / count)^β}.
+ * The factor is computed at arrival and recorded in the draw probability, so estimates stay unbiased. Use β mildly:
+ * unequal weights cost precision. Queries arriving before the fit have no cluster.
  */
 public final class SpatialStrata {
 
-    /**
-     * The most a probability is raised by, so that a cluster that is hardly known does not make everything in it a sure pick.
-     */
+    /** Caps the boost so a barely known cluster does not make every query in it a sure pick. */
     static final double MAX_FACTOR = 10.0;
 
-    /**
-     * The most spaces, which are fields, that are kept track of. A query of any other is not given a cluster.
-     */
     static final int MAX_SPACES = 100;
 
-    /**
-     * The fewest queries that are collected before the clusters are fitted.
-     */
     static final int MIN_WARMUP = 200;
 
-    /**
-     * Rounds of reassigning the queries to the centroids and moving them, which is enough for the clusters to settle.
-     */
     static final int FIT_ROUNDS = 5;
 
     private final int clusters;
@@ -72,16 +47,12 @@ public final class SpatialStrata {
     private volatile double balance;
 
     /**
-     * @param clusters the number of clusters of each space, 0 to not group the queries at all
+     * @param clusters clusters per space, 0 to not group the queries
      */
     public SpatialStrata(int clusters) {
         this(clusters, Math.max(MIN_WARMUP, 10 * clusters), Randomness::get);
     }
 
-    /**
-     * @param warmup the number of distinct queries of a space that are collected before the clusters are fitted
-     * @param random the source of the choices of the seeding, which is looked up when it is needed
-     */
     public SpatialStrata(int clusters, int warmup, Supplier<Random> random) {
         assert warmup >= clusters : "there have to be as many queries as clusters to make them from";
         this.clusters = clusters;
@@ -89,20 +60,13 @@ public final class SpatialStrata {
         this.random = random;
     }
 
-    /**
-     * Follows the balance setting, now and when it changes.
-     */
     public void watch(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(QuerySamplingSettings.SPATIAL_BALANCE, value -> this.balance = value);
     }
 
     /**
-     * Takes in the vector of a query that has not been seen before and tells which cluster it is in. If the clusters
-     * are not fitted yet it is told later, when they are, which is also when the queries that were waiting are told.
-     * A query that cannot be given a cluster is never told: no clusters are wanted, the vector is not made of finite
-     * numbers, or there are too many spaces.
-     *
-     * @param receiver is called, on this thread, with the cluster of the query
+     * The receiver is called on this thread with the cluster, once the clusters are fitted. It is never called if no
+     * clusters are wanted, the vector is not finite, or there are too many spaces.
      */
     public void assign(String field, float[] vector, Consumer<Stratum> receiver) {
         if (clusters == 0 || vector.length == 0) {
@@ -127,9 +91,6 @@ public final class SpatialStrata {
         }
     }
 
-    /**
-     * What the probability of picking a query of the stratum is multiplied with.
-     */
     public double factor(@Nullable Stratum stratum) {
         double balance = this.balance;
         if (stratum == null || balance == 0.0) {
@@ -144,9 +105,7 @@ public final class SpatialStrata {
         }
     }
 
-    /**
-     * The distinct queries that joined each cluster of a space, for diagnostics and tests. Empty until the clusters are fitted.
-     */
+    /** For diagnostics and tests; empty until the clusters are fitted. */
     public long[] counts(String space) {
         synchronized (spaces) {
             Space found = spaces.get(space);
@@ -188,9 +147,6 @@ public final class SpatialStrata {
             waitingReceivers.clear();
         }
 
-        /**
-         * Puts a query in the nearest cluster, which takes it in.
-         */
         private int join(float[] vector) {
             int cluster = nearest(vector);
             counts[cluster]++;
@@ -203,10 +159,6 @@ public final class SpatialStrata {
             return cluster;
         }
 
-        /**
-         * k-means++ seeding, in which a query is the next centroid with a chance that follows how far it is from the
-         * centroids there are, and then rounds of moving each centroid to the mean of the queries nearest to it.
-         */
         private void fit(Random random) {
             int queries = waitingVectors.size();
             double[] distance = new double[queries];
@@ -244,9 +196,7 @@ public final class SpatialStrata {
             }
         }
 
-        /**
-         * A query chosen with a chance in proportion to its distance. If all are on the centroids already, any.
-         */
+        /** Chosen in proportion to distance; any query if all are on a centroid already. */
         private static int pick(double[] distance, double sum, Random random) {
             if (sum <= 0) {
                 return random.nextInt(distance.length);

@@ -19,14 +19,8 @@ import java.util.HexFormat;
 import java.util.List;
 
 /**
- * Identity of a query for the purpose of counting repeats: the same vector, searched on the same field of
- * the same indices, with the same filters and the same parameters that decide the quality of the results: how many hits come back,
- * the number of candidates, the visit percentage and the oversample. The same vector searched with other values of those has
- * another recall, and is another query, as the stored sample keeps the hits of one execution and the weights of all the
- * executions that have the identity.
- * <p>
- * The identity is a 128-bit hash, wide enough that a collision among the queries seen in a day is not a
- * practical concern.
+ * Identity of a query for counting repeats: vector, field, indices, filters and the parameters that decide result quality
+ * (k, candidates, visit percentage, oversample), since other values give another recall. A 128-bit hash.
  */
 public record QueryFingerprint(long high, long low) {
 
@@ -36,7 +30,7 @@ public record QueryFingerprint(long high, long low) {
         // the same vector searched in other indices has other results and other ground truth
         List<byte[]> indices = Arrays.stream(query.indices()).sorted().map(index -> index.getBytes(StandardCharsets.UTF_8)).toList();
         byte[] field = query.field().getBytes(StandardCharsets.UTF_8);
-        // This is considering that filters are combined with AND, so their order is not part of the query's identity
+        // filters are ANDed, so their order is not part of the identity
         List<byte[]> filters = query.filters().stream().map(QueryFingerprint::canonical).sorted(Arrays::compareUnsigned).toList();
 
         int size = Integer.BYTES + Integer.BYTES + field.length + Integer.BYTES + Float.BYTES * query.queryVector().length;
@@ -68,9 +62,6 @@ public record QueryFingerprint(long high, long low) {
         return new QueryFingerprint(hash.h2, hash.h1);
     }
 
-    /**
-     * The fingerprint as 32 hex digits, which is how it identifies the query outside of the process.
-     */
     public String hex() {
         HexFormat hex = HexFormat.of();
         return hex.toHexDigits(high) + hex.toHexDigits(low);

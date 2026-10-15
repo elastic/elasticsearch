@@ -28,11 +28,7 @@ import java.util.OptionalDouble;
 
 import static org.elasticsearch.xpack.core.ClientHelper.QUERY_SAMPLING_ORIGIN;
 
-/**
- * Reads the stored sampled queries that have their ground truth, as the plugin since nobody else may read that
- * index, and estimates the recall from them. Which node did it does not matter, the sample is in the index and
- * not on the node that picked it.
- */
+/** Reads the stored sample as the plugin; any node can serve it since the sample lives in the index. */
 public final class TransportQuerySamplingRecallAction extends TransportAction<QuerySamplingRecallRequest, QuerySamplingRecallResponse> {
 
     private final StoredSamples storedSamples;

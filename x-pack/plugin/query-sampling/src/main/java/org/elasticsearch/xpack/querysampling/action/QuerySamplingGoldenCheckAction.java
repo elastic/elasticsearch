@@ -9,10 +9,7 @@ package org.elasticsearch.xpack.querysampling.action;
 
 import org.elasticsearch.action.ActionType;
 
-/**
- * Tells which queries of a version of the golden dataset have a ground truth that is out of date. It is an admin action:
- * it runs searches over the data of the users, with the privileges of whoever calls it.
- */
+/** Admin action: runs searches over user data with the privileges of the caller. */
 public final class QuerySamplingGoldenCheckAction extends ActionType<QuerySamplingGoldenCheckResponse> {
 
     public static final QuerySamplingGoldenCheckAction INSTANCE = new QuerySamplingGoldenCheckAction();

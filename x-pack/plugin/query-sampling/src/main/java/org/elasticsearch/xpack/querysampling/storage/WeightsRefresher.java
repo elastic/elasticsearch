@@ -35,27 +35,17 @@ import java.util.function.BiPredicate;
 import java.util.function.LongSupplier;
 
 /**
- * Keeps the weights of the documents written by {@link SampleWriter} up to date. A query keeps arriving after it
- * was picked, so the multiplicity and the probabilities written with it go stale; they are written again
- * from time to time for as long as they change. Once the tracker has forgotten the query its counters are final,
- * the last change is written and the query is no longer looked at.
- * <p>
- * Only what is needed to compare the weights is kept for a query, not the query itself, so what it takes is small
- * and bounded by how many queries the tracker holds.
+ * Rewrites the weights of documents written by {@link SampleWriter} while they keep changing. Once the tracker has
+ * forgotten the query its counters are final, so the last change is written and the query is dropped. Only what is
+ * needed to compare weights is kept, so memory is bounded by how many queries the tracker holds.
  */
 public final class WeightsRefresher {
 
     private static final Logger logger = LogManager.getLogger(WeightsRefresher.class);
 
-    /**
-     * Updates of one query that failed one after the other, without the whole request failing, after which it is given
-     * up on. A transient problem is over by then, and a query that cannot be updated should not hold up the others.
-     */
+    // consecutive rejected updates after which a query is given up on, so that it does not hold up the others
     private static final int MAX_FAILURES = 5;
 
-    /**
-     * @param failures how many updates in a row were rejected
-     */
     private record Written(TrackedQuery tracked, TrackedQuery.Weights last, int failures) {
         Written(TrackedQuery tracked, TrackedQuery.Weights last) {
             this(tracked, last, 0);
@@ -80,8 +70,6 @@ public final class WeightsRefresher {
 
     /**
      * @param tracking tells whether the tracker still holds the query, that is whether its weights can still change
-     * @param maxBatch the most documents updated by one request
-     * @param interval how long to wait between two rounds
      */
     public WeightsRefresher(
         String samplerId,
@@ -103,9 +91,6 @@ public final class WeightsRefresher {
         this.interval = interval;
     }
 
-    /**
-     * A query was written with the given weights, from now on they are kept up to date.
-     */
     public void written(QueryFingerprint fingerprint, TrackedQuery tracked, TrackedQuery.Weights weights) {
         synchronized (this) {
             written.put(fingerprint, new Written(tracked, weights));
@@ -186,22 +171,18 @@ public final class WeightsRefresher {
         }
     }
 
-    /**
-     * What happened to one update.
-     */
     private enum Outcome {
         UPDATED,
-        /** The document does not exist any more, so there is nothing to keep up to date. */
+        /** The document does not exist any more. */
         GONE,
         FAILED
     }
 
     /**
-     * What was updated is remembered. What failed is tried again in the next round, unless its document is gone or it
-     * keeps failing: such a query would be first in line every time and keep the ones behind it from being updated.
+     * Failures are retried next round unless the document is gone or keeps failing, as such a query would stay first
+     * in line and starve the others.
      *
-     * @param outcomes what happened to each update, or {@code null} if the request as a whole failed, which says
-     *                 nothing about the queries and is not held against them
+     * @param outcomes {@code null} if the request as a whole failed, which is not held against the queries
      */
     private void completed(List<QueryFingerprint> fingerprints, List<TrackedQuery.Weights> weights, Outcome[] outcomes) {
         boolean allSucceeded = outcomes != null;
@@ -247,23 +228,14 @@ public final class WeightsRefresher {
         }
     }
 
-    /**
-     * Documents whose weights were updated.
-     */
     public long refreshed() {
         return refreshed.sum();
     }
 
-    /**
-     * Updates that did not go through, whether they were tried again or not.
-     */
     public long failed() {
         return failed.sum();
     }
 
-    /**
-     * Queries whose weights are still being kept up to date.
-     */
     public synchronized int tracked() {
         return written.size();
     }

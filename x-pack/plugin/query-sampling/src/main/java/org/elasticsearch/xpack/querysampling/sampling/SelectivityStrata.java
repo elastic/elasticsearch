@@ -30,35 +30,19 @@ import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 /**
- * Tells how much of the vectors a query with filters is allowed to return, which is the stratum of {@link Selectivity}:
- * the number of vectors that the filters leave over the number of the vectors there are.
- * <p>
- * Nothing in the search says it, so it is counted, by two searches that return no hits: of the vectors that pass the filters
- * and of all the vectors, the second of which is kept for a while as it is the same for every query of the indices. This
- * is done once for each distinct query, in the background and not more than a few at a time, which have to be paid for, so
- * it is only done if the setting asks for it. A query that is not counted, because there are too many waiting or a count
- * failed, has no selectivity, and is only left out of what is estimated by it.
- * <p>
- * Unlike the strata of the vector space and the hardness it does not change the probability of a query to be picked: it
- * is there to see where the recall is low, and not to choose the sample.
+ * Computes the {@link Selectivity} stratum of a filtered query (share of vectors passing the filters) with two
+ * size-0 count searches, once per distinct query, in the background and only if enabled, as they cost extra searches.
+ * Uncounted queries get no selectivity. Unlike the other strata it does not change pick probabilities.
  */
 public final class SelectivityStrata {
 
     private static final Logger logger = LogManager.getLogger(SelectivityStrata.class);
 
-    /**
-     * The most counts that are going on at a time, as they are searches that nobody asked for.
-     */
+    /** Counts are searches nobody asked for, so few run at a time. */
     static final int MAX_IN_FLIGHT = 4;
 
-    /**
-     * For how long the number of the vectors of some indices is believed.
-     */
     static final long TOTAL_VALID_MILLIS = 10 * 60 * 1000L;
 
-    /**
-     * The most totals that are kept, which is one for each field of some indices.
-     */
     static final int MAX_TOTALS = 1000;
 
     private record Total(long vectors, long countedAt) {}
@@ -74,30 +58,23 @@ public final class SelectivityStrata {
 
     /**
      * @param search how the counts are made, which decides who they are made as
-     * @param clock  milliseconds, from a clock that only has to go on
+     * @param clock  milliseconds, monotonic
      */
     public SelectivityStrata(BiConsumer<SearchRequest, ActionListener<SearchResponse>> search, LongSupplier clock) {
         this.search = search;
         this.clock = clock;
     }
 
-    /**
-     * A stratum that never counts, for when there is nothing to count with.
-     */
     public static SelectivityStrata none() {
         return new SelectivityStrata((request, listener) -> listener.onFailure(new UnsupportedOperationException()), () -> 0L);
     }
 
-    /**
-     * Follows the setting that says whether to count, now and when it changes.
-     */
     public void watch(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(QuerySamplingSettings.ESTIMATE_SELECTIVITY, value -> this.enabled = value);
     }
 
     /**
-     * Tells the selectivity of a query that has just been seen for the first time. It is known at once if there are no
-     * filters, and later, when the counts are back, if there are, which is not on this thread.
+     * Unfiltered queries are assigned at once; filtered ones when the counts return, off this thread.
      */
     public void assign(TrackedQuery tracked, CapturedQuery query) {
         if (query.filters().isEmpty()) {
@@ -149,9 +126,6 @@ public final class SelectivityStrata {
         }));
     }
 
-    /**
-     * What the filters leave, among the documents that have the vector at all.
-     */
     private static QueryBuilder filtered(CapturedQuery query) {
         BoolQueryBuilder bool = QueryBuilders.boolQuery().filter(QueryBuilders.existsQuery(query.field()));
         query.filters().forEach(bool::filter);
@@ -164,23 +138,15 @@ public final class SelectivityStrata {
         search.accept(request, listener.map(response -> response.getHits().getTotalHits().value()));
     }
 
-    /**
-     * Queries whose selectivity was counted.
-     */
     public long counted() {
         return counted.sum();
     }
 
-    /**
-     * Queries that were not counted because there were too many counts going on.
-     */
+    /** Queries not counted because too many counts were in flight. */
     public long skipped() {
         return skipped.sum();
     }
 
-    /**
-     * Queries whose count failed.
-     */
     public long failed() {
         return failed.sum();
     }

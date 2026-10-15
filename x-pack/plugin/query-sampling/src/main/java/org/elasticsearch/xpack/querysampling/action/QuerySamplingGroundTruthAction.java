@@ -9,10 +9,7 @@ package org.elasticsearch.xpack.querysampling.action;
 
 import org.elasticsearch.action.ActionType;
 
-/**
- * Computes the ground truth of the sampled queries held by the nodes. It is an admin action: it runs exact
- * searches, which scan the index, with the privileges of whoever calls it.
- */
+/** Admin action: runs exact searches (full index scans) with the privileges of the caller. */
 public final class QuerySamplingGroundTruthAction extends ActionType<QuerySamplingGroundTruthResponse> {
 
     public static final QuerySamplingGroundTruthAction INSTANCE = new QuerySamplingGroundTruthAction();

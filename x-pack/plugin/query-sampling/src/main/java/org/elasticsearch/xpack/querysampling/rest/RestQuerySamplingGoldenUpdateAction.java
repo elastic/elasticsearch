@@ -20,11 +20,6 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-/**
- * Brings the golden dataset up to date by a version: stored sampled queries that are not in it are added, and the ground truth of the
- * queries whose data changed is computed again. Each of those costs an exact search over the index, so how many queries a version
- * has is bounded by {@code max}.
- */
 @ServerlessScope(Scope.INTERNAL)
 public final class RestQuerySamplingGoldenUpdateAction extends BaseRestHandler {
 

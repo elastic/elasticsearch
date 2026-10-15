@@ -18,23 +18,8 @@ import org.elasticsearch.xpack.querysampling.estimate.RecallEstimate;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * The estimate, and optionally what each stored query contributed to it. Like the request it stays on the node that
- * made it.
- */
 public final class QuerySamplingRecallResponse extends ActionResponse implements ToXContentObject {
 
-    /**
-     * What one stored query contributed.
-     *
-     * @param label                the {@code X-Opaque-Id} of the search that was picked, which is only a label
-     * @param event                whether it is an arrival that was kept as an event and not a query that was picked
-     * @param multiplicity         how many times the query was captured
-     * @param weightedMultiplicity the estimated number of times it was searched
-     * @param inclusionProbability chance of the query to be picked
-     * @param seenProbability      chance of the query to have been captured at all
-     * @param recall               its recall, or {@code null} while its ground truth is not known
-     */
     public record Sample(
         @Nullable String label,
         boolean event,
@@ -48,9 +33,6 @@ public final class QuerySamplingRecallResponse extends ActionResponse implements
     private final RecallEstimate estimate;
     private final List<Sample> samples;
 
-    /**
-     * @param samples what each query contributed, or {@code null} if it was not asked for
-     */
     public QuerySamplingRecallResponse(RecallEstimate estimate, @Nullable List<Sample> samples) {
         this.estimate = estimate;
         this.samples = samples;

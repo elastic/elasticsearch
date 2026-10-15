@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.querysampling;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -24,7 +25,7 @@ public class QuerySamplingRestIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.enabled", "false")
         .build();
 
-    public QuerySamplingRestIT(final ClientYamlTestCandidate testCandidate) {
+    public QuerySamplingRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

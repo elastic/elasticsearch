@@ -15,18 +15,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-/**
- * What a computation of ground truth did. Like the request it stays on the node that ran it.
- */
 public final class QuerySamplingGroundTruthResponse extends ActionResponse implements ToXContentObject {
 
     private final int computed;
     private final int failed;
 
-    /**
-     * @param computed queries that got their ground truth
-     * @param failed   queries whose ground truth could not be computed or stored, they stay pending
-     */
     public QuerySamplingGroundTruthResponse(int computed, int failed) {
         this.computed = computed;
         this.failed = failed;

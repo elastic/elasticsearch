@@ -23,19 +23,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Turns a captured kNN search into the search that finds its true answer, and reads that answer back.
- * <p>
- * The exact search scores every document that has a vector and matches the filters, so it costs a scan of
- * the index and must stay off the search path.
+ * Turns a captured kNN search into the search that finds its true answer. It scans the index, so it must stay off the
+ * search path.
  */
 public final class ExactSearch {
 
-    /**
-     * An oversample is only passed to make sure quantized fields are scored with their full precision
-     * vectors: without one, a quantized field that has no rescoring configured would be scored on its
-     * quantized vectors, and the "exact" answer would itself be approximate. The value is irrelevant for
-     * the result, any positive number has this effect, and fields that are not quantized ignore it.
-     */
+    // any positive oversample makes quantized fields be scored on full precision vectors, otherwise the "exact" answer
+    // would itself be approximate; fields that are not quantized ignore it
     private static final float FULL_PRECISION = 1f;
 
     private ExactSearch() {}
@@ -52,8 +46,7 @@ public final class ExactSearch {
     }
 
     /**
-     * Copies the answer out of the response, which is ref-counted and cannot be kept. It does not tell the state of the data,
-     * which is read apart from the search.
+     * Copies the answer out of the ref-counted response. The data state is read separately.
      */
     public static GroundTruth parse(SearchResponse response) {
         SearchHit[] searchHits = response.getHits().getHits();

@@ -24,21 +24,13 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
- * Computes the ground truth of sampled queries by running their exact search. Each exact search scans the
- * index, so they are run one after the other: how much work is done at a time is bounded by how many
- * queries the caller hands over, not by how fast searches complete.
- * <p>
- * Searches are issued through the given function so that they run with the identity of whoever asked for
- * the computation.
+ * Computes ground truth by running exact searches one after the other, since each scans the index. Searches go
+ * through the given function so they run as whoever asked.
  */
 public final class GroundTruthRunner {
 
     private static final Logger logger = LogManager.getLogger(GroundTruthRunner.class);
 
-    /**
-     * @param computed queries that got their ground truth
-     * @param failed   queries whose exact search failed; they stay without ground truth
-     */
     public record Result(int computed, int failed) {}
 
     private final BiConsumer<SearchRequest, ActionListener<SearchResponse>> search;
@@ -47,12 +39,6 @@ public final class GroundTruthRunner {
         this.search = search;
     }
 
-    /**
-     * Computes the ground truth of whatever holds a query, so that the samples are not tied to where they live.
-     *
-     * @param query how to get the query of an item
-     * @param store what to do with the ground truth of an item, called once for each one that was computed
-     */
     public <T> void run(
         List<T> items,
         Function<T, CapturedQuery> query,
@@ -105,10 +91,8 @@ public final class GroundTruthRunner {
         }
     }
 
-    /**
-     * The state of the data is read before the exact search, so that if the data changes while it runs the ground truth looks
-     * out of date later, and not up to date. If it cannot be read the ground truth is left without one, which is as out of date.
-     */
+    // the data state is read before the exact search so that a change during it makes the ground truth look stale, not fresh;
+    // an unreadable state is stored as null, which also counts as stale
     private void compute(CapturedQuery query, ActionListener<GroundTruth> listener) {
         DataState.read(search, query, new ActionListener<>() {
             @Override

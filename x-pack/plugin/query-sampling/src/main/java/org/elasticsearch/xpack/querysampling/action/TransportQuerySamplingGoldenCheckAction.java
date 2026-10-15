@@ -23,9 +23,8 @@ import org.elasticsearch.xpack.querysampling.storage.GoldenStaleness;
 import static org.elasticsearch.xpack.core.ClientHelper.QUERY_SAMPLING_ORIGIN;
 
 /**
- * Checks the queries of a version of the golden dataset for ground truth that is out of date. The golden dataset is read as
- * the plugin, as nobody else may touch it, while the searches that look at the data go through the node client with the
- * thread context still holding the caller, so they see what the caller is allowed to see and nothing more.
+ * The golden dataset is read as the plugin; searches over user data keep the caller's thread context so they see only
+ * what the caller may.
  */
 public final class TransportQuerySamplingGoldenCheckAction extends TransportAction<
     QuerySamplingGoldenCheckRequest,

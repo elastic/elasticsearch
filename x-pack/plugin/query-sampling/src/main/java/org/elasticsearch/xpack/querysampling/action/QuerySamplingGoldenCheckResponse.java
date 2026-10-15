@@ -17,9 +17,6 @@ import org.elasticsearch.xpack.querysampling.storage.GoldenStaleness;
 
 import java.io.IOException;
 
-/**
- * What a check of a version of the golden dataset found. Like the request it stays on the node that ran it.
- */
 public final class QuerySamplingGoldenCheckResponse extends ActionResponse implements ToXContentObject {
 
     private final GoldenStaleness.Result result;

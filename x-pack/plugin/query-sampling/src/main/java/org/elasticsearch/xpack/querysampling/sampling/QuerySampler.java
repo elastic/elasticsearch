@@ -21,25 +21,11 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Decides which distinct queries go into the sample.
- * <p>
- * A query that arrives {@code w} times should not be sampled {@code w} times as often as one that arrives
- * once, otherwise a handful of popular queries would fill the sample. Its {@code w}-th arrival is
- * therefore accepted with probability {@code γ·ln(1 + 1/w)}, which adds up to {@code γ·ln(1 + w)} accepted
- * arrivals after {@code w} of them: sampling grows with the logarithm of popularity instead of with
- * popularity itself. Queries that reached the head threshold are always accepted; the hottest few queries
- * carry a large part of the traffic and leaving them to chance would make estimates swing on one coin flip.
- * <p>
- * Only a fraction of the searches is captured, so {@code w} is the estimated number of arrivals and one
- * captured arrival can stand for several. It is then accepted with probability
- * {@code γ·ln((1 + w) / (1 + w − weight))}, the part of {@code γ·ln(1 + w)} it adds. That makes the
- * expected number of accepted arrivals of a query depend on its estimated traffic only, not on what
- * fraction of it was captured.
- * <p>
- * Queries of the sparse parts of the vector space are picked more often, and those of the dense parts less, see
- * {@link SpatialStrata}, and so are those that are hard to answer, see {@link HardnessStrata}.
- * <p>
- * With a target for the pick rate, γ is multiplied with an adjustment that follows the traffic, see {@link ScaleRegulator}.
+ * Decides which distinct queries are picked. The {@code w}-th arrival is accepted with probability
+ * {@code γ·ln(1 + 1/w)}, so picks grow with the log of popularity and a few popular queries cannot fill the sample.
+ * Captured arrivals stand for several (weight), so the probability is {@code γ·ln((1 + w) / (1 + w − weight))}, which
+ * does not depend on the capture fraction. Head queries are always accepted so estimates do not swing on one coin
+ * flip. Picks are tilted by {@link SpatialStrata} and {@link HardnessStrata}, and γ is adjusted by {@link ScaleRegulator}.
  */
 public final class QuerySampler {
 
@@ -53,16 +39,13 @@ public final class QuerySampler {
     private final ScaleRegulator regulator = new ScaleRegulator();
 
     /**
-     * @param scale         γ, the probability scale: how likely a never-seen query is picked (about 0.69·γ)
+     * @param scale         γ, the probability scale
      * @param headThreshold estimated multiplicity from which a query is always picked
      */
     public QuerySampler(double scale, long headThreshold, Random random) {
         this(scale, headThreshold, random, new PickBudget(System::nanoTime));
     }
 
-    /**
-     * @param budget limits how many queries are picked, apart from the head queries
-     */
     public QuerySampler(double scale, long headThreshold, Random random, PickBudget budget) {
         this(scale, headThreshold, random, budget, new SpatialStrata(0));
     }
@@ -71,10 +54,6 @@ public final class QuerySampler {
         this(scale, headThreshold, random, budget, spatial, new HardnessStrata());
     }
 
-    /**
-     * @param spatial  balances the picks over the vector space
-     * @param hardness tilts the picks towards the queries that are hard to answer
-     */
     public QuerySampler(
         double scale,
         long headThreshold,
@@ -91,9 +70,6 @@ public final class QuerySampler {
         this.budget = budget;
     }
 
-    /**
-     * Follows the settings that tune the sampler, now and when they change.
-     */
     public void watch(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(QuerySamplingSettings.ACCEPTANCE_SCALE, value -> this.scale = value);
         clusterSettings.initializeAndWatch(QuerySamplingSettings.HEAD_THRESHOLD, value -> this.headThreshold = value);
@@ -104,8 +80,7 @@ public final class QuerySampler {
     }
 
     /**
-     * Keeps γ in line with the pick rate, every ten seconds until the thread pool shuts down. It has nothing to do
-     * for a node that has no target, but is there for when one is set.
+     * Adjusts γ every ten seconds; a no-op while no target is set, so it can run unconditionally.
      */
     public Scheduler.Cancellable startRegulation(ThreadPool threadPool, Executor executor) {
         long[] last = { System.nanoTime() };
@@ -116,31 +91,19 @@ public final class QuerySampler {
         }, TimeValue.timeValueSeconds(10), executor);
     }
 
-    /**
-     * Takes note of the picks of the last {@code seconds}, which is what the adjustment of γ is worked out from.
-     */
     void regulate(double seconds) {
         regulator.observe(seconds);
     }
 
-    /**
-     * Arrivals that had no chance to be picked because the limit on the picks was reached.
-     */
+    /** Arrivals given no chance to be picked because the pick limit was reached. */
     public long starved() {
         return starved.sum();
     }
 
-    /**
-     * γ as it is now, the setting multiplied with the adjustment that gets the picks to their target.
-     */
     public double effectiveScale() {
         return scale * regulator.adjustment();
     }
 
-    /**
-     * Probability that the arrival of a query that has now been seen {@code multiplicity} times is accepted,
-     * when every arrival counts for one.
-     */
     double acceptanceProbability(long multiplicity) {
         return acceptanceProbability(multiplicity, 1.0);
     }
@@ -157,34 +120,23 @@ public final class QuerySampler {
     }
 
     /**
-     * The acceptance of a query that is not a head query, before it is capped at one. The factors of the strata are
-     * applied to this and the result is capped: capping first would leave a query of a crowded cluster with a probability
-     * of the factor, however high γ is, and a γ that is raised to reach a target could not get there.
+     * Uncapped on purpose: strata factors are applied before capping, otherwise a raised γ could not reach its target
+     * for queries in crowded clusters.
      */
     private double uncappedAcceptance(double multiplicity, double weight) {
         return effectiveScale() * Math.log1p(weight / (1.0 + multiplicity - weight));
     }
 
-    /**
-     * Puts a query that has just been seen for the first time in the part of the vector space it belongs to, which
-     * the sampler needs to balance the picks over the space.
-     */
     public void assignStratum(TrackedQuery query, String field, float[] vector) {
         spatial.assign(field, vector, stratum -> query.stratum(stratum));
     }
 
-    /**
-     * Tells how hard a query that has just been seen for the first time is, from the hits that it got, which the
-     * sampler needs to tilt the picks towards the hard queries.
-     */
     public void assignHardness(TrackedQuery query, String field, int dims, List<CapturedSearch.Hit> hits) {
         query.hardness(hardness.assign(field, dims, hits));
     }
 
     /**
-     * Handles one arrival of a query, after it has been counted.
-     *
-     * @return whether the query was picked by this arrival, which happens at most once per query
+     * @return whether this arrival picked the query, which happens at most once per query
      */
     public boolean offer(TrackedQuery query) {
         double multiplicity = query.weightedMultiplicity();
@@ -195,8 +147,7 @@ public final class QuerySampler {
             probability = Math.min(1.0, uncappedAcceptance(multiplicity, query.lastArrivalWeight()) * strata);
         }
         if (head == false && budget.available() == false) {
-            // the limit on the picks is reached: the query has no chance now, and that is what is recorded for it, as for
-            // any other probability, which keeps the estimates right. The head queries are never held back
+            // limit reached: record probability 0 like any other draw so estimates stay unbiased; head queries are exempt
             probability = 0.0;
             starved.increment();
         }

@@ -23,17 +23,14 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
 /**
- * Brings the golden dataset up to date every so often, by what {@link GoldenUpdater} does without computing anything again. Only the
- * elected master does it. Every node has the plugin, and a version that each of them makes would be a copy of the others, while the
- * elected master is always exactly one node. A round that finds the one before still going does nothing.
+ * Periodically runs {@link GoldenUpdater}. Only the elected master does, as every node has the plugin and each would
+ * otherwise make a copy of the same version. A round that finds the previous one still going does nothing.
  */
 public final class GoldenPromotionJob {
 
     private static final Logger logger = LogManager.getLogger(GoldenPromotionJob.class);
 
-    /**
-     * The shortest time between two rounds, so that a setting that is hardly more than zero does not keep the master busy.
-     */
+    // keeps a near-zero setting from keeping the master busy
     static final TimeValue MIN_INTERVAL = TimeValue.timeValueSeconds(1);
 
     private final BiConsumer<Integer, ActionListener<GoldenUpdater.Result>> grow;
@@ -43,33 +40,20 @@ public final class GoldenPromotionJob {
     private final LongAdder failed = new LongAdder();
     private volatile int limit = 1;
 
-    /**
-     * @param grow          grows the dataset by a version of at most the number of queries that it is given
-     * @param electedMaster whether this node is the elected master
-     */
     public GoldenPromotionJob(BiConsumer<Integer, ActionListener<GoldenUpdater.Result>> grow, BooleanSupplier electedMaster) {
         this.grow = grow;
         this.electedMaster = electedMaster;
     }
 
-    /**
-     * Follows the setting of the most queries of a version, now and when it changes.
-     */
     public void watch(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(QuerySamplingSettings.GOLDEN_MAX_QUERIES, value -> this.limit = value);
     }
 
-    /**
-     * Starts running every {@code interval}, until the thread pool shuts down.
-     */
     public Scheduler.Cancellable start(ThreadPool threadPool, Executor executor, TimeValue interval) {
         TimeValue effective = interval.compareTo(MIN_INTERVAL) < 0 ? MIN_INTERVAL : interval;
         return threadPool.scheduleWithFixedDelay(this::run, effective, executor);
     }
 
-    /**
-     * One round: grows the dataset, if this node is the one to do it and the round before is over.
-     */
     public void run() {
         if (electedMaster.getAsBoolean() == false || running.compareAndSet(false, true) == false) {
             return;
@@ -96,16 +80,10 @@ public final class GoldenPromotionJob {
         }
     }
 
-    /**
-     * Versions that this node made.
-     */
     public long promotions() {
         return promotions.sum();
     }
 
-    /**
-     * Rounds that did not go through.
-     */
     public long failed() {
         return failed.sum();
     }

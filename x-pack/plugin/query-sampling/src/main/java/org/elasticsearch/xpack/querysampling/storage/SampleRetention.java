@@ -26,11 +26,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
 /**
- * Keeps {@link QuerySamplingIndex} short-term: sampled queries are deleted once they are older than the retention,
- * counted from when they were picked. Without it the index would grow for as long as sampling is on.
- * <p>
- * Only the elected master does it. Every node has the plugin, and having each of them delete the same documents
- * would only waste work, while the elected master is always exactly one node.
+ * Deletes sampled queries older than the retention, counted from when they were picked. Only the elected master
+ * does it, as every node has the plugin and the others would just repeat the same deletes.
  */
 public final class SampleRetention {
 
@@ -46,11 +43,6 @@ public final class SampleRetention {
     private final LongAdder deleted = new LongAdder();
     private final LongAdder failed = new LongAdder();
 
-    /**
-     * @param deleteByQuery  how the documents are deleted, as the plugin
-     * @param electedMaster  whether this node is the elected master
-     * @param clock          milliseconds since the epoch
-     */
     public SampleRetention(
         BiConsumer<DeleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse>> deleteByQuery,
         BooleanSupplier electedMaster,
@@ -63,25 +55,16 @@ public final class SampleRetention {
         this.retention = retention;
     }
 
-    /**
-     * How often to look for what has expired: often enough that documents do not outlive the retention by much,
-     * and at most once an hour, as a retention of days does not call for more.
-     */
+    /** A quarter of the retention, capped at an hour. */
     public static TimeValue interval(TimeValue retention) {
         TimeValue quarter = TimeValue.timeValueMillis(Math.max(1, retention.millis() / 4));
         return quarter.compareTo(MAX_INTERVAL) < 0 ? quarter : MAX_INTERVAL;
     }
 
-    /**
-     * Starts running once per {@link #interval}, until the thread pool shuts down.
-     */
     public Scheduler.Cancellable start(ThreadPool threadPool, Executor executor) {
         return threadPool.scheduleWithFixedDelay(this::run, interval(retention), executor);
     }
 
-    /**
-     * One round: deletes what has expired, if this node is the one to do it.
-     */
     public void run() {
         if (electedMaster.getAsBoolean() == false) {
             return;
@@ -111,16 +94,10 @@ public final class SampleRetention {
         }
     }
 
-    /**
-     * Documents deleted by this node because they expired.
-     */
     public long deleted() {
         return deleted.sum();
     }
 
-    /**
-     * Rounds that did not go through.
-     */
     public long failed() {
         return failed.sum();
     }

@@ -20,14 +20,9 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.QUERY_SAMPLING_ORIGIN;
 
 /**
- * The golden dataset (tier 2): queries that were promoted from the sample, each with its ground truth and what the data
- * was like when that was computed, which is kept for good. The sample is short lived and the golden dataset is not, which
- * is why they do not share an index: nothing deletes from this one.
- * <p>
- * The dataset is made of versions. Every promotion makes a new one, and the records of a version are never changed, so a
- * version that a benchmark or a regression test was run on can be found again as it was. A version is told by a manifest
- * document, which is how the numbers of the versions are given out and which says whether it is complete. The records
- * and the manifests are in the same index and are told apart by their {@code kind}.
+ * The golden dataset: promoted queries with their ground truth, kept for good (nothing deletes from this index).
+ * Records of a version are never changed, so a benchmarked version can be found again as it was. A manifest document
+ * numbers each version and says whether it is complete; records and manifests are told apart by {@code kind}.
  */
 public final class GoldenIndex {
 
@@ -58,10 +53,7 @@ public final class GoldenIndex {
             .build();
     }
 
-    /**
-     * The query, the live hits and the ground truth are only ever read back whole, so they are kept in the source and not
-     * indexed. What is searched on or sorted by is listed explicitly.
-     */
+    // query, live hits and ground truth are only read back whole, so they are not indexed
     static XContentBuilder mappings() {
         try {
             XContentBuilder builder = jsonBuilder();

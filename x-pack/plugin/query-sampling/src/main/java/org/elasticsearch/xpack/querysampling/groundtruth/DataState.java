@@ -31,19 +31,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 /**
- * What the data was like when a ground truth was computed, as far as that ground truth is concerned: the documents that
- * the exact search matched, which are those that have the vector and pass the filters of the query.
+ * A fingerprint of the documents the exact search matched (count and sum of sequence numbers), used to tell later if a ground
+ * truth went out of date.
  * <p>
- * It is a fingerprint and not a copy. Every insert, update and delete gives what is stored a sequence number higher than any
- * its shard has given before, so for one shard the number of matched documents and the sum of their sequence numbers cannot
- * stay the same when they change. Each shard counts on its own, though, so for a whole index they can (a document with the
- * number 4 deleted from one shard and another with the number 4 added to a second). That is why the state is read for each
- * shard of each index, and the digest is of all of them with the shard they were read from. Each is read on any copy of the
- * shard, so a copy that is behind can show an old state until it has caught up. Above 2^53 the sum of a shard is not exact, so
- * only its first digits are taken, and a change of a single sequence number there is not seen.
+ * Sequence numbers only increase within a shard, so the pair cannot stay equal there when documents change; across shards it
+ * can (a 4 deleted in one, a 4 added in another). So the state is read per shard and the digest includes the shard. A copy that
+ * is behind can show an old state. Above 2^53 a shard's sum is inexact, so only its first digits are taken.
  *
  * @param documents the number of documents that were matched
- * @param digest    a hash of the number of documents and the sum of their sequence numbers of every shard of every index
+ * @param digest    a hash of the document count and sequence number sum of every shard of every index
  */
 public record DataState(long documents, long digest) {
 
@@ -51,32 +47,24 @@ public record DataState(long documents, long digest) {
     static final String SEQ_NO_SUM = "seq_no_sum";
     static final String SHARD_PREFERENCE = "_shards:";
 
-    /**
-     * More shards than this in one index is taken for a failure to find the end of them.
-     */
+    // more shards than this in one index is taken for a failure to find the end of them
     private static final int MAX_SHARDS = 10_000;
     private static final int MAX_INDICES = 10_000;
     private static final long SEED = 0x71d5ca3b7e4f1a29L;
 
-    /**
-     * Above this a double is no longer exact for whole numbers.
-     */
+    // above this a double is no longer exact for whole numbers
     private static final double EXACT_LIMIT = 9_007_199_254_740_992.0;
     private static final int SIGNIFICANT_BITS = 40;
 
     private record ShardState(String index, int shard, long documents, double seqNoSum) {}
 
-    /**
-     * Whether the request is one of those that read the state of the data.
-     */
     public static boolean isProbe(SearchRequest request) {
         return request.preference() != null && request.preference().startsWith(SHARD_PREFERENCE);
     }
 
     /**
-     * A search that tells the state of the shards that have a number, without a scan: it only matches the documents that have the
-     * vector and pass the filters, and counts them and sums their sequence numbers for each index. Which shards have the number is
-     * told by {@link SearchResponse#getTotalShards()}, which is 0 when none has.
+     * Counts and sums the sequence numbers of the matched documents per index on one shard number, without a scan.
+     * {@link SearchResponse#getTotalShards()} is 0 when no index has that shard number.
      */
     static SearchRequest probe(CapturedQuery query, int shard) {
         BoolQueryBuilder matched = QueryBuilders.boolQuery().filter(QueryBuilders.existsQuery(query.field()));
@@ -97,8 +85,7 @@ public record DataState(long documents, long digest) {
     }
 
     /**
-     * Reads the state of the data that the exact search of a query is over, one shard number after the other until there are no
-     * more, through the given function so that it is read with the identity of whoever asked for it.
+     * Reads the state shard number by shard number through {@code search}, so it runs with the identity of the caller.
      */
     public static void read(
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> search,
@@ -156,9 +143,6 @@ public record DataState(long documents, long digest) {
         }
     }
 
-    /**
-     * Adds what the response tells of the shards with the number, and returns whether there may be shards with a higher one.
-     */
     private static boolean add(SearchResponse response, int shard, List<ShardState> states) {
         if (response.getTotalShards() == 0) {
             return false;
@@ -197,9 +181,6 @@ public record DataState(long documents, long digest) {
         return new DataState(documents, hash.h1);
     }
 
-    /**
-     * The sum as a whole number, with only its first digits when it is too large to be exact.
-     */
     private static long rounded(double sum) {
         if (Math.abs(sum) <= EXACT_LIMIT) {
             return (long) sum;

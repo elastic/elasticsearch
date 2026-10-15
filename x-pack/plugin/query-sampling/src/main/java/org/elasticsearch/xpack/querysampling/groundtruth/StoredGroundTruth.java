@@ -36,12 +36,8 @@ import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 /**
- * Computes the ground truth of the sampled queries that are stored in {@link QuerySamplingIndex} and do not have
- * it yet, and stores it with them. It does not depend on which node picked a query, so any node can do it.
- * <p>
- * Two identities are involved, which is why there are two ways to search. The sample itself is read and updated
- * as the plugin, as nobody else may touch that index. The exact searches run over the data of the users, they are
- * done as whoever asked for the computation so that they only see what that person may see.
+ * Computes and stores the ground truth of sampled queries in {@link QuerySamplingIndex} that lack it; any node can do it.
+ * The sample index is accessed as the plugin, while exact searches run as the caller so they only see what that person may see.
  */
 public final class StoredGroundTruth {
 
@@ -52,13 +48,6 @@ public final class StoredGroundTruth {
     private final BiConsumer<SearchRequest, ActionListener<SearchResponse>> exactSearch;
     private final LongSupplier clock;
 
-    /**
-     * @param sampleSearch searches the index of the sample, as the plugin
-     * @param sampleBulk   updates the index of the sample, as the plugin
-     * @param exactSearch  runs the exact searches, as the caller
-     * @param registry     needed to read the filters of the stored queries
-     * @param clock        milliseconds since the epoch
-     */
     public StoredGroundTruth(
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> sampleSearch,
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> sampleBulk,
@@ -73,18 +62,14 @@ public final class StoredGroundTruth {
     }
 
     /**
-     * Computes the ground truth of up to {@code max} stored queries. The ones that were waiting longest go first.
-     * A query whose computation fails stays without ground truth, but moves to the back of the line so that it
-     * does not keep the others from being served.
+     * Computes up to {@code max} stored queries, longest waiting first. A failed one moves to the back of the line so it
+     * does not starve the others.
      */
     public void compute(int max, ActionListener<GroundTruthRunner.Result> listener) {
         compute(max, null, listener);
     }
 
     /**
-     * Like {@link #compute(int, ActionListener)}, but only for the stored queries that also match the filter, which is
-     * how a node picks the ones it is responsible for.
-     *
      * @param filter on the fields of the stored documents, or {@code null} for all that are pending
      */
     public void compute(int max, @Nullable QueryBuilder filter, ActionListener<GroundTruthRunner.Result> listener) {
@@ -108,10 +93,6 @@ public final class StoredGroundTruth {
         );
     }
 
-    /**
-     * Stores the ground truth of what was computed in one bulk request, which also moves what was not to the back
-     * of the line.
-     */
     private void store(
         List<StoredSample> samples,
         Map<StoredSample, GroundTruth> computed,

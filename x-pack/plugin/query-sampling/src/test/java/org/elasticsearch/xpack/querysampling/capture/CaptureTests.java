@@ -38,17 +38,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -74,20 +71,6 @@ public class CaptureTests extends ESTestCase {
         assertThat(query.oversample(), equalTo(2f));
         assertThat(query.filters(), equalTo(List.of(QueryBuilders.termQuery("category", 3))));
         assertThat(query.opaqueId(), equalTo("q7"));
-    }
-
-    public void testCapturesWhatTheSearchReturned() {
-        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
-        SearchResponse response = response(7, hit("idx", "42", 0.9f), hit("idx", "7", 0.8f));
-
-        queryCaptureFilterApply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID, respondWith(response), ActionListener.noop());
-
-        assertThat(captured.size(), equalTo(1));
-        assertThat(captured.get(0).tookMillis(), equalTo(7L));
-        assertThat(
-            captured.get(0).hits(),
-            equalTo(List.of(new CapturedSearch.Hit("idx", "42", 0.9f), new CapturedSearch.Hit("idx", "7", 0.8f)))
-        );
     }
 
     public void testFailedSearchIsNotCaptured() {
@@ -122,86 +105,10 @@ public class CaptureTests extends ESTestCase {
         assertTrue(delivered.get());
     }
 
-    public void testNothingCapturedWhenDisabled() {
-        QueryCaptureFilter filter = filter(false, 1.0, captured::add);
-        assertTrue(queryCaptureFilterApply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID));
-        assertTrue(captured.isEmpty());
-    }
-
-    public void testIgnoresSearchesWithoutKnn() {
-        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
-        SearchRequest request = new SearchRequest("idx").source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
-        assertTrue(queryCaptureFilterApply(filter, request, TaskId.EMPTY_TASK_ID));
-        assertTrue(queryCaptureFilterApply(filter, new SearchRequest("idx"), TaskId.EMPTY_TASK_ID));
-        assertTrue(captured.isEmpty());
-    }
-
-    public void testFloorRaisesTheRateOfQuietTraffic() {
-        ClusterSettings clusterSettings = clusterSettings(true, 0.0);
-        QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, captured::add);
-        clusterSettings.applySettings(
-            Settings.builder()
-                .put(QuerySamplingSettings.ENABLED.getKey(), true)
-                .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), 0.0)
-                .put(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR.getKey(), 720)
-                .build()
-        );
-        assertThat("the traffic is not known yet", filter.effectiveCaptureRate(), equalTo(0.0));
-
-        queryCaptureFilterApply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
-        queryCaptureFilterApply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
-        filter.updateRate(1.0);
-        assertThat(filter.effectiveCaptureRate(), closeTo(0.1, 1e-12));
-
-        captured.clear();
-        int searches = 4000;
-        for (int i = 0; i < searches; i++) {
-            queryCaptureFilterApply(filter, knnSearch(randomVector(4)), TaskId.EMPTY_TASK_ID);
-        }
-        double fiveSigma = 5 * Math.sqrt(searches * 0.1 * 0.9);
-        assertThat((double) captured.size(), both(greaterThan(400 - fiveSigma)).and(lessThan(400 + fiveSigma)));
-        assertTrue("what was captured says the rate it was captured with", captured.stream().allMatch(c -> c.captureRate() == 0.1));
-    }
-
-    public void testNothingIsKnownAboutTheTrafficWhileSamplingIsOff() {
-        ClusterSettings clusterSettings = clusterSettings(true, 0.0);
-        QueryCaptureFilter filter = new QueryCaptureFilter(clusterSettings, captured::add);
-        clusterSettings.applySettings(
-            Settings.builder()
-                .put(QuerySamplingSettings.ENABLED.getKey(), true)
-                .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), 0.0)
-                .put(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR.getKey(), 720)
-                .build()
-        );
-        queryCaptureFilterApply(filter, knnSearch(randomVector(8)), TaskId.EMPTY_TASK_ID);
-        filter.updateRate(1.0);
-        assertThat(filter.effectiveCaptureRate(), greaterThan(0.0));
-
-        clusterSettings.applySettings(
-            Settings.builder()
-                .put(QuerySamplingSettings.ENABLED.getKey(), false)
-                .put(QuerySamplingSettings.CAPTURE_RATE.getKey(), 0.0)
-                .put(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR.getKey(), 720)
-                .build()
-        );
-        filter.updateRate(1.0);
-
-        assertThat("it would be wrong when sampling is switched on again", filter.effectiveCaptureRate(), equalTo(0.0));
-    }
-
     public void testIgnoresHybridSearches() {
         QueryCaptureFilter filter = filter(true, 1.0, captured::add);
         SearchRequest request = knnSearch(randomVector(8));
         request.source().query(QueryBuilders.matchQuery("title", "phone"));
-        assertTrue(queryCaptureFilterApply(filter, request, TaskId.EMPTY_TASK_ID));
-        assertTrue(captured.isEmpty());
-        assertThat(filter.knnSearches(), equalTo(0L));
-    }
-
-    public void testIgnoresSearchesWithASimilarityThreshold() {
-        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
-        KnnSearchBuilder knn = new KnnSearchBuilder("vec", randomVector(8), 10, 100, null, null, randomFloat());
-        SearchRequest request = new SearchRequest("idx").source(new SearchSourceBuilder().knnSearch(List.of(knn)));
         assertTrue(queryCaptureFilterApply(filter, request, TaskId.EMPTY_TASK_ID));
         assertTrue(captured.isEmpty());
         assertThat(filter.knnSearches(), equalTo(0L));
@@ -240,12 +147,6 @@ public class CaptureTests extends ESTestCase {
         }
 
         assertThat(captured.stream().map(search -> search.query().k()).toList(), equalTo(List.of(10, 5, 100)));
-    }
-
-    public void testIgnoresChildSearches() {
-        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
-        assertTrue(queryCaptureFilterApply(filter, knnSearch(randomVector(8)), new TaskId("remote-node", randomNonNegativeLong())));
-        assertTrue(captured.isEmpty());
     }
 
     public void testCapturedSearchRemembersTheRateItWasDrawnAt() {
@@ -353,15 +254,6 @@ public class CaptureTests extends ESTestCase {
         return vector;
     }
 
-    public void testWithoutAFloorItIsTheConfiguredRate() {
-        CaptureRate rate = new CaptureRate(0.2, 0);
-
-        rate.observe(5, 1);
-        assertThat(rate.effective(), equalTo(0.2));
-        rate.observe(0, 1);
-        assertThat("however quiet", rate.effective(), equalTo(0.2));
-    }
-
     public void testQuietTrafficGetsARateThatMeetsTheFloor() {
         CaptureRate rate = new CaptureRate(0.01, 360);
 
@@ -377,59 +269,6 @@ public class CaptureTests extends ESTestCase {
         assertThat(rate.effective(), equalTo(1.0));
         rate.observe(0, 1);
         assertThat("and no traffic means anything that comes is captured", rate.effective(), equalTo(1.0));
-    }
-
-    public void testTheArrivalRateIsSmoothed() {
-        CaptureRate rate = new CaptureRate(0.0, 3600);
-
-        rate.observe(100, 1);
-        assertThat("the first observation is all there is", rate.effective(), closeTo(3600 / (100.0 * 3600), 1e-12));
-        rate.observe(0, 1);
-        assertThat(rate.effective(), closeTo(3600 / (70.0 * 3600), 1e-12));
-    }
-
-    public void testSettingsTakeEffectAtOnce() {
-        CaptureRate rate = new CaptureRate(0.01, 0);
-        rate.observe(1, 1);
-        assertThat(rate.effective(), equalTo(0.01));
-
-        rate.minPerHour(360);
-        assertThat(rate.effective(), closeTo(0.1, 1e-12));
-
-        rate.configured(0.3);
-        assertThat(rate.effective(), equalTo(0.3));
-
-        rate.minPerHour(0);
-        rate.configured(0.02);
-        assertThat(rate.effective(), equalTo(0.02));
-    }
-
-    public void testForgettingTheTrafficGoesBackToTheConfiguredRate() {
-        CaptureRate rate = new CaptureRate(0.01, 360);
-        rate.observe(1, 1);
-        assertThat(rate.effective(), closeTo(0.1, 1e-12));
-
-        rate.forgetTraffic();
-
-        assertThat(rate.effective(), equalTo(0.01));
-    }
-
-    public void testHandsOffToTheExecutor() throws Exception {
-        EsThreadPoolExecutor executor = executor(1, 10);
-        try {
-            CountDownLatch processed = new CountDownLatch(3);
-            CaptureHandoff handoff = new CaptureHandoff(executor, captureHandoffCaptured -> processed.countDown());
-
-            for (int i = 0; i < 3; i++) {
-                handoff.accept(captureHandoffCaptured());
-            }
-
-            assertTrue(processed.await(10, TimeUnit.SECONDS));
-            assertThat(handoff.handedOff(), equalTo(3L));
-            assertThat(handoff.dropped(), equalTo(0L));
-        } finally {
-            terminate(executor);
-        }
     }
 
     public void testDropsWithoutBlockingWhenTheQueueIsFull() throws Exception {

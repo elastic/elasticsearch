@@ -20,10 +20,6 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-/**
- * Tells which queries of a version of the golden dataset have a ground truth that is out of date, because the data they are
- * of changed. Each query costs one search that counts, so how many are checked per call is bounded by {@code max}.
- */
 @ServerlessScope(Scope.INTERNAL)
 public final class RestQuerySamplingGoldenCheckAction extends BaseRestHandler {
 

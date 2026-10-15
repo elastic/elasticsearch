@@ -20,44 +20,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 /**
- * Tells which queries of a version of the golden dataset have a ground truth that is out of date: those whose data is not the
- * same any more as when it was computed. Each query is looked at by one search that only counts what its exact search would
- * have scanned and sums their sequence numbers, and compares that with what was stored with the ground truth, so what it costs
- * is far less than computing the ground truth again.
- * <p>
- * The searches are done one after the other, as whoever asked, so that they only see what that person may see.
+ * Tells which golden queries have an out-of-date ground truth by comparing the current {@link DataState} with the stored one,
+ * which is far cheaper than recomputing. The probes run one after the other, as the caller, so they only see what the caller may.
  */
 public final class GoldenStaleness {
 
     private static final Logger logger = LogManager.getLogger(GoldenStaleness.class);
 
-    /**
-     * @param version   the version that was looked at, 0 if there is none to look at
-     * @param checked   queries of the version that were looked at
-     * @param fresh     of those, queries whose data is as it was
-     * @param stale     queries whose data changed, so that their ground truth cannot be trusted
-     * @param unknown   queries that were stored without the state of the data, which cannot be told
-     * @param failed    queries that could not be read, and queries whose data could not be looked at
-     */
     public record Result(long version, int checked, int fresh, int stale, int unknown, int failed) {}
 
     private final GoldenReader reader;
     private final BiConsumer<SearchRequest, ActionListener<SearchResponse>> probe;
 
-    /**
-     * @param reader reads the golden dataset, as the plugin
-     * @param probe  runs the searches that tell the state of the data, as the caller
-     */
     public GoldenStaleness(GoldenReader reader, BiConsumer<SearchRequest, ActionListener<SearchResponse>> probe) {
         this.reader = reader;
         this.probe = probe;
     }
 
-    /**
-     * Looks at up to {@code max} queries of a version.
-     *
-     * @param version the version, or 0 for the latest that is complete
-     */
+    /** Checks up to {@code max} queries of {@code version}, or of the latest completed one if it is 0. */
     public void check(long version, int max, ActionListener<Result> listener) {
         if (version > 0) {
             read(version, max, listener);
@@ -89,17 +69,11 @@ public final class GoldenStaleness {
         }, listener::onFailure)), listener::onFailure));
     }
 
-    /**
-     * What a query of the dataset was found to be.
-     */
     public enum Status {
-        /** The data is as it was when the ground truth was computed. */
         FRESH,
-        /** The data changed, so the ground truth cannot be trusted. */
         STALE,
-        /** The ground truth was stored without the state of the data, which cannot be told. */
+        /** Stored without a data state, so it cannot be told. */
         UNKNOWN,
-        /** The data could not be looked at. */
         FAILED
     }
 
@@ -107,11 +81,7 @@ public final class GoldenStaleness {
         return record.groundTruth() == null ? null : record.groundTruth().dataState();
     }
 
-    /**
-     * Looks at each of the queries, one after the other.
-     *
-     * @param listener told the status of each, in the order of the queries
-     */
+    /** Responds with the status of each query, in order. */
     public void classify(List<StoredSample> records, ActionListener<List<Status>> listener) {
         next(records, new ArrayList<>(records.size()), listener);
     }

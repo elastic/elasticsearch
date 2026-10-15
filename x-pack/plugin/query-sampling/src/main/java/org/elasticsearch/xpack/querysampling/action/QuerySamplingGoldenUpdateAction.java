@@ -10,9 +10,7 @@ package org.elasticsearch.xpack.querysampling.action;
 import org.elasticsearch.action.ActionType;
 
 /**
- * Brings the golden dataset up to date by a version: stored sampled queries that are not in it are added and the ground truth of
- * the queries whose data changed is computed again. It is an admin action: it runs exact searches over the data of the users, with
- * the privileges of whoever calls it, and writes to an index that is kept for good.
+ * Admin action: runs exact searches over user data with the privileges of the caller and writes to a permanent index.
  */
 public final class QuerySamplingGoldenUpdateAction extends ActionType<QuerySamplingGoldenUpdateResponse> {
 

@@ -64,10 +64,6 @@ abstract class QuerySamplingRestTestCase extends ESRestTestCase {
         return search;
     }
 
-    static double storedMultiplicity(float x) throws IOException {
-        return ((Number) storedValue(x, "weighted_multiplicity")).doubleValue();
-    }
-
     static Object storedValue(float x, String path) throws IOException {
         if (refreshSampleIndex() == false) {
             return null;

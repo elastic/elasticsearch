@@ -7,11 +7,7 @@
 
 package org.elasticsearch.xpack.querysampling.dedup;
 
-/**
- * How much of the vectors of the indices a query is allowed to return, which is what the filters of the query leave of
- * them. Searches with filters can do very differently from those without: the narrower the filter, the harder it is for
- * the index to find the neighbours that pass it, and an average over all queries hides it when they are the few.
- */
+/** The share of vectors the filters of a query leave; narrow filters are harder on the index and hide in averages. */
 public enum Selectivity {
     /** The query has no filter. */
     UNFILTERED,
@@ -22,10 +18,6 @@ public enum Selectivity {
     /** The filters leave at least half of the vectors. */
     HIGH;
 
-    /**
-     * The share of the vectors that the filters of a query leave, from which {@link #LOW}, {@link #MEDIUM} or {@link #HIGH}
-     * follows.
-     */
     public static Selectivity of(double fraction) {
         if (fraction >= 0.5) {
             return HIGH;

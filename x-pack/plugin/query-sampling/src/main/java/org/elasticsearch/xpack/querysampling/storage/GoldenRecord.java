@@ -18,16 +18,12 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * How the documents of {@link GoldenIndex} are laid out: the records, one for each query of a version of the dataset, and
- * the manifests, one for each version.
+ * Layout of the {@link GoldenIndex} documents: one record per query and one manifest per version.
  */
 public final class GoldenRecord {
 
     private GoldenRecord() {}
 
-    /**
-     * Identifies the query within a version of the dataset, which has each query once.
-     */
     public static String recordId(long version, String fingerprint) {
         return version + "_" + fingerprint;
     }
@@ -36,10 +32,7 @@ public final class GoldenRecord {
         return "version_" + version;
     }
 
-    /**
-     * The document of a query that is promoted to a version of the dataset. It is a copy of the stored sample as it is when it
-     * is promoted: the weights say how it was picked, and the ground truth with its data state say what it is worth.
-     */
+    /** A copy of the stored sample as it is when promoted, keeping its weights, ground truth and data state. */
     public static XContentBuilder record(XContentBuilder builder, long version, StoredSample sample, long nowMillis) throws IOException {
         CapturedQuery query = sample.search().query();
         builder.startObject();
@@ -70,11 +63,9 @@ public final class GoldenRecord {
     }
 
     /**
-     * The document that tells a version of the dataset. It is made first, which gives out the number, and completed when the
-     * records are in.
+     * Made first, which gives out the version number, and completed once the records are in.
      *
-     * @param sourceVersion the version that this one was made from, if it was made from one: a version made by promotion has
-     *                      none, a version in which the ground truth was computed again is made from the one it refreshes
+     * @param sourceVersion the version this one refreshes, null for a version made by promotion
      */
     public static XContentBuilder manifest(
         XContentBuilder builder,
@@ -96,12 +87,7 @@ public final class GoldenRecord {
         return builder.endObject();
     }
 
-    /**
-     * Reads a record back as the stored sample it was copied from, which is what everything that works on queries and their
-     * ground truth takes. Its time of being picked is that of the sample, and the time it was written is the promotion.
-     *
-     * @param registry needed to read the filters of the query
-     */
+    /** Reads a record back as the stored sample it was copied from; its update time is the promotion time. */
     public static StoredSample parse(Map<String, Object> source, NamedXContentRegistry registry) throws IOException {
         Map<String, Object> asSample = new HashMap<>(source);
         asSample.put("picked_at", source.get("source_picked_at"));
@@ -109,9 +95,6 @@ public final class GoldenRecord {
         return SampleRecord.parse(asSample, registry);
     }
 
-    /**
-     * What changes in the manifest when the records are in.
-     */
     public static XContentBuilder completion(XContentBuilder builder, long records) throws IOException {
         return builder.startObject().field("records", records).field("completed", true).endObject();
     }

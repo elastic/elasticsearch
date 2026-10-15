@@ -27,41 +27,18 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 /**
- * Brings the golden dataset up to date by a version: the latest complete version, the stored sampled queries that are not in it yet
- * and, if it was set up to, the ground truth of its queries whose data changed make a new one. The version it is made from is not
- * touched, as whatever was run on it can be run on it again.
- * <ul>
- * <li>Queries of the version whose ground truth is good are copied as they are.</li>
- * <li>Queries whose data changed, and those that were stored without the state of the data, which cannot be told, have their
- * exact search run again. A query that could not be looked at or computed is left out of the new version and reported: its old
- * ground truth cannot be vouched for.</li>
- * <li>Stored sampled queries that have ground truth and are not in the version are added. Arrivals that were kept as events are
- * not, a golden query is a query and not one of its searches.</li>
- * </ul>
- * The dataset is not to grow without limit, so a version has at most the number of queries it is given: when there are more, those
- * that were picked longest ago are left out. If nothing was computed again and nothing is new, no version is made, as it would be a
- * copy of the one there is.
- * <p>
- * Looking at the data and computing again are searches over the data of the users, done as whoever asked, one after the other. An
- * updater that was made without them only adds.
+ * Makes a new golden version from the latest complete one: fresh queries are copied, stale or unknown ones get their ground truth
+ * recomputed (left out and reported if that fails), and new sampled queries with ground truth are added. Event arrivals are not
+ * added, as a golden query is a query and not one of its searches. The source version is never touched, and when there are more
+ * than the limit the oldest picks are left out. No version is made if nothing was recomputed or added. Staleness checks and
+ * recomputation search user data as the caller; an updater built without them only adds.
  */
 public final class GoldenUpdater {
 
-    /**
-     * The most that one search of an index can return.
-     */
+    // the most that one search of an index can return
     private static final int MAX_READ = 10_000;
 
-    /**
-     * @param sourceVersion the version that was brought up to date, 0 if there was none
-     * @param version       the version that was made, 0 if there was nothing to change and none was made
-     * @param copied        queries of the source version whose ground truth was still good, which are in the new version as they were
-     * @param recomputed    queries of the source version whose ground truth was computed again, which are in the new version
-     * @param added         queries that were not in the source version and are in the new one
-     * @param dropped       queries that would have made the version larger than its limit, which are left out
-     * @param failed        queries that are not in the new version because they could not be read, looked at or computed, and
-     *                      queries that could not be written, which are also counted in the group they were in
-     */
+    /** {@code version} is 0 if nothing changed and none was made; {@code failed} counts queries that were left out or not written. */
     public record Result(long sourceVersion, long version, int copied, int recomputed, int added, int dropped, int failed) {}
 
     private final GoldenReader reader;
@@ -70,13 +47,7 @@ public final class GoldenUpdater {
     private final GoldenStaleness staleness;
     private final GroundTruthRunner runner;
 
-    /**
-     * @param reader    reads the golden dataset, as the plugin
-     * @param samples   reads the sampled queries, as the plugin
-     * @param writer    writes the new version, as the plugin
-     * @param staleness looks at the data of the queries, as the caller, or {@code null} to leave the ground truth as it is
-     * @param exact     runs the exact searches, as the caller, or {@code null} if there is no staleness
-     */
+    /** A null {@code staleness} (and {@code exact}) leaves the ground truth as it is. */
     public GoldenUpdater(
         GoldenReader reader,
         StoredSamples samples,
@@ -92,29 +63,21 @@ public final class GoldenUpdater {
         this.runner = exact == null ? null : new GroundTruthRunner(exact);
     }
 
-    /**
-     * @param limit the most queries of the version that is made
-     */
     public void update(int limit, ActionListener<Result> listener) {
         reader.latestCompleted(ActionListener.wrap(latest -> {
             if (latest == 0) {
                 candidates(latest, new Existing(List.of(), Map.of(), List.of(), 0, 0, 0, 0), limit, listener);
             } else {
-                // all of the version is read and not a part of it, as which of its queries are the newest is not told by the order they are
-                // read in
+                // read all of it: the read order does not tell which queries are the newest
                 reader.read(latest, MAX_READ, ActionListener.wrap(read -> refresh(latest, read, limit, listener), listener::onFailure));
             }
         }, listener::onFailure));
     }
 
     /**
-     * What is left of the queries of the source version once their ground truth was looked at.
-     *
-     * @param all        every query that was read, which are not added again
-     * @param recomputed the queries that have a ground truth of today, by the query they replace
-     * @param kept       the queries that are in the next version: those that are fresh and those that were computed again
-     * @param trimmed    the queries that were not looked at, as there are more of them than the next version can have and they are
-     *                   older than those
+     * @param all     every query read, which are not added again
+     * @param kept    the fresh and the recomputed queries
+     * @param trimmed older queries not looked at because the next version cannot hold them
      */
     private record Existing(
         List<StoredSample> all,
@@ -127,7 +90,7 @@ public final class GoldenUpdater {
     ) {}
 
     private void refresh(long latest, GoldenReader.Read read, int limit, ActionListener<Result> listener) {
-        // the next version keeps the newest queries, so the older of these can never be in it, and are not looked at or computed again
+        // the next version keeps the newest queries, so the older ones are not looked at or recomputed
         List<StoredSample> all = read.records();
         List<StoredSample> records = new ArrayList<>(all);
         records.sort(Comparator.comparingLong(StoredSample::pickedAt).reversed());
@@ -200,15 +163,12 @@ public final class GoldenUpdater {
                 .mustNot(QueryBuilders.existsQuery("event_id")),
             "picked_at",
             SortOrder.DESC,
-            // enough to get past the queries that are in the version already, which are the most of the newest if nothing happened
+            // enough to get past the queries already in the version
             Math.min(MAX_READ, limit + existing.all().size()),
             ActionListener.wrap(read -> merge(latest, existing, oncePerQuery(read.samples()), limit, listener), listener::onFailure)
         );
     }
 
-    /**
-     * The most recent of the stored queries of each fingerprint, in the order they came.
-     */
     static List<StoredSample> oncePerQuery(List<StoredSample> stored) {
         Set<String> seen = new HashSet<>();
         List<StoredSample> once = new ArrayList<>();
@@ -231,7 +191,6 @@ public final class GoldenUpdater {
         }
         List<StoredSample> all = new ArrayList<>(existing.kept());
         all.addAll(added);
-        // the newest are the ones to keep
         all.sort(Comparator.comparingLong(StoredSample::pickedAt).reversed());
         int overflow = Math.max(0, all.size() - limit);
         int dropped = overflow + existing.trimmed();
@@ -249,7 +208,7 @@ public final class GoldenUpdater {
         }
         int copiedKept = kept.size() - addedKept - recomputedKept;
         if (addedKept == 0 && recomputedKept == 0) {
-            // nothing is new or computed again, so the version would be a copy, or a smaller one of the version there is
+            // it would only be a copy, or a smaller one, of the existing version
             listener.onResponse(new Result(latest, 0, copiedKept, 0, 0, dropped, existing.failed()));
             return;
         }

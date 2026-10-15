@@ -38,18 +38,14 @@ import java.util.Map;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 /**
- * How a {@link SampledQuery} is laid out as a document of {@link QuerySamplingIndex}. A document is first written
- * in full when the query is picked. The weights keep changing as the query keeps arriving, so they are written
- * again, on their own, from time to time.
+ * Layout of a {@link SampledQuery} as a {@link QuerySamplingIndex} document: written in full when picked, with the
+ * weights rewritten on their own as the query keeps arriving.
  */
 public final class SampleRecord {
 
     private SampleRecord() {}
 
-    /**
-     * Identifies the query within the samples of one sampler. The sampler is part of it because two samplers
-     * that picked the same query counted its arrivals separately, and their weights must not overwrite each other.
-     */
+    /** The sampler is part of the id so that two samplers that picked the same query do not overwrite each other's weights. */
     public static String documentId(String samplerId, QueryFingerprint fingerprint) {
         return documentId(samplerId, fingerprint.hex());
     }
@@ -58,23 +54,14 @@ public final class SampleRecord {
         return samplerId + "_" + fingerprintHex;
     }
 
-    /**
-     * The id of an event, which is one of many of its query, or of a picked query if there is no event id.
-     */
     public static String documentId(String samplerId, QueryFingerprint fingerprint, @Nullable String eventId) {
         return eventId == null ? documentId(samplerId, fingerprint) : documentId(samplerId, fingerprint) + "_" + eventId;
     }
 
-    /**
-     * The id of the document of a stored sample.
-     */
     static String documentId(String samplerId, String fingerprintHex, @Nullable String eventId) {
         return eventId == null ? documentId(samplerId, fingerprintHex) : documentId(samplerId, fingerprintHex) + "_" + eventId;
     }
 
-    /**
-     * The whole document, for a query that was just picked.
-     */
     public static XContentBuilder document(XContentBuilder builder, String samplerId, SampledQuery sampled, long nowMillis)
         throws IOException {
         CapturedSearch search = sampled.search();
@@ -119,9 +106,6 @@ public final class SampleRecord {
         return builder.endObject();
     }
 
-    /**
-     * The object that holds the query as it was searched.
-     */
     static void query(XContentBuilder builder, CapturedQuery query) throws IOException {
         builder.startObject("query");
         builder.field("query_vector", query.queryVector());
@@ -143,9 +127,6 @@ public final class SampleRecord {
         builder.endObject();
     }
 
-    /**
-     * The object that holds what the live search answered.
-     */
     static void liveHits(XContentBuilder builder, CapturedSearch search) throws IOException {
         builder.startObject("live_hits");
         builder.field("took_millis", search.tookMillis());
@@ -153,18 +134,12 @@ public final class SampleRecord {
         builder.endObject();
     }
 
-    /**
-     * The object that holds the ground truth.
-     */
     static void groundTruthObject(XContentBuilder builder, GroundTruth groundTruth) throws IOException {
         builder.startObject("ground_truth");
         groundTruth(builder, groundTruth);
         builder.endObject();
     }
 
-    /**
-     * The fields of a document that change while the query keeps arriving, as a partial update.
-     */
     public static XContentBuilder weightsUpdate(XContentBuilder builder, TrackedQuery.Weights weights, long nowMillis) throws IOException {
         builder.startObject();
         weights(builder, weights);
@@ -172,9 +147,6 @@ public final class SampleRecord {
         return builder.endObject();
     }
 
-    /**
-     * The fields of a document that change when its ground truth becomes known, as a partial update.
-     */
     public static XContentBuilder groundTruthUpdate(XContentBuilder builder, GroundTruth groundTruth, long nowMillis) throws IOException {
         builder.startObject();
         builder.startObject("ground_truth");
@@ -185,19 +157,12 @@ public final class SampleRecord {
         return builder.endObject();
     }
 
-    /**
-     * Only marks the document as looked at, so that documents that cannot be processed make way for others.
-     */
+    /** Only marks the document as looked at, so that documents that cannot be processed make way for others. */
     public static XContentBuilder touch(XContentBuilder builder, long nowMillis) throws IOException {
         return builder.startObject().field("updated_at", nowMillis).endObject();
     }
 
-    /**
-     * Reads a document back, the inverse of {@link #document}.
-     *
-     * @param source   the source of the document
-     * @param registry needed to read the filters of the query
-     */
+    /** The inverse of {@link #document}; the registry is needed to read the filters. */
     public static StoredSample parse(Map<String, Object> source, NamedXContentRegistry registry) throws IOException {
         Map<String, Object> query = map(source.get("query"));
         List<QueryBuilder> filters = new ArrayList<>();
@@ -311,9 +276,6 @@ public final class SampleRecord {
         builder.field("capture_rate", weights.captureRate());
     }
 
-    /**
-     * The fields of the object of a ground truth.
-     */
     private static void groundTruth(XContentBuilder builder, GroundTruth groundTruth) throws IOException {
         hits(builder, "neighbors", groundTruth.neighbors());
         if (groundTruth.dataState() != null) {

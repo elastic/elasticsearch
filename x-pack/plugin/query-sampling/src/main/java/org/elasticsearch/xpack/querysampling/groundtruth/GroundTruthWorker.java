@@ -28,18 +28,11 @@ import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 /**
- * Computes the ground truth of the sampled queries without being asked to, within the {@link CostBudget} of the node.
+ * Computes ground truth of sampled queries unprompted, within the {@link CostBudget}: first the queries this node picked,
+ * then ones nobody has touched for a while (likely from a node that went away; running nodes refresh theirs regularly).
  * <p>
- * A node takes care of the queries it picked itself, and when none of those is left, of the ones that nobody has
- * touched for a long time, which are most likely those of a node that has gone away. The stored weights of the
- * queries of a node that is running are refreshed regularly, so they never look abandoned.
- * <p>
- * Every exact search scans the index, so it is done as the plugin and not as a user: nobody is asking, and nobody's
- * privileges are the right ones. That also means that document level security is not applied, which is why the
- * worker only runs when {@code sampling_cost_ratio} is set above zero.
- * <p>
- * At most one batch is being computed at any time. How many queries a batch holds is how many the budget can afford,
- * judging by what the latest exact searches cost.
+ * Searches run as the plugin, since nobody is asking, so document level security is not applied; that is why the worker
+ * only runs when {@code sampling_cost_ratio} is above zero. At most one batch runs at a time.
  */
 public final class GroundTruthWorker {
 
@@ -47,9 +40,6 @@ public final class GroundTruthWorker {
 
     static final int MAX_BATCH = 10;
     static final TimeValue INTERVAL = TimeValue.timeValueSeconds(5);
-    /**
-     * A query whose document nobody has touched for this long belongs to nobody.
-     */
     static final TimeValue ABANDONED_AFTER = TimeValue.timeValueMinutes(10);
     private static final double INITIAL_COST_MILLIS = 10;
     private static final double COST_SMOOTHING = 0.2;
@@ -65,13 +55,6 @@ public final class GroundTruthWorker {
     private final LongAdder computed = new LongAdder();
     private final LongAdder failed = new LongAdder();
 
-    /**
-     * @param sampleSearch searches the index of the sample, as the plugin
-     * @param sampleBulk   updates the index of the sample, as the plugin
-     * @param exactSearch  runs the exact searches, as the plugin
-     * @param samplerId    the id of the sampler of this node, which its queries are stored with
-     * @param clock        milliseconds since the epoch
-     */
     public GroundTruthWorker(
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> sampleSearch,
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> sampleBulk,
@@ -96,16 +79,10 @@ public final class GroundTruthWorker {
         );
     }
 
-    /**
-     * Starts to look for work every few seconds, until the thread pool shuts down.
-     */
     public Scheduler.Cancellable start(ThreadPool threadPool, Executor executor) {
         return threadPool.scheduleWithFixedDelay(this::run, INTERVAL, executor);
     }
 
-    /**
-     * One round: computes what the budget affords, if there is something to compute and no batch is still running.
-     */
     public void run() {
         int batch;
         synchronized (this) {
@@ -149,10 +126,7 @@ public final class GroundTruthWorker {
         failed.add(result.failed());
     }
 
-    /**
-     * A search of a ground truth took {@code millis}: it is paid for. An exact search also tells what the next ones are likely to
-     * cost, which the reads of the state of the data are too small to say.
-     */
+    // only exact searches update the cost estimate, the state probes are too small to say what the next batch costs
     private synchronized void charge(long millis, boolean readsState) {
         double cost = Math.max(1, millis);
         budget.spend(cost);
@@ -161,16 +135,10 @@ public final class GroundTruthWorker {
         }
     }
 
-    /**
-     * Queries that got their ground truth from this worker.
-     */
     public long computed() {
         return computed.sum();
     }
 
-    /**
-     * Queries whose ground truth could not be computed or stored.
-     */
     public long failed() {
         return failed.sum();
     }

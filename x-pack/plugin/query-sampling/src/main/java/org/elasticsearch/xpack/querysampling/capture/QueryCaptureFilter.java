@@ -38,24 +38,14 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * Stage 1 of the pipeline: picks kNN searches on the coordinating node and hands a copy of them to the
- * rest of the pipeline. The search itself always proceeds unchanged, and the work done for a search
- * that is not captured is a couple of field reads and one random draw.
- * <p>
- * For now only searches with a single top-level {@code knn} section, a literal float query vector, no
- * additional {@code query}, no {@code similarity} threshold and no other change to which documents are searched or which hits
- * come back (routing, shard preference, point in time, scroll, offset, minimum score, post filter, collapse, rescore) are eligible.
- * A search that asks for fewer hits than its {@code k} returns the nearest of those, which is what its recall is told for.
- * Searches with a parent task are skipped: those are the remote side of a cross-cluster search or searches issued internally by
- * other features, not user traffic arriving at this node.
+ * Captures a copy of eligible kNN searches on the coordinating node; the search itself proceeds unchanged.
+ * Eligible: a single top-level {@code knn} with a literal float vector, and nothing that changes which documents are
+ * searched or which hits come back. Searches with a parent task (cross-cluster or internal) are skipped.
  */
 public final class QueryCaptureFilter implements MappedActionFilter {
 
     private static final Logger logger = LogManager.getLogger(QueryCaptureFilter.class);
 
-    /**
-     * How many hits a search returns when it does not say.
-     */
     private static final int DEFAULT_SIZE = 10;
 
     private final Consumer<CapturedSearch> consumer;
@@ -70,9 +60,6 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         this(clusterSettings, consumer, Randomness::get);
     }
 
-    /**
-     * @param random the source of the coin flip of the gate, which is looked up for every search
-     */
     public QueryCaptureFilter(ClusterSettings clusterSettings, Consumer<CapturedSearch> consumer, Supplier<Random> random) {
         this.consumer = consumer;
         this.random = random;
@@ -81,10 +68,6 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         clusterSettings.initializeAndWatch(QuerySamplingSettings.MIN_CAPTURES_PER_HOUR, captureRate::minPerHour);
     }
 
-    /**
-     * Keeps the capture rate in line with the traffic, once a second until the thread pool shuts down. It has
-     * nothing to do for a node that has no floor, but looks at the traffic so that it is known if one is set.
-     */
     public Scheduler.Cancellable startRateUpdates(ThreadPool threadPool, Executor executor) {
         long[] last = { System.nanoTime() };
         return threadPool.scheduleWithFixedDelay(() -> {
@@ -94,10 +77,6 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         }, TimeValue.timeValueSeconds(1), executor);
     }
 
-    /**
-     * Takes note of the searches that arrived in the last {@code seconds}, which is what the floor of the capture
-     * rate is worked out from.
-     */
     public synchronized void updateRate(double seconds) {
         long total = knnSearches.sum();
         long arrivals = total - knnSearchesAtLastUpdate;
@@ -109,9 +88,6 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         }
     }
 
-    /**
-     * The probability a search is captured with at this moment.
-     */
     public double effectiveCaptureRate() {
         return captureRate.effective();
     }
@@ -150,10 +126,6 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         chain.proceed(task, action, request, searchListener);
     }
 
-    /**
-     * Wraps the listener so the response is copied before it goes back to the user. Failed searches have
-     * nothing to learn from and are not captured.
-     */
     private <Response extends ActionResponse> ActionListener<Response> withResults(
         ActionListener<Response> listener,
         CapturedQuery query,
@@ -171,9 +143,7 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         });
     }
 
-    /**
-     * Copies what is needed out of the response: it is ref-counted, so it cannot be kept past this call.
-     */
+    // the response is ref-counted, so what is needed is copied out of it
     private static CapturedSearch captureResults(CapturedQuery query, SearchResponse response, double rate) {
         SearchHit[] searchHits = response.getHits().getHits();
         List<CapturedSearch.Hit> hits = new ArrayList<>(searchHits.length);
@@ -183,23 +153,17 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         return new CapturedSearch(query, hits, response.getTookInMillis(), rate);
     }
 
-    /**
-     * kNN searches the gate looked at while sampling was enabled, whether or not they were captured.
-     */
     public long knnSearches() {
         return knnSearches.sum();
     }
 
-    /**
-     * Searches the gate picked for capture.
-     */
     public long captured() {
         return captured.sum();
     }
 
     private static KnnSearchBuilder eligibleKnn(SearchRequest request) {
         SearchSourceBuilder source = request.source();
-        // a search that also has a query returns a mix of both, which the captured kNN section alone cannot replay
+        // a query alongside knn returns a mix that the knn section alone cannot replay
         if (source == null || source.knnSearch().size() != 1 || source.query() != null) {
             return null;
         }
@@ -211,18 +175,15 @@ public final class QueryCaptureFilter implements MappedActionFilter {
         if (knn.getQueryVectorBuilder() != null || vector == null || vector.isFloat() == false) {
             return null;
         }
-        // with a similarity threshold the number of results depends on the data, the exact search of k does not match
+        // with a similarity threshold the result count depends on the data, so an exact search of k does not match
         if (knn.getSimilarity() != null) {
             return null;
         }
         return knn;
     }
 
-    /**
-     * The exact search that makes the ground truth scans the indices of the search, so a search that is not over all the
-     * documents of its indices has no ground truth that it can be compared with: a routing or a shard preference leaves out
-     * shards, and a point in time or a scroll searches what its own snapshot of the indices holds, with no indices in the request.
-     */
+    // ground truth scans the request's indices, so searches over other documents (routing, shard preference, PIT, scroll)
+    // have nothing comparable
     private static boolean searchesOtherDocumentsThanTheIndicesHold(SearchRequest request) {
         return request.routing() != null
             || (request.preference() != null && request.preference().startsWith("_shards:"))
@@ -230,10 +191,7 @@ public final class QueryCaptureFilter implements MappedActionFilter {
             || request.scroll() != null;
     }
 
-    /**
-     * The recall compares the nearest hits that the search returned with the exact nearest ones, so what comes back has to be
-     * those: hits that start further down, or that are cut, collapsed or rescored after the kNN are not.
-     */
+    // recall compares the returned hits with the exact nearest ones, so hits that are offset, cut, collapsed or rescored are out
     private static boolean returnsOtherHitsThanTheNearestK(SearchSourceBuilder source) {
         return source.from() > 0
             || source.minScore() != null
@@ -242,10 +200,7 @@ public final class QueryCaptureFilter implements MappedActionFilter {
             || (source.rescores() != null && source.rescores().isEmpty() == false);
     }
 
-    /**
-     * How many of the nearest the search returns: its {@code k}, or fewer when it asks for fewer hits, as with the default size
-     * of 10 and a bigger {@code k}. It is what the exact search is asked for and what the recall is told over.
-     */
+    // the exact search and the recall use min(k, size), e.g. the default size of 10 with a bigger k
     private static int hitsReturned(SearchSourceBuilder source, KnnSearchBuilder knn) {
         int size = source.size() < 0 ? DEFAULT_SIZE : source.size();
         return Math.min(knn.k(), size);

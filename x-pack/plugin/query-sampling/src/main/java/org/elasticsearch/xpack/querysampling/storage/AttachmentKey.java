@@ -8,12 +8,7 @@
 package org.elasticsearch.xpack.querysampling.storage;
 
 /**
- * Names a kind of payload that a use of the sample can attach to a {@link SampledQuery}, such as the
- * ground truth for recall estimation. Keys are compared by identity, so each use declares its key once as
- * a constant and nobody else can clash with it by picking the same name.
- *
- * @param name for diagnostics only
- * @param type the type of the payload
+ * Names a payload attached to a {@link SampledQuery}. Compared by identity so keys cannot clash by name.
  */
 public record AttachmentKey<T>(String name, Class<T> type) {
 

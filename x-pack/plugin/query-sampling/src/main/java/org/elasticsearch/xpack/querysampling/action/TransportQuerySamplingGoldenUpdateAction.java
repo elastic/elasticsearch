@@ -27,9 +27,8 @@ import org.elasticsearch.xpack.querysampling.storage.StoredSamples;
 import static org.elasticsearch.xpack.core.ClientHelper.QUERY_SAMPLING_ORIGIN;
 
 /**
- * Brings the golden dataset up to date by a version. The golden dataset and the sample are read and written as the plugin, as nobody
- * else may touch them, while the searches that look at the data and the exact searches go through the node client with the thread
- * context still holding the caller, so they see what the caller is allowed to see and nothing more.
+ * The golden dataset and sample are read and written as the plugin; searches over user data keep the caller's thread
+ * context so they see only what the caller may.
  */
 public final class TransportQuerySamplingGoldenUpdateAction extends TransportAction<
     QuerySamplingGoldenUpdateRequest,

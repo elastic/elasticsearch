@@ -23,10 +23,8 @@ import org.elasticsearch.xpack.querysampling.groundtruth.StoredGroundTruth;
 import static org.elasticsearch.xpack.core.ClientHelper.QUERY_SAMPLING_ORIGIN;
 
 /**
- * Computes the ground truth of the stored sampled queries that do not have it. The node that receives the request
- * does the work, whichever node picked the queries. The exact searches go through the node client while the
- * thread context still holds the caller, so they see what the caller is allowed to see and nothing more, while
- * the index of the sample is read and updated as the plugin.
+ * Exact searches keep the caller's thread context so they see only what the caller may; the sample index is updated
+ * as the plugin.
  */
 public final class TransportQuerySamplingGroundTruthAction extends TransportAction<
     QuerySamplingGroundTruthRequest,

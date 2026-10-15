@@ -14,24 +14,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- * Like the request for ground truth it is only run by the node that receives it, which reads the stored sample from
- * the index, so it is never sent anywhere.
- */
+/** Run only on the receiving node; never sent over the wire. */
 public final class QuerySamplingRecallRequest extends ActionRequest {
 
-    /**
-     * The most queries that are read, which is also what an index returns in one search.
-     */
+    // what one search of the stored index can return
     public static final int MAX_SAMPLES = 10_000;
 
     private final int max;
     private final boolean includeSamples;
 
-    /**
-     * @param max            the most queries to estimate from, the most recently picked ones if there are more
-     * @param includeSamples whether to also return what each of the queries contributed
-     */
     public QuerySamplingRecallRequest(int max, boolean includeSamples) {
         this.max = max;
         this.includeSamples = includeSamples;

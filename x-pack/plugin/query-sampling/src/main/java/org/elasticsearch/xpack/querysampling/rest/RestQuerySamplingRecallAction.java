@@ -20,9 +20,6 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-/**
- * Estimates the recall of the search from the stored sampled queries whose ground truth has been computed.
- */
 @ServerlessScope(Scope.INTERNAL)
 public final class RestQuerySamplingRecallAction extends BaseRestHandler {
 

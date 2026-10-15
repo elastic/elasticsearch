@@ -24,12 +24,7 @@ import java.util.List;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 
-/**
- * Everything that happens to a captured search after it left the search thread: it is recognised if it was
- * seen before, the sampler decides whether it joins the sample, and if so the listeners are told. It may also be kept as
- * an event. Must
- * only be driven from one thread at a time.
- */
+/** Processes captured searches off the search thread: dedup, sampling decision, listeners. Single-threaded use only. */
 public final class SamplingPipeline implements Consumer<CapturedSearch> {
 
     private static final Logger logger = LogManager.getLogger(SamplingPipeline.class);
@@ -47,9 +42,6 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         this(tracker, sampler, listeners, new CostBudget(0.0, 0.0));
     }
 
-    /**
-     * @param budget earns from what the captured searches cost, which is how much exact searching can be afforded
-     */
     public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<SampleListener> listeners, CostBudget budget) {
         this(tracker, sampler, listeners, budget, new EventSlice(), SelectivityStrata.none());
     }
@@ -64,10 +56,6 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         this(tracker, sampler, listeners, budget, events, SelectivityStrata.none());
     }
 
-    /**
-     * @param events      decides which captured searches are also kept as events, besides the queries that the sampler picks
-     * @param selectivity tells how much of the vectors the filters of a query leave
-     */
     public SamplingPipeline(
         MultiplicityTracker tracker,
         QuerySampler sampler,
@@ -84,39 +72,26 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         this.budget = budget;
     }
 
-    /**
-     * Distinct queries that were picked for the sample.
-     */
     public long picked() {
         return picked.sum();
     }
 
-    /**
-     * Arrivals that were kept as events.
-     */
     public long eventsKept() {
         return eventsKept.sum();
     }
 
-    /**
-     * Arrivals of queries that had no chance to be picked because the limit on the picks was reached.
-     */
     public long starved() {
         return sampler.starved();
     }
 
-    /**
-     * γ as it is now, the setting multiplied with what keeps the picks at their target.
-     */
     public double acceptanceScale() {
         return sampler.effectiveScale();
     }
 
     @Override
     public void accept(CapturedSearch captured) {
-        // a search was captured with the probability it carries, so its time over that probability is an unbiased
-        // estimate of the time of all the searches it stands for, those that were not captured included. The time is
-        // in whole milliseconds, a search that took less than one counts as one, as an exact search does
+        // time over capture probability is an unbiased estimate of the time of all searches this one stands for;
+        // sub-millisecond searches count as 1ms, as exact searches do
         budget.earn(Math.max(1, captured.tookMillis()) / captured.captureRate());
         QueryFingerprint fingerprint = QueryFingerprint.of(captured.query());
         TrackedQuery tracked = tracker.record(fingerprint, captured.captureRate());
@@ -129,7 +104,7 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
             picked.increment();
             tell(new SampledQuery(fingerprint, captured, tracked));
         }
-        // whether an arrival is kept as an event has nothing to do with the rest, not even with the query being tracked
+        // event selection is independent of tracking and picking
         double sliceRate = events.draw();
         if (sliceRate > 0) {
             eventsKept.increment();

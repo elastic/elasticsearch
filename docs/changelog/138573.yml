@@ -1,4 +1,4 @@
-area: OsStats
+area: Stats
 issues: [42725]
 pr: 138573
 summary: Correct ouput values for OsStats

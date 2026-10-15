@@ -90,7 +90,7 @@ public class ElasticsearchOtelAppender extends AbstractAppender {
 
     /**
      * @param name          appender name used by the log4j configuration graph
-     * @param openTelemetry OTel instance to emit to; TLS reloads swap the exporter beneath it, not this instance
+     * @param openTelemetry OTel instance to emit to
      * @param filter        optional filter applied before emitting each event; {@code null} means no filtering
      */
     public ElasticsearchOtelAppender(String name, OpenTelemetry openTelemetry, @Nullable TelemetryLogEventFilter filter) {

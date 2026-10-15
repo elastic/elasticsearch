@@ -39,6 +39,7 @@ import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.PageBudget;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.ValueDeduplicator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -54,6 +55,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Counting a columnar field a page at a time has to give the counts that reading it a document at a time gives:
@@ -67,6 +69,23 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
     /** The collector the last {@link #collect} built, so a test can ask which shapes of page it was given. */
     private ColumnarPageTermsCollector lastCollector;
     private PerDocumentCollector lastPerDocument;
+
+    /**
+     * The fewest documents a batch needs to be read as a page. One reads every batch as a page, so that the small
+     * columns these tests use still exercise what a page does. Zero uses what the collector uses for the column.
+     */
+    private int minPageDocs = 1;
+
+    private ColumnarPageTermsCollector pageCollector(
+        ColumnarPayloadSortableBinaryDocValues values,
+        CountingTarget target,
+        PerDocumentCollector perDocument
+    ) {
+        final StringColumnReader reader = values.columnSource().reader();
+        return minPageDocs == 0
+            ? new ColumnarPageTermsCollector(reader, target, perDocument)
+            : new ColumnarPageTermsCollector(reader, target, perDocument, minPageDocs);
+    }
 
     /**
      * Counts into a map. The real target is the aggregator, which cannot be built without a whole search context,
@@ -217,11 +236,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         final CountingTarget target = new CountingTarget();
         withValues(docs, values -> {
             final PerDocumentCollector perDocument = new PerDocumentCollector(values, target);
-            final ColumnarPageTermsCollector collector = new ColumnarPageTermsCollector(
-                values.columnSource().reader(),
-                target,
-                perDocument
-            );
+            final ColumnarPageTermsCollector collector = pageCollector(values, target, perDocument);
             for (int[] run : runs) {
                 if (run[1] - run[0] == 1 || randomBoolean()) {
                     collector.collectRange(run[0], run[1]);
@@ -274,6 +289,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
     /** A filter matching some of the documents, however Lucene chooses to deliver them, counts what it matches. */
     public void testALuceneSearchOverASubsetCountsTheSame() throws IOException {
         final String[][] docs = randomDocs(6000, 6, 3);
+        minPageDocs = randomFrom(0, 1);
         final double share = randomFrom(0.02, 0.3, 0.9);
         final Set<Integer> tagged = new HashSet<>();
         for (int doc = 0; doc < docs.length; doc++) {
@@ -286,16 +302,77 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         assertThat("share " + share, target.counts, equalTo(expected(docs, tagged)));
     }
 
+    /** A column with one value a document is read as a page only from a batch of this many documents. */
+    public void testSmallBatchesAreNotReadAsPagesForASingleValuedColumn() throws IOException {
+        minPageDocs = 0;
+        final int min = ColumnarPageTermsCollector.MIN_PAGE_DOCS_SINGLE_VALUED;
+        final String[][] docs = new String[min * 2][];
+        for (int i = 0; i < docs.length; i++) {
+            docs[i] = new String[] { "term-" + randomIntBetween(0, 3) };
+        }
+        final Outcome below = collectRange(docs, 0, min - 1);
+        assertThat(below.counts, equalTo(expected(docs, range(0, min - 1))));
+        assertThat("a batch one short is read a document at a time", below.perDocumentDocs, equalTo(min - 1));
+        assertThat(below.pages, equalTo(0));
+
+        final Outcome enough = collectRange(docs, 0, min);
+        assertThat(enough.counts, equalTo(expected(docs, range(0, min))));
+        assertThat("a batch of the minimum is a page", enough.perDocumentDocs, equalTo(0));
+        assertThat(enough.pages, greaterThan(0));
+    }
+
+    /** Documents holding several values are read more slowly as a page, so the batch has to be larger. */
+    public void testMultiValuedColumnsNeedLargerBatches() throws IOException {
+        minPageDocs = 0;
+        final int min = ColumnarPageTermsCollector.MIN_PAGE_DOCS_MULTI_VALUED;
+        assertThat(min, greaterThan(ColumnarPageTermsCollector.MIN_PAGE_DOCS_SINGLE_VALUED));
+        final String[][] docs = new String[min * 2][];
+        for (int i = 0; i < docs.length; i++) {
+            docs[i] = new String[] { "term-" + randomIntBetween(0, 3) };
+        }
+        docs[0] = new String[] { "term-0", "term-1" }; // one document with two values is enough to say so
+        final Outcome below = collectRange(docs, 0, min - 1);
+        assertThat(below.counts, equalTo(expected(docs, range(0, min - 1))));
+        assertThat(below.perDocumentDocs, equalTo(min - 1));
+        assertThat(below.pages, equalTo(0));
+
+        final Outcome enough = collectRange(docs, 0, min);
+        assertThat(enough.counts, equalTo(expected(docs, range(0, min))));
+        assertThat(enough.perDocumentDocs, equalTo(0));
+        assertThat(enough.pages, greaterThan(0));
+    }
+
+    private record Outcome(Map<String, Long> counts, int perDocumentDocs, int pages) {}
+
+    /** Collects {@code [from, to)} as one range, and reports how many documents went the ordinary way and how many pages. */
+    private Outcome collectRange(String[][] docs, int from, int to) throws IOException {
+        final CountingTarget target = new CountingTarget();
+        final int[] perDocumentDocs = new int[1];
+        final int[] pages = new int[1];
+        withValues(docs, values -> {
+            final PerDocumentCollector perDocument = new PerDocumentCollector(values, target);
+            final ColumnarPageTermsCollector collector = pageCollector(values, target, perDocument);
+            collector.collectRange(from, to);
+            perDocumentDocs[0] = perDocument.docs;
+            pages[0] = collector.ordinalPages + collector.flatPages;
+        });
+        return new Outcome(target.counts, perDocumentDocs[0], pages[0]);
+    }
+
+    private static Set<Integer> range(int from, int to) {
+        final Set<Integer> docs = new HashSet<>();
+        for (int doc = from; doc < to; doc++) {
+            docs.add(doc);
+        }
+        return docs;
+    }
+
     /** A range is counted before the call returns, so there is nothing left to flush when the leaf is done. */
     public void testARangeIsCountedImmediately() throws IOException {
         final String[][] docs = { { "a" }, { "b" }, { "a" } };
         withValues(docs, values -> {
             final CountingTarget target = new CountingTarget();
-            final ColumnarPageTermsCollector collector = new ColumnarPageTermsCollector(
-                values.columnSource().reader(),
-                target,
-                new PerDocumentCollector(values, target)
-            );
+            final ColumnarPageTermsCollector collector = pageCollector(values, target, new PerDocumentCollector(values, target));
             collector.collectRange(0, docs.length);
             assertThat(target.counts, equalTo(expected(docs, null)));
         });
@@ -304,6 +381,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
     /** Random shapes: how many distinct values, how many a document, how much missing. */
     public void testRandomLayouts() throws IOException {
         for (int round = 0; round < 10; round++) {
+            minPageDocs = randomFrom(0, 1);
             final int numDocs = randomIntBetween(1, ColumnarPageTermsCollector.PAGE_DOCS * 2 + 500);
             final int vocabularySize = randomFrom(2, 10, 200, 20000);
             final int maxSlots = randomFrom(1, 1, 3, 12);
@@ -364,11 +442,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         final CountingTarget target = new CountingTarget();
         withValues(docs, values -> {
             final PerDocumentCollector perDocument = new PerDocumentCollector(values, target);
-            final ColumnarPageTermsCollector collector = new ColumnarPageTermsCollector(
-                values.columnSource().reader(),
-                target,
-                perDocument
-            );
+            final ColumnarPageTermsCollector collector = pageCollector(values, target, perDocument);
             lastCollector = collector;
             lastPerDocument = perDocument;
             if (asRange && only == null) {
@@ -441,7 +515,8 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
                                     FIELD
                                 );
                                 perDocument[0] = new PerDocumentCollector(values, target);
-                                return new ColumnarPageTermsCollector(values.columnSource().reader(), target, perDocument[0]);
+                                lastCollector = pageCollector(values, target, perDocument[0]);
+                                return lastCollector;
                             }
 
                             @Override

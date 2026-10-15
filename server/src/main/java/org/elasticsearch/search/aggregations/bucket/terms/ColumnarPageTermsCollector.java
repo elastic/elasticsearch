@@ -35,8 +35,9 @@ import java.util.Arrays;
  * can: a run of consecutive documents that all match arrives as one, through {@code collectRange}, and so does a window
  * of matches found in a bit set, which is what a segment with deleted documents or a partial filter produces. The stream
  * is consumed before the call returns, so nothing has to be remembered between calls: its doc IDs are copied into one
- * array the {@link Target} owns, {@link #PAGE_DOCS} at a time, and each batch is read as a page. Documents that arrive
- * one at a time go to the ordinary collector this one wraps.
+ * array the {@link Target} owns, {@link #PAGE_DOCS} at a time, and each batch is read as a page when it is large
+ * enough to earn back what a page costs. Documents that arrive one at a time, and batches that are too small, go to the
+ * ordinary collector this one wraps.
  *
  * <p>Only for a collection that has one owning bucket, no sub-aggregations and a document count of one for every
  * document, because those are what counting a page as a whole leaves out.
@@ -52,8 +53,9 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
         PageBudget budget();
 
         /**
-         * The array a batch of doc IDs is written to before it is read, {@link #PAGE_DOCS} long. One is held for the whole
-         * aggregation, since it is only used between a call starting and returning.
+         * The array a batch of doc IDs is written to before it is read, whose length is the size of a page. The aggregator
+         * gives it {@link #PAGE_DOCS}. One is held for the whole aggregation, since it is only used between a call
+         * starting and returning.
          */
         int[] scratchDocs();
     }
@@ -61,10 +63,27 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
     /** Documents read as one page. A larger page repeats more, and holds more memory while it is read. */
     static final int PAGE_DOCS = 4096;
 
+    /**
+     * Fewest documents a batch needs to be read as a page when the column holds one value for each document. A page has
+     * a cost of its own, for the dictionary and the sink, which a batch of few documents does not earn back over hashing
+     * their values. In the benchmark, with a hundred distinct values, a window of about eighty matches was level and
+     * one of about two hundred was 1.6 times faster.
+     */
+    static final int MIN_PAGE_DOCS_SINGLE_VALUED = 128;
+
+    /**
+     * As {@link #MIN_PAGE_DOCS_SINGLE_VALUED}, for a column where documents can hold several values or none, which a
+     * page reads more slowly. In the benchmark a window of about two hundred matches was 16% to 23% slower and one of
+     * about four hundred was level, so a window has to be larger than that.
+     */
+    static final int MIN_PAGE_DOCS_MULTI_VALUED = 512;
+
     private final StringColumnReader reader;
     private final Target target;
     /** Counts what is not a range, and a page the column declines. Built for the same leaf and the same buckets. */
     private final LeafBucketCollector perDocument;
+    /** A batch with fewer documents than this is counted the ordinary way. */
+    private final int minPageDocs;
     private final ValueDeduplicator duplicates = new ValueDeduplicator(SortableBinaryDocValues.ValueOrder.ARRAY);
     private final PageSink sink = new PageSink();
     /** How the pages read so far arrived, for a test to see which shape the column chose. */
@@ -72,9 +91,15 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
     int flatPages;
 
     ColumnarPageTermsCollector(StringColumnReader reader, Target target, LeafBucketCollector perDocument) {
+        this(reader, target, perDocument, reader.hasValueAddresses() ? MIN_PAGE_DOCS_MULTI_VALUED : MIN_PAGE_DOCS_SINGLE_VALUED);
+    }
+
+    /** As above, with the fewest documents a page is read for chosen by the caller, which a test uses to read any. */
+    ColumnarPageTermsCollector(StringColumnReader reader, Target target, LeafBucketCollector perDocument, int minPageDocs) {
         this.reader = reader;
         this.target = target;
         this.perDocument = perDocument;
+        this.minPageDocs = minPageDocs;
     }
 
     @Override
@@ -90,11 +115,12 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
     @Override
     public void collect(DocIdStream stream) throws IOException {
         final int[] docs = target.scratchDocs();
-        assert docs.length == PAGE_DOCS : "the scratch array sets the size of a page";
+        assert docs.length > 0 : "the scratch array sets the size of a page";
         // A count of zero says the stream has nothing left. Its documents arrive in order, which the column needs.
         for (int count = stream.intoArray(docs); count > 0; count = stream.intoArray(docs)) {
-            if (reader.readBlock(docs, 0, count, sink, target.budget()) == false) {
-                // The column declined the page, so its documents are read one at a time as they always were.
+            // Too few documents to earn back the cost of a page, or a page the column declines: read them one at a
+            // time as they always were.
+            if (count < minPageDocs || reader.readBlock(docs, 0, count, sink, target.budget()) == false) {
                 for (int i = 0; i < count; i++) {
                     perDocument.collect(docs[i], 0);
                 }

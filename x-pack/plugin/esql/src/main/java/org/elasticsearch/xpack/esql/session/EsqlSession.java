@@ -321,28 +321,42 @@ public class EsqlSession {
      * writes never overlap. A single volatile reference (vs four separate volatile fields) gives the
      * failure listener an atomic, all-or-nothing view of the snapshot.
      */
-    private record PlanSnapshot(LogicalPlan parsed, LogicalPlan analyzed, LogicalPlan optimized, PhysicalPlan physical) {
+    public record PlanSnapshot(
+        LogicalPlan parsed,
+        LogicalPlan analyzed,
+        LogicalPlan optimized,
+        PhysicalPlan physical,
+        ResolvedSettings settings
+    ) {
 
-        static final PlanSnapshot EMPTY = new PlanSnapshot(null, null, null, null);
+        static final PlanSnapshot EMPTY = new PlanSnapshot(null, null, null, null, null);
 
         PlanSnapshot withParsed(LogicalPlan p) {
-            return new PlanSnapshot(p, analyzed, optimized, physical);
+            return new PlanSnapshot(p, analyzed, optimized, physical, settings);
         }
 
         PlanSnapshot withAnalyzed(LogicalPlan a) {
-            return new PlanSnapshot(parsed, a, optimized, physical);
+            return new PlanSnapshot(parsed, a, optimized, physical, settings);
         }
 
         PlanSnapshot withOptimized(LogicalPlan o) {
-            return new PlanSnapshot(parsed, analyzed, o, physical);
+            return new PlanSnapshot(parsed, analyzed, o, physical, settings);
         }
 
         PlanSnapshot withPhysical(PhysicalPlan p) {
-            return new PlanSnapshot(parsed, analyzed, optimized, p);
+            return new PlanSnapshot(parsed, analyzed, optimized, p, settings);
+        }
+
+        PlanSnapshot withSettings(ResolvedSettings s) {
+            return new PlanSnapshot(parsed, analyzed, optimized, physical, s);
         }
     }
 
     private volatile PlanSnapshot planSnapshot = PlanSnapshot.EMPTY;
+
+    public PlanSnapshot planSnapshot() {
+        return planSnapshot;
+    }
 
     public EsqlSession(
         String sessionId,
@@ -477,6 +491,8 @@ public class EsqlSession {
             verifier.licenseState(),
             plannerSettings.loadAllMaxFields()
         );
+        LOGGER.debug("ESQL resolved settings:\n{}", resolved);
+        planSnapshot = planSnapshot.withSettings(resolved);
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
         // View and IN subquery resolution. IN_SUBQUERY telemetry is gathered from the result (ViewResolutionResult.hasInSubquery)
@@ -1171,11 +1187,13 @@ public class EsqlSession {
         }
         try {
             var anonymized = PlanAnonymizer.forSubmission(clusterUuid)
-                .anonymize(snap.parsed(), snap.analyzed(), snap.optimized(), snap.physical());
+                .anonymize(snap.parsed(), snap.analyzed(), snap.optimized(), snap.physical(), snap.settings());
             LOGGER.error(
                 """
                     ES|QL query failed in session [{}]
                     failure:
+                    {}
+                    settings:
                     {}
                     parsed:
                     {}
@@ -1189,6 +1207,7 @@ public class EsqlSession {
                     {}""".stripIndent(),
                 sessionId,
                 err.getMessage(),
+                anonymized.settings(),
                 anonymized.parsed(),
                 anonymized.analyzed(),
                 anonymized.optimized(),

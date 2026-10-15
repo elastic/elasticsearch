@@ -312,6 +312,11 @@ public final class QuerySettingDef<T> {
         return name;
     }
 
+    @Override
+    public String toString() {
+        return name;
+    }
+
     /**
      * Every label {@link #telemetryLabel} can return, so telemetry can register a counter per label up front.
      */

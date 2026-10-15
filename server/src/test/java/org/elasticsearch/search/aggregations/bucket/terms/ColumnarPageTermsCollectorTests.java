@@ -56,6 +56,8 @@ import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Counting a columnar field a page at a time has to give the counts that reading it a document at a time gives:
@@ -94,6 +96,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
     private static final class CountingTarget implements ColumnarPageTermsCollector.Target {
         final Map<String, Long> counts = new TreeMap<>();
         private final int[] scratch = new int[ColumnarPageTermsCollector.PAGE_DOCS];
+        private final ColumnarPageTermsCollector.SlotScratch slots = new ColumnarPageTermsCollector.SlotScratch(PageBudget.UNLIMITED);
 
         @Override
         public void count(BytesRef term, long docCount) {
@@ -108,6 +111,11 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         @Override
         public int[] scratchDocs() {
             return scratch;
+        }
+
+        @Override
+        public ColumnarPageTermsCollector.SlotScratch slotScratch() {
+            return slots;
         }
     }
 
@@ -318,6 +326,46 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         assertThat(enough.counts, equalTo(expected(docs, range(0, min))));
         assertThat(enough.perDocumentDocs, equalTo(0));
         assertThat(enough.pages, greaterThan(0));
+    }
+
+    /** The slot arrays are charged for what they grow by, and for nothing once they are big enough. */
+    public void testSlotArraysAreChargedForTheirGrowth() {
+        final long[] charged = new long[1];
+        final PageBudget budget = bytes -> charged[0] += bytes;
+        final ColumnarPageTermsCollector.SlotScratch slots = new ColumnarPageTermsCollector.SlotScratch(budget);
+
+        slots.ensure(100);
+        final long first = charged[0];
+        assertThat("two int arrays of at least a slot each", first, greaterThanOrEqualTo(100L * 2 * Integer.BYTES));
+
+        slots.ensure(50);
+        assertThat("big enough already", charged[0], equalTo(first));
+
+        slots.ensure(10_000);
+        assertThat(charged[0], greaterThanOrEqualTo(10_000L * 2 * Integer.BYTES));
+        assertThat("the growth, not the whole size again", charged[0], lessThan(2 * 10_000L * 2 * Integer.BYTES));
+    }
+
+    /**
+     * A reader is garbage when its leaf is done, so what it was charged is returned for the next leaf. Without that the
+     * charge of every leaf of a shard would stay until the aggregation closed.
+     */
+    public void testALeafBudgetIsReturnedWhenTheLeafIsDone() {
+        final long[] held = new long[1];
+        final long[] mostHeld = new long[1];
+        final ColumnarPageTermsCollector.LeafBudget budget = new ColumnarPageTermsCollector.LeafBudget(bytes -> {
+            held[0] += bytes;
+            mostHeld[0] = Math.max(mostHeld[0], held[0]);
+        });
+        for (int leaf = 0; leaf < 20; leaf++) {
+            budget.release(); // as the next leaf starts
+            budget.charge(1000);
+            budget.charge(500);
+            assertThat("what this leaf holds, and no more", held[0], equalTo(1500L));
+        }
+        assertThat("twenty leaves never held more than one", mostHeld[0], equalTo(1500L));
+        budget.release();
+        assertThat("and the last is returned when the aggregation closes", held[0], equalTo(0L));
     }
 
     private record Outcome(Map<String, Long> counts, int perDocumentDocs, int pages) {}

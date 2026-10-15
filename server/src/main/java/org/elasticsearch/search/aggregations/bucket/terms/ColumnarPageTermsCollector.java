@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.LongConsumer;
 
 /**
  * Counts a run of documents of a columnar string field a page at a time rather than a document at a time.
@@ -49,7 +50,7 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
         /** Adds {@code docCount} documents to the bucket of {@code term}, creating it when there is none. */
         void count(BytesRef term, long docCount);
 
-        /** Charged before the reader's page storage grows. */
+        /** Charged before the reader's page storage grows. The reader belongs to one leaf, so see {@link LeafBudget}. */
         PageBudget budget();
 
         /**
@@ -58,6 +59,68 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
          * starting and returning.
          */
         int[] scratchDocs();
+
+        /**
+         * The arrays a page of ordinals is counted in. One is held for the whole aggregation, like
+         * {@link #scratchDocs()}, so that what it grows by is charged once and not again for each leaf.
+         */
+        SlotScratch slotScratch();
+    }
+
+    /**
+     * The arrays a page of ordinals is counted in, with a slot for each distinct term of the page. They grow to the
+     * largest dictionary a page has had, and what they grow by is charged to the budget. The old arrays are garbage once
+     * replaced, so only the growth is charged.
+     */
+    static final class SlotScratch {
+        private final PageBudget budget;
+        private int[] counts = new int[0];
+        private int[] lastDoc = new int[0];
+
+        /** @param budget what the growth is charged to, which has to stay charged for as long as the arrays are held */
+        SlotScratch(PageBudget budget) {
+            this.budget = budget;
+        }
+
+        /** Makes room for {@code size} slots, charging the budget for the growth before the arrays are allocated. */
+        void ensure(int size) {
+            if (counts.length < size) {
+                final int capacity = ArrayUtil.oversize(size, Integer.BYTES);
+                budget.charge((long) (capacity - counts.length) * 2 * Integer.BYTES);
+                counts = new int[capacity];
+                lastDoc = new int[capacity];
+            }
+        }
+    }
+
+    /**
+     * What the reader of the current leaf has charged. A reader's page storage is garbage once its leaf is done, but the
+     * aggregation keeps what it was charged until it closes, so it would add up over the leaves of a shard. The owner
+     * calls {@link #release} when the next leaf starts to return it.
+     */
+    static final class LeafBudget implements PageBudget {
+        private final LongConsumer charge;
+        private long charged;
+
+        /** @param charge adds the bytes to what the aggregation is charged, or with a negative number returns them */
+        LeafBudget(LongConsumer charge) {
+            this.charge = charge;
+        }
+
+        @Override
+        public void charge(long bytes) {
+            charge.accept(bytes);
+            charged += bytes;
+        }
+
+        /** Returns what this leaf was charged. */
+        void release() {
+            // Not a call for zero, which would go through the branch that can trip the breaker.
+            if (charged != 0) {
+                charge.accept(-charged);
+                charged = 0;
+            }
+        }
     }
 
     /** Documents read as one page. A larger page repeats more, and holds more memory while it is read. */
@@ -130,18 +193,15 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
 
     /** Takes a page in whichever shape the column chose for it. */
     private final class PageSink implements StringBlockSink {
-        private int[] slotCounts = new int[0];
-        private int[] slotLastDoc = new int[0];
         private final FlatValues flat = new FlatValues();
 
         @Override
         public void appendOrdinals(int[] ordinals, int valueCount, int[] valueCounts, int docCount, BytesRef[] dictionary, int size) {
             ordinalPages++;
-            if (slotCounts.length < size) {
-                final int capacity = ArrayUtil.oversize(size, Integer.BYTES);
-                slotCounts = new int[capacity];
-                slotLastDoc = new int[capacity];
-            }
+            final SlotScratch scratch = target.slotScratch();
+            scratch.ensure(size);
+            final int[] slotCounts = scratch.counts;
+            final int[] slotLastDoc = scratch.lastDoc;
             Arrays.fill(slotCounts, 0, size, 0);
             if (valueCounts == null) {
                 for (int i = 0; i < valueCount; i++) {

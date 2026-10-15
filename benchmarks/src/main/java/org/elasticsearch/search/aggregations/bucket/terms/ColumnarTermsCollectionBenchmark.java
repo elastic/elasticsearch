@@ -307,6 +307,7 @@ public class ColumnarTermsCollectionBenchmark {
         final BytesKeyedBucketOrds ords = BytesKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE);
         LongArray counts = bigArrays.newLongArray(256, true);
         private int[] scratchDocs;
+        private final ColumnarPageTermsCollector.SlotScratch slotScratch = new ColumnarPageTermsCollector.SlotScratch(PageBudget.UNLIMITED);
 
         @Override
         public void count(BytesRef term, long docCount) {
@@ -330,6 +331,11 @@ public class ColumnarTermsCollectionBenchmark {
                 scratchDocs = new int[pageDocs];
             }
             return scratchDocs;
+        }
+
+        @Override
+        public ColumnarPageTermsCollector.SlotScratch slotScratch() {
+            return slotScratch;
         }
 
         TreeMap<String, Long> snapshot() {

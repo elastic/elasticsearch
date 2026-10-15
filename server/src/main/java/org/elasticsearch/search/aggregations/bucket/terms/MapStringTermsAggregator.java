@@ -106,6 +106,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        columnarPages.releaseLeaf();
         return resultStrategy.wrapCollector(
             collectorSource.getLeafCollector(
                 includeExclude,
@@ -141,8 +142,15 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
 
     /** Where a page's counted terms are added to the buckets. */
     private final class ColumnarPageTarget implements ColumnarPageTermsCollector.Target {
-        private final PageBudget budget = MapStringTermsAggregator.this::addRequestCircuitBreakerBytes;
+        /** For the reader of the current leaf, whose storage is garbage when the leaf is done. */
+        private final ColumnarPageTermsCollector.LeafBudget budget = new ColumnarPageTermsCollector.LeafBudget(
+            MapStringTermsAggregator.this::addRequestCircuitBreakerBytes
+        );
         private int[] scratchDocs;
+        /** Held for the whole aggregation, so what it is charged is returned only when the aggregation closes. */
+        private final ColumnarPageTermsCollector.SlotScratch slotScratch = new ColumnarPageTermsCollector.SlotScratch(
+            MapStringTermsAggregator.this::addRequestCircuitBreakerBytes
+        );
 
         @Override
         public void count(BytesRef term, long docCount) {
@@ -160,6 +168,11 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             return budget;
         }
 
+        /** The last leaf is done, and so is its reader, so what it was charged is returned. */
+        void releaseLeaf() {
+            budget.release();
+        }
+
         @Override
         public int[] scratchDocs() {
             if (scratchDocs == null) {
@@ -168,6 +181,11 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                 scratchDocs = new int[ColumnarPageTermsCollector.PAGE_DOCS];
             }
             return scratchDocs;
+        }
+
+        @Override
+        public ColumnarPageTermsCollector.SlotScratch slotScratch() {
+            return slotScratch;
         }
     }
 

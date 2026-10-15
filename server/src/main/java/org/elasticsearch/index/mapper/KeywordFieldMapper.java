@@ -1532,11 +1532,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
+    // Binary doc values have no Lucene length limit; this ceiling only keeps values from degrading storage and scan cost.
+    static final int MAX_BINARY_DOC_VALUE_LENGTH = 1 << 20; // 2^20 = 1,048,576 bytes = 1 MiB
+
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
     private final String indexOptions;
     private final FieldType fieldType;
+    private final int maxValueLength;
     private final String normalizerName;
     private final boolean normalizerSkipStoreOriginalValue;
     private final boolean splitQueriesOnWhitespace;
@@ -1575,6 +1579,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         );
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
+        // Lucene enforces MAX_TERM_LENGTH only in the inverted index and in SORTED_SET doc values.
+        this.maxValueLength = this.fieldType.indexOptions() != IndexOptions.NONE
+            || this.fieldType.docValuesType() == DocValuesType.SORTED_SET ? MAX_TERM_LENGTH : MAX_BINARY_DOC_VALUE_LENGTH;
         this.normalizerName = builder.normalizer.getValue();
         this.normalizerSkipStoreOriginalValue = builder.normalizerSkipStoreOriginalValue.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
@@ -1940,7 +1947,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     continue;
                 }
 
-                if (binaryValue.length > MAX_TERM_LENGTH) {
+                if (binaryValue.length > maxValueLength) {
                     throw largeTermException(binaryValue);
                 }
 
@@ -2132,7 +2139,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                     continue;
                 }
-                if (binaryValue.length > MAX_TERM_LENGTH) {
+                if (binaryValue.length > maxValueLength) {
                     throw largeTermException(binaryValue);
                 }
 
@@ -2200,7 +2207,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             "Document contains at least one immense term in field=\""
                 + fieldType().name()
                 + "\" (whose UTF8 encoding is longer than the max length "
-                + MAX_TERM_LENGTH
+                + maxValueLength
                 + "), all of which were skipped. Please correct the analyzer to not produce such terms."
                 + " The prefix of the first immense term is: '"
                 + Arrays.toString(prefix)
@@ -2316,11 +2323,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.getRoutingFields().addString(fieldType().name(), binaryValue);
         }
 
-        // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene will fail the indexing request and, to
+        // If the UTF8 encoding of the field value is bigger than the max length 32766 (only for indexed or SORTED_SET fields), Lucene will
+        // fail the indexing request and, to
         // roll back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an
         // append-only workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC
         // instead of MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
-        if (binaryValue.length > MAX_TERM_LENGTH) {
+        if (binaryValue.length > maxValueLength) {
             throw largeTermException(binaryValue);
         }
 

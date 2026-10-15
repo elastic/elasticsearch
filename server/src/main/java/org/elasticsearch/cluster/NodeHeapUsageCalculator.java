@@ -92,10 +92,7 @@ public final class NodeHeapUsageCalculator {
      * that snapshot is included, regardless of routing state, and the total uses this node's own postings because there is no cluster-wide
      * maximum for a one-node calculation.
      */
-    public static NodeHeapEstimates calculateForShardEstimates(
-        long nonShardHeapUsage,
-        ShardHeapUsageEstimates shardHeapUsageEstimates
-    ) {
+    public static NodeHeapEstimates calculateForShardEstimates(long nonShardHeapUsage, ShardHeapUsageEstimates shardHeapUsageEstimates) {
         assert nonShardHeapUsage >= 0;
         final NodeHeapUsageComponents nodeHeapUsageComponents = componentsForShards(
             shardHeapUsageEstimates.perShard().keySet(),
@@ -161,10 +158,7 @@ public final class NodeHeapUsageCalculator {
     }
 
     /** Shard and index heap for exactly these shards, including ones that are still initializing. */
-    private static NodeHeapUsageComponents componentsForShards(
-        Set<ShardId> shardIds,
-        ShardHeapUsageEstimates shardHeapUsageEstimates
-    ) {
+    private static NodeHeapUsageComponents componentsForShards(Set<ShardId> shardIds, ShardHeapUsageEstimates shardHeapUsageEstimates) {
         final NodeHeapUsageComponentsAccumulator accumulator = new NodeHeapUsageComponentsAccumulator(shardHeapUsageEstimates);
         shardIds.forEach(accumulator::add);
         return accumulator.result();

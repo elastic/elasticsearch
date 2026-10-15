@@ -83,6 +83,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
+    | {this.isDevVersion()}? fillNullCommand
     ;
 
 whereCommand
@@ -409,6 +410,14 @@ highlightCommand
 
 qualifiedNames
     : qualifiedName (COMMA qualifiedName)*
+    ;
+
+fillNullCommand
+    : DEV_FILLNULL fillNullValue ON qualifiedNamePatterns
+    ;
+
+fillNullValue
+    : NULL | DEFAULT | integerValue | decimalValue | booleanValue | string | parameter
     ;
 
 uriPartsCommand

@@ -369,6 +369,12 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
     }
 
+    private Set<String> localFiles() {
+        try (var ignored = readLock.acquire()) {
+            return Set.copyOf(localFiles.keySet());
+        }
+    }
+
     public void sync(Collection<String> names) {
         // noop, data on local drive need not be safely persisted
     }
@@ -514,6 +520,9 @@ public class IndexDirectory extends ByteSizeDirectory {
                     localFile.markAsUploaded();
                 }
             });
+        }
+        if (cacheDirectory.getCacheService().isEvictObsoleteRegionsEnabled()) {
+            cacheDirectory.maybeScheduleObsoleteRegionsEviction(this::localFiles);
         }
     }
 

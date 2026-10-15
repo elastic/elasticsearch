@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,9 +31,9 @@ import javax.crypto.spec.SecretKeySpec;
 /**
  * Owns the in-memory cache of the project encryption key (PEK) material and serves it to {@link AesGcmEncryptionService}.
  *
- * <p>This service listens to cluster-state changes and rebuilds its local plaintext-key cache whenever
- * {@link ProjectEncryptionKeyMetadata} changes. Installation, rotation, and retirement of PEK material are owned by
- * {@link KeyRotationCoordinator}; this class is read-only with respect to cluster state.
+ * <p>This service rebuilds its local plaintext-key cache whenever {@link ProjectEncryptionKeyMetadata} changes. It is a cluster-state
+ * applier so keys are cached before a new state becomes visible via {@link ClusterService#state()}. Installation, rotation, and
+ * retirement of PEK material are owned by {@link KeyRotationCoordinator}; this class is read-only with respect to cluster state.
  *
  * <p>Because {@link ProjectEncryptionKeyMetadata.KeyEntry#bytes()} holds plaintext AES bytes, keys are available immediately on each
  * cluster-state update without a separate unwrap step. Password material is supplied via a {@link Supplier} owned by
@@ -51,7 +51,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
 
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
-    private final ClusterStateListener clusterStateListener = this::onClusterStateChanged;
+    private final ClusterStateApplier clusterStateApplier = this::onClusterStateChanged;
     private final Supplier<Settings> settingsSupplier;
     private volatile KeyCache cache = KeyCache.EMPTY;
     private volatile boolean encryptionRequired = true;
@@ -72,7 +72,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         Supplier<Settings> settingsSupplier
     ) {
         ProjectEncryptionKeyService service = new ProjectEncryptionKeyService(clusterService, projectResolver, settingsSupplier);
-        clusterService.addListener(service.clusterStateListener);
+        clusterService.addStateApplier(service.clusterStateApplier);
         clusterService.getClusterSettings()
             .initializeAndWatch(ProjectEncryptionKeyPasswordSettings.ENCRYPTION_REQUIRED, v -> service.encryptionRequired = v);
         return service;
@@ -80,7 +80,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
 
     @Override
     public void close() {
-        clusterService.removeListener(clusterStateListener);
+        clusterService.removeApplier(clusterStateApplier);
     }
 
     /**

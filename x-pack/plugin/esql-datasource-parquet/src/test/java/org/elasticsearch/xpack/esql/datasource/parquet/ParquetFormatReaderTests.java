@@ -10893,6 +10893,81 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * array, the other reads value by value -- so the case runs both, selected with
      * {@link ParquetFormatReader#withBaselinePath()}.
      */
+    /**
+     * A microsecond timestamp outside the nanosecond domain, read as a declared {@code date}. The bounds the old
+     * route imposed were the nanosecond long's -- 1677-09-21 to 2262-04-11 -- and they reached a {@code date}
+     * column only because the decode materialised nanoseconds on the way. {@code date} is milliseconds and holds
+     * both of these, so both must read; before the pair became fused they came back null.
+     */
+    public void testOutOfNanosRangeMicrosTimestampDeclaredDatetimeReads() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group beforeFloor = factory.newGroup();
+            beforeFloor.add("ts", -14_831_769_600_000_000L); // 1500-01-01T00:00:00Z, below the nanosecond floor
+            Group afterCeiling = factory.newGroup();
+            afterCeiling.add("ts", 32_503_680_000_000_000L); // 3000-01-01T00:00:00Z, above the nanosecond ceiling
+            return List.of(beforeFloor, afterCeiling);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader base = new ParquetFormatReader(blockFactory);
+            ParquetFormatReader r = (ParquetFormatReader) (decoder.equals("rowAtATime") ? base.withBaselinePath() : base)
+                .withDeclaredTypeColumns(Set.of("ts"));
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+                )
+            ) {
+                LongBlock l = (LongBlock) it.next().getBlock(0);
+                assertFalse(decoder + ": 1500 must read, not null", l.isNull(0));
+                assertFalse(decoder + ": 3000 must read, not null", l.isNull(1));
+                assertEquals(decoder, -14_831_769_600_000L, l.getLong(0));
+                assertEquals(decoder, 32_503_680_000_000L, l.getLong(1));
+            }
+        }
+    }
+
+    /**
+     * The scale from a sub-millisecond unit to milliseconds floors; it does not truncate toward zero. The two
+     * disagree only below the epoch, by one millisecond, and they must not: the same value read through
+     * {@code DeclaredTypeCoercions}' narrowing floors, so a value that changed route would change answer.
+     */
+    public void testSubMillisecondScaleToDatetimeFloorsBelowTheEpoch() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", -152_366_400_000_001L); // one microsecond before 1965-03-04T12:00:00Z
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader base = new ParquetFormatReader(blockFactory);
+            ParquetFormatReader r = (ParquetFormatReader) (decoder.equals("rowAtATime") ? base.withBaselinePath() : base)
+                .withDeclaredTypeColumns(Set.of("ts"));
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+                )
+            ) {
+                LongBlock l = (LongBlock) it.next().getBlock(0);
+                // floorDiv: -152_366_400_001. Truncation toward zero would give -152_366_400_000.
+                assertEquals(decoder, -152_366_400_001L, l.getLong(0));
+            }
+        }
+    }
+
     public void testPreEpochMicrosTimestampDeclaredDatetimeReads() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)

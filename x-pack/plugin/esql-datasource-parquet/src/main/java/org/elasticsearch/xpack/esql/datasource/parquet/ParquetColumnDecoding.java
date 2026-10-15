@@ -163,8 +163,6 @@ final class ParquetColumnDecoding {
             return true; // conservative for shapes this method does not model
         }
         LogicalTypeAnnotation logical = primitiveType.getLogicalTypeAnnotation();
-        boolean millisAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts
-            && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS;
         boolean nanosAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts2
             && ts2.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS;
         // A TIME value is a time of day, so a well-formed one is at most 86_400_000_000 microseconds -- which is
@@ -175,10 +173,12 @@ final class ParquetColumnDecoding {
         boolean timeAnnotated = logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time2
             && time2.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS;
         return switch (declaredType) {
-            // An identity read never nulls, and neither does a narrowing: floorDiv is total over the whole long
-            // domain. MICROS is the one arm that nulls, and it does so in the decode rather than the narrowing -- a
-            // value outside the date_nanos range has no nanosecond form to narrow from (see microsOverflowsNanos).
-            case DATETIME -> (logical == null || millisAnnotated || nanosAnnotated || timeAnnotated) == false;
+            // Every route an INT64 takes to a datetime block is total. The sub-millisecond units reach it through
+            // convertTimestampToMillis, which floorDivs -- total over the whole long domain -- since the pair became
+            // fused; before that they decoded to nanoseconds first and the MICROS arm nulled anything the nanosecond
+            // domain could not hold. An unannotated INT64 and a MILLIS one are the identity, and a declared format
+            // is handled above. So a no-format INT64 declared `date` keeps its IS NULL pushdown.
+            case DATETIME -> false;
             // A bare INT64 widens millis->nanos via castBlock and nulls pre-epoch/post-2262 values; NANOS is the
             // identity; MICROS/MILLIS scale and can overflow.
             case DATE_NANOS -> (nanosAnnotated || timeAnnotated) == false;

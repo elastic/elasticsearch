@@ -22,15 +22,19 @@ import software.amazon.awssdk.services.bedrockruntime.model.TokenUsage;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlockStart;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
 import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse.PromptTokensDetails;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
 
@@ -174,6 +178,56 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         assertThat(argument.getAllValues().get(0).chunks().size(), is(1));
         assertThat(argument.getAllValues().get(1).chunks().size(), is(1));
         assertThat(argument.getAllValues().get(2).chunks().size(), is(1));
+    }
+
+    /**
+     * When processing an event fails, the processor converts the error into the unified chat completion format. The base class
+     * must forward that exception unchanged so the status, type and code reach the client rather than a generic 500.
+     * Processing an event resets demand to zero, so the error is parked until the downstream requests again.
+     */
+    public void testProcessingFailureForwardsUnifiedChatCompletionExceptionDownstream() {
+        var upstream = mock(Flow.Subscription.class);
+        processor.onSubscribe(upstream);
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        sub.getValue().request(1);
+
+        var processingError = new ElasticsearchStatusException("bad input", RestStatus.BAD_REQUEST);
+        ConverseStreamOutput failingOutput = mock();
+        when(failingOutput.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.MESSAGE_START);
+        doAnswer(ans -> { throw processingError; }).when(failingOutput).accept(any());
+
+        processor.onNext(failingOutput);
+        verify(upstream, times(1)).cancel();
+        verify(downstream, never()).onError(any());
+
+        sub.getValue().request(1);
+        verify(downstream, times(1)).onError(assertArg(e -> {
+            assertThat(e, isA(UnifiedChatCompletionException.class));
+            assertThat(((UnifiedChatCompletionException) e).status(), is(RestStatus.BAD_REQUEST));
+        }));
+    }
+
+    /**
+     * Errors reported by the AWS SDK itself (outside of event processing) arrive at onError directly and must carry the Bedrock status.
+     */
+    public void testOnErrorFromSdkPropagatesBedrockStatus() {
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        sub.getValue().request(1);
+
+        var bedrockError = BedrockRuntimeException.builder().message("throttled").statusCode(429).build();
+        processor.onError(new CompletionException(bedrockError));
+
+        verify(downstream, times(1)).onError(assertArg(e -> {
+            assertThat(e, isA(ElasticsearchStatusException.class));
+            assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.TOO_MANY_REQUESTS));
+            assertThat(e.getCause(), is(bedrockError));
+        }));
     }
 
     private ConverseStreamOutput messageStartOutput(String role) {

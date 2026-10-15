@@ -34,7 +34,7 @@ public final class ExternalSourceCacheSettings {
      */
     public static final Setting<ByteSizeValue> CACHE_SIZE_OLD = Setting.memorySizeSetting(
         "esql.source.cache.size",
-        "0.4%",
+        "0.5%",
         Setting.Property.DeprecatedWarning,
         Setting.Property.NodeScope
     );
@@ -68,13 +68,14 @@ public final class ExternalSourceCacheSettings {
 
     /**
      * Deprecated no-op. The schema (per-file) and dataset-aggregate caches are invalidated by identity
-     * (mtime / file-set fingerprint in the key) and bounded by CACHE_SIZE + LRU, never by a clock — see
-     * {@link ExternalSourceCacheService}. This setting formerly capped the schema cache with a hard TTL;
-     * it is retained, registered, and ignored so a node that carries it in {@code elasticsearch.yml} from
+     * (mtime / file-set fingerprint in the key) and bounded by CACHE_SIZE + LRU, with {@link #SCHEMA_TTL}
+     * bounding the schema store and {@link #LISTING_TTL} the aggregate — see {@link ExternalSourceCacheService}. This setting formerly
+     * capped the schema cache with a hard TTL; it is retained, registered, and ignored so a node that carries
+     * it in {@code elasticsearch.yml} from
      * an earlier version still starts (removing a released node setting would fail startup). It is wired to
      * nothing and emits a deprecation warning when set.
      */
-    public static final Setting<TimeValue> SCHEMA_TTL = Setting.positiveTimeSetting(
+    public static final Setting<TimeValue> SCHEMA_TTL_OLD = Setting.positiveTimeSetting(
         "esql.source.cache.schema.ttl",
         TimeValue.timeValueMinutes(5),
         Setting.Property.DeprecatedWarning,
@@ -92,14 +93,31 @@ public final class ExternalSourceCacheSettings {
         Setting.Property.NodeScope
     );
 
-    // Only the listing cache carries a time-based refresh: it discovers file identity and has no per-file
-    // key to invalidate on. The schema and dataset-aggregate caches invalidate by identity, not by a clock.
+    // This is the only time-based REFRESH: the listing discovers file identity and has no per-file key to
+    // invalidate on. The schema and dataset-aggregate caches invalidate by identity, and a clock bounds how long
+    // each may serve -- SCHEMA_TTL the schema store, this one the aggregate -- which is a different question
+    // from whether their inputs moved.
     // Default is five minutes after write (the deprecated key's default; this key falls back to it). A file
     // added or removed becomes visible on the next query once that elapses. Lower the setting for faster
-    // visibility. File metadata (length, mtime) shares this TTL. Re-lists stay query-triggered.
+    // visibility. Re-lists stay query-triggered. A file's length and mtime are cached under this same clock, so
+    // this is also how long a single-file resolve can answer without asking the store anything.
     public static final Setting<TimeValue> LISTING_TTL = Setting.positiveTimeSetting(
         "esql.external.cache.listing.ttl",
         LISTING_TTL_OLD,
+        TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * How long a schema inferred from a file may be served before it is derived again. An upper bound on reuse,
+     * not a freshness bound — the identity keys already miss when a file moves. A statistic measured from the
+     * file is addressed separately and has no clock, so it is reused while its entry is held. {@code 0} is
+     * unbounded. Unlike {@link #LISTING_TTL} it does not inherit its deprecated {@code esql.source.cache.*}
+     * counterpart, which shipped documented as ignored.
+     */
+    public static final Setting<TimeValue> SCHEMA_TTL = Setting.timeSetting(
+        "esql.external.cache.schema.ttl",
+        TimeValue.timeValueMinutes(20),
         TimeValue.timeValueMillis(0),
         Setting.Property.NodeScope
     );
@@ -116,8 +134,9 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * Default 8 MB, derived (not arbitrary) from the ClickBench text-format file-size distribution
      * against the schema-cache budget: a representative ~1.8 GB shard yields ~231 stripes (ample
-     * pruning resolution), and a 500-hot-file working set consumes ~11 MB — 42% of the ~26 MB schema
-     * budget on a 32 GB heap. Smaller grids (≤1 MB) overflow the budget on realistic working sets;
+     * pruning resolution), and a 500-hot-file working set consumes ~11 MB. That was 42% of the ~26 MB
+     * schema budget on a 32 GB heap when stripe state rode the schema record; it is charged to the
+     * statistics slice now. Smaller grids (≤1 MB) overflow the budget on realistic working sets;
      * larger grids (≥32 MB) coarsen a representative shard to &lt;60 stripes, blunting per-stripe min/max
      * pruning. 8 MB is the knee.
      */
@@ -219,8 +238,8 @@ public final class ExternalSourceCacheSettings {
      * this cache is the only one holding anything for it. And a file carrying large per-column
      * statistics can have a serialized footer bigger than the structural estimate charged here.
      * In both, an eviction from this cache does cost a re-read. Deployments running wide schemas
-     * over large file sets can raise this to buy back the re-parse; the cost is heap held for the
-     * whole {@link #FOOTER_CACHE_TTL}.
+     * over large file sets can raise this to buy back the re-parse; the cost is heap held for as long as
+     * the working set keeps being read, and until a later cache operation prunes it once that stops.
      */
     public static final Setting<ByteSizeValue> FOOTER_PARSED_CACHE_SIZE = new Setting<>(
         "esql.external.cache.footer.parsed.size",
@@ -231,14 +250,36 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Expire-after-access TTL shared by both footer caches. If the bytes are stale, the parse
-     * derived from them is stale too. Must bridge the gaps between resolution, split discovery,
-     * and execution of one query over a large file set, plus dashboard refresh intervals. The
-     * trade-off: footer cache keys are {@code (path, fileLength)} without mtime (adding it would
-     * cost a HEAD request per range split; see {@link FooterByteCache}), so a file overwritten
-     * in place with identical length can be served stale for up to this long. Object-store
-     * analytics layouts treat data files as immutable, and this setting is the operator escape
-     * hatch where they do not.
+     * Expire-after-access TTL shared by both footer caches. It bounds how long an entry nobody is reading
+     * stays eligible: a footer read at least once per interval keeps being served, and one that stops being
+     * read becomes a miss an interval later. Expiry is lazy — {@link org.elasticsearch.common.cache.Cache}
+     * reclaims an expired entry when a later operation prunes the LRU rather than on a timer — so on an idle
+     * node the heap stays held until something touches the cache. Both caches take the same value, but they
+     * no longer age out together: a reader that answers from the parsed cache does not read bytes, so a
+     * parsed entry can be renewed while its bytes go cold.
+     * <p>
+     * It does not precisely bound how stale a footer may be — footer keys are {@code (storageIdentity,
+     * path, fileLength)} and name the object rather than the version of it — but both caches carry a
+     * write cap of {@link FooterByteCache#WRITE_CAP_MULTIPLIER} times this TTL, so a raw footer entry is
+     * force-expired at most {@code WRITE_CAP_MULTIPLIER × TTL} after it was written regardless of how
+     * often it is read, and lowering this setting shortens that window proportionally. For parsed footer
+     * entries the ceiling is higher: data reads keep the raw-bytes entry alive via
+     * {@code footerBytes.get(key)} while queries are being served from the parsed cache; a subsequent
+     * parsed-cache miss (from budget eviction or an access-clock lapse) reparses from those still-cached
+     * bytes, producing a new parsed entry whose write clock starts at that point. The worst-case staleness
+     * for parsed footers is therefore approximately {@code 2 × WRITE_CAP_MULTIPLIER × TTL}, roughly twice
+     * that of raw bytes. The precise fix belongs in the key rather than the clock (see {@link FooterByteCache}
+     * and elastic/esql-planning#2094).
+     * <p>
+     * One case the access clock narrows without closing: a query whose phases span more than this interval
+     * on one key, or whose entry is evicted against the byte budget between phases, re-reads the footer
+     * between resolution, split discovery and execution, and a same-length rewrite in between gives two
+     * phases two different footers for one query.
+     * <p>
+     * {@code ExternalSourceCacheService} makes the opposite choice for the stores it owns, and deliberately:
+     * its schema and dataset-aggregate keys carry the file's modification time, so identity already answers
+     * freshness there and a write clock bounds only reuse. Here the key cannot answer freshness, and the
+     * write cap is the staleness ceiling.
      */
     public static final Setting<TimeValue> FOOTER_CACHE_TTL = Setting.positiveTimeSetting(
         "esql.external.cache.footer.ttl",
@@ -265,6 +306,7 @@ public final class ExternalSourceCacheSettings {
             CACHE_ENABLED,
             CACHE_ENABLED_OLD,
             SCHEMA_TTL,
+            SCHEMA_TTL_OLD,
             LISTING_TTL,
             LISTING_TTL_OLD,
             STRIPE_SIZE,

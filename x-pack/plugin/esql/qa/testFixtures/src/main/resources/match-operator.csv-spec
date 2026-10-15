@@ -294,7 +294,7 @@ required_capability: match_operator_colon
 required_capability: qstr_function
 
 from employees 
-| where job_positions:"Data Scientist" and qstr("job_positions: (Support Engineer) and gender: F")
+| where job_positions:"Data Scientist" and qstr("job_positions: (Support Engineer) OR gender: F")
 | keep emp_no, first_name, last_name;
 ignoreOrder:true
 

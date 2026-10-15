@@ -13,6 +13,8 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.http.nio.reactor.IOSession;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
@@ -26,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.core.ssl.AbstractSslBuilder;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 
@@ -38,7 +41,10 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
@@ -179,9 +185,18 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     private RestClient buildRestClient(SSLService sslService, MockWebServer webServer) {
         final SslProfile profile = sslService.profile(HTTP_CLIENT_SSL);
         final HttpHost httpHost = new HttpHost(webServer.getHostName(), webServer.getPort(), "https");
-        return RestClient.builder(httpHost)
-            .setHttpClientConfigCallback(client -> client.setSSLStrategy(profile.ioSessionStrategy()))
-            .build();
+        final SSLIOSessionStrategy sslStrategy = new AbstractSslBuilder<SSLIOSessionStrategy>() {
+            @Override
+            protected SSLIOSessionStrategy build(SSLContext sslContext, String[] protocols, String[] ciphers, HostnameVerifier verifier) {
+                return new SSLIOSessionStrategy(sslContext, protocols, ciphers, verifier) {
+                    @Override
+                    protected void verifySession(HttpHost host, IOSession iosession, SSLSession session) throws SSLException {
+                        verifyHostname(verifier, host.getHostName(), session);
+                    }
+                };
+            }
+        }.build(profile.configuration(), profile.sslContext());
+        return RestClient.builder(httpHost).setHttpClientConfigCallback(client -> client.setSSLStrategy(sslStrategy)).build();
     }
 
     /**

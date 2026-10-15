@@ -19,6 +19,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -35,6 +36,8 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
             .put("node.name", "es-thread-pool-executor-tests")
             .put("thread_pool.write_coordination.size", 1)
             .put("thread_pool.write_coordination.queue_size", 0)
+            .put("thread_pool.get.size", 1)
+            .put("thread_pool.get.queue_size", 0)
             .put("thread_pool.write.size", 1)
             .put("thread_pool.write.queue_size", 0)
             .put("thread_pool.search.size", 1)
@@ -43,6 +46,8 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
     }
 
     public void testRejectedExecutionExceptionContainsNodeName() {
+        // GET does not wrap runnable in TimedRunnable
+        runThreadPoolExecutorTest(1, ThreadPool.Names.GET);
         // we test a fixed and an auto-queue executor but not scaling since it does not reject
         runThreadPoolExecutorTest(1, randomFrom(ThreadPool.Names.WRITE_COORDINATION, ThreadPool.Names.WRITE));
         runThreadPoolExecutorTest(2, ThreadPool.Names.SEARCH);
@@ -62,6 +67,7 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
         }
 
         final AtomicBoolean rejected = new AtomicBoolean();
+        final AtomicInteger after = new AtomicInteger();
         node().injector().getInstance(ThreadPool.class).executor(executor).execute(new AbstractRunnable() {
             @Override
             public void onFailure(final Exception e) {
@@ -78,10 +84,16 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
             protected void doRun() throws Exception {
 
             }
+
+            @Override
+            public void onAfter() {
+                after.incrementAndGet();
+            }
         });
 
         latch.countDown();
         assertTrue(rejected.get());
+        assertThat(after.get(), equalTo(1));
     }
 
     public void testExecuteThrowsException() {
@@ -94,7 +106,7 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
         final ThrowingEsThreadPoolExecutor executor = new ThrowingEsThreadPoolExecutor(getTestName(), 0, 1, exception);
         try {
             final AtomicBoolean doRun = new AtomicBoolean();
-            final AtomicBoolean onAfter = new AtomicBoolean();
+            final AtomicInteger onAfter = new AtomicInteger();
             final AtomicReference<Exception> onFailure = new AtomicReference<>();
             final AtomicReference<Exception> onRejection = new AtomicReference<>();
 
@@ -116,12 +128,12 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
 
                 @Override
                 public void onAfter() {
-                    onAfter.set(true);
+                    onAfter.incrementAndGet();
                 }
             });
 
             assertThat(doRun.get(), equalTo(false));
-            assertThat(onAfter.get(), equalTo(true));
+            assertThat(onAfter.get(), equalTo(1));
             assertThat(onFailure.get(), nullValue());
             assertThat(onRejection.get(), sameInstance(exception));
             assertThat(

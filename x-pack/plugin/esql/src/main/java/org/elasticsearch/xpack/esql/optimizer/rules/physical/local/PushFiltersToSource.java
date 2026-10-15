@@ -267,8 +267,11 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         // signal the reader keys late materialization off, and by the time the factory sees the plan the FilterExec
         // for a Pushability.YES conjunct has already been dropped -- so the factory can neither suppress the filter
         // (rows would leak unfiltered) nor undo the late-mat decision it implies.
-        if (formatReader.dropsRowsUnderPushedFilter() == false
-            && externalExec.declaredReadSpec().dropsRowsOnCoercionFailure(ErrorPolicy.forReader(externalExec.config(), formatReader))) {
+        //
+        // The question is whether reading a value can fail, which is a fact about this source's files and is
+        // stamped at resolution rather than asked of the mapping.
+        ErrorPolicy errorPolicy = ErrorPolicy.forReader(externalExec.config(), formatReader);
+        if (formatReader.dropsRowsUnderPushedFilter() == false && externalExec.dropsRowsOnConversionFailure(errorPolicy)) {
             return filterExec;
         }
 

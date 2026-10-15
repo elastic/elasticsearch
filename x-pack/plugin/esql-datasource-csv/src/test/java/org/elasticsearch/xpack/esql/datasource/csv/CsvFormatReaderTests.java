@@ -358,24 +358,59 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A declared dataset names the columns it reads, so a headerless file wider than the cap is not refused, the same as a
-     * header-bearing one. The streaming read still infers a headerless schema from the first chunk ({@code metadata()}),
-     * and that inference must agree with the plain read, which binds the declared columns without inferring. The
-     * synthesized columns stay bounded by the breaker ({@link #testHeaderlessSyntheticColumnsAreChargedAndReleased}).
+     * Resolving a schema from a headerless file wider than the cap is refused whatever the reader was told about where
+     * its types came from. Declaring the columns used to lift the cap here, so the same file was refused when its types
+     * were inferred and resolved when they were declared; what decides the bound now is whether a
+     * schema is already pinned, and nothing is pinned on this reader - {@code schema()} is what settles the schema.
+     * A read that does carry a pin is bounded by {@link CsvFormatReader#MAX_HEADER_SPLIT_COLUMNS} instead, which
+     * {@code CsvDeclaredHeaderMultiChunkTests} pins. Raising the cap resolves it, and the streaming read's headerless
+     * inference then agrees with the plain read, which binds the declared columns without inferring. The synthesized
+     * columns stay bounded by the breaker ({@link #testHeaderlessSyntheticColumnsAreChargedAndReleased}).
      */
-    public void testDeclaredHeaderlessSchemaWiderThanCapIsAllowed() throws Exception {
-        int cap = 3;
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(cap)
+    public void testDeclaredHeaderlessSchemaWiderThanTheCapIsRefusedToo() throws Exception {
+        String csv = "1,2,3,4\n5,6,7,8\n";
+        CsvFormatReader capped = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(3)
             .withDeclaredProvenanceBinding(true)
             .withConfigTrackingConsumedKeys(Map.of("header_row", false))
             .value();
-        String csv = "1,2,3,4\n5,6,7,8\n";
+        expectThrows(ExternalClientException.class, () -> capped.schema(createStorageObject(csv)));
+
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(4)
+            .withDeclaredProvenanceBinding(true)
+            .withConfigTrackingConsumedKeys(Map.of("header_row", false))
+            .value();
         assertEquals(4, reader.schema(createStorageObject(csv)).size());
         List<Attribute> declared = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "column1", DataType.INTEGER),
             new ReferenceAttribute(Source.EMPTY, null, "column2", DataType.INTEGER)
         );
         assertEquals(2, readRowCount(reader, createStorageObject(csv), declared, null));
+    }
+
+    /**
+     * What lifts the width bound is a settled schema, never where that schema came from. The cap bounds the schema a
+     * read resolves; a read carrying a pin resolves none, and reads the file only to locate the pinned schema's
+     * columns, so {@link CsvFormatReader#MAX_HEADER_SPLIT_COLUMNS} bounds it instead. The streaming coordinator
+     * resolves a first chunk after the planner has settled a schema, so holding that resolve to the cap refused a
+     * file the single-threaded path read - the same file read or not by which read path it took. An empty pin
+     * settles nothing and is bounded by the cap again, which is the {@code COUNT(*)} shape.
+     */
+    public void testAPinnedSchemaReadsPastTheColumnCap() throws Exception {
+        String csv = "1,2,3,4\n5,6,7,8\n";
+        CsvFormatReader capped = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaMaxFields(3)
+            .withConfigTrackingConsumedKeys(Map.of("header_row", false))
+            .value();
+        expectThrows(ExternalClientException.class, () -> capped.schema(createStorageObject(csv)));
+
+        List<Attribute> pinned = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "column1", DataType.INTEGER),
+            new ReferenceAttribute(Source.EMPTY, null, "column2", DataType.INTEGER)
+        );
+        CsvFormatReader pinnedReader = capped.withSchema(pinned);
+        assertEquals(4, pinnedReader.schema(createStorageObject(csv)).size());
+
+        CsvFormatReader emptyPin = capped.withSchema(List.of());
+        expectThrows(ExternalClientException.class, () -> emptyPin.schema(createStorageObject(csv)));
     }
 
     /** The synthesized columns are charged while the schema is built and nothing stays reserved afterwards. */
@@ -427,7 +462,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         expectThrows(ExternalClientException.class, () -> lowered.schema(createStorageObject(header(3) + "\n1,2,3\n")));
     }
 
-    /** A declared schema is not capped by the file's width, but the names split from a wide header are charged. */
+    /**
+     * One declared column binds against a header 500 times wider than {@code schema_max_fields}, and the names split
+     * from that header are charged to the breaker and released. The cap bounds the schema a read resolves; this split
+     * resolves none, it locates {@code c7} among names it then discards, so {@link CsvFormatReader#MAX_HEADER_SPLIT_COLUMNS}
+     * bounds it instead and the cap of 10 is never consulted. Lowering that bound to the cap is what this test catches.
+     */
     public void testDeclaredBindingChargesWideHeaderToTheBreakerAndReleasesIt() throws Exception {
         int columns = 5_000;
         String csv = header(columns) + "\n" + "1,".repeat(columns - 1) + "1\n";
@@ -553,15 +593,19 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * At the ceiling raising the cap is refused, so the refusal points at declaring the columns, which lifts the cap for
-     * header-bearing and headerless files alike. Below it, the refusal points at raising the cap.
+     * Below the ceiling the refusal points at raising the cap. At the ceiling raising it is refused too, and the same
+     * number bounds a header split, which no setting raises, so the refusal states the width instead of offering a
+     * remedy that does not work.
      */
     public void testColumnCapMessageAtTheCeiling() {
         int ceiling = ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS;
+        assertEquals(ceiling, CsvFormatReader.MAX_HEADER_SPLIT_COLUMNS);
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> CsvFormatReader.checkColumnCap(ceiling + 1, ceiling));
-        assertThat(e.getMessage(), containsString("dynamic: false"));
-        assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), not(containsString("dynamic: false")));
+        assertThat(e.getMessage(), containsString("the most that can be read"));
+        assertThat(e.getMessage(), not(containsString("dynamic: false")));
+        assertThat(e.getMessage(), not(containsString("raise [esql.external.schema_max_fields]")));
         assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), containsString("raise [esql.external.schema_max_fields]"));
+        assertThat(CsvFormatReader.columnCapMessage(ceiling - 1), not(containsString("the most that can be read")));
     }
 
     private static String header(int columns) {

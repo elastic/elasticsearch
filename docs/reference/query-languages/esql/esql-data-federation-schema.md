@@ -64,13 +64,17 @@ The following table compares the available strategies:
 
 ### How `first_file_wins` handles type mismatches [first-file-wins-type-mismatches]
 
-A type mismatch in a later Parquet file doesn't fail the query. If a column's type can't be read as the type from the first file, that column contains null values for the file, and the response includes a warning. The [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) setting doesn't control this case.
+{applies_to}`stack: experimental 9.6+` When a column in a later file has a type that can be converted to the query's type (for example, a 64-bit integer in a file where the first file's column is 32-bit), the column is converted per value. [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) decides what happens when a value cannot be converted, and only when a query reads the column:
 
-{applies_to}`stack: experimental 9.6+` If the column is [declared in `mappings`](#declare-a-schema-explicitly), `error_mode` decides instead, and only when a query reads the column:
+- `fail_fast` (default): The query fails, naming the column and the offending value.
+- `null_field`: That value is null, and the response includes a warning.
+- `skip_row`: That row is dropped and counted as a malformed row against [`max_errors`](esql-data-federation-dataset-settings.md#max-errors) and [`max_error_ratio`](esql-data-federation-dataset-settings.md#max-error-ratio).
 
-- `fail_fast`: The query fails.
-- `null_field`: The column contains null values for that file, and the response includes a warning.
-- `skip_row`: All rows of that file are skipped. Each counts as a malformed row against [`max_errors`](esql-data-federation-dataset-settings.md#max-errors) and [`max_error_ratio`](esql-data-federation-dataset-settings.md#max-error-ratio), so the file exceeds any `max_error_ratio` below `1.0`, and a large file can exceed a small `max_errors`.
+If the type in a later file cannot be read as the query's type at all, `error_mode` still applies, but the outcome applies to the whole file rather than individual values:
+
+- `fail_fast` (default): The query fails.
+- `null_field`: The column returns null values for that file, and the response includes a warning.
+- `skip_row`: All rows of that file are skipped. Each counts as a malformed row, so the file exceeds any `max_error_ratio` below `1.0`, and a large file can exceed a small `max_errors`.
 
 ### How `first_file_wins` matches columns in CSV and TSV files [first-file-wins-csv-tsv]
 ```{applies_to}

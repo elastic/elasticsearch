@@ -489,7 +489,7 @@ $$$csv-schema-max-fields$$$
     - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
     - **Valid values:** An integer from `1` through `100000`
 
-    If the header (or the widest sampled row, when `header_row` is `false`) names more columns, the query fails with an HTTP 400 error before the schema is built. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well.
+    If the header (or the widest sampled row, when `header_row` is `false`) names more columns, the query fails with an HTTP 400 error before the schema is built. Under `first_file_wins`, a later file with more columns than the settled schema is read through that schema and is not refused, unless its header has more than 100,000 columns, or unless the file is stream-compressed and its sample is wider than that. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well.
 
 ## NDJSON settings
 
@@ -543,7 +543,7 @@ $$$ndjson-schema-max-fields$$$
     - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
     - **Valid values:** An integer from `1` through `100000`
 
-    Objects count as fields, as well as leaf fields, and each segment of a dotted key counts as a field. If a file's inferred schema exceeds the limit, the query fails with an HTTP 400 error. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well.
+    Objects count as fields, as well as leaf fields, and each segment of a dotted key counts as a field. If a file's inferred schema exceeds the limit, the query fails with an HTTP 400 error. Under `first_file_wins`, a later file with a wider schema than the settled schema is read through that schema and is not refused, unless the file is stream-compressed and has more than 100,000 fields. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file. With `dynamic: true`, the file's inferred schema is held to the limit as well.
 
 ## Parquet settings
 
@@ -557,4 +557,4 @@ $$$parquet-schema-max-fields$$$
     - **Default:** `1000`, or the value of the `esql.external.schema_max_fields` [cluster setting](esql-data-federation-cluster-settings.md)
     - **Valid values:** An integer from `1` through `100000`
 
-    If the file has more columns, the query fails with an HTTP 400 error. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file, although a file wider than 100,000 columns can still be refused because the planner reads its footer at that limit to check the declared types. With `dynamic: true`, the file's inferred schema is held to the limit as well.
+    If the file has more columns, the query fails with an HTTP 400 error. Under `first_file_wins`, a later file with more columns than the settled schema is read through that schema and is not refused. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns, not by the width of the file, although a file wider than 100,000 columns can still be refused because the planner reads its footer at that limit to check the declared types. With `dynamic: true`, the file's inferred schema is held to the limit as well.

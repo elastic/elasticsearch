@@ -178,7 +178,7 @@ public class InternalEngine extends Engine {
     // TODO: move the following two to the stateless plugin
     private final AtomicLong lastUnsafeSegmentGenerationForGets;
     // Records the segment generation for the currently ongoing commit if any, or the last finished commit otherwise.
-    private final AtomicLong preCommitSegmentGeneration = new AtomicLong(-1);
+    private final AtomicLong preCommitSegmentGeneration;
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -329,6 +329,7 @@ public class InternalEngine extends Engine {
             this.externalReaderManager = wrapForAssertions(externalReaderManager, engineConfig);
             internalReaderManager.addListener(versionMap);
             this.lastUnsafeSegmentGenerationForGets = new AtomicLong(lastCommittedSegmentInfos.getGeneration());
+            this.preCommitSegmentGeneration = new AtomicLong(lastCommittedSegmentInfos.getGeneration());
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(true);

@@ -197,37 +197,57 @@ public final class StringColumnWriter {
         );
         long nulls = 0;
         long valueAddress = 0;
-        StringColumnValues values = cursors.get();
-        // Whether the values arrive in term order, which lets a search bisect them instead of comparing
-        // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
-        // The first value out of order settles it, and the rest are written without being compared: what
-        // the comparison decides cannot be restored, and the value it would compare against is not kept.
-        final BytesRefBuilder previous = new BytesRefBuilder();
-        boolean hasPrevious = false;
-        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-            slots.startDocument(valueAddress);
-            for (int i = 0, count = values.valueCount(); i < count; i++) {
-                values.nextValue();
-                final BytesRef value = values.value();
-                if (value == null) {
-                    // A null takes an address like any other and stores no bytes; its length is what tells it
-                    // from an empty string. It has no place in term order either, so a column holding one is
-                    // not one a search can bisect.
-                    sorted = false;
-                    nulls++;
-                    stream.addNull();
-                } else {
-                    if (sorted) {
-                        if (hasPrevious && previous.get().compareTo(value) > 0) {
-                            sorted = false;
-                        } else {
-                            previous.copyBytes(value);
-                            hasPrevious = true;
-                        }
+        final StringColumnValues values = cursors.get();
+        if (values.streamsValues() && values.mayBeSorted() == false) {
+            // No value is held whole: the length marks a null, the cursor marks repeats, and the bytes are copied a
+            // piece at a time.
+            sorted = false;
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                slots.startDocument(valueAddress);
+                for (int i = 0, count = values.valueCount(); i < count; i++) {
+                    values.nextValue();
+                    final int length = values.valueLength();
+                    if (length < 0) {
+                        nulls++;
+                        stream.addNull();
+                    } else {
+                        stream.transfer(length, values.repeatsPrevious(), values);
                     }
-                    stream.add(value);
+                    valueAddress++;
                 }
-                valueAddress++;
+            }
+        } else {
+            // Whether the values arrive in term order, which lets a search bisect them instead of comparing
+            // every one. Free to know here: the values are already in hand, and the comparison is one memcmp.
+            // The first value out of order settles it, and the rest are written without being compared: what
+            // the comparison decides cannot be restored, and the value it would compare against is not kept.
+            final BytesRefBuilder previous = new BytesRefBuilder();
+            boolean hasPrevious = false;
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                slots.startDocument(valueAddress);
+                for (int i = 0, count = values.valueCount(); i < count; i++) {
+                    values.nextValue();
+                    final BytesRef value = values.value();
+                    if (value == null) {
+                        // A null takes an address like any other and stores no bytes; its length is what tells it
+                        // from an empty string. It has no place in term order either, so a column holding one is
+                        // not one a search can bisect.
+                        sorted = false;
+                        nulls++;
+                        stream.addNull();
+                    } else {
+                        if (sorted) {
+                            if (hasPrevious && previous.get().compareTo(value) > 0) {
+                                sorted = false;
+                            } else {
+                                previous.copyBytes(value);
+                                hasPrevious = true;
+                            }
+                        }
+                        stream.add(value);
+                    }
+                    valueAddress++;
+                }
             }
         }
         written = stream.finish();

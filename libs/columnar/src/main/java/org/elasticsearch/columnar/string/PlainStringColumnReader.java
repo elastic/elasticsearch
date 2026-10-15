@@ -13,6 +13,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 
@@ -74,6 +75,16 @@ public final class PlainStringColumnReader extends StringColumnReader {
         }
         values.get(valueAddress, value);
         return value;
+    }
+
+    @Override
+    public void transferValueAt(long valueAddress, BytesSink sink) throws IOException {
+        values.transfer(valueAddress, sink);
+    }
+
+    @Override
+    public boolean repeatsPreviousSlot(long valueAddress) throws IOException {
+        return values.repeatsPrevious(valueAddress);
     }
 
     @Override

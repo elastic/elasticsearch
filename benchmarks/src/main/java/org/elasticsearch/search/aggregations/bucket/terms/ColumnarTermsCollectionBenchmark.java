@@ -66,7 +66,6 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
@@ -74,18 +73,10 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Collecting a {@code terms} aggregation over a columnar keyword field, one segment, through a real Lucene search so
- * that the documents reach the collector the way a query gives them: a share of them, in windows found in a bit set.
- *
- * <p>The {@code perDocument} benchmarks hand the aggregator's loop for this field to Lucene as it is today, which
- * decodes every document's value, copies its bytes and hashes them. The {@code pages} benchmarks wrap the same loop in
- * {@link ColumnarPageTermsCollector}, which reads the documents of each stream a page at a time and hashes each
- * distinct value of a page once. The query, and the cost of Lucene finding the matches, are the same for both. Setup
- * checks that they end with the same counts, because a faster way of counting something else is the easiest mistake to
- * make here.
- *
- * <p>Lives in the aggregator's package because the collector is not public. This leaves out what a whole search adds
- * around the collector: the doc count lookup, the circuit breaker checks, and building the result.
+ * Collects a {@code terms} aggregation over a columnar keyword field in one segment, through a real Lucene search, so the
+ * documents reach the collector as a query delivers them. {@code perDocument} is the aggregator's loop as it is today;
+ * {@code pages} wraps it in {@link ColumnarPageTermsCollector}. Setup checks that both give the same counts. In the
+ * aggregator's package because the collector is not public. It leaves out the rest of a search.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -102,46 +93,20 @@ public class ColumnarTermsCollectionBenchmark {
 
     private static final String FIELD = "kw";
 
-    /**
-     * Distinct values in the field. 5 is a version string and 100 a service name. From about 5,000 a page repeats little
-     * and a dictionary has less to save.
-     */
+    /** Distinct values in the field: a version string at 5, a service name at 100. */
     @Param({ "5", "100", "1000", "5000" })
     private int distinctValues;
 
-    /**
-     * How often each value is drawn. {@code skewed}: a few values are common and there is a long tail, with the most
-     * common taking {@code 1 / sqrt(distinctValues)} of the draws. {@code uniform}: all alike, which is the worst case
-     * for a page, since it repeats the least.
-     */
+    /** How often each value is drawn: {@code skewed} has a few common values and a long tail, {@code uniform} has none. */
     @Param({ "skewed", "uniform" })
     private String distribution;
 
     @Param({ "1000000" })
     private int docCount;
 
-    /**
-     * Values in a document. {@code single}: one. {@code multi2}: one to three, picked at random. A value is drawn from the
-     * vocabulary each time, so a document can hold one more than once.
-     */
-    @Param({ "single", "multi2" })
-    private String arity;
-
-    /**
-     * Percent of the documents the filter matches. A window of 4,096 documents then holds about forty to twelve hundred
-     * matches, which is the size of the page the collector reads for each, so this is a sweep of page sizes. Only the
-     * field for the share in use is indexed, which keeps setup short, so the index is built again for each share.
-     */
+    /** Percent of the documents the filter matches, so also the size of the pages read from each 4,096-document window. */
     @Param({ "1", "5", "10", "30" })
     private int percent;
-
-    /** Documents read as one page: the length of the array the collector copies a stream's doc IDs into. */
-    @Param({ "4096" })
-    private int pageDocs;
-
-    /** Fewest documents a batch needs to be read as a page. Zero reads every batch as a page. */
-    @Param({ "0" })
-    private int minPageDocs;
 
     private final BigArrays bigArrays = new BigArrays(new PageCacheRecycler(Settings.EMPTY), null, "REQUEST");
 
@@ -179,7 +144,7 @@ public class ColumnarTermsCollectionBenchmark {
         if (reader.leaves().size() != 1) {
             throw new IllegalStateException("expected one segment, found " + reader.leaves().size());
         }
-        // Which reader serves the column decides what a page is made of, so say which it is.
+        // Say which reader serves the column, since it decides what a page is made of.
         final StringColumnReader column = ColumnarPayloadSortableBinaryDocValues.from(reader.leaves().get(0).reader(), FIELD)
             .columnSource()
             .reader();
@@ -192,10 +157,10 @@ public class ColumnarTermsCollectionBenchmark {
                 + column.hasValueAddresses()
         );
         searcher = new IndexSearcher(reader);
-        // A cached result would be collected without the scorer that produces the streams being measured.
+        // A cached result would skip the scorer being measured.
         searcher.setQueryCache(null);
 
-        // The two have to agree before either is worth timing.
+        // Both have to agree before either is worth timing.
         try (Buckets expected = search(false); Buckets actual = search(true)) {
             final TreeMap<String, Long> want = expected.snapshot();
             final TreeMap<String, Long> got = actual.snapshot();
@@ -227,7 +192,7 @@ public class ColumnarTermsCollectionBenchmark {
         }
     }
 
-    /** One search of the segment for the filter, counting what it matches into fresh buckets. */
+    /** One search for the filter, counting into fresh buckets. */
     private Buckets search(boolean pages) throws IOException {
         final Buckets buckets = new Buckets();
         searcher.search(filter, new CollectorManager<Collector, Void>() {
@@ -241,10 +206,7 @@ public class ColumnarTermsCollectionBenchmark {
                             FIELD
                         );
                         final LeafBucketCollector perDocument = perDocumentCollector(values, buckets);
-                        if (pages == false) {
-                            return perDocument;
-                        }
-                        return new ColumnarPageTermsCollector(values.columnSource().reader(), buckets, perDocument, minPageDocs);
+                        return pages ? new ColumnarPageTermsCollector(values.columnSource().reader(), buckets, perDocument) : perDocument;
                     }
 
                     @Override
@@ -262,7 +224,7 @@ public class ColumnarTermsCollectionBenchmark {
         return buckets;
     }
 
-    /** What the aggregator's ordinary collector does for one document of this field, without what surrounds it. */
+    /** The aggregator's ordinary per-document collector for this field. */
     private static LeafBucketCollector perDocumentCollector(ColumnarPayloadSortableBinaryDocValues values, Buckets buckets) {
         final ValueDeduplicator duplicates = new ValueDeduplicator(values);
         return new LeafBucketCollector() {
@@ -283,31 +245,22 @@ public class ColumnarTermsCollectionBenchmark {
         };
     }
 
-    /** A document's value or values, skewed towards the first few of the vocabulary as a real field is. */
+    /** A document's value. */
     private BytesRef payload(Random random) {
-        final int slots = switch (arity) {
-            case "single" -> 1;
-            case "multi2" -> 1 + random.nextInt(3);
-            default -> throw new IllegalStateException("unknown arity [" + arity + "]");
+        final int index = switch (distribution) {
+            case "skewed" -> (int) (distinctValues * Math.pow(random.nextDouble(), 2.0));
+            case "uniform" -> random.nextInt(distinctValues);
+            default -> throw new IllegalStateException("unknown distribution [" + distribution + "]");
         };
-        final List<BytesRef> values = new ArrayList<>(slots);
-        for (int s = 0; s < slots; s++) {
-            final int index = switch (distribution) {
-                case "skewed" -> (int) (distinctValues * Math.pow(random.nextDouble(), 2.0));
-                case "uniform" -> random.nextInt(distinctValues);
-                default -> throw new IllegalStateException("unknown distribution [" + distribution + "]");
-            };
-            values.add(new BytesRef("9." + index / 100 + "." + index % 100));
-        }
-        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(values));
+        final BytesRef value = new BytesRef("9." + index / 100 + "." + index % 100);
+        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(List.of(value)));
     }
 
-    /** Where counted terms go: the same hash and counts array the aggregator keeps, for either way of counting. */
+    /** Where counted terms go: the hash and counts the aggregator keeps. */
     private final class Buckets implements ColumnarPageTermsCollector.Target, Releasable {
         final BytesKeyedBucketOrds ords = BytesKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE);
         LongArray counts = bigArrays.newLongArray(256, true);
-        private int[] scratchDocs;
-        private final ColumnarPageTermsCollector.SlotScratch slotScratch = new ColumnarPageTermsCollector.SlotScratch(PageBudget.UNLIMITED);
+        private final ColumnarPageTermsCollector.Scratch scratch = new ColumnarPageTermsCollector.Scratch(PageBudget.UNLIMITED);
 
         @Override
         public void count(BytesRef term, long docCount) {
@@ -326,16 +279,8 @@ public class ColumnarTermsCollectionBenchmark {
         }
 
         @Override
-        public int[] scratchDocs() {
-            if (scratchDocs == null) {
-                scratchDocs = new int[pageDocs];
-            }
-            return scratchDocs;
-        }
-
-        @Override
-        public ColumnarPageTermsCollector.SlotScratch slotScratch() {
-            return slotScratch;
+        public ColumnarPageTermsCollector.Scratch scratch() {
+            return scratch;
         }
 
         TreeMap<String, Long> snapshot() {

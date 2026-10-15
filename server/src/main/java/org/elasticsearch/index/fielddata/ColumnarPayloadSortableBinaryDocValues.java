@@ -108,11 +108,7 @@ public final class ColumnarPayloadSortableBinaryDocValues extends SortableBinary
         return column.numNullSlots() == 0 ? Sparsity.DENSE : Sparsity.UNKNOWN;
     }
 
-    /**
-     * The column behind these values, for a caller that can read it a page at a time rather than a document at a time.
-     * Null when the values were read through something other than the codec's own doc values, which has no column to
-     * read.
-     */
+    /** The column behind these values, to read a page at a time. Null when the values do not come from a column. */
     @Nullable
     public StringColumnSource columnSource() {
         return source;

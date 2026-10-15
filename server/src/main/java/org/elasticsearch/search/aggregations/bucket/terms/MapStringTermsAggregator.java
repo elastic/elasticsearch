@@ -65,7 +65,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
     private final BytesKeyedBucketOrds bucketOrds;
     private final IncludeExclude.StringFilter includeExclude;
     private final boolean excludeDeletedDocs;
-    /** Whether every collected document belongs to the one owning bucket, which counting a page of values as a whole needs. */
+    /** Whether there is one owning bucket, which counting a page as a whole needs. */
     private final boolean singleOwningBucket;
     private final ColumnarPageTarget columnarPages = new ColumnarPageTarget();
 
@@ -128,9 +128,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
     }
 
     /**
-     * Whether a run of documents may be counted a page at a time. Counting a page as a whole leaves out what happens
-     * for each document: a sub-aggregation collecting it, a document count other than one, a significance count of
-     * the subset the document is in, a filter on the value, or a bucket it belongs to that is not the only one.
+     * Whether documents may be counted a page at a time. A page leaves out what happens for each document, so it needs
+     * one owning bucket, no sub-aggregations, no {@code include}/{@code exclude}, a document count of one, and plain terms.
      */
     private boolean canCountPages(LeafBucketCollector sub) {
         return singleOwningBucket
@@ -142,13 +141,12 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
 
     /** Where a page's counted terms are added to the buckets. */
     private final class ColumnarPageTarget implements ColumnarPageTermsCollector.Target {
-        /** For the reader of the current leaf, whose storage is garbage when the leaf is done. */
+        /** For the current leaf's reader, which is garbage when the leaf is done. */
         private final ColumnarPageTermsCollector.LeafBudget budget = new ColumnarPageTermsCollector.LeafBudget(
             MapStringTermsAggregator.this::addRequestCircuitBreakerBytes
         );
-        private int[] scratchDocs;
-        /** Held for the whole aggregation, so what it is charged is returned only when the aggregation closes. */
-        private final ColumnarPageTermsCollector.SlotScratch slotScratch = new ColumnarPageTermsCollector.SlotScratch(
+        /** Held for the whole aggregation, so its charge is returned when the aggregation closes. */
+        private final ColumnarPageTermsCollector.Scratch scratch = new ColumnarPageTermsCollector.Scratch(
             MapStringTermsAggregator.this::addRequestCircuitBreakerBytes
         );
 
@@ -168,24 +166,14 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             return budget;
         }
 
-        /** The last leaf is done, and so is its reader, so what it was charged is returned. */
+        /** Returns what the previous leaf's reader was charged. */
         void releaseLeaf() {
             budget.release();
         }
 
         @Override
-        public int[] scratchDocs() {
-            if (scratchDocs == null) {
-                // Held until the aggregation closes, and charged for it, though it is the same size for every leaf.
-                addRequestCircuitBreakerBytes((long) ColumnarPageTermsCollector.PAGE_DOCS * Integer.BYTES);
-                scratchDocs = new int[ColumnarPageTermsCollector.PAGE_DOCS];
-            }
-            return scratchDocs;
-        }
-
-        @Override
-        public ColumnarPageTermsCollector.SlotScratch slotScratch() {
-            return slotScratch;
+        public ColumnarPageTermsCollector.Scratch scratch() {
+            return scratch;
         }
     }
 
@@ -246,10 +234,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             CollectConsumer consumer
         ) throws IOException;
 
-        /**
-         * As above, and when {@code pages} is not null the collector may count a run of documents of a columnar field a
-         * page at a time into it, where the documents arrive as a range. A source that has no pages to read ignores it.
-         */
+        /** As above. When {@code pages} is not null, a columnar field may be counted a page at a time into it. */
         default LeafBucketCollector getLeafCollector(
             IncludeExclude.StringFilter includeExclude,
             LeafReaderContext ctx,
@@ -315,7 +300,11 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             final LeafBucketCollector perDocument = singleton != null
                 ? getLeafCollector(includeExclude, singleton, sub, consumer)
                 : getLeafCollector(includeExclude, values, sub, consumer);
-            if (pages != null && values instanceof ColumnarPayloadSortableBinaryDocValues columnar && columnar.columnSource() != null) {
+            // Only a column with one value a document; pages were slower than the ordinary route for several.
+            if (pages != null
+                && values instanceof ColumnarPayloadSortableBinaryDocValues columnar
+                && columnar.columnSource() != null
+                && columnar.columnSource().reader().hasValueAddresses() == false) {
                 return new ColumnarPageTermsCollector(columnar.columnSource().reader(), pages, perDocument);
             }
             return perDocument;

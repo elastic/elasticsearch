@@ -24,12 +24,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 
 public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     public VectorSearchIT(@Name("upgradedNodes") int upgradedNodes) {
@@ -47,7 +45,6 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String HNSW_BIT_INDEX_NAME = "hnsw_bit_vector_index";
     private static final String FLAT_BIT_INDEX_NAME = "flat_bit_vector_index";
     private static final String POST_FILTER_INDEX_NAME = "post_filter_vector_index";
-    private static final String POST_FILTER_THRESHOLD_SETTING = "index.dense_vector.post_filter_selectivity_threshold";
     private static final int POST_FILTER_DOC_COUNT = 200;
 
     // TODO: replace these with proper test features
@@ -746,9 +743,9 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     /**
      * Filtered kNN search on an index created before the upgrade. Every tenth document is tagged {@code rare}, so a filter on
      * {@code common} matches 90% of the vectors. In the old and mixed clusters the search only has to keep returning the right
-     * documents, whichever node serves it. Once every node is upgraded, the index uses the post-filtering default without any
-     * change to it, and a dynamic update of the threshold takes effect on the next search. The kNN profile shows which path
-     * served a search: only a post-filtered search rewrites to {@code KnnScoreDocQuery}.
+     * documents, whichever node serves it. Once every node is upgraded, the same search is post-filtered under the new default,
+     * with no change to the index. The kNN profile shows the path: only a post-filtered search rewrites to
+     * {@code KnnScoreDocQuery}. Updating the threshold on a live index is covered by {@code PostFilterHnswKnnSearchIT}.
      */
     public void testFilteredKnnPostFiltering() throws Exception {
         assumeTrue("Float vector search is not supported on this version", oldClusterHasFeature(FLOAT_VECTOR_SEARCH_TEST_FEATURE));
@@ -790,16 +787,8 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         filteredKnnSearch(false);
 
         if (isUpgradedCluster()) {
-            // the index was created before post-filtering was on by default, and still picks the default up
-            assertThat(filteredKnnProfileTypes(), hasItem("KnnScoreDocQuery"));
-
-            updateIndexSettings(POST_FILTER_INDEX_NAME, Settings.builder().put(POST_FILTER_THRESHOLD_SETTING, 1.0f));
-            assertThat(filteredKnnProfileTypes(), allOf(hasItem("DocAndScoreQuery"), not(hasItem("KnnScoreDocQuery"))));
-
-            Request resetRequest = new Request("PUT", "/" + POST_FILTER_INDEX_NAME + "/_settings");
-            resetRequest.setJsonEntity(Strings.format("{\"%s\": null}", POST_FILTER_THRESHOLD_SETTING));
-            assertOK(client().performRequest(resetRequest));
-            assertThat(filteredKnnProfileTypes(), hasItem("KnnScoreDocQuery"));
+            // the index was created before the setting existed, and is post-filtered under the new default
+            assertThat(knnProfileTypes(filteredKnnSearch(true)), hasItem("KnnScoreDocQuery"));
         }
     }
 
@@ -831,12 +820,10 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         return response;
     }
 
-    /** The query types anywhere in the kNN profile tree of a filtered search, which also checks the search's hits. */
-    private static List<String> filteredKnnProfileTypes() throws IOException {
-        Map<String, Object> response = filteredKnnSearch(true);
-        List<Map<String, Object>> queries = ObjectPath.evaluate(response, "profile.shards.0.dfs.knn.0.query");
+    /** The query types anywhere in the kNN profile tree; the rewritten kNN query sits below wrappers such as the boost. */
+    private static List<String> knnProfileTypes(Map<String, Object> response) throws IOException {
         List<String> types = new ArrayList<>();
-        collectProfileTypes(queries, types);
+        collectProfileTypes(ObjectPath.evaluate(response, "profile.shards.0.dfs.knn.0.query"), types);
         return types;
     }
 

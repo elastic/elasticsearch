@@ -140,6 +140,8 @@ $$$knn-query-query-vector-builder$$$ `query_vector_builder`
 
 The filter is a pre-filter, meaning that it is applied **during** the approximate kNN search to ensure that `num_candidates` matching documents are returned.
 
+{applies_to}`stack: ga 9.6` {applies_to}`serverless: ga` If the filter matches a large enough share of the vectors in a shard, {{es}} instead runs the approximate kNN search without it and applies it to the candidates afterward. If too few candidates match, {{es}} falls back to filtering during the search, so the search returns as many matching documents as regular filtered search does. To change the threshold, use the [`index.dense_vector.post_filter_selectivity_threshold`](/reference/elasticsearch/index-settings/index-modules.md#index-dense-vector-post-filter-selectivity-threshold) index setting. For details, refer to [Filtering behavior and performance](docs-content://solutions/search/vector/knn/filtered-knn-search.md#filtering-behavior-and-performance).
+
 
 `similarity`
 :   (Optional, float) The minimum similarity required for a document to be considered a match. The similarity value calculated relates to the raw [`similarity`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-similarity) used. Not the document score. The matched documents are then scored according to [`similarity`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-similarity) and the provided `boost` is applied.

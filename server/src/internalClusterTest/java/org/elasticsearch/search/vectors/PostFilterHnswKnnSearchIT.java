@@ -33,13 +33,9 @@ import static org.hamcrest.Matchers.lessThan;
  * Integration tests for kNN search with post-filtering across different
  * element types (float, byte), index types (HNSW), and field structures (flat, nested).
  *
- * <p>Post-filtering is dormant by default (the {@code index.dense_vector.post_filter_selectivity_threshold}
- * setting defaults to {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD} == 1.0, so only no-op
- * filters would ever qualify). Each index here lowers the threshold to {@code 0.7} at creation time so the
- * ~0.8-selectivity filters used below take the post-filter path. The setting carries
- * {@link org.elasticsearch.common.settings.Setting.Property#PrivateIndex}, so it cannot be set
- * explicitly through the index-creation API unless {@link #forbidPrivateIndexSettings()} is
- * overridden to {@code false}, which this suite does.
+ * <p>Each index here pins the {@code index.dense_vector.post_filter_selectivity_threshold} setting to
+ * {@code 0.7} at creation time so the ~0.8-selectivity filters used below take the post-filter path regardless
+ * of {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD}.
  */
 public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
 
@@ -60,13 +56,6 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey(), POST_FILTER_THRESHOLD)
             .build();
-    }
-
-    @Override
-    protected boolean forbidPrivateIndexSettings() {
-        // The post-filter selectivity threshold is a PrivateIndex setting; allow it to be set
-        // explicitly at index-creation time so these tests can lower it from the dormant default.
-        return false;
     }
 
     public void testHnswFloat() throws IOException {

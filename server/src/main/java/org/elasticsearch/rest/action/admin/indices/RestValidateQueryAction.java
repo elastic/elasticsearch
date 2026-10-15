@@ -59,7 +59,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
         validateQueryRequest.allShards(request.paramAsBoolean("all_shards", false));
-        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseParamRoutingOrSliceWithProvenance(request);
         validateQueryRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
 
         Exception bodyParsingException = null;

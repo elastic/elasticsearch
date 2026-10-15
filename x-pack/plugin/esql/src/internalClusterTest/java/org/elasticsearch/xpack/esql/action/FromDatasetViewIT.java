@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -39,10 +40,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end coverage for ES|QL views whose body reads a registered dataset.
@@ -106,14 +104,16 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
 
     @After
     public void cleanupViews() {
-        for (String view : createdViews) {
+        if (createdViews.isEmpty() == false) {
             try {
-                client().execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { view }))
-                    .actionGet(TIMEOUT);
+                client().execute(
+                    DeleteViewAction.INSTANCE,
+                    new DeleteViewAction.Request(TIMEOUT, TIMEOUT, createdViews.toArray(String[]::new))
+                ).actionGet(TIMEOUT);
             } catch (ResourceNotFoundException ignored) {
                 // not created, or already deleted
             } catch (Exception e) {
-                logger.warn("view cleanup [{}] failed", view, e);
+                logger.warn("view cleanup {} failed", createdViews, e);
             }
         }
         createdViews.clear();
@@ -124,17 +124,25 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     public void testDatasetView() {
         registerEmployees();
         createView("employees_view", "FROM employees");
-        try (var response = run(syncEsqlQueryRequest("FROM employees_view | SORT emp_no | KEEP emp_no, first_name | LIMIT 10"), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"))));
+        try (var response = run(syncEsqlQueryRequest("FROM employees_view | SORT emp_no"))) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name", "last_name", "department", "salary"));
+            assertThat(
+                getValuesList(response),
+                equalTo(
+                    List.of(
+                        List.of(1, "Alice", "Anderson", "Engineering", 50000),
+                        List.of(2, "Bob", "Brown", "Engineering", 60000),
+                        List.of(3, "Carol", "Cox", "Sales", 55000)
+                    )
+                )
+            );
         }
     }
 
     public void testWhereAfterDatasetView() {
         registerEmployees();
         createView("emp_ds_view", "FROM employees");
-        try (
-            var response = run(syncEsqlQueryRequest("FROM emp_ds_view | WHERE emp_no > 1 | SORT emp_no | KEEP emp_no, first_name"), TIMEOUT)
-        ) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_ds_view | WHERE emp_no > 1 | SORT emp_no | KEEP emp_no, first_name"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(2, "Bob"), List.of(3, "Carol"))));
         }
     }
@@ -149,7 +157,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | DROP last_name
             | KEEP emp_no, name, doubled
             | SORT emp_no
-            """), TIMEOUT)) {
+            """))) {
             assertColumnNames(response.columns(), List.of("emp_no", "name", "doubled"));
             assertThat(getValuesList(response), equalTo(List.of(List.of(1, "Alice", 2), List.of(2, "Bob", 4), List.of(3, "Carol", 6))));
         }
@@ -163,7 +171,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | STATS c = COUNT(*) BY department
             | KEEP department, c
             | SORT department
-            """), TIMEOUT)) {
+            """))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of("Engineering", 2L), List.of("Sales", 1L))));
         }
     }
@@ -176,7 +184,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | INLINE STATS c = COUNT(*) BY department
             | KEEP emp_no, department, c
             | SORT emp_no
-            """), TIMEOUT)) {
+            """))) {
             assertThat(
                 getValuesList(response),
                 equalTo(List.of(List.of(1, "Engineering", 2L), List.of(2, "Engineering", 2L), List.of(3, "Sales", 1L)))
@@ -193,7 +201,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | LOOKUP JOIN departments_lookup ON department
             | KEEP emp_no, department, location
             | SORT emp_no
-            """), TIMEOUT)) {
+            """))) {
             assertThat(
                 getValuesList(response),
                 equalTo(
@@ -214,7 +222,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             FROM emp_ds_view
             | WHERE MATCH(first_name, "Alice")
             | KEEP first_name, last_name
-            """), TIMEOUT)) {
+            """))) {
             assertColumnNames(response.columns(), List.of("first_name", "last_name"));
             assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
         }
@@ -222,7 +230,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             FROM emp_ds_view
             | WHERE MATCH_PHRASE(first_name, "Alice")
             | KEEP first_name, last_name
-            """), TIMEOUT)) {
+            """))) {
             assertColumnNames(response.columns(), List.of("first_name", "last_name"));
             assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
         }
@@ -236,7 +244,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | WHERE emp_no IN (FROM employees | WHERE department == "Engineering" | KEEP emp_no)
             | SORT emp_no
             | KEEP emp_no
-            """), TIMEOUT)) {
+            """))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2))));
         }
 
@@ -245,7 +253,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | WHERE emp_no NOT IN (FROM employees | WHERE department == "Engineering" | KEEP emp_no)
             | SORT emp_no
             | KEEP emp_no
-            """), TIMEOUT)) {
+            """))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(3))));
         }
     }
@@ -258,7 +266,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | WHERE department IN (FROM emp_ds_view | KEEP department)
             | SORT emp_no
             | KEEP emp_no
-            """), TIMEOUT)) {
+            """))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3))));
         }
     }
@@ -268,7 +276,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     public void testWhereInsideDatasetView() {
         registerEmployees();
         createView("employees_filtered_view", "FROM employees | WHERE emp_no > 1");
-        try (var response = run(syncEsqlQueryRequest("FROM employees_filtered_view | SORT emp_no | KEEP emp_no, first_name"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM employees_filtered_view | SORT emp_no | KEEP emp_no, first_name"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(2, "Bob"), List.of(3, "Carol"))));
         }
     }
@@ -276,7 +284,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     public void testStatsInsideDatasetView() {
         registerEmployees();
         createView("emp_stats_view", "FROM employees | STATS c = COUNT(*) BY department");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_stats_view | KEEP department, c | SORT department"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_stats_view | KEEP department, c | SORT department"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of("Engineering", 2L), List.of("Sales", 1L))));
         }
     }
@@ -289,7 +297,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | WHERE salary == max_salary
             | KEEP emp_no, salary, max_salary
             """);
-        try (var response = run(syncEsqlQueryRequest("FROM emp_inline_stats_view"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_inline_stats_view"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(2, 60000, 60000))));
         }
     }
@@ -298,7 +306,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         registerEmployees();
         createDepartmentsLookup();
         createView("emp_lookup_view", "FROM employees | LOOKUP JOIN departments_lookup ON department | KEEP emp_no, department, location");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_lookup_view | SORT emp_no"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_lookup_view | SORT emp_no"))) {
             assertThat(
                 getValuesList(response),
                 equalTo(
@@ -315,19 +323,16 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     public void testDissectInsideDatasetView() {
         registerEmployees();
         createView("emp_dissect_view", "FROM employees | DISSECT first_name \"%{first_letter}lice\" | KEEP emp_no, first_letter");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_dissect_view | SORT emp_no"), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            int letterIdx = response.columns().stream().map(ColumnInfo::name).toList().indexOf("first_letter");
-            long matches = rows.stream().filter(r -> r.get(letterIdx) != null && r.get(letterIdx).toString().equals("A")).count();
-            assertThat(matches, equalTo(1L));
+        try (var response = run(syncEsqlQueryRequest("FROM emp_dissect_view | SORT emp_no"))) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_letter"));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1, "A"), Arrays.asList(2, null), Arrays.asList(3, null))));
         }
     }
 
     public void testSortLimitInsideDatasetView() {
         registerEmployees();
         createView("emp_sort_limit_view", "FROM employees | SORT salary DESC | LIMIT 2 | KEEP emp_no, first_name");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_sort_limit_view"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_sort_limit_view"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(2, "Bob"), List.of(3, "Carol"))));
         }
     }
@@ -338,7 +343,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             FROM employees
             | WHERE emp_no IN (FROM employees | WHERE department == "Sales" | KEEP emp_no)
             """);
-        try (var response = run(syncEsqlQueryRequest("FROM emp_in_view | KEEP emp_no, first_name"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_in_view | KEEP emp_no, first_name"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(3, "Carol"))));
         }
     }
@@ -352,7 +357,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | DROP last_name
             | KEEP emp_no, name, doubled
             """);
-        try (var response = run(syncEsqlQueryRequest("FROM emp_eval_view | SORT emp_no"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_eval_view | SORT emp_no"))) {
             assertColumnNames(response.columns(), List.of("emp_no", "name", "doubled"));
             assertThat(getValuesList(response), equalTo(List.of(List.of(1, "Alice", 2), List.of(2, "Bob", 4), List.of(3, "Carol", 6))));
         }
@@ -361,7 +366,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     public void testMatchInsideDatasetView() {
         registerEmployees();
         createView("emp_match_view", "FROM employees | WHERE MATCH(first_name, \"Alice\") | KEEP first_name, last_name");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_match_view"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_match_view"))) {
             assertColumnNames(response.columns(), List.of("first_name", "last_name"));
             assertValues(response.values(), List.of(List.of("Alice", "Anderson")));
         }
@@ -370,7 +375,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     public void testStatsAfterStatsDatasetView() {
         registerEmployees();
         createView("emp_stats_view", "FROM employees | STATS c = COUNT(*) BY department");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_stats_view | STATS total = SUM(c)"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_stats_view | STATS total = SUM(c)"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(3L))));
         }
     }
@@ -381,8 +386,12 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         registerEmployees();
         registerEmployeesAlt();
         createView("emp_union_view", "FROM (FROM employees), (FROM employees_alt)");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_union_view | STATS c = COUNT(*)"), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+        try (var response = run(syncEsqlQueryRequest("FROM emp_union_view | KEEP emp_no, first_name | SORT emp_no, first_name"))) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"), List.of(10, "Diana"), List.of(11, "Eve")))
+            );
         }
     }
 
@@ -399,8 +408,12 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
                 (FROM employees | WHERE department == "Sales"),
                 (FROM employees_alt | WHERE department == "Sales")
             """);
-        try (var response = run(syncEsqlQueryRequest("FROM view_eng, view_sales | STATS c = COUNT(*)"), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+        try (var response = run(syncEsqlQueryRequest("FROM view_eng, view_sales | KEEP emp_no, first_name | SORT emp_no, first_name"))) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"), List.of(10, "Diana"), List.of(11, "Eve")))
+            );
         }
     }
 
@@ -409,7 +422,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         createView("emp_nested_view_1", "FROM employees");
         createView("emp_nested_view_2", "FROM emp_nested_view_1");
         createView("emp_nested_view_3", "FROM emp_nested_view_2");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_nested_view_3 | SORT emp_no | KEEP emp_no, first_name"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_nested_view_3 | SORT emp_no | KEEP emp_no, first_name"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"))));
         }
     }
@@ -418,8 +431,25 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         registerEmployees();
         createRealEmployees();
         createView("emp_ds_view", "FROM employees");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_ds_view, real_employees | STATS c = COUNT(*)"), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(8L))));
+        try (
+            var response = run(syncEsqlQueryRequest("FROM emp_ds_view, real_employees | KEEP emp_no, first_name | SORT emp_no, first_name"))
+        ) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(
+                    List.of(
+                        List.of(1, "Alice"),
+                        List.of(1, "Alice-real"),
+                        List.of(2, "Bob"),
+                        List.of(3, "Carol"),
+                        List.of(3, "Carol-real"),
+                        List.of(99, "Zach-real"),
+                        List.of(100, "Frank"),
+                        List.of(101, "Grace")
+                    )
+                )
+            );
         }
     }
 
@@ -427,16 +457,44 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         registerEmployees();
         createRealEmployees();
         createView("emp_idx_view", "FROM real_employees");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_idx_view, employees | STATS c = COUNT(*)"), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(8L))));
+        try (var response = run(syncEsqlQueryRequest("FROM emp_idx_view, employees | KEEP emp_no, first_name | SORT emp_no, first_name"))) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(
+                    List.of(
+                        List.of(1, "Alice"),
+                        List.of(1, "Alice-real"),
+                        List.of(2, "Bob"),
+                        List.of(3, "Carol"),
+                        List.of(3, "Carol-real"),
+                        List.of(99, "Zach-real"),
+                        List.of(100, "Frank"),
+                        List.of(101, "Grace")
+                    )
+                )
+            );
         }
     }
 
     public void testDatasetViewAndDataset() {
         registerEmployees();
         createView("emp_ds_view", "FROM employees");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_ds_view, employees | STATS c = COUNT(*)"), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(6L))));
+        try (var response = run(syncEsqlQueryRequest("FROM emp_ds_view, employees | KEEP emp_no, first_name | SORT emp_no, first_name"))) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(
+                    List.of(
+                        List.of(1, "Alice"),
+                        List.of(1, "Alice"),
+                        List.of(2, "Bob"),
+                        List.of(2, "Bob"),
+                        List.of(3, "Carol"),
+                        List.of(3, "Carol")
+                    )
+                )
+            );
         }
     }
 
@@ -445,8 +503,19 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         registerSalariesLong();
         createView("view_int_cast", "FROM salaries_int | EVAL salary = salary::long");
         createView("view_long", "FROM salaries_long");
-        try (var response = run(syncEsqlQueryRequest("FROM view_int_cast, view_long | SORT salary"), TIMEOUT)) {
-            validateSalaryUnion(response);
+        try (var response = run(syncEsqlQueryRequest("FROM view_int_cast, view_long | SORT salary"))) {
+            assertColumnNames(response.columns(), List.of("emp_no", "name", "salary"));
+            assertThat(
+                getValuesList(response),
+                equalTo(
+                    List.of(
+                        List.of(1, "Alice", 50000L),
+                        List.of(2, "Bob", 60000L),
+                        List.of(11, "Eve", 65000L),
+                        List.of(10, "Diana", 75000L)
+                    )
+                )
+            );
         }
     }
 
@@ -459,7 +528,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             FROM view_first_name, view_name
             | SORT emp_no, first_name
             | KEEP emp_no, first_name, name
-            """), TIMEOUT)) {
+            """))) {
             assertColumnNames(response.columns(), List.of("emp_no", "first_name", "name"));
             assertThat(
                 getValuesList(response),
@@ -483,8 +552,18 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         registerEmployeesAlt();
         createView("emp_view_a", "FROM employees");
         createView("emp_view_b", "FROM employees_alt");
-        try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views = true; FROM emp_view_* | STATS c = COUNT(*)"), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "SET wildcards_match_views = true; FROM emp_view_* | KEEP emp_no, first_name | SORT emp_no, first_name"
+                )
+            )
+        ) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"), List.of(10, "Diana"), List.of(11, "Eve")))
+            );
         }
     }
 
@@ -492,9 +571,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         registerEmployees();
         createView("emp_view_a", "FROM employees");
         createView("emp_view_b", "FROM employees");
-        try (
-            var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM emp_view_* | STATS c = COUNT(*)"), TIMEOUT)
-        ) {
+        try (var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM emp_view_* | STATS c = COUNT(*)"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
         }
     }
@@ -505,11 +582,16 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         createView("emp_view_a", "FROM employees_alt");
         try (
             var response = run(
-                syncEsqlQueryRequest("SET wildcards_match_views = true; FROM employees, emp_view_* | STATS c = COUNT(*)"),
-                TIMEOUT
+                syncEsqlQueryRequest(
+                    "SET wildcards_match_views = true; FROM employees, emp_view_* | KEEP emp_no, first_name | SORT emp_no, first_name"
+                )
             )
         ) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"), List.of(10, "Diana"), List.of(11, "Eve")))
+            );
         }
     }
 
@@ -520,11 +602,13 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         createView("emp_view_b", "FROM employees_alt");
         try (
             var response = run(
-                syncEsqlQueryRequest("SET wildcards_match_views = true; FROM emp_view_*,-emp_view_b | STATS c = COUNT(*)"),
-                TIMEOUT
+                syncEsqlQueryRequest(
+                    "SET wildcards_match_views = true; FROM emp_view_*,-emp_view_b | KEEP emp_no, first_name | SORT emp_no, first_name"
+                )
             )
         ) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(3L))));
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"))));
         }
     }
 
@@ -538,9 +622,24 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             SET wildcards_match_views = true;
             SET wildcards_match_datasets = true;
             FROM employees*
-            | STATS c = COUNT(*)
-            """), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(7L))));
+            | KEEP emp_no, first_name
+            | SORT emp_no, first_name
+            """))) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(
+                    List.of(
+                        List.of(1, "Alice"),
+                        List.of(2, "Bob"),
+                        List.of(3, "Carol"),
+                        List.of(10, "Diana"),
+                        List.of(10, "Diana"),
+                        List.of(11, "Eve"),
+                        List.of(11, "Eve")
+                    )
+                )
+            );
         }
     }
 
@@ -554,9 +653,14 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             SET wildcards_match_views = true;
             SET wildcards_match_datasets = true;
             FROM employees*,-employees_alt
-            | STATS c = COUNT(*)
-            """), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+            | KEEP emp_no, first_name
+            | SORT emp_no, first_name
+            """))) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"), List.of(10, "Diana"), List.of(11, "Eve")))
+            );
         }
     }
 
@@ -565,23 +669,36 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         registerEmployeesAlt();
         createView("emp_star_view", "FROM employees*");
         // Default: a wildcard stored in the view body reaches no dataset.
-        try (var response = run(syncEsqlQueryRequest("FROM emp_star_view | STATS c = COUNT(*)"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_star_view | STATS c = COUNT(*)"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
         }
         // The outer SET is applied to the inlined view body, same as wildcards_match_views on nested views.
         try (
             var response = run(
-                syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM emp_star_view | STATS c = COUNT(*)"),
-                TIMEOUT
+                syncEsqlQueryRequest(
+                    "SET wildcards_match_datasets = true; FROM emp_star_view | KEEP emp_no, first_name | SORT emp_no, first_name"
+                )
             )
         ) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"), List.of(10, "Diana"), List.of(11, "Eve")))
+            );
         }
         // The same SET on an outer wildcard still reaches both datasets.
         try (
-            var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM employees* | STATS c = COUNT(*)"), TIMEOUT)
+            var response = run(
+                syncEsqlQueryRequest(
+                    "SET wildcards_match_datasets = true; FROM employees* | KEEP emp_no, first_name | SORT emp_no, first_name"
+                )
+            )
         ) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"), List.of(10, "Diana"), List.of(11, "Eve")))
+            );
         }
     }
 
@@ -591,9 +708,17 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         createView("employees_view", "FROM employees_alt");
         // wildcards_match_views defaults to false, so employees* reaches the two datasets and not the view.
         try (
-            var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM employees* | STATS c = COUNT(*)"), TIMEOUT)
+            var response = run(
+                syncEsqlQueryRequest(
+                    "SET wildcards_match_datasets = true; FROM employees* | KEEP emp_no, first_name | SORT emp_no, first_name"
+                )
+            )
         ) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"), List.of(10, "Diana"), List.of(11, "Eve")))
+            );
         }
     }
 
@@ -606,7 +731,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         properties.put("val", new DatasetFieldMapping("long", null));
         registerNonStrictDataset("mapped_ds_for_view", mappedCsv.toUri().toString(), properties, Map.of("format", "csv"));
         createView("mapped_dataset_view", "FROM mapped_ds_for_view");
-        try (var response = run(syncEsqlQueryRequest("FROM mapped_dataset_view | KEEP val | LIMIT 1"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM mapped_dataset_view | KEEP val | LIMIT 1"))) {
             assertThat("declared type must survive view inlining", response.columns().get(0).outputType(), equalTo("long"));
             assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
         }
@@ -633,11 +758,9 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
                  | KEEP _fork, count
                  | SORT _fork
                 """;
-            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-                List<List<Object>> rows = getValuesList(response);
-                assertThat(rows, hasSize(2));
-                assertThat(rows.get(0).get(1), equalTo(5L));
-                assertThat(rows.get(1).get(1), equalTo(2L));
+            try (var response = run(syncEsqlQueryRequest(query))) {
+                assertColumnNames(response.columns(), List.of("_fork", "count"));
+                assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 5L), List.of("fork2", 2L))));
             }
         }
 
@@ -648,11 +771,9 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
                  (WHERE emp_no >= 10 | STATS count = COUNT(*))
              | KEEP _fork, count
              | SORT _fork
-            """), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(1), equalTo(8L));
-            assertThat(rows.get(1).get(1), equalTo(2L));
+            """))) {
+            assertColumnNames(response.columns(), List.of("_fork", "count"));
+            assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 8L), List.of("fork2", 2L))));
         }
     }
 
@@ -664,7 +785,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)
             | KEEP _fork, emp_no
             | SORT _fork, emp_no
-            """), TIMEOUT)) {
+            """))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 1), List.of("fork1", 2), List.of("fork2", 3))));
         }
     }
@@ -677,13 +798,9 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | STATS c = COUNT(*) BY _fork
             | KEEP _fork, c
             | SORT _fork
-            """), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
-            assertThat(rows.get(0).get(1), equalTo(2L));
-            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
-            assertThat(rows.get(1).get(1), equalTo(1L));
+            """))) {
+            assertColumnNames(response.columns(), List.of("_fork", "c"));
+            assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 2L), List.of("fork2", 1L))));
         }
     }
 
@@ -697,13 +814,9 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | STATS c = COUNT(*) BY _fork
             | KEEP _fork, c
             | SORT _fork
-            """), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
-            assertThat(rows.get(0).get(1), equalTo(3L));
-            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
-            assertThat(rows.get(1).get(1), equalTo(2L));
+            """))) {
+            assertColumnNames(response.columns(), List.of("_fork", "c"));
+            assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 3L), List.of("fork2", 2L))));
         }
     }
 
@@ -720,15 +833,9 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | STATS c = COUNT(*) BY _fork
             | KEEP _fork, c
             | SORT _fork
-            """), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
-            assertThat(rows.get(0).get(1), equalTo(2L));
-            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
-            assertThat(rows.get(1).get(1), equalTo(1L));
-            assertThat(rows.get(2).get(0), nullValue());
-            assertThat(rows.get(2).get(1), equalTo(2L));
+            """))) {
+            assertColumnNames(response.columns(), List.of("_fork", "c"));
+            assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 2L), List.of("fork2", 1L), Arrays.asList(null, 2L))));
         }
     }
 
@@ -742,13 +849,9 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | STATS c = COUNT(*) BY _fork
             | KEEP _fork, c
             | SORT _fork
-            """), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
-            assertThat(rows.get(0).get(1), equalTo(3L));
-            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
-            assertThat(rows.get(1).get(1), equalTo(1L));
+            """))) {
+            assertColumnNames(response.columns(), List.of("_fork", "c"));
+            assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 3L), List.of("fork2", 1L))));
         }
     }
 
@@ -757,10 +860,10 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     public void testClassAndNameOnDatasetView() {
         registerEmployees();
         createView("emp_ds_view", "FROM employees");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_ds_view METADATA _class, _name | KEEP _class, _name | LIMIT 1"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_ds_view METADATA _class, _name | KEEP _class, _name | LIMIT 1"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of("view", "emp_ds_view"))));
         }
-        try (var response = run(syncEsqlQueryRequest("FROM emp_ds_view METADATA _class | KEEP _class | LIMIT 1"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_ds_view METADATA _class | KEEP _class | LIMIT 1"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of("view"))));
         }
     }
@@ -771,28 +874,29 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("""
             FROM emp_ds_view, employees METADATA _class, _name
             | KEEP emp_no, _class, _name
-            """), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(6));
-            long datasetRows = rows.stream().filter(r -> "dataset".equals(String.valueOf(r.get(1)))).count();
-            long viewRows = rows.stream().filter(r -> "view".equals(String.valueOf(r.get(1)))).count();
-            assertThat(datasetRows, equalTo(3L));
-            assertThat(viewRows, equalTo(3L));
-            for (List<Object> row : rows) {
-                if ("view".equals(String.valueOf(row.get(1)))) {
-                    assertThat(row.get(2).toString(), equalTo("emp_ds_view"));
-                } else {
-                    assertThat(row.get(1).toString(), equalTo("dataset"));
-                    assertThat(row.get(2).toString(), equalTo("employees"));
-                }
-            }
+            | SORT emp_no, _class
+            """))) {
+            assertColumnNames(response.columns(), List.of("emp_no", "_class", "_name"));
+            assertThat(
+                getValuesList(response),
+                equalTo(
+                    List.of(
+                        List.of(1, "dataset", "employees"),
+                        List.of(1, "view", "emp_ds_view"),
+                        List.of(2, "dataset", "employees"),
+                        List.of(2, "view", "emp_ds_view"),
+                        List.of(3, "dataset", "employees"),
+                        List.of(3, "view", "emp_ds_view")
+                    )
+                )
+            );
         }
     }
 
     public void testClassAndNameInViewBody() {
         registerEmployees();
         createView("emp_class_name_view", "FROM employees METADATA _class, _name");
-        try (var response = run(syncEsqlQueryRequest("FROM emp_class_name_view | KEEP _class, _name | LIMIT 1"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM emp_class_name_view | KEEP _class, _name | LIMIT 1"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of("dataset", "employees"))));
         }
     }
@@ -800,16 +904,20 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     public void testFileMetadataThroughViewBody() {
         registerEmployees();
         createView("emp_file_meta_view", "FROM employees METADATA _index, _file.path, _file.name");
-        for (String query : List.of("FROM emp_file_meta_view | LIMIT 1", "FROM (FROM emp_file_meta_view) | LIMIT 1")) {
-            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-                List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-                assertThat(query + " must surface _index without KEEP, got " + names, names, hasItem("_index"));
-                assertThat(query + " must surface _file.path without KEEP, got " + names, names, hasItem("_file.path"));
-                assertThat(names, hasItem("_file.name"));
-                List<Object> row = getValuesList(response).get(0);
-                assertThat(row.get(names.indexOf("_index")), nullValue());
-                assertThat(row.get(names.indexOf("_file.path")).toString(), containsString(".csv"));
-                assertThat(row.get(names.indexOf("_file.name")), notNullValue());
+        String filePath = csvFixture.toUri().toString();
+        String fileName = csvFixture.getFileName().toString();
+        List<List<Object>> expected = List.of(
+            Arrays.asList(1, "Alice", "Anderson", "Engineering", 50000, null, filePath, fileName),
+            Arrays.asList(2, "Bob", "Brown", "Engineering", 60000, null, filePath, fileName),
+            Arrays.asList(3, "Carol", "Cox", "Sales", 55000, null, filePath, fileName)
+        );
+        for (String query : List.of("FROM emp_file_meta_view | SORT emp_no", "FROM (FROM emp_file_meta_view) | SORT emp_no")) {
+            try (var response = run(syncEsqlQueryRequest(query))) {
+                assertColumnNames(
+                    response.columns(),
+                    List.of("emp_no", "first_name", "last_name", "department", "salary", "_index", "_file.path", "_file.name")
+                );
+                assertThat(getValuesList(response), equalTo(expected));
             }
         }
     }
@@ -822,19 +930,19 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
 
         var term = syncEsqlQueryRequest("FROM emp_ds_view | SORT emp_no | KEEP emp_no, first_name");
         term.filter(QueryBuilders.termQuery("emp_no", 2));
-        try (var response = run(term, TIMEOUT)) {
+        try (var response = run(term)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(2, "Bob"))));
         }
 
         var range = syncEsqlQueryRequest("FROM emp_ds_view | SORT emp_no | KEEP emp_no, first_name");
         range.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
-        try (var response = run(range, TIMEOUT)) {
+        try (var response = run(range)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(2, "Bob"), List.of(3, "Carol"))));
         }
 
         var exists = syncEsqlQueryRequest("FROM emp_ds_view | SORT emp_no | KEEP emp_no");
         exists.filter(QueryBuilders.existsQuery("first_name"));
-        try (var response = run(exists, TIMEOUT)) {
+        try (var response = run(exists)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3))));
         }
     }
@@ -845,14 +953,24 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
 
         var mustMissing = syncEsqlQueryRequest("FROM emp_ds_view | SORT emp_no");
         mustMissing.filter(QueryBuilders.termQuery("nonexistent", "x"));
-        try (var response = run(mustMissing, TIMEOUT)) {
+        try (var response = run(mustMissing)) {
             assertThat(getValuesList(response), hasSize(0));
         }
 
         var mustNotMissing = syncEsqlQueryRequest("FROM emp_ds_view | SORT emp_no");
         mustNotMissing.filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("nonexistent", "x")));
-        try (var response = run(mustNotMissing, TIMEOUT)) {
-            assertThat(getValuesList(response), hasSize(3));
+        try (var response = run(mustNotMissing)) {
+            assertColumnNames(response.columns(), List.of("emp_no", "first_name", "last_name", "department", "salary"));
+            assertThat(
+                getValuesList(response),
+                equalTo(
+                    List.of(
+                        List.of(1, "Alice", "Anderson", "Engineering", 50000),
+                        List.of(2, "Bob", "Brown", "Engineering", 60000),
+                        List.of(3, "Carol", "Cox", "Sales", 55000)
+                    )
+                )
+            );
         }
     }
 
@@ -864,15 +982,16 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         // Source-field filters still bind to the dataset (view DSL filtering is not yet view-output).
         var sourceField = syncEsqlQueryRequest("FROM emp_stats_view | KEEP department, c | SORT department");
         sourceField.filter(QueryBuilders.termQuery("department", "Engineering"));
-        try (var response = run(sourceField, TIMEOUT)) {
+        try (var response = run(sourceField)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of("Engineering", 2L))));
         }
 
         // Computed view-output fields are not present on the source, so the filter drops every row.
-        var computed = syncEsqlQueryRequest("FROM emp_stats_view | KEEP department, c");
+        var computed = syncEsqlQueryRequest("FROM emp_stats_view | KEEP department, c | SORT department");
         computed.filter(QueryBuilders.rangeQuery("c").gte(2));
-        try (var response = run(computed, TIMEOUT)) {
-            assertThat(getValuesList(response), hasSize(1));
+        try (var response = run(computed)) {
+            assertColumnNames(response.columns(), List.of("department", "c"));
+            assertThat(getValuesList(response), equalTo(List.of(List.of("Engineering", 2L))));
         }
     }
 
@@ -883,14 +1002,15 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
 
         var sourceField = syncEsqlQueryRequest("FROM emp_eval_view | KEEP emp_no, doubled | SORT emp_no");
         sourceField.filter(QueryBuilders.termQuery("emp_no", 1));
-        try (var response = run(sourceField, TIMEOUT)) {
+        try (var response = run(sourceField)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(1, 2))));
         }
 
         var computed = syncEsqlQueryRequest("FROM emp_eval_view | KEEP emp_no, doubled | SORT emp_no");
         computed.filter(QueryBuilders.termQuery("doubled", 2));
-        try (var response = run(computed, TIMEOUT)) {
-            assertThat(getValuesList(response), hasSize(1));
+        try (var response = run(computed)) {
+            assertColumnNames(response.columns(), List.of("emp_no", "doubled"));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1, 2))));
         }
     }
 
@@ -900,7 +1020,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         createView("emp_union_view", "FROM (FROM employees), (FROM employees_alt)");
         var request = syncEsqlQueryRequest("FROM emp_union_view | KEEP emp_no | SORT emp_no");
         request.filter(QueryBuilders.rangeQuery("emp_no").gte(10));
-        try (var response = run(request, TIMEOUT)) {
+        try (var response = run(request)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(10), List.of(11))));
         }
     }
@@ -917,13 +1037,9 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | SORT _fork
             """);
         request.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
-        try (var response = run(request, TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
-            assertThat(rows.get(0).get(1), equalTo(2L));
-            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
-            assertThat(rows.get(1).get(1), equalTo(2L));
+        try (var response = run(request)) {
+            assertColumnNames(response.columns(), List.of("_fork", "c"));
+            assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 2L), List.of("fork2", 2L))));
         }
     }
 
@@ -938,7 +1054,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             | SORT emp_no
             """);
         request.filter(QueryBuilders.rangeQuery("emp_no").gte(3));
-        try (var response = run(request, TIMEOUT)) {
+        try (var response = run(request)) {
             assertThat(
                 getValuesList(response),
                 equalTo(List.of(List.of(3), List.of(3), List.of(10), List.of(11), List.of(99), List.of(100), List.of(101)))
@@ -951,7 +1067,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     public void testDatasetViewRejectedAsTSSource() {
         registerEmployees();
         createView("emp_ds_view", "FROM employees");
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("TS emp_ds_view | LIMIT 1"), TIMEOUT));
+        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("TS emp_ds_view | LIMIT 1")));
         // View resolution rejects the view name before DatasetRewriter can see the inner dataset.
         assertCauseMessageContains(ex, "Views are not supported in TS command");
     }
@@ -962,7 +1078,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         createView("emp_ds_view", "FROM employees");
         Exception ex = expectThrows(
             Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM real_employees | LOOKUP JOIN emp_ds_view ON emp_no | LIMIT 1"), TIMEOUT)
+            () -> run(syncEsqlQueryRequest("FROM real_employees | LOOKUP JOIN emp_ds_view ON emp_no | LIMIT 1"))
         );
         // LOOKUP JOIN does not expand a view target, so the dataset rewriter never fires; the
         // view name is resolved as a missing index instead.
@@ -974,7 +1090,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         createView("emp_ds_view", "FROM employees");
         Exception ex = expectThrows(
             Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM emp_ds_view | WHERE KQL(\"first_name: Alice\")"), TIMEOUT)
+            () -> run(syncEsqlQueryRequest("FROM emp_ds_view | WHERE KQL(\"first_name: Alice\")"))
         );
         assertCauseMessageContains(
             ex,
@@ -988,7 +1104,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         createView("emp_ds_view", "FROM employees");
         Exception ex = expectThrows(
             Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM emp_ds_view | WHERE QSTR(\"first_name: Alice\")"), TIMEOUT)
+            () -> run(syncEsqlQueryRequest("FROM emp_ds_view | WHERE QSTR(\"first_name: Alice\")"))
         );
         assertCauseMessageContains(
             ex,
@@ -998,8 +1114,9 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     }
 
     public void testMissingDatasetInsideViewIsUnknownIndex() {
+        registerEmployees();
         createView("emp_missing_view", "FROM missing_employees");
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM emp_missing_view | LIMIT 1"), TIMEOUT));
+        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM emp_missing_view | LIMIT 1")));
         assertCauseMessageContains(ex, "Unknown index [missing_employees]");
     }
 
@@ -1008,7 +1125,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         registerSalariesLong();
         createView("view_int", "FROM salaries_int");
         createView("view_long", "FROM salaries_long");
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM view_int, view_long | SORT salary"), TIMEOUT));
+        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM view_int, view_long | SORT salary")));
         assertCauseMessageContains(ex, "Column [salary] has conflicting data types in subqueries");
     }
 
@@ -1017,7 +1134,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         registerSalariesKeyword();
         createView("view_int", "FROM salaries_int");
         createView("view_keyword", "FROM salaries_keyword");
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM view_int, view_keyword | SORT salary"), TIMEOUT));
+        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM view_int, view_keyword | SORT salary")));
         assertCauseMessageContains(ex, "Column [salary] has conflicting data types in subqueries");
     }
 
@@ -1034,8 +1151,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             containsString("exceeding the limit of 8"),
             () -> run(
                 syncEsqlQueryRequest("FROM branch_view_1, branch_view_2, branch_view_3, branch_view_4, branch_view_5 | STATS c = COUNT(*)")
-                    .pragmas(tightCount),
-                TIMEOUT
+                    .pragmas(tightCount)
             ).close()
         );
     }
@@ -1049,7 +1165,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         expectThrows(
             VerificationException.class,
             containsString("nested union levels"),
-            () -> run(syncEsqlQueryRequest("FROM emp_eval_union_view, employees | KEEP emp_no").pragmas(tightLevel), TIMEOUT).close()
+            () -> run(syncEsqlQueryRequest("FROM emp_eval_union_view, employees | KEEP emp_no").pragmas(tightLevel)).close()
         );
     }
 
@@ -1094,9 +1210,12 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
                 .setSettings(lookupSettings)
                 .setMapping("department", "type=keyword", "location", "type=keyword")
         );
-        client().prepareIndex("departments_lookup").setSource("department", "Engineering", "location", "Mountain View").get();
-        client().prepareIndex("departments_lookup").setSource("department", "Sales", "location", "New York").get();
-        client().admin().indices().prepareRefresh("departments_lookup").get();
+        BulkResponse bulk = client().prepareBulk()
+            .add(client().prepareIndex("departments_lookup").setSource("department", "Engineering", "location", "Mountain View"))
+            .add(client().prepareIndex("departments_lookup").setSource("department", "Sales", "location", "New York"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
     }
 
     private void createRealEmployees() {
@@ -1104,27 +1223,15 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
             client().admin().indices().prepareCreate("real_employees").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
         );
         ensureGreen("real_employees");
-        client().prepareIndex("real_employees").setSource("emp_no", 1, "first_name", "Alice-real").get();
-        client().prepareIndex("real_employees").setSource("emp_no", 3, "first_name", "Carol-real").get();
-        client().prepareIndex("real_employees").setSource("emp_no", 99, "first_name", "Zach-real").get();
-        client().prepareIndex("real_employees").setSource("emp_no", 100, "first_name", "Frank").get();
-        client().prepareIndex("real_employees").setSource("emp_no", 101, "first_name", "Grace").get();
-        client().admin().indices().prepareRefresh("real_employees").get();
-    }
-
-    private void validateSalaryUnion(EsqlQueryResponse response) {
-        List<? extends ColumnInfo> columns = response.columns();
-        assertThat(columns, hasSize(3));
-        assertThat(columns.get(0).name(), equalTo("emp_no"));
-        assertThat(columns.get(1).name(), equalTo("name"));
-        assertThat(columns.get(2).name(), equalTo("salary"));
-
-        List<List<Object>> rows = getValuesList(response);
-        assertThat(rows, hasSize(4));
-        assertThat(((Number) rows.get(0).get(2)).longValue(), equalTo(50000L));
-        assertThat(((Number) rows.get(1).get(2)).longValue(), equalTo(60000L));
-        assertThat(((Number) rows.get(2).get(2)).longValue(), equalTo(65000L));
-        assertThat(((Number) rows.get(3).get(2)).longValue(), equalTo(75000L));
+        BulkResponse bulk = client().prepareBulk()
+            .add(client().prepareIndex("real_employees").setSource("emp_no", 1, "first_name", "Alice-real"))
+            .add(client().prepareIndex("real_employees").setSource("emp_no", 3, "first_name", "Carol-real"))
+            .add(client().prepareIndex("real_employees").setSource("emp_no", 99, "first_name", "Zach-real"))
+            .add(client().prepareIndex("real_employees").setSource("emp_no", 100, "first_name", "Frank"))
+            .add(client().prepareIndex("real_employees").setSource("emp_no", 101, "first_name", "Grace"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
     }
 
     private static void assertCauseMessageContains(Throwable throwable, String fragment) {

@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
 
     private static final String PACK_DIMS_AGG = "pack_dims_agg";
+    private static final String COMPACT_MULTI_TYPE_ES_FIELD = "compact_multi_type_es_field";
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -819,6 +820,49 @@ public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
             | KEEP *
             | SORT x
             """, STAGES);
+    }
+
+    // -- a conversion over the UnionAll resolved on a later Resolution pass than an equal or same-named one --
+
+    /**
+     * {@code TO_DOUBLE} and {@code TO_DEGREES} are different conversions sharing the synthetic name
+     * {@code $$event_duration$converted_to$double}. The later-resolved {@code TO_DEGREES} must not reuse the column pushed down for
+     * {@code TO_DOUBLE}, so it stays above the union.
+     */
+    public void testDifferentConversionWithSameNameResolvedOnLaterPass() {
+        requireNullifySupport();
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM (FROM sample_data), (FROM sample_data)
+            | WHERE TO_DOUBLE(event_duration) > 0 OR does_not_exist IS NOT NULL
+            | EVAL d = TO_DEGREES(event_duration)
+            """, STAGES);
+    }
+
+    /**
+     * The second branch reads a multi-typed {@code emp_no}, so it computes {@code $$emp_no$converted_to$keyword} as a synthetic union-type
+     * field while the first branch computes it with an {@code Eval}. The later-resolved conversion reuses that column in both.
+     */
+    public void testSameConversionResolvedOnLaterPassOverPlainAndMultiTypedBranches() {
+        requireNullifySupport();
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM (FROM employees), (FROM employees, employees_incompatible)
+            | WHERE TO_STRING(emp_no) == "10001" OR does_not_exist IS NOT NULL
+            | EVAL e = TO_STRING(emp_no)
+            | KEEP e
+            """).stages(STAGES).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
+    }
+
+    public void testSameConversionResolvedOnLaterPassOverMultiTypedBranches() {
+        requireNullifySupport();
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM (FROM employees, employees_incompatible), (FROM employees, employees_incompatible)
+            | WHERE TO_STRING(emp_no) == "10001" OR does_not_exist IS NOT NULL
+            | EVAL e = TO_STRING(emp_no)
+            | KEEP e
+            """).stages(STAGES).expectationChangesAt(COMPACT_MULTI_TYPE_ES_FIELD).run();
     }
 
     // -- helpers --

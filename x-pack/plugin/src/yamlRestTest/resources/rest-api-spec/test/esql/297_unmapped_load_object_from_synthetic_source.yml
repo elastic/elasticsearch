@@ -114,28 +114,26 @@ teardown:
   - match: { values.0: [ "1", [ "t1", "t2" ], null, [ "x", "y" ] ] }
 
 ---
-'load_all auto-expands a partially-mapped object without colliding with the mapped leaf':
+'load_all flattens a partially-mapped object without colliding with the mapped leaf':
   - requires:
       test_runner_features: [ capabilities ]
       capabilities:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard ]
       reason: "Flattening a partially-mapped object under LOAD_ALL must drop the leaf that duplicates a mapped column, not fail"
   # network.eth0.rx is mapped; network.bytes_in and network.eth0.tx are not. Under LOAD_ALL the whole network object reaches
   # _unmapped_fields (the data node filters by top-level key), so flattening re-derives network.eth0.rx. That leaf must yield to the
-  # mapped integer column (which keeps its value) while the unmapped siblings expand as keyword - and the query must not error.
+  # mapped integer column (which keeps its value) while the unmapped siblings land in _unmapped_fields - and the query must not error.
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM synthetic_objects | DROP unmapped*, tags, samples* | SORT id | LIMIT 5'
-  - length: { columns: 4 }
+  - length: { columns: 3 }
   - match: { columns.0.name: id }
   - match: { columns.1.name: network.eth0.rx }
   - match: { columns.1.type: integer }
-  - match: { columns.2.name: network.bytes_in }
-  - match: { columns.2.type: keyword }
-  - match: { columns.3.name: network.eth0.tx }
-  - match: { columns.3.type: keyword }
-  - match: { values.0: [ "1", 7, "10", "5" ] }
+  - match: { columns.2.name: _unmapped_fields }
+  - match: { columns.2.type: _source }
+  - match: { values.0: [ "1", 7, { network.bytes_in: 10, network.eth0.tx: 5 } ] }

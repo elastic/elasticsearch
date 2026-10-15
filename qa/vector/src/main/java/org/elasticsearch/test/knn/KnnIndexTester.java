@@ -42,6 +42,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
@@ -221,7 +223,7 @@ public class KnnIndexTester {
         return config;
     }
 
-    private static String formatIndexPath(TestConfiguration args, DirectoryTypeConfig dirConfig) {
+    static String formatIndexPath(TestConfiguration args, DirectoryTypeConfig dirConfig) {
         List<String> suffix = new ArrayList<>();
         switch (args.indexType()) {
             case FLAT -> suffix.add("flat");
@@ -261,6 +263,10 @@ public class KnnIndexTester {
                 }
             }
         }
+        if (args.usesSlicedIvf()) {
+            // Keep cached indices built with the old raw-partition layout separate from the hash-prefixed slice-key layout.
+            suffix.add("slice-key-v1");
+        }
         if (dirConfig.requiresFreshIndex()) {
             // These types rebuild the index on every run and wipe the index path doing so, so they must not share it with the
             // types that can reuse an index built by "default".
@@ -270,11 +276,11 @@ public class KnnIndexTester {
         return INDEX_DIR + "/" + args.docVectors().getFirst().getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
-    static Codec createCodec(TestConfiguration args, @Nullable ExecutorService exec) {
+    static Codec createCodec(TestConfiguration args, ExecutorService mergeExec, ExecutorService quantExec) {
         final KnnVectorsFormat format;
         Integer quantizeBits = args.quantizeBits();
         DenseVectorFieldMapper.ElementType elementType = args.vectorEncoding().elementType;
-        int mergeWorkers = exec != null ? args.numMergeWorkers() : 1;
+        int mergeWorkers = mergeExec != null ? args.numMergeWorkers() : 1;
 
         format = switch (args.indexType()) {
             case IVF -> {
@@ -285,7 +291,7 @@ public class KnnIndexTester {
                         ? ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
                         : ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER)
                     : args.secondaryClusterSize();
-                String sliceField = args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null;
+                String sliceField = args.usesSlicedIvf() ? SliceIndexing.SLICE_KEY_FIELD_NAME : null;
 
                 if (isAsh) {
                     int bitsPerDim = Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM);
@@ -300,17 +306,19 @@ public class KnnIndexTester {
                         centroidsPerParentCluster,
                         elementType,
                         false,
-                        exec,
+                        mergeExec,
                         mergeWorkers,
+                        quantExec,
                         flatVectorThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        IvfMergeConfigResolver.useCodecDefault()
+                        IvfMergeConfigResolver.useCodecDefault(),
+                        false
                     );
                 } else {
                     var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
                     IvfMergeConfigResolver mergeConfigResolver = args.autoCalibrate()
-                        ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize())
+                        ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize(), args.autoCalibrationProfile())
                         : IvfMergeConfigResolver.useCodecDefault();
                     yield new ESNextDiskBBQVectorsFormat(
                         encoding,
@@ -318,14 +326,15 @@ public class KnnIndexTester {
                         centroidsPerParentCluster,
                         elementType,
                         args.onDiskRescore(),
-                        exec,
+                        mergeExec,
                         mergeWorkers,
                         args.doPrecondition(),
                         args.preconditioningBlockDims(),
                         flatVectorThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        mergeConfigResolver
+                        mergeConfigResolver,
+                        false
                     );
                 }
             }
@@ -349,8 +358,9 @@ public class KnnIndexTester {
                     args.hnswEfConstruction(),
                     elementType,
                     mergeWorkers,
-                    exec,
-                    args.flatVectorThreshold()
+                    mergeExec,
+                    args.flatVectorThreshold(),
+                    false
                 );
                 case 1 -> new ES93HnswBinaryQuantizedVectorsFormat(
                     args.hnswM(),
@@ -358,8 +368,9 @@ public class KnnIndexTester {
                     elementType,
                     false,
                     mergeWorkers,
-                    exec,
-                    args.flatVectorThreshold()
+                    mergeExec,
+                    args.flatVectorThreshold(),
+                    false
                 );
                 default -> new ES94HnswScalarQuantizedVectorsFormat(
                     args.hnswM(),
@@ -368,14 +379,15 @@ public class KnnIndexTester {
                     quantizeBits,
                     false,
                     mergeWorkers,
-                    exec,
-                    args.flatVectorThreshold()
+                    mergeExec,
+                    args.flatVectorThreshold(),
+                    false
                 );
             };
             case FLAT -> switch (quantizeBits) {
-                case null -> new ES93FlatVectorFormat(elementType);
-                case 1 -> new ES93BinaryQuantizedVectorsFormat(elementType, false);
-                default -> new ES94ScalarQuantizedVectorsFormat(elementType, quantizeBits, false);
+                case null -> new ES93FlatVectorFormat(elementType, false);
+                case 1 -> new ES93BinaryQuantizedVectorsFormat(elementType, false, false);
+                default -> new ES94ScalarQuantizedVectorsFormat(elementType, quantizeBits, false, false);
             };
         };
 
@@ -515,14 +527,14 @@ public class KnnIndexTester {
             Arrays.setAll(results, i -> new Results(indexPathName, indexType, testConfiguration.numDocs()));
             logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + testConfiguration);
-            final ExecutorService exec;
-            if (testConfiguration.numMergeWorkers() > 1) {
-                exec = Executors.newFixedThreadPool(testConfiguration.numMergeWorkers(), new NamedThreadFactory("vector-merge"));
-            } else {
-                exec = null;
-            }
+            ExecutorService mergeExec = testConfiguration.numMergeWorkers() > 1
+                ? Executors.newFixedThreadPool(testConfiguration.numMergeWorkers(), new NamedThreadFactory("vector-merge"))
+                : null;
+            ExecutorService quantExec = testConfiguration.numQuantizerWorkers() > 1
+                ? Executors.newFixedThreadPool(testConfiguration.numQuantizerWorkers(), new NamedThreadFactory("quantization"))
+                : null;
             try {
-                Codec codec = createCodec(testConfiguration, exec);
+                Codec codec = createCodec(testConfiguration, mergeExec, quantExec);
                 Path indexPath = PathUtils.get(indexPathName);
                 MergePolicy mergePolicy = getMergePolicy(testConfiguration);
 
@@ -541,8 +553,11 @@ public class KnnIndexTester {
                 formattedResults.queryResults.addAll(List.of(results));
                 formattedResults.indexResults.add(indexResults);
             } finally {
-                if (exec != null) {
-                    exec.shutdown();
+                if (mergeExec != null) {
+                    mergeExec.shutdown();
+                }
+                if (quantExec != null) {
+                    quantExec.shutdown();
                 }
             }
         }
@@ -903,7 +918,7 @@ public class KnnIndexTester {
     /**
      * Logs a concise per-segment summary of the auto-calibrated IVF configuration: quantization
      * encoding, rescore oversample factor, and whether preconditioning is active. Only meaningful
-     * when {@code auto_calibrate} is {@code true} and the index type is IVF.
+     * when auto-calibration is enabled and the index type is IVF.
      */
     static void logAutoCalibrationSegmentReport(Path indexPath, Directory sharedDir) throws IOException {
         Directory dir = sharedDir != null ? sharedDir : KnnIndexer.getDirectory(indexPath);
@@ -949,30 +964,37 @@ public class KnnIndexTester {
                     vr = pfr.getFieldReader(KnnIndexer.VECTOR_FIELD);
                 }
                 if (vr instanceof CalibrationAwareReader car) {
-                    QuantEncoding enc = car.getQuantEncoding(fi);
-                    float oversample = car.getOversampleFactor(fi);
-                    boolean precondition = car.shouldPrecondition(fi);
-                    String encName = enc != null ? enc.name() : "n/a";
-                    String oversampleStr = Float.isFinite(oversample) ? String.format(Locale.ROOT, "%.2f", oversample) : "n/a";
-                    sb.append(
-                        String.format(
-                            Locale.ROOT,
-                            "  %4d  %7d  %-22s  %10s  %12b%n",
-                            ctx.ord,
-                            lr.numDocs(),
-                            encName,
-                            oversampleStr,
-                            precondition
-                        )
-                    );
-                    encodingCounts.merge(encName, 1, Integer::sum);
-                    if (Float.isFinite(oversample)) {
-                        oversamples.add((double) oversample);
+                    SegmentCalibrationParameters calibrationParameters = car.getCalibrationParameters(fi);
+                    switch (calibrationParameters) {
+                        case SegmentCalibrationParameters.Osq osq -> {
+                            boolean precondition = osq.precondition();
+                            String encName = osq.encoding().name();
+                            float oversample = osq.oversample();
+
+                            encodingCounts.merge(encName, 1, Integer::sum);
+                            if (Float.isFinite(oversample)) {
+                                oversamples.add((double) oversample);
+                            }
+                            if (precondition) {
+                                preconditionTrue++;
+                            }
+                            calibrated++;
+
+                            sb.append(
+                                String.format(
+                                    Locale.ROOT,
+                                    "  %4d  %7d  %-22s  %10s  %12b%n",
+                                    ctx.ord,
+                                    lr.numDocs(),
+                                    encName,
+                                    String.format(Locale.ROOT, "%.2f", osq.oversample()),
+                                    precondition
+                                )
+                            );
+                        }
+
+                        case null -> throw new IllegalArgumentException("No calibration parameters returned");
                     }
-                    if (precondition) {
-                        preconditionTrue++;
-                    }
-                    calibrated++;
                 } else {
                     sb.append(String.format(Locale.ROOT, "  %4d  %7d  (no calibration data)%n", ctx.ord, lr.numDocs()));
                 }

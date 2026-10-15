@@ -4,7 +4,7 @@ import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { analyzeReports } from "../analyzer/analyze.ts";
+import { analyzeReports } from "../analyzer/junit-reports-analyzer.ts";
 
 const REPEAT_SCRIPT = resolve(`${import.meta.dirname}/repeat-rest-test.sh`);
 

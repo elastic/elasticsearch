@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -119,13 +120,16 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                         first.sort(),
                         timestamp,
                         changed,
-                        new FirstOverTime(first.field().source(), first.field(), Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp),
+                        new FirstOverTime(first.field().source(), first.field(), timestamp, Literal.TRUE, AggregateFunction.NO_WINDOW),
                         MinOverTime::new,
                         FirstOverTime::new
                     )
                     : first;
-                // only transform field, not all children (such as inline filter or window)
-                case AggregateFunction af -> af.withField(addDefaultInnerAggs(af.field(), timestamp, changed));
+                case AggregateFunction af -> {
+                    List<Expression> newFields = new ArrayList<>(af.fields());
+                    newFields.replaceAll(field -> addDefaultInnerAggs(field, timestamp, changed));
+                    yield af.withFields(newFields);
+                }
                 // avoid modifying filter conditions, just the delegate
                 case FilteredExpression filtered -> filtered.withDelegate(addDefaultInnerAggs(filtered.delegate(), timestamp, changed));
                 case ConvertFunction convert when expr.allMatch(e -> e instanceof ConvertFunction || e instanceof TypedAttribute) -> {
@@ -165,8 +169,8 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
     ) {
         changed.set(true);
         var newSort = sort.semanticEquals(timestamp)
-            ? onTimestampSort.apply(sort.source(), sort, Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp)
-            : onOtherSort.apply(sort.source(), sort, Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp);
-        return agg.replaceChildren(List.of(newField, agg.filter(), agg.window(), newSort));
+            ? onTimestampSort.apply(sort.source(), sort, timestamp, Literal.TRUE, AggregateFunction.NO_WINDOW)
+            : onOtherSort.apply(sort.source(), sort, timestamp, Literal.TRUE, AggregateFunction.NO_WINDOW);
+        return agg.withFields(List.of(newField, newSort));
     }
 }

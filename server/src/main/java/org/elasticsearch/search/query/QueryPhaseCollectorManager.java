@@ -302,6 +302,44 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
     }
 
     /**
+     * Builds the result that {@link #createQueryPhaseCollectorManager} would have produced had it matched no documents, to finalize a
+     * shard whose query timed out before its collectors could run. Only the top docs type, the sort fields and the formats have to
+     * match what the other shards report: those are what the coordinating node merges on.
+     */
+    static QueryPhaseResult emptyQueryPhaseResult(SearchContext searchContext) {
+        final SortAndFormats sortAndFormats = searchContext.sort();
+        final TopDocs topDocs;
+        final DocValueFormat[] sortValueFormats;
+        if (searchContext.size() == 0) {
+            // mirrors EmptyHits, which only counts hits and so reports no formats even when the request sorts
+            topDocs = emptyTopDocs(sortAndFormats);
+            sortValueFormats = null;
+        } else if (searchContext.collapse() == null) {
+            // mirrors WithHits
+            topDocs = emptyTopDocs(sortAndFormats);
+            sortValueFormats = sortAndFormats == null ? null : sortAndFormats.formats;
+        } else {
+            // mirrors forCollapsing, which groups by relevance when the request does not sort
+            final Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
+            topDocs = new TopFieldGroups(
+                searchContext.collapse().getFieldName(),
+                Lucene.TOTAL_HITS_EQUAL_TO_ZERO,
+                Lucene.EMPTY_SCORE_DOCS,
+                sort.getSort(),
+                new Object[0]
+            );
+            sortValueFormats = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
+        }
+        return new QueryPhaseResult(new TopDocsAndMaxScore(topDocs, Float.NaN), sortValueFormats, false, null);
+    }
+
+    private static TopDocs emptyTopDocs(@Nullable SortAndFormats sortAndFormats) {
+        return sortAndFormats == null
+            ? Lucene.EMPTY_TOP_DOCS
+            : new TopFieldDocs(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Lucene.EMPTY_SCORE_DOCS, sortAndFormats.sort.getSort());
+    }
+
+    /**
      * Collector manager used when size is set to 0, hence there are no hits to collect. Top docs collection in
      * this case takes care of retrieving the total hit count.
      */

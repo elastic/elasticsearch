@@ -1,0 +1,3 @@
+id:keyword,@timestamp:date,attributes,meta,notes,attributes_info,tag:keyword
+f1,2024-01-01T00:00:00.000Z,{"host":"a"\,"env":"prod"},{"labels":{"team":"red"}\,"owner":"ann"},{"text":"hi"},{"total":"2"},x
+f2,2024-01-01T01:00:00.000Z,{"host":"c"},{"owner":"bo"\,"labels":{"team":"blue"}},,{"total":"1"},y

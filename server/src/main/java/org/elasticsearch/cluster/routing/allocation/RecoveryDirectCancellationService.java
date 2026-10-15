@@ -86,6 +86,9 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     /// entries are eventually evicted in clusters where the size bound is rarely reached.
     private static final TimeValue CANCELLATION_CACHE_TTL = TimeValue.timeValueHours(6);
 
+    /// Currently only registered by the stateless plugin, elsewhere disabled.
+    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful.
+    ///
     public static final Setting<Boolean> ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING = Setting.boolSetting(
         "indices.recovery.enable_direct_cancellations",
         false,
@@ -98,6 +101,10 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     ///
     /// Takes effect only when [ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING] is also enabled. Both settings must be
     /// enabled for direct cancellation of snapshot-blocking recoveries to occur.
+    ///
+    /// Currently only registered by the stateless plugin.
+    /// TODO: register in `BUILT_IN_CLUSTER_SETTINGS` once DNRT is ready for stateful.
+    ///
     public static final Setting<Boolean> ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING = Setting.boolSetting(
         "indices.recovery.enable_direct_cancellations_for_snapshots",
         settings -> DiscoveryNode.isStateless(settings) ? "false" : "true",

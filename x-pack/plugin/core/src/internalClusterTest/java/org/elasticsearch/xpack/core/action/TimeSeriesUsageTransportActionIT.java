@@ -65,6 +65,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.xpack.core.action.XPackUsageFeatureAction.TIME_SERIES_DATA_STREAMS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
@@ -98,6 +99,8 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         assertThat(map.get("available"), equalTo(true));
         assertThat(map.get("enabled"), equalTo(true));
         assertThat(map.get("data_stream_count"), equalTo(0));
+        assertThat(((Number) map.get("num_docs")).longValue(), greaterThanOrEqualTo(0L));
+        assertThat(((Number) map.get("size_in_bytes")).longValue(), greaterThanOrEqualTo(0L));
         assertThat(map.get("index_count"), nullValue());
         assertThat(map.get("downsampling"), nullValue());
     }
@@ -300,6 +303,8 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         assertThat(map.get("available"), equalTo(true));
         assertThat(map.get("enabled"), equalTo(true));
         assertThat(map.get("data_stream_count"), equalTo(timeSeriesDataStreamCount.get()));
+        assertThat(((Number) map.get("num_docs")).longValue(), greaterThanOrEqualTo(0L));
+        assertThat(((Number) map.get("size_in_bytes")).longValue(), greaterThanOrEqualTo(0L));
         if (timeSeriesDataStreamCount.get() == 0) {
             assertThat(map.get("index_count"), nullValue());
             assertThat(map.get("downsampling"), nullValue());

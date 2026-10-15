@@ -64,4 +64,36 @@ public class OpenAiCompletionResponseHandlerTests extends ESTestCase {
         );
     }
 
+    public void testHandle429RateLimit_ThrowWithRetrying() {
+        String responseBody = """
+            {
+                "error": {
+                    "message": "Rate limit reached for model. Please try again in a moment.",
+                    "type": "requests",
+                    "param": null,
+                    "code": "rate_limit_exceeded"
+                }
+            }
+            """;
+        ByteArrayInputStream responseBodyStream = new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8));
+
+        var header = mock(Header.class);
+        when(header.getElements()).thenReturn(new HeaderElement[] {});
+
+        var statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(429);
+
+        var httpResponse = mock(HttpResponse.class);
+        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
+        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+
+        var mockRequest = RequestTests.mockRequest("id");
+        var httpResult = new HttpResult(httpResponse, responseBodyStream.readAllBytes());
+        var handler = new OpenAiCompletionResponseHandler("", (request, result) -> null);
+
+        var retryException = handler.buildFailureStatusCodeException(mockRequest, httpResult);
+
+        assertTrue(retryException.shouldRetry());
+    }
+
 }

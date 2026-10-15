@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 159507
+summary: Upgrade apache HC 4 to 5 in Workload Identity module
+type: upgrade

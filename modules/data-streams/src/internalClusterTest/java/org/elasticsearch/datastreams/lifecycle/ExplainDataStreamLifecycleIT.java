@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -30,12 +31,14 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -106,10 +109,10 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         indexDocs(dataStreamName, 1);
 
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-        String firstGenerationIndex = backingIndices.get(0);
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String firstGenerationIndex = backingIndices.get(0).getName();
         assertThat(firstGenerationIndex, backingIndexEqualTo(dataStreamName, 1));
-        String secondGenerationIndex = backingIndices.get(1);
+        String secondGenerationIndex = backingIndices.get(1).getName();
         assertThat(secondGenerationIndex, backingIndexEqualTo(dataStreamName, 2));
 
         {
@@ -218,10 +221,10 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
             indexDocs(dataStreamName, 1);
 
-            List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-            String firstGenerationIndex = backingIndices.get(0);
+            List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+            String firstGenerationIndex = backingIndices.get(0).getName();
             assertThat(firstGenerationIndex, backingIndexEqualTo(dataStreamName, 1));
-            String secondGenerationIndex = backingIndices.get(1);
+            String secondGenerationIndex = backingIndices.get(1).getName();
             assertThat(secondGenerationIndex, backingIndexEqualTo(dataStreamName, 2));
 
             ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
@@ -283,13 +286,13 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         indexFailedDocs(dataStreamName, 1);
 
-        List<String> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
-        String firstGenerationIndex = failureIndices.get(0);
+        List<Index> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
+        String firstGenerationIndex = failureIndices.get(0).getName();
         assertThat(firstGenerationIndex, DataStreamTestHelper.dataStreamIndexEqualTo(dataStreamName, 2, true));
 
         indexFailedDocs(dataStreamName, 1);
         failureIndices = waitForDataStreamIndices(dataStreamName, 2, true);
-        String secondGenerationIndex = failureIndices.get(1);
+        String secondGenerationIndex = failureIndices.get(1).getName();
         assertThat(secondGenerationIndex, DataStreamTestHelper.dataStreamIndexEqualTo(dataStreamName, 3, true));
 
         {
@@ -348,6 +351,19 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             assertThat(conditions.size(), is(2));
             assertThat(conditions.get(RolloverConditions.MAX_DOCS_FIELD.getPreferredName()).value(), is(1L));
             assertThat(conditions.get(RolloverConditions.MIN_DOCS_FIELD.getPreferredName()).value(), is(1L));
+        }
+
+        {
+            // The template only configures a failures lifecycle, so the backing index is not managed and reports why
+            String backingIndex = waitForDataStreamBackingIndices(dataStreamName, 1).get(0).getName();
+            ExplainDataStreamLifecycleAction.Response response = client().execute(
+                ExplainDataStreamLifecycleAction.INSTANCE,
+                new ExplainDataStreamLifecycleAction.Request(TEST_REQUEST_TIMEOUT, new String[] { backingIndex })
+            ).actionGet();
+            assertThat(response.getIndices().size(), is(1));
+            ExplainIndexDataStreamLifecycle explainIndex = response.getIndices().get(0);
+            assertThat(explainIndex.isManagedByLifecycle(), is(false));
+            assertThat(explainIndex.getUnmanagedReason(), containsString("does not have data stream lifecycle configuration"));
         }
 
         {
@@ -426,14 +442,20 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         indexDocs(dataStreamName, 1);
 
         // let's allow one rollover to go through
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-        String firstGenerationIndex = backingIndices.get(0);
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String firstGenerationIndex = backingIndices.get(0).getName();
         assertThat(firstGenerationIndex, backingIndexEqualTo(dataStreamName, 1));
-        String secondGenerationIndex = backingIndices.get(1);
+        String secondGenerationIndex = backingIndices.get(1).getName();
         assertThat(secondGenerationIndex, backingIndexEqualTo(dataStreamName, 3));
         // let's ensure that the failure store is initialised
-        List<String> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
-        String firstGenerationFailureIndex = failureIndices.get(0);
+        List<Index> failureIndices = waitForDataStreamIndices(dataStreamName, 1, true);
+        String firstGenerationFailureIndex = failureIndices.getFirst().getName();
+        GetSettingsResponse settingsResponse = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, firstGenerationFailureIndex)
+            .get();
+
+        assertThat(settingsResponse.getSetting(firstGenerationFailureIndex, IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-1"));
         assertThat(firstGenerationFailureIndex, dataStreamIndexEqualTo(dataStreamName, 2, true));
 
         // prevent new indices from being created (ie. future rollovers)
@@ -499,8 +521,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                  */
                 assertThat(response.getIndices().get(0).getError(), is(notNullValue()));
                 assertThat(response.getIndices().get(0).getError().error(), containsString("Force merge request "));
-                assertThat(response.getIndices().get(1).getError(), is(notNullValue()));
-                assertThat(response.getIndices().get(1).getError().error(), containsString("Force merge request "));
+                assertThat(response.getIndices().get(1).getError(), is(nullValue()));
             }
         });
     }
@@ -524,8 +545,8 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         indexDocs(dataStreamName, 4);
 
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 1);
-        String firstGenerationIndex = backingIndices.get(0);
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 1);
+        String firstGenerationIndex = backingIndices.get(0).getName();
         assertThat(firstGenerationIndex, backingIndexEqualTo(dataStreamName, 1));
 
         assertBusy(() -> {
@@ -543,6 +564,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.isManagedByLifecycle(), is(false));
                 assertThat(explainIndex.getIndex(), is(firstGenerationIndex));
                 assertThat(explainIndex.getIndexCreationDate(), nullValue());
+                assertThat(explainIndex.getUnmanagedReason(), containsString("has disabled data stream lifecycle"));
                 assertThat(explainIndex.getLifecycle(), nullValue());
                 assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
                 assertThat(explainIndex.getRolloverDate(), nullValue());
@@ -575,9 +597,9 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
         indexDocs(dataStreamName, 1);
 
-        List<String> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
-        String firstGenerationIndex = backingIndices.get(0);
-        String secondGenerationIndex = backingIndices.get(1);
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String firstGenerationIndex = backingIndices.get(0).getName();
+        String secondGenerationIndex = backingIndices.get(1).getName();
 
         ExplainDataStreamLifecycleAction.Request explainIndicesRequest = new ExplainDataStreamLifecycleAction.Request(
             TEST_REQUEST_TIMEOUT,

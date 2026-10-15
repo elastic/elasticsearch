@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -29,7 +30,7 @@ import static java.util.Collections.emptyList;
 /**
  * A specialization of {@link Values} for collecting dimension fields in time-series queries.
  */
-public class DimensionValues extends AggregateFunction implements ToAggregator {
+public class DimensionValues extends UnaryAggregateFunction implements ToAggregator, AnyNullIsNull {
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.KEYWORD, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
         Map.entry(DataType.TEXT, DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier::new),
@@ -70,14 +71,6 @@ public class DimensionValues extends AggregateFunction implements ToAggregator {
     @Override
     public DimensionValues replaceChildren(List<Expression> newChildren) {
         return new DimensionValues(source(), newChildren.get(0));
-    }
-
-    @Override
-    public DimensionValues withFilter(Expression filter) {
-        if (filter instanceof Literal l && l.value() == Boolean.TRUE) {
-            return this;
-        }
-        throw new UnsupportedOperationException("Dimension values do not support filters");
     }
 
     @Override

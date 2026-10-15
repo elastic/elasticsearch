@@ -11,11 +11,5 @@
  * Telemetry <strong>export</strong> for the {@code apm} module: how metrics and traces leave the Elasticsearch
  * process after being recorded. (This is distinct from <em>instrumentation</em>, which uses the OpenTelemetry API
  * in application code to create spans and instruments.)
- *
- * <p>Subpackages split the two export paths used by this module:
- * <ul>
- *   <li>{@link org.elasticsearch.telemetry.apm.internal.export.agent} — export via the Elasticsearch APM Java agent</li>
- *   <li>{@link org.elasticsearch.telemetry.apm.internal.export.otelsdk} — export via the OpenTelemetry SDK</li>
- * </ul>
  */
 package org.elasticsearch.telemetry.apm.internal.export;

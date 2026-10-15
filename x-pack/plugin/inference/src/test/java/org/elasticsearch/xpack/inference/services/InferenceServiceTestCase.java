@@ -25,6 +25,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -233,6 +234,27 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
         try (var service = createInferenceService()) {
             assertThat(service.supportedStreamingTasks(), is(expectedStreamingTasks()));
             assertFalse(service.canStream(TaskType.ANY));
+        }
+    }
+
+    /**
+     * Validates that services which report {@link InferenceService#supportsNonStreamingChatCompletion()} true
+     * also expose that via the {@code features.non_streaming_chat} entry in their configuration, so that
+     * API consumers can discover the capability through {@code GET _inference/_services}.
+     */
+    public void testSupportsNonStreamingChatCompletion_IsReportedInConfiguration() throws IOException {
+        try (var service = createInferenceService()) {
+            if (service.supportsNonStreamingChatCompletion() == false) {
+                return;
+            }
+
+            // ElasticInferenceService.getConfiguration() throws because its config depends on authorization
+            var configuration = service instanceof ElasticInferenceService
+                ? ElasticInferenceService.createConfiguration(ElasticInferenceService.IMPLEMENTED_TASK_TYPES)
+                : service.getConfiguration();
+
+            assertNotNull(configuration.getFeatures());
+            assertTrue(configuration.getFeatures().has(NonStreamingChatFeature.SUPPORTED_INSTANCE));
         }
     }
 

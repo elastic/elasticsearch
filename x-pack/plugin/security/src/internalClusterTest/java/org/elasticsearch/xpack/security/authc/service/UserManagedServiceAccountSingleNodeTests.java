@@ -170,7 +170,7 @@ public class UserManagedServiceAccountSingleNodeTests extends SecuritySingleNode
 
         final PutUserManagedServiceAccountResponse updateResponse = securityAdminClient().execute(
             PutUserManagedServiceAccountAction.INSTANCE,
-            new PutUserManagedServiceAccountRequest(NAMESPACE, serviceName, List.of(API_KEY_ROLE), true)
+            new PutUserManagedServiceAccountRequest(NAMESPACE, serviceName, List.of(API_KEY_ROLE), true, null)
         ).actionGet();
         assertThat(updateResponse.created(), is(false));
 
@@ -246,7 +246,7 @@ public class UserManagedServiceAccountSingleNodeTests extends SecuritySingleNode
             IllegalArgumentException.class,
             () -> securityAdminClient().execute(
                 PutUserManagedServiceAccountAction.INSTANCE,
-                new PutUserManagedServiceAccountRequest(NAMESPACE, serviceName, List.of(MONITOR_ROLE), true)
+                new PutUserManagedServiceAccountRequest(NAMESPACE, serviceName, List.of(MONITOR_ROLE), true, null)
             ).actionGet()
         );
         assertThat(recreateException.getMessage(), containsString("because it has leftover service tokens; delete the tokens first"));
@@ -282,7 +282,7 @@ public class UserManagedServiceAccountSingleNodeTests extends SecuritySingleNode
     private void putAccount(String roleName) {
         final PutUserManagedServiceAccountResponse response = securityAdminClient().execute(
             PutUserManagedServiceAccountAction.INSTANCE,
-            new PutUserManagedServiceAccountRequest(NAMESPACE, serviceName, List.of(roleName), true)
+            new PutUserManagedServiceAccountRequest(NAMESPACE, serviceName, List.of(roleName), true, null)
         ).actionGet();
         assertThat(response.created(), is(true));
     }

@@ -12,8 +12,6 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,6 +22,8 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 public final class EvalMapper {
+    private static final EvaluatorServices DEFAULT_SERVICES = new EvaluatorServices(null, true);
+
     private EvalMapper() {}
 
     public static ExpressionEvaluator.Factory toEvaluator(FoldContext foldCtx, Expression exp, Layout layout) {
@@ -32,15 +32,10 @@ public final class EvalMapper {
 
     /**
      * Provides an ExpressionEvaluator factory to evaluate an expression that does not require shard contexts
-     * but may reference functions (e.g. {@code TOP_SNIPPETS}) that need the node-level {@link AnalysisRegistry}.
+     * but may reference functions (e.g. {@code TOP_SNIPPETS}) that need node-level {@link EvaluatorServices}.
      */
-    public static ExpressionEvaluator.Factory toEvaluator(
-        FoldContext foldCtx,
-        Expression exp,
-        Layout layout,
-        @Nullable AnalysisRegistry analysisRegistry
-    ) {
-        return toEvaluator(foldCtx, exp, layout, EmptyIndexedByShardId.instance(), analysisRegistry);
+    public static ExpressionEvaluator.Factory toEvaluator(FoldContext foldCtx, Expression exp, Layout layout, EvaluatorServices services) {
+        return toEvaluator(foldCtx, exp, layout, EmptyIndexedByShardId.instance(), services);
     }
 
     /**
@@ -57,7 +52,7 @@ public final class EvalMapper {
         Layout layout,
         IndexedByShardId<? extends ShardContext> shardContexts
     ) {
-        return toEvaluator(foldCtx, exp, layout, shardContexts, null);
+        return toEvaluator(foldCtx, exp, layout, shardContexts, DEFAULT_SERVICES);
     }
 
     /**
@@ -67,17 +62,17 @@ public final class EvalMapper {
      * @param exp the expression to generate an evaluator for
      * @param layout the mapping from attributes to channels
      * @param shardContexts the shard contexts, needed to generate queries for expressions that couldn't be pushed down to Lucene
-     * @param analysisRegistry the node-level analysis registry for resolving analyzers by name, may be {@code null}
+     * @param services the node-level services available to expressions while building their evaluators
      */
     public static ExpressionEvaluator.Factory toEvaluator(
         FoldContext foldCtx,
         Expression exp,
         Layout layout,
         IndexedByShardId<? extends ShardContext> shardContexts,
-        @Nullable AnalysisRegistry analysisRegistry
+        EvaluatorServices services
     ) {
         if (exp instanceof EvaluatorMapper m) {
-            return m.toEvaluator(toEvaluatorContext(foldCtx, layout, shardContexts, analysisRegistry));
+            return m.toEvaluator(toEvaluatorContext(foldCtx, layout, shardContexts, services));
         }
         if (exp instanceof Attribute attr) {
             return new LoadFromPageEvaluator.Factory(layout.get(attr.id()).channel());
@@ -94,12 +89,12 @@ public final class EvalMapper {
         FoldContext foldCtx,
         Layout layout,
         IndexedByShardId<? extends ShardContext> shardContexts,
-        @Nullable AnalysisRegistry analysisRegistry
+        EvaluatorServices services
     ) {
         return new EvaluatorMapper.ToEvaluator() {
             @Override
             public ExpressionEvaluator.Factory apply(Expression expression) {
-                return toEvaluator(foldCtx, expression, layout, shardContexts, analysisRegistry);
+                return toEvaluator(foldCtx, expression, layout, shardContexts, services);
             }
 
             @Override
@@ -114,7 +109,12 @@ public final class EvalMapper {
 
             @Override
             public Analyzer getAnalyzer(String name) {
-                return PlannerUtils.resolveAnalyzer(name, analysisRegistry);
+                return PlannerUtils.resolveAnalyzer(name, services.analysisRegistry());
+            }
+
+            @Override
+            public boolean allowExpensiveQueries() {
+                return services.allowExpensiveQueries();
             }
         };
     }

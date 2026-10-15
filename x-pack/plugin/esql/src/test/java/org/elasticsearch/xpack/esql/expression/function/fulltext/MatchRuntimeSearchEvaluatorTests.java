@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -15,6 +16,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
+import org.elasticsearch.xpack.esql.score.ScoreMapper;
 
 import java.util.Map;
 import java.util.function.Consumer;
@@ -38,6 +41,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -365,6 +369,53 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
             })
         );
         assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
+     * With {@code search.allow_expensive_queries: false} and {@code lenient: false}, {@code fuzziness} is refused with
+     * the error Query DSL gives for a fuzzy {@code match}, both when matching and when scoring.
+     */
+    public void testTextWithFuzzinessRefusedWhenExpensiveQueriesDisallowed() {
+        Match match = runtimeMatchWithOptions(TEXT, new BytesRef("bron"), KEYWORD, mapOptions("fuzziness", "1", "lenient", "false"));
+        String expected = "[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.";
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> match.toEvaluator(toEvaluator(false)));
+        assertThat(e.getMessage(), equalTo(expected));
+
+        e = expectThrows(
+            ElasticsearchException.class,
+            () -> ScoreMapper.toScorer(match, EmptyIndexedByShardId.instance(), toEvaluator(false))
+        );
+        assertThat(e.getMessage(), equalTo(expected));
+    }
+
+    /**
+     * {@code match} is lenient by default, and a lenient {@code match} turns the refused fuzzy clause into one that
+     * matches nothing, as it does when pushed down.
+     */
+    public void testLenientTextWithFuzzinessMatchesNothingWhenExpensiveQueriesDisallowed() {
+        Match match = runtimeMatchWithOptions(TEXT, new BytesRef("bron"), KEYWORD, mapOptions("fuzziness", "1"));
+        assertThat(match.toEvaluator(toEvaluator(false)), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));
+    }
+
+    /**
+     * {@code search.allow_expensive_queries: false} leaves runtime {@code match} alone unless it asks for an expensive
+     * query type: no options, and options that don't produce one, still match.
+     */
+    public void testTextWithoutExpensiveOptionsWhenExpensiveQueriesDisallowed() {
+        Function<BlockFactory, Block> values = factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("the quick brown fox"));
+            builder.appendBytesRef(new BytesRef("the lazy dog"));
+        });
+        Boolean[] noOptions = evaluate(runtimeMatch(TEXT, new BytesRef("fox"), KEYWORD), toEvaluator(false), values);
+        assertArrayEquals(new Boolean[] { true, false }, noOptions);
+
+        Boolean[] withOptions = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("quick fox"), KEYWORD, mapOptions("operator", "AND", "boost", "2")),
+            toEvaluator(false),
+            values
+        );
+        assertArrayEquals(new Boolean[] { true, false }, withOptions);
     }
 
     /**

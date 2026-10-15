@@ -1978,7 +1978,8 @@ public class ComputeService {
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
-                clusterService.state().getMinTransportVersion()
+                clusterService.state().getMinTransportVersion(),
+                clusterService.getClusterSettings().get(SearchService.ALLOW_EXPENSIVE_QUERIES)
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

@@ -422,7 +422,8 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             query,
             // the analyzer option overrides the query side only, defaulting to the values analyzer
             queryAnalyzer == null ? valuesAnalyzer : queryAnalyzer,
-            valuesAnalyzer
+            valuesAnalyzer,
+            toEvaluator.allowExpensiveQueries()
         );
     }
 
@@ -439,7 +440,8 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             toEvaluator.apply(field()),
             query,
             queryAnalyzer == null ? valuesAnalyzer : queryAnalyzer,
-            valuesAnalyzer
+            valuesAnalyzer,
+            toEvaluator.allowExpensiveQueries()
         );
     }
 

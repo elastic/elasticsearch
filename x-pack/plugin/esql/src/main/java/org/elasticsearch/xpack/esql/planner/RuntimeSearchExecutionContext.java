@@ -102,6 +102,20 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
         Map<String, NamedAnalyzer> extraAnalyzers,
         boolean lenientFields
     ) {
+        return create(fieldAnalyzers, extraAnalyzers, lenientFields, true);
+    }
+
+    /**
+     * Like {@link #create(Map, Map, boolean)}, but sets what {@link #allowExpensiveQueries()} returns, so that the
+     * field types refuse the expensive query types (fuzzy, regexp, wildcard, prefix, ...) exactly as Query DSL does
+     * when {@code search.allow_expensive_queries} is {@code false}.
+     */
+    public static RuntimeSearchExecutionContext create(
+        Map<String, NamedAnalyzer> fieldAnalyzers,
+        Map<String, NamedAnalyzer> extraAnalyzers,
+        boolean lenientFields,
+        boolean allowExpensiveQueries
+    ) {
         Map<String, MappedFieldType> fields = new LinkedHashMap<>();
         Map<String, NamedAnalyzer> analyzers = new LinkedHashMap<>();
         fieldAnalyzers.forEach((name, analyzer) -> {
@@ -115,7 +129,7 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
         if (fieldAnalyzers.isEmpty() == false) {
             analyzers.putIfAbsent(DEFAULT_ANALYZER_KEY, fieldAnalyzers.values().iterator().next());
         }
-        return new RuntimeSearchExecutionContext(fields, IndexAnalyzers.of(analyzers), lenientFields);
+        return new RuntimeSearchExecutionContext(fields, IndexAnalyzers.of(analyzers), lenientFields, allowExpensiveQueries);
     }
 
     private static IndexSettings syntheticIndexSettings() {
@@ -130,7 +144,12 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
         return new IndexSettings(meta, Settings.EMPTY);
     }
 
-    private RuntimeSearchExecutionContext(Map<String, MappedFieldType> fields, IndexAnalyzers indexAnalyzers, boolean lenientFields) {
+    private RuntimeSearchExecutionContext(
+        Map<String, MappedFieldType> fields,
+        IndexAnalyzers indexAnalyzers,
+        boolean lenientFields,
+        boolean allowExpensiveQueries
+    ) {
         super(
             0,                              // shardId
             0,                              // shardRequestIndex
@@ -148,7 +167,7 @@ public final class RuntimeSearchExecutionContext extends SearchExecutionContext 
             System::currentTimeMillis,      // nowInMillis (date-math only; unreachable for text fields)
             null,                           // clusterAlias
             null,                           // indexNameMatcher
-            () -> true,                     // allowExpensiveQueries (asserted non-null)
+            () -> allowExpensiveQueries,
             null,                           // valuesSourceRegistry
             Map.of(),                       // runtimeMappings
             null,                           // requestSize

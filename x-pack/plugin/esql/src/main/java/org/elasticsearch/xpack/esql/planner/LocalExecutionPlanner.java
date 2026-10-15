@@ -155,6 +155,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.evaluator.EvaluatorServices;
 import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.evaluator.command.IpLocationFunctionBridge;
@@ -305,6 +306,8 @@ public class LocalExecutionPlanner {
     private final MatcherWatchdog grokMatcherWatchdog;
     /** The oldest transport version in this node's cluster, which decides how external text files bind; see FileSourceFactory. */
     private final TransportVersion minTransportVersion;
+    /** {@code search.allow_expensive_queries}, resolved once by the caller from the live cluster settings. */
+    private final boolean allowExpensiveQueries;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -328,7 +331,8 @@ public class LocalExecutionPlanner {
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
-        TransportVersion minTransportVersion
+        TransportVersion minTransportVersion,
+        boolean allowExpensiveQueries
     ) {
 
         this.sessionId = sessionId;
@@ -356,6 +360,7 @@ public class LocalExecutionPlanner {
         // wrapper around a single timeout value.
         this.grokMatcherWatchdog = grokMatcherWatchdog;
         this.minTransportVersion = minTransportVersion;
+        this.allowExpensiveQueries = allowExpensiveQueries;
     }
 
     /**
@@ -382,7 +387,7 @@ public class LocalExecutionPlanner {
             timeSeries,
             settings,
             shardContexts,
-            physicalOperationProviders.analysisRegistry(),
+            new EvaluatorServices(physicalOperationProviders.analysisRegistry(), allowExpensiveQueries),
             new Holder<>(),
             new Holder<>(),
             singleNodeOptimizations
@@ -609,7 +614,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
-                EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout, context.analysisRegistry()),
+                EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout, context.evaluatorServices()),
                 new CompoundOutputEvaluator.Factory(coe.input().dataType(), coe.source(), provider, multiValueStrategy)
             ),
             layout
@@ -626,7 +631,7 @@ public class LocalExecutionPlanner {
             context.foldCtx(),
             completion.prompt(),
             source.layout,
-            context.analysisRegistry()
+            context.evaluatorServices()
         );
 
         return source.with(
@@ -663,7 +668,7 @@ public class LocalExecutionPlanner {
                 context.foldCtx(),
                 fields.get(i),
                 operation.layout,
-                context.analysisRegistry()
+                context.evaluatorServices()
             );
             Layout outputLayout = operation.layout.builder().append(generatedFields.get(i)).build();
             // Only an embedding endpoint takes the multimodal request shape; every other task type, including an
@@ -1473,7 +1478,7 @@ public class LocalExecutionPlanner {
                 field.child(),
                 layout,
                 context.shardContexts,
-                context.analysisRegistry()
+                context.evaluatorServices()
             );
             outputLayout.append(field.toAttribute());
             pendingAliases.add(field.id());
@@ -1504,7 +1509,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new StringExtractOperator.StringExtractOperatorFactory(
                 patternNames,
-                EvalMapper.toEvaluator(context.foldCtx(), expr, layout, context.analysisRegistry()),
+                EvalMapper.toEvaluator(context.foldCtx(), expr, layout, context.evaluatorServices()),
                 () -> (input) -> dissect.parser().parser().parse(input)
             ),
             layout
@@ -1539,7 +1544,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
-                EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout, context.analysisRegistry()),
+                EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout, context.evaluatorServices()),
                 new GrokEvaluatorExtracter.Factory(grok.source(), watchdogGrok, grok.pattern().pattern(), fieldToPos, fieldToType)
             ),
             layout
@@ -1580,7 +1585,7 @@ public class LocalExecutionPlanner {
 
         List<ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
             .stream()
-            .map(rerankField -> EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout, context.analysisRegistry()))
+            .map(rerankField -> EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout, context.evaluatorServices()))
             .toList();
 
         assert rerankFieldsEvaluators.size() > 0 : "rerank expression evaluators must not be empty";
@@ -1657,11 +1662,11 @@ public class LocalExecutionPlanner {
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
             .stream()
-            .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.analysisRegistry()))
+            .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.evaluatorServices()))
             .toList();
         ExpressionEvaluator.Factory indexEvaluator = resolved.groupByIndex().isEmpty()
             ? null
-            : EvalMapper.toEvaluator(context.foldCtx(), highlight.indexKey(), source.layout, context.analysisRegistry());
+            : EvalMapper.toEvaluator(context.foldCtx(), highlight.indexKey(), source.layout, context.evaluatorServices());
 
         Layout.Builder layoutBuilder = source.layout.builder();
         // Append one keyword column per highlighted field.
@@ -2394,7 +2399,7 @@ public class LocalExecutionPlanner {
                     filter.condition(),
                     source.layout,
                     context.shardContexts,
-                    context.analysisRegistry()
+                    context.evaluatorServices()
                 )
             ),
             source.layout
@@ -2422,7 +2427,7 @@ public class LocalExecutionPlanner {
                             context.foldCtx(),
                             filterOperation.layout,
                             context.shardContexts,
-                            context.analysisRegistry()
+                            context.evaluatorServices()
                         )
                     ),
                     scoreBlock
@@ -2880,11 +2885,16 @@ public class LocalExecutionPlanner {
         boolean timeSeries,
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
-        @Nullable AnalysisRegistry analysisRegistry,
+        EvaluatorServices evaluatorServices,
         Holder<TopNExec> lastVisitedTopN,
         Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot,
         boolean singleNodeOptimizations
     ) {
+        @Nullable
+        AnalysisRegistry analysisRegistry() {
+            return evaluatorServices.analysisRegistry();
+        }
+
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
         }

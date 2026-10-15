@@ -16,6 +16,8 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -35,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -140,6 +143,47 @@ public class RuntimeSearchExecutionContextTests extends ESTestCase {
         RuntimeSearchExecutionContext context = RuntimeSearchExecutionContext.create(fieldAnalyzers, Map.of(), false);
         assertThat(context.getIndexAnalyzers().get("default").name(), equalTo("default"));
         assertThat(context.getIndexAnalyzers().get("english").name(), equalTo("english"));
+    }
+
+    /**
+     * A context created with {@code allowExpensiveQueries == false} makes the field types refuse the expensive query
+     * types with Query DSL's own messages, while cheap queries still translate.
+     */
+    public void testExpensiveQueriesRefusedWhenDisallowed() {
+        RuntimeSearchExecutionContext context = RuntimeSearchExecutionContext.create(
+            Map.of("title", Lucene.STANDARD_ANALYZER),
+            Map.of(),
+            false,
+            false
+        );
+        assertFalse(context.allowExpensiveQueries());
+        String setting = "'search.allow_expensive_queries' is set to false.";
+        Map<QueryBuilder, String> expected = Map.of(
+            new MatchQueryBuilder("title", "fox").fuzziness(Fuzziness.ONE),
+            "[fuzzy] queries cannot be executed when " + setting,
+            QueryBuilders.queryStringQuery("fox~").field("title"),
+            "[fuzzy] queries cannot be executed when " + setting,
+            QueryBuilders.queryStringQuery("fo*").field("title"),
+            "[prefix] queries cannot be executed when "
+                + setting
+                + " For optimised prefix queries on text fields please enable [index_prefixes].",
+            QueryBuilders.queryStringQuery("f*x").field("title"),
+            "[wildcard] queries cannot be executed when " + setting,
+            QueryBuilders.queryStringQuery("/f[ao]x/").field("title"),
+            "[regexp] queries cannot be executed when " + setting
+        );
+        expected.forEach((builder, message) -> {
+            ElasticsearchException e = expectThrows(
+                ElasticsearchException.class,
+                () -> HighlightQueryBuilders.toLuceneQuery(builder, context)
+            );
+            // query_string prefixes the field type's message with "failed to create query: ", as it does in Query DSL
+            assertThat(builder.toString(), e.getMessage(), endsWith(message));
+            assertNotNull(query(builder));
+        });
+
+        assertNotNull(HighlightQueryBuilders.toLuceneQuery(new MatchQueryBuilder("title", "quick fox").operator(Operator.AND), context));
+        assertNotNull(HighlightQueryBuilders.toLuceneQuery(new MatchPhraseQueryBuilder("title", "quick fox").slop(1), context));
     }
 
     private static List<Term> terms(Query query) {

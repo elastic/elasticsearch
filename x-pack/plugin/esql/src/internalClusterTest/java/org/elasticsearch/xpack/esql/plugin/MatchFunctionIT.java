@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -353,6 +354,71 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
             // Two matched terms, each weighted by the boost.
             assertValues(resp.values(), List.of(List.of(6, 3.0)));
+        }
+    }
+
+    /**
+     * With {@code search.allow_expensive_queries: false}, runtime {@code match} treats {@code fuzziness} the way a
+     * pushed-down {@code match} does: refused with Query DSL's error when {@code lenient} is {@code false}, a clause
+     * matching nothing otherwise. That holds in WHERE and in an aggregation filter. Runtime {@code match} without an
+     * expensive option still runs.
+     */
+    public void testRuntimeMatchWhenExpensiveQueriesDisallowed() {
+        updateClusterSettings(Settings.builder().put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), false));
+        try {
+            String expected = "[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.";
+            // the indexed field pushes match down to Lucene, the computed one runs it per row
+            for (String field : List.of("content", "to_text(concat(content, \" extra\"))")) {
+                var strict = "FROM test | WHERE match(" + field + ", \"fox\", { \"fuzziness\": \"AUTO\", \"lenient\": false })";
+                var error = expectThrows(ElasticsearchException.class, () -> run(strict));
+                assertThat(error.getMessage(), containsString(expected));
+
+                var lenient = "FROM test | WHERE match(" + field + ", \"fox\", { \"fuzziness\": \"AUTO\" }) | STATS c = count(*)";
+                try (var resp = run(lenient)) {
+                    assertValues(resp.values(), List.of(List.of(0L)));
+                }
+            }
+
+            var aggregationFilter = """
+                FROM test
+                | STATS c = count(*) WHERE match(to_text(concat(content, " extra")), "fox", { "fuzziness": "AUTO", "lenient": false })
+                """;
+            var error = expectThrows(ElasticsearchException.class, () -> run(aggregationFilter));
+            assertThat(error.getMessage(), containsString(expected));
+
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate("expensive_lookup_tags")
+                    .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
+                    .setMapping("id", "type=integer", "tags", "type=keyword")
+            );
+            client().prepareBulk()
+                .add(new IndexRequest("expensive_lookup_tags").source("id", 1, "tags", "fox"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+            ensureYellow("expensive_lookup_tags");
+            var lookupField = """
+                FROM test
+                | LOOKUP JOIN expensive_lookup_tags ON id
+                | WHERE match(to_text(tags), "fox", { "fuzziness": "AUTO", "lenient": false })
+                """;
+            error = expectThrows(ElasticsearchException.class, () -> run(lookupField));
+            assertThat(error.getMessage(), containsString(expected));
+
+            var query = """
+                FROM test
+                | EVAL c = to_text(to_string(content))
+                | WHERE match(c, "fox") OR match(c, "white cat", { "operator": "AND" })
+                | KEEP id
+                | SORT id
+                """;
+            try (var resp = run(query)) {
+                assertColumnNames(resp.columns(), List.of("id"));
+                assertValues(resp.values(), List.of(List.of(1), List.of(5), List.of(6)));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey()));
         }
     }
 

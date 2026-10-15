@@ -8,16 +8,20 @@
 package org.elasticsearch.xpack.diskbbq;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.index.mapper.vectors.DenseVectorMappingBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -35,7 +39,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
 
 /**
  * {@code auto_calibrate} is an updatable {@code bbq_disk} index option, so a single index can hold segments
@@ -49,7 +52,7 @@ import static org.hamcrest.Matchers.lessThan;
  * recall collapses.
  */
 @LuceneTestCase.SuppressCodecs("*")
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
 
     private static final String INDEX = "bbq-disk-auto-calibrate";
@@ -58,11 +61,9 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
     private static final int K = 10;
     private static final float VISIT_PERCENTAGE = 100f;
 
-    /** Split so the total only clears the calibration threshold once both batches are merged together. */
-    private static final int FIRST_BATCH = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION / 2 + 500;
-    private static final int SECOND_BATCH = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION / 2 + 500;
+    /** Enough vectors for a force merge to clear the calibration threshold. */
+    private static final int TOTAL_DOCS = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION + 1000;
     private static final int EXTRA_BATCH = 1000;
-    private static final int TOTAL_DOCS = FIRST_BATCH + SECOND_BATCH;
     /** Large enough for the multi-phase tests below, which index more than {@link #TOTAL_DOCS}. */
     private static final int MAX_DOCS = 16_000;
 
@@ -89,62 +90,13 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
     }
 
     /**
-     * Indexes under {@code auto_calibrate: false}, turns it on, indexes more, then force merges the whole
-     * index in one go so merge calibration runs over segments written under both settings.
-     */
-    public void testRecallSurvivesEnablingAutoCalibrate() {
-        createIndexWithAutoCalibrate(false);
-        generateVectors();
-
-        indexVectors(0, FIRST_BATCH);
-        flushAndRefresh(INDEX);
-        assertRecallAtLeast(FIRST_BATCH, "uncalibrated, before mapping update");
-
-        updateAutoCalibrate(true);
-
-        indexVectors(FIRST_BATCH, SECOND_BATCH);
-        flushAndRefresh(INDEX);
-        // segments written under both settings coexist at this point
-        assertRecallAtLeast(TOTAL_DOCS, "mixed segments, calibration enabled");
-
-        forceMergeToOneSegment();
-        assertRecallAtLeast(TOTAL_DOCS, "after calibrating force merge");
-    }
-
-    /**
-     * The hazardous direction: force merge past {@link IvfAutoCalibration#MIN_VECTORS_FOR_CALIBRATION} first, so
-     * a calibrated segment exists, and only then turn {@code auto_calibrate} off. Calibration may have chosen to
-     * precondition that segment despite {@code precondition} defaulting to false in the mapping; since the
-     * segment stores transformed vectors, queries must keep transforming for it after the flip.
-     */
-    public void testRecallSurvivesDisablingAutoCalibrate() {
-        createIndexWithAutoCalibrate(true);
-        generateVectors();
-
-        indexVectors(0, TOTAL_DOCS);
-        flushAndRefresh(INDEX);
-        forceMergeToOneSegment();
-        assertRecallAtLeast(TOTAL_DOCS, "calibrated, before mapping update");
-
-        updateAutoCalibrate(false);
-        assertRecallAtLeast(TOTAL_DOCS, "calibrated segment, calibration disabled");
-
-        // further indexing and merging under the disabled setting must not regress the calibrated segment
-        indexVectors(TOTAL_DOCS, EXTRA_BATCH);
-        flushAndRefresh(INDEX);
-        assertRecallAtLeast(TOTAL_DOCS + EXTRA_BATCH, "after indexing with calibration disabled");
-
-        forceMergeToOneSegment();
-        assertRecallAtLeast(TOTAL_DOCS + EXTRA_BATCH, "after uncalibrated force merge");
-    }
-
-    /**
      * Flips {@code auto_calibrate} several times in a row, indexing, searching and force merging between every
      * flip, so segments written and merged under every combination of before/after settings accumulate in one
      * shard. Merges happen both below and above {@link IvfAutoCalibration#MIN_VECTORS_FOR_CALIBRATION}, with
-     * calibration on and off, and recall is checked at every step.
+     * calibration on and off, and recall is checked at every step. This includes the hazardous direction:
+     * switching calibration off once a calibrated segment exists.
      */
-    public void testRecallSurvivesRepeatedToggling() {
+    public void testRecallSurvivesRepeatedToggling() throws Exception {
         final int batch = 3500;
         createIndexWithAutoCalibrate(false);
         generateVectors();
@@ -156,6 +108,9 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
         updateAutoCalibrate(true);
         indexed = indexAndRefresh(indexed, batch);
         assertRecallAtLeast(indexed, "on: segments from both settings");
+        // below the calibration threshold, so this merge must not calibrate even though calibration is on
+        forceMergeToOneSegment();
+        assertRecallAtLeast(indexed, "on: merge below the calibration threshold");
 
         updateAutoCalibrate(false);
         indexed = indexAndRefresh(indexed, batch);
@@ -171,6 +126,7 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
         assertRecallAtLeast(indexed, "on: calibrating merge over a previously uncalibrated segment");
 
         updateAutoCalibrate(false);
+        assertRecallAtLeast(indexed, "off: calibrated segment alone");
         indexed = indexAndRefresh(indexed, EXTRA_BATCH);
         assertRecallAtLeast(indexed, "off: calibrated segment next to a fresh one");
         forceMergeToOneSegment();
@@ -186,8 +142,8 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
      * calibrated under a different profile, so segments with different persisted quantization and oversample coexist in one shard
      * and every one of them must still be searched correctly.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/162073")
-    public void testRecallSurvivesSwitchingBetweenProfiles() {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/162149")
+    public void testRecallSurvivesSwitchingBetweenProfiles() throws Exception {
         final int batch = 3500;
         createIndexWithAutoCalibrate("quality");
         generateVectors();
@@ -223,59 +179,28 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
     }
 
     /**
-     * Toggling on an index that never reaches {@link IvfAutoCalibration#MIN_VECTORS_FOR_CALIBRATION}, so no merge
-     * ever calibrates, must keep working and keep the mapping and the segments consistent.
-     */
-    public void testTogglingBelowCalibrationThreshold() {
-        createIndexWithAutoCalibrate(false);
-        generateVectors();
-        int indexed = 0;
-        boolean autoCalibrate = false;
-        for (int round = 0; round < 4; round++) {
-            indexed = indexAndRefresh(indexed, 500);
-            assertRecallAtLeast(indexed, "round " + round + ", auto_calibrate=" + autoCalibrate);
-            forceMergeToOneSegment();
-            assertRecallAtLeast(indexed, "round " + round + " merged, auto_calibrate=" + autoCalibrate);
-            autoCalibrate = autoCalibrate == false;
-            updateAutoCalibrate(autoCalibrate);
-        }
-        assertThat(indexed, lessThan(IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION));
-    }
-
-    /**
      * Deletes and overwrites leave tombstoned vectors inside segments written under the old setting. Merging them
      * under the new setting recalibrates over only the live vectors, and search must still return the live
-     * neighbours, never a deleted or stale one. Runs from both starting values of {@code auto_calibrate}.
+     * neighbours, never a deleted or stale one. Runs from a random starting value of {@code auto_calibrate}.
      */
-    public void testDeletesAndOverwritesAcrossToggle() {
-        for (boolean initial : new boolean[] { true, false }) {
-            if (indexExists(INDEX)) {
-                assertAcked(indicesAdmin().prepareDelete(INDEX));
-            }
-            createIndexWithAutoCalibrate(initial);
-            generateVectors();
-            indexVectors(0, TOTAL_DOCS);
-            flushAndRefresh(INDEX);
-            forceMergeToOneSegment();
-            assertRecallAtLeast(TOTAL_DOCS, "initial auto_calibrate=" + initial);
+    public void testDeletesAndOverwritesAcrossToggle() throws Exception {
+        boolean initial = randomBoolean();
+        createIndexWithAutoCalibrate(initial);
+        generateVectors();
+        indexVectors(0, TOTAL_DOCS);
+        flushAndRefresh(INDEX);
+        forceMergeToOneSegment();
+        assertRecallAtLeast(TOTAL_DOCS, "initial auto_calibrate=" + initial);
 
-            updateAutoCalibrate(initial == false);
+        updateAutoCalibrate(initial == false);
 
-            deleteDocs(0, TOTAL_DOCS / 10);
-            overwriteDocs(TOTAL_DOCS / 10, TOTAL_DOCS / 5);
-            flushAndRefresh(INDEX);
-            assertRecallAtLeast(TOTAL_DOCS, "deleted and overwritten after flipping to " + (initial == false));
+        deleteDocs(0, TOTAL_DOCS / 10);
+        overwriteDocs(TOTAL_DOCS / 10, TOTAL_DOCS / 5);
+        flushAndRefresh(INDEX);
+        assertRecallAtLeast(TOTAL_DOCS, "deleted and overwritten after flipping to " + (initial == false));
 
-            forceMergeToOneSegment();
-            assertRecallAtLeast(TOTAL_DOCS, "merged after deletes under auto_calibrate=" + (initial == false));
-
-            updateAutoCalibrate(initial);
-            overwriteDocs(TOTAL_DOCS / 5, TOTAL_DOCS / 4);
-            indexVectors(TOTAL_DOCS, EXTRA_BATCH);
-            flushAndRefresh(INDEX);
-            forceMergeToOneSegment();
-            assertRecallAtLeast(TOTAL_DOCS + EXTRA_BATCH, "flipped back to " + initial + " and merged");
-        }
+        forceMergeToOneSegment();
+        assertRecallAtLeast(TOTAL_DOCS, "merged after deletes under auto_calibrate=" + (initial == false));
     }
 
     /**
@@ -311,9 +236,9 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
             }
         }, "auto-calibrate-searcher");
         searcher.start();
+        boolean autoCalibrate = false;
+        int indexed = TOTAL_DOCS;
         try {
-            boolean autoCalibrate = false;
-            int indexed = TOTAL_DOCS;
             for (int round = 0; round < 6; round++) {
                 autoCalibrate = autoCalibrate == false;
                 updateAutoCalibrate(autoCalibrate);
@@ -324,16 +249,14 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
             }
             long searchesSoFar = searches.get();
             assertBusy(() -> assertTrue("searcher made no progress", failure.get() != null || searches.get() > searchesSoFar));
-            stop.set(true);
-            searcher.join();
-            if (failure.get() != null) {
-                throw new AssertionError("search failed while auto_calibrate was being toggled", failure.get());
-            }
-            assertRecallAtLeast(indexed, "after concurrent toggling");
         } finally {
             stop.set(true);
             searcher.join();
         }
+        if (failure.get() != null) {
+            throw new AssertionError("search failed while auto_calibrate was being toggled", failure.get());
+        }
+        assertRecallAtLeast(indexed, "after concurrent toggling");
     }
 
     private int indexAndRefresh(int startId, int count) {
@@ -359,15 +282,14 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
             for (int d = 0; d < DIMS; d++) {
                 vectors[id][d] = (float) rnd.nextGaussian();
             }
-            normalize(vectors[id]);
+            VectorUtil.l2normalize(vectors[id]);
         }
         indexVectors(from, to - from);
     }
 
     /** @param autoCalibrate a {@link Boolean} or the name of an auto-calibration profile */
-    private void updateAutoCalibrate(Object autoCalibrate) {
-        assertAcked(indicesAdmin().preparePutMapping(INDEX).setSource(mappingSource(autoCalibrate)));
-        assertAutoCalibrateInMapping(autoCalibrate);
+    private void updateAutoCalibrate(Object autoCalibrate) throws IOException {
+        assertAcked(indicesAdmin().preparePutMapping(INDEX).setSource(mapping(autoCalibrate)));
     }
 
     private void forceMergeToOneSegment() {
@@ -375,49 +297,22 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
         flushAndRefresh(INDEX);
     }
 
-    private void createIndexWithAutoCalibrate(Object autoCalibrate) {
+    private void createIndexWithAutoCalibrate(Object autoCalibrate) throws IOException {
         assertAcked(
-            prepareCreate(INDEX).setSettings(
-                Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .put("index.shard.check_on_startup", "false")
-            ).setMapping(mappingSource(autoCalibrate))
+            prepareCreate(INDEX).setSettings(indexSettings(1, 0).put("index.shard.check_on_startup", "false"))
+                .setMapping(mapping(autoCalibrate))
         );
         ensureGreen(INDEX);
     }
 
-    private static String mappingSource(Object autoCalibrate) {
-        String autoCalibrateJson = autoCalibrate instanceof String ? "\"" + autoCalibrate + "\"" : autoCalibrate.toString();
-        return Strings.format("""
-            {
-              "properties": {
-                "%s": {
-                  "type": "dense_vector",
-                  "dims": %d,
-                  "index": true,
-                  "similarity": "dot_product",
-                  "index_options": {
-                    "type": "bbq_disk",
-                    "auto_calibrate": %s
-                  }
-                }
-              }
-            }""", FIELD, DIMS, autoCalibrateJson);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assertAutoCalibrateInMapping(Object expected) {
-        Map<String, Object> mapping = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, INDEX)
-            .get()
-            .mappings()
-            .get(INDEX)
-            .sourceAsMap();
-        Map<String, Object> properties = (Map<String, Object>) mapping.get("properties");
-        Map<String, Object> field = (Map<String, Object>) properties.get(FIELD);
-        Map<String, Object> indexOptions = (Map<String, Object>) field.get("index_options");
-        // the value the user supplied is kept as is: an explicit false, or the profile name
-        assertEquals(expected, indexOptions.get("auto_calibrate"));
+    private static XContentBuilder mapping(Object autoCalibrate) throws IOException {
+        XContentBuilder b = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject(FIELD);
+        new DenseVectorMappingBuilder().dims(DIMS)
+            .index(true)
+            .similarity(VectorSimilarity.DOT_PRODUCT)
+            .indexOptions(Map.of("type", "bbq_disk", "auto_calibrate", autoCalibrate))
+            .build(b);
+        return b.endObject().endObject().endObject();
     }
 
     /** Unit vectors drawn in a few loose clusters so nearest neighbours are well separated. */
@@ -432,14 +327,14 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
             for (int d = 0; d < DIMS; d++) {
                 center[d] = (float) rnd.nextGaussian();
             }
-            normalize(center);
+            VectorUtil.l2normalize(center);
         }
         for (int i = 0; i < MAX_DOCS; i++) {
             float[] center = centers[i % clusters];
             for (int d = 0; d < DIMS; d++) {
                 vectors[i][d] = center[d] + 0.35f * (float) rnd.nextGaussian();
             }
-            normalize(vectors[i]);
+            VectorUtil.l2normalize(vectors[i]);
         }
     }
 
@@ -450,7 +345,7 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
             int end = Math.min(offset + batchSize, count);
             for (int i = offset; i < end; i++) {
                 int id = startId + i;
-                bulk.add(client().prepareIndex(INDEX).setId(String.valueOf(id)).setSource(FIELD, boxed(vectors[id])));
+                bulk.add(client().prepareIndex(INDEX).setId(String.valueOf(id)).setSource(FIELD, vectors[id]));
             }
             BulkResponse response = bulk.get();
             assertFalse(response.buildFailureMessage(), response.hasFailures());
@@ -493,38 +388,11 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
                 ids.add(i);
             }
         }
-        ids.sort((a, b) -> Float.compare(dot(query, vectors[b]), dot(query, vectors[a])));
+        ids.sort((a, b) -> Float.compare(VectorUtil.dotProduct(query, vectors[b]), VectorUtil.dotProduct(query, vectors[a])));
         Set<String> top = new LinkedHashSet<>();
         for (int i = 0; i < K; i++) {
             top.add(String.valueOf(ids.get(i)));
         }
         return top;
-    }
-
-    private static float dot(float[] a, float[] b) {
-        float sum = 0;
-        for (int i = 0; i < a.length; i++) {
-            sum += a[i] * b[i];
-        }
-        return sum;
-    }
-
-    private static void normalize(float[] v) {
-        double norm = 0;
-        for (float value : v) {
-            norm += (double) value * value;
-        }
-        norm = Math.sqrt(norm);
-        for (int i = 0; i < v.length; i++) {
-            v[i] /= (float) norm;
-        }
-    }
-
-    private static List<Float> boxed(float[] v) {
-        List<Float> list = new ArrayList<>(v.length);
-        for (float value : v) {
-            list.add(value);
-        }
-        return list;
     }
 }

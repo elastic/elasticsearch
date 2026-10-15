@@ -37,11 +37,7 @@ fi
 
 # Upload JaCoCo HTML coverage reports ({project}/build/reports/jacoco/{sourceset}/html/index.html)
 # as artifacts and link them from a single annotation. Failures here must never fail the job.
-# Artifact links resolve by path across the whole build, with no way to name a job, and upload
-# destinations only accept custom storage URLs. So each report is moved under a job-specific
-# path before uploading; otherwise jobs running the same tasks would upload to the same path.
 jacoco_annotation=""
-jacoco_stage_root="jacoco-reports/${BUILDKITE_JOB_ID:-local}"
 while IFS= read -r report_index; do
   report_dir="${report_index#./}"
   report_dir="${report_dir%/index.html}"
@@ -49,10 +45,14 @@ while IFS= read -r report_index; do
   project_path="${report_dir%/build/reports/jacoco/*}"
   source_set="${report_dir#*/build/reports/jacoco/}"
   source_set="${source_set%/html}"
-  staged_dir="${jacoco_stage_root}/${project_path}/${source_set}"
 
-  if mkdir -p "$(dirname "$staged_dir")" && mv "$report_dir" "$staged_dir" && buildkite-agent artifact upload "${staged_dir}/**/*"; then
-    jacoco_annotation+="<div class=\"mb3\">:coverage: <a href=\"artifact://${staged_dir}/index.html\"><code>${BUILDKITE_LABEL:-} / ${project_path} (${source_set})</code></a></div>"$'\n'
+  if buildkite-agent artifact upload "${report_dir}/**/*"; then
+    artifact_id="$(buildkite-agent artifact search "${report_dir}/index.html" --step "${BUILDKITE_JOB_ID:-}" --format '%i\n' || true)"
+    artifact_id="${artifact_id%%$'\n'*}"
+    if [[ -n "$artifact_id" ]]; then
+      artifact_url="https://buildkite.com/organizations/${BUILDKITE_ORGANIZATION_SLUG}/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}/jobs/${BUILDKITE_JOB_ID}/artifacts/${artifact_id}"
+      jacoco_annotation+="<div>:coverage: <a href=\"${artifact_url}\"><code>${BUILDKITE_LABEL:-} / ${project_path} (${source_set})</code></a></div>"
+    fi
   fi
 done < <(find . -maxdepth 10 \( -name .git -o -name node_modules \) -prune -o -path '*/build/reports/jacoco/*/html/index.html' -type f -print 2>/dev/null)
 

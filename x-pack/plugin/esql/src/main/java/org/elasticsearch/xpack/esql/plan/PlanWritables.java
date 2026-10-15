@@ -76,6 +76,8 @@ import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
@@ -174,6 +176,8 @@ public class PlanWritables {
             RerankExec.ENTRY,
             SampleExec.ENTRY,
             SampledAggregateExec.ENTRY,
+            StageSinkExec.ENTRY,
+            StageSourceExec.ENTRY,
             TopNPreFilterExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,

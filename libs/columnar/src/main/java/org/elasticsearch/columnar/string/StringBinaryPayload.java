@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 
 import java.io.IOException;
@@ -50,6 +51,12 @@ public final class StringBinaryPayload {
     public static final BytesRef EMPTY = new BytesRef(new byte[] { 0 });
 
     private StringBinaryPayload() {}
+
+    /** Hands a value to a {@link BytesSink} a piece at a time. */
+    @FunctionalInterface
+    public interface ValueSource {
+        void transferTo(BytesSink sink) throws IOException;
+    }
 
     /**
      * Builds one document's payload, a slot at a time. Reusable through {@link #reset}, so a caller encoding a
@@ -100,6 +107,33 @@ public final class StringBinaryPayload {
                 pos += valueLength;
             }
             slotCount++;
+        }
+
+        /**
+         * Appends a slot of {@code length} bytes that {@code source} hands over a piece at a time, so the value is copied
+         * straight into the payload.
+         */
+        public void appendSlot(int length, ValueSource source) throws IOException {
+            blob.grow(pos + ByteArrayInts.MAX_VINT_BYTES + length);
+            final byte[] buffer = blob.bytes();
+            pos += ByteArrayInts.writeVInt(length + SLOT_LENGTH_BIAS, buffer, pos);
+            final int end = pos + length;
+            source.transferTo((bytes, offset, pieceLength) -> {
+                if (pos + pieceLength > end) {
+                    throw new IllegalStateException("a slot said to be " + length + " bytes handed over more");
+                }
+                System.arraycopy(bytes, offset, buffer, pos, pieceLength);
+                pos += pieceLength;
+            });
+            if (pos != end) {
+                throw new IllegalStateException("a slot said to be " + length + " bytes handed over " + (length - (end - pos)));
+            }
+            slotCount++;
+        }
+
+        /** Makes room for {@code bytes} more bytes of slots, so a document of known size is built without regrowing. */
+        public void reserve(long bytes) {
+            blob.grow(Math.toIntExact(pos + bytes));
         }
 
         /**

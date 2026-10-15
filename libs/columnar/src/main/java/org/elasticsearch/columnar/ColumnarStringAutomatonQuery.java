@@ -25,7 +25,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
@@ -55,11 +57,13 @@ import java.util.Objects;
  * one: an updated field is read as an overlay of its layers, which is no column, and then the values are
  * read a document at a time like any binary doc values.
  */
-public final class ColumnarStringAutomatonQuery extends Query {
+public final class ColumnarStringAutomatonQuery extends Query implements Accountable {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ColumnarStringAutomatonQuery.class);
 
     private final String field;
     private final ByteRunAutomaton automaton;
     private final String description;
+    private final boolean singleValued;
     private final ScanBudget budget;
 
     /**
@@ -69,18 +73,25 @@ public final class ColumnarStringAutomatonQuery extends Query {
      * what the automaton was built from, for {@link #toString}; what the query is compared and cached on is the
      * automaton itself, so a caller that spells its parameters differently cannot make two queries collide.
      */
-    public ColumnarStringAutomatonQuery(String field, Automaton automaton, String description, ScanBudget budget) {
-        this(field, new ByteRunAutomaton(Objects.requireNonNull(automaton)), description, budget);
+    public ColumnarStringAutomatonQuery(String field, Automaton automaton, String description, boolean singleValued, ScanBudget budget) {
+        this(field, new ByteRunAutomaton(Objects.requireNonNull(automaton)), description, singleValued, budget);
     }
 
     /**
      * As above, for a caller that already compiled the automaton - a fuzzy query, whose {@link ByteRunAutomaton} is built
      * by the query that defines the edit distance rather than by this one.
      */
-    public ColumnarStringAutomatonQuery(String field, ByteRunAutomaton automaton, String description, ScanBudget budget) {
+    public ColumnarStringAutomatonQuery(
+        String field,
+        ByteRunAutomaton automaton,
+        String description,
+        boolean singleValued,
+        ScanBudget budget
+    ) {
         this.field = Objects.requireNonNull(field);
         this.automaton = Objects.requireNonNull(automaton);
         this.description = Objects.requireNonNull(description);
+        this.singleValued = singleValued;
         this.budget = Objects.requireNonNull(budget);
     }
 
@@ -111,6 +122,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
                         if (values instanceof StringColumnSource columnar) {
+                            assert columnar.singleValued() == singleValued : "framing of [" + field + "] differs between query and column";
                             final StringColumnReader column = columnar.reader();
                             return column.match(value -> automaton.run(value.bytes, value.offset, value.length));
                         }
@@ -118,7 +130,7 @@ public final class ColumnarStringAutomatonQuery extends Query {
                         // An overlay rather than the column, as an updated field is: the values are read one
                         // document at a time and run through the automaton. For a plain (single-valued) field
                         // the blob is the raw value bytes; for a payload field it carries slot count + framed values.
-                        if (ColumNARDocValuesFormat.isSingleValued(info)) {
+                        if (singleValued) {
                             return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                                 @Override
                                 public boolean matches() throws IOException {
@@ -184,13 +196,21 @@ public final class ColumnarStringAutomatonQuery extends Query {
             return true;
         }
         if (other instanceof ColumnarStringAutomatonQuery q) {
-            return field.equals(q.field) && automaton.equals(q.automaton) && description.equals(q.description);
+            return singleValued == q.singleValued
+                && field.equals(q.field)
+                && automaton.equals(q.automaton)
+                && description.equals(q.description);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, automaton, description);
+        return Objects.hash(field, automaton, description, singleValued);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + automaton.ramBytesUsed() + RamUsageEstimator.sizeOf(field) + RamUsageEstimator.sizeOf(description);
     }
 }

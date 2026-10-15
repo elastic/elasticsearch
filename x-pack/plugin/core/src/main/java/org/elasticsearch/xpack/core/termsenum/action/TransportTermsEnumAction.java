@@ -390,7 +390,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
                 final IndexShard indexShard = indexService.getShard(shardId.getId());
 
-                Engine.Searcher searcher = indexShard.acquireSearcher(Engine.SEARCH_SOURCE);
+                Engine.Searcher searcher = indexShard.acquireExternalSearcher(Engine.SEARCH_SOURCE, SplitShardCountSummary.IRRELEVANT);
                 openedResources.add(searcher);
                 var context = indexService.newQueryRewriteContext(request::nodeStartedTimeMillis, Collections.emptyMap(), null);
                 // if the index has strict unmapped field handling, `getFieldType` will throw; enabling lenient error handling allows this

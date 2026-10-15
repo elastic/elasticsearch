@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -1242,7 +1243,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         assertNotNull(indexShard);
         Collections.shuffle(returnedIds, random());
         final var idsToLookup = returnedIds.subList(10, randomIntBetween(10, 100));
-        try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             for (var id : idsToLookup) {
                 assertNotNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
             }

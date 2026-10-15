@@ -276,17 +276,6 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
-    // The ratio of term dictionary files to prewarm if prewarming for id lookups.
-    // e.g. 0.1 means the first 10% of each .tim file is prewarmed.
-    public static final Setting<Double> ID_LOOKUP_PREWARM_RATIO_SETTING = Setting.doubleSetting(
-        "stateless.blob_cache_warming.id_lookup_prewarm_ratio",
-        0.0,
-        0.0,
-        1.0,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     public static final String SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME = "stateless.search.offline_warming";
     public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_ENABLED_SETTING = Setting.boolSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".enabled",
@@ -453,7 +442,6 @@ public class SharedBlobCacheWarmingService {
     private volatile boolean prefetchCommitsForSearchShardRecovery;
     private volatile boolean searchOfflineWarmingEnabled;
     private volatile boolean prewarmIndexShardForIdLookupsEnabled;
-    private volatile double idLookupPrewarmRatio;
     private volatile long maxUploadPrewarmSize;
     private volatile int warmByteRangePerFileConcurrency;
     private final WarmingRatioProvider warmingRatioProvider;
@@ -587,7 +575,6 @@ public class SharedBlobCacheWarmingService {
             PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
             value -> this.prewarmIndexShardForIdLookupsEnabled = value
         );
-        clusterSettings.initializeAndWatch(ID_LOOKUP_PREWARM_RATIO_SETTING, value -> this.idLookupPrewarmRatio = value);
         this.searchRecoveryTimeoutCalculationService = searchRecoveryTimeoutCalculationService;
         clusterSettings.initializeAndWatch(
             WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
@@ -1382,12 +1369,7 @@ public class SharedBlobCacheWarmingService {
                 addLocation(blobLocation, fileName, listeners.acquire());
             } else {
                 // header
-                final var length = getHeaderPreWarmSize(
-                    fileExtension,
-                    blobLocation.fileLength(),
-                    preWarmForIdLookup ? idLookupPrewarmRatio : 0.0
-                );
-                addLocation(blobLocation, fileName, blobLocation.offset(), length, listeners.acquire());
+                addLocation(blobLocation, fileName, blobLocation.offset(), BUFFER_SIZE, listeners.acquire());
                 // footer
                 addLocation(
                     blobLocation,
@@ -1397,14 +1379,6 @@ public class SharedBlobCacheWarmingService {
                     listeners.acquire()
                 );
             }
-        }
-
-        private static long getHeaderPreWarmSize(LuceneFilesExtensions fileExtension, long length, double idLookupPreWarmRatio) {
-            if (fileExtension != LuceneFilesExtensions.TIM) {
-                return BUFFER_SIZE;
-            }
-            final var value = Math.max((long) (idLookupPreWarmRatio * length), BUFFER_SIZE);
-            return value;
         }
 
         private void addLocation(BlobLocation location, String fileName, ActionListener<Void> listener) {

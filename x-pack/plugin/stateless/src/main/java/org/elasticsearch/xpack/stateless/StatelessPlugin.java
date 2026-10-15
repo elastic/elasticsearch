@@ -1457,7 +1457,6 @@ public class StatelessPlugin extends Plugin
             FillCacheMemoryPressure.STALL_WARN_THRESHOLD,
             SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
-            SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING,
             RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING,
             StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
             SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,

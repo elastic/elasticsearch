@@ -1609,6 +1609,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public InputStream newStream() {
                 throw new UnsupportedOperationException("Full GET not supported in failing harness");
             }
@@ -1668,6 +1673,11 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public String version() {
+                return "v1";
             }
 
             @Override

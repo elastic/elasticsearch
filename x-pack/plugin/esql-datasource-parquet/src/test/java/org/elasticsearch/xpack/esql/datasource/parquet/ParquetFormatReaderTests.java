@@ -1449,6 +1449,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 }
 
                 @Override
+                public String version() {
+                    // The same key as the healthy object, which is what makes this the same cache entry.
+                    return healthy.version();
+                }
+
+                @Override
                 public InputStream newStream() throws IOException {
                     streamAttempts.incrementAndGet();
                     throw rethrow(failure.apply(path()));

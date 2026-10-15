@@ -36,9 +36,11 @@ import java.util.Set;
 public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     private final Set<String> metadataFields;
+    private final SourceFilter sourceFilter;
 
     public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
         this.metadataFields = lookupTimeSeriesMetadataFieldNames(context, loadMetrics);
+        this.sourceFilter = metadataFields.isEmpty() ? null : new SourceFilter(metadataFields.toArray(String[]::new), null);
     }
 
     private static Set<String> lookupTimeSeriesMetadataFieldNames(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
@@ -85,7 +87,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new TimeSeriesReader(breaker, metadataFields);
+        return new TimeSeriesReader(breaker, sourceFilter);
     }
 
     @Override
@@ -114,9 +116,9 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     private static final class TimeSeriesReader extends BlockStoredFieldsReader {
         private final SourceFilter sourceFilter;
 
-        private TimeSeriesReader(CircuitBreaker breaker, Set<String> metadataFields) {
+        private TimeSeriesReader(CircuitBreaker breaker, SourceFilter sourceFilter) {
             super(breaker);
-            sourceFilter = metadataFields.isEmpty() ? null : new SourceFilter(metadataFields.toArray(String[]::new), null);
+            this.sourceFilter = sourceFilter;
         }
 
         /**

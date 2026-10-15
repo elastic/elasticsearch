@@ -53,10 +53,6 @@ For now, a series stops appearing in results only once all its samples fall outs
 :::{include} _snippets/promql-unsupported-constructs.md
 :::
 
-## Mixed-version clusters [promql-limitations-mixed-version-clusters]
-
-During rolling upgrades or cross-cluster searches involving nodes older than 9.6, some vector-matching queries return a client error during planning. Upgrade every participating node, including remote clusters, to 9.6 or later to run these queries.
-
 ## Native histograms [promql-limitations-native-histograms]
 
 {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`

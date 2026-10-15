@@ -30,7 +30,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
-public class RemoveRedundantTimeSeriesAliasesTests extends ESTestCase {
+public class UnwrapRedundantAliasesTests extends ESTestCase {
     public void testSingleProjectionKeepsIdentityAndUpdatesParentReferences() {
         for (var origin : TimeSeriesAggregate.Origin.values()) {
             var field = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("cluster"));
@@ -40,7 +40,7 @@ public class RemoveRedundantTimeSeriesAliasesTests extends ESTestCase {
             var explicitAlias = new Alias(Source.EMPTY, "labels", alias.toAttribute());
             var project = new Project(Source.EMPTY, filter, List.of(alias.toAttribute(), explicitAlias));
 
-            var result = as(new RemoveRedundantTimeSeriesAliases().apply(project), Project.class);
+            var result = as(new UnwrapRedundantAliases().apply(project), Project.class);
             var resultFilter = as(result.child(), Filter.class);
             var resultAggregate = as(resultFilter.child(), TimeSeriesAggregate.class);
             var resultField = as(resultAggregate.groupings().getFirst(), TimeSeriesMetadataAttribute.class);
@@ -57,7 +57,7 @@ public class RemoveRedundantTimeSeriesAliasesTests extends ESTestCase {
             assertEquals(alias.id(), result.projections().getFirst().id());
             assertEquals("labels", result.projections().get(1).name());
             assertEquals(explicitAlias.id(), result.projections().get(1).id());
-            assertSame(result, new RemoveRedundantTimeSeriesAliases().apply(result));
+            assertSame(result, new UnwrapRedundantAliases().apply(result));
         }
     }
 
@@ -74,7 +74,7 @@ public class RemoveRedundantTimeSeriesAliasesTests extends ESTestCase {
             var union = new UnionAll(Source.EMPTY, List.of(project, other), List.of(alias.toAttribute().withId(new NameId())));
 
             // Merge columns are aligned by name and have independent ids. Renaming an input breaks that alignment.
-            assertSame(union, new RemoveRedundantTimeSeriesAliases().apply(union));
+            assertSame(union, new UnwrapRedundantAliases().apply(union));
         }
     }
 
@@ -83,7 +83,7 @@ public class RemoveRedundantTimeSeriesAliasesTests extends ESTestCase {
         var excluded = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("cluster"));
         var alias = new Alias(Source.EMPTY, "_timeseries$1", excluded);
         var aggregate = aggregate(List.of(full, excluded), List.of(full, alias), randomFrom(TimeSeriesAggregate.Origin.values()));
-        assertSame(aggregate, new RemoveRedundantTimeSeriesAliases().apply(aggregate));
+        assertSame(aggregate, new UnwrapRedundantAliases().apply(aggregate));
     }
 
     public void testOtherMetadataInSourceRetainsAlias() {
@@ -91,7 +91,7 @@ public class RemoveRedundantTimeSeriesAliasesTests extends ESTestCase {
         var excluded = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("cluster"));
         var alias = new Alias(Source.EMPTY, "_timeseries$1", excluded);
         var aggregate = aggregate(List.of(full, excluded), List.of(alias), randomFrom(TimeSeriesAggregate.Origin.values()));
-        assertSame(aggregate, new RemoveRedundantTimeSeriesAliases().apply(aggregate));
+        assertSame(aggregate, new UnwrapRedundantAliases().apply(aggregate));
     }
 
     public void testMultipleGroupingsOfOneProjectionRetainAliases() {
@@ -99,7 +99,7 @@ public class RemoveRedundantTimeSeriesAliasesTests extends ESTestCase {
         var first = new Alias(Source.EMPTY, "first", field);
         var second = new Alias(Source.EMPTY, "second", field);
         var aggregate = aggregate(List.of(field), List.of(first, second), randomFrom(TimeSeriesAggregate.Origin.values()));
-        assertSame(aggregate, new RemoveRedundantTimeSeriesAliases().apply(aggregate));
+        assertSame(aggregate, new UnwrapRedundantAliases().apply(aggregate));
     }
 
     private static TimeSeriesAggregate aggregate(List<Attribute> fields, List<Expression> groupings, TimeSeriesAggregate.Origin origin) {

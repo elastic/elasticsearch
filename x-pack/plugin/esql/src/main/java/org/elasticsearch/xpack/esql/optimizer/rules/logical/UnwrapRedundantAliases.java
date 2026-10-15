@@ -26,7 +26,7 @@ import java.util.Set;
  * A lone metadata projection needs no proxy alias to distinguish it from other projections.
  * Remove that alias before translating time-series aggregates, retaining its identity so parent references stay valid.
  */
-public final class RemoveRedundantTimeSeriesAliases extends Rule<LogicalPlan, LogicalPlan> {
+public final class UnwrapRedundantAliases extends Rule<LogicalPlan, LogicalPlan> {
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
         // Merge inputs are aligned by name, independently of their output ids. These aliases define the

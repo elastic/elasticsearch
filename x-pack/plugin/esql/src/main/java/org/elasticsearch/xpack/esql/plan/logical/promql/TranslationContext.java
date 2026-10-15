@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -85,8 +86,8 @@ public record TranslationContext(
     TranslationSchema required,
     /* The current evaluation time (default: @timestamp). */
     Expression time,
-    /* Names assigned on first access, shared by every branch of this translation. */
-    Map<Set<String>, String> metadataColumnNames
+    /* Aliases for source metadata projections, shared by every branch of this translation. */
+    Map<Set<String>, Alias> metadataAliases
 ) {
     /** PromQL plans with several source identities require independent metadata readers on every participating node. */
     public static final TransportVersion PROMQL_MULTIPLE_TIMESERIES_METADATA = TransportVersion.fromName(
@@ -105,7 +106,7 @@ public record TranslationContext(
 
     /** Translate an independent child without changing the enclosing branch's timing or aggregation state. */
     public TranslationContext withRequired(TranslationSchema childRequired) {
-        return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time, metadataColumnNames);
+        return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time, metadataAliases);
     }
 
     /**
@@ -131,7 +132,7 @@ public record TranslationContext(
     public IntermediateResult translateIntermediate(LogicalPlan branch, NameId stepId, NameId valueId) {
         Expression branchTime = cmd.collectEvaluationTimestampForBranch(branch);
         Alias step = canCreateStepBucket() ? emitStepBucketExpression(stepId, branchTime) : null;
-        var run = new TranslationContext(cmd, analyzer, step, required, branchTime, metadataColumnNames);
+        var run = new TranslationContext(cmd, analyzer, step, required, branchTime, metadataAliases);
         return run.translateIntermediate(branch, valueId);
     }
 
@@ -252,7 +253,7 @@ public record TranslationContext(
                 value = collapsed.value();
             }
             if (branch instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
-                if (comparison.usesJoin() == false) {
+                if (comparison.fuseable()) {
                     // Filter-mode comparison (metric > x): keep the left operand's value, filter rows by the comparison.
                     // A vector-matched comparison already applied its filter inside the join translation.
                     ToDouble right = new ToDouble(comparison.right().source(), ((LiteralSelector) comparison.right()).literal());
@@ -378,7 +379,7 @@ public record TranslationContext(
                 Attribute resolved = find(plan.output(), label);
                 return resolved != null ? resolved : mapToRef(label);
             }).toList();
-            Alias metadata = new Alias(source, metadataColumnName(skip), new TimeSeriesWithout(source, excluded));
+            Alias metadata = metadataAlias(skip, new TimeSeriesWithout(source, excluded));
             groupKeys.add(metadata);
             outKeys.add(metadata.toAttribute());
         }
@@ -418,7 +419,7 @@ public record TranslationContext(
         var nulls = new ArrayList<Alias>();
         var keys = new ArrayList<Attribute>();
         for (Set<String> skip : finestFirst(schema.skips())) {
-            Attribute carrier = find(available, metadataColumnName(skip));
+            Attribute carrier = metadataColumn(input, skip);
             assert carrier != null : "invariant: metadata column " + skip + " must be carried by the child";
             keys.add(carrier);
         }
@@ -683,22 +684,24 @@ public record TranslationContext(
 
     // -- helpers --
 
-    /**
-     * Opaque names for source metadata projections, reused per exclusion set. Ordered translation makes first-access
-     * ids stable for the same query. The whole metadata keeps its canonical name and does not allocate an id.
-     */
-    public String metadataColumnName(Set<String> excludedLabels) {
-        return excludedLabels.isEmpty()
-            ? MetadataAttribute.TIMESERIES
-            : metadataColumnNames.computeIfAbsent(
-                Set.copyOf(excludedLabels),
-                ignored -> MetadataAttribute.TIMESERIES + "$" + (metadataColumnNames.size() + 1)
-            );
+    /** Reuse the alias for each metadata projection across the translation's branches. */
+    Alias metadataAlias(Set<String> excludedLabels, TimeSeriesWithout metadata) {
+        return metadataAliases.computeIfAbsent(
+            Set.copyOf(excludedLabels),
+            ignored -> new Alias(
+                metadata.source(),
+                excludedLabels.isEmpty()
+                    ? MetadataAttribute.TIMESERIES
+                    : TemporaryNameGenerator.locallyUniqueTemporaryName(MetadataAttribute.TIMESERIES),
+                metadata
+            )
+        );
     }
 
-    /** Resolve a table's metadata column using the names shared by this translation's branches. */
+    /** Resolve a table's metadata projection through its alias, including after a branch has been reidentified. */
     public Attribute metadataColumn(IntermediateResult table, Set<String> skip) {
-        return find(table.plan().output(), metadataColumnName(skip));
+        Alias alias = metadataAliases.get(skip);
+        return alias == null ? null : find(table.plan().output(), alias.name());
     }
 
     /** Canonical label names in declaration order, without duplicates. */

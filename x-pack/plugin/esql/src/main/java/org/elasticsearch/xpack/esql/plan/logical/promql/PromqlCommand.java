@@ -507,7 +507,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     LogicalPlan buckets = histogram.child();
                     // Regrouping by every label but `le` needs the labels as named columns. A reduction or a WITHOUT over
                     // raw series keeps them in one `_timeseries` column instead.
-                    if (hasConcreteLabels(buckets) == false && (usesReduction(buckets) || usesWithoutGrouping(buckets))) {
+                    if (PromqlLabels.hasTsMetadata(buckets.output()) && (usesReduction(buckets) || usesWithoutGrouping(buckets))) {
                         failures.add(
                             fail(
                                 histogram,
@@ -550,9 +550,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (binaryOperator instanceof VectorBinaryArithmetic || binaryOperator instanceof VectorBinaryComparison) {
                         if (match != VectorMatch.NONE && (returnsScalar(left) || returnsScalar(right))) {
                             failures.add(fail(lp, "vector matching only allowed between instant vectors [{}]", lp.sourceText()));
-                        } else if (binaryOperator.usesJoin()) {
-                            boolean leftConcrete = hasConcreteLabels(left);
-                            boolean rightConcrete = hasConcreteLabels(right);
+                        } else if (binaryOperator.fuseable() == false) {
+                            boolean leftConcrete = PromqlLabels.hasTsMetadata(left.output()) == false;
+                            boolean rightConcrete = PromqlLabels.hasTsMetadata(right.output()) == false;
                             boolean manySideConcrete = match.grouping() == VectorMatch.Joining.RIGHT ? rightConcrete : leftConcrete;
                             boolean canCopyLabels = match.groupingLabels().isEmpty() || manySideConcrete;
 
@@ -771,7 +771,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         LogicalPlan left = binaryOperator.left();
         LogicalPlan right = binaryOperator.right();
         String text = binaryOperator.sourceText();
-        boolean fused = binaryOperator instanceof VectorBinarySet == false && binaryOperator.usesJoin() == false;
+        boolean fused = binaryOperator instanceof VectorBinarySet == false && binaryOperator.fuseable();
         Predicate<LogicalPlan> isAggregation = fused ? PromqlCommand::isAcrossSeries : AcrossSeriesAggregate.class::isInstance;
         if (fused && (scalarOfVector(left) && hasLabels(right) || scalarOfVector(right) && hasLabels(left))) {
             failures.add(
@@ -832,16 +832,12 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
     }
 
-    private static boolean hasConcreteLabels(LogicalPlan plan) {
-        return PromqlLabels.hasRuntimeLabels(plan.output()) == false;
-    }
-
     /**
      * Whether an opaque operand pairs different metrics on a source mapping {@code __name__} as a dimension, as Prometheus
      * remote write does. Every metric then has series of its own, so folding both into one shared frame yields no rows.
      */
     private boolean pairsMetricsInSeparateSeries(VectorBinaryOperator op) {
-        if (hasConcreteLabels(op.left()) && hasConcreteLabels(op.right())) {
+        if (PromqlLabels.hasTsMetadata(op.left().output()) == false && PromqlLabels.hasTsMetadata(op.right().output()) == false) {
             return false;
         }
         Set<String> left = metricNames(op.left());

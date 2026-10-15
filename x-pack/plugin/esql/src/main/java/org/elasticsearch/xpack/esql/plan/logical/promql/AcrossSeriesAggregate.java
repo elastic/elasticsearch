@@ -128,7 +128,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         // Output `_timeseries` if grouping is not constant, e.g. `without(...)`
         if (grouping == Grouping.WITHOUT) {
             List<Attribute> childOutput = child().output();
-            if (PromqlLabels.hasRuntimeLabels(childOutput) == false) {
+            if (PromqlLabels.hasTsMetadata(childOutput) == false) {
                 Set<String> excluded = new HashSet<>();
                 for (Attribute label : groupings) {
                     excluded.add(labelKey(label));

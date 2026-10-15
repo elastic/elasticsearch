@@ -11,8 +11,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -65,11 +65,13 @@ public class PlanConsistencyChecker {
         var outputAttributesByName = new HashMap<String, Attribute>();
         var outputAttributeIds = Sets.<NameId>newHashSetWithExpectedSize(output.size());
         for (Attribute outputAttr : output) {
-            // Metadata source fields share the canonical wire name but have distinct extraction configurations.
-            // Their aliases name the result columns; source references are identified by NameId.
+            // Independent projections may read the same source field. Their ids distinguish the
+            // extractions; aliases give the result columns distinct names.
             Attribute previous = outputAttributesByName.putIfAbsent(outputAttr.name(), outputAttr);
-            boolean duplicateName = previous != null
-                && (previous instanceof TimeSeriesMetadataAttribute == false || outputAttr instanceof TimeSeriesMetadataAttribute == false);
+            boolean sameSourceField = previous instanceof FieldAttribute previousField
+                && outputAttr instanceof FieldAttribute outputField
+                && previousField.fieldName().equals(outputField.fieldName());
+            boolean duplicateName = previous != null && sameSourceField == false;
             if (duplicateName || outputAttributeIds.add(outputAttr.id()) == false) {
                 failures.add(
                     fail(p, "Plan [{}] optimized incorrectly due to duplicate output attribute {}", p.nodeString(), outputAttr.toString())

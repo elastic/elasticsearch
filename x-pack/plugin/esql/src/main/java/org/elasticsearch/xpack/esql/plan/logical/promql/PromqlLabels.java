@@ -22,7 +22,7 @@ public final class PromqlLabels {
     public static final String PROMETHEUS_LABELS_PREFIX = "labels.";
 
     /** Whether the output carries labels in time-series metadata instead of exposing every label as a named column. */
-    public static boolean hasRuntimeLabels(Collection<? extends Attribute> attributes) {
+    public static boolean hasTsMetadata(Collection<? extends Attribute> attributes) {
         return attributes.stream().anyMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
     }
 

@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -80,38 +80,32 @@ public class TranslationContextTests extends ESTestCase {
         assertThat(retained.skips(), contains(Set.of("pod")));
     }
 
-    public void testMetadataColumnNamesAssignedOnFirstAccessAndSharedByChildren() {
-        for (int i = 0; i < 2; i++) {
-            var context = new TranslationContext(null, null);
-            assertThat(context.metadataColumnName(Set.of()), equalTo(MetadataAttribute.TIMESERIES));
-            assertTrue(context.metadataColumnNames().isEmpty());
-            var exclusions = new LinkedHashSet<>(List.of("region", "pod"));
-            assertThat(context.metadataColumnName(exclusions), equalTo("_timeseries$1"));
-            exclusions.clear();
-            var child = context.withRequired(open(Set.of("pod")));
-            assertThat(child.metadataColumnName(new LinkedHashSet<>(List.of("pod", "region"))), equalTo("_timeseries$1"));
-            assertThat(child.metadataColumnName(Set.of("cluster")), equalTo("_timeseries$2"));
-            assertThat(context.metadataColumnName(Set.of("cluster")), equalTo("_timeseries$2"));
-        }
-    }
-
-    public void testMetadataColumnNamesDistinguishSetsWithEqualHashCodes() {
+    public void testMetadataAliasesSharedByChildren() {
         var context = new TranslationContext(null, null);
-        assertEquals(Set.of("Aa").hashCode(), Set.of("BB").hashCode());
-        assertThat(context.metadataColumnName(Set.of("Aa")), equalTo("_timeseries$1"));
-        assertThat(context.metadataColumnName(Set.of("BB")), equalTo("_timeseries$2"));
-        assertThat(context.metadataColumnName(Set.of("Aa")), equalTo("_timeseries$1"));
+        var exclusions = new LinkedHashSet<>(List.of("region", "pod"));
+        var metadata = new TimeSeriesWithout(Source.EMPTY, List.of(attr("region"), attr("pod")));
+        var alias = context.metadataAlias(exclusions, metadata);
+        assertSame(metadata, alias.child());
+        exclusions.clear();
+        var child = context.withRequired(open(Set.of("pod")));
+        assertSame(
+            alias,
+            child.metadataAlias(Set.of("pod", "region"), new TimeSeriesWithout(Source.EMPTY, List.of(attr("pod"), attr("region"))))
+        );
+        var other = child.metadataAlias(Set.of("cluster"), new TimeSeriesWithout(Source.EMPTY, List.of(attr("cluster"))));
+        assertNotEquals(alias.id(), other.id());
+        assertNotEquals(alias.name(), other.name());
+        assertSame(other, context.metadataAliases().get(Set.of("cluster")));
     }
 
     public void testFindByNameMatchesCanonicalNamesAndPrefersPassthroughFields() {
-        var context = new TranslationContext(null, null);
         Attribute bare = attr("cluster");
         Attribute prefixed = new ReferenceAttribute(Source.EMPTY, "labels.cluster", DataType.KEYWORD);
-        Attribute metadata = attr(context.metadataColumnName(Set.of("pod")));
+        Attribute metadata = attr("metadata");
 
         assertThat(TranslationContext.find(List.of(bare, prefixed), "cluster"), sameInstance(prefixed));
         assertThat(TranslationContext.find(List.of(bare), "cluster"), sameInstance(bare));
-        assertThat(TranslationContext.find(List.of(bare, metadata), context.metadataColumnName(Set.of("pod"))), sameInstance(metadata));
+        assertThat(TranslationContext.find(List.of(bare, metadata), metadata.name()), sameInstance(metadata));
         assertNull(TranslationContext.find(List.of(bare), "pod"));
         assertThat(TranslationContext.mapFinite(List.of(bare, prefixed, attr("pod"))), contains("cluster", "pod"));
     }

@@ -238,6 +238,41 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] has been exceeded"));
     }
 
+    /**
+     * Data nodes apply a mapping the master already validated and persisted through {@link MapperService#updateMapping}, parsing it as
+     * a recovered mapping. That deliberately enforces no parse-time field limits: the master enforced them when it wrote the mapping, and
+     * a data node must not fail to apply it because a limit was lowered afterwards.
+     */
+    public void testUpdateMappingDoesNotEnforceTotalFieldsLimit() throws IOException {
+        MapperService totalFieldsLimited = createMapperService(
+            Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1).build(),
+            mapping(b -> {})
+        );
+        updateMapping(totalFieldsLimited, """
+            {"_doc":{"properties":{"a":{"type":"keyword"},"b":{"type":"keyword"},"c":{"type":"keyword"}}}}""");
+        assertNotNull(totalFieldsLimited.mappingLookup().getFieldType("c"));
+    }
+
+    /** See {@link #testUpdateMappingDoesNotEnforceTotalFieldsLimit}. */
+    public void testUpdateMappingDoesNotEnforceFieldNameLengthLimit() throws IOException {
+        MapperService nameLengthLimited = createMapperService(
+            Settings.builder().put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), 3).build(),
+            mapping(b -> {})
+        );
+        updateMapping(nameLengthLimited, """
+            {"_doc":{"properties":{"much_longer_than_three":{"type":"keyword"}}}}""");
+        assertNotNull(nameLengthLimited.mappingLookup().getFieldType("much_longer_than_three"));
+    }
+
+    private static void updateMapping(MapperService mapperService, String persistedMapping) {
+        IndexMetadata current = mapperService.getIndexSettings().getIndexMetadata();
+        IndexMetadata updated = IndexMetadata.builder(current)
+            .mappingVersion(current.getMappingVersion() + 1)
+            .putMapping(persistedMapping)
+            .build();
+        mapperService.updateMapping(current, updated);
+    }
+
     public void testPartitionedConstraints() throws IOException {
         // partitioned index must have routing
         Settings settings = Settings.builder().put("index.number_of_shards", 4).put("index.routing_partition_size", 2).build();

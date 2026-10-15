@@ -428,20 +428,18 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
 
         // A random page can have fewer valid columns than the sort and group keys need.
         // Pick from the valid columns directly, otherwise the selection never ends.
-        List<Integer> validColumns = new ArrayList<>();
-        for (int c = 0; c < blocksCount; c++) {
-            if (randomBlocksResult.validSortKeys[c]) {
-                validColumns.add(c);
-            }
-        }
-        if (validColumns.size() < sortingByColumns + groupKeysCount) {
+        List<Integer> sortableColumns = IntStream.range(0, blocksCount)
+            .filter(c -> randomBlocksResult.validSortKeys[c])
+            .boxed()
+            .collect(Collectors.toCollection(ArrayList::new));
+        if (sortableColumns.size() < sortingByColumns + groupKeysCount) {
             // The blocks must be released before skipping, otherwise the leak check after the test fails.
             Releasables.close(randomBlocksResult.blocks);
             assumeTrue("not enough valid sort key columns in the random page", false);
         }
-        Collections.shuffle(validColumns, random());
-        List<Integer> sortColumns = new ArrayList<>(validColumns.subList(0, sortingByColumns));
-        List<Integer> groupKeys = new ArrayList<>(validColumns.subList(sortingByColumns, sortingByColumns + groupKeysCount));
+        Collections.shuffle(sortableColumns, random());
+        List<Integer> sortColumns = new ArrayList<>(sortableColumns.subList(0, sortingByColumns));
+        List<Integer> groupKeys = new ArrayList<>(sortableColumns.subList(sortingByColumns, sortingByColumns + groupKeysCount));
 
         List<SortOrder> uniqueOrders = sortColumns.stream().map(column -> new SortOrder(column, randomBoolean(), randomBoolean())).toList();
 

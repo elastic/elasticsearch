@@ -39,6 +39,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
@@ -290,6 +291,65 @@ public class MistralServiceTests extends InferenceServiceTestCase {
                     }
                 }
                 """));
+        }
+    }
+
+    public void testUnifiedCompletionInfer_ReasoningRequestAndListContentStream() throws Exception {
+        var thinkingChunk = """
+            data: {"id":"r1","object":"chat.completion.chunk","model":"mistral-reasoning-test","choices":[{"index":0,"delta":\
+            {"role":"assistant","content":[{"type":"thinking","thinking":[{"type":"text","text":"hmm"}]}]},"finish_reason":null}]}
+
+            """;
+        var textChunk = """
+            data: {"id":"r1","object":"chat.completion.chunk","model":"mistral-reasoning-test","choices":[{"index":0,"delta":\
+            {"content":[{"type":"text","text":"Hi"}]},"finish_reason":"stop"}]}
+
+            data: [DONE]
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(thinkingChunk + textChunk));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new MistralService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = MistralChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), API_KEY_VALUE, "model");
+            var assistant = new Message(new ContentString("earlier answer"), "assistant", null, null, "earlier thinking", null);
+            var body = new UnifiedCompletionRequestBody(
+                List.of(new Message(new ContentString("hello"), "user", null, null), assistant),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new Reasoning(Reasoning.ReasoningEffort.HIGH, null, null, null),
+                null,
+                null
+            );
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(model, UnifiedCompletionRequest.streaming(body), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent(XContentHelper.stripWhitespace("""
+                {"id":"r1","choices":[{"delta":{"content":"","role":"assistant","reasoning":"hmm"},"index":0}],\
+                "model":"mistral-reasoning-test","object":"chat.completion.chunk"}""")).hasEvent(XContentHelper.stripWhitespace("""
+                {"id":"r1","choices":[{"delta":{"content":"Hi"},"finish_reason":"stop","index":0}],\
+                "model":"mistral-reasoning-test","object":"chat.completion.chunk"}"""));
+
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            assertThat(requestMap.get("reasoning_effort"), is("high"));
+            assertThat(requestMap.containsKey("reasoning"), is(false));
+            @SuppressWarnings("unchecked")
+            var messages = (List<Map<String, Object>>) requestMap.get("messages");
+            assertThat(
+                messages.get(1).get("content"),
+                is(
+                    List.of(
+                        Map.of("type", "thinking", "thinking", List.of(Map.of("type", "text", "text", "earlier thinking"))),
+                        Map.of("type", "text", "text", "earlier answer")
+                    )
+                )
+            );
         }
     }
 

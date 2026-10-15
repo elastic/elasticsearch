@@ -8,12 +8,20 @@
 package org.elasticsearch.xpack.inference.services.mistral.request.completion;
 
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.mistral.MistralConstants;
+import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,6 +43,34 @@ public class MistralChatCompletionRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap.get("stream"), is(true));
+    }
+
+    public void testCreateRequest_SendsServiceSettingReasoningEffortAndAdaptedBody() throws IOException {
+        var model = new MistralChatCompletionModel(
+            "id",
+            TaskType.CHAT_COMPLETION,
+            "service",
+            new MistralChatCompletionServiceSettings("mistral-reasoning-test", null, "high"),
+            new DefaultSecretSettings(new SecureString("secret".toCharArray()))
+        );
+        var body = new UnifiedCompletionRequestBody(
+            List.of(new Message(new ContentString("hi"), "developer", null, null)),
+            null,
+            null,
+            null,
+            0f,
+            null,
+            null,
+            null
+        );
+        var request = new MistralChatCompletionRequest(new UnifiedChatInput(body, true), model);
+
+        var httpPost = (HttpPost) RequestTests.getHttpRequestSync(request).httpRequestBase();
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+
+        assertThat(requestMap.get("reasoning_effort"), is("high"));
+        assertThat(requestMap.get("top_p"), is(1.0));
+        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "system", "content", "hi"))));
     }
 
     public void testTruncate_DoesNotReduceInputTextSize() throws IOException {

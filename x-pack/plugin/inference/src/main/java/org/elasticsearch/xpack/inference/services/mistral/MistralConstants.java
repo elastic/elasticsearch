@@ -20,6 +20,7 @@ public class MistralConstants {
     public static final String INPUT_FIELD = "input";
     public static final String ENCODING_FORMAT_FIELD = "encoding_format";
     public static final String MAX_TOKENS_FIELD = "max_tokens";
+    public static final String REASONING_EFFORT_FIELD = "reasoning_effort";
     public static final String DETAIL_FIELD = "detail";
     public static final String MSG_FIELD = "msg";
     public static final String MESSAGE_FIELD = "message";

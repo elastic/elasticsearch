@@ -74,7 +74,8 @@ public class MistralChatCompletionModel extends MistralModel {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new MistralChatCompletionServiceSettings(
             request.model(),
-            originalModelServiceSettings.rateLimitSettings()
+            originalModelServiceSettings.rateLimitSettings(),
+            originalModelServiceSettings.reasoningEffort()
         );
 
         return new MistralChatCompletionModel(

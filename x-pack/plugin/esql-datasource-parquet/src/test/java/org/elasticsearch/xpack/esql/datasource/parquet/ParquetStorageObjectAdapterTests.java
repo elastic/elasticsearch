@@ -1559,12 +1559,12 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     }
 
     /**
-     * A refill whose read fails propagates the storage failure, as the footer parse's own read of the same object
-     * would, and leaves nothing behind: no cache entry, no open stream, and no window charge on the breaker or
-     * the node byte budget. The failure is seen twice by storage because {@code fetchWindowAt} retries a failed
-     * {@link FooterByteCache#getOrLoad} with direct I/O before giving up.
+     * A refill whose read fails does not fail the caller: the bytes have no consumer of their own, so the scan
+     * still runs on its own coalesced GETs. It also leaves nothing behind: no cache entry, no open stream, and
+     * no window charge on the breaker or the node byte budget. Storage sees the failure twice because
+     * {@code fetchWindowAt} retries a failed {@link FooterByteCache#getOrLoad} with direct I/O before giving up.
      */
-    public void testRefillWholeFileFooterFailurePropagatesAndStoresNothing() {
+    public void testRefillWholeFileFooterSwallowsAFailureAndStoresNothing() {
         byte[] data = new byte[100];
         randomBytes(data);
         AtomicInteger attempts = new AtomicInteger();
@@ -1612,8 +1612,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         CircuitBreaker limited = new LimitedBreaker("refill", ByteSizeValue.ofMb(16));
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(failing, footerByteCache, limited, watermark);
 
-        IOException failure = expectThrows(IOException.class, adapter::refillWholeFileFooter);
-        assertEquals("simulated storage failure", failure.getMessage());
+        adapter.refillWholeFileFooter();
         assertEquals("the coalesced load and its direct-I/O retry", 2, attempts.get());
         assertNull("a failed refill stores nothing", footerByteCache.get(adapter.cacheKey()));
         assertEquals("the failed refill leaves no stream open", 0, adapter.trackedStreamCount());
@@ -1676,14 +1675,23 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         CircuitBreaker limited = new LimitedBreaker("refill-short", ByteSizeValue.ofMb(16));
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(truncating, footerByteCache, limited, watermark);
 
-        IOException failure = expectThrows(IOException.class, adapter::refillWholeFileFooter);
-        // The loader rejects the short read; fetchWindowAt's direct-I/O retry then reports the same event,
-        // so the message the caller sees is the window fill's. Either way the stream ended early and said so.
-        assertTrue("reports the early end of stream: " + failure.getMessage(), failure.getMessage().contains("Unexpected end of stream"));
+        adapter.refillWholeFileFooter();
         assertNull("a short read stores nothing", footerByteCache.get(adapter.cacheKey()));
+        assertEquals("the coalesced load and its direct-I/O retry", 2, attempts.get());
         assertEquals("the short read leaves no stream open", 0, adapter.trackedStreamCount());
         assertEquals("the short read refunds its window on the breaker", 0, limited.getUsed());
         assertEquals("the short read refunds its window on the node budget", 0, watermark.used());
+
+        // The refill swallows the failure because nothing consumes its bytes, but a read that does need them
+        // must see the early end rather than silently receive a prefix. The loader rejects the short read and
+        // fetchWindowAt's direct-I/O retry reports the same event, so that is the message the caller gets.
+        IOException failure = expectThrows(IOException.class, () -> {
+            try (SeekableInputStream stream = adapter.newStream()) {
+                stream.seek(0);
+            }
+        });
+        assertTrue("reports the early end of stream: " + failure.getMessage(), failure.getMessage().contains("Unexpected end of stream"));
+        assertNull("still nothing stored", footerByteCache.get(adapter.cacheKey()));
     }
 
     /** An object larger than the footer prefetch is never served whole from the cache, so there is nothing to refill. */

@@ -237,7 +237,12 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         this.windowSize = ExternalSourceSettings.ioFillBytes(windowSize, this.length);
         this.wholeFileIsFooter = this.length > 0
             && this.length <= ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES
-            && this.length <= footerBytes.maxEntryBytes();
+            && this.length <= footerBytes.maxEntryBytes()
+            // The store happens on the whole-file branch of fetchWindowAt, which needs the object to fit the
+            // window; and a cache entry is read back as the suffix of cacheKey.fileLength(), so this object
+            // must be the whole file rather than a view over part of one (RangeStorageObject).
+            && this.length <= this.windowSize
+            && this.length == this.cacheKey.fileLength();
     }
 
     /**
@@ -257,16 +262,21 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * ranged GETs for the life of the parsed entry. One whole-file fill here, coalesced with concurrent
      * openers of the same key by {@link FooterByteCache#getOrLoad}, restores the zero-GET scan. No-op for an
      * object larger than the footer prefetch: its data pages are never served from the cache, and the page
-     * indexes in its tail are re-read by the preload's own coalesced GET when that entry is gone. A read
-     * failure here propagates like the footer parse's own read of the same object; nothing is stored.
+     * indexes in its tail are re-read by the preload's own coalesced GET when that entry is gone.
+     *
+     * <p>A read failure is logged and swallowed. These bytes have no consumer of their own — the scan's own
+     * coalesced GETs fetch what they need — so a failed refill leaves a query slow rather than broken, which
+     * is also what the {@link FooterByteCache} load failure in {@code fetchWindowAt} does. Nothing is stored.
      */
-    void refillWholeFileFooter() throws IOException {
+    void refillWholeFileFooter() {
         if (wholeFileIsFooter == false || footerBytes.get(cacheKey) != null) {
             return;
         }
         try (SeekableInputStream stream = newStream()) {
             // The seek is the whole-file fill: an object that fits the window is fetched from offset 0.
             stream.seek(0);
+        } catch (Exception e) {
+            logger.debug("footer byte cache refill failed; the scan falls back to ranged GETs", e);
         }
     }
 

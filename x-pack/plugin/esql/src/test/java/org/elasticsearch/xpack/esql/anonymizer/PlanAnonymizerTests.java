@@ -88,13 +88,14 @@ public class PlanAnonymizerTests extends ESTestCase {
     }
 
     public void testSettingsRenderedAsLabels() {
-        ResolvedSettings settings = ResolvedSettings.EMPTY.withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.LOAD_ALL)
+        ResolvedSettings settings = ResolvedSettings.EMPTY.withOverride(QuerySettings.PROJECT_ROUTING, "_alias:_origin")
+            .withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.LOAD_ALL)
             .withOverride(QuerySettings.TIME_ZONE, ZoneId.of("America/New_York"));
 
         var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, null, null, settings);
 
         assertThat(out.settings(), containsString("APPROXIMATION=false\n"));
-        assertThat(out.settings(), containsString("PROJECT_ROUTING=default\n"));
+        assertThat(out.settings(), containsString("PROJECT_ROUTING=set\n"));
         assertThat(out.settings(), containsString("UNMAPPED_FIELDS=load_all\n"));
         assertThat(out.settings(), containsString("TIME_ZONE=set\n"));  // anonymized
         assertThat(out.settings(), not(containsString("New_York")));

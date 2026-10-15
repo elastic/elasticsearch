@@ -81,6 +81,9 @@ public final class PlanAnonymizer {
         } else {
             StringBuilder sb = new StringBuilder();
             for (QuerySettingDef<?> def : QuerySettings.all()) {
+                // The telemetry labels consist of a small set of strings that the setting declares.
+                // For booleans/enums, it's the value; for freeform types, values like "default" or
+                // "set" are used. This is both granular and anonymized enough.
                 sb.append(def.name().toUpperCase(Locale.ROOT)).append("=").append(def.telemetryLabel(settings)).append("\n");
             }
             settingsText = sb.toString();

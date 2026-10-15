@@ -29,16 +29,21 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.TimeSpan;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
@@ -54,7 +59,13 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlQueryLogTests extends ESTestCase {
-    private static final Map<String, String> RESOLVED_SETTINGS = Map.of("TIME_ZONE", "default", "UNMAPPED_FIELDS", "nullify");
+    private static final ResolvedSettings RESOLVED_SETTINGS = ResolvedSettings.EMPTY.withOverride(
+        QuerySettings.APPROXIMATION,
+        new ApproximationSettings(123456, 0.789)
+    )
+        .withOverride(QuerySettings.PROJECT_ROUTING, "_alias:_origin")
+        .withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.NULLIFY)
+        .withOverride(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Paris"));
 
     private static ClusterSettings settings = new ClusterSettings(
         Settings.builder()
@@ -100,10 +111,33 @@ public class EsqlQueryLogTests extends ESTestCase {
         return context -> new ActionLoggingFields(context) {};
     }
 
+    private static Configuration configurationWith(ResolvedSettings settings) {
+        Configuration configuration = EsqlTestUtils.TEST_CFG;
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            configuration = withSetting(configuration, def, settings);
+        }
+        return configuration;
+    }
+
+    private static <T> Configuration withSetting(Configuration configuration, QuerySettingDef<T> def, ResolvedSettings settings) {
+        return configuration.withSetting(def, def.get(settings));
+    }
+
+    private static void assertResolvedSettingsLogged(ESLogMessage msg) {
+        assertThat(
+            msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".approximation"),
+            is("ApproximationSettings[rows=123456, confidenceLevel=0.789]")
+        );
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".time_zone"), is("Europe/Paris"));
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".project_routing"), is("_alias:_origin"));
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".unmapped_fields"), is("NULLIFY"));
+    }
+
     public void testPrioritiesOnSuccess() {
         EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
         assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
         String query = "from " + randomAlphaOfLength(10);
+        Configuration configuration = configurationWith(RESOLVED_SETTINGS);
 
         long[] actualTook = {
             randomLongBetween(10_000_000, 20_000_000),
@@ -116,11 +150,10 @@ public class EsqlQueryLogTests extends ESTestCase {
             EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i]);
             queryLog.onQueryPhase(
                 new Versioned<>(
-                    new Result(List.of(), List.of(), null, EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, warnQuery, null),
+                    new Result(List.of(), List.of(), null, configuration, DriverCompletionInfo.EMPTY, warnQuery, null),
                     TransportVersion.current()
                 ),
-                query,
-                RESOLVED_SETTINGS
+                query
             );
             if (expectedLevel[i] != null) {
                 assertThat(appender.lastEvent(), is(not(nullValue())));
@@ -145,8 +178,7 @@ public class EsqlQueryLogTests extends ESTestCase {
                     assertThat(timeSpanTookMillis, is(timeSpanTookMillisExpected));
                 }
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
-                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".time_zone"), is("default"));
-                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".unmapped_fields"), is("nullify"));
+                assertResolvedSettingsLogged(msg);
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
             } else {
                 assertThat(appender.lastEvent(), is(nullValue()));
@@ -172,7 +204,7 @@ public class EsqlQueryLogTests extends ESTestCase {
         String validationError = randomAlphaOfLength(10);
         ValidationException ex = new ValidationException().addValidationError(validationError);
         for (int i = 0; i < actualTook.length; i++) {
-            queryLog.onQueryFailure(query, ex, actualTook[i], RESOLVED_SETTINGS);
+            queryLog.onQueryFailure(query, RESOLVED_SETTINGS, ex, actualTook[i]);
             if (expectedLevel[i] != null) {
                 assertThat(appender.lastEvent(), is(not(nullValue())));
                 var msg = (ESLogMessage) appender.lastMessage();
@@ -182,8 +214,7 @@ public class EsqlQueryLogTests extends ESTestCase {
                 assertThat(took, is(actualTook[i]));
                 assertThat(tookMillis, is(tookMillisExpected));
                 assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
-                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".time_zone"), is("default"));
-                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + ".unmapped_fields"), is("nullify"));
+                assertResolvedSettingsLogged(msg);
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
             } else {
                 assertThat(appender.lastEvent(), is(nullValue()));

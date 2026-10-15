@@ -316,7 +316,7 @@ public class EsqlSession {
      * writes never overlap. A single volatile reference (vs four separate volatile fields) gives the
      * failure listener an atomic, all-or-nothing view of the snapshot.
      */
-    private record PlanSnapshot(
+    public record PlanSnapshot(
         LogicalPlan parsed,
         LogicalPlan analyzed,
         LogicalPlan optimized,
@@ -324,7 +324,7 @@ public class EsqlSession {
         ResolvedSettings settings
     ) {
 
-        static final PlanSnapshot EMPTY = new PlanSnapshot(null, null, null, null, ResolvedSettings.EMPTY);
+        static final PlanSnapshot EMPTY = new PlanSnapshot(null, null, null, null, null);
 
         PlanSnapshot withParsed(LogicalPlan p) {
             return new PlanSnapshot(p, analyzed, optimized, physical, settings);
@@ -348,6 +348,11 @@ public class EsqlSession {
     }
 
     private volatile PlanSnapshot planSnapshot = PlanSnapshot.EMPTY;
+
+    public PlanSnapshot planSnapshot() {
+        return planSnapshot;
+    }
+
     // Coordinator-only: where the fields discovered from _source belong in the output. Null unless unmapped_fields="LOAD_ALL".
     private volatile UnmappedFieldsOrdering unmappedFieldsOrdering;
 

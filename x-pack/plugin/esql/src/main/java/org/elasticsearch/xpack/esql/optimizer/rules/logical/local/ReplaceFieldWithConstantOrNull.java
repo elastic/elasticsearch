@@ -48,7 +48,8 @@ import java.util.function.Predicate;
  * <p>
  * The {@code _unmapped_fields} column of {@code SET unmapped_fields="LOAD_ALL"} ({@link UnmappedFieldsAttribute}) is missing in
  * the same way when no shard on this node may hold an unmapped field (see {@link SearchStats#mayHoldUnmappedFields}), which saves
- * reading {@code _source} for every row. The column stays in the plan as a {@code null}, so the coordinator flattens it to nothing.
+ * reading {@code _source} for every row. The column stays in the plan and returns a {@code null}, which is the expected output when
+ * there is no unmapped field to return.
  */
 public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
 

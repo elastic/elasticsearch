@@ -122,6 +122,17 @@ public class ClusterPrivilegeResolver {
         "cluster:monitor/project/*",
         "cluster:monitor/project_routing/*"
     );
+
+    // Boost profile actions only exist in serverless; these privileges are no-ops elsewhere.
+    private static final Set<String> MONITOR_BOOST_PROFILES_PATTERN = Set.of("cluster:monitor/boost/profile/*");
+    // Rules reference profiles and cannot be authored, checked or explained without reading them, so this privilege includes
+    // reading profiles.
+    private static final Set<String> MONITOR_BOOST_RULES_PATTERN = Set.of(
+        "cluster:monitor/boost/rule/*",
+        "cluster:monitor/boost/profile/*",
+        "cluster:monitor/boost/explain"
+    );
+
     private static final Set<String> MANAGE_PROJECT_ROUTING_PATTERN = Set.of(
         "cluster:monitor/project/*",
         "cluster:monitor/project_routing/*",
@@ -268,6 +279,14 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MONITOR_ENRICH = new ActionClusterPrivilege("monitor_enrich", MONITOR_ENRICH_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ESQL = new ActionClusterPrivilege("monitor_esql", MONITOR_ESQL_PATTERN);
     public static final NamedClusterPrivilege MONITOR_STATS = new ActionClusterPrivilege("monitor_stats", MONITOR_STATS_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_BOOST_PROFILES = new ActionClusterPrivilege(
+        "monitor_boost_profiles",
+        MONITOR_BOOST_PROFILES_PATTERN
+    );
+    public static final NamedClusterPrivilege MONITOR_BOOST_RULES = new ActionClusterPrivilege(
+        "monitor_boost_rules",
+        MONITOR_BOOST_RULES_PATTERN
+    );
     public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage", ALL_CLUSTER_PATTERN, ALL_SECURITY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_INFERENCE = new ActionClusterPrivilege("manage_inference", MANAGE_INFERENCE_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
@@ -463,6 +482,8 @@ public class ClusterPrivilegeResolver {
             MONITOR_ENRICH,
             MONITOR_ESQL,
             MONITOR_STATS,
+            MONITOR_BOOST_PROFILES,
+            MONITOR_BOOST_RULES,
             MANAGE,
             MANAGE_CONNECTOR,
             MANAGE_INFERENCE,

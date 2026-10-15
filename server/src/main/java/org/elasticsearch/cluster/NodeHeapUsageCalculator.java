@@ -86,19 +86,21 @@ public final class NodeHeapUsageCalculator {
     }
 
     /**
-     * Calculates heap usage for one indexing node from resident shard IDs.
+     * Calculates heap usage for one indexing node
      * <p>
-     * Used by local callers, such as the recovery gate, whose source of truth is the set of shard metrics collected on the node. Every
-     * supplied shard is included, regardless of routing state, and the total uses this node's own postings because there is no cluster-wide
+     * Used by local callers, such as the recovery gate, whose source of truth is the shard metrics collected on the node. Every shard in
+     * that snapshot is included, regardless of routing state, and the total uses this node's own postings because there is no cluster-wide
      * maximum for a one-node calculation.
      */
     public static NodeHeapEstimates calculateForResidentShardIds(
-        Set<ShardId> residentShardIds,
         long nonShardHeapUsage,
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {
         assert nonShardHeapUsage >= 0;
-        final NodeHeapUsageComponents nodeHeapUsageComponents = computeNodeHeapUsageComponents(residentShardIds, shardHeapUsageEstimates);
+        final NodeHeapUsageComponents nodeHeapUsageComponents = computeNodeHeapUsageComponents(
+            shardHeapUsageEstimates.perShard().keySet(),
+            shardHeapUsageEstimates
+        );
         final long hostedShardsHeapUsage = Math.addExact(
             nodeHeapUsageComponents.shardAndIndexHeapUsage,
             nodeHeapUsageComponents.postingsHeapUsage

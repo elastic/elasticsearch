@@ -17,7 +17,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
-import org.junit.Ignore;
 
 import java.util.ArrayList;
 import java.util.Arrays;

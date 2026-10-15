@@ -2744,7 +2744,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /** What a wildcard projection that matches nothing in the child output should do. */
         private enum UnmatchedPatterns {
-            /** Drop the wildcard, letting the {@code _unmapped_fields} flattening apply it later. */
+            /** Drop the wildcard: it may only match unmapped fields, which are not columns. */
             IGNORE,
             /** Keep the unresolved attribute so the {@code Verifier} reports "No matches found". */
             FAIL
@@ -2783,8 +2783,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     } else if (proj instanceof UnresolvedNamePattern up) {
                         List<Attribute> matched = resolveAgainstList(up, childOutput);
                         // A wildcard that matches nothing resolves to a single unresolved UnresolvedAttribute. Under
-                        // LOAD_ALL it may match only (not-yet-visible) unmapped source fields, so skip it here and let
-                        // the _unmapped_fields flattening apply it later, instead of failing with "No matches found".
+                        // LOAD_ALL it may match only unmapped source fields, which are not columns, so skip it here
+                        // instead of failing with "No matches found".
                         if (unmatchedPatterns == UnmatchedPatterns.IGNORE
                             && matched.size() == 1
                             && matched.getFirst() instanceof UnresolvedAttribute) {
@@ -4861,7 +4861,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <li>Push down explicit conversion functions into the UnionAll branches</li>
      * <li>Replace the explicit conversion functions with the corresponding attributes in the UnionAll output</li>
      * <li>Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only</li>
-     * <li>Update the attributes referencing the updated UnionAll output</li>
+     * <li>Update the attributes referencing the updated UnionAll output. FORK {@code datetime} null-fillers are promoted to
+     * {@code date_nanos} here when a subquery UnionAll sibling was widened; FORK-only queries are not implicitly cast</li>
      * </ol>
      */
     private static class ResolveUnionTypesInUnionAll extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
@@ -5600,8 +5601,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <p>
          * A {@link MergePlan} caches its output outside its branch expressions and assigns that output its own {@link NameId NameIds}.
          * Consequently, neither the inner union output map nor the first expression walk can update it directly.
-         * {@link #alignMergeOutputTypes} installs a reconciled type on the merge output only when every child already has that
-         * type for the name, preserving the merge output id.
+         * {@link #alignMergeOutputTypes} first rewrites FORK {@code datetime} null-fillers whose sibling was widened to {@code date_nanos},
+         * then installs a reconciled type on the merge output only when every child already has that type for the name, preserving the
+         * merge output id.
          * <p>
          * Finally, cascade the newly registered output ids through aliases above the merge and run a second expression walk. This updates
          * downstream consumers, including the final projection and response metadata, to the same reconciled types seen by the branches.
@@ -5623,7 +5625,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Walks the plan and, for each resolved {@link MergePlan}, aligns cached output types with the children.
+         * Walks the plan and, for each resolved {@link MergePlan}, aligns cached output types with the children. On a {@link Fork},
+         * datetime null-fillers are rewritten to {@code date_nanos} first when a sibling id in {@code idToUpdatedAttr} was widened by
+         * UnionAll implicit casting.
          */
         private static LogicalPlan alignMergeOutputTypes(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
             List<LogicalPlan> children = plan.children();
@@ -5638,10 +5642,111 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             LogicalPlan current = newChildren == null ? plan : plan.replaceChildren(newChildren);
+            if (current instanceof Fork fork && fork.resolved()) {
+                return alignMergeOutputToChildren(rewriteForkDatetimeNullFillers(fork, idToUpdatedAttr), idToUpdatedAttr);
+            }
             if (current instanceof MergePlan merge && merge.resolved()) {
                 return alignMergeOutputToChildren(merge, idToUpdatedAttr);
             }
             return current;
+        }
+
+        /**
+         * Retarget FORK {@code datetime} null-fillers to {@code date_nanos} when a sibling was widened by UnionAll implicit casting. A
+         * sibling that is {@code date_nanos} only from an explicit {@code ::date_nanos} is not a target (those ids are not in the map).
+         * FORK-only queries never reach this method because {@code updatedUnionAllOutput} is empty.
+         * <p>
+         * Columns to promote are chosen by name from sibling output ids in {@code idToUpdatedAttr}. Nodes to edit are this child's
+         * output {@link NameId NameIds} (the FORK alignment aliases). Same-named {@code Eval}s deeper in the cloned branch are left
+         * alone; nested FORKs are handled by the bottom-up {@link #alignMergeOutputTypes} walk.
+         */
+        private static Fork rewriteForkDatetimeNullFillers(Fork fork, Map<NameId, Attribute> idToUpdatedAttr) {
+            Set<String> targetNames = dateNanosTargetNames(fork, idToUpdatedAttr);
+            if (targetNames.isEmpty()) {
+                return fork;
+            }
+            boolean changed = false;
+            List<LogicalPlan> newChildren = new ArrayList<>(fork.children().size());
+            for (LogicalPlan child : fork.children()) {
+                Set<NameId> fillerIds = datetimeNullFillerOutputIds(child, targetNames, idToUpdatedAttr);
+                LogicalPlan rewritten = fillerIds.isEmpty() ? child : rewriteDatetimeNullFillers(child, fillerIds, idToUpdatedAttr);
+                if (rewritten != child) {
+                    changed = true;
+                }
+                newChildren.add(rewritten);
+            }
+            return changed ? fork.replaceSubPlans(newChildren) : fork;
+        }
+
+        /**
+         * Column names whose sibling is {@code date_nanos} because that attribute's id was recorded by UnionAll implicit casting or a
+         * cascade from it.
+         */
+        private static Set<String> dateNanosTargetNames(Fork fork, Map<NameId, Attribute> idToUpdatedAttr) {
+            Set<String> names = new HashSet<>();
+            for (LogicalPlan child : fork.children()) {
+                for (Attribute attr : child.output()) {
+                    Attribute updated = idToUpdatedAttr.get(attr.id());
+                    if (updated != null && updated.dataType() == DATE_NANOS) {
+                        names.add(attr.name());
+                    }
+                }
+            }
+            return names;
+        }
+
+        /**
+         * This branch's output ids for {@code targetNames} that are still {@code datetime}. Those are the FORK alignment fillers;
+         * the widened sibling is already {@code date_nanos} in {@code idToUpdatedAttr} and is excluded.
+         */
+        private static Set<NameId> datetimeNullFillerOutputIds(
+            LogicalPlan child,
+            Set<String> targetNames,
+            Map<NameId, Attribute> idToUpdatedAttr
+        ) {
+            Set<NameId> fillerIds = new HashSet<>();
+            for (Attribute attr : child.output()) {
+                if (targetNames.contains(attr.name()) == false) {
+                    continue;
+                }
+                Attribute effective = idToUpdatedAttr.getOrDefault(attr.id(), attr);
+                if (effective.dataType() == DATETIME) {
+                    fillerIds.add(attr.id());
+                }
+            }
+            return fillerIds;
+        }
+
+        /**
+         * Rewrite this branch's alignment {@code null[datetime]} aliases whose {@link NameId} is in {@code fillerIds} to
+         * {@code null[date_nanos]}, preserving the alias id. Does not rewrite other same-named {@code Eval}s in the subtree.
+         */
+        private static LogicalPlan rewriteDatetimeNullFillers(
+            LogicalPlan branch,
+            Set<NameId> fillerIds,
+            Map<NameId, Attribute> idToUpdatedAttr
+        ) {
+            return branch.transformUp(Eval.class, eval -> {
+                boolean changed = false;
+                List<Alias> newFields = new ArrayList<>(eval.fields().size());
+                for (Alias alias : eval.fields()) {
+                    if (fillerIds.contains(alias.id()) && alias.dataType() == DATETIME && Expressions.isGuaranteedNull(alias.child())) {
+                        Alias rewritten = new Alias(
+                            alias.source(),
+                            alias.name(),
+                            new Literal(alias.source(), null, DATE_NANOS),
+                            alias.id(),
+                            alias.synthetic()
+                        );
+                        idToUpdatedAttr.put(rewritten.id(), rewritten.toAttribute());
+                        newFields.add(rewritten);
+                        changed = true;
+                    } else {
+                        newFields.add(alias);
+                    }
+                }
+                return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
+            });
         }
 
         /**

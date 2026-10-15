@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 
 import java.util.Arrays;
 import java.util.List;
@@ -91,6 +92,11 @@ public class EsqlLogContext extends QueryLoggerContext {
             return 0;
         }
         return Math.clamp(response.getRowCount(), 0, Integer.MAX_VALUE);
+    }
+
+    /** The settings the query resolved to, if it got far enough to resolve them. */
+    Optional<ResolvedSettings> getResolvedSettings() {
+        return Optional.ofNullable(request.resolvedSettings());
     }
 
     Optional<EsqlQueryProfile> getQueryProfile() {

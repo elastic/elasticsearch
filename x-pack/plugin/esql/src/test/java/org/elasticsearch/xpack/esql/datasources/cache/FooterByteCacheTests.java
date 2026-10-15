@@ -20,6 +20,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -196,24 +197,30 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     /**
-     * Reading an entry renews it. The reads below span more than twice the TTL, so under a write clock the
-     * entry would be gone by the last one. This is the whole of what the clock buys: a dashboard's footer
-     * working set is stored as one cohort in the run's opening seconds, and a write clock drops all of it
-     * one TTL later however hard the dashboard is still using it.
+     * Reading an entry renews it. The reads below are spread over five TTLs, so under a write clock the entry
+     * would be gone by the third. This is the whole of what the clock buys: a dashboard's footer working set
+     * is stored as one cohort in the run's opening seconds, and a write clock drops all of it one TTL later
+     * however hard the dashboard is still using it.
      */
     public void testReadingAnEntryRenewsIt() {
-        TimeValue ttl = TimeValue.timeValueSeconds(2);
-        FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
+        AtomicLong clock = new AtomicLong();
+        FooterByteCache cache = new FooterByteCache(1024 * 1024, 512 * 1024, TTL, clock::get);
         FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         byte[] data = randomByteArrayOfLength(64);
 
-        shortLived.put(key, data);
-        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(key));
-        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(5).nanos();
-        while (System.nanoTime() < readUntil) {
-            assertArrayEquals("an entry read at least once per TTL is still served past one TTL", data, shortLived.get(key));
-            safeSleep(50);
+        FooterByteCache.Key unread = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "cold.parquet", 1000);
+
+        cache.put(key, data);
+        cache.put(unread, randomByteArrayOfLength(64));
+        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", cache.get(key));
+        // Ten reads a half-TTL apart span five TTLs, and stay inside the write cap at six.
+        for (int i = 0; i < 10; i++) {
+            clock.addAndGet(TTL.nanos() / 2);
+            assertArrayEquals("an entry read at least once per TTL is still served past one TTL", data, cache.get(key));
         }
+        // The cold entry was stored in the same cohort and is gone, so the entry above survived on its reads
+        // rather than on a clock long enough to carry both.
+        assertNull("an entry nothing read is not carried along by a sibling's reads", cache.get(unread));
     }
 
     /**
@@ -221,51 +228,41 @@ public class FooterByteCacheTests extends ESTestCase {
      * with no clock at all, and the TTL would have stopped bounding anything.
      */
     public void testAnEntryNobodyReadsExpires() {
-        TimeValue ttl = TimeValue.timeValueSeconds(2);
-        FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
+        AtomicLong clock = new AtomicLong();
+        FooterByteCache cache = new FooterByteCache(1024 * 1024, 512 * 1024, TTL, clock::get);
         FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
 
-        shortLived.put(key, randomByteArrayOfLength(64));
-        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(key));
-        safeSleep(ttl.millis() * 3);
+        cache.put(key, randomByteArrayOfLength(64));
+        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", cache.get(key));
+        clock.addAndGet(TTL.nanos() + 1);
 
-        assertNull("an entry unread for a TTL is released", shortLived.get(key));
+        assertNull("an entry unread for a TTL is released", cache.get(key));
     }
 
     /**
      * The write cap expires an entry even when it is being continuously read, so a same-length-overwrite
-     * staleness window is bounded. TTL=500ms → write cap=3s (6×). Reads every 50ms keep the access clock
-     * alive for five TTLs before the cap fires; the entry must be present at 2.5s (access clock renewal
-     * confirmed, cap not yet fired) and absent at 3.5s (cap fired; continuous reads cannot keep it alive).
-     * A cache with only an access clock would still serve the entry at 3.5s, so the final assertion
-     * discriminates the cap from a pure access clock.
+     * staleness window is bounded. The entry is read a half-TTL at a time right up to the cap, which renews
+     * the access clock every time, and then once past it. A cache carrying only an access clock would still
+     * serve the entry after the cap, so the final assertion is what discriminates the two.
      */
     public void testWriteCapExpiresAnEntryDespiteContinuousReads() {
-        TimeValue ttl = TimeValue.timeValueMillis(500);
-        FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
+        AtomicLong clock = new AtomicLong();
+        FooterByteCache cache = new FooterByteCache(1024 * 1024, 512 * 1024, TTL, clock::get);
         FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         byte[] data = randomByteArrayOfLength(64);
+        long capNanos = cache.expireAfterWrite().nanos();
 
-        shortLived.put(key, data);
-        long writeNanos = System.nanoTime();
-        assertNotNull("the entry must be stored to begin with", shortLived.get(key));
+        cache.put(key, data);
+        assertNotNull("the entry must be stored to begin with", cache.get(key));
 
-        long priorCapDeadline = writeNanos + TimeValue.timeValueMillis(2500).nanos();
-        while (System.nanoTime() < priorCapDeadline) {
-            shortLived.get(key);
-            safeSleep(50);
+        long step = TTL.nanos() / 2;
+        while (clock.get() + step <= capNanos) {
+            clock.addAndGet(step);
+            assertNotNull("reads renew the access clock, so the entry is served until the write cap fires", cache.get(key));
         }
-        assertNotNull(
-            "entry kept alive by continuous reads must be present at 2.5s: access clock is renewed and write cap has not fired yet",
-            shortLived.get(key)
-        );
 
-        long postCapDeadline = writeNanos + TimeValue.timeValueMillis(3500).nanos();
-        while (System.nanoTime() < postCapDeadline) {
-            shortLived.get(key);
-            safeSleep(50);
-        }
-        assertNull("write cap must force-expire the entry at 3s even though it was continuously read through 3.5s", shortLived.get(key));
+        clock.addAndGet(step);
+        assertNull("the write cap releases a continuously read entry once it is reached", cache.get(key));
     }
 
     public void testFromSettingsUsesConfiguredTtl() {

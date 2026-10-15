@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 
 /**
@@ -163,6 +164,24 @@ public final class ParsedFooterCache<T> {
      * @throws IllegalArgumentException if {@code maxWeightBytes <= 0}
      */
     public ParsedFooterCache(long maxWeightBytes, TimeValue expireAfterAccess, ToLongFunction<T> weigher, boolean coalesceAsyncLoads) {
+        this(maxWeightBytes, expireAfterAccess, weigher, coalesceAsyncLoads, System::nanoTime);
+    }
+
+    /**
+     * Creates a cache that expires against {@code relativeTimeProvider} rather than {@link System#nanoTime()}. Only a
+     * test for the expiry policy itself has reason to pass one: stepping the time source asserts where an entry stands
+     * relative to its TTL without sleeping for it, and without the assertion depending on whether the host paused the
+     * test for longer than the TTL.
+     *
+     * @throws IllegalArgumentException if {@code maxWeightBytes <= 0}
+     */
+    ParsedFooterCache(
+        long maxWeightBytes,
+        TimeValue expireAfterAccess,
+        ToLongFunction<T> weigher,
+        boolean coalesceAsyncLoads,
+        LongSupplier relativeTimeProvider
+    ) {
         if (maxWeightBytes <= 0) {
             throw new IllegalArgumentException("maxWeightBytes must be positive, got [" + maxWeightBytes + "]");
         }
@@ -179,6 +198,7 @@ public final class ParsedFooterCache<T> {
             .setMaximumWeight(maxWeightBytes)
             .setExpireAfterAccess(expireAfterAccess)
             .setExpireAfterWrite(expireAfterWrite)
+            .setRelativeTimeProvider(relativeTimeProvider)
             .weigher((key, value) -> value.weight())
             .build();
     }

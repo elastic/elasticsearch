@@ -30,6 +30,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.ToLongBiFunction;
 
 /**
@@ -97,8 +98,22 @@ public class Cache<K, V> {
     // the removal callback
     private RemovalListener<K, V> removalListener = notification -> {};
 
+    // the source of the relative time used for expiration; see #now()
+    private LongSupplier relativeTimeProvider = System::nanoTime;
+
     // use CacheBuilder to construct
     Cache() {}
+
+    /**
+     * Sets the source of relative time this cache expires against. Only {@link CacheBuilder} calls this, and only a
+     * test has reason to: a cache given a stepped time source expires on demand instead of on the wall clock, so a
+     * test for an expiry policy neither sleeps nor fails when the host pauses it. Production caches keep
+     * {@link System#nanoTime()}.
+     */
+    void setRelativeTimeProvider(LongSupplier relativeTimeProvider) {
+        Objects.requireNonNull(relativeTimeProvider);
+        this.relativeTimeProvider = relativeTimeProvider;
+    }
 
     void setExpireAfterAccessNanos(long expireAfterAccessNanos) {
         if (expireAfterAccessNanos <= 0) {
@@ -149,9 +164,9 @@ public class Cache<K, V> {
      * @return the current relative time
      */
     protected long now() {
-        // System.nanoTime takes non-negligible time, so we only use it if we need it
-        // use System.nanoTime because we want relative time, not absolute time
-        return entriesExpireAfterAccess || entriesExpireAfterWrite ? System.nanoTime() : 0;
+        // reading the clock takes non-negligible time, so we only do it if we need it
+        // the provider yields relative time, not absolute time; it is System.nanoTime unless a test replaced it
+        return entriesExpireAfterAccess || entriesExpireAfterWrite ? relativeTimeProvider.getAsLong() : 0;
     }
 
     // the state of an entry in the LRU list

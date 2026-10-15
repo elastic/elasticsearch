@@ -35,6 +35,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -81,17 +82,23 @@ public class ParsedFooterCacheTests extends ESTestCase {
      * span more than twice the TTL, so under a write clock the entry would be gone by the last one.
      */
     public void testReadingAnEntryRenewsIt() {
-        TimeValue ttl = TimeValue.timeValueSeconds(2);
-        ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        AtomicLong clock = new AtomicLong();
+        ParsedFooterCache<String> parsed = steppedCache(clock);
         FooterByteCache.Key k = key("file.parquet", 1000);
 
-        shortLived.put(k, "footer");
-        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(k));
-        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(5).nanos();
-        while (System.nanoTime() < readUntil) {
-            assertEquals("an entry read at least once per TTL is still served past one TTL", "footer", shortLived.get(k));
-            safeSleep(50);
+        FooterByteCache.Key cold = key("cold.parquet", 1000);
+
+        parsed.put(k, "footer");
+        parsed.put(cold, "cold-footer");
+        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", parsed.get(k));
+        // Ten reads a half-TTL apart span five TTLs, and stay inside the write cap at six.
+        for (int i = 0; i < 10; i++) {
+            clock.addAndGet(TTL.nanos() / 2);
+            assertEquals("an entry read at least once per TTL is still served past one TTL", "footer", parsed.get(k));
         }
+        // The cold entry was stored in the same cohort and is gone, so the entry above survived on its reads
+        // rather than on a clock long enough to carry both.
+        assertNull("an entry nothing read is not carried along by a sibling's reads", parsed.get(cold));
     }
 
     /**
@@ -100,9 +107,9 @@ public class ParsedFooterCacheTests extends ESTestCase {
      * parsed entry alone lets its byte entry go cold. Sharing the TTL value is not co-expiry.
      */
     public void testRenewingTheParsedEntryDoesNotRenewItsBytes() {
-        TimeValue ttl = TimeValue.timeValueSeconds(2);
-        ParsedFooterCache<String> parsed = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
-        FooterByteCache bytes = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
+        AtomicLong clock = new AtomicLong();
+        ParsedFooterCache<String> parsed = steppedCache(clock);
+        FooterByteCache bytes = new FooterByteCache(1024 * 1024, 512 * 1024, TTL, clock::get);
         FooterByteCache.Key k = key("file.parquet", 1000);
         byte[] tail = randomByteArrayOfLength(64);
 
@@ -111,11 +118,11 @@ public class ParsedFooterCacheTests extends ESTestCase {
         assertNotNull("both entries must be stored, or the assertions below pass vacuously", parsed.get(k));
         assertNotNull(bytes.get(k));
 
-        // Read only the parsed side, as a reader answering from the parsed cache does.
-        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(5).nanos();
-        while (System.nanoTime() < readUntil) {
+        // Read only the parsed side, as a reader answering from the parsed cache does. One clock drives both
+        // caches, so the bytes age against exactly the time the parsed reads happened in.
+        for (int i = 0; i < 10; i++) {
+            clock.addAndGet(TTL.nanos() / 2);
             assertEquals("the parsed entry is renewed by its own reads", "footer", parsed.get(k));
-            safeSleep(100);
         }
 
         assertNull("its bytes were not read, so they are released on their own clock", bytes.get(k));
@@ -126,48 +133,47 @@ public class ParsedFooterCacheTests extends ESTestCase {
      * a cache with no clock at all.
      */
     public void testAnEntryNobodyReadsExpires() {
-        TimeValue ttl = TimeValue.timeValueSeconds(2);
-        ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        AtomicLong clock = new AtomicLong();
+        ParsedFooterCache<String> parsed = steppedCache(clock);
         FooterByteCache.Key k = key("file.parquet", 1000);
 
-        shortLived.put(k, "footer");
-        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(k));
-        safeSleep(ttl.millis() * 3);
+        parsed.put(k, "footer");
+        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", parsed.get(k));
+        clock.addAndGet(TTL.nanos() + 1);
 
-        assertNull("an entry unread for a TTL is released", shortLived.get(k));
+        assertNull("an entry unread for a TTL is released", parsed.get(k));
     }
 
     /**
      * The write cap expires a parsed entry even when it is being continuously read, bounding how long a stale
-     * footer (from a same-length overwrite) may be served. TTL=500ms → write cap=3s (6×). Reads every 50ms
-     * keep the access clock alive; the entry must be present at 2.5s (access clock renewal confirmed, cap
-     * not yet fired) and absent at 3.5s (cap fired; continuous reads cannot keep it alive).
+     * footer (from a same-length overwrite) may be served. The entry is read a half-TTL at a time right up to
+     * the cap, which renews the access clock every time, and then once past it.
      */
     public void testWriteCapExpiresAnEntryDespiteContinuousReads() {
-        TimeValue ttl = TimeValue.timeValueMillis(500);
-        ParsedFooterCache<String> shortLived = new ParsedFooterCache<>(8 * ENTRY_WEIGHT, ttl, ignored -> ENTRY_WEIGHT);
+        AtomicLong clock = new AtomicLong();
+        ParsedFooterCache<String> parsed = steppedCache(clock);
         FooterByteCache.Key k = key("file.parquet", 1000);
+        long capNanos = parsed.expireAfterWrite().nanos();
 
-        shortLived.put(k, "footer");
-        long writeNanos = System.nanoTime();
-        assertNotNull("the entry must be stored to begin with", shortLived.get(k));
+        parsed.put(k, "footer");
+        assertNotNull("the entry must be stored to begin with", parsed.get(k));
 
-        long priorCapDeadline = writeNanos + TimeValue.timeValueMillis(2500).nanos();
-        while (System.nanoTime() < priorCapDeadline) {
-            shortLived.get(k);
-            safeSleep(50);
+        long step = TTL.nanos() / 2;
+        while (clock.get() + step <= capNanos) {
+            clock.addAndGet(step);
+            assertNotNull("reads renew the access clock, so the entry is served until the write cap fires", parsed.get(k));
         }
-        assertNotNull(
-            "entry kept alive by continuous reads must be present at 2.5s: access clock is renewed and write cap has not fired yet",
-            shortLived.get(k)
-        );
 
-        long postCapDeadline = writeNanos + TimeValue.timeValueMillis(3500).nanos();
-        while (System.nanoTime() < postCapDeadline) {
-            shortLived.get(k);
-            safeSleep(50);
-        }
-        assertNull("write cap must force-expire the entry at 3s even though it was continuously read through 3.5s", shortLived.get(k));
+        clock.addAndGet(step);
+        assertNull("the write cap releases a continuously read entry once it is reached", parsed.get(k));
+    }
+
+    /**
+     * A cache on a stepped clock: the test advances time where it means to rather than sleeping for it, so an
+     * expiry assertion does not turn on whether the host paused the test for longer than the TTL.
+     */
+    private static ParsedFooterCache<String> steppedCache(AtomicLong clock) {
+        return new ParsedFooterCache<>(8 * ENTRY_WEIGHT, TTL, ignored -> ENTRY_WEIGHT, true, clock::get);
     }
 
     public void testPutThenGetReturnsSameInstance() {

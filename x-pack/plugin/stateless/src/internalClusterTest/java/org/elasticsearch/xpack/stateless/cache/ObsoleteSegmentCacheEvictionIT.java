@@ -722,7 +722,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         }
         flush(indexName);
 
-        final var blobsBeforeMerge = readAllIndexFiles(indexEngine, cacheDirectory).values()
+        final var blobsBeforeMerge = checksumLastCommitFiles(indexEngine, cacheDirectory).values()
             .stream()
             .map(BlobLocation::blobName)
             .collect(Collectors.toSet());
@@ -736,7 +736,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get());
         flush(indexName);
 
-        final var blobsAfterMerge = readAllIndexFiles(indexEngine, cacheDirectory).values()
+        final var blobsAfterMerge = checksumLastCommitFiles(indexEngine, cacheDirectory).values()
             .stream()
             .map(BlobLocation::blobName)
             .collect(Collectors.toSet());
@@ -774,7 +774,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
      * Reads every file of the last commit of the indexing engine through the cache directory to populate the cache, and returns the
      * location of each file.
      */
-    private static Map<String, BlobLocation> readAllIndexFiles(IndexEngine indexEngine, IndexBlobStoreCacheDirectory cacheDirectory)
+    private static Map<String, BlobLocation> checksumLastCommitFiles(IndexEngine indexEngine, IndexBlobStoreCacheDirectory cacheDirectory)
         throws Exception {
         try (Engine.IndexCommitRef commitRef = indexEngine.acquireLastIndexCommit(false)) {
             var locations = new HashMap<String, BlobLocation>();

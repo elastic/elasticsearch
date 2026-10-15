@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockExceptions;
 
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -71,14 +71,13 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
     @Override
     public void onError(Throwable amazonBedrockRuntimeException) {
         ExceptionsHelper.maybeDieOnAnotherThread(amazonBedrockRuntimeException);
-        error.set(
-            new ElasticsearchException(
-                Strings.format("AmazonBedrock StreamingChatProcessor failure: [%s]", amazonBedrockRuntimeException.getMessage()),
-                amazonBedrockRuntimeException
-            )
+        var wrappedException = AmazonBedrockExceptions.wrap(
+            Strings.format("AmazonBedrock StreamingChatProcessor failure: [%s]", amazonBedrockRuntimeException.getMessage()),
+            amazonBedrockRuntimeException
         );
+        error.set(wrappedException);
         if (isDone.compareAndSet(false, true) && checkAndResetDemand() && onErrorCalled.compareAndSet(false, true)) {
-            runOnUtilityThreadPool(() -> downstream.onError(amazonBedrockRuntimeException));
+            runOnUtilityThreadPool(() -> downstream.onError(wrappedException));
         }
     }
 

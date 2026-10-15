@@ -238,8 +238,8 @@ public final class ExternalSourceCacheSettings {
      * this cache is the only one holding anything for it. And a file carrying large per-column
      * statistics can have a serialized footer bigger than the structural estimate charged here.
      * In both, an eviction from this cache does cost a re-read. Deployments running wide schemas
-     * over large file sets can raise this to buy back the re-parse; the cost is heap held for the
-     * whole {@link #FOOTER_CACHE_TTL}.
+     * over large file sets can raise this to buy back the re-parse; the cost is heap held for as long as
+     * the working set keeps being read, and until a later cache operation prunes it once that stops.
      */
     public static final Setting<ByteSizeValue> FOOTER_PARSED_CACHE_SIZE = new Setting<>(
         "esql.external.cache.footer.parsed.size",
@@ -250,19 +250,36 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Expire-after-write TTL shared by both footer caches. If the bytes are stale, the parse
-     * derived from them is stale too. Counting from the write rather than the last access means this does
-     * NOT keep a footer alive for the duration of one query: a query whose phases span more than this
-     * interval re-fetches and re-parses the footer between resolution, split discovery and execution, and
-     * for a file overwritten in place at the same length those phases can see different footers. Size it
-     * above the span of your longest query if that matters, and above dashboard refresh intervals. The
-     * trade-off: footer cache keys are {@code (path, fileLength)} without mtime (adding it would
-     * cost a HEAD request per range split; see {@link FooterByteCache}), so a file overwritten
-     * in place with identical length can be served stale for up to two of these intervals, because a reparse
-     * from still-cached bytes dates the parsed entry later than the read behind it (see
-     * {@link ParsedFooterCache}). Object-store
-     * analytics layouts treat data files as immutable, and this setting is the operator escape
-     * hatch where they do not.
+     * Expire-after-access TTL shared by both footer caches. It bounds how long an entry nobody is reading
+     * stays eligible: a footer read at least once per interval keeps being served, and one that stops being
+     * read becomes a miss an interval later. Expiry is lazy — {@link org.elasticsearch.common.cache.Cache}
+     * reclaims an expired entry when a later operation prunes the LRU rather than on a timer — so on an idle
+     * node the heap stays held until something touches the cache. Both caches take the same value, but they
+     * no longer age out together: a reader that answers from the parsed cache does not read bytes, so a
+     * parsed entry can be renewed while its bytes go cold.
+     * <p>
+     * It does not precisely bound how stale a footer may be — footer keys are {@code (storageIdentity,
+     * path, fileLength)} and name the object rather than the version of it — but both caches carry a
+     * write cap of {@link FooterByteCache#WRITE_CAP_MULTIPLIER} times this TTL, so a raw footer entry is
+     * force-expired at most {@code WRITE_CAP_MULTIPLIER × TTL} after it was written regardless of how
+     * often it is read, and lowering this setting shortens that window proportionally. For parsed footer
+     * entries the ceiling is higher: data reads keep the raw-bytes entry alive via
+     * {@code footerBytes.get(key)} while queries are being served from the parsed cache; a subsequent
+     * parsed-cache miss (from budget eviction or an access-clock lapse) reparses from those still-cached
+     * bytes, producing a new parsed entry whose write clock starts at that point. The worst-case staleness
+     * for parsed footers is therefore approximately {@code 2 × WRITE_CAP_MULTIPLIER × TTL}, roughly twice
+     * that of raw bytes. The precise fix belongs in the key rather than the clock (see {@link FooterByteCache}
+     * and elastic/esql-planning#2094).
+     * <p>
+     * One case the access clock narrows without closing: a query whose phases span more than this interval
+     * on one key, or whose entry is evicted against the byte budget between phases, re-reads the footer
+     * between resolution, split discovery and execution, and a same-length rewrite in between gives two
+     * phases two different footers for one query.
+     * <p>
+     * {@code ExternalSourceCacheService} makes the opposite choice for the stores it owns, and deliberately:
+     * its schema and dataset-aggregate keys carry the file's modification time, so identity already answers
+     * freshness there and a write clock bounds only reuse. Here the key cannot answer freshness, and the
+     * write cap is the staleness ceiling.
      */
     public static final Setting<TimeValue> FOOTER_CACHE_TTL = Setting.positiveTimeSetting(
         "esql.external.cache.footer.ttl",

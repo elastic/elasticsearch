@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -771,10 +772,20 @@ public class FileSplitProvider implements SplitProvider {
                 PartitionSpec.fromConfig(config)
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
+            // Resolution (bounded sample) cannot hit the 25k cap; skip the predicate there.
+            FolderRangePredicate folderRange = extents.boundsFileSet()
+                ? null
+                : folderRangePredicateForQuery(context.filterHints(), PartitionSpec.fromConfig(config));
             if (extents.boundsFileSet()) {
-                // Never the cache: what comes back is a prefix of the dataset, and the cache's entries are answers
-                // other queries are served whole. This query may read a prefix because its own demand is covered by
-                // one; the next query's demand is not this one's.
+                // Not the cache, though the key would hold it correctly now: the extent joins the listing cache
+                // identity (GlobExpander#listingCacheDiscriminator), so a prefix is addressed as a prefix and two
+                // queries asking one bound are asking one question. What stops it is the synchronous rail's
+                // follower handling, not the key. getOrComputeListing goes through Cache#computeIfAbsent, where a
+                // follower blocks on the leader's future and is handed the leader's exception, so a cancelled
+                // leader fails a query nobody cancelled - and a bounded scan is exactly the key many concurrent
+                // LIMIT queries would share. cachedListingAsync retries a follower past a leader's cancellation;
+                // this rail does not, and sharing here is worth nothing until it does. A read path left listing
+                // privately pays its own walk, which is slower and correct.
                 return listingService.expand(
                     pattern,
                     provider,
@@ -783,7 +794,8 @@ public class FileSplitProvider implements SplitProvider {
                     storagePath,
                     extents,
                     scanMemory(context),
-                    context.isCancelled()
+                    context.isCancelled(),
+                    folderRange
                 );
             }
             // The whole pattern either way, so it is cacheable: the query's file set is the dataset's, narrowed by
@@ -799,7 +811,8 @@ public class FileSplitProvider implements SplitProvider {
                     narrowing,
                     config,
                     scanMemory(context),
-                    context.isCancelled()
+                    context.isCancelled(),
+                    folderRange
                 )
                 : listingService.expand(
                     pattern,
@@ -809,7 +822,8 @@ public class FileSplitProvider implements SplitProvider {
                     storagePath,
                     ListingExtents.UNBOUNDED,
                     scanMemory(context),
-                    context.isCancelled()
+                    context.isCancelled(),
+                    folderRange
                 );
         } finally {
             StorageProviderCache.closeLease(provider);
@@ -840,6 +854,20 @@ public class FileSplitProvider implements SplitProvider {
             PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), spec.boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
         );
         return dropNonListingKeys(spec.projectListingHints(merged), partitionKeys, requestedMetadata);
+    }
+
+    /**
+     * TEMPORAL extract as a folder-range predicate, before {@link #dropNonListingKeys}. Null when the spec is
+     * empty or no temporal group has a usable bound. Does not put {@code @timestamp} / {@code NOW()} in the
+     * hint list.
+     */
+    static FolderRangePredicate folderRangePredicateForQuery(List<Expression> filters, PartitionSpec spec) {
+        if (spec == null || spec.isEmpty() || filters == null || filters.isEmpty()) {
+            return null;
+        }
+        return spec.folderRangePredicate(
+            PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), spec.boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
+        );
     }
 
     static List<PartitionFilterHintExtractor.PartitionFilterHint> dropNonListingKeys(

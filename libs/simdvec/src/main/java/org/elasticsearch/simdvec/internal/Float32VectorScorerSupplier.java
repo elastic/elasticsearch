@@ -16,10 +16,10 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
@@ -35,6 +35,7 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
     final FixedSizeSegmentScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
+    final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
     final float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
 
     protected Float32VectorScorerSupplier(IndexInput input, FloatVectorValues values) {
@@ -113,11 +114,10 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
     /**
      * Scores {@code numNodes} candidates in bulk, writing normalized results into {@code scores}.
      *
-     * <p>Uses the plain (non-{@code @Critical}) binding, scoring into a confined arena opened and
-     * closed within the call, whenever {@code query} is native -- the common merge/HNSW-build case.
-     * See {@link SimdVecLibrary#dotProductF32BulkSparseOffHeap} for why. Falls back to the
-     * {@code @Critical} binding, writing straight into {@code scores}, only when {@code query} is
-     * heap-backed (the {@link IndexInputUtils} last-resort heap-copy case).
+     * <p>Uses the plain (non-{@code @Critical}) binding whenever {@code query} is native -- the common
+     * merge/HNSW-build case. See {@link SimdVecLibrary#dotProductF32BulkSparseOffHeap} for why. Falls
+     * back to the {@code @Critical} binding only when {@code query} is heap-backed (the
+     * {@link IndexInputUtils} last-resort heap-copy case).
      */
     abstract float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes);
 
@@ -169,15 +169,12 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
 
         @Override
         protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes) {
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
             if (query.isNative()) {
-                try (Arena arena = Arena.ofConfined()) {
-                    MemorySegment segment = arena.allocate((long) numNodes * Float.BYTES, ValueLayout.JAVA_FLOAT.byteAlignment());
-                    DISTANCE_FUNCS.squareDistanceF32BulkSparseOffHeap(addresses, query, dims, numNodes, segment);
-                    return readScores(segment, scores, numNodes, VectorUtil::normalizeDistanceToUnitInterval);
-                }
+                DISTANCE_FUNCS.squareDistanceF32BulkSparseOffHeap(addresses, query, dims, numNodes, segment);
+            } else {
+                DISTANCE_FUNCS.squareDistanceF32BulkSparse(addresses, query, dims, numNodes, segment);
             }
-            MemorySegment segment = MemorySegment.ofArray(scores);
-            DISTANCE_FUNCS.squareDistanceF32BulkSparse(addresses, query, dims, numNodes, segment);
             return readScores(segment, scores, numNodes, VectorUtil::normalizeDistanceToUnitInterval);
         }
 
@@ -200,15 +197,12 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
 
         @Override
         protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes) {
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
             if (query.isNative()) {
-                try (Arena arena = Arena.ofConfined()) {
-                    MemorySegment segment = arena.allocate((long) numNodes * Float.BYTES, ValueLayout.JAVA_FLOAT.byteAlignment());
-                    DISTANCE_FUNCS.dotProductF32BulkSparseOffHeap(addresses, query, dims, numNodes, segment);
-                    return readScores(segment, scores, numNodes, VectorUtil::normalizeToUnitInterval);
-                }
+                DISTANCE_FUNCS.dotProductF32BulkSparseOffHeap(addresses, query, dims, numNodes, segment);
+            } else {
+                DISTANCE_FUNCS.dotProductF32BulkSparse(addresses, query, dims, numNodes, segment);
             }
-            MemorySegment segment = MemorySegment.ofArray(scores);
-            DISTANCE_FUNCS.dotProductF32BulkSparse(addresses, query, dims, numNodes, segment);
             return readScores(segment, scores, numNodes, VectorUtil::normalizeToUnitInterval);
         }
 
@@ -231,15 +225,12 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
 
         @Override
         protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes) {
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
             if (query.isNative()) {
-                try (Arena arena = Arena.ofConfined()) {
-                    MemorySegment segment = arena.allocate((long) numNodes * Float.BYTES, ValueLayout.JAVA_FLOAT.byteAlignment());
-                    DISTANCE_FUNCS.dotProductF32BulkSparseOffHeap(addresses, query, dims, numNodes, segment);
-                    return readScores(segment, scores, numNodes, VectorUtil::scaleMaxInnerProductScore);
-                }
+                DISTANCE_FUNCS.dotProductF32BulkSparseOffHeap(addresses, query, dims, numNodes, segment);
+            } else {
+                DISTANCE_FUNCS.dotProductF32BulkSparse(addresses, query, dims, numNodes, segment);
             }
-            MemorySegment segment = MemorySegment.ofArray(scores);
-            DISTANCE_FUNCS.dotProductF32BulkSparse(addresses, query, dims, numNodes, segment);
             return readScores(segment, scores, numNodes, VectorUtil::scaleMaxInnerProductScore);
         }
 

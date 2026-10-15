@@ -318,14 +318,13 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
          * This method re-positions them, placing each score at the index indicated in {@param offsets}.
          * @param offsets scored offsets array
          * @param offsetsCount number of scored offsets
-         * @param scores scores array
+         * @param scores scores segment
          */
-        static void repositionScoresMatchingOffsets(int[] offsets, int offsetsCount, float[] scores) {
+        static void repositionScoresMatchingOffsets(int[] offsets, int offsetsCount, MemorySegment scores) {
             for (int i = offsetsCount - 1; i >= 0; i--) {
                 int finalScoreIndex = offsets[i];
                 if (i < finalScoreIndex) {
-                    scores[finalScoreIndex] = scores[i];
-                    scores[i] = 0;
+                    scores.setAtIndex(ValueLayout.JAVA_FLOAT, finalScoreIndex, scores.getAtIndex(ValueLayout.JAVA_FLOAT, i));
                 }
             }
         }

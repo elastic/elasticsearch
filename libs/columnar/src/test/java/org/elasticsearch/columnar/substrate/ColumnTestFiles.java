@@ -26,6 +26,7 @@ import java.io.IOException;
  */
 public final class ColumnTestFiles {
 
+    // NOTE: the skip file is not named cns, which the numeric tests write themselves beside these files.
     private static final String[] EXTENSIONS = { "cnd", "cna", "cnl", "cnn", "cnk" };
     private static final String CODEC = "ColumNARTestColumn";
 

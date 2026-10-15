@@ -238,7 +238,7 @@ $$$split-probe-window$$$
 `split_probe_window` {applies_to}`stack: experimental 9.6+`
 :   The number of bytes that each record-boundary search can read while files are split.
 
-    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV split on newlines, as described in [`multiline_fields`](#csv-multiline-fields)
+    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV and TSV split on newlines, as described in [`multiline_fields`](#csv-multiline-fields)
     - **Default:** 256 KiB (`256kb`)
     - **Valid values:** A positive byte size. The product of `max_split_probes` and `split_probe_window` can't exceed 4 GiB.
     - **Related:** `max_split_probes`, `target_split_size`
@@ -255,7 +255,7 @@ $$$max-split-probes$$$
 `max_split_probes` {applies_to}`stack: experimental 9.6+`
 :   The maximum number of record-boundary searches that a query can perform, which limits how many splits its files are cut into.
 
-    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV split on newlines, as described in [`multiline_fields`](#csv-multiline-fields)
+    - **Formats:** NDJSON, CSV and TSV without quoting or escaping, and CSV and TSV split on newlines, as described in [`multiline_fields`](#csv-multiline-fields)
     - **Default:** `1000`
     - **Valid values:** An integer from `1` through `10000`. The product of `max_split_probes` and `split_probe_window` can't exceed 4 GiB.
     - **Related:** `split_probe_window`, `target_split_size`
@@ -326,7 +326,7 @@ $$$csv-mode$$$
 
     An explicit `quote` or `escape` value overrides the preset.
 
-    {applies_to}`stack: experimental 9.6+` `mode` doesn't change how files are split, or whether a quoted field or an escaped line break can span several lines. [`multiline_fields`](#csv-multiline-fields) decides both.
+    {applies_to}`stack: experimental 9.6+` Whether a quoted field or an escaped line break can span several lines isn't decided by `mode` but by [`multiline_fields`](#csv-multiline-fields), which also decides how files that can carry such values are split. A `plain` file is always cut and read line by line, because no field in it can span lines.
 
     :::{dropdown} Why `escaped` with `quote` is rejected
     Setting `quote` turns quoting on, and the quoting parser doesn't decode escape sequences. The combination therefore reads neither as escaped nor as quoted data, so it's rejected when you create or update the dataset. A dataset stored with this combination before the check took effect continues to read.
@@ -475,9 +475,9 @@ $$$csv-multiline-fields$$$
 
     By default, {{esql}} assumes that no value spans lines. Files are split on plain newlines, with no look at the data, which avoids the sequential search for record boundaries that quote-aware files need. This applies to every file, including each file of a glob. Set `true` to read quoted fields and escaped line breaks that span several lines: files are then split with quote awareness.
 
-    With `multi_value_syntax` set to `brackets`, files are always split with quote awareness, because bracketed cells can span lines.
+    With `multi_value_syntax` set to `brackets`, files are always split with quote awareness, because bracketed cells can span lines. With `mode` set to `plain`, the setting has no effect, because no field in such a file can span lines; a query over a dataset that sets it to `true` anyway reports this as a warning.
 
-    If a value spans lines while `multiline_fields` isn't `true`, the query fails, whatever the `error_mode` and however the file is read: when the value falls within the rows sampled for schema inference, when the file is read in one piece, and when it's split. The error suggests setting `multiline_fields` to `true`.
+    If a value spans lines while `multiline_fields` isn't `true`, the query fails, whatever the `error_mode`, as soon as a read meets a record that continues past a line break: in the rows sampled for schema inference, in a file read in one piece, or in a split. The error suggests setting `multiline_fields` to `true`. This check is a safety net, not a guarantee: a line break can fall where the two halves of the value each parse as a record of their own, in which case they're read as two rows without an error. Make sure the data honors the setting rather than relying on the check.
 
 $$$csv-multi-value-syntax$$$
 

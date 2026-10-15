@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -314,7 +315,7 @@ public class CsvModeReadTests extends ESTestCase {
             splitContext(true, true, true),  // a lone parallel-parsing chunk
             splitContext(true, true, false)  // the whole file in one piece
         )) {
-            Exception e = expectThrows(Exception.class, () -> drain(reader, bytes(csv), context));
+            Exception e = expectThrows(ExternalClientException.class, () -> drain(reader, bytes(csv), context));
             assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
             // Data without multi-line fields is unaffected.
             assertEquals(1, drain(reader, bytes("x,y\nu,v\n"), context));
@@ -327,10 +328,13 @@ public class CsvModeReadTests extends ESTestCase {
      */
     public void testSchemaInferenceFailsOnMultiLineFieldUnlessMultilineFields() throws IOException {
         String csv = "x,y\n\"multi\nline\",z\n";
-        Exception e = expectThrows(Exception.class, () -> csvReader(Map.of()).metadata(bytes(csv)));
+        Exception e = expectThrows(ExternalClientException.class, () -> csvReader(Map.of()).metadata(bytes(csv)));
         assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
         // The failure is not a sampling error that error_mode may skip.
-        Exception lenient = expectThrows(Exception.class, () -> csvReader(Map.of("error_mode", "skip_row")).metadata(bytes(csv)));
+        Exception lenient = expectThrows(
+            ExternalClientException.class,
+            () -> csvReader(Map.of("error_mode", "skip_row")).metadata(bytes(csv))
+        );
         assertThat(ExceptionsHelper.unwrapCause(lenient).getMessage(), containsString("multiline_fields"));
         assertEquals(2, csvReader(Map.of("multiline_fields", true)).metadata(bytes(csv)).schema().size());
     }
@@ -345,7 +349,7 @@ public class CsvModeReadTests extends ESTestCase {
             for (boolean directBlock : List.of(true, false)) {
                 CsvFormatReader reader = csvReader(config).withDirectBlockEnabled(directBlock).withSchema(TWO_KEYWORDS);
                 Exception e = expectThrows(
-                    Exception.class,
+                    ExternalClientException.class,
                     () -> drain(reader, bytes("x,y\n\"multi\nline\",z\nu,v\n"), splitContext(true, false, true))
                 );
                 assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
@@ -364,7 +368,10 @@ public class CsvModeReadTests extends ESTestCase {
         assertEquals(2, drain(reader, bytes("5000,12\" ruler\nu,v\n"), split));
         assertEquals(2, drain(reader, bytes("u,v\n\"w\",x\n"), split));
         // The previous split's record runs into the cut newline: that is where the contradiction is reported.
-        Exception owner = expectThrows(Exception.class, () -> drain(reader, bytes("u,v\n\"first part\n"), splitContext(true, false, true)));
+        Exception owner = expectThrows(
+            ExternalClientException.class,
+            () -> drain(reader, bytes("u,v\n\"first part\n"), splitContext(true, false, true))
+        );
         assertThat(ExceptionsHelper.unwrapCause(owner).getMessage(), containsString("spans several lines"));
     }
 
@@ -403,10 +410,10 @@ public class CsvModeReadTests extends ESTestCase {
     public void testMultilineFieldsNotTrueGuardsSplits() throws IOException {
         CsvFormatReader reader = csvReader(Map.of("multiline_fields", false)).withSchema(TWO_KEYWORDS);
         String csv = "x,y\n\"multi\nline\",z\n";
-        Exception e = expectThrows(Exception.class, () -> drain(reader, bytes(csv), splitContext(true, false, true)));
+        Exception e = expectThrows(ExternalClientException.class, () -> drain(reader, bytes(csv), splitContext(true, false, true)));
         assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
         Exception unset = expectThrows(
-            Exception.class,
+            ExternalClientException.class,
             () -> drain(csvReader(Map.of()).withSchema(TWO_KEYWORDS), bytes(csv), splitContext(true, false, true))
         );
         assertThat(ExceptionsHelper.unwrapCause(unset).getMessage(), containsString("multiline_fields"));
@@ -479,9 +486,30 @@ public class CsvModeReadTests extends ESTestCase {
             .fileHeaderColumns(List.of("id", "name"))
             .build();
         CsvFormatReader reader = csvReader(Map.of()).withSchema(schema);
-        for (String tail : List.of("\"\n3,cc\n4,dd\n", "\",x\r\n3,cc\n4,dd\n", "12\" ruler,x\n3,cc\n4,dd\n")) {
+        // Every line terminator ends the tail: LF, CRLF and a lone CR, which must not swallow the character after it.
+        for (String tail : List.of("\"\n3,cc\n4,dd\n", "\",x\r\n3,cc\n4,dd\n", "\",x\r3,cc\r4,dd\r", "12\" ruler,x\n3,cc\n4,dd\n")) {
             assertEquals(tail, 2, drain(reader, bytes(tail), split));
         }
+    }
+
+    /**
+     * {@code multiline_fields: true} promises nothing a plain dialect can hold, so it is accepted but reported: the user
+     * likely expects multi-line values to come through, and they will read as separate rows instead.
+     */
+    public void testMultilineFieldsTrueOnPlainDialectIsNoticed() {
+        assertEquals(
+            List.of(CsvFormatReader.MULTILINE_TRUE_WITH_PLAIN_MESSAGE),
+            tsvReader(Map.of("multiline_fields", true)).configWarnings()
+        );
+        assertEquals(
+            List.of(CsvFormatReader.MULTILINE_TRUE_WITH_PLAIN_MESSAGE),
+            csvReader(Map.of("mode", "plain", "multiline_fields", "true")).configWarnings()
+        );
+        // Not a conflict: stored as is, and silent where the flag means something or says nothing.
+        CsvFormatReader.validateConfig(Map.of("multiline_fields", true), CsvFormatOptions.TSV);
+        assertTrue(tsvReader(Map.of("multiline_fields", false)).configWarnings().isEmpty());
+        assertTrue(tsvReader(Map.of("mode", "escaped", "multiline_fields", true)).configWarnings().isEmpty());
+        assertTrue(csvReader(Map.of("multiline_fields", true)).configWarnings().isEmpty());
     }
 
     private static int drain(CsvFormatReader reader, StorageObject object, FormatReadContext context) throws IOException {

@@ -453,6 +453,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         "[multiline_fields] [false] can't be combined with multi_value_syntax [brackets]: bracketed cells can span lines";
 
     /**
+     * A plain dialect (no quoting, no escaping) has no syntax that could carry a line break inside a field, so declaring
+     * {@code multiline_fields: true} on one changes nothing: the file is still cut and read line by line. Worth a notice,
+     * since the user likely expects multi-line values to come through and they will instead surface as extra rows.
+     */
+    static final String MULTILINE_TRUE_WITH_PLAIN_MESSAGE =
+        "[multiline_fields] [true] has no effect without quoting or escaping: no field of a plain file can span lines";
+
+    /**
      * Upper bound on {@code skip_rows}. Preambles are a handful of lines; a larger cap would
      * outrun a 64MB first split and leak leftover preamble into split 1. Must stay equal to
      * the PUT-time cap in {@code FileDataSourceValidator}.
@@ -495,8 +503,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final int schemaSampleSize;
     private final int schemaMaxFields;
     /**
-     * Notices this reader can raise about its own {@code WITH} options (today one: {@code mode: escaped} with a
-     * {@code quote} override, which switches the escaped decode off). They are known when the options are parsed, but
+     * Notices this reader can raise about its own {@code WITH} options ({@code mode: escaped} with a {@code quote}
+     * override, which switches the escaped decode off; {@code multiline_fields} set where it conflicts with the
+     * multi-value syntax or has no effect). They are known when the options are parsed, but
      * parsing runs on the resolver's executor and again on every data node, and neither can reach the client. So they
      * are kept here and handed out through {@link #configWarnings()}, which the resolver reads once per path on every
      * resolve; they describe the options, not a file, so they never enter the per-file metadata or its cache. Empty
@@ -847,6 +856,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             configWarnings.add(MULTILINE_FALSE_WITH_BRACKETS_MESSAGE);
         }
+        if (Boolean.TRUE.equals(multilineFields) && quoting == false && escaping == false) {
+            // Not a conflict, so not rejected at PUT time: the flag is simply inert on this dialect. The notice tells
+            // the user why their multi-line values still read as separate rows.
+            configWarnings.add(MULTILINE_TRUE_WITH_PLAIN_MESSAGE);
+        }
         if (parsedMode == CsvFormatOptions.Mode.ESCAPED && quoting) {
             // mode=escaped asks for the C-style decode (\N to null, \t to tab), but setting a quote turns quoting
             // on, and the quoting parser does not decode escapes. So the user gets neither what they asked for nor a
@@ -931,13 +945,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * The user's {@code multiline_fields} decision, or {@code null} when unset, which is treated as {@code false}.
      * {@code false} promises that no quoted field or escape spans a line break, so the file may be cut on plain newlines.
+     * The parser's fallback is unreachable (unset is handled first) and set to the same {@code false} so it cannot
+     * contradict that reading if the guard above ever changes.
      */
     private static Boolean parseMultilineFields(Map<String, Object> config) {
         Object value = config.get(CONFIG_MULTILINE_FIELDS);
         if (value == null || value.toString().trim().isEmpty()) {
             return null;
         }
-        return parseBooleanOption(CONFIG_MULTILINE_FIELDS, value, true);
+        return parseBooleanOption(CONFIG_MULTILINE_FIELDS, value, false);
     }
 
     /**
@@ -1393,7 +1409,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * itself stays quote-aware, and every read fails on a record that breaks the contract, see
      * {@link CsvLogicalRecordReader#failOnLineSpan()}; Jackson cannot apply that guard, see {@link #jacksonGrammarApplies()}.
      * Bracketed multi-values can span lines by design, so they keep the quote-aware walk whatever the flag
-     * ({@link #parseOptionsFromConfig} rejects an explicit {@code false} with them). A plain dialect (no quoting, no
+     * ({@link #parseOptionsFromConfig} rejects an explicit {@code false} with them, and only an explicit one: unset is
+     * {@code false} everywhere else, but here it is simply the walk the brackets need). A plain dialect (no quoting, no
      * escaping) is cut at newlines regardless, as no record of it can span one; it is not this case.
      */
     private boolean newlineSplitting() {
@@ -2579,7 +2596,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // always record boundaries, so it can use the cheap strided terminator scan. When quoting is on a raw
         // newline can sit inside a quoted field, and when escaping is on a backslash-escaped raw newline is
         // in-field content; boundary detection then needs the quote/escape state machine and must be driven
-        // sequentially from a known record start. The exception is a dataset that does not declare multiline_fields
+        // sequentially from a known record start. The exception is a dataset not declared multiline_fields: true
         // (newlineSplitting): its newlines are presumed to be boundaries, so it is cut by the cheap scan too, and every
         // read fails loudly, via CsvLogicalRecordReader#failOnLineSpan, on a record that proves the presumption wrong.
         if ((options.quoting() == false && options.escaping() == false) || newlineSplitting()) {
@@ -2784,8 +2801,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * The reader of a file's leading records: never escape-aware, records capped at
      * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}, and without read-ahead, so a caller sharing {@code reader}
      * resumes exactly after the last record it returned. Under {@link #newlineSplitting()} it fails on a record that spans
-     * lines, as every data read does: a header or sampled row that breaks the contract is reported at planning rather
-     * than by the first split read.
+     * lines, as every data read does, so a header or sampled row that breaks the contract is reported at planning rather
+     * than by the first split read. Only a quoted span, though: as this reader is not escape-aware, an escaped line
+     * break in a sampled row of an escaping dialect reads here as two short rows and is caught, if at all, by the data
+     * read of the split it lands in. That read also catches only what parses as a span; a cut inside a multi-line value
+     * whose fragments both parse as complete records goes unnoticed, hence the contract rather than a proof.
      */
     private CsvLogicalRecordReader leadingRecordReader(BufferedReader reader) {
         CsvLogicalRecordReader leading = new CsvLogicalRecordReader(

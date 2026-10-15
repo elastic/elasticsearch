@@ -8697,7 +8697,10 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(List.of("emp_no", "first_name"), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,first_name\n")));
         assertEquals(List.of("emp_no", "first_name"), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,first_name\r\n")));
         // A header that runs past a line break breaks the contract a default reader reads on, like any record does.
-        Exception e = expectThrows(Exception.class, () -> reader.fileHeaderColumns(new TrackingStorageObject("emp_no,\"first\nna")));
+        Exception e = expectThrows(
+            ExternalClientException.class,
+            () -> reader.fileHeaderColumns(new TrackingStorageObject("emp_no,\"first\nna"))
+        );
         assertThat(e.getMessage(), containsString("multiline_fields"));
     }
 

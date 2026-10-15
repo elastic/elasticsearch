@@ -72,8 +72,8 @@ final class CsvRecordSplitter implements RecordSplitter {
      * backslash-escaped raw newline is likewise in-field content, so a probe that starts at an arbitrary
      * offset can land mid-construct and misread an embedded newline as a record terminator. This splitter
      * therefore handles every non-plain combination (quoting on, escaping on, or both) and must be driven
-     * sequentially from a known record start. Only the plain no-quote/no-escape case, and a
-     * quoting dataset not declared {@code multiline_fields: true} (both routed by
+     * sequentially from a known record start. Only the plain no-quote/no-escape case, and a quoting or
+     * escaping dataset not declared {@code multiline_fields: true} (both routed by
      * {@code CsvFormatReader.recordSplitter} to {@code NewlineRecordSplitter}), keep the strided default.
      */
     @Override

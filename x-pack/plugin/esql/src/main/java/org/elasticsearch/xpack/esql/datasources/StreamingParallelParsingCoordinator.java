@@ -574,6 +574,8 @@ public final class StreamingParallelParsingCoordinator {
     static final class StreamingParallelIterator implements CloseableIterator<Page> {
 
         private static final Page POISON = new Page(0);
+        /** Capacity of each {@link #pageQueues} slot. Parsers block in {@code put} once this many pages sit undrained. */
+        static final int PAGE_QUEUE_CAPACITY = 16;
         private static final String GROW_BUFFER_BREAKER_LABEL = "streaming-parse-grow-buffer";
         /** Value of {@code buffersAllocated} once {@link #close()} has refunded it; a count can never be negative. */
         private static final int POOL_CLOSED_MARKER = -1;
@@ -647,8 +649,8 @@ public final class StreamingParallelParsingCoordinator {
         /**
          * Heap charged to {@link #breaker} for what chunk 0 leaves held for the rest of the read: the schema
          * {@link #bindInferredSchema} binds and the {@link #fileHeaderColumns}, when the planner bound a schema. Their
-         * builders release their own charge on return, so without this the breaker would bound them only while they
-         * are built. {@link #RETAINED_SCHEMA_CLOSED_MARKER} once
+         * builders release their own charge on return, and a declared read is not capped by the file's width, so without
+         * this the breaker would bound them only while they are built. {@link #RETAINED_SCHEMA_CLOSED_MARKER} once
          * {@link #close()} has refunded it.
          */
         private final AtomicLong retainedSchemaBytes = new AtomicLong();
@@ -947,7 +949,7 @@ public final class StreamingParallelParsingCoordinator {
             ArrayBlockingQueue<Page>[] queues = (ArrayBlockingQueue<Page>[]) new ArrayBlockingQueue<?>[pageQueueRingSize];
             this.pageQueues = queues;
             for (int i = 0; i < pageQueueRingSize; i++) {
-                pageQueues[i] = new ArrayBlockingQueue<>(16);
+                pageQueues[i] = new ArrayBlockingQueue<>(PAGE_QUEUE_CAPACITY);
             }
 
             // One-task-per-chunk model: the segmentator counts as one outstanding task, plus one per
@@ -1339,31 +1341,10 @@ public final class StreamingParallelParsingCoordinator {
          * Infers the schema from the first chunk and swaps {@link #reader} for the schema-bound variant
          * returned by {@link FormatReader#withSchema(List)}, so parser threads skip per-chunk inference.
          * Same approach as ClickHouse / DuckDB / Spark.
-         * <p>
-         * Which width this resolve is held to turns on whether the planner settled a schema for this split,
-         * and {@link #readSchema} is the only place that answer is: a settled schema puts the reader on the
-         * ceiling {@code schema_max_fields} may be raised to, since the resolve is then only locating that
-         * schema's columns, and no settled schema leaves it on {@code schema_max_fields} itself.
-         * <p>
-         * The reader as the factory configured it carries the query's <em>projection</em> of the settled schema
-         * ({@code FileSourceFactory} binds {@code context.attributes()}), which neither says a schema is settled
-         * nor says one is not: it is empty when the optimizer pruned
-         * every column ({@code COUNT(*)}) even though the planner settled one, and non-empty on a read with no
-         * pin at all, where the file's own schema is what this inference resolves. A reader left to read its own
-         * {@code resolvedSchema} therefore bounded the file by what the query asked for - refusing a file under
-         * {@code COUNT(*)} that it read under a {@code KEEP}, and admitting one up to the ceiling where the cap
-         * should have held it.
-         * <p>
-         * So the width is taken off {@link #readSchema} in both directions: the settled schema when there is
-         * one, and nothing when there is not, which leaves the reader on {@code schema_max_fields} - correct,
-         * because then this inference is resolving the schema the read uses. The pin is all that is read, never
-         * where it came from and never what the query projected out of it.
          */
         private void bindInferredSchema(byte[] buffer, int length) throws IOException {
             ByteArrayStorageObject firstChunkObj = chunkStorageObject(0, buffer, 0, length);
-            boolean settled = readSchema != null && readSchema.isEmpty() == false;
-            FormatReader resolving = reader.withSchema(settled ? readSchema : null);
-            SourceMetadata metadata = resolving.metadata(firstChunkObj);
+            SourceMetadata metadata = reader.metadata(firstChunkObj);
             List<Attribute> schema = metadata == null ? null : metadata.schema();
             if (schema == null) {
                 return;
@@ -1373,11 +1354,9 @@ public final class StreamingParallelParsingCoordinator {
                 return;
             }
             if (bound instanceof SegmentableFormatReader segBound) {
-                // A settled schema lifted the width above schema_max_fields, so what was bound can be as wide as
-                // the file. Charge it. Same condition as the bound above, read off the same field, so the charge
-                // cannot be skipped on a read the cap did not bound: without a settled schema the resolve runs on
-                // schema_max_fields and the cap bounds what is bound here already.
-                if (settled) {
+                // Only a planner-bound read can be a declared one, whose inference the file's width does not cap.
+                // Per-file inference is held to schema_max_fields, so what it binds is already bounded.
+                if (readSchema != null) {
                     long bytes = 0;
                     for (Attribute attribute : schema) {
                         bytes += HeapEstimates.columnBytes(attribute.name().length());
@@ -2070,7 +2049,7 @@ public final class StreamingParallelParsingCoordinator {
          * is empty AND the chunk for {@code slot} hasn't finished producing. The signal here is what
          * transitions the listener from pending to fired — without it the consumer would park
          * indefinitely while pages accumulate in the queue. The post-publish signal is also necessary
-         * for the case where the parser fills {@code pageQueues[slot]} to its capacity (16 pages):
+         * for the case where the parser fills {@code pageQueues[slot]} to {@link #PAGE_QUEUE_CAPACITY}:
          * {@code queue.put} would block, and if the consumer hasn't been woken to start draining there
          * is no one to free a slot. Signaling on every page put (one cheap {@code AtomicReference.getAndSet})
          * is the simplest correct choice; consolidating to "signal only on 0→1 transitions" is a valid
@@ -2090,18 +2069,32 @@ public final class StreamingParallelParsingCoordinator {
          * chunks emitting zero pages), the POISON signal is what unblocks the consumer to advance
          * {@code currentChunk} and release a dispatchPermit. Without this signal a healthy parse can
          * stall after the last chunk in a slot.
+         * <p>
+         * {@link InterruptedException} during {@code queue.put} is retried while the iterator is
+         * open. Once {@link #closed}, the put is skipped: close drains remaining slot pages, so a
+         * stuck put would never complete. An iterator abandoned without {@code close()} can pin
+         * the parser in {@code queue.put} until the slot drains — a caller leak, not this loop.
          */
         private void putPoisonAndSignal(ArrayBlockingQueue<Page> queue) {
-            boolean poisoned = false;
-            while (poisoned == false) {
-                try {
-                    queue.put(POISON);
-                    poisoned = true;
-                } catch (InterruptedException ie) {
+            boolean interrupted = false;
+            try {
+                while (true) {
+                    try {
+                        queue.put(POISON);
+                        return;
+                    } catch (InterruptedException ie) {
+                        interrupted = true;
+                        if (closed.get()) {
+                            return;
+                        }
+                    }
+                }
+            } finally {
+                if (interrupted) {
                     Thread.currentThread().interrupt();
                 }
+                signalReady();
             }
-            signalReady();
         }
 
         /**
@@ -2190,9 +2183,19 @@ public final class StreamingParallelParsingCoordinator {
                 return null;
             }
             // Same bounded POISON-then-next-slot loop as {@link #takeNextPage}: a lone POISON is not
-            // async EOF. Returning null here with a page already in the next slot made
-            // {@code tryAdvanceOrPark} treat the gap as terminal and drop remaining chunks.
+            // async EOF. Returning null here with a page already in the next slot used to make
+            // {@code tryAdvanceOrPark} treat the gap as terminal; {@link #isExhausted()} keeps the
+            // drain retrying until producers are done.
             return takeNextPage();
+        }
+
+        /**
+         * Consumer-thread only: may skip POISON and mutate {@code currentChunk}/{@code dispatchPermits}.
+         */
+        @Override
+        public boolean isExhausted() {
+            checkError();
+            return closed.get() || producersDoneAndDrained();
         }
 
         /**
@@ -2248,7 +2251,8 @@ public final class StreamingParallelParsingCoordinator {
          * consumer's slot, advancing {@link #currentChunk} and releasing one {@link #dispatchPermits}
          * permit per marker — identical accounting to {@link #takeNextPage()}'s POISON branch. Stops at
          * the first real page, an empty slot, or once no chunk is dispatched for the slot. Only ever
-         * called on the single consumer thread (via {@link #waitForReady()} / {@link #hasNext()}), so the
+         * called on the single consumer thread (via {@link #waitForReady()} / {@link #hasNext()} /
+         * {@link #isExhausted()}), so the
          * unsynchronized peek/poll/advance is safe: producers only append to the tail and never advance
          * {@code currentChunk}. Releasing the permit here (rather than deferring to {@code takeNextPage})
          * keeps the segmentator unblocked even when the async drain parks across the inter-chunk gap.
@@ -2303,16 +2307,13 @@ public final class StreamingParallelParsingCoordinator {
         /**
          * Single-shot non-blocking page retrieval. Never spins, never holds the calling thread
          * waiting for upstream production — returns {@code null} as soon as no page is available
-         * in the current slot. Callers must use {@link #waitForReady()} to know when to retry;
-         * a {@code null} return value paired with an immediately-done {@link #waitForReady()}
-         * indicates terminal EOF (no further chunks will ever be dispatched), while {@code null}
-         * paired with a non-done {@link #waitForReady()} indicates the iterator is still
-         * producing but no page is in the current slot at this instant. This separation lets the
-         * producer-loop driver yield its executor slot back to the pool during the gap between
-         * draining one chunk's POISON and the segmenter+parser delivering the next chunk's pages —
-         * which is the deadlock-on-multi-file-gzip scenario {@code waitForReady} was built to fix.
-         * The previous spinning implementation held the consumer thread across that gap, blocking
-         * sub-tasks (segmenter, parsers) queued behind it on the same executor.
+         * in the current slot. A {@code null} is not EOF: a page can land in the current slot
+         * after this poll, and {@link #waitForReady()} is also done when that page (or a page in
+         * another slot) is already sitting there. Callers retry while {@link #waitForReady()} is
+         * done and {@link #isExhausted()} is false, and park on a non-done {@link #waitForReady()}
+         * across the gap between draining one chunk's POISON and the next chunk's first page.
+         * That park lets the producer-loop driver yield its executor slot — the
+         * deadlock-on-multi-file-gzip scenario {@code waitForReady} was built to fix.
          */
         private Page takeNextPage() {
             // Bounded loop — at most one POISON-advance plus one peek per call. Each POISON observed
@@ -2323,10 +2324,8 @@ public final class StreamingParallelParsingCoordinator {
                 skipDrainedPoison();
                 checkError();
                 if (currentChunk >= chunksDispatched.get()) {
-                    // No new chunk yet — either EOF (allDone fired) or we're between dispatches.
-                    // {@link #waitForReady} will return immediately-done in the EOF case (covered by
-                    // its EOF branch) and a non-done listener otherwise. Either way the caller knows
-                    // what to do next without us holding the thread.
+                    // No new chunk yet — either EOF or a dispatch is still in flight. A page can
+                    // land after this return; a done {@link #waitForReady()} is not EOF.
                     return null;
                 }
                 int slot = currentChunk % pageQueueRingSize;

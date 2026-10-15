@@ -296,15 +296,17 @@ public class NdJsonSchemaInferrer {
     }
 
     /**
-     * The refusal for a width over {@code maxFields}. Below the ceiling only a read resolving its own schema can reach
-     * it, and raising the cap is the remedy. At the ceiling raising it is rejected too, and the same number bounds a
-     * sample taken to locate a settled schema's fields ({@code NdJsonFormatReader.MAX_SETTLED_SCHEMA_FIELDS}), which no
-     * setting raises, so the message states the width instead of offering a remedy that does not work. Kept in step
-     * with {@code CsvFormatReader.columnCapMessage}, so the two text readers refuse the same shape of file alike.
+     * The refusal for a schema over {@code maxFields}. Below the ceiling the user can raise the cap; at the ceiling
+     * raising it is rejected too, so say the file is wider than any schema inference supports instead.
      */
     static String fieldCapMessage(int maxFields) {
         if (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS) {
-            return LoggerMessageFormat.format("the file has more than [{}] fields, the most that can be read", maxFields);
+            return LoggerMessageFormat.format(
+                "NDJSON schema inference found more than [{}] fields, the most [{}] allows; declare the dataset's "
+                    + "columns with [dynamic: false] to skip inference",
+                maxFields,
+                NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS
+            );
         }
         return LoggerMessageFormat.format(
             "NDJSON schema inference found more than [{}] fields; raise [esql.external.schema_max_fields] or the dataset's [{}] "

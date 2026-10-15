@@ -850,7 +850,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             this.searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
                 cacheService,
                 threadPool,
-                clusterService.getClusterSettings()
+                clusterService.getClusterSettings(),
+                ByteSizeValue.ZERO
             );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
                 cacheService,

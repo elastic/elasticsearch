@@ -274,10 +274,7 @@ class AbstractRateGroupingFunction {
 
         @Override
         protected boolean lessThan(Slice a, Slice b) {
-            if (a.nextTimestamp != b.nextTimestamp) {
-                return a.nextTimestamp > b.nextTimestamp; // want the latest timestamp first
-            }
-            return false;
+            return a.nextTimestamp > b.nextTimestamp; // want the latest timestamp first
         }
     }
 

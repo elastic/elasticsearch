@@ -217,6 +217,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         final int length = value.length();
         final long newOffset = lastOffset + length;
         try {
+            bytes.ensureCapacity(newOffset);
             var iterator = value.iterator();
             BytesRef chunk;
             while ((chunk = iterator.next()) != null) {
@@ -691,6 +692,17 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             pages = Arrays.copyOf(pages, newSize);
             caches = Arrays.copyOf(caches, newSize);
             bigArrays.adjustBreaker(-estimateUseByPagesArray(oldSize), true);
+        }
+
+        // Prepare for a chunked append without allocating subsequent byte pages until they are needed.
+        private void ensureCapacity(long minSize) {
+            if (currentPage.length < PAGE_SIZE && minSize > currentPage.length) {
+                growFirstPage(minSize);
+            }
+            int numPages = Math.toIntExact((minSize + PAGE_SIZE - 1) >> PAGE_SHIFT);
+            if (numPages > pages.length) {
+                grow(numPages);
+            }
         }
 
         private byte[] grabNextPage() {

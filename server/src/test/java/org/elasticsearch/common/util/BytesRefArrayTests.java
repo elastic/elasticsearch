@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.bytes.ZeroBytesReference;
@@ -243,6 +244,39 @@ public class BytesRefArrayTests extends ESTestCase {
                 assertEquals(expected.get(i), array.get(i, new BytesRef()));
             }
         }
+    }
+
+    public void testAppendBytesReferenceAllocationsIndependentOfChunking() {
+        for (int length : new int[] { 100, PageCacheRecycler.BYTE_PAGE_SIZE, 10 * PageCacheRecycler.BYTE_PAGE_SIZE + 1 }) {
+            byte[] data = randomByteArrayOfLength(length);
+            assertEquals(appendAndCountAllocations(data, length), appendAndCountAllocations(data, between(1, 8)));
+        }
+    }
+
+    private int appendAndCountAllocations(byte[] data, int chunkSize) {
+        // Count temporary allocations too; the final retained size can hide repeated growth.
+        int[] allocations = new int[1];
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()) {
+            @Override
+            void adjustBreaker(long delta, boolean isDataAlreadyCreated) {
+                if (delta > 0) {
+                    allocations[0]++;
+                }
+                super.adjustBreaker(delta, isDataAlreadyCreated);
+            }
+        };
+        BytesReference[] chunks = new BytesReference[(data.length + chunkSize - 1) / chunkSize];
+        for (int i = 0; i < chunks.length; i++) {
+            int offset = i * chunkSize;
+            chunks[i] = new BytesArray(data, offset, Math.min(chunkSize, data.length - offset));
+        }
+        var reference = CompositeBytesReference.of(chunks);
+        try (BytesRefArray array = new BytesRefArray(0, bigArrays)) {
+            array.append(reference);
+            assertEquals(1L, array.size());
+            assertEquals(new BytesRef(data), array.get(0, new BytesRef()));
+        }
+        return allocations[0];
     }
 
     public void testAppendBytesReferenceDoesNotMaterialize() {

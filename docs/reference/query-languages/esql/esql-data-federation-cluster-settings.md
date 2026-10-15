@@ -10,7 +10,7 @@ products:
 
 # Configure cluster settings for {{esql}} Data Federation
 
-Use these cluster settings to enable {{esql}} Data Federation and to control its limits, concurrency, caching, and query defaults. For general guidance on how to apply cluster settings across deployment types, refer to [configure Elasticsearch](docs-content://deploy-manage/stack-settings.md).
+Use these cluster settings to configure {{esql}} Data Federation, including its limits, concurrency, authentication, caching, and query defaults. For general guidance on how to apply cluster settings across deployment types, refer to [configure Elasticsearch](docs-content://deploy-manage/stack-settings.md).
 
 Each setting is labeled Static or Dynamic. You can update a dynamic setting on a running cluster. A static setting takes effect after a node restart.
 
@@ -20,7 +20,7 @@ On {{ech}}, you can update dynamic settings with the cluster settings API, unles
 Some of these settings were renamed. Where an entry lists a previous name, the badge on each name shows which versions accept it. Unless a note says otherwise, the previous name is no longer registered, and a node that still sets it in `elasticsearch.yml` fails to start.
 :::
 
-## Enable the feature
+## Turn the feature on or off
 
 This setting turns {{esql}} Data Federation on for a node.
 

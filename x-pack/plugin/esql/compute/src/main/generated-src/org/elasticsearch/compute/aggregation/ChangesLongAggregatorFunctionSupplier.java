@@ -189,10 +189,8 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
                 continue;
             }
             int valueCount = values.getValueCount(valuePosition);
-            if (valueCount != 1) {
-                if (valueCount > 1) {
-                    warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
-                }
+            if (valueCount > 1) {
+                warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
                 continue;
             }
             long value = values.getLong(values.getFirstValueIndex(valuePosition));
@@ -212,10 +210,8 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
                 continue;
             }
             int valueCount = values.getValueCount(valuePosition);
-            if (valueCount != 1) {
-                if (valueCount > 1) {
-                    warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
-                }
+            if (valueCount > 1) {
+                warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
                 continue;
             }
             long value = values.getLong(values.getFirstValueIndex(valuePosition));

@@ -166,10 +166,8 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                     continue;
                 }
                 int valueCount = values.getValueCount(valuePosition);
-                if (valueCount != 1) {
-                    if (valueCount > 1) {
-                        warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
-                    }
+                if (valueCount > 1) {
+                    warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
                     continue;
                 }
                 long timestamp = timestamps.getLong(valuePosition);
@@ -190,10 +188,8 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                     continue;
                 }
                 int valueCount = values.getValueCount(valuePosition);
-                if (valueCount != 1) {
-                    if (valueCount > 1) {
-                        warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
-                    }
+                if (valueCount > 1) {
+                    warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
                     continue;
                 }
                 rawBuffer.append(

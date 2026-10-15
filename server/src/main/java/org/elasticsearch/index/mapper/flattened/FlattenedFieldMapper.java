@@ -1985,7 +1985,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                                 );
                             }
                             if (keyPrefix.length + value.length > maxKeyedValueLength) {
-                                throw FlattenedFieldParser.immenseKeyedValueException(
+                                throw FlattenedFieldParser.overLimitSizeKeyedValueException(
                                     fieldType().name(),
                                     relativeKeys[k],
                                     value.length,

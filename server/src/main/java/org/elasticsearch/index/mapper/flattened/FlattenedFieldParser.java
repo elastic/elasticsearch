@@ -161,7 +161,7 @@ class FlattenedFieldParser {
      * Builds the error for a {@code key\0value} encoding that is longer than the field allows. The row path and the columnar
      * batch path both use it so that they report the same message.
      */
-    static IllegalArgumentException immenseKeyedValueException(
+    static IllegalArgumentException overLimitSizeKeyedValueException(
         String rootFieldFullPath,
         String key,
         int valueLength,
@@ -170,7 +170,7 @@ class FlattenedFieldParser {
     ) {
         String msg = "Flattened field ["
             + rootFieldFullPath
-            + "] contains one immense field"
+            + "] contains a field"
             + " whose keyed encoding is longer than the allowed max length of "
             + maxLength
             + " bytes. Key length: "
@@ -236,7 +236,7 @@ class FlattenedFieldParser {
         // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time, or the binary
         // doc values limit for fields without terms; we can throw a more user friendly exception here with the key and value lengths
         if (bytesKeyedValue.length > maxKeyedValueLength) {
-            throw immenseKeyedValueException(rootFieldFullPath, key, value.length(), maxKeyedValueLength, enforcesTermLength);
+            throw overLimitSizeKeyedValueException(rootFieldFullPath, key, value.length(), maxKeyedValueLength, enforcesTermLength);
         }
         BytesRef bytesValue = new BytesRef(value);
         if (fieldType.indexType().hasTerms()) {

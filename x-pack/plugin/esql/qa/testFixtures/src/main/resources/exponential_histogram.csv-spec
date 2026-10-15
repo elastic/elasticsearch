@@ -953,6 +953,55 @@ instance-2       | 2025-09-25T00:32:00.000Z | true            | false
 instance-2       | 2025-09-25T00:33:00.000Z | true            | false
 ;
 
+promqlCountOverTimeCountsSamples
+required_capability: exponential_histogram_tech_preview
+required_capability: promql_command_v0
+required_capability: fix_promql_empty_range_is_no_element
+
+// As in Prometheus, each histogram is one sample, whatever the number of observations it holds, even none.
+PROMQL index=exp_histo_sample start="2025-09-24T00:00:00Z" end="2025-09-24T00:00:00Z" step=1m samples=(sum by (instance) (count_over_time(responseTime{instance=~"dummy-.*"}[1m])))
+| SORT instance;
+
+samples:double | step:datetime            | instance:keyword
+1.0            | 2025-09-24T00:00:00.000Z | dummy-empty
+1.0            | 2025-09-24T00:00:00.000Z | dummy-full
+1.0            | 2025-09-24T00:00:00.000Z | dummy-negative_only
+1.0            | 2025-09-24T00:00:00.000Z | dummy-no_zero_bucket
+1.0            | 2025-09-24T00:00:00.000Z | dummy-positive_only
+1.0            | 2025-09-24T00:00:00.000Z | dummy-zero_count_only
+1.0            | 2025-09-24T00:00:00.000Z | dummy-zero_threshold_only
+;
+
+promqlCountCountsSeries
+required_capability: exponential_histogram_tech_preview
+required_capability: promql_command_v0
+required_capability: fix_promql_empty_range_is_no_element
+
+// As in Prometheus, each histogram series is one element, whatever the number of observations it holds, even none.
+PROMQL index=exp_histo_sample start="2025-09-24T00:00:00Z" end="2025-09-24T00:00:00Z" step=1m series=(count by (instance) (responseTime{instance=~"dummy-.*"}))
+| SORT instance;
+
+series:double | step:datetime            | instance:keyword
+1.0           | 2025-09-24T00:00:00.000Z | dummy-empty
+1.0           | 2025-09-24T00:00:00.000Z | dummy-full
+1.0           | 2025-09-24T00:00:00.000Z | dummy-negative_only
+1.0           | 2025-09-24T00:00:00.000Z | dummy-no_zero_bucket
+1.0           | 2025-09-24T00:00:00.000Z | dummy-positive_only
+1.0           | 2025-09-24T00:00:00.000Z | dummy-zero_count_only
+1.0           | 2025-09-24T00:00:00.000Z | dummy-zero_threshold_only
+;
+
+promqlCountOfAggregatedHistogramsCountsSeries
+required_capability: exponential_histogram_tech_preview
+required_capability: promql_command_v0
+required_capability: fix_promql_empty_range_is_no_element
+
+PROMQL index=exp_histo_sample start="2025-09-24T00:00:00Z" end="2025-09-24T00:00:00Z" step=1m series=(count(sum by (instance) (responseTime{instance=~"dummy-.*"})));
+
+series:double | step:datetime
+7.0           | 2025-09-24T00:00:00.000Z
+;
+
 // -------------------------------------------------------------------------------
 
 Count ungrouped (standard mode)

@@ -75,6 +75,7 @@ import java.util.function.BiPredicate;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1002,6 +1003,27 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
         assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
         assertThat(e.getMessage(), containsString("ts_view"));
+    }
+
+    /**
+     * A view may be *created* with a TS-referencing-a-view body — {@code ViewService.validatePutView}
+     * only parses the query, it never resolves it — but *using* that view anywhere must still fail
+     * clearly. Before the fix this nested shape didn't crash: it silently discarded the inner TS's
+     * time-series semantics and resolved as a plain {@code FROM emp}, since a TS pattern that
+     * resolves entirely to a single view branch just returns that branch's own (non-TS) plan.
+     * Verified by temporarily reverting the fix and observing {@code replaceViews} return a bare
+     * {@code UnresolvedRelation("emp")} with no error. See
+     * https://github.com/elastic/elasticsearch/issues/153030.
+     */
+    public void testViewBodyUsingTsToReferenceAnotherViewIsRejected() {
+        assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
+        addView("inner_view", "FROM emp");
+        addView("outer_view", "TS inner_view | STATS max(emp_no)");
+        expectThrows(
+            VerificationException.class,
+            allOf(containsString("Views are not supported in TS command"), containsString("inner_view")),
+            () -> replaceViews(query("FROM outer_view"))
+        );
     }
 
     /**

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -248,8 +249,13 @@ public class MapperServiceTests extends MapperServiceTestCase {
             Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1).build(),
             mapping(b -> {})
         );
-        updateMapping(totalFieldsLimited, """
-            {"_doc":{"properties":{"a":{"type":"keyword"},"b":{"type":"keyword"},"c":{"type":"keyword"}}}}""");
+        updateMapping(totalFieldsLimited, mapping(b -> {
+            b.startObject("a").field("type", "keyword").endObject();
+            b.startObject("b").field("type", "keyword").endObject();
+            b.startObject("c").field("type", "keyword").endObject();
+        }));
+        assertNotNull(totalFieldsLimited.mappingLookup().getFieldType("a"));
+        assertNotNull(totalFieldsLimited.mappingLookup().getFieldType("b"));
         assertNotNull(totalFieldsLimited.mappingLookup().getFieldType("c"));
     }
 
@@ -259,16 +265,15 @@ public class MapperServiceTests extends MapperServiceTestCase {
             Settings.builder().put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), 3).build(),
             mapping(b -> {})
         );
-        updateMapping(nameLengthLimited, """
-            {"_doc":{"properties":{"much_longer_than_three":{"type":"keyword"}}}}""");
+        updateMapping(nameLengthLimited, mapping(b -> b.startObject("much_longer_than_three").field("type", "keyword").endObject()));
         assertNotNull(nameLengthLimited.mappingLookup().getFieldType("much_longer_than_three"));
     }
 
-    private static void updateMapping(MapperService mapperService, String persistedMapping) {
+    private static void updateMapping(MapperService mapperService, XContentBuilder mapping) throws IOException {
         IndexMetadata current = mapperService.getIndexSettings().getIndexMetadata();
         IndexMetadata updated = IndexMetadata.builder(current)
             .mappingVersion(current.getMappingVersion() + 1)
-            .putMapping(persistedMapping)
+            .putMapping(new MappingMetadata(new CompressedXContent(BytesReference.bytes(mapping))))
             .build();
         mapperService.updateMapping(current, updated);
     }

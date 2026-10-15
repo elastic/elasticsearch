@@ -1,3 +1,5 @@
+env:
+  JACOCO_REPORTING_ENABLED: "true"
 config:
   skip-labels:
     - ">test-mute"

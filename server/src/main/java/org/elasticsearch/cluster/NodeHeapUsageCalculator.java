@@ -65,7 +65,7 @@ public final class NodeHeapUsageCalculator {
             if (isIndexingNode(discoveryNode) == false && isSearchNode(discoveryNode) == false) {
                 continue;
             }
-            final NodeHeapUsageComponents nodeHeapUsageComponents = computeNodeHeapUsageComponents(routingNode, shardHeapUsageEstimates);
+            final NodeHeapUsageComponents nodeHeapUsageComponents = componentsForActiveShards(routingNode, shardHeapUsageEstimates);
             nodeHeapUsageComponentsByNode.put(discoveryNode, nodeHeapUsageComponents);
             if (isIndexingNode(discoveryNode)) {
                 maxPostingsHeapUsage = Math.max(maxPostingsHeapUsage, nodeHeapUsageComponents.postingsHeapUsage);
@@ -97,7 +97,7 @@ public final class NodeHeapUsageCalculator {
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {
         assert nonShardHeapUsage >= 0;
-        final NodeHeapUsageComponents nodeHeapUsageComponents = computeNodeHeapUsageComponents(
+        final NodeHeapUsageComponents nodeHeapUsageComponents = componentsForShards(
             shardHeapUsageEstimates.perShard().keySet(),
             shardHeapUsageEstimates
         );
@@ -144,7 +144,7 @@ public final class NodeHeapUsageCalculator {
     }
 
     /** Shard and index heap for the active shards on one routing node. Index overhead is counted once per index. */
-    private static NodeHeapUsageComponents computeNodeHeapUsageComponents(
+    private static NodeHeapUsageComponents componentsForActiveShards(
         RoutingNode routingNode,
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {
@@ -161,7 +161,7 @@ public final class NodeHeapUsageCalculator {
     }
 
     /** Shard and index heap for exactly these shards, including ones that are still initializing. */
-    private static NodeHeapUsageComponents computeNodeHeapUsageComponents(
+    private static NodeHeapUsageComponents componentsForShards(
         Set<ShardId> shardIds,
         ShardHeapUsageEstimates shardHeapUsageEstimates
     ) {

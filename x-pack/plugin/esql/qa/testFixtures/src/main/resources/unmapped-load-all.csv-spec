@@ -5716,6 +5716,120 @@ id:keyword | _index:keyword | attributes:flattened | _unmapped_fields:_source
 f1 | flattened_paths_mapped | "{""env"":""prod"",""host"":""a""}" | "{""attributes_info.total"":""2""}"
 f2 | flattened_paths_mapped | "{""host"":""c""}" | "{""attributes_info.total"":""1""}"
 u1 | flattened_paths_unmapped | null | "{""attributes.host"":""d"",""attributes.env"":""dev"",""attributes_info.total"":""2""}"
+
+
+###############################################
+# GROK and DISSECT under LOAD_ALL (#157189)   #
+###############################################
+
+// GROK reads a mapped field and adds a named column; the unmapped leaves stay in _unmapped_fields (projected away here by the named KEEP).
+grokOnMappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_grok_dissect
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| GROK message "%{WORD:verb}"
+| KEEP @timestamp, verb
+| SORT @timestamp
+;
+
+@timestamp:datetime | verb:keyword
+2024-10-23T12:15:03.360Z | Connected
+2024-10-23T12:27:28.948Z | Connected
+2024-10-23T13:33:34.937Z | 42
+2024-10-23T13:51:54.732Z | Connection
+2024-10-23T13:52:55.015Z | Connection
+2024-10-23T13:53:55.832Z | Connection
+2024-10-23T13:55:01.543Z | Connected
+;
+
+// DISSECT reads a mapped field; rows whose value does not match the pattern (no delimiter, e.g. "42") yield null for every key.
+dissectOnMappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_grok_dissect
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| DISSECT message "%{a} %{b}"
+| KEEP @timestamp, a, b
+| SORT @timestamp
+;
+
+@timestamp:datetime | a:keyword | b:keyword
+2024-10-23T12:15:03.360Z | Connected | to 10.1.0.3!
+2024-10-23T12:27:28.948Z | Connected | to 10.1.0.2!
+2024-10-23T13:33:34.937Z | null | null
+2024-10-23T13:51:54.732Z | Connection | error?
+2024-10-23T13:52:55.015Z | Connection | error?
+2024-10-23T13:53:55.832Z | Connection | error?
+2024-10-23T13:55:01.543Z | Connected | to 10.1.0.1!
+;
+
+// GROK reads an unmapped field by name (unmapped_message), proving LOAD_ALL exposes unmapped leaves as GROK/DISSECT input.
+grokOnUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_grok_dissect
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| GROK unmapped_message "%{WORD:w}"
+| KEEP @timestamp, w
+| SORT @timestamp
+;
+
+@timestamp:datetime | w:keyword
+2024-10-23T12:15:03.360Z | Disconnected
+2024-10-23T12:27:28.948Z | Disconnected
+2024-10-23T13:33:34.937Z | 43
+2024-10-23T13:51:54.732Z | Disconnection
+2024-10-23T13:52:55.015Z | Disconnection
+2024-10-23T13:53:55.832Z | Disconnection
+2024-10-23T13:55:01.543Z | Disconnected
+;
+
+// DISSECT also reads an unmapped field by name; "43" has no delimiter so both keys are null.
+dissectOnUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_grok_dissect
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| DISSECT unmapped_message "%{a} %{b}"
+| KEEP @timestamp, a, b
+| SORT @timestamp
+;
+
+@timestamp:datetime | a:keyword | b:keyword
+2024-10-23T12:15:03.360Z | Disconnected | from 10.1.0.3
+2024-10-23T12:27:28.948Z | Disconnected | from 10.1.0.2
+2024-10-23T13:33:34.937Z | null | null
+2024-10-23T13:51:54.732Z | Disconnection | error
+2024-10-23T13:52:55.015Z | Disconnection | error
+2024-10-23T13:53:55.832Z | Disconnection | error
+2024-10-23T13:55:01.543Z | Disconnected | from 10.1.0.1
+;
+
+// A GROK output column named like an unmapped field (language_code) shadows it: the column holds the GROK value and language_code is
+// dropped from _unmapped_fields, exactly as EVAL shadowing behaves.
+grokOutputShadowsUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_grok_dissect
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| GROK message "%{WORD:language_code}"
+| SORT @timestamp
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | language_code:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232 | Connected to 10.1.0.3! | "{""unmapped_event_duration"":""3450234"",""unmapped.nested"":""g"",""unmapped_message"":""Disconnected from 10.1.0.3""}" | Connected
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888 | Connected to 10.1.0.2! | "{""unmapped_event_duration"":""2764890"",""unmapped.nested"":""f"",""unmapped_message"":""Disconnected from 10.1.0.2""}" | Connected
+2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | "{""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""unmapped_message"":""43""}" | 42
+2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | "{""unmapped_event_duration"":""725449"",""unmapped.nested"":""d"",""unmapped_message"":""Disconnection error""}" | Connection
+2024-10-23T13:52:55.015Z | 173.21.3.15 | 8268152 | Connection error? | "{""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c"",""unmapped_message"":""Disconnection error""}" | Connection
+2024-10-23T13:53:55.832Z | 173.21.3.15 | 5033754 | Connection error? | "{""unmapped_event_duration"":""5033756"",""unmapped.nested"":""b"",""unmapped_message"":""Disconnection error""}" | Connection
+2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""unmapped_message"":""Disconnected from 10.1.0.1""}" | Connected
 ;
 
 // A leaf declared under a nested parent is a field of the shard that maps it, so it is not discovered there. The same path is a plain

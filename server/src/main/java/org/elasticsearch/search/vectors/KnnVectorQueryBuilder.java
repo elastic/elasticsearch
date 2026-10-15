@@ -601,11 +601,20 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             filterQueries.size() + autoPrefilters.size() + (context.getAliasFilter() == null ? 0 : 1)
         );
         allFilters.addAll(autoPrefilters);
-        for (QueryBuilder queryBuilder : filterQueries) {
-            allFilters.add(queryBuilder.toQuery(context));
-        }
-        if (context.getAliasFilter() != null) {
-            allFilters.add(context.getAliasFilter().toQuery(context));
+
+        // When the knn field is nested (e.g., semantic_text chunks), user filters and alias filters
+        // should be built at the root level, not at the nested chunks level. Otherwise, nested filters
+        // (e.g., on parent.nodes) would incorrectly take the chunks docs as their block-join parent filter,
+        // resulting in no matches. We unwind to null (root) to build these filters correctly.
+        // See https://github.com/elastic/elasticsearch/issues/162043
+        boolean shouldUnwind = context.nestedScope().getObjectMapper() != null;
+        try (Releasable ignored = shouldUnwind ? context.nestedScope().unwindTo(null) : null) {
+            for (QueryBuilder queryBuilder : filterQueries) {
+                allFilters.add(queryBuilder.toQuery(context));
+            }
+            if (context.getAliasFilter() != null) {
+                allFilters.add(context.getAliasFilter().toQuery(context));
+            }
         }
         return allFilters;
     }

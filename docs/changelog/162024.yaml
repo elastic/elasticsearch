@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 161910
+pr: 162024
+summary: Stop drain EOF on ready-not-exhausted
+type: bug

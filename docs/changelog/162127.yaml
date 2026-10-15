@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 162127
-summary: Chunk S3 fixture writes to avoid OOM
-type: bug

@@ -369,6 +369,12 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
     }
 
+    private Set<String> localFiles() {
+        try (var ignored = readLock.acquire()) {
+            return Set.copyOf(localFiles.keySet());
+        }
+    }
+
     public void sync(Collection<String> names) {
         // noop, data on local drive need not be safely persisted
     }
@@ -508,7 +514,6 @@ public class IndexDirectory extends ByteSizeDirectory {
             assert blobFileRanges.keySet().containsAll(uploadedFiles);
 
             cacheDirectory.updateMetadata(blobFileRanges, dataSizeInBytes);
-            cacheDirectory.updateLiveFiles(Set.copyOf(localFiles.keySet()));
             uploadedFiles.forEach(file -> {
                 var localFile = localFiles.get(file);
                 if (localFile != null) {
@@ -517,7 +522,7 @@ public class IndexDirectory extends ByteSizeDirectory {
             });
         }
         if (cacheDirectory.getCacheService().isEvictObsoleteRegionsEnabled()) {
-            cacheDirectory.maybeScheduleObsoleteRegionsEviction();
+            cacheDirectory.maybeScheduleObsoleteRegionsEviction(this::localFiles);
         }
     }
 

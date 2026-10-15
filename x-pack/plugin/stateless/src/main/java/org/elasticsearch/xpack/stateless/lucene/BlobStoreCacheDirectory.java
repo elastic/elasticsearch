@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -132,34 +133,38 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     }
 
     /**
-     * Schedules an async eviction of cache regions that are no longer referenced by the live files of the current metadata,
+     * Schedules an async eviction of cache regions that are no longer referenced by the current metadata,
      * unless one is already running. Concurrent calls while a task is executing are coalesced into a single follow-up.
      */
     protected void maybeScheduleObsoleteRegionsEviction() {
-        if (submittedObsoleteRegionsEvictionTasks.incrementAndGet() == 1) {
-            submitObsoleteRegionsEviction();
-        }
+        maybeScheduleObsoleteRegionsEviction(null);
     }
 
     /**
-     * Whether a file of the current metadata is still in use, so that its cache regions must not be evicted as obsolete.
+     * Same as {@link #maybeScheduleObsoleteRegionsEviction()}, but only the current metadata files that are still live are considered
+     * as referenced.
+     *
+     * @param liveFilesSupplier supplies the files still in use, called when the eviction task executes
      */
-    protected boolean isLiveFile(String fileName) {
-        return true;
+    protected void maybeScheduleObsoleteRegionsEviction(@Nullable Supplier<Set<String>> liveFilesSupplier) {
+        if (submittedObsoleteRegionsEvictionTasks.incrementAndGet() == 1) {
+            submitObsoleteRegionsEviction(liveFilesSupplier);
+        }
     }
 
-    private void submitObsoleteRegionsEviction() {
+    private void submitObsoleteRegionsEviction(@Nullable Supplier<Set<String>> liveFilesSupplier) {
         cacheService.submitAsyncEviction(() -> {
             final long regionsEvictionTasks = submittedObsoleteRegionsEvictionTasks.get();
             assert regionsEvictionTasks > 0 : regionsEvictionTasks;
 
             final Map<String, BlobFileRanges> metadata = currentMetadata;
+            final Set<String> liveFiles = liveFilesSupplier != null ? liveFilesSupplier.get() : metadata.keySet();
 
             final Map<Long, BitSet> activeRegionsByBccGen = new HashMap<>();
             long maxBccGeneration = -1L;
 
             for (var entry : metadata.entrySet()) {
-                if (isLiveFile(entry.getKey()) == false) {
+                if (liveFiles.contains(entry.getKey()) == false) {
                     continue;
                 }
                 final var file = entry.getValue();
@@ -220,7 +225,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             final long remainingTasks = submittedObsoleteRegionsEvictionTasks.addAndGet(-regionsEvictionTasks);
             assert remainingTasks >= 0 : remainingTasks;
             if (remainingTasks > 0) {
-                submitObsoleteRegionsEviction();
+                submitObsoleteRegionsEviction(liveFilesSupplier);
             }
         });
     }

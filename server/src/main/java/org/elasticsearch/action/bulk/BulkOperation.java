@@ -555,6 +555,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         completeBulkOperation();
     }
 
+    /**
+     * Item failures are processed before {@code releaseOnFinish} runs, so a failure-store redirect can still materialize its row from
+     * the shard batch.
+     */
     private void executeBulkShardRequest(
         BulkShardRequest bulkShardRequest,
         ProjectId projectId,

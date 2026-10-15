@@ -571,8 +571,9 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     /**
-     * Batch pages come from the coordinating node's recycler: while the shard requests are held, the node's request breaker
-     * carries them, and it drops back once the bulk completes.
+     * Batch pages come from the coordinating node's recycler. The mock recycler installed by {@link NodeMocksPlugin} charges each page
+     * to the request breaker, so the breaker rises while the shard requests are held and drops back once the bulk completes. The
+     * production recycler does not charge a breaker.
      */
     public void testBatchPagesComeFromTheNodeRecycler() throws Exception {
         String index = randomIndexName();

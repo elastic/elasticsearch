@@ -41,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -124,7 +125,7 @@ public final class OutboundHandler {
             compressionScheme,
             transportVersion,
             ResponseStatsConsumer.NONE,
-            () -> messageListener.onRequestSent(node, requestId, action, request, options)
+            size -> messageListener.onRequestSent(node, requestId, action, request, options, size)
         );
     }
 
@@ -157,7 +158,7 @@ public final class OutboundHandler {
                 compressionScheme,
                 transportVersion,
                 responseStatsConsumer,
-                () -> messageListener.onResponseSent(requestId, action)
+                size -> messageListener.onResponseSent(requestId, action, size)
             );
         } catch (Exception ex) {
             if (isHandshake) {
@@ -201,7 +202,7 @@ public final class OutboundHandler {
                 null,
                 transportVersion,
                 responseStatsConsumer,
-                () -> messageListener.onResponseSent(requestId, action, error)
+                size -> messageListener.onResponseSent(requestId, action, error, size)
             );
         } catch (Exception sendException) {
             sendException.addSuppressed(error);
@@ -227,7 +228,7 @@ public final class OutboundHandler {
         Compression.Scheme possibleCompressionScheme,
         TransportVersion version,
         ResponseStatsConsumer responseStatsConsumer,
-        Releasable onAfter
+        IntConsumer onSentMessage
     ) throws IOException {
         assert action != null;
         final var compressionScheme = writeable instanceof BytesTransportMessage ? null : possibleCompressionScheme;
@@ -253,10 +254,12 @@ public final class OutboundHandler {
             throw e;
         } finally {
             if (serializeSuccess == false) {
-                Releasables.close(byteStreamOutput, onAfter);
+                // the message size is not known, hence -1
+                Releasables.close(byteStreamOutput, () -> onSentMessage.accept(-1));
             }
         }
         responseStatsConsumer.addResponseStats(message.length());
+        final Releasable onAfter = () -> onSentMessage.accept(message.length());
         final var messageType = writeable.getClass();
         internalSend(
             channel,

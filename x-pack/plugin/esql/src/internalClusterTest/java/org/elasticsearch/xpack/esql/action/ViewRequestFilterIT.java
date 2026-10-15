@@ -668,6 +668,24 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * An aggregate directly above the union invites {@code PushAggregateThroughUnionAll} to rebuild the union around
+     * per-branch partial aggregates — which must not cost the view branch its identity before {@code Mapper} marks its
+     * fragments. Were the raw request filter pushed into the view's source scan, {@code cnt} (view-computed) would
+     * match nothing there and the total would be null; the filter belongs on the view's output, where both buckets
+     * have {@code cnt = 3} and the total is 6. The subquery branch computes its own {@code cnt}, so the raw filter on
+     * its source scan correctly matches nothing.
+     */
+    public void testAggregateOverFilteredViewUnionFiltersAtViewOutput() {
+        assertThat(
+            rows(
+                "FROM " + STATS_VIEW + ", (FROM " + INDEX + " | STATS cnt = COUNT(*) BY region) | STATS total = SUM(cnt)",
+                QueryBuilders.rangeQuery("cnt").gte(3)
+            ),
+            equalTo(List.of(List.of(6L)))
+        );
+    }
+
+    /**
      * A view nested inside a user-written subquery branch is a view the query names, so the request filter applies to its
      * output just as it does to a view at the top level. {@code cnt} exists only in the stats view's output, so it can
      * only be filtered there; its fragments are marked as view-branch fragments and skipped by the Lucene push-in path,

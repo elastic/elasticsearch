@@ -404,7 +404,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     }
 
     /** Records the settings the query resolved to. Not serialized. */
-    public void resolvedSettings(ResolvedSettings resolvedSettings) {
+    public void setResolvedSettings(ResolvedSettings resolvedSettings) {
         this.resolvedSettings = resolvedSettings;
     }
 

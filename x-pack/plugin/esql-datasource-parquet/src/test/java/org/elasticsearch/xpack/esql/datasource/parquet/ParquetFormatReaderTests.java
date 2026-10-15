@@ -7636,6 +7636,97 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * this guard) and gives it a shape in {@link #fusedShapesFor}. The shapes themselves are enumerated by hand, with
      * the consequences stated there.
      */
+    /**
+     * Guard: for every {@code fusedInDecode} pair and physical shape, the three routes that can produce a column
+     * must produce the same value. There are three -- the vectorized reader, the row-at-a-time reader, and the
+     * deferred extractor a plan uses when it materializes a column only for the rows a TopN kept -- and only the
+     * first two consult {@code fusedInDecode}. {@code ParquetColumnExtractor.coerceToTarget} decodes at the FILE's
+     * type and calls {@code castBlock} unconditionally, so a fused pair whose one-step decode differs from its
+     * two-step equivalent answers differently depending on the plan's shape rather than on the data.
+     * <p>
+     * That is not hypothetical. A {@code date_nanos -> date} pair was added to the table in this change and
+     * withdrawn: the one-step scale carried values outside the nanosecond domain that the two-step route nulled,
+     * so the eager readers returned an instant where the deferred route returned null, for the same file and the
+     * same query. Nothing failed, because the sibling guard below exercises only the two eager decoders. This
+     * test is what fails.
+     * <p>
+     * It asserts agreement rather than a particular value, so it stays true of whatever the pairs become; the
+     * values themselves are the sibling guard's job.
+     */
+    public void testEveryFusedInDecodePairAgreesAcrossReadRoutes() throws Exception {
+        for (DataType from : DataType.values()) {
+            for (DataType to : DataType.values()) {
+                if (from == to || DeclaredTypeCoercions.fusedInDecode(from, to) == false || from == DataType.TEXT) {
+                    continue;
+                }
+                for (FusedShape shape : fusedShapesFor(from)) {
+                    String pair = from.typeName() + "->" + to.typeName() + " as " + shape.label();
+                    byte[] parquetData = createParquetFile(shape.schema(), factory -> {
+                        Group g = factory.newGroup();
+                        shape.writer().accept(g, "x");
+                        return List.of(g);
+                    });
+                    StorageObject storageObject = createStorageObject(parquetData);
+                    List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", to));
+                    List<Object> perRoute = new ArrayList<>();
+                    for (String decoder : List.of("pageReader", "rowAtATime")) {
+                        ParquetFormatReader engine = decoder.equals("rowAtATime")
+                            ? new ParquetFormatReader(blockFactory).withBaselinePath()
+                            : new ParquetFormatReader(blockFactory);
+                        ParquetFormatReader r = (ParquetFormatReader) engine.withDeclaredTypeColumns(Set.of("x"));
+                        try (
+                            CloseableIterator<Page> it = r.readRange(
+                                storageObject,
+                                new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
+                            )
+                        ) {
+                            perRoute.add(cellOf(it.next().getBlock(0), to, pair + " (" + decoder + ")"));
+                        }
+                    }
+                    ParquetFormatReader deferred = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(
+                        Set.of("x")
+                    );
+                    try (
+                        ColumnExtractor extractor = new ParquetColumnExtractor(
+                            storageObject,
+                            deferred,
+                            footerOf(storageObject),
+                            ErrorPolicy.STRICT
+                        )
+                    ) {
+                        Block[] blocks = extractor.extract(new String[] { "x" }, new DataType[] { to }, new long[] { 0L }, blockFactory);
+                        try {
+                            perRoute.add(cellOf(blocks[0], to, pair + " (deferred)"));
+                        } finally {
+                            Releasables.close(blocks);
+                        }
+                    }
+                    assertEquals(
+                        "fused pair "
+                            + pair
+                            + ": the eager vectorized, row-at-a-time and deferred routes must agree; "
+                            + "a pair whose one-step decode differs from its two-step equivalent answers by plan shape",
+                        List.of(perRoute.get(0), perRoute.get(0), perRoute.get(0)),
+                        perRoute
+                    );
+                }
+            }
+        }
+    }
+
+    /** The single cell of a one-row block, as a comparable value, or {@code null} when the position is null. */
+    private static Object cellOf(Block block, DataType type, String where) {
+        assertEquals(where, 1, block.getPositionCount());
+        if (block.isNull(0)) {
+            return null;
+        }
+        return switch (type) {
+            case LONG, DATETIME, DATE_NANOS -> ((LongBlock) block).getLong(0);
+            case KEYWORD, TEXT -> ((BytesRefBlock) block).getBytesRef(0, new BytesRef()).utf8ToString();
+            default -> throw new AssertionError(where + ": no cell arm for " + type.typeName());
+        };
+    }
+
     public void testEveryFusedInDecodePairDecodesNatively() throws Exception {
         for (DataType from : DataType.values()) {
             for (DataType to : DataType.values()) {

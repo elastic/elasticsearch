@@ -14,6 +14,8 @@ The data sources feature adds the following cluster settings. For general guidan
 
 Each setting is labeled Static or Dynamic. You can update a dynamic setting on a running cluster. A static setting takes effect after a node restart.
 
+On {{ech}}, you can update dynamic settings with the cluster settings API, unless a setting can be updated only by operator users. You can't change static settings on {{ech}}, except `esql.federation.enabled`, which you add to your deployment's [user settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md).
+
 :::{note}
 Some of these settings were renamed. Where an entry lists a previous name, the badge on each name shows which versions accept it. Unless a note says otherwise, the previous name is no longer registered, and a node that still sets it in `elasticsearch.yml` fails to start.
 :::
@@ -24,8 +26,8 @@ This setting turns {{esql}} Data Federation on for a node.
 
 $$$esql-federation-enabled$$$
 
-`esql.federation.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Enables {{esql}} Data Federation, including the data source and dataset APIs, on the node.
+`esql.federation.enabled`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Enables {{esql}} Data Federation, including the data source and dataset APIs, on the node. On {{ech}}, add this setting to your deployment's [user settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md).
 
     - **Default:** `false`
     - **Valid values:** `true`, `false`

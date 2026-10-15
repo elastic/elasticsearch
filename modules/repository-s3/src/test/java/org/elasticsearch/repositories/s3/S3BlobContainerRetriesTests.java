@@ -967,7 +967,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private String getContentMd5HeaderOfDeleteRequest(boolean enableLegacyContentMd5) throws IOException {
         legacyContentMd5 = enableLegacyContentMd5;
         final var md5Headers = new ArrayList<String>();
-        httpServer.createContext("/", new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel()) {
+        @SuppressForbidden(reason = "use a http server")
+        class ContentMd5RecordingHandler extends S3HttpHandler {
+            ContentMd5RecordingHandler() {
+                super("bucket", S3ConsistencyModel.randomConsistencyModel());
+            }
+
             @Override
             public void handle(HttpExchange exchange) throws IOException {
                 if (isMultiDeleteRequest(exchange)) {
@@ -975,7 +980,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 }
                 super.handle(exchange);
             }
-        });
+        }
+        httpServer.createContext("/", new ContentMd5RecordingHandler());
         final BlobContainer blobContainer = blobContainerBuilder().maxRetries(0).disableChunkedEncoding(true).build();
         blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), List.of(randomIdentifier()).iterator());
         assertThat(md5Headers, hasSize(1));

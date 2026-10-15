@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -150,9 +149,9 @@ import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.plugin.ExpandUnmappedFieldsPostProcessor;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.plugin.UnmappedFieldsColumn;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
@@ -175,7 +174,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
@@ -415,7 +413,6 @@ public class EsqlSession {
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
-        BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
         executionInfo.queryProfile().planning().start();
@@ -424,14 +421,13 @@ public class EsqlSession {
         if (externalSourceResolver != null) {
             externalSourceResolver.planningCpu(planningCpu);
         }
-        planningCpu.meteredCpu(() -> doExecute(request, executionInfo, planRunner, cancellation, listener));
+        planningCpu.meteredCpu(() -> doExecute(request, executionInfo, planRunner, listener));
     }
 
     private void doExecute(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
-        BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
         assert planningCpu.isMeteringCurrentThread() : "planning started on a thread without an open planning CPU measurement";
@@ -501,7 +497,7 @@ public class EsqlSession {
                 InSubqueryResolver.verify(viewResolution.plan());
                 rejectViewsForExemplars(resolved, viewResolution);
                 viewResolutionProfile.stop();
-                analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, cancellation, l);
+                analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, l);
             }))
         );
     }
@@ -530,7 +526,6 @@ public class EsqlSession {
         EsqlStatement statement,
         ResolvedSettings resolved,
         ViewResolver.ViewResolutionResult viewResolution,
-        BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
@@ -699,37 +694,7 @@ public class EsqlSession {
                             );
                             Result inner = withAdditionalData.inner();
                             TransportVersion resultVersion = withAdditionalData.minimumVersion();
-                            if (ExpandUnmappedFieldsPostProcessor.hasUnmappedFields(inner.schema())) {
-                                // Under SET unmapped_fields="LOAD_ALL" the flattening is a CPU-heavy scan over every row of
-                                // every result page. This continuation runs on whichever thread completed the compute result
-                                // (the esql_worker pool, or the search pool when a data node completes it last), so a large
-                                // flattening could hog the wrong pool. Dispatch it to the esql_worker pool, which is designated
-                                // for CPU-bound ES|QL work. See https://github.com/elastic/elasticsearch/issues/160286.
-                                // wrapReleasing releases the buffered pages if esql_worker rejects the task (e.g. shutting
-                                // down); flatten() releases them itself once it runs, and page release is idempotent.
-                                threadPool.executor(EsqlPlugin.computePool())
-                                    .execute(
-                                        ActionRunnable.wrapReleasing(
-                                            l,
-                                            () -> Releasables.closeExpectNoException(inner.pages()),
-                                            ll -> ll.onResponse(
-                                                new Versioned<>(
-                                                    ExpandUnmappedFieldsPostProcessor.flatten(
-                                                        inner,
-                                                        blockFactory,
-                                                        plannerSettings,
-                                                        cancellation
-                                                    ),
-                                                    resultVersion
-                                                )
-                                            )
-                                        )
-                                    );
-                            } else {
-                                // No LOAD_ALL flattening to do: flatten() would return the result unchanged, so pass it through inline
-                                // and avoid both the needless scan and an unnecessary thread hop.
-                                l.onResponse(new Versioned<>(inner, resultVersion));
-                            }
+                            l.onResponse(new Versioned<>(UnmappedFieldsColumn.expose(inner), resultVersion));
                         })
                         .addListener(listener);
                 }

@@ -122,9 +122,13 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
         @Override
         public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
             ExponentialHistogramBlock values = page.getBlock(channels.get(0));
-            LongBlock timestamps = page.getBlock(channels.get(1));
-            if (values.areAllValuesNull() || timestamps.areAllValuesNull()) {
+            if (values.areAllValuesNull()) {
                 return null;
+            }
+            LongVector timestamps = ((LongBlock) page.getBlock(channels.get(1))).asVector();
+            if (timestamps == null) {
+                assert false : "expected timestamp vector in time-series aggregation";
+                throw new IllegalStateException("expected timestamp vector in time-series aggregation");
             }
             IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(2))).asVector();
             assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
@@ -154,22 +158,21 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
             };
         }
 
-        private void addRawInput(int positionOffset, IntBlock groups, ExponentialHistogramBlock values, LongBlock timestamps) {
+        private void addRawInput(int positionOffset, IntBlock groups, ExponentialHistogramBlock values, LongVector timestamps) {
             ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
             for (int p = 0; p < groups.getPositionCount(); p++) {
                 int valuePosition = positionOffset + p;
-                if (groups.isNull(p) || values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
+                if (groups.isNull(p) || values.isNull(valuePosition)) {
                     continue;
                 }
                 int valueCount = values.getValueCount(valuePosition);
-                int timestampCount = timestamps.getValueCount(valuePosition);
-                if (valueCount != 1 || timestampCount != 1) {
-                    if (valueCount > 1 || timestampCount > 1) {
+                if (valueCount != 1) {
+                    if (valueCount > 1) {
                         warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
                     }
                     continue;
                 }
-                long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(valuePosition));
+                long timestamp = timestamps.getLong(valuePosition);
                 ExponentialHistogram value = values.getExponentialHistogram(values.getFirstValueIndex(valuePosition), scratch);
                 int groupStart = groups.getFirstValueIndex(p);
                 int groupEnd = groupStart + groups.getValueCount(p);
@@ -179,24 +182,23 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
             }
         }
 
-        private void addRawInput(int positionOffset, IntVector groups, ExponentialHistogramBlock values, LongBlock timestamps) {
+        private void addRawInput(int positionOffset, IntVector groups, ExponentialHistogramBlock values, LongVector timestamps) {
             ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
             for (int p = 0; p < groups.getPositionCount(); p++) {
                 int valuePosition = positionOffset + p;
-                if (values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
+                if (values.isNull(valuePosition)) {
                     continue;
                 }
                 int valueCount = values.getValueCount(valuePosition);
-                int timestampCount = timestamps.getValueCount(valuePosition);
-                if (valueCount != 1 || timestampCount != 1) {
-                    if (valueCount > 1 || timestampCount > 1) {
+                if (valueCount != 1) {
+                    if (valueCount > 1) {
                         warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
                     }
                     continue;
                 }
                 rawBuffer.append(
                     groups.getInt(p),
-                    timestamps.getLong(timestamps.getFirstValueIndex(valuePosition)),
+                    timestamps.getLong(valuePosition),
                     values.getExponentialHistogram(values.getFirstValueIndex(valuePosition), scratch)
                 );
             }

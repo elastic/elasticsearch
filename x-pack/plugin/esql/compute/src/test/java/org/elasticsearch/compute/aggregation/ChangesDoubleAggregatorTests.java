@@ -175,40 +175,6 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
         }
     }
 
-    public void testMultivaluedTimestampsAreSkippedWithWarning() {
-        DriverContext driverContext = driverContext();
-        try (
-            var selected = driverContext.blockFactory().newConstantIntVector(0, 1);
-            var state = newAggregator(driverContext);
-            var evalContext = new GroupingAggregatorEvaluationContext(driverContext);
-            var timestampBuilder = driverContext.blockFactory().newLongBlockBuilder(2)
-        ) {
-            timestampBuilder.beginPositionEntry().appendLong(30).appendLong(10).endPositionEntry();
-            timestampBuilder.appendLong(20);
-            DoubleBlock values = driverContext.blockFactory().newDoubleArrayVector(new double[] { 1, 2 }, 2).asBlock();
-            LongBlock timestamps = timestampBuilder.build();
-            try (var groups = driverContext.blockFactory().newIntBlockBuilder(2)) {
-                groups.appendInt(0).appendInt(0);
-                try (IntBlock groupBlock = groups.build()) {
-                    addRaw(state, driverContext, values, timestamps, groupBlock);
-                }
-            }
-
-            Block[] resultBlocks = new Block[1];
-            state.prepareEvaluateFinal(selected, evalContext).evaluate(resultBlocks, 0, selected);
-            try (LongBlock result = (LongBlock) resultBlocks[0]) {
-                assertEquals(0L, result.getLong(0));
-            }
-        } finally {
-            driverContext.finish();
-            assertThat(
-                driverContext.warnings(),
-                contains("Line 1:1 [changes(field)]: Multivalued samples are not supported by changes and were ignored.")
-            );
-            assertDriverContext(driverContext);
-        }
-    }
-
     public void testRepeatedNaNIsNotAChange() {
         DriverContext driverContext = driverContext();
         try (

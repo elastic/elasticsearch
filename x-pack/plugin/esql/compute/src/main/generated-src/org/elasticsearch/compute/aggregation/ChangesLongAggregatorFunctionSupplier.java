@@ -124,9 +124,13 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         LongBlock valuesBlock = page.getBlock(channels.get(0));
-        LongBlock timestampsBlock = page.getBlock(channels.get(1));
-        if (valuesBlock.areAllValuesNull() || timestampsBlock.areAllValuesNull()) {
+        if (valuesBlock.areAllValuesNull()) {
             return null;
+        }
+        LongVector timestampsVector = ((LongBlock) page.getBlock(channels.get(1))).asVector();
+        if (timestampsVector == null) {
+            assert false : "expected timestamp vector in time-series aggregation";
+            throw new IllegalStateException("expected timestamp vector in time-series aggregation");
         }
         IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(2))).asVector();
         assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
@@ -136,8 +140,7 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
             lastSliceIndex = sliceIndex;
         }
         LongVector valuesVector = valuesBlock.asVector();
-        LongVector timestampsVector = timestampsBlock.asVector();
-        if (valuesVector != null && timestampsVector != null) {
+        if (valuesVector != null) {
             return new AddInput() {
                 @Override
                 public void add(int positionOffset, IntArrayBlock groups) {
@@ -161,17 +164,17 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groups) {
-                addRawInput(positionOffset, groups, valuesBlock, timestampsBlock);
+                addRawInput(positionOffset, groups, valuesBlock, timestampsVector);
             }
 
             @Override
             public void add(int positionOffset, IntBigArrayBlock groups) {
-                addRawInput(positionOffset, groups, valuesBlock, timestampsBlock);
+                addRawInput(positionOffset, groups, valuesBlock, timestampsVector);
             }
 
             @Override
             public void add(int positionOffset, IntVector groups) {
-                addRawInput(positionOffset, groups, valuesBlock, timestampsBlock);
+                addRawInput(positionOffset, groups, valuesBlock, timestampsVector);
             }
 
             @Override
@@ -179,22 +182,21 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
         };
     }
 
-    private void addRawInput(int positionOffset, IntBlock groups, LongBlock values, LongBlock timestamps) {
+    private void addRawInput(int positionOffset, IntBlock groups, LongBlock values, LongVector timestamps) {
         for (int p = 0; p < groups.getPositionCount(); p++) {
             int valuePosition = positionOffset + p;
-            if (groups.isNull(p) || values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
+            if (groups.isNull(p) || values.isNull(valuePosition)) {
                 continue;
             }
             int valueCount = values.getValueCount(valuePosition);
-            int timestampCount = timestamps.getValueCount(valuePosition);
-            if (valueCount != 1 || timestampCount != 1) {
-                if (valueCount > 1 || timestampCount > 1) {
+            if (valueCount != 1) {
+                if (valueCount > 1) {
                     warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
                 }
                 continue;
             }
             long value = values.getLong(values.getFirstValueIndex(valuePosition));
-            long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(valuePosition));
+            long timestamp = timestamps.getLong(valuePosition);
             int groupStart = groups.getFirstValueIndex(p);
             int groupEnd = groupStart + groups.getValueCount(p);
             for (int g = groupStart; g < groupEnd; g++) {
@@ -203,25 +205,21 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
         }
     }
 
-    private void addRawInput(int positionOffset, IntVector groups, LongBlock values, LongBlock timestamps) {
+    private void addRawInput(int positionOffset, IntVector groups, LongBlock values, LongVector timestamps) {
         for (int p = 0; p < groups.getPositionCount(); p++) {
             int valuePosition = positionOffset + p;
-            if (values.isNull(valuePosition) || timestamps.isNull(valuePosition)) {
+            if (values.isNull(valuePosition)) {
                 continue;
             }
             int valueCount = values.getValueCount(valuePosition);
-            int timestampCount = timestamps.getValueCount(valuePosition);
-            if (valueCount != 1 || timestampCount != 1) {
-                if (valueCount > 1 || timestampCount > 1) {
+            if (valueCount != 1) {
+                if (valueCount > 1) {
                     warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
                 }
                 continue;
             }
-            rawBuffer.append(
-                groups.getInt(p),
-                timestamps.getLong(timestamps.getFirstValueIndex(valuePosition)),
-                values.getLong(values.getFirstValueIndex(valuePosition))
-            );
+            long value = values.getLong(values.getFirstValueIndex(valuePosition));
+            rawBuffer.append(groups.getInt(p), timestamps.getLong(valuePosition), value);
         }
     }
 

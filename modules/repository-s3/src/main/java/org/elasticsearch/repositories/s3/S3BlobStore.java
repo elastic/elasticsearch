@@ -512,7 +512,7 @@ class S3BlobStore implements BlobStore {
         return switch (purpose) {
             case SNAPSHOT_DATA -> dataStorageClass;
             case SNAPSHOT_METADATA -> metadataStorageClass;
-            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> fallbackStorageClass;
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, TRANSLOG_WITH_ATTEMPT_TIMEOUT, RESHARDING -> fallbackStorageClass;
         };
     }
 
@@ -696,15 +696,16 @@ class S3BlobStore implements BlobStore {
     }
 
     private void addTranslogUploadTimeouts(OperationPurpose purpose, AwsRequestOverrideConfiguration.Builder builder) {
-        if (purpose != OperationPurpose.TRANSLOG) {
+        if (purpose != OperationPurpose.TRANSLOG && purpose != OperationPurpose.TRANSLOG_WITH_ATTEMPT_TIMEOUT) {
             return;
         }
-        if (translogUploadAttemptTimeout.millis() >= 0) {
-            builder.apiCallAttemptTimeout(Duration.ofMillis(translogUploadAttemptTimeout.millis()));
-        }
+
         if (translogUploadCallTimeout.millis() >= 0) {
             builder.apiCallTimeout(Duration.ofMillis(translogUploadCallTimeout.millis()));
         }
-    }
 
+        if (purpose == OperationPurpose.TRANSLOG_WITH_ATTEMPT_TIMEOUT && translogUploadAttemptTimeout.millis() >= 0) {
+            builder.apiCallAttemptTimeout(Duration.ofMillis(translogUploadAttemptTimeout.millis()));
+        }
+    }
 }

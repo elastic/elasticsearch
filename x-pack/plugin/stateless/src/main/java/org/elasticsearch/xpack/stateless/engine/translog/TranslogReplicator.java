@@ -434,6 +434,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 objectStoreService.uploadTranslogFile(
                     translog.metadata().name(),
                     translog.bytes().data(),
+                    uploadTryNumber == 1, // we only set per-attempt timeouts on the translog upload on the first upload
                     ActionListener.releaseAfter(ActionListener.wrap(unused -> {
                         logger.debug(() -> format("uploaded translog file [%s]", translog.metadata().name()));
                         listener.onResponse(this);

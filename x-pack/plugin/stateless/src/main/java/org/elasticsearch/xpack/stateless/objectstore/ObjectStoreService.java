@@ -807,8 +807,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         return ProjectId.DEFAULT;
     }
 
-    public void uploadTranslogFile(String fileName, BytesReference reference, ActionListener<Void> listener) {
-        enqueueTask(listener, uploadTranslogTaskRunner, l -> new TranslogFileUploadTask(fileName, reference, l));
+    public void uploadTranslogFile(String fileName, BytesReference reference, boolean withAttemptTimeout, ActionListener<Void> listener) {
+        enqueueTask(listener, uploadTranslogTaskRunner, l -> new TranslogFileUploadTask(fileName, reference, withAttemptTimeout, l));
     }
 
     public void uploadBatchedCompoundCommitFile(
@@ -1532,10 +1532,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         private final String fileName;
         private final BytesReference reference;
         private final ActionListener<Void> listener;
+        private final boolean withAttemptTimeout;
 
-        TranslogFileUploadTask(String fileName, BytesReference reference, ActionListener<Void> listener) {
+        TranslogFileUploadTask(String fileName, BytesReference reference, boolean withAttemptTimeout, ActionListener<Void> listener) {
             this.fileName = Objects.requireNonNull(fileName);
             this.reference = Objects.requireNonNull(reference);
+            this.withAttemptTimeout = withAttemptTimeout;
             this.listener = Objects.requireNonNull(listener);
         }
 
@@ -1549,7 +1551,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             final BlobContainer blobContainer = getTranslogBlobContainer();
 
             var before = threadPool.relativeTimeInMillis();
-            blobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, reference, false);
+            if (withAttemptTimeout) {
+                blobContainer.writeBlob(OperationPurpose.TRANSLOG_WITH_ATTEMPT_TIMEOUT, fileName, reference, false);
+            } else {
+                blobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, reference, false);
+            }
             var uploadDuration = threadPool.relativeTimeInMillis() - before;
 
             final Supplier<String> logMessage = () -> format(

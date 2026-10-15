@@ -1564,11 +1564,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The synchronous footer parse reads a small file whole through the adapter's window. That read ends at
-     * the file's last byte, so it must seed the byte cache the same way the async prefetch does; a later
-     * scan is then served from the entry with no storage request.
-     */
-    /**
      * A filtered scan needs the refill as much as an unfiltered one, which is not obvious: row-group pruning
      * reads column indexes, so it looks like a window fill that the relaxed admission gate would re-seed on
      * its own. It is not — those reads are asynchronous and never touch the adapter window. Measured either

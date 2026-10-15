@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -1684,6 +1685,74 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
     }
 
     /**
+     * A budget rejection must be absorbed like a read failure. In production the outermost wrapper is
+     * {@code QueryBudgetedStorageObject}, which {@code FileSourceFactory} installs above the retry layer, and its
+     * permit acquisition turns a timeout into an {@link EsRejectedExecutionException} — neither an
+     * {@link IOException} nor an {@code ExternalException}, so the retry layer never sees it. Left uncaught it
+     * escapes the refill and fails a query that would otherwise have run, just more slowly.
+     */
+    public void testRefillWholeFileFooterAbsorbsABudgetRejection() {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        AtomicInteger attempts = new AtomicInteger();
+        StorageObject rejecting = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException("Full GET not supported in rejecting harness");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                attempts.incrementAndGet();
+                throw new EsRejectedExecutionException("Failed to acquire query concurrency budget permit: simulated");
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://refill-rejected.parquet");
+            }
+        };
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        CircuitBreaker limited = new LimitedBreaker("refill", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(rejecting, footerByteCache, limited, watermark);
+
+        adapter.refillWholeFileFooter();
+        assertEquals("the coalesced load and its direct-I/O retry", 2, attempts.get());
+        assertNull("a rejected refill stores nothing", footerByteCache.get(adapter.cacheKey()));
+        assertEquals("the rejected refill leaves no stream open", 0, adapter.trackedStreamCount());
+        assertEquals("the rejected refill refunds its window on the breaker", 0, limited.getUsed());
+        assertEquals("the rejected refill refunds its window on the node budget", 0, watermark.used());
+    }
+
+    /**
      * A stream that ends early must not leave a short entry behind. Every consumer reads a cache entry as the
      * file's suffix — {@code fillFromCachedTail} and {@code lookupFooterCacheHit} both derive its start as
      * {@code length - entry.length} — so a prefix cached under that contract is served at the wrong offset as
@@ -1770,7 +1839,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      * {@code wholeFileIsFooter} the refill would issue a whole-object GET per scan and store nothing, because
      * {@link FooterByteCache#getOrLoad} rejects an entry over the cap after reading it.
      */
-    public void testRefillWholeFileFooterIsNoopBelowTheCacheEntryBudget() throws IOException {
+    public void testRefillWholeFileFooterIsNoopAboveTheCacheEntryBudget() throws IOException {
         FooterByteCache noEntries = FooterByteCache.fromSettings(
             Settings.builder().put(ExternalSourceCacheSettings.FOOTER_CACHE_SIZE.getKey(), "1b").build()
         );

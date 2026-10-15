@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 161043
+pr: 161705
+summary: Log query settings
+type: feature

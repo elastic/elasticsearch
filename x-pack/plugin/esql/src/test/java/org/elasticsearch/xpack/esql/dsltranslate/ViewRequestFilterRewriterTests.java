@@ -200,6 +200,58 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         assertThat(result.collect(Filter.class::isInstance), hasSize(2));
     }
 
+    /**
+     * A view nested inside a non-view branch of an outer union (a user-written subquery) is a view the query names, so
+     * its output is filtered too. The dataset read inside it is left to that filter by the dataset rewriter.
+     */
+    public void testViewNestedInLiteralSubqueryBranchIsFilteredAtItsOutput() {
+        ReferenceAttribute y = attr("y", DataType.INTEGER);
+        ExternalRelation innerDataset = viewSubplan("innerView", y);
+        LinkedHashMap<String, LogicalPlan> innerMap = new LinkedHashMap<>();
+        innerMap.put("innerView", innerDataset);
+        ViewUnionAll inner = new ViewUnionAll(Source.EMPTY, innerMap, Set.of("innerView"), List.of(y));
+        LogicalPlan subquery = new Filter(Source.EMPTY, inner, Literal.TRUE);
+        LinkedHashMap<String, LogicalPlan> outerMap = new LinkedHashMap<>();
+        outerMap.put("outerView", viewSubplan("outerView", y));
+        outerMap.put("unnamed_view_1", subquery);
+        ViewUnionAll outer = new ViewUnionAll(Source.EMPTY, outerMap, Set.of("outerView"), List.of(y));
+
+        QueryBuilder filter = QueryBuilders.termQuery("y", 1);
+        LogicalPlan afterDataset = RequestFilterRewriter.rewrite(outer, filter, CONFIG, CURRENT, true);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(afterDataset, filter, CONFIG, CURRENT);
+
+        assertThat(viewChild(result, "outerView"), instanceOf(Filter.class));
+        LogicalPlan subqueryBranch = viewChild(result, "unnamed_view_1");
+        // The subquery branch itself is not a view branch, so it is not wrapped; its nested view is.
+        assertThat(subqueryBranch, instanceOf(Filter.class));
+        assertThat(((Filter) subqueryBranch).condition(), sameInstance(Literal.TRUE));
+        LogicalPlan innerChild = viewChild(((Filter) subqueryBranch).child(), "innerView");
+        assertThat(innerChild, instanceOf(Filter.class));
+        assertThat(((Filter) innerChild).child(), sameInstance(innerDataset));
+        assertThat(result.collect(Filter.class::isInstance), hasSize(3));
+    }
+
+    /** A view nested inside another view's body is an implementation detail of the outer view and is not filtered again. */
+    public void testViewNestedInViewBranchIsNotFilteredAgain() {
+        ReferenceAttribute y = attr("y", DataType.INTEGER);
+        ExternalRelation innerDataset = viewSubplan("innerView", y);
+        LinkedHashMap<String, LogicalPlan> innerMap = new LinkedHashMap<>();
+        innerMap.put("innerView", innerDataset);
+        ViewUnionAll inner = new ViewUnionAll(Source.EMPTY, innerMap, Set.of("innerView"), List.of(y));
+        LinkedHashMap<String, LogicalPlan> outerMap = new LinkedHashMap<>();
+        outerMap.put("outerView", inner);
+        ViewUnionAll outer = new ViewUnionAll(Source.EMPTY, outerMap, Set.of("outerView"), List.of(y));
+
+        QueryBuilder filter = QueryBuilders.termQuery("y", 1);
+        LogicalPlan afterDataset = RequestFilterRewriter.rewrite(outer, filter, CONFIG, CURRENT, true);
+        LogicalPlan result = ViewRequestFilterRewriter.rewrite(afterDataset, filter, CONFIG, CURRENT);
+
+        LogicalPlan outerChild = viewChild(result, "outerView");
+        assertThat(outerChild, instanceOf(Filter.class));
+        assertThat(((Filter) outerChild).child(), sameInstance(inner));
+        assertThat(result.collect(Filter.class::isInstance), hasSize(1));
+    }
+
     // --- core behaviour ---
 
     /** A null request filter is a no-op: the plan is returned unchanged. */

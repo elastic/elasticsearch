@@ -129,9 +129,13 @@ public final class RequestFilterRewriter {
     }
 
     /**
-     * The {@link ExternalRelation} leaves of {@code plan} that sit under a view branch of a {@link ViewUnionAll}, by
-     * identity. Nested views are covered: an inner view is wholly contained in the outer view's branch. Bare-index and
-     * literal-subquery branches are not view branches, so a dataset in a user-written subquery remains a target.
+     * The {@link ExternalRelation} leaves of {@code plan} that sit under a view branch of <em>any</em> {@link ViewUnionAll},
+     * by identity. This is exactly the set {@link ViewRequestFilterRewriter} covers: a view nested inside another view's
+     * body is wholly contained in the outer view's branch, and a view nested inside a non-view branch (a user-written
+     * subquery) is reached by that rewriter's walk and filtered at its own output. Bare-index and literal-subquery
+     * branches are not view branches, so a dataset read directly in a user-written subquery remains a target here.
+     * Identity matters: the same dataset read both inside a view and outside it yields two {@code equals()} nodes, of
+     * which only the inner one is excluded.
      */
     private static Set<LogicalPlan> datasetsInsideViews(LogicalPlan plan) {
         Set<LogicalPlan> inside = Collections.newSetFromMap(new IdentityHashMap<>());

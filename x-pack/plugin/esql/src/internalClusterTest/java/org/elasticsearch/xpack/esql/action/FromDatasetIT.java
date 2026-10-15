@@ -5409,9 +5409,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     /**
      * A request filter on a field a view computes with {@code EVAL} over a dataset is applied to the view's
-     * <em>output</em>, not pushed into the dataset read. Regression test for elastic/elasticsearch#161957: the
-     * dataset rewriter used to also wrap the dataset leaf inside the view body, where {@code doubled} does not exist,
-     * so the filter bound to NULL there and dropped every row before the EVAL ran.
+     * <em>output</em>, not pushed into the dataset read. The dataset rewriter used to also wrap the dataset leaf inside
+     * the view body, where {@code doubled} does not exist, so the filter bound to NULL there and dropped every row
+     * before the EVAL ran.
      */
     public void testRequestFilterOnEvalComputedFieldOfViewOverDataset() throws Exception {
         registerDataSource("local_ds", Map.of());
@@ -5426,10 +5426,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         var request = syncEsqlQueryRequest("FROM employees_eval_view | KEEP emp_no, doubled | SORT emp_no");
         request.filter(QueryBuilders.termQuery("doubled", 2));
         try (var response = run(request, TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(1));
-            assertThat(rows.get(0).get(0), equalTo(1));
-            assertThat(rows.get(0).get(1), equalTo(2));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1, 2))));
         }
     }
 
@@ -5450,10 +5447,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         var request = syncEsqlQueryRequest("FROM employees_stats_view | KEEP grp, c");
         request.filter(QueryBuilders.rangeQuery("c").gte(2));
         try (var response = run(request, TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(1));
-            assertThat(rows.get(0).get(0), equalTo(true));
-            assertThat(rows.get(0).get(1), equalTo(2L));
+            assertThat(getValuesList(response), equalTo(List.of(List.of(true, 2L))));
         }
     }
 
@@ -5469,10 +5463,56 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         var request = syncEsqlQueryRequest("FROM employees_view | SORT emp_no");
         request.filter(QueryBuilders.termQuery("emp_no", 2));
         try (var response = run(request, TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(2, "Bob"))));
+        }
+    }
+
+    /**
+     * A view over a dataset nested inside a user-written subquery branch is still filtered. The outer union has a view
+     * branch ({@code employees_eval_view}) and a literal subquery branch that itself reads {@code employees_filtered_view};
+     * the request filter must reach both views' output. Without that, the dataset read inside the nested view is skipped
+     * by the dataset rewriter (it sits under a view branch) and the nested view is skipped by the view rewriter (it sits
+     * below the outer union), so its rows leak through unfiltered.
+     */
+    public void testRequestFilterOnViewOverDatasetNestedInSubquery() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                putViewRequest("employees_eval_view", "FROM employees_external | EVAL doubled = emp_no * 2")
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                putViewRequest("employees_filtered_view", "FROM employees_external | WHERE emp_no > 1")
+            )
+        );
+
+        var request = syncEsqlQueryRequest(
+            "FROM employees_eval_view, (FROM employees_filtered_view | WHERE emp_no > 0) | KEEP emp_no | SORT emp_no"
+        );
+        request.filter(QueryBuilders.termQuery("emp_no", 2));
+        try (var response = run(request, TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(2), List.of(2))));
+        }
+
+        // The same shape filtered on a field only the nested view computes: the filter must bind against that view's
+        // output, not the dataset read inside it. The passthrough view binds c to NULL and contributes no rows.
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("employees_view", "FROM employees_external")));
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                putViewRequest("employees_stats_view", "FROM employees_external | EVAL grp = emp_no > 1 | STATS c = COUNT(*) BY grp")
+            )
+        );
+        request = syncEsqlQueryRequest("FROM employees_view, (FROM employees_stats_view | WHERE c > 0) | KEEP emp_no, c | SORT c");
+        request.filter(QueryBuilders.rangeQuery("c").gte(2));
+        try (var response = run(request, TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
-            assertThat(rows.get(0).get(0), equalTo(2));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+            assertThat(rows.get(0).get(1), equalTo(2L));
         }
     }
 

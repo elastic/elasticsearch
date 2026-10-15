@@ -16,6 +16,7 @@ apply plugin: 'elasticsearch.test-build-info'
 apply plugin: 'elasticsearch.transport-version-references'
 apply plugin: 'elasticsearch.transport-version-resources'
 apply plugin: 'elasticsearch.foreign-api'
+apply plugin: 'jacoco'
 
 publishing {
   publications {
@@ -27,6 +28,10 @@ publishing {
 
 base {
   archivesName = 'elasticsearch'
+}
+
+jacoco {
+  toolVersion = '0.8.15'
 }
 
 dependencies {
@@ -184,6 +189,26 @@ if (buildParams.snapshotBuild == false) {
 
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
+}
+
+tasks.named('internalClusterTest') {
+  jacoco {
+    enabled = false
+  }
+}
+
+tasks.named('heapPressureTest') {
+  jacoco {
+    enabled = false
+  }
+}
+
+tasks.named('jacocoTestReport') {
+  dependsOn 'test'
+}
+
+tasks.named('check') {
+  dependsOn 'jacocoTestReport'
 }
 
 tasks.named("thirdPartyAudit").configure {

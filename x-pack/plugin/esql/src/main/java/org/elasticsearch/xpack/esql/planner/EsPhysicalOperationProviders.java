@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -309,7 +310,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
         if (attr instanceof UnmappedFieldsAttribute unmapped) {
             return ValuesSourceReaderOperator.load(
-                shardContext.ctx.unmappedFields().allFieldsBlockLoader(plannerSettings.sourceReservationFactor(), unmapped.pattern())
+                shardContext.ctx.unmappedFields()
+                    .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), unmapped.pattern(), plannerSettings.sourceReservationFactor()))
             );
         }
 

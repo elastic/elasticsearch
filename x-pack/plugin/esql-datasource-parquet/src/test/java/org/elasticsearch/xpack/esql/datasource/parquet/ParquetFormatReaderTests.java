@@ -1464,6 +1464,45 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * the file's last byte, so it must seed the byte cache the same way the async prefetch does; a later
      * scan is then served from the entry with no storage request.
      */
+    /**
+     * A filtered scan needs the refill as much as an unfiltered one, which is not obvious: row-group pruning
+     * reads column indexes, so it looks like a window fill that the relaxed admission gate would re-seed on
+     * its own. It is not — those reads are asynchronous and never touch the adapter window. Measured either
+     * side of the refill on a small object with a pushed filter: with the refill removed the scan opens no
+     * stream at all, issues three ranged GETs and leaves the entry absent; with it, one whole-object read
+     * serves the scan and the entry is back. So this test is also the gate on the refill being reached from
+     * the filtered path, and removing the call reddens the two counts below as well as the entry.
+     */
+    public void testFilteredScanAfterFooterByteExpiryAlsoRefills() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        assertThat(parquetData.length, lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
+        FilterPredicate filter = FilterApi.gt(FilterApi.longColumn("i64_0"), -1L);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(FilterCompat.get(filter));
+        reader.clearFooterCachesForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        AtomicInteger streamCount = new AtomicInteger();
+        try {
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null, streamCount);
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(asyncObject);
+            metadataAsyncDirect(reader, asyncObject);
+            assertEquals("the metadata prefetch is the only GET so far", 1, asyncReadCount.get());
+
+            // The state the refill exists for: byte entry gone, parsed entry still warm.
+            reader.footerByteCacheForTests().invalidateAll();
+            assertNotNull("the parsed entry must survive the byte expiry", reader.parsedFooterForTests(key));
+
+            assertEquals("the filtered scan still returns its rows", 1, drainAllRows(reader, asyncObject));
+            assertEquals("the refill reads the whole object once through the adapter", 1, streamCount.get());
+            assertEquals("no ranged data GET: the filtered scan is served from the refilled entry", 1, asyncReadCount.get());
+            byte[] refilled = reader.footerByteCacheForTests().get(key);
+            assertNotNull("the filtered scan must write the byte entry back", refilled);
+            assertEquals(parquetData.length, refilled.length);
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
     public void testSyncFooterParseStoresSmallFileAsItsFooter() throws Exception {
         byte[] parquetData = createVpcFlowShapedParquet();
         assertThat(parquetData.length, lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));

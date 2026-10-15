@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162111
+pr: 162179
+summary: Ignore uncounted chunks in `pageReadyNow`
+type: enhancement

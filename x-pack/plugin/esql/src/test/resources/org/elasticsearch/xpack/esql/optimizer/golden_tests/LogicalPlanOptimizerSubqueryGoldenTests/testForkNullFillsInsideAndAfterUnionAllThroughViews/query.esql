@@ -1,0 +1,5 @@
+FROM (FROM fork_over_union_view, (FROM sample_data | KEEP @timestamp, message)
+          | FORK (WHERE message IS NOT NULL) (KEEP message)),
+         (FROM sample_data | KEEP @timestamp, message)
+    | KEEP @timestamp, message, _fork
+    | SORT @timestamp

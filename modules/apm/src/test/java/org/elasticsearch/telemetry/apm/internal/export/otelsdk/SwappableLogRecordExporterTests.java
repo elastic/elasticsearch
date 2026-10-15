@@ -129,6 +129,25 @@ public class SwappableLogRecordExporterTests extends ESTestCase {
         assertExceptionReleasesReference(true);
     }
 
+    public void testNullOperationResultReleasesReference() {
+        for (boolean flush : List.of(false, true)) {
+            RecordingExporter old = new RecordingExporter();
+            old.exportResult = null;
+            old.flushResult = null;
+            try (SwappableLogRecordExporter exporter = new SwappableLogRecordExporter(old)) {
+                expectThrows(NullPointerException.class, () -> {
+                    if (flush) {
+                        exporter.flush();
+                    } else {
+                        exporter.export(List.of());
+                    }
+                });
+                exporter.swap(new RecordingExporter());
+                assertThat(old.shutdowns.get(), equalTo(1));
+            }
+        }
+    }
+
     private void assertExceptionReleasesReference(boolean flush) {
         RuntimeException failure = new IllegalStateException("operation failed");
         RecordingExporter old = new RecordingExporter() {

@@ -64,13 +64,11 @@ final class SwappableLogRecordExporter implements LogRecordExporter {
             return CompletableResultCode.ofFailure();
         }
 
-        final CompletableResultCode result;
-        boolean success = false;
+        CompletableResultCode result = null;
         try {
             result = operation.apply(holder.delegate);
-            success = true;
         } finally {
-            if (success == false) {
+            if (result == null) {
                 holder.decRef();
             }
         }

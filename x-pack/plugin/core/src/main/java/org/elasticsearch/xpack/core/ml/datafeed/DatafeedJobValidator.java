@@ -146,26 +146,27 @@ public final class DatafeedJobValidator {
         TimeValue frequency = datafeedConfig.getFrequency();
         if (frequency != null) {
             TimeValue groupingInterval = datafeedConfig.getGroupingInterval();
-            long frequencyMillis = frequency.millis();
-            long groupingIntervalMillis = groupingInterval.millis();
-            if (frequencyMillis % groupingIntervalMillis != 0) {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(
-                        Messages.DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_GROUPING_INTERVAL,
-                        frequency,
-                        groupingInterval.getStringRep()
-                    )
-                );
-            }
+            checkFrequencyIsMultipleOfInterval(
+                frequency,
+                groupingInterval.millis(),
+                Messages.DATAFEED_FREQUENCY_MUST_BE_MULTIPLE_OF_GROUPING_INTERVAL,
+                groupingInterval.getStringRep()
+            );
         }
     }
 
     private static void checkFrequencyIsMultipleOfInterval(TimeValue frequency, long intervalMillis, String messageKey) {
-        long frequencyMillis = frequency.millis();
-        if (frequencyMillis % intervalMillis != 0) {
-            throw ExceptionsHelper.badRequestException(
-                Messages.getMessage(messageKey, frequency, TimeValue.timeValueMillis(intervalMillis).getStringRep())
-            );
+        checkFrequencyIsMultipleOfInterval(frequency, intervalMillis, messageKey, TimeValue.timeValueMillis(intervalMillis).getStringRep());
+    }
+
+    private static void checkFrequencyIsMultipleOfInterval(
+        TimeValue frequency,
+        long intervalMillis,
+        String messageKey,
+        String intervalStringRep
+    ) {
+        if (frequency.millis() % intervalMillis != 0) {
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(messageKey, frequency, intervalStringRep));
         }
     }
 

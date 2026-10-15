@@ -100,6 +100,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -485,6 +486,62 @@ public class BulkOperationTests extends ESTestCase {
         BatchResult result = runBatchBulk(scenario, blocked);
         assertThat(scenario.toString(), result.failure(), instanceOf(ClusterBlockException.class));
         assertThat(scenario.toString(), result.batchShards(), empty());
+    }
+
+    /**
+     * With the batch path active, every shard request of the initial pass fails synchronously (as it does for a write-blocked
+     * backing index), so the failure-store redirect pass starts before the batch encoders are closed. The redirect pass must not
+     * try to build batches again: its items are new requests carrying inline source.
+     */
+    public void testSynchronousShardFailureRedirectsToFailureStoreBatchMode() throws Exception {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+
+        // A state without nodes reports the minimum compatible transport version, which predates batch support and silently turns the
+        // batch path off, so advertise a node at the current version.
+        ClusterState batchCapableState = ClusterState.builder(clusterState)
+            .putCompatibilityVersions("node", TransportVersion.current(), Map.of())
+            .build();
+
+        // Completes the listener on the calling thread, so the shard requests are done before the bulk operation finishes issuing them.
+        AtomicBoolean initialPassWasBatched = new AtomicBoolean();
+        BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> failBackingIndexSynchronously = (request, listener) -> {
+            if (request.shardId().getIndex().equals(ds2BackingIndex1.getIndex())) {
+                initialPassWasBatched.set(request.getBulkShardBatch() != null);
+                listener.onFailure(new MapperException("test"));
+            } else {
+                acceptAllShardWrites().accept(request, listener);
+            }
+        };
+        BatchIndexingEnabled batchEnabled = new BatchIndexingEnabled(
+            ClusterSettings.createBuiltInClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build())
+        );
+        NodeClient client = getNodeClient(failBackingIndexSynchronously);
+
+        BulkResponse response = safeAwait(
+            l -> newBulkOperation(
+                batchCapableState,
+                client,
+                bulkRequest,
+                new AtomicArray<>(bulkRequest.numberOfActions()),
+                mockObserver(batchCapableState),
+                l,
+                new FailureStoreDocumentConverter(),
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                true,
+                batchEnabled
+            ).run()
+        );
+
+        assertTrue("the initial pass should have sent its documents as a batch", initialPassWasBatched.get());
+        assertThat(response.hasFailures(), is(false));
+        assertThat(response.getItems().length, equalTo(2));
+        for (BulkItemResponse item : response.getItems()) {
+            assertThat(item.getIndex(), equalTo(ds2FailureStore1.getIndex().getName()));
+            assertThat(item.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
+        }
     }
 
     /**

@@ -347,7 +347,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
-        assertThat(exception.getMessage(), containsString("[slice] is required when [index.slice.enabled] is true"));
+        assertThat(exception.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
     }
 
     public void testRequireSliceRoutingWhenSliceEnabledAndRoutingProvided() {
@@ -366,7 +366,7 @@ public class TransportBulkActionTests extends ESTestCase {
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
         assertThat(exception.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(exception.getMessage(), containsString("use [slice] instead"));
+        assertThat(exception.getMessage(), containsString("use [_slice] instead"));
     }
 
     public void testRequireSliceRoutingWhenSliceEnabledAndSliceProvided() {
@@ -398,7 +398,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
-        assertThat(exception.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(exception.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {
@@ -430,7 +430,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
-        assertThat(exception.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(exception.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testDeleteRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {

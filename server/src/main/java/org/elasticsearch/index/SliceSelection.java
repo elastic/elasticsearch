@@ -50,17 +50,17 @@ public record SliceSelection(Kind kind, List<String> names) {
         for (String name : names) {
             final String value = name.trim();
             if (value.isEmpty()) {
-                throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank");
+                throw new IllegalArgumentException("[" + SliceIndexing.FIELD_NAME + "] cannot be blank");
             }
             if (SliceIndexing.SLICE_ALL.equals(value)) {
                 throw new IllegalArgumentException(
-                    "[" + SliceIndexing.PARAM_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] cannot be combined with other slices"
+                    "[" + SliceIndexing.FIELD_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] cannot be combined with other slices"
                 );
             }
             unique.add(value);
         }
         if (unique.isEmpty()) {
-            throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank");
+            throw new IllegalArgumentException("[" + SliceIndexing.FIELD_NAME + "] cannot be blank");
         }
         return new SliceSelection(Kind.NAMED, List.copyOf(unique));
     }

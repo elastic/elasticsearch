@@ -81,6 +81,7 @@ final class BatchModeRouter implements Releasable {
     private int lastRow = -1;
     private int routedCount;
     private boolean scattered;
+    private boolean routingFailed;
     private boolean groupingBuilt;
     private boolean closed;
 
@@ -530,7 +531,7 @@ final class BatchModeRouter implements Releasable {
         } catch (Exception e) {
             // The trio does not give us a row index, so we cannot isolate which row(s) caused the
             // problem. Fail every deferred item with the same exception.
-            scattered = true; // prevent shardBatches() from attempting a stale scatter
+            routingFailed = true; // no valid grouping exists, so shardBatches() must not attempt a scatter
             for (int i = 0; i < source.docCount(); i++) {
                 if (items[i] != null) {
                     onItemFailure.accept(items[i], e);
@@ -624,14 +625,24 @@ final class BatchModeRouter implements Releasable {
     }
 
     /**
-     * Returns the per-shard batches. The caller owns every returned batch.
+     * Returns the per-shard batches. The caller owns every returned batch. Building them hands the
+     * underlying buffers to the returned batches, so this may be called at most once per bulk. The failure-store redirect pass must not
+     * call it: redirected items are new requests carrying inline source.
+     *
+     * <p>In provided-batch mode, returns empty if {@link #buildGrouping} failed to route, since no
+     * valid grouping exists to scatter.
+     *
+     * @throws IllegalStateException if called more than once
      */
     Map<ShardId, SourceBatch> shardBatches() {
         if (encoders != null) {
             return encoders.finalizeBatches();
         }
-        if (scattered) {
+        if (routingFailed) {
             return Map.of();
+        }
+        if (scattered) {
+            throw new IllegalStateException("shard batches were already built for this bulk");
         }
         scattered = true;
         if (routedCount == 0) {

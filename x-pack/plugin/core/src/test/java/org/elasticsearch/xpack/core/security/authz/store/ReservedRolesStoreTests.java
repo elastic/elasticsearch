@@ -989,6 +989,22 @@ public class ReservedRolesStoreTests extends ESTestCase {
             );
         });
 
+        // Nightshift source views: Kibana system user can create, update and delete them, nothing more, and only under the prefix
+        final IndexAbstraction nightshiftView = mockIndexAbstraction(
+            "$.nightshift.sources." + randomAlphaOfLength(randomIntBetween(1, 8)) + "." + randomAlphaOfLength(randomIntBetween(1, 8))
+        );
+        assertThat(
+            kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(nightshiftView),
+            is(true)
+        );
+        assertThat(
+            kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME).test(nightshiftView),
+            is(true)
+        );
+        final IndexAbstraction otherView = mockIndexAbstraction("$.nightshift." + randomAlphaOfLength(randomIntBetween(1, 8)));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(otherView), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME).test(otherView), is(false));
+
         Arrays.asList(
             ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ADHOC_ALERTS_BACKING_INDEX + randomAlphaOfLength(randomIntBetween(0, 13))

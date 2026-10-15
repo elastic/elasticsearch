@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -134,19 +137,34 @@ public class LocalBulk extends ExportBulk {
             .forEach(exception::addExportException);
 
         if (exception.hasExportExceptions()) {
-            int count = 0;
-            for (ExportException e : exception) {
-                if (count >= MAX_EXCEPTIONS_TO_LOG) {
-                    logger.warn("more than {} exceptions occurred, skipping the rest", MAX_EXCEPTIONS_TO_LOG);
-                    break;
-                }
-                logger.warn("unexpected error while indexing monitoring document", e);
-                count++;
-            }
+            logLimitedExceptionSummary(exception);
             listener.onFailure(exception);
         } else {
             listener.onResponse(null);
         }
     }
 
+    /**
+     * Log the first {@link #MAX_EXCEPTIONS_TO_LOG} exceptions, and any unique ones after that
+     *
+     * @param exception The {@link ExportException} containing the doc-level exceptions
+     */
+    private void logLimitedExceptionSummary(ExportException exception) {
+        final Set<Class<?>> loggedCauses = new HashSet<>();
+        int skippedCount = 0;
+        int loggedCount = 0;
+
+        for (ExportException e : exception) {
+            final var unwrappedCause = ExceptionsHelper.unwrapCause(e.getCause());
+            if (loggedCauses.add(unwrappedCause.getClass()) || loggedCount < MAX_EXCEPTIONS_TO_LOG) {
+                logger.warn("unexpected error while indexing monitoring document", e);
+                loggedCount++;
+            } else {
+                skippedCount++;
+            }
+        }
+        if (skippedCount > 0) {
+            logger.warn("{} exceptions occurred, skipped logging {} of them", skippedCount + loggedCount, skippedCount);
+        }
+    }
 }

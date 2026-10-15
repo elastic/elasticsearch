@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -42,11 +43,28 @@ public class LocalBulkTests extends ESTestCase {
         warnings.forEach(message -> assertThat(message, containsString("unexpected error while indexing monitoring document")));
     }
 
-    public void testLimitsLoggedFailuresAndLogsTruncationWarning() throws Exception {
-        final List<String> warnings = throwExportException(randomIntBetween(11, 50));
+    public void testLimitsLoggedFailuresAndLogsSummary() throws Exception {
+        final int failures = randomIntBetween(11, 50);
+        final List<String> warnings = throwExportException(failures);
         assertThat(warnings, hasSize(11));
-        assertThat(warnings.get(10), containsString("more than 10 exceptions occurred, skipping the rest"));
         warnings.subList(0, 10).forEach(message -> assertThat(message, containsString("unexpected error while indexing")));
+        assertThat(warnings.get(10), equalTo(failures + " exceptions occurred, skipped logging " + (failures - 10) + " of them"));
+    }
+
+    public void testLogsUniqueExceptionTypesAfterLimitIsExceeded() throws Exception {
+        final int duplicates = randomIntBetween(10, 30);
+        final List<Exception> causes = new ArrayList<>();
+        IntStream.range(0, duplicates).forEach(i -> causes.add(new IllegalStateException("failure-" + i)));
+        causes.add(new IllegalArgumentException("unique-1"));
+        causes.add(new IllegalStateException("duplicate-after-unique"));
+        causes.add(new UnsupportedOperationException("unique-2"));
+
+        final List<String> warnings = throwExportException(causes);
+
+        // 10 within the limit, then the two unique types past it, then the summary
+        final int total = duplicates + 3;
+        assertThat(warnings, hasSize(13));
+        assertThat(warnings.get(12), equalTo(total + " exceptions occurred, skipped logging " + (total - 12) + " of them"));
     }
 
     /**
@@ -54,13 +72,24 @@ public class LocalBulkTests extends ESTestCase {
      * every failure regardless of how many were logged.
      */
     private List<String> throwExportException(int failures) throws Exception {
+        return throwExportException(
+            IntStream.range(0, failures).<Exception>mapToObj(i -> new IllegalStateException("failure-" + i)).toList()
+        );
+    }
+
+    private List<String> throwExportException(List<Exception> causes) throws Exception {
+        final int failures = causes.size();
         final List<String> warnings = new ArrayList<>();
         final BulkItemResponse[] items = IntStream.range(0, failures)
             .mapToObj(
                 i -> BulkItemResponse.failure(
                     i,
                     DocWriteRequest.OpType.INDEX,
-                    new BulkItemResponse.Failure("index", "id-" + i, new IllegalStateException("failure-" + i))
+                    new BulkItemResponse.Failure(
+                        "index",
+                        "id-" + i,
+                        randomBoolean() ? causes.get(i) : new TestWrappedException(causes.get(i))
+                    )
                 )
             )
             .toArray(BulkItemResponse[]::new);
@@ -88,5 +117,11 @@ public class LocalBulkTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
         }
         return warnings;
+    }
+
+    private static class TestWrappedException extends RuntimeException implements ElasticsearchWrapperException {
+        TestWrappedException(Throwable cause) {
+            super(cause);
+        }
     }
 }

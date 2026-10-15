@@ -1026,8 +1026,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // Always parse the full footer (no range filter) so the cached entry is reusable
                 // by any split. ParquetFileReader.open with a range only retains blocks whose
                 // midpoint falls in the range, which would make getFooter() unusable for other
-                // splits. The underlying FooterByteCache ensures the tail bytes are fetched from
-                // storage only once on the first parse.
+                // splits. The adapter stores the tail it reads here in the FooterByteCache (the
+                // suffix of a large file, the whole of a small one), so a later parse of this key
+                // reads no bytes while that entry lives. A parsed hit reads nothing, so it does not
+                // renew that entry; the optimized scan re-seeds a small object's entry instead
+                // (ParquetStorageObjectAdapter.refillWholeFileFooter).
                 //
                 // Note: this variant of readFooter doesn't close the stream.
                 try (SeekableInputStream stream = adapter.newStream()) {
@@ -2444,8 +2447,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // 2. parsedFooters ({@link ParsedFooterCache}): node-wide LRU keyed by (path, length);
         // shared across producer threads and across queries within the access TTL. The loader
         // explicitly uses unranged read options so the cached value is the full file footer (all
-        // row groups) and is reusable by any split. The underlying FooterByteCache ensures the
-        // tail bytes are fetched from storage only once on the first parse.
+        // row groups) and is reusable by any split. On a miss the adapter stores the tail it reads
+        // in the FooterByteCache, so a later parse of this key reads no bytes while that entry lives.
         // ParquetFileReader.open with a range only retains blocks whose midpoint falls in the
         // range, making getFooter() unusable for other splits — so we must always derive the
         // range-filtered metadata from the unranged full footer via filterBlocksByRange.
@@ -2680,7 +2683,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         @Nullable Consumer<String> warningSink,
         @Nullable SharedErrorBudget sharedErrorBudget,
         @Nullable ParquetReaderCounters counters
-    ) {
+    ) throws IOException {
         if (inputFile instanceof ParquetStorageObjectAdapter == false) {
             throw new ElasticsearchException(
                 "optimized Parquet scan requires ParquetStorageObjectAdapter but got [" + inputFile.getClass().getName() + "]"
@@ -2746,6 +2749,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         );
 
         int offsetIndexRowGroupLimit = unfilteredLimit ? coveringRowGroupLimit(reader.getRowGroups(), rowLimit) : Integer.MAX_VALUE;
+        // A small object's footer entry is the whole object and the preload and column-chunk prefetch
+        // below are served from it, but the parsed footer this read opened with wrote no bytes: re-seed
+        // the entry if it has expired, before either of them peeks the cache.
+        adapter.refillWholeFileFooter();
         PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(
             reader,
             storageObject,

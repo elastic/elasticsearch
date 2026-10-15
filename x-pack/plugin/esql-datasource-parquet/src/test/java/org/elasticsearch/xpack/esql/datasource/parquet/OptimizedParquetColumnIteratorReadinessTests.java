@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -97,8 +98,22 @@ import static org.hamcrest.Matchers.lessThan;
  */
 public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
 
+    /**
+     * Footer byte cache budget that admits no entry. The fixtures here fit the footer prefetch, so with the
+     * default cache the footer parse stores each file whole and the scan is served from that entry with no
+     * I/O; these tests observe the scan's own GETs, tickets and injected failures, so the cache must stay out.
+     */
+    private static final Settings NO_FOOTER_BYTE_CACHE = Settings.builder()
+        .put(ExternalSourceCacheSettings.FOOTER_CACHE_SIZE.getKey(), "1b")
+        .build();
+
     private BlockFactory blockFactory;
     private ExecutorService asyncIo;
+
+    /** Optimized reader whose footer byte cache admits nothing; see {@link #NO_FOOTER_BYTE_CACHE}. */
+    private ParquetFormatReader optimizedReader() {
+        return new ParquetFormatReader(NO_FOOTER_BYTE_CACHE, blockFactory);
+    }
 
     @Before
     public void init() {
@@ -200,9 +215,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     public void testAllFilteredStillReachesDoneWithoutBlockingHasNextAfterReady() throws Exception {
         byte[] parquet = smallFile();
         ImmediateAsyncStorage storage = new ImmediateAsyncStorage(parquet, asyncIo);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(
-            FilterCompat.get(FilterApi.eq(FilterApi.intColumn("id"), -1))
-        );
+        ParquetFormatReader reader = optimizedReader().withPushedFilter(FilterCompat.get(FilterApi.eq(FilterApi.intColumn("id"), -1)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
             assertNull(iter.tryAdvance());
@@ -281,9 +294,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         GatedOnDemandStorage storage = new GatedOnDemandStorage(parquet, asyncIo, gatePhase2, allowPhase2);
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(
-            new ParquetPushedExpressions(List.of(filter))
-        );
+        ParquetFormatReader reader = optimizedReader().withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
             gatePhase2.set(true);
@@ -611,9 +622,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         GatedOnDemandStorage storage = new GatedOnDemandStorage(parquet, asyncIo, gatePhase2, allowPhase2);
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(
-            new ParquetPushedExpressions(List.of(filter))
-        );
+        ParquetFormatReader reader = optimizedReader().withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
@@ -643,7 +652,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         NodeByteBudget.Hold overshoot = null;
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
@@ -688,7 +697,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
@@ -726,7 +735,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         );
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         int rows = 0;
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
@@ -885,7 +894,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
@@ -921,7 +930,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new Equals(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 5L, DataType.LONG), null);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
@@ -956,7 +965,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 20L, DataType.LONG), null);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         ParquetIoWatermark.AdmitHold eater = null;
         try (CloseableIterator<Page> iter = reader.read(new ImmediateAsyncStorage(parquet, asyncIo), FormatReadContext.of(null, 64))) {
@@ -1039,7 +1048,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
@@ -1105,7 +1114,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     }
 
     private CloseableIterator<Page> open(StorageObject storage, ParquetIoWatermark watermark) throws IOException {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true);
+        ParquetFormatReader reader = optimizedReader();
         if (watermark != null) {
             reader = reader.withIoWatermark(watermark);
         }
@@ -1114,8 +1123,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
 
     private CloseableIterator<Page> openThreshold(StorageObject storage, ParquetIoWatermark watermark, DynamicThreshold threshold)
         throws IOException {
-        ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
-            .withDynamicThreshold(threshold);
+        ParquetFormatReader reader = (ParquetFormatReader) optimizedReader().withIoWatermark(watermark).withDynamicThreshold(threshold);
         return reader.read(storage, FormatReadContext.of(null, 64));
     }
 

@@ -1207,7 +1207,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      */
     public void testSeparateStreamsEachFetchTailViaRangeRead() throws IOException {
         // Must exceed the sliding window so a tail seek is a suffix GET, not a whole-file fill
-        // (whole-file fills are not stored in FooterByteCache).
+        // (a whole-file fill is stored in FooterByteCache only when the object fits the footer prefetch).
         byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
         randomBytes(data);
         final int[] rangeReadCount = { 0 };
@@ -1454,7 +1454,12 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         assertEquals(data.length, rangeGets.getFirst()[1]);
     }
 
-    public void testTinyFileWholeFileFillDoesNotEnterFooterCache() throws IOException {
+    /**
+     * An object no larger than the footer prefetch is what the async footer path stores whole as its footer,
+     * so the adapter's whole-file fill must store it too: a later stream over the same key is then served
+     * from the cache with no GET.
+     */
+    public void testTinyFileWholeFileFillIsStoredAsItsFooter() throws IOException {
         byte[] data = new byte[100];
         randomBytes(data);
         List<long[]> rangeGets = new ArrayList<>();
@@ -1469,8 +1474,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             assertArrayEquals(data, buf);
         }
         assertEquals(1, rangeGets.size());
-        byte[] cached = footerByteCache.get(adapter.cacheKey());
-        assertNull("whole-file fills must not occupy FooterByteCache", cached);
+        assertEquals(0L, rangeGets.getFirst()[0]);
+        assertEquals(data.length, rangeGets.getFirst()[1]);
+        assertArrayEquals("the whole-file fill is the object's footer entry", data, footerByteCache.get(adapter.cacheKey()));
 
         rangeGets.clear();
         try (SeekableInputStream stream = adapter.newStream()) {
@@ -1480,9 +1486,89 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.readFully(buf);
             assertArrayEquals(data, buf);
         }
+        assertEquals("a second stream is served from the stored entry", 0, rangeGets.size());
+    }
+
+    /**
+     * The whole-file admission bound is the footer prefetch: an object of exactly that size is stored, one
+     * byte larger is not, even though both fit the sliding window and so are filled whole from offset 0.
+     * Larger whole-file fills would displace genuine footers from the byte budget.
+     */
+    public void testWholeFileFillIsStoredOnlyUpToTheFooterPrefetch() throws IOException {
+        assertWholeFileFillStored(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES, true);
+        assertWholeFileFillStored(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES + 1, false);
+    }
+
+    private void assertWholeFileFillStored(int size, boolean stored) throws IOException {
+        assertThat(size, Matchers.lessThanOrEqualTo(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE));
+        byte[] data = new byte[size];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, breaker);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(data.length - 8);
+            byte[] trailer = new byte[8];
+            stream.readFully(trailer);
+        }
+        assertEquals(1, rangeGets.size());
+        assertEquals("a file that fits the window is filled whole", 0L, rangeGets.getFirst()[0]);
+        assertEquals(data.length, rangeGets.getFirst()[1]);
+        byte[] cached = footerByteCache.get(adapter.cacheKey());
+        if (stored) {
+            assertArrayEquals("size " + size + " is within the footer prefetch and must be stored", data, cached);
+        } else {
+            assertNull("size " + size + " exceeds the footer prefetch and must not occupy FooterByteCache", cached);
+        }
+
+        rangeGets.clear();
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(data.length - 8);
+            byte[] trailer = new byte[8];
+            stream.readFully(trailer);
+        }
+        assertEquals("size " + size, stored ? 0 : 1, rangeGets.size());
+    }
+
+    /**
+     * {@link ParquetStorageObjectAdapter#refillWholeFileFooter()} stores an absent entry with one whole-file
+     * GET, is a no-op while the entry lives, and stores again once the entry is gone.
+     */
+    public void testRefillWholeFileFooterStoresAbsentEntryOnce() throws IOException {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, breaker);
+
+        adapter.refillWholeFileFooter();
         assertEquals(1, rangeGets.size());
         assertEquals(0L, rangeGets.getFirst()[0]);
         assertEquals(data.length, rangeGets.getFirst()[1]);
+        assertArrayEquals(data, footerByteCache.get(adapter.cacheKey()));
+        assertEquals("the refill leaves no stream open", 0, adapter.trackedStreamCount());
+
+        adapter.refillWholeFileFooter();
+        assertEquals("a live entry is not read again", 1, rangeGets.size());
+
+        footerByteCache.invalidateAll();
+        adapter.refillWholeFileFooter();
+        assertEquals("an expired entry is read again", 2, rangeGets.size());
+        assertArrayEquals(data, footerByteCache.get(adapter.cacheKey()));
+    }
+
+    /** An object larger than the footer prefetch is never served whole from the cache, so there is nothing to refill. */
+    public void testRefillWholeFileFooterIsNoopAboveFooterPrefetch() throws IOException {
+        byte[] data = new byte[ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES + 1];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, breaker);
+
+        adapter.refillWholeFileFooter();
+        assertEquals(0, rangeGets.size());
+        assertNull(footerByteCache.get(adapter.cacheKey()));
     }
 
     public void testSeekToEndOfTinyFileDoesNotFetch() throws IOException {
@@ -1881,7 +1967,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      */
     public void testSeparateAdaptersDoNotShareCachedRanges() throws IOException {
         // Must exceed the sliding window so a tail seek is a suffix GET, not a whole-file fill
-        // (whole-file fills are not stored in FooterByteCache).
+        // (a whole-file fill is stored in FooterByteCache only when the object fits the footer prefetch).
         byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
         random().nextBytes(data);
         final int[] rangeReadCount = { 0 };
@@ -1919,7 +2005,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
      */
     public void testConcurrentTailReadsEachIssueRangeRequest() throws Exception {
         // Must exceed the sliding window so a tail seek is a suffix GET, not a whole-file fill
-        // (whole-file fills are not stored in FooterByteCache).
+        // (a whole-file fill is stored in FooterByteCache only when the object fits the footer prefetch).
         byte[] data = new byte[ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1024];
         random().nextBytes(data);
         final AtomicInteger rangeReadCount = new AtomicInteger();

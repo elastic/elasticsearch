@@ -27,12 +27,14 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -72,6 +74,15 @@ import java.util.stream.Collectors;
  * the prefetch mechanism regardless of hardware speed.
  */
 public class PrefetchLatencySimulationTests extends ESTestCase {
+
+    /**
+     * Footer byte cache budget that admits no entry, for a test that injects a failure into the scan's own
+     * GET on a file that fits the footer prefetch: with the default cache the footer parse stores such a file
+     * whole and the scan reads nothing.
+     */
+    private static final Settings NO_FOOTER_BYTE_CACHE = Settings.builder()
+        .put(ExternalSourceCacheSettings.FOOTER_CACHE_SIZE.getKey(), "1b")
+        .build();
 
     private BlockFactory blockFactory;
     private ExecutorService asyncIoExecutor;
@@ -291,7 +302,12 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             new CompletionException(new CompletionException(injected))
         );
 
-        try (CloseableIterator<Page> iter = new ParquetFormatReader(blockFactory, true).read(storage, FormatReadContext.of(null, 1024))) {
+        try (
+            CloseableIterator<Page> iter = new ParquetFormatReader(NO_FOOTER_BYTE_CACHE, blockFactory).read(
+                storage,
+                FormatReadContext.of(null, 1024)
+            )
+        ) {
             int syncReadBaseline = storage.syncReadCount.get();
             AssertionError actual = expectThrows(AssertionError.class, iter::hasNext);
             assertSame(injected, actual);

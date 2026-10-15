@@ -1322,21 +1322,73 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Evicting the footer-byte entry after metadata forces the scan to GET again; rows stay correct.
+     * The scan path only peeks the footer byte cache ({@code CoalescedRangeReader.lookupFooterCacheHit}) and a
+     * parsed-footer hit reads no bytes, so once a small file's byte entry has expired while its parsed entry
+     * stays warm nothing would write it back: every later scan would issue ranged data GETs for the life of
+     * the parsed entry. The next scan must instead re-read the whole object once and store it, and the scan
+     * after that must issue no storage request at all. Rows stay correct throughout.
      */
-    public void testFooterByteEvictionForcesScanGet() throws Exception {
+    public void testScanAfterFooterByteExpiryRefillsTheByteCache() throws Exception {
         byte[] parquetData = createVpcFlowShapedParquet();
+        assertThat(parquetData.length, lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
         ExecutorService probePool = Executors.newFixedThreadPool(2);
         AtomicInteger asyncReadCount = new AtomicInteger();
+        AtomicInteger streamCount = new AtomicInteger();
         try {
-            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null);
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null, streamCount);
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(asyncObject);
             metadataAsyncDirect(reader, asyncObject);
             assertEquals(1, asyncReadCount.get());
+            assertEquals(0, streamCount.get());
+            assertNotNull("metadata stores the whole small object as its footer", reader.footerByteCacheForTests().get(key));
+
+            // Expire the byte entry alone; the parsed entry stays warm.
             reader.footerByteCacheForTests().invalidateAll();
-            int rows = drainAllRows(reader, asyncObject);
-            assertEquals(1, rows);
-            assertEquals("metadata GET plus scan GET after eviction", 2, asyncReadCount.get());
+            assertNotNull("the parsed entry must survive the byte expiry", reader.parsedFooterForTests(key));
+
+            assertEquals(1, drainAllRows(reader, asyncObject));
+            assertEquals("the scan re-reads the whole object once through the adapter", 1, streamCount.get());
+            assertEquals("no ranged data GET: the scan is served from the refilled entry", 1, asyncReadCount.get());
+            byte[] refilled = reader.footerByteCacheForTests().get(key);
+            assertNotNull("the scan must write the byte entry back", refilled);
+            assertEquals(parquetData.length, refilled.length);
+
+            assertEquals(1, drainAllRows(reader, asyncObject));
+            assertEquals("a scan over the refilled entry opens no stream", 1, streamCount.get());
+            assertEquals("a scan over the refilled entry issues no GET", 1, asyncReadCount.get());
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    /**
+     * The synchronous footer parse reads a small file whole through the adapter's window. That read ends at
+     * the file's last byte, so it must seed the byte cache the same way the async prefetch does; a later
+     * scan is then served from the entry with no storage request.
+     */
+    public void testSyncFooterParseStoresSmallFileAsItsFooter() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        assertThat(parquetData.length, lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        AtomicInteger streamCount = new AtomicInteger();
+        try {
+            StorageObject object = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null, streamCount);
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(object);
+            assertNotNull(reader.metadata(object));
+            assertEquals("the sync parse is one whole-object stream read", 1, streamCount.get());
+            assertEquals(0, asyncReadCount.get());
+            byte[] stored = reader.footerByteCacheForTests().get(key);
+            assertNotNull("the sync parse must store the whole small object as its footer", stored);
+            assertEquals(parquetData.length, stored.length);
+
+            assertEquals(1, drainAllRows(reader, object));
+            assertEquals("the scan is served from the stored entry: no GET", 0, asyncReadCount.get());
+            assertEquals("the scan is served from the stored entry: no stream", 1, streamCount.get());
         } finally {
             probePool.shutdownNow();
         }

@@ -213,7 +213,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     /**
      * Appends a potentially fragmented reference as one entry, copying its chunks directly into the array's storage.
      */
-    public void append(BytesReference value) throws IOException {
+    public void append(BytesReference value) {
         final int length = value.length();
         final long newOffset = lastOffset + length;
         try {
@@ -223,7 +223,10 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
                 bytes.append(chunk.bytes, chunk.offset, chunk.length);
             }
             appendOffset(newOffset, length);
-        } catch (IOException | CircuitBreakingException e) {
+        } catch (IOException e) {
+            // BytesReference iterators do not perform I/O.
+            throw new AssertionError("won't happen", e);
+        } catch (CircuitBreakingException e) {
             bytes.truncateTo(lastOffset);
             throw e;
         }

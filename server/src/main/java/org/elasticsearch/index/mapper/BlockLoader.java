@@ -873,7 +873,7 @@ public interface BlockLoader {
          * Appends all chunks as one value in the current entry, without first materializing a contiguous copy.
          * The bytes are copied into the builder, so the caller may release or reuse the input after this returns.
          */
-        BytesRefBuilder appendBytesReference(BytesReference value) throws IOException;
+        BytesRefBuilder appendBytesReference(BytesReference value);
     }
 
     /**

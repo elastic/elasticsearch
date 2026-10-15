@@ -308,7 +308,7 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
         Builder appendBytesRef(BytesRef value);
 
         @Override
-        Builder appendBytesReference(BytesReference value) throws IOException;
+        Builder appendBytesReference(BytesReference value);
 
         /**
          * Appends a BytesRef to the current entry using a {@link PagedBytesCursor}.

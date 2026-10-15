@@ -11,7 +11,6 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -222,7 +221,7 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
-    public void testAppendBytesReferenceChunksAndSlices() throws IOException {
+    public void testAppendBytesReferenceChunksAndSlices() {
         try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
             List<BytesRef> expected = new ArrayList<>();
             for (int i = 0; i < 20; i++) {
@@ -246,7 +245,7 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
-    public void testAppendBytesReferenceDoesNotMaterialize() throws IOException {
+    public void testAppendBytesReferenceDoesNotMaterialize() {
         int length = between(2 * PageCacheRecycler.BYTE_PAGE_SIZE, 3 * PageCacheRecycler.BYTE_PAGE_SIZE);
         var reference = new ZeroBytesReference(length) {
             @Override
@@ -258,35 +257,6 @@ public class BytesRefArrayTests extends ESTestCase {
             array.append(reference);
             assertEquals(1L, array.size());
             assertEquals(new BytesRef(new byte[length]), array.get(0, new BytesRef()));
-        }
-    }
-
-    public void testAppendBytesReferenceDiscardsPartialRead() throws IOException {
-        var reference = new ZeroBytesReference(2) {
-            @Override
-            public BytesRefIterator iterator() {
-                return new BytesRefIterator() {
-                    private boolean first = true;
-
-                    @Override
-                    public BytesRef next() throws IOException {
-                        if (first) {
-                            first = false;
-                            return new BytesRef("x");
-                        }
-                        throw new IOException("failed after the first chunk");
-                    }
-                };
-            }
-        };
-        try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
-            array.append(new BytesRef("before"));
-            expectThrows(IOException.class, () -> array.append(reference));
-            assertEquals(1L, array.size());
-            array.append(new BytesArray("after"));
-            assertEquals(2L, array.size());
-            assertEquals(new BytesRef("before"), array.get(0, new BytesRef()));
-            assertEquals(new BytesRef("after"), array.get(1, new BytesRef()));
         }
     }
 
@@ -562,15 +532,15 @@ public class BytesRefArrayTests extends ESTestCase {
         assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
-    public void testAppendCursorDiscardsEntryRefusedByCircuitBreaker() throws IOException {
+    public void testAppendCursorDiscardsEntryRefusedByCircuitBreaker() {
         assertChunkedAppendDiscardsEntryRefusedByCircuitBreaker(false);
     }
 
-    public void testAppendBytesReferenceDiscardsEntryRefusedByCircuitBreaker() throws IOException {
+    public void testAppendBytesReferenceDiscardsEntryRefusedByCircuitBreaker() {
         assertChunkedAppendDiscardsEntryRefusedByCircuitBreaker(true);
     }
 
-    private void assertChunkedAppendDiscardsEntryRefusedByCircuitBreaker(boolean bytesReference) throws IOException {
+    private void assertChunkedAppendDiscardsEntryRefusedByCircuitBreaker(boolean bytesReference) {
         // Chunked overloads must discard the entire entry even when copying a later chunk trips the breaker.
         CrankyCircuitBreakerService breakerService = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService, true);

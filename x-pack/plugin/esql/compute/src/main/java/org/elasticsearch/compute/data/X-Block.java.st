@@ -427,7 +427,7 @@ $endif$
 
 $if(BytesRef)$
         @Override
-        Builder appendBytesReference(BytesReference value) throws IOException;
+        Builder appendBytesReference(BytesReference value);
 
         /**
          * Appends a BytesRef to the current entry using a {@link PagedBytesCursor}.

@@ -287,7 +287,7 @@ public class BytesRefBlockTests extends BlockTestCase<BytesRefBlock, BytesRefBlo
         }
     }
 
-    public void testAppendBytesReferenceThroughBlockLoader() throws IOException {
+    public void testAppendBytesReferenceThroughBlockLoader() {
         var paged = new ZeroBytesReference(40_000) {
             @Override
             public BytesRef toBytesRef() {

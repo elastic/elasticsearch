@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
-import java.io.IOException;
 import java.util.Arrays;
 // end generated imports
 
@@ -49,7 +48,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     }
 
     @Override
-    public BytesRefBlockBuilder appendBytesReference(BytesReference value) throws IOException {
+    public BytesRefBlockBuilder appendBytesReference(BytesReference value) {
         ensureCapacity();
         values.append(value);
         hasNonNullValue = true;

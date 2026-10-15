@@ -19,9 +19,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Array$;
 import org.elasticsearch.core.Releasables;
 
-$if(BytesRef)$
-import java.io.IOException;
-$endif$
 import java.util.Arrays;
 // end generated imports
 
@@ -70,7 +67,7 @@ $endif$
 
 $if(BytesRef)$
     @Override
-    public BytesRefBlockBuilder appendBytesReference(BytesReference value) throws IOException {
+    public BytesRefBlockBuilder appendBytesReference(BytesReference value) {
         ensureCapacity();
         values.append(value);
         hasNonNullValue = true;

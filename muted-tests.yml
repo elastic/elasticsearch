@@ -319,9 +319,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
   issue: https://github.com/elastic/elasticsearch/issues/159710
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:PARQUET_DATASET}
-  issue: https://github.com/elastic/elasticsearch/issues/156789
 - class: org.elasticsearch.xpack.prometheus.PrometheusInstantQueryRestIT
   method: testInstantAggregatedOperandsMatchAcrossIngestionPaths
   issue: https://github.com/elastic/elasticsearch/issues/159795
@@ -346,9 +343,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {yaml=search/397_match_only_text_doc_values_multiterm_search/*}"
   issue: https://github.com/elastic/elasticsearch/issues/159693
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:PARQUET_DATASET}
-  issue: https://github.com/elastic/elasticsearch/issues/156789
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
   method: testPreferredNodeIdsAreUsedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/159502

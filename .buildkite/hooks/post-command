@@ -47,8 +47,7 @@ while IFS= read -r report_index; do
   source_set="${source_set%/html}"
 
   if buildkite-agent artifact upload "${report_dir}/**/*"; then
-    artifact_id="$(buildkite-agent artifact search "${report_dir}/index.html" --step "${BUILDKITE_JOB_ID:-}" --format '%i\n' || true)"
-    artifact_id="${artifact_id%%$'\n'*}"
+    artifact_id="$(buildkite-agent artifact search "${report_dir}/index.html" --step "${BUILDKITE_JOB_ID:-}" --format '%i' || true)"
     if [[ -n "$artifact_id" ]]; then
       artifact_url="https://buildkite.com/organizations/${BUILDKITE_ORGANIZATION_SLUG}/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}/jobs/${BUILDKITE_JOB_ID}/artifacts/${artifact_id}"
       jacoco_annotation+="<div>:coverage: <a href=\"${artifact_url}\"><code>${BUILDKITE_LABEL:-} / ${project_path} (${source_set})</code></a></div>"

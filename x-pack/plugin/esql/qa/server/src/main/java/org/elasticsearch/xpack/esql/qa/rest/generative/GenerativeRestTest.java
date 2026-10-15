@@ -198,9 +198,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "failed to parse date field \\[.*\\] with format",
         // full-text function trying to parse a non-IP string
         "is not an IP string literal",
-        // CompositeFunctionGenerator builds cidr_match(ip, keyword) from the catalog. Analysis accepts
-        // keyword/text CIDR args; runtime parse requires ip/prefix, so a field like user_agent fails.
-        "Expected \\[ip/prefix\\]",
         // a values(<that field>) agg could more than 100,000 values into a single multi-valued field, and a subsequent
         // inline stats … by <that field> hits the hard limit Block.MAX_LOOKUP = 100_000 in the compute layer
         // throwing IllegalArgumentException via PackedValuesBlockHash
@@ -534,32 +531,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 }
             }
         }
-    }
-
-    /**
-     * Strips synthetic IN-subquery columns ({@code $$in_subquery_mark$}, {@code $$in_subquery_const$}) from a
-     * {@link QueryExecuted}. These leak into the user-visible schema in some plans and confuse follow-up generation
-     * and EVAL column-presence validation.
-     */
-    private static QueryExecuted stripInSubquerySyntheticColumns(QueryExecuted qe) {
-        if (qe == null || qe.outputSchema() == null) {
-            return qe;
-        }
-        List<Integer> keepIndices = new ArrayList<>();
-        for (int i = 0; i < qe.outputSchema().size(); i++) {
-            String name = qe.outputSchema().get(i).name();
-            if (name.startsWith("$$in_subquery_mark$") == false && name.startsWith("$$in_subquery_const$") == false) {
-                keepIndices.add(i);
-            }
-        }
-        if (keepIndices.size() == qe.outputSchema().size()) {
-            return qe;
-        }
-        List<Column> schema = keepIndices.stream().map(qe.outputSchema()::get).toList();
-        List<List<Object>> rows = qe.result() == null
-            ? null
-            : qe.result().stream().map(row -> keepIndices.stream().map(row::get).toList()).toList();
-        return new QueryExecuted(qe.query(), qe.depth(), schema, rows, qe.exception());
     }
 
     /**
@@ -1612,7 +1583,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (result.query() != null && FromGenerator.hasApproximationSettings(result.query())) {
             result = stripApproximationColumns(result);
         }
-        result = stripInSubquerySyntheticColumns(result);
         return result;
     }
 

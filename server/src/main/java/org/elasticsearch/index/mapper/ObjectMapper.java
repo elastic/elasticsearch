@@ -257,10 +257,13 @@ public class ObjectMapper extends Mapper {
         }
 
         protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
+            // Assuming all features are supported is safe here. Builders that went through a merge have no duplicates left, and the
+            // duplicates added while building a dynamic mapping update are copies of the same object, so merging them changes nothing.
+            // That update is merged again on the master, which checks the features the cluster supports.
             Map<String, Mapper.Builder> dedupedBuilders = flattenBuildersIfNeeded(
                 mappersBuilders,
                 mapperBuilderContext,
-                MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE)
+                MapperMergeContext.fromBuilderContext(mapperBuilderContext, Long.MAX_VALUE, f -> true)
             );
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : dedupedBuilders.values()) {
@@ -380,7 +383,7 @@ public class ObjectMapper extends Mapper {
             MapperMergeContext mergeContext
         ) {
             // Intra-mapping duplicates use unlimited budget since they're from the same source
-            MapperMergeContext dedupContext = MapperMergeContext.from(builderContext, Long.MAX_VALUE);
+            MapperMergeContext dedupContext = mergeContext.withUnlimitedParseFieldLimitsBudget(builderContext);
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
                 // Nested builders are a genuine document boundary and must survive subobjects:false rather than

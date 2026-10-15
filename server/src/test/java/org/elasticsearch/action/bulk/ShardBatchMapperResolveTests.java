@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupLookup;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupResolution;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -129,6 +131,58 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), indexSettings);
         assertNotNull(resolution);
         assertNotNull(resolution.columnMappers()[schema.findLeaf("known", 0)]);
+        assertNull(resolution.columnMappers()[schema.findLeaf("unknown", 0)]);
+    }
+
+    /**
+     * A TSDB mapping with a mapped {@code known} leaf at the root and under {@code obj}. {@code rootDynamic} and {@code objDynamic}
+     * set {@code dynamic} on the root and on {@code obj}, so a test can make exactly one of them {@code false}.
+     */
+    private static XContentBuilder tsdbMapping(String rootDynamic, String objDynamic) throws IOException {
+        return topMapping(b -> {
+            b.field("dynamic", rootDynamic);
+            b.startObject("properties");
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("known").field("type", "long").endObject();
+            b.startObject("obj").field("type", "object").field("dynamic", objDynamic);
+            b.startObject("properties").startObject("known").field("type", "long").endObject().endObject();
+            b.endObject();
+            b.endObject();
+        });
+    }
+
+    /**
+     * With synthetic source the sequential path copies an unmapped value under {@code dynamic: false} into {@code _ignored_source}
+     * so that it survives in the reconstructed {@code _source}. The batch path writes no such entry, so the batch must fall back.
+     */
+    public void testMissingLeafUnderDynamicFalseFallsBackWithSyntheticSource() throws IOException {
+        final MapperService ms = tsdbMapperService(Settings.EMPTY, tsdbMapping("false", "false"));
+        assertTrue(ms.mappingLookup().isSourceSynthetic());
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("known", "unknown"), ms.mappingLookup(), ms.getIndexSettings()));
+        // The same mapping resolves when every leaf is mapped, so the fallback above is for the unmapped leaf alone.
+        assertNotNull(ShardBatchMapper.resolveMappers(schemaOf("known", "obj.known"), ms.mappingLookup(), ms.getIndexSettings()));
+    }
+
+    /** As above, when only a parent object sets {@code dynamic: false} and the root does not. */
+    public void testMissingLeafUnderDynamicFalseParentObjectFallsBackWithSyntheticSource() throws IOException {
+        final MapperService ms = tsdbMapperService(Settings.EMPTY, tsdbMapping("true", "false"));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("known", "obj.unknown"), ms.mappingLookup(), ms.getIndexSettings()));
+        assertNotNull(ShardBatchMapper.resolveMappers(schemaOf("known", "obj.known"), ms.mappingLookup(), ms.getIndexSettings()));
+    }
+
+    /**
+     * When the sequential path does not write {@code _ignored_source} (here the escape-hatch setting that skips the write), nothing
+     * is captured, so dropping an unmapped leaf under {@code dynamic: false} is correct and the batch stays on the batch path.
+     */
+    public void testMissingLeafUnderDynamicFalseIsIgnoredWhenIgnoredSourceIsNotWritten() throws IOException {
+        final MapperService ms = tsdbMapperService(
+            Settings.builder().put(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING.getKey(), true).build(),
+            tsdbMapping("false", "false")
+        );
+        final SourceSchema schema = schemaOf("known", "unknown");
+        final BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schema, ms.mappingLookup(), ms.getIndexSettings());
+        assertNotNull(resolution);
         assertNull(resolution.columnMappers()[schema.findLeaf("unknown", 0)]);
     }
 

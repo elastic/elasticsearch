@@ -61,8 +61,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * async footer prefetch reads {@code min(FOOTER_TAIL_PREFETCH_BYTES, length)} and stores it, so for such an
      * object the cached "footer" already is the whole object and the scan is served from it. Storing the same
      * bytes from the window keeps that entry alive after it expires on its own clock while the parsed footer
-     * stays warm; the one writer on the footer path runs only on a parsed-footer miss. Larger whole-file fills
-     * (up to the window) are not stored: they would displace genuine footers from the byte budget.
+     * stays warm; the footer path's own writer (the async prefetch) runs only on a parsed-footer miss. Larger
+     * whole-file fills (up to the window) are not stored: they would displace genuine footers from the byte budget.
      */
     private final boolean wholeFileIsFooter;
     private final CircuitBreaker breaker;
@@ -256,7 +256,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * so once the entry has expired nothing on the scan path would write it back and every scan would issue
      * ranged GETs for the life of the parsed entry. One whole-file fill here, coalesced with concurrent
      * openers of the same key by {@link FooterByteCache#getOrLoad}, restores the zero-GET scan. No-op for an
-     * object larger than the footer prefetch, whose data the cache never served.
+     * object larger than the footer prefetch: its data pages are never served from the cache, and the page
+     * indexes in its tail are re-read by the preload's own coalesced GET when that entry is gone. A read
+     * failure here propagates like the footer parse's own read of the same object; nothing is stored.
      */
     void refillWholeFileFooter() throws IOException {
         if (wholeFileIsFooter == false || footerBytes.get(cacheKey) != null) {

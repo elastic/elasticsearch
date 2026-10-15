@@ -1558,6 +1558,69 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         assertArrayEquals(data, footerByteCache.get(adapter.cacheKey()));
     }
 
+    /**
+     * A refill whose read fails propagates the storage failure, as the footer parse's own read of the same object
+     * would, and leaves nothing behind: no cache entry, no open stream, and no window charge on the breaker or
+     * the node byte budget. The failure is seen twice by storage because {@code fetchWindowAt} retries a failed
+     * {@link FooterByteCache#getOrLoad} with direct I/O before giving up.
+     */
+    public void testRefillWholeFileFooterFailurePropagatesAndStoresNothing() {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        AtomicInteger attempts = new AtomicInteger();
+        StorageObject failing = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException("Full GET not supported in failing harness");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                attempts.incrementAndGet();
+                throw new IOException("simulated storage failure");
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://refill-failure.parquet");
+            }
+        };
+        ParquetIoWatermark watermark = new ParquetIoWatermark(64 * 1024 * 1024);
+        CircuitBreaker limited = new LimitedBreaker("refill", ByteSizeValue.ofMb(16));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(failing, footerByteCache, limited, watermark);
+
+        IOException failure = expectThrows(IOException.class, adapter::refillWholeFileFooter);
+        assertEquals("simulated storage failure", failure.getMessage());
+        assertEquals("the coalesced load and its direct-I/O retry", 2, attempts.get());
+        assertNull("a failed refill stores nothing", footerByteCache.get(adapter.cacheKey()));
+        assertEquals("the failed refill leaves no stream open", 0, adapter.trackedStreamCount());
+        assertEquals("the failed refill refunds its window on the breaker", 0, limited.getUsed());
+        assertEquals("the failed refill refunds its window on the node budget", 0, watermark.used());
+    }
+
     /** An object larger than the footer prefetch is never served whole from the cache, so there is nothing to refill. */
     public void testRefillWholeFileFooterIsNoopAboveFooterPrefetch() throws IOException {
         byte[] data = new byte[ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES + 1];

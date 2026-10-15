@@ -920,9 +920,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             final PlainActionFuture<Engine.FlushResult> hollowFlushFuture = new PlainActionFuture<>();
             Thread hollowFlushThread = new Thread(() -> { engine.flushHollow(hollowFlushFuture); });
             hollowFlushThread.start();
-            // hollowMaxSeqNo is set before flush(). This must become 2 without the hollow flush taking Lucene's
-            // full-flush lock: the in-flight commit holds that lock until the latch below is released.
-            assertBusy(() -> assertThat(flushesInitiated.get(), equalTo(2)));
+            assertBusy(() -> assertThat(flushesInitiated.get(), equalTo(2))); // ensures that the hollow max seqno has been marked
 
             firstFlushProceedToGetUserDataLatch.countDown();
             firstFlushFuture.actionGet();

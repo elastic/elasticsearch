@@ -669,9 +669,8 @@ public class IndexEngine extends InternalEngine {
                 Long.toString(HOLLOW_TRANSLOG_RECOVERY_START_FILE)
             );
             commitExtraUserData.put(TRANSLOG_RELEASE_END_FILE, Long.toString(translogStartFileForNextCommit));
-            // The internal searcher was refreshed in commitIndexWriter just before this commit. Calculating the stats holds
-            // up the IndexWriter commit path, but it should not matter much because anyway ingestion is blocked at a higher
-            // level (e.g., by blocking the primary permits), and the calculations should be fast.
+            // Calculating the stats for hollow commits holds up the IndexWriter commit path, but it should not matter much because anyway
+            // ingestion is blocked at a higher level (e.g., by blocking the primary permits), and the calculations should be fast.
             commitExtraUserData.put(DOC_STATS, org.elasticsearch.common.Strings.toString(docStats()));
             commitExtraUserData.put(SHARD_FIELD_STATS, org.elasticsearch.common.Strings.toString(shardFieldStats()));
         } else {

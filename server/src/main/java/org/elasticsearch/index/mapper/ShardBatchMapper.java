@@ -203,8 +203,18 @@ public final class ShardBatchMapper {
                         logger.debug("batch indexing disabled: unmapped leaf [{}] matches routing_path", fullPath);
                         return null;
                     }
-                    // TODO: Look into ignored source
-                    // leaf silently ignored
+                    // The sequential path copies the value of an unmapped leaf under dynamic: false into _ignored_source, when it
+                    // records ignored source for this index at all, so that synthetic source still returns it. The batch path writes no
+                    // such entry, so
+                    // dropping the leaf here would lose the value; leave those batches to the sequential path. Where it does not
+                    // capture (stored source, strict-columnar modes), the value stays in _source and dropping the leaf is correct.
+                    if (sequentialPathCapturesDynamicFalseLeaves(lookup, indexSettings)) {
+                        logger.debug(
+                            "batch indexing disabled: unmapped leaf [{}] under dynamic=false is kept in _ignored_source",
+                            fullPath
+                        );
+                        return null;
+                    }
                     columnMappers[leaf] = null;
                     continue;
                 }
@@ -298,6 +308,17 @@ public final class ShardBatchMapper {
         // the same value the sequential path seeds its root context with.
         final ObjectMapper.Dynamic rootFallback = ObjectMapper.Dynamic.getRootDynamic(lookup);
         return lookup.getMapping().getRoot().resolveDynamic(leafPath, rootFallback);
+    }
+
+    /**
+     * Mirrors {@link DocumentParserContext#canAddIgnoredField()}, minus the per-document {@code recordedSource} part, which can
+     * only make the sequential path capture less. When this is {@code true} the sequential path writes
+     * {@code _ignored_source} for values it would otherwise drop; refusing slightly more than needed is always safe.
+     */
+    private static boolean sequentialPathCapturesDynamicFalseLeaves(MappingLookup lookup, IndexSettings indexSettings) {
+        return lookup.isSourceSynthetic()
+            && indexSettings.getSkipIgnoredSourceWrite() == false
+            && indexSettings.getMode().isStrictColumnar() == false;
     }
 
     /**

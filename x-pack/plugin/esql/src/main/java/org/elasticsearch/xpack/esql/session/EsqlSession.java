@@ -151,10 +151,10 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
-import org.elasticsearch.xpack.esql.plugin.UnmappedFieldsColumn;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
@@ -493,6 +493,7 @@ public class EsqlSession {
         );
         LOGGER.debug("ESQL resolved settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);
+        request.setResolvedSettings(resolved);
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
         // View and IN subquery resolution. IN_SUBQUERY telemetry is gathered from the result (ViewResolutionResult.hasInSubquery)
@@ -602,6 +603,7 @@ public class EsqlSession {
             finalConfiguration,
             executionInfo,
             request.filter(),
+            viewResolution.indexViewOrigins(),
             new ActionListener<Versioned<LogicalPlan>>() {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
@@ -708,9 +710,7 @@ public class EsqlSession {
                                 approximationApplied,
                                 minimumVersion
                             );
-                            Result inner = withAdditionalData.inner();
-                            TransportVersion resultVersion = withAdditionalData.minimumVersion();
-                            l.onResponse(new Versioned<>(UnmappedFieldsColumn.expose(inner), resultVersion));
+                            l.onResponse(withAdditionalData);
                         })
                         .addListener(listener);
                 }
@@ -1678,6 +1678,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
@@ -1698,7 +1699,15 @@ public class EsqlSession {
             flags,
             planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
-                analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
+                analyzedPlanAfterDatasetResolution(
+                    rewritten,
+                    unmappedResolution,
+                    configuration,
+                    executionInfo,
+                    requestFilter,
+                    indexViewOrigins,
+                    delegate
+                );
             }))
         );
     }
@@ -1709,6 +1718,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
@@ -1722,7 +1732,8 @@ public class EsqlSession {
         // an older node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may
         // cause bugs.
         PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, requestFilter, configuration)
-            .withMinimumTransportVersion(localClusterMinimumVersion);
+            .withMinimumTransportVersion(localClusterMinimumVersion)
+            .withIndexViewOrigins(indexViewOrigins);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
         // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
@@ -2753,6 +2764,7 @@ public class EsqlSession {
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
             null,
+            result.indexViewOrigins(),
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -2791,6 +2803,7 @@ public class EsqlSession {
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
             routingInfoCapture,
+            result.indexViewOrigins(),
             planningCpu.meteredCpu(ActionListener.wrap(indexResolution -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -2812,6 +2825,7 @@ public class EsqlSession {
                         preAnalysis.needsAnalyzerGroups(),
                         trackUnmappedFieldIndices,
                         null,
+                        result.indexViewOrigins(),
                         planningCpu.meteredCpu(retryListener)
                     );
                 });
@@ -2921,6 +2935,7 @@ public class EsqlSession {
                     executionInfo,
                     result.indexResolution.values(),
                     result.linkedResolution.values(),
+                    result.indexViewOrigins(),
                     requestFilter != null
                 );
             }
@@ -3113,7 +3128,8 @@ public class EsqlSession {
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
-        TransportVersion minimumTransportVersion
+        TransportVersion minimumTransportVersion,
+        IndexViewOrigins indexViewOrigins
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
@@ -3127,7 +3143,8 @@ public class EsqlSession {
                 null,
                 InferenceResolution.EMPTY,
                 ExternalSourceResolution.EMPTY,
-                TransportVersion.current()
+                TransportVersion.current(),
+                IndexViewOrigins.EMPTY
             );
         }
 
@@ -3157,7 +3174,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                indexViewOrigins
             );
         }
 
@@ -3172,7 +3190,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                indexViewOrigins
             );
         }
 
@@ -3187,7 +3206,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                indexViewOrigins
             );
         }
 
@@ -3202,7 +3222,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                indexViewOrigins
             );
         }
 
@@ -3223,7 +3244,24 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                indexViewOrigins
+            );
+        }
+
+        PreAnalysisResult withIndexViewOrigins(IndexViewOrigins indexViewOrigins) {
+            return new PreAnalysisResult(
+                fieldNames,
+                wildcardJoinIndices,
+                indexResolution,
+                exemplarsResolution,
+                lookupIndices,
+                linkedResolution,
+                enrichResolution,
+                inferenceResolution,
+                externalSourceResolution,
+                minimumTransportVersion,
+                indexViewOrigins
             );
         }
     }

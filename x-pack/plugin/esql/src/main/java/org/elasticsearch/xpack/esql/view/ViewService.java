@@ -321,6 +321,21 @@ public class ViewService {
      * }</pre>
      */
     public void ensureReservedViewExists(ProjectId projectId, View view, ActionListener<AcknowledgedResponse> listener) {
+        ensureReservedViewExists(projectId, view, project -> true, listener);
+    }
+
+    /**
+     * Like {@link #ensureReservedViewExists(ProjectId, View, ActionListener)}, but a missing view is only created once
+     * {@code shouldCreate} holds for the project metadata. Until then, the listener stays registered and the condition is
+     * re-evaluated on every cluster state change, so it should be cheap. A view that already exists is brought up to date
+     * regardless of the condition. Use it for views that only make sense when some data is present.
+     */
+    public void ensureReservedViewExists(
+        ProjectId projectId,
+        View view,
+        Predicate<ProjectMetadata> shouldCreate,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         assert view.isReserved() : "ensureReservedViewExists should create reserved views only";
         clusterService.addListener(new ClusterStateListener() {
             private final AtomicBoolean initializing = new AtomicBoolean(false);
@@ -336,7 +351,11 @@ public class ViewService {
                 if (event.state().getMinTransportVersion().supports(View.VIEW_RESERVED_VERSION) == false) {
                     return;
                 }
-                var existing = getMetadata(event.state().metadata().getProject(projectId)).getView(view.name());
+                var project = event.state().metadata().getProject(projectId);
+                var existing = getMetadata(project).getView(view.name());
+                if (existing == null && shouldCreate.test(project) == false) {
+                    return;
+                }
                 if (existing != null && existing.isReserved() == false) {
                     listener.onFailure(new ResourceAlreadyExistsException("view [{}] already exists", view.name()));
                 } else if (existing == null || Objects.equals(view, existing) == false) {

@@ -191,6 +191,45 @@ public class ViewServiceTests extends ESTestCase {
         assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view"), notNullValue());
     }
 
+    public void testWaitsForCreationConditionBeforeCreatingView() {
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        viewService.ensureReservedViewExists(
+            ProjectId.DEFAULT,
+            new View("reserved-view", "FROM some-index", null, true),
+            project -> project.hasIndex("some-index"),
+            future
+        );
+
+        publish(UnaryOperator.identity());
+        assertThat(future.isDone(), is(false));
+        assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view"), nullValue());
+
+        publish(
+            state -> state.putProjectMetadata(
+                ProjectMetadata.builder(clusterService.state().metadata().getProject(ProjectId.DEFAULT))
+                    .put(IndexMetadata.builder("some-index").settings(indexSettings(IndexVersion.current(), 1, 0)))
+            )
+        );
+        assertThat(future.actionGet(10, TimeUnit.SECONDS).isAcknowledged(), is(true));
+        assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view"), notNullValue());
+    }
+
+    public void testUpdatesExistingViewEvenIfCreationConditionIsFalse() {
+        putView(new View("reserved-view", "FROM some-index", null, true));
+
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        viewService.ensureReservedViewExists(
+            ProjectId.DEFAULT,
+            new View("reserved-view", "FROM other-index", null, true),
+            project -> false,
+            future
+        );
+        publish(UnaryOperator.identity());
+
+        assertThat(future.actionGet(10, TimeUnit.SECONDS).isAcknowledged(), is(true));
+        assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view").query(), equalTo("FROM other-index"));
+    }
+
     public void testAcceptsTsWithStats() {
         validatePutView("ts-view", "TS metrics | STATS max(rate(requests)) BY host");
         validatePutView("ts-view", "TS metrics | WHERE cpu > 1 | STATS max(cpu) | KEEP `max(cpu)`");
@@ -204,7 +243,7 @@ public class ViewServiceTests extends ESTestCase {
     public void testRejectsTsWithoutStats() {
         expectThrows(
             IllegalArgumentException.class,
-            containsString("view [ts-view] uses TS, it must be followed by a STATS command"),
+            containsString("view [ts-view] uses TS, which must be followed by a STATS command"),
             () -> validatePutView("ts-view", "TS metrics | WHERE cpu > 1 | KEEP cpu")
         );
     }

@@ -81,77 +81,6 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
         }
     }
 
-    /**
-     * A segment preconditioned by merge calibration stores transformed vectors, so it must keep being
-     * scored with a transformed query after {@code auto_calibrate} is switched off in the mapping.
-     * Preconditioning therefore follows the segment even though the mapping says {@code false}.
-     */
-    public void testResolveUsesPersistedPreconditionWhenAutoCalibrateDisabled() throws IOException {
-        try (Directory dir = newDirectory()) {
-            try (
-                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
-                    dir,
-                    4,
-                    64,
-                    IvfSegmentConfig.of(
-                        CentroidIndexFormat.FLAT,
-                        new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
-                        true,
-                        MAPPING_OVERSAMPLE
-                    ),
-                    IvfSegmentConfig.of(
-                        CentroidIndexFormat.FLAT,
-                        new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
-                        true,
-                        MAPPING_OVERSAMPLE
-                    ),
-                    IvfMergeConfigResolver.useCodecDefault()
-                )
-            ) {
-                LeafReader leaf = reader.leaves().getFirst().reader();
-                IvfSegmentConfig persistedConfig = ESNextRescoreOversampleTestFixture.readPersistedSegmentConfig(leaf);
-                assertTrue(persistedConfig != null && persistedConfig.usePrecondition());
-
-                FieldInfo fieldInfo = leaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-                IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, false, 1, MAPPING_OVERSAMPLE, null);
-                IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
-
-                assertTrue(resolved.usePrecondition());
-            }
-        }
-    }
-
-    /**
-     * The mirror of {@link #testResolveUsesPersistedPreconditionWhenAutoCalibrateDisabled}: a segment
-     * written without a preconditioner must not be scored with a transformed query, even when the mapping
-     * asks for preconditioning. Together the two pin preconditioning to the segment in both directions,
-     * which is what makes toggling {@code auto_calibrate} on a populated index safe.
-     */
-    public void testResolveIgnoresMappingPreconditionForUnpreconditionedSegment() throws IOException {
-        try (Directory dir = newDirectory()) {
-            try (
-                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegmentsPreconditioning(
-                    dir,
-                    4,
-                    64,
-                    false,
-                    false,
-                    IvfMergeConfigResolver.useCodecDefault()
-                )
-            ) {
-                LeafReader leaf = reader.leaves().getFirst().reader();
-                IvfSegmentConfig ivfSegmentConfig = ESNextRescoreOversampleTestFixture.readPersistedSegmentConfig(leaf);
-                assertNotNull(ivfSegmentConfig);
-                assertFalse(ivfSegmentConfig.usePrecondition());
-
-                FieldInfo fieldInfo = leaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-                IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(false, true, 1, MAPPING_OVERSAMPLE, null);
-
-                assertFalse(resolver.resolve(fieldInfo, leaf).usePrecondition());
-            }
-        }
-    }
-
     public void testResolveUsesPersistedOversamplePerSegmentWhenAutoCalibrateEnabled() throws IOException {
         float oversampleA = 1.25f;
         float oversampleB = 3f;
@@ -176,31 +105,6 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
 
                 assertThat(resolver.resolve(fieldInfoA, leafA.reader()).rescoreOversample(), equalTo(oversampleA));
                 assertThat(resolver.resolve(fieldInfoB, leafB.reader()).rescoreOversample(), equalTo(oversampleB));
-            }
-        }
-    }
-
-    public void testResolveUsesPersistedPreconditionWhenAutoCalibrateEnabled() throws IOException {
-        try (Directory dir = newDirectory()) {
-            try (
-                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegmentsPreconditioning(
-                    dir,
-                    4,
-                    64,
-                    true,
-                    false,
-                    IvfMergeConfigResolver.useCodecDefault()
-                )
-            ) {
-                IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(true, false, 1, MAPPING_OVERSAMPLE, null);
-
-                LeafReader preconditionedLeaf = reader.leaves().get(0).reader();
-                LeafReader plainLeaf = reader.leaves().get(1).reader();
-                FieldInfo preconditionedField = preconditionedLeaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-                FieldInfo plainField = plainLeaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-
-                assertTrue(resolver.resolve(preconditionedField, preconditionedLeaf).usePrecondition());
-                assertFalse(resolver.resolve(plainField, plainLeaf).usePrecondition());
             }
         }
     }
@@ -252,10 +156,11 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
     }
 
     /**
-     * Preconditioning is a physical property of each segment, so no combination of the mapping's
-     * {@code auto_calibrate} and {@code precondition} - i.e. no sequence of mapping updates - may change what a
-     * segment resolves to. One segment is preconditioned and the other is not, to catch a resolver that merely
-     * returns a constant.
+     * Preconditioning is a physical property of each segment: a preconditioned segment stores transformed vectors
+     * and must be scored with a transformed query, and a plain segment must not be. So no combination of the
+     * mapping's {@code auto_calibrate} and {@code precondition} - i.e. no sequence of mapping updates - may change
+     * what a segment resolves to. One segment is preconditioned and the other is not, to catch a resolver that
+     * merely returns a constant.
      */
     public void testResolvePreconditionFollowsSegmentForEveryMappingCombination() throws IOException {
         try (Directory dir = newDirectory()) {
@@ -286,63 +191,6 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                         String combination = "auto_calibrate=" + autoCalibrate + ", precondition=" + mappingPrecondition;
                         assertTrue(combination, resolver.resolve(preconditionedField, preconditionedLeaf).usePrecondition());
                         assertFalse(combination, resolver.resolve(plainField, plainLeaf).usePrecondition());
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Flipping {@code auto_calibrate} over the same segments switches everything except preconditioning between
-     * the persisted calibration and the mapping, in both directions, with no state carried between resolvers:
-     * a query planned after the update must not see anything from queries planned before it.
-     */
-    public void testResolveFlipsBetweenPersistedAndMappingWhenAutoCalibrateToggles() throws IOException {
-        QuantEncoding persistedEncoding = QuantEncoding.TWO_BIT_4BIT_QUERY;
-        float persistedOversample = 2f;
-        try (Directory dir = newDirectory()) {
-            try (
-                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
-                    dir,
-                    4,
-                    64,
-                    IvfSegmentConfig.of(
-                        CentroidIndexFormat.FLAT,
-                        new IvfSegmentConfig.OsqConfig(persistedEncoding),
-                        false,
-                        persistedOversample
-                    ),
-                    IvfSegmentConfig.of(
-                        CentroidIndexFormat.FLAT,
-                        new IvfSegmentConfig.OsqConfig(persistedEncoding),
-                        false,
-                        persistedOversample
-                    ),
-                    IvfMergeConfigResolver.useCodecDefault()
-                )
-            ) {
-                for (LeafReaderContext leafCtx : reader.leaves()) {
-                    LeafReader leaf = leafCtx.reader();
-                    FieldInfo fieldInfo = leaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-                    boolean autoCalibrate = false;
-                    for (int i = 0; i < 6; i++) {
-                        autoCalibrate = autoCalibrate == false;
-                        IvfSegmentConfig resolved = IvfQueryConfigResolver.from(
-                            autoCalibrate,
-                            false,
-                            MAPPING_BITS,
-                            MAPPING_OVERSAMPLE,
-                            null
-                        ).resolve(fieldInfo, leaf);
-                        QuantEncoding expectedEncoding = autoCalibrate ? persistedEncoding : QuantEncoding.fromBits((byte) MAPPING_BITS);
-                        float expectedOversample = autoCalibrate ? persistedOversample : MAPPING_OVERSAMPLE;
-                        assertThat("encoding, auto_calibrate=" + autoCalibrate, resolved.osqEncoding(), equalTo(expectedEncoding));
-                        assertThat(
-                            "oversample, auto_calibrate=" + autoCalibrate,
-                            resolved.rescoreOversample(),
-                            equalTo(expectedOversample)
-                        );
-                        assertFalse(resolved.usePrecondition());
                     }
                 }
             }

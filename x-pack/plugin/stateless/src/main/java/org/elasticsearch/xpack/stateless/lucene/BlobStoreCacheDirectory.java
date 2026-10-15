@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -136,22 +137,37 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * unless one is already running. Concurrent calls while a task is executing are coalesced into a single follow-up.
      */
     protected void maybeScheduleObsoleteRegionsEviction() {
+        maybeScheduleObsoleteRegionsEviction(null);
+    }
+
+    /**
+     * Same as {@link #maybeScheduleObsoleteRegionsEviction()}, but only the current metadata files that are still live are considered
+     * as referenced.
+     *
+     * @param liveFilesSupplier supplies the files still in use, called when the eviction task executes
+     */
+    protected void maybeScheduleObsoleteRegionsEviction(@Nullable Supplier<Set<String>> liveFilesSupplier) {
         if (submittedObsoleteRegionsEvictionTasks.incrementAndGet() == 1) {
-            submitObsoleteRegionsEviction();
+            submitObsoleteRegionsEviction(liveFilesSupplier);
         }
     }
 
-    private void submitObsoleteRegionsEviction() {
+    private void submitObsoleteRegionsEviction(@Nullable Supplier<Set<String>> liveFilesSupplier) {
         cacheService.submitAsyncEviction(() -> {
             final long regionsEvictionTasks = submittedObsoleteRegionsEvictionTasks.get();
             assert regionsEvictionTasks > 0 : regionsEvictionTasks;
 
             final Map<String, BlobFileRanges> metadata = currentMetadata;
+            final Set<String> liveFiles = liveFilesSupplier != null ? liveFilesSupplier.get() : null;
 
             final Map<Long, BitSet> activeRegionsByBccGen = new HashMap<>();
             long maxBccGeneration = -1L;
 
-            for (var file : metadata.values()) {
+            for (var entry : metadata.entrySet()) {
+                if (liveFiles != null && liveFiles.contains(entry.getKey()) == false) {
+                    continue;
+                }
+                final var file = entry.getValue();
                 long bccGen = file.getBatchedCompoundCommitTermAndGeneration().generation();
                 int startRegion = cacheService.getRegion(file.fileOffset());
                 int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());
@@ -209,7 +225,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             final long remainingTasks = submittedObsoleteRegionsEvictionTasks.addAndGet(-regionsEvictionTasks);
             assert remainingTasks >= 0 : remainingTasks;
             if (remainingTasks > 0) {
-                submitObsoleteRegionsEviction();
+                submitObsoleteRegionsEviction(liveFilesSupplier);
             }
         });
     }

@@ -294,14 +294,38 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public ObservableLongUpDownCounter buildWithCallback(Consumer<ObservableLongMeasurement> callback) {
-            unimplemented();
-            return null;
+            LongAsyncUpDownCounterRecorder asyncUpDownCounter = new LongAsyncUpDownCounterRecorder(name, callback);
+            recorder.register(asyncUpDownCounter, asyncUpDownCounter.getInstrument(), name, description, unit);
+            callbacks.add(asyncUpDownCounter);
+            return asyncUpDownCounter;
         }
 
         @Override
         public ObservableLongMeasurement buildObserver() {
             unimplemented();
             return null;
+        }
+    }
+
+    private class LongAsyncUpDownCounterRecorder extends AbstractInstrument
+        implements
+            ObservableLongUpDownCounter,
+            Callback,
+            OtelInstrument {
+        final Consumer<ObservableLongMeasurement> callback;
+
+        LongAsyncUpDownCounterRecorder(String name, Consumer<ObservableLongMeasurement> callback) {
+            super(name, InstrumentType.LONG_ASYNC_UP_DOWN_COUNTER);
+            this.callback = callback;
+        }
+
+        @Override
+        public void close() {
+            callbacks.remove(this);
+        }
+
+        public void doCall() {
+            callback.accept(new LongMeasurementRecorder(name, instrument));
         }
     }
 
@@ -358,14 +382,38 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public ObservableDoubleUpDownCounter buildWithCallback(Consumer<ObservableDoubleMeasurement> callback) {
-            unimplemented();
-            return null;
+            DoubleAsyncUpDownCounterRecorder asyncUpDownCounter = new DoubleAsyncUpDownCounterRecorder(name, callback);
+            recorder.register(asyncUpDownCounter, asyncUpDownCounter.getInstrument(), name, description, unit);
+            callbacks.add(asyncUpDownCounter);
+            return asyncUpDownCounter;
         }
 
         @Override
         public ObservableDoubleMeasurement buildObserver() {
             unimplemented();
             return null;
+        }
+    }
+
+    private class DoubleAsyncUpDownCounterRecorder extends AbstractInstrument
+        implements
+            ObservableDoubleUpDownCounter,
+            Callback,
+            OtelInstrument {
+        final Consumer<ObservableDoubleMeasurement> callback;
+
+        DoubleAsyncUpDownCounterRecorder(String name, Consumer<ObservableDoubleMeasurement> callback) {
+            super(name, InstrumentType.DOUBLE_ASYNC_UP_DOWN_COUNTER);
+            this.callback = callback;
+        }
+
+        @Override
+        public void close() {
+            callbacks.remove(this);
+        }
+
+        public void doCall() {
+            callback.accept(new DoubleMeasurementRecorder(name, instrument));
         }
     }
 

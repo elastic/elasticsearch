@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry;
 
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
+import org.elasticsearch.telemetry.metric.DoubleAsyncUpDownCounter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
@@ -18,6 +19,7 @@ import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncUpDownCounter;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -35,7 +37,9 @@ public enum InstrumentType {
     LONG_ASYNC_COUNTER(false),
     DOUBLE_ASYNC_COUNTER(true),
     DOUBLE_UP_DOWN_COUNTER(true),
+    DOUBLE_ASYNC_UP_DOWN_COUNTER(true),
     LONG_UP_DOWN_COUNTER(false),
+    LONG_ASYNC_UP_DOWN_COUNTER(false),
     DOUBLE_HISTOGRAM(true),
     LONG_HISTOGRAM(false),
     DOUBLE_GAUGE(true),
@@ -63,8 +67,12 @@ public enum InstrumentType {
             return InstrumentType.DOUBLE_ASYNC_COUNTER;
         } else if (instrument instanceof DoubleUpDownCounter) {
             return InstrumentType.DOUBLE_UP_DOWN_COUNTER;
+        } else if (instrument instanceof DoubleAsyncUpDownCounter) {
+            return InstrumentType.DOUBLE_ASYNC_UP_DOWN_COUNTER;
         } else if (instrument instanceof LongUpDownCounter) {
             return InstrumentType.LONG_UP_DOWN_COUNTER;
+        } else if (instrument instanceof LongAsyncUpDownCounter) {
+            return InstrumentType.LONG_ASYNC_UP_DOWN_COUNTER;
         } else if (instrument instanceof DoubleHistogram) {
             return InstrumentType.DOUBLE_HISTOGRAM;
         } else if (instrument instanceof LongHistogram) {

@@ -42,6 +42,43 @@ public interface MeterRegistry {
     DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit);
 
     /**
+     * Registers and returns a {@link DoubleAsyncUpDownCounter}. The returned up down counter object is {@link AutoCloseable} and must be
+     * closed when the resource it measures is closed, is stopped, or goes out of scope.
+     *
+     * @param name The name of the up down counter.
+     * @param description The description of the up down counter.
+     * @param unit The unit of measure.
+     * @param measuredValue A function that returns the measured value. The function must not throw an exception and must be safe to call
+     *                      from different threads.
+     */
+    default DoubleAsyncUpDownCounter registerDoubleAsyncUpDownCounter(
+        String name,
+        String description,
+        String unit,
+        DoubleSupplier measuredValue
+    ) {
+        return registerDoubleAsyncUpDownCounter(name, description, unit, measurement -> measurement.record(measuredValue.getAsDouble()));
+    }
+
+    /**
+     * Registers and returns a {@link DoubleAsyncUpDownCounter}. The returned up down counter object is {@link AutoCloseable} and must be
+     * closed when the resource it measures is closed, is stopped, or goes out of scope.
+     *
+     * @param name The name of the up down counter.
+     * @param description The description of the up down counter.
+     * @param unit The unit of measure.
+     * @param callback A callback that records the measured values, along with the associated attributes, using the passed
+     *                 {@link DoubleAsyncMeasurement}. The callback must not throw an exception and must be safe to call from different
+     *                 threads.
+     */
+    DoubleAsyncUpDownCounter registerDoubleAsyncUpDownCounter(
+        String name,
+        String description,
+        String unit,
+        Consumer<DoubleAsyncMeasurement> callback
+    );
+
+    /**
      * Register a {@link DoubleGauge}.  The returned object may be reused.
      * @param name name of the counter
      * @param description description of purpose
@@ -256,6 +293,43 @@ public interface MeterRegistry {
     LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit);
 
     /**
+     * Registers and returns a {@link LongAsyncUpDownCounter}. The returned up down counter object is {@link AutoCloseable} and must be
+     * closed when the resource it measures is closed, is stopped, or goes out of scope.
+     *
+     * @param name The name of the up down counter.
+     * @param description The description of the up down counter.
+     * @param unit The unit of measure.
+     * @param measuredValue A function that returns the measured value. The function must not throw an exception and must be safe to call
+     *                      from different threads.
+     */
+    default LongAsyncUpDownCounter registerLongAsyncUpDownCounter(
+        String name,
+        String description,
+        String unit,
+        LongSupplier measuredValue
+    ) {
+        return registerLongAsyncUpDownCounter(name, description, unit, measurement -> measurement.record(measuredValue.getAsLong()));
+    }
+
+    /**
+     * Registers and returns a {@link LongAsyncUpDownCounter}. The returned up down counter object is {@link AutoCloseable} and must be
+     * closed when the resource it measures is closed, is stopped, or goes out of scope.
+     *
+     * @param name The name of the up down counter.
+     * @param description The description of the up down counter.
+     * @param unit The unit of measure.
+     * @param callback A callback that records the measured values, along with the associated attributes, using the passed
+     *                 {@link LongAsyncMeasurement}. The callback must not throw an exception and must be safe to call from different
+     *                 threads.
+     */
+    LongAsyncUpDownCounter registerLongAsyncUpDownCounter(
+        String name,
+        String description,
+        String unit,
+        Consumer<LongAsyncMeasurement> callback
+    );
+
+    /**
      * Register a {@link LongGauge}.  The returned object may be reused.
      * @param name name of the counter
      * @param description description of purpose
@@ -357,6 +431,16 @@ public interface MeterRegistry {
         }
 
         @Override
+        public DoubleAsyncUpDownCounter registerDoubleAsyncUpDownCounter(
+            String name,
+            String description,
+            String unit,
+            Consumer<DoubleAsyncMeasurement> callback
+        ) {
+            return DoubleAsyncUpDownCounter.NOOP;
+        }
+
+        @Override
         public DoubleGauge registerDoubleGauge(String name, String description, String unit) {
             return DoubleGauge.NOOP;
         }
@@ -409,6 +493,16 @@ public interface MeterRegistry {
         @Override
         public LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit) {
             return LongUpDownCounter.NOOP;
+        }
+
+        @Override
+        public LongAsyncUpDownCounter registerLongAsyncUpDownCounter(
+            String name,
+            String description,
+            String unit,
+            Consumer<LongAsyncMeasurement> callback
+        ) {
+            return LongAsyncUpDownCounter.NOOP;
         }
 
         @Override

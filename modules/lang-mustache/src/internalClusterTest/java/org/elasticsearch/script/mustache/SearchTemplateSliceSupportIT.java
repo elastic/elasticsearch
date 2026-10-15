@@ -44,16 +44,14 @@ public class SearchTemplateSliceSupportIT extends ESIntegTestCase {
             }""");
         getRestClient().performRequest(create);
 
-        Request index1 = new Request("POST", "/search-template-slice-support-it/_doc/1");
-        index1.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request index1 = new Request("POST", "/search-template-slice-support-it/s1/_doc/1");
         index1.setJsonEntity("""
             {
               "field": "a"
             }""");
         getRestClient().performRequest(index1);
 
-        Request index2 = new Request("POST", "/search-template-slice-support-it/_doc/2");
-        index2.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        Request index2 = new Request("POST", "/search-template-slice-support-it/s2/_doc/2");
         index2.setJsonEntity("""
             {
               "field": "b"
@@ -62,8 +60,7 @@ public class SearchTemplateSliceSupportIT extends ESIntegTestCase {
 
         getRestClient().performRequest(new Request("POST", "/search-template-slice-support-it/_refresh"));
 
-        Request searchTemplate = new Request("GET", "/search-template-slice-support-it/_search/template");
-        searchTemplate.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        Request searchTemplate = new Request("GET", "/search-template-slice-support-it/s1/_search/template");
         searchTemplate.setJsonEntity("""
             {
               "source": {

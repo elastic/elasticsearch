@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -276,9 +277,16 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 }
             });
 
-            // Assert that the history document has been written for taking the snapshot and deleting it
+            // Wait for .slm-history* to exist and its shards to be assigned before searching
             assertBusy(() -> {
-                assertResponse(
+                ClusterHealthResponse health = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, ".slm-history*").get();
+                assertThat(health.getIndices().size(), greaterThan(0));
+                assertThat(health.getUnassignedShards(), equalTo(0));
+            });
+
+            // Assert that the history document has been written for taking the snapshot and deleting it
+            assertBusy(
+                () -> assertResponse(
                     prepareSearch(".slm-history*").setQuery(QueryBuilders.matchQuery("snapshot_name", completedSnapshotName)),
                     resp -> {
                         logger.info(
@@ -288,8 +296,8 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                         );
                         assertThat(resp.getHits().getTotalHits().value(), equalTo(2L));
                     }
-                );
-            });
+                )
+            );
         } finally {
             unblockNode(REPO, internalCluster().getMasterName());
             unblockAllDataNodes(REPO);

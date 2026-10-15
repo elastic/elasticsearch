@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.utils;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
 
@@ -69,8 +70,8 @@ public final class BoundedParallelGather {
      * @param <R>            result type
      * @return a list of results in the same order as {@code items}
      * @throws Exception     the first exception thrown by any invocation of {@code fn} (or by the
-     *                       executor when rejecting a running slot), with remaining exceptions
-     *                       suppressed onto it
+     *                       executor when rejecting a running slot), with remaining distinct
+     *                       exceptions suppressed onto it
      */
     public static <T, R> List<R> gather(List<T> items, CheckedFunction<T, R, Exception> fn, int maxConcurrency, Executor executor)
         throws Exception {
@@ -172,7 +173,7 @@ public final class BoundedParallelGather {
     private static void recordError(AtomicBoolean failed, AtomicReference<Exception> firstError, Exception e) {
         failed.set(true);
         if (firstError.compareAndSet(null, e) == false) {
-            firstError.get().addSuppressed(e);
+            SuppressedFailures.attach(firstError.get(), e);
         }
     }
 }

@@ -27,9 +27,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankShardResult;
+import org.elasticsearch.search.rank.ThrowingRankBuilderType;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
-import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -180,7 +180,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
 
     public static class ThrowingMockRequestActionBasedRankBuilder extends TextSimilarityRankBuilder {
 
-        protected final AbstractRerankerIT.ThrowingRankBuilderType throwingRankBuilderType;
+        protected final ThrowingRankBuilderType throwingRankBuilderType;
 
         public ThrowingMockRequestActionBasedRankBuilder(
             int rankWindowSize,
@@ -193,12 +193,12 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
             ChunkScorerConfig chunkScorerConfig
         ) {
             super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, chunkScorerConfig);
-            this.throwingRankBuilderType = AbstractRerankerIT.ThrowingRankBuilderType.valueOf(throwingType);
+            this.throwingRankBuilderType = ThrowingRankBuilderType.valueOf(throwingType);
         }
 
         public ThrowingMockRequestActionBasedRankBuilder(StreamInput in) throws IOException {
             super(in);
-            this.throwingRankBuilderType = in.readEnum(AbstractRerankerIT.ThrowingRankBuilderType.class);
+            this.throwingRankBuilderType = in.readEnum(ThrowingRankBuilderType.class);
         }
 
         @Override
@@ -209,7 +209,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
 
         @Override
         public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-            if (this.throwingRankBuilderType == AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
+            if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
                 return new RankFeaturePhaseRankShardContext(field()) {
                     @Override
                     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
@@ -223,7 +223,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
 
         @Override
         public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
-            if (this.throwingRankBuilderType == AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT)
+            if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT)
                 return new TextSimilarityRankFeaturePhaseRankCoordinatorContext(
                     size,
                     from,

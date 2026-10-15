@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
@@ -73,6 +74,7 @@ public class IndicesServiceBuilder {
     BigArrays bigArrays;
     ScriptService scriptService;
     ClusterService clusterService;
+    FeatureService featureService;
     ProjectResolver projectResolver;
     Client client;
     MetaStateService metaStateService;
@@ -164,6 +166,11 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public IndicesServiceBuilder featureService(FeatureService featureService) {
+        this.featureService = featureService;
+        return this;
+    }
+
     public IndicesServiceBuilder projectResolver(ProjectResolver projectResolver) {
         this.projectResolver = projectResolver;
         return this;
@@ -235,6 +242,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(scriptService);
         Objects.requireNonNull(clusterService);
+        Objects.requireNonNull(featureService);
         Objects.requireNonNull(projectResolver);
         Objects.requireNonNull(client);
         Objects.requireNonNull(metaStateService);

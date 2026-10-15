@@ -50,7 +50,7 @@ public final class StructuralIndexer implements AutoCloseable {
     public StructuralIndexer(int initialCapacity) {
         Objects.requireNonNull(LIB, "Native simdjson is not available");
         MemorySegment created = checkNonNull(LIB.create(initialCapacity));
-        this.ctx = checkNonNull(LIB.create(initialCapacity));
+        this.ctx = created;
         // The cleanup action must not capture `this`, otherwise this instance stays strongly
         // reachable from the Cleaner and the context is never freed.
         this.cleanable = CLEANER.register(this, () -> LIB.destroy(created));

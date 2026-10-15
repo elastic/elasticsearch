@@ -34,6 +34,8 @@ dependencies {
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
   // exposes /_flush_telemetry for RemoteClusterSecurityWithApmTracingRestIT
   clusterModules project(':test:external-modules:test-apm-integration')
+  // RemoteClusterSecurityWithApmTracingRestIT reuses RecordingApmServer to receive spans over OTLP/gRPC
+  javaRestTestImplementation(testArtifact(project(':test:external-modules:test-apm-integration'), 'javaRestTest'))
 }
 
 // Tests that consume a BWC distribution. Run only in BWC-aware tasks; excluded from regular javaRestTest.

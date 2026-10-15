@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161256
+summary: "ESQL:DS: Apply `error_mode` to unreadable declared columns"
+type: enhancement

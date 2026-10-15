@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -36,6 +37,8 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -332,16 +335,38 @@ public class Mapper {
         // ComputeService.executePlan has trouble with executing plan without coordinator plan, adding exchange solves the issue
         int childSize = merge.children().size();
 
+        // ViewUnionAll carries metadata about which branches are view subplans vs bare index relations. View-branch
+        // fragments must not receive the raw Lucene esFilter (integrateEsFilterIntoFragment skips them); we mark
+        // them here so the distinction survives into the physical plan.
+        boolean isViewUnionAll = merge instanceof ViewUnionAll;
+
         List<PhysicalPlan> newChildren = new ArrayList<>(childSize);
+        List<LogicalPlan> logicalChildren = merge.children();
+        ViewUnionAll vua = isViewUnionAll ? (ViewUnionAll) merge : null;
+        // Use a positional list of keys so we can look up isViewBranch per child index.
+        List<String> viewKeys = isViewUnionAll ? vua.namedSubqueries().keySet().stream().toList() : null;
+
         for (int i = 0; i < childSize; i++) {
-            PhysicalPlan child = mapInner(merge.children().get(i));
+            PhysicalPlan child = mapInner(logicalChildren.get(i));
+            if (isViewUnionAll && vua.isViewBranch(viewKeys.get(i))) {
+                // Actual view branch: mark every FragmentExec in the subtree so integrateEsFilterIntoFragment skips them.
+                // Bare-index branches (key "main") and literal-subquery branches ("unnamed_view_<hash>") are excluded.
+                child = child.transformDown(FragmentExec.class, FragmentExec::asFromViewBranch);
+            }
             if (child instanceof FragmentExec) {
                 child = new ExchangeExec(child.source(), child);
             }
             newChildren.add(child);
         }
 
-        return new MergeExec(merge.source(), newChildren, merge.output());
+        // ViewUnionAll extends UnionAll, so it maps as UNION. A new MergePlan sibling fails here
+        // instead of inheriting UNION placement.
+        MergeExec.Kind kind = switch (merge) {
+            case Fork ignored -> MergeExec.Kind.FORK;
+            case UnionAll ignored -> MergeExec.Kind.UNION;
+            default -> throw new IllegalStateException("unexpected MergePlan subclass: " + merge.getClass().getName());
+        };
+        return new MergeExec(merge.source(), newChildren, merge.output(), kind);
     }
 
     /**

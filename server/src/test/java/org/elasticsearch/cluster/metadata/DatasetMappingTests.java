@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -80,7 +82,8 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
      * reading of) the core mapping vocabulary — supporting a new key has to be a deliberate, test-breaking change.
      */
     public void testRejectsCoreMappingsKeysWeDoNotSupport() throws IOException {
-        for (String key : List.of("runtime", "dynamic_templates", "_routing", "_meta", "_field_names", "subobjects", "_size")) {
+        // _id is here because it is the one key the two entry points disagree on: refused on registration, skipped on read.
+        for (String key : List.of("runtime", "dynamic_templates", "_routing", "_meta", "_field_names", "subobjects", "_size", "_id")) {
             String json = "{\"dynamic\":\"true\",\"" + key + "\":{}}";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
                 parser.nextToken(); // advance to START_OBJECT, where parseMappings expects to begin
@@ -94,21 +97,41 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
         assertNull(DatasetMapping.assemble(null));
     }
 
-    public void testIdPathParsesAndDefaults() throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"dynamic\":\"true\",\"_id\":{\"path\":\"request_id\"}}")) {
-            parser.nextToken();
-            DatasetMapping.Mappings m = DatasetMapping.parseMappings(parser);
-            assertEquals("request_id", m.idPath());
+    /**
+     * A 9.5 node wrote {@code {"path": "<column>"}} and nothing else. The parser matches the block by key and skips
+     * its contents unexamined, so the other two shapes cost nothing to tolerate and cover 9.5 having been laxer than
+     * it looks. The rest of the block must survive, or an upgraded node cannot load its own gateway metadata.
+     */
+    public void testStoredMappingsSkipUnsupportedIdBlock() throws IOException {
+        for (String idBlock : new String[] { "{\"path\":\"request_id\"}", "{\"type\":\"keyword\"}", "{}" }) {
+            String json = "{\"dynamic\":\"true\",\"properties\":{\"request_id\":{\"type\":\"keyword\"}},\"_id\":" + idBlock + "}";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+                parser.nextToken();
+                DatasetMapping.Mappings mappings = DatasetMapping.parseStoredMappings(parser);
+                assertEquals(DatasetMapping.Dynamic.TRUE, mappings.dynamic());
+                assertEquals(Set.of("request_id"), mappings.properties().keySet());
+            }
         }
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"dynamic\":\"true\"}")) {
-            parser.nextToken();
-            assertNull("absent _id leaves idPath unset", DatasetMapping.parseMappings(parser).idPath());
-        }
-        // Only [path] is supported under _id; other keys are rejected.
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"_id\":{\"type\":\"keyword\"}}")) {
-            parser.nextToken();
-            Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
-            assertThat(e.getMessage(), containsString("_id"));
+    }
+
+    /**
+     * Written as raw stream bytes because no in-repo writer puts a value in the {@code _id.path} slot. The
+     * trailing marker is the point: a reader that dropped the read instead of consuming the slot would leave the
+     * stream misaligned against a 9.5 peer.
+     */
+    public void testIdPathSlotIsReadAndDiscarded() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeEnum(DatasetMapping.Dynamic.TRUE);
+            out.writeMap(Map.of("request_id", new DatasetFieldMapping("keyword", null)), (o, v) -> v.writeTo(o));
+            out.writeOptionalString("request_id");
+            out.writeString("trailing");
+
+            try (StreamInput in = out.bytes().streamInput()) {
+                DatasetMapping.Mappings mappings = new DatasetMapping.Mappings(in);
+                assertEquals(DatasetMapping.Dynamic.TRUE, mappings.dynamic());
+                assertEquals(Set.of("request_id"), mappings.properties().keySet());
+                assertEquals("trailing", in.readString());
+            }
         }
     }
 

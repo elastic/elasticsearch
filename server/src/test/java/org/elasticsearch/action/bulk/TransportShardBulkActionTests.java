@@ -26,25 +26,38 @@ import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
+import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -53,18 +66,26 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.mockito.MockingDetails;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Stubbing;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -79,6 +100,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -149,7 +171,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         DocumentParsingProvider documentParsingProvider = mock();
         XContentMeteringParserDecorator parserDecorator = mock();
-        when(documentParsingProvider.newMeteringParserDecorator(any())).thenReturn(parserDecorator);
+        when(documentParsingProvider.newMeteringParserDecorator()).thenReturn(parserDecorator);
         when(parserDecorator.decorate(any(), any())).then(i -> i.getArgument(0));
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
@@ -216,7 +238,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
 
         assertThat(replicaRequest, equalTo(primaryRequest));
-        verify(documentParsingProvider).newMeteringParserDecorator(any());
+        verify(documentParsingProvider).newMeteringParserDecorator();
         verify(parserDecorator).decorate(any(), any());
 
         // Assert that the document count is still 1
@@ -714,7 +736,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 assertThat(failure.getCause(), equalTo(err));
                 assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
 
-                verify(documentParsingProvider, times(retries + 1)).newMeteringParserDecorator(any());
+                verify(documentParsingProvider, times(retries + 1)).newMeteringParserDecorator();
             }
         }
     }
@@ -798,7 +820,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 long expectedSize = indexingBytes + maxMemoryOverhead + expectedChange;
                 assertEquals(expectedSize, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
 
-                verify(documentParsingProvider).newMeteringParserDecorator(updateResponse);
+                verify(documentParsingProvider).newMeteringParserDecorator();
             }
         }
     }
@@ -878,7 +900,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 assertThat(context.getLocationToSync(), equalTo(resultLocation));
                 assertThat(bulkShardRequest.items()[0].request(), equalTo(writeRequest));
 
-                verify(documentParsingProvider).newMeteringParserDecorator(updateResponse);
+                verify(documentParsingProvider).newMeteringParserDecorator();
             }
         }
     }
@@ -1212,6 +1234,90 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testBatchRowSourcesAreParsedInPlace() throws Exception {
+        final String mapping = """
+            {
+              "properties": {
+                "title": { "type": "keyword" },
+                "count": { "type": "long" },
+                "meta": { "properties": { "tag": { "type": "keyword" } } }
+              }
+            }""";
+        IndexShard primary = newShard(shardId, true, "n1", indexMetadata(mapping), null);
+        recoverShardFromStore(primary);
+        IndexShard replica = newShard(shardId, false, "n2", indexMetadata(mapping), null);
+        recoveryEmptyReplica(replica, true);
+
+        // build initial documents
+        int numDocs = 10;
+        Map<String, Map<String, Object>> expectedById = new HashMap<>();
+        List<BytesReference> sources = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.startObject().field("title", "doc-" + i).field("count", i);
+                if (randomBoolean()) {
+                    // heterogeneous rows: the nested object is absent from some of the documents
+                    builder.startObject("meta").field("tag", "tag-" + i).endObject();
+                }
+                builder.endObject();
+                BytesReference source = BytesReference.bytes(builder);
+                sources.add(source);
+                expectedById.put("id_" + i, XContentHelper.convertToMap(source, false, XContentType.JSON).v2());
+            }
+        }
+
+        try (EscfBatch batch = EscfEncoder.encode(sources, XContentType.JSON)) {
+            BulkItemRequest[] items = new BulkItemRequest[numDocs];
+            for (int i = 0; i < numDocs; i++) {
+                IndexRequest indexRequest = new IndexRequest("index").id("id_" + i);
+                // the shape BulkShardRequest(StreamInput) produces on the receiving node: a row reference and no bytes
+                indexRequest.indexSource().setSourceRow(batch, i, XContentType.JSON);
+                items[i] = new BulkItemRequest(i, indexRequest);
+            }
+            BulkShardRequest request = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
+            request.setBulkShardBatch(new BulkShardBatch(batch));
+
+            // Test the sequential path
+            BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
+            while (context.hasMoreOperationsToExecute()) {
+                TransportShardBulkAction.executeBulkItemRequest(
+                    context,
+                    null,
+                    threadPool::absoluteTimeInMillis,
+                    new NoopMappingUpdatePerformer(),
+                    (listener, mappingVersion) -> {},
+                    ASSERTING_DONE_LISTENER,
+                    DocumentParsingProvider.EMPTY_INSTANCE
+                );
+            }
+            // Assert that documents were indexed
+            assertNotNull(context.getLocationToSync());
+
+            for (int i = 0; i < numDocs; i++) {
+                BulkItemResponse response = items[i].getPrimaryResponse();
+                assertFalse(response.toString(), response.isFailed());
+                assertThat(response.getId(), equalTo("id_" + i));
+                IndexRequest indexRequest = (IndexRequest) items[i].request();
+                assertTrue("the sequential path must not inline the row", indexRequest.indexSource().hasSourceRow());
+                assertThat(indexRequest.source().length(), equalTo(0));
+            }
+            assertStoredSources(primary, expectedById);
+
+            // Perform the same on the replica
+            TransportShardBulkAction.performOnReplica(request, replica);
+            assertStoredSources(replica, expectedById);
+        }
+        closeShards(primary, replica);
+    }
+
+    private void assertStoredSources(IndexShard shard, Map<String, Map<String, Object>> expectedById) throws IOException {
+        Map<String, Map<String, Object>> storedById = new HashMap<>();
+        for (DocIdSeqNoAndSource doc : getDocIdAndSeqNos(shard)) {
+            storedById.put(doc.id(), XContentHelper.convertToMap(new BytesArray(doc.source()), false, XContentType.JSON).v2());
+        }
+        assertThat(storedById, equalTo(expectedById));
+    }
+
     public void testRetries() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         UpdateRequest writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
@@ -1280,6 +1386,329 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             threadPool.executor(Names.WRITE)
         );
         latch.await();
+    }
+
+    /**
+     * Mapping updates are only sent together on the indices that enable it, every operation sends its own update otherwise.
+     */
+    public void testMappingUpdatesAreNotSentTogetherByDefault() throws Exception {
+        IndexShard shard = newStartedShard(true);
+        int numDocs = between(3, 30);
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, new IndexRequest("index").id("id_" + i).source(Requests.INDEX_CONTENT_TYPE, "field_" + i, i));
+        }
+
+        List<CompressedXContent> updates = performOnPrimaryApplyingMappingUpdates(shard, items);
+
+        assertThat(updates.size(), equalTo(numDocs));
+        for (int i = 0; i < numDocs; i++) {
+            assertFalse(items[i].getPrimaryResponse().isFailed());
+        }
+        assertDocCount(shard, numDocs);
+        closeShards(shard);
+    }
+
+    /**
+     * The first operation that needs a mapping update sends its own. The second one that needs an update also sends the updates
+     * of the operations that follow it, so that a request where every document adds a field only updates the mappings twice.
+     */
+    public void testMappingUpdatesOfFollowingOperationsAreSentTogether() throws Exception {
+        IndexShard shard = newStartedShard(
+            true,
+            Settings.builder().put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true).build()
+        );
+        int numDocs = between(3, 30);
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, new IndexRequest("index").id("id_" + i).source(Requests.INDEX_CONTENT_TYPE, "field_" + i, i));
+        }
+
+        List<CompressedXContent> updates = performOnPrimaryApplyingMappingUpdates(shard, items);
+
+        assertThat(updates.size(), equalTo(2));
+        for (int i = 0; i < numDocs; i++) {
+            assertFalse(items[i].getPrimaryResponse().isFailed());
+            assertThat(shard.mapperService().fieldType("field_" + i), notNullValue());
+        }
+        assertDocCount(shard, numDocs);
+        closeShards(shard);
+    }
+
+    /**
+     * The look-ahead stops at a document that maps a field differently than a previous document of the request. That document fails
+     * when its turn comes, as it would without the look-ahead, and none of its fields are mapped.
+     */
+    public void testMappingUpdateLookAheadStopsAtConflictingOperation() throws Exception {
+        IndexShard shard = newStartedShard(
+            true,
+            Settings.builder().put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true).build()
+        );
+        BulkItemRequest[] items = new BulkItemRequest[] {
+            new BulkItemRequest(0, new IndexRequest("index").id("id_0").source(Requests.INDEX_CONTENT_TYPE, "field_0", 0)),
+            new BulkItemRequest(1, new IndexRequest("index").id("id_1").source(Requests.INDEX_CONTENT_TYPE, "field_1", 1)),
+            new BulkItemRequest(2, new IndexRequest("index").id("id_2").source(Requests.INDEX_CONTENT_TYPE, "field_2", 2)),
+            new BulkItemRequest(
+                3,
+                new IndexRequest("index").id("id_3").source(Requests.INDEX_CONTENT_TYPE, "field_1", "not a number", "field_3", 3)
+            ),
+            new BulkItemRequest(4, new IndexRequest("index").id("id_4").source(Requests.INDEX_CONTENT_TYPE, "field_4", 4)) };
+
+        List<CompressedXContent> updates = performOnPrimaryApplyingMappingUpdates(shard, items);
+
+        // field_0, then field_1 and field_2 together, then field_4
+        assertThat(updates.size(), equalTo(3));
+        for (int i = 0; i < items.length; i++) {
+            assertThat(items[i].getPrimaryResponse().isFailed(), equalTo(i == 3));
+        }
+        assertThat(shard.mapperService().fieldType("field_1").typeName(), equalTo("long"));
+        assertThat(shard.mapperService().fieldType("field_3"), nullValue());
+        assertThat(shard.mapperService().fieldType("field_4"), notNullValue());
+        assertDocCount(shard, items.length - 1);
+        closeShards(shard);
+    }
+
+    /**
+     * The updates of the request add more dimension fields than the index allows. The limit only applies to the mappings as a
+     * whole, so the combined update is given up and every operation sends its own update: the first documents are indexed and
+     * the ones that go over the limit fail, as they do without the look-ahead.
+     */
+    public void testMappingUpdateLookAheadIsGivenUpWhenCombinedUpdateIsRejected() throws Exception {
+        int limit = between(2, 5);
+        IndexShard shard = newStartedShard(
+            true,
+            Settings.builder()
+                .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true)
+                .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), limit)
+                .build()
+        );
+        shard.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent("""
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  { "dimensions": { "match": "dimension_*", "mapping": { "type": "keyword", "time_series_dimension": true } } }
+                ]
+              }
+            }"""), MapperService.MergeReason.MAPPING_UPDATE);
+        int numDocs = limit + between(2, 5);
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(
+                i,
+                new IndexRequest("index").id("id_" + i).source(Requests.INDEX_CONTENT_TYPE, "dimension_" + i, "value")
+            );
+        }
+
+        List<CompressedXContent> updates = performOnPrimaryApplyingMappingUpdates(shard, items);
+
+        assertThat(updates.size(), equalTo(numDocs));
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(items[i].getPrimaryResponse().isFailed(), equalTo(i >= limit));
+            assertThat(shard.mapperService().fieldType("dimension_" + i), i < limit ? notNullValue() : nullValue());
+        }
+        assertDocCount(shard, limit);
+        closeShards(shard);
+    }
+
+    /**
+     * The request adds more fields than the total fields limit allows and the index ignores dynamic fields beyond the limit. The
+     * fields are mapped in the order of the documents until the limit is reached, and the remaining ones are ignored.
+     */
+    public void testMappingUpdateLookAheadRespectsTotalFieldsLimit() throws Exception {
+        int limit = between(3, 10);
+        IndexShard shard = newStartedShard(
+            true,
+            Settings.builder()
+                .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true)
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), limit)
+                .put(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+                .build()
+        );
+        int numDocs = limit + between(1, 10);
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, new IndexRequest("index").id("id_" + i).source(Requests.INDEX_CONTENT_TYPE, "field_" + i, i));
+        }
+
+        performOnPrimaryApplyingMappingUpdates(shard, items);
+
+        for (int i = 0; i < numDocs; i++) {
+            assertFalse(items[i].getPrimaryResponse().isFailed());
+            assertThat(shard.mapperService().fieldType("field_" + i), i < limit ? notNullValue() : nullValue());
+        }
+        assertDocCount(shard, numDocs);
+        closeShards(shard);
+    }
+
+    /**
+     * The index has a runtime field, which hides the values of the same path from dynamic mapping. A document that maps an object
+     * at that path makes the documents that have a value there fail, so its update is not combined with the following ones.
+     */
+    public void testMappingUpdateLookAheadWithObjectMappedOverRuntimeField() throws Exception {
+        IndexShard shard = newStartedShard(
+            true,
+            Settings.builder().put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true).build()
+        );
+        shard.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent("""
+            { "_doc": { "runtime": { "hidden": { "type": "long" } } } }"""), MapperService.MergeReason.MAPPING_UPDATE);
+        BulkItemRequest[] items = new BulkItemRequest[] {
+            new BulkItemRequest(0, new IndexRequest("index").id("id_0").source(Requests.INDEX_CONTENT_TYPE, "field_0", 0)),
+            new BulkItemRequest(1, new IndexRequest("index").id("id_1").source(Requests.INDEX_CONTENT_TYPE, "hidden", Map.of("sub", 1))),
+            new BulkItemRequest(2, new IndexRequest("index").id("id_2").source(Requests.INDEX_CONTENT_TYPE, "hidden", 2, "field_2", 2)),
+            new BulkItemRequest(3, new IndexRequest("index").id("id_3").source(Requests.INDEX_CONTENT_TYPE, "field_3", 3)) };
+
+        List<CompressedXContent> updates = performOnPrimaryApplyingMappingUpdates(shard, items);
+
+        // field_0, then the object, then field_3
+        assertThat(updates.size(), equalTo(3));
+        for (int i = 0; i < items.length; i++) {
+            assertThat(items[i].getPrimaryResponse().isFailed(), equalTo(i == 2));
+        }
+        assertThat(shard.mapperService().fieldType("field_2"), nullValue());
+        assertThat(shard.mapperService().fieldType("field_3"), notNullValue());
+        assertDocCount(shard, items.length - 1);
+        closeShards(shard);
+    }
+
+    /**
+     * The mappings reject the update of several operations, so the operation sends its own update. It only fails if that update
+     * fails too. The following operations send their own update when their turn comes.
+     */
+    public void testFailureToUpdateMappingsWithCombinedUpdate() throws Exception {
+        IndexShard shard = newStartedShard(
+            true,
+            Settings.builder().put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true).build()
+        );
+        int numDocs = between(3, 20);
+        boolean ownUpdateFails = randomBoolean();
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, new IndexRequest("index").id("id_" + i).source(Requests.INDEX_CONTENT_TYPE, "field_" + i, i));
+        }
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
+        List<CompressedXContent> updates = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            (update, shardId, listener) -> ActionListener.completeWith(listener, () -> {
+                updates.add(update);
+                // the second update is the combined one, the third one is the update of the same operation alone
+                if (updates.size() == 2 || (updates.size() == 3 && ownUpdateFails)) {
+                    throw randomBoolean()
+                        ? new IllegalArgumentException("failed to update the mappings")
+                        : new MapperParsingException("failed to update the mappings");
+                }
+                shard.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, update, MapperService.MergeReason.MAPPING_AUTO_UPDATE);
+                return null;
+            }),
+            (listener, mappingVersion) -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {}), latch),
+            threadPool.executor(Names.WRITE)
+        );
+        latch.await();
+
+        assertThat(updates.size(), equalTo(numDocs + 1));
+        for (int i = 0; i < numDocs; i++) {
+            Map<String, Object> update = XContentHelper.convertToMap(updates.get(i == 0 ? 0 : i + 1).uncompressed(), false).v2();
+            assertThat(XContentMapValues.extractValue("_doc.properties", update), equalTo(Map.of("field_" + i, Map.of("type", "long"))));
+            boolean failed = ownUpdateFails && i == 1;
+            assertThat(items[i].getPrimaryResponse().isFailed(), equalTo(failed));
+            assertThat(shard.mapperService().fieldType("field_" + i), failed ? nullValue() : notNullValue());
+        }
+        assertDocCount(shard, ownUpdateFails ? numDocs - 1 : numDocs);
+        closeShards(shard);
+    }
+
+    /**
+     * The update of several operations fails for a reason that its content has nothing to do with, so the operation fails without
+     * sending its own update, which would fail the same way. The following operations send their own update when their turn comes.
+     */
+    public void testFailureToSendCombinedUpdate() throws Exception {
+        IndexShard shard = newStartedShard(
+            true,
+            Settings.builder().put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true).build()
+        );
+        int numDocs = between(3, 20);
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, new IndexRequest("index").id("id_" + i).source(Requests.INDEX_CONTENT_TYPE, "field_" + i, i));
+        }
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
+        Exception failure = randomFrom(
+            new ClusterBlockException(Set.of(Metadata.CLUSTER_READ_ONLY_BLOCK)),
+            new ProcessClusterEventTimeoutException(TimeValue.timeValueSeconds(30), "put-mapping"),
+            new NodeClosedException(DiscoveryNodeUtils.create("node"))
+        );
+        List<CompressedXContent> updates = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            (update, shardId, listener) -> ActionListener.completeWith(listener, () -> {
+                updates.add(update);
+                // the second update is the combined one
+                if (updates.size() == 2) {
+                    throw failure;
+                }
+                shard.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, update, MapperService.MergeReason.MAPPING_AUTO_UPDATE);
+                return null;
+            }),
+            (listener, mappingVersion) -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {}), latch),
+            threadPool.executor(Names.WRITE)
+        );
+        latch.await();
+
+        assertThat(updates.size(), equalTo(numDocs));
+        assertThat(items[1].getPrimaryResponse().isFailed(), equalTo(true));
+        assertThat(items[1].getPrimaryResponse().getFailure().getCause(), sameInstance(failure));
+        for (int i = 0; i < numDocs; i++) {
+            if (i != 1) {
+                Map<String, Object> update = XContentHelper.convertToMap(updates.get(i).uncompressed(), false).v2();
+                assertThat(
+                    XContentMapValues.extractValue("_doc.properties", update),
+                    equalTo(Map.of("field_" + i, Map.of("type", "long")))
+                );
+                assertThat(items[i].getPrimaryResponse().isFailed(), equalTo(false));
+            }
+            assertThat(shard.mapperService().fieldType("field_" + i), i == 1 ? nullValue() : notNullValue());
+        }
+        assertDocCount(shard, numDocs - 1);
+        closeShards(shard);
+    }
+
+    /**
+     * Executes the items on the primary, applying the requested mapping updates directly to the mappings of the shard.
+     *
+     * @return the mapping updates that were requested
+     */
+    private List<CompressedXContent> performOnPrimaryApplyingMappingUpdates(IndexShard shard, BulkItemRequest[] items) throws Exception {
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
+        List<CompressedXContent> updates = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        TransportShardBulkAction.performOnPrimary(
+            bulkShardRequest,
+            shard,
+            null,
+            threadPool::absoluteTimeInMillis,
+            (update, shardId, listener) -> {
+                updates.add(update);
+                ActionListener.completeWith(listener, () -> {
+                    shard.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, update, MapperService.MergeReason.MAPPING_AUTO_UPDATE);
+                    return null;
+                });
+            },
+            (listener, mappingVersion) -> listener.onResponse(null),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {}), latch),
+            threadPool.executor(Names.WRITE)
+        );
+        latch.await();
+        return updates;
     }
 
     public void testForceExecutionOnRejectionAfterMappingUpdate() throws Exception {

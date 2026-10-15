@@ -31,6 +31,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
@@ -40,12 +41,16 @@ import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.SharedAutomaton;
+import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MapperService;
@@ -67,6 +72,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
@@ -75,7 +81,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBool
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
@@ -1465,5 +1473,52 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             IntStream.range(0, 100).forEach(i -> joiner.add("/(pattern" + i + "|alternate" + i + "|option" + i + ").*/"));
             return queryStringQuery(joiner.toString()).defaultField(TEXT_FIELD_NAME);
         });
+    }
+
+    /**
+     * The shape behind incident-management#2982: one wildcard expanded over several fields. Every clause resolves to
+     * the same pattern, so the request must compile and charge one automaton plus a shell per clause, not one
+     * automaton per field.
+     */
+    public void testWildcardExpandedOverFieldsChargesOneAutomaton() throws IOException {
+        assertFanOutChargesOneAutomaton(queryStringQuery("*test*pattern*here*"));
+    }
+
+    public void testRegexpExpandedOverFieldsChargesOneAutomaton() throws IOException {
+        assertFanOutChargesOneAutomaton(queryStringQuery("/te.*st.*pattern/"));
+    }
+
+    private void assertFanOutChargesOneAutomaton(QueryStringQueryBuilder builder) throws IOException {
+        CircuitBreaker breaker = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), breaker);
+        try {
+            long before = breaker.getUsed();
+            Query query = builder.field(TEXT_FIELD_NAME).field(KEYWORD_FIELD_NAME).toQuery(context);
+            long charged = breaker.getUsed() - before;
+
+            List<SharedAutomatonQuery> clauses = collectSharedAutomatonQueries(query);
+            assertThat(clauses, hasSize(2));
+            SharedAutomaton shared = clauses.get(0).getSharedAutomaton();
+            assertSame("clauses differing only by field must reuse one automaton", shared, clauses.get(1).getSharedAutomaton());
+
+            long shells = clauses.stream().mapToLong(SharedAutomatonQuery::unsharedRamBytesUsed).sum();
+            assertEquals("one automaton plus one shell per clause", shared.ramBytesUsed() + shells, charged);
+            assertThat("a second automaton must not be charged", charged, lessThan(2 * clauses.get(0).ramBytesUsed()));
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    private static List<SharedAutomatonQuery> collectSharedAutomatonQueries(Query query) {
+        List<SharedAutomatonQuery> found = new ArrayList<>();
+        query.visit(new QueryVisitor() {
+            @Override
+            public void consumeTermsMatching(Query leaf, String field, Supplier<ByteRunAutomaton> automaton) {
+                if (leaf instanceof SharedAutomatonQuery shared) {
+                    found.add(shared);
+                }
+            }
+        });
+        return found;
     }
 }

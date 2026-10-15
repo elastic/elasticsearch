@@ -1622,6 +1622,38 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
+    public void testSearchPITAgainstUnauthorizedIndexIsDenied() {
+        RoleDescriptor role = new RoleDescriptor(
+            "search_public",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("public").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        final Authentication authentication = createAuthentication(new User("pit-attacker", role.getName()));
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        final ClusterState clusterState = mockMetadataWithIndex("private");
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).index("private");
+
+        PointInTimeBuilder pit = new PointInTimeBuilder(createEncodedPIT(indexMetadata.getIndex()));
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().pointInTimeBuilder(pit))
+            .allowPartialSearchResults(false);
+        this.setFakeOriginatingAction = false;
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), searchRequest),
+            TransportSearchAction.TYPE.name(),
+            "pit-attacker"
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchAction.TYPE.name()),
+            eq(searchRequest),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
     public void testScrollRelatedRequestsAllowed() {
         RoleDescriptor role = new RoleDescriptor(
             "a_all",

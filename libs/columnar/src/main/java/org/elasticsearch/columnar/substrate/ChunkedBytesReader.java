@@ -81,23 +81,20 @@ public final class ChunkedBytesReader {
         }
         final long index = chunkContaining(offset);
         ensureChunk(index);
-        assert offset - cachedStart + length <= cachedLength
-            : "read of "
-                + length
-                + " at "
-                + offset
-                + " spans past chunk "
-                + index
-                + "; chunks must close on the boundaries the caller addresses";
-        System.arraycopy(chunk, (int) (offset - cachedStart), dst, 0, length);
+        final int within = (int) (offset - cachedStart);
+        if (within + length <= cachedLength) {
+            System.arraycopy(chunk, within, dst, 0, length);
+        } else {
+            gather(offset, length, dst);
+        }
         return dst;
     }
 
     /**
-     * Points {@code dst} at {@code length} bytes at {@code offset} rather than copying them. The bytes are
-     * the decoded chunk's own, or the file's under the identity codec, and stay valid only until the next
-     * call on this reader. A caller that decodes a block and then hands out the values inside it saves a
-     * copy of the whole block this way; one that keeps the bytes must copy them.
+     * Points {@code dst} at {@code length} bytes at {@code offset} without copying them where they lie in one
+     * chunk, which is what a caller that decodes a block and then hands out the values inside it saves by.
+     * Bytes spread over several chunks are put back together first. Either way they are valid only until the
+     * next call on this reader, so a caller that keeps them must copy them.
      */
     public void span(long offset, int length, BytesRef dst) throws IOException {
         if (length == 0) {
@@ -129,10 +126,34 @@ public final class ChunkedBytesReader {
         }
         final long index = chunkContaining(offset);
         ensureChunk(index);
-        assert offset - cachedStart + length <= cachedLength : "span of " + length + " at " + offset + " leaves chunk " + index;
-        dst.bytes = chunk;
-        dst.offset = (int) (offset - cachedStart);
+        final int within = (int) (offset - cachedStart);
+        if (within + length <= cachedLength) {
+            dst.bytes = chunk;
+            dst.offset = within;
+            dst.length = length;
+            return;
+        }
+        // A chunk is cut wherever its bound falls, so a range the caller addresses as one may be spread over
+        // two of them or more. Those are put back together here, which is the only read that copies.
+        verbatim = ArrayUtil.growNoCopy(verbatim, length);
+        gather(offset, length, verbatim);
+        dst.bytes = verbatim;
+        dst.offset = 0;
         dst.length = length;
+    }
+
+    /** Copies {@code length} bytes at {@code offset} out of however many chunks hold them. */
+    private void gather(long offset, int length, byte[] dst) throws IOException {
+        int written = 0;
+        long at = offset;
+        while (written < length) {
+            ensureChunk(chunkContaining(at));
+            final int within = (int) (at - cachedStart);
+            final int take = Math.min(cachedLength - within, length - written);
+            System.arraycopy(chunk, within, dst, written, take);
+            written += take;
+            at += take;
+        }
     }
 
     /** The chunk holding {@code offset}, by binary search over the chunk starts. */

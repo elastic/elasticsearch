@@ -28,11 +28,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.rest.action.admin.indices.RestPutComposableIndexTemplateAction.INDEX_TEMPLATE_REGISTRY_INSTALLED_FIELD;
 import static org.elasticsearch.rest.action.admin.indices.RestPutComposableIndexTemplateAction.parseAndValidateTemplate;
+import static org.elasticsearch.rest.action.admin.indices.RestSimulateTemplateAction.SIMULATE_TEMPLATE_SHARD_COUNT_FIX;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestSimulateIndexTemplateAction extends BaseRestHandler {
 
-    private static final Set<String> CAPABILITIES = Set.of(INDEX_TEMPLATE_REGISTRY_INSTALLED_FIELD);
+    private static final Set<String> CAPABILITIES = Set.of(INDEX_TEMPLATE_REGISTRY_INSTALLED_FIELD, SIMULATE_TEMPLATE_SHARD_COUNT_FIX);
 
     @Override
     public List<Route> routes() {

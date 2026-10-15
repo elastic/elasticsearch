@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -36,6 +37,7 @@ import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.hasSize;
@@ -51,6 +53,14 @@ public class Archives {
 
     // in the future we'll run as a role user on Windows
     public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "elasticsearch";
+
+    /** The settings that activate FIPS mode, appended to {@code elasticsearch.yml} when {@link Distribution#isFipsActivated()}. */
+    private static final List<String> FIPS_SETTINGS = List.of(
+        "",
+        "xpack.security.fips_mode.enabled: true",
+        "xpack.security.fips_mode.required_providers: [BCFIPS, BCJSSE]",
+        "xpack.license.self_generated.type: trial"
+    );
 
     public static Installation installArchive(Shell sh, Distribution distribution) throws Exception {
         return installArchive(sh, distribution, getDefaultArchiveInstallPath(), getCurrentVersion(), false);
@@ -108,6 +118,11 @@ public class Archives {
         }
 
         Platforms.onLinux(() -> setupArchiveUsersLinux(fullInstallPath));
+
+        if (distribution.isFipsActivated()) {
+            // the setting is the whole switch: the server and the CLI tools read it and load the provider from lib/fips
+            Files.write(fullInstallPath.resolve("config").resolve("elasticsearch.yml"), FIPS_SETTINGS, StandardOpenOption.APPEND);
+        }
 
         sh.chown(fullInstallPath);
 
@@ -200,6 +215,18 @@ public class Archives {
         if (distribution.platform == Distribution.Platform.LINUX) {
             Path nativeLauncher = es.lib.resolve("tools").resolve("server-launcher").resolve("server-launcher");
             assertThat("native server-launcher must exist on Linux distribution", nativeLauncher, file(File, owner, owner, p755));
+        }
+
+        // the FIPS provider and its configuration ship dormant in lib/fips in every Linux distribution
+        if (distribution.platform == Distribution.Platform.LINUX) {
+            Path fips = es.lib.resolve("fips");
+            assertThat(fips, file(Directory, owner, owner, p755));
+            Stream.of("fips_java.security", "cacerts.bcfks").forEach(f -> assertThat(fips.resolve(f), file(File, owner, owner, p644)));
+            Stream.of("bc-fips-*.jar", "bctls-fips-*.jar", "bcutil-fips-*.jar")
+                .forEach(glob -> assertThat(glob, lsGlob(fips, glob), hasSize(1)));
+        }
+        if (distribution.isFipsActivated()) {
+            assertThat(slurp(es.config("elasticsearch.yml")), containsString("xpack.security.fips_mode.enabled: true"));
         }
     }
 

@@ -21,6 +21,7 @@ import java.nio.file.Paths;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 /**
@@ -34,6 +35,7 @@ public class ArchiveSecurityCliWithBcFipsTests extends PackagingTestCase {
     @BeforeClass
     public static void filterDistros() {
         assumeTrue("archives only", distribution.isArchive());
+        assumeFalse("FIPS mode already loads the BC FIPS provider from lib/fips", distribution.isFipsActivated());
     }
 
     public void test10InstallWithBcFipsJarsInLib() throws Exception {

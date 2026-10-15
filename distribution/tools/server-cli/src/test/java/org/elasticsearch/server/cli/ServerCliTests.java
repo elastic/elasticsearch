@@ -322,6 +322,17 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(prepareLaunchCalled.get(), is(true));
     }
 
+    public void testJvmArgsModulePath() {
+        Path lib = esHomeDir.resolve("lib");
+        assertThat(ServerCli.getJvmArgs(new ProcessInfo(sysprops, envVars, esHomeDir), false), hasItem(lib.toString()));
+
+        // in FIPS mode the dormant provider directory joins the module path
+        assertThat(
+            ServerCli.getJvmArgs(new ProcessInfo(sysprops, envVars, esHomeDir), true),
+            hasItem(lib + System.getProperty("path.separator") + lib.resolve("fips"))
+        );
+    }
+
     public void testSecureSettingsLoaderChoice() throws Exception {
         var loader = loadWithMockSecureSettingsLoader();
         assertTrue(loader.loaded);

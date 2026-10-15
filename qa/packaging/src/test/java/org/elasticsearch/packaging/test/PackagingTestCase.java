@@ -633,7 +633,9 @@ public abstract class PackagingTestCase extends Assert {
             // We chown the installation on Windows to Administrators so that we can auto-configure it.
             String owner = Platforms.WINDOWS ? "BUILTIN\\Administrators" : "elasticsearch";
             assertThat(es.config(autoConfigDirName), FileMatcher.file(Directory, owner, owner, p750));
-            Stream.of("http.p12", "http_ca.crt", "transport.p12")
+            // auto-configuration writes BCFKS keystores when the node is in FIPS mode
+            String keystoreExtension = es.distribution.isFipsActivated() ? ".bcfks" : ".p12";
+            Stream.of("http" + keystoreExtension, "http_ca.crt", "transport" + keystoreExtension)
                 .forEach(file -> assertThat(es.config(autoConfigDirName).resolve(file), FileMatcher.file(File, owner, owner, p660)));
             settings = Settings.builder().loadFromPath(es.config("elasticsearch.yml")).build();
         } else if (es.distribution.isDocker()) {

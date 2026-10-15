@@ -55,6 +55,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.QueueTimeAware;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -1096,20 +1097,50 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        final ShardSearchStats shardSearchStats = shard.shardSearchStats();
-        final long submittedNanos = System.nanoTime();
-        executor.execute(ActionRunnable.supplyAndDecRef(listener, new CheckedSupplier<>() {
+        final AbstractRunnable delegate = ActionRunnable.supplyAndDecRef(listener, executable);
+        executor.execute(new ShardQueueTimeAwareRunnable(shard.shardSearchStats()) {
             @Override
-            public T get() throws Exception {
-                shardSearchStats.onQueueTime(System.nanoTime() - submittedNanos);
-                return executable.get();
+            protected void doRun() {
+                delegate.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                delegate.onFailure(e);
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                delegate.onRejection(e);
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return delegate.isForceExecution();
             }
 
             @Override
             public String toString() {
-                return executable.toString();
+                return delegate.toString();
             }
-        }));
+        });
+    }
+
+    /**
+     * A shard's search task that records its wait in the thread pool queue in the shard's stats. Only pools that track execution time
+     * report the wait, which excludes the system index search pools.
+     */
+    private abstract static class ShardQueueTimeAwareRunnable extends AbstractRunnable implements QueueTimeAware {
+        private final ShardSearchStats shardSearchStats;
+
+        ShardQueueTimeAwareRunnable(ShardSearchStats shardSearchStats) {
+            this.shardSearchStats = shardSearchStats;
+        }
+
+        @Override
+        public final void onQueueTime(long queueTimeNanos) {
+            shardSearchStats.onQueueTime(queueTimeNanos);
+        }
     }
 
     /**
@@ -1320,9 +1351,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<FetchSearchResult> listener
     ) {
         final Executor searchExecutor = getExecutor(readerContext.indexShard());
-        final ShardSearchStats shardSearchStats = readerContext.indexShard().shardSearchStats();
-        final long submittedNanos = System.nanoTime();
-        searchExecutor.execute(new AbstractRunnable() {
+        searchExecutor.execute(new ShardQueueTimeAwareRunnable(readerContext.indexShard().shardSearchStats()) {
             private volatile SearchContext searchContext;
 
             private final Releasable closeOnce = Releasables.releaseOnce(Releasables.wrap(() -> {
@@ -1331,7 +1360,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             @Override
             protected void doRun() throws Exception {
-                shardSearchStats.onQueueTime(System.nanoTime() - submittedNanos);
                 final long startTime;
                 final SearchOperationListener opsListener;
                 this.searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false);

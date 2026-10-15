@@ -289,7 +289,8 @@ public final class SliceIndexing {
 
     /**
      * Returns {@code true} when the request matched a path-based slice search endpoint. The supported shapes are
-     * {@code /{index}/{_slice}/_search}, {@code /{index}/{_slice}/_count}, {@code /{index}/{_slice}/_search/template}, and
+     * {@code /{index}/{_slice}/_search}, {@code /{index}/{_slice}/_count}, {@code /{index}/{_slice}/_delete_by_query},
+     * {@code /{index}/{_slice}/_update_by_query}, {@code /{index}/{_slice}/_search/template}, and
      * {@code /{index}/{_slice}/_fleet/_fleet_search}.
      */
     static boolean isPathBasedSliceSearch(RestRequest request) {
@@ -300,7 +301,10 @@ public final class SliceIndexing {
         }
         final String[] parts = Strings.tokenizeToStringArray(rawPath, "/");
         if (parts.length == 3) {
-            return "_search".equals(parts[2]) || "_count".equals(parts[2]);
+            return "_search".equals(parts[2])
+                || "_count".equals(parts[2])
+                || "_delete_by_query".equals(parts[2])
+                || "_update_by_query".equals(parts[2]);
         }
         if (parts.length == 4) {
             return ("_search".equals(parts[2]) && "template".equals(parts[3]))
@@ -357,7 +361,8 @@ public final class SliceIndexing {
     /**
      * Validates request-level slice/routing requirements and resolves effective routing for search-style APIs.
      * When {@code anySliceEnabled} is true and no {@code _slice} parameter was provided, the request is treated
-     * as {@code _slice=_all} (routing is left unrestricted, covering all slices).
+     * as {@code _slice=_all} (routing is left unrestricted, covering all slices). A {@code _slice} is accepted even when no
+     * targeted index is slice-enabled: indices without slices hold no document of any slice, so they match nothing.
      */
     public static String validateAndResolveSliceRoutingRequirement(
         boolean anySliceEnabled,
@@ -365,8 +370,7 @@ public final class SliceIndexing {
         String routing,
         String requestedSlice,
         String requestDescription,
-        String target,
-        boolean allowSliceWhenNoLocalSliceEnabled
+        String target
     ) {
         if (anySliceEnabled && routingFromSlice == false && routing != null) {
             throw new IllegalArgumentException(
@@ -377,17 +381,6 @@ public final class SliceIndexing {
                     + "], use ["
                     + FIELD_NAME
                     + "] instead"
-            );
-        }
-        if (routingFromSlice && anySliceEnabled == false && allowSliceWhenNoLocalSliceEnabled == false) {
-            throw new IllegalArgumentException(
-                "["
-                    + FIELD_NAME
-                    + "] is not allowed when [index.slice.enabled] is false for "
-                    + requestDescription
-                    + " targeting ["
-                    + target
-                    + "]"
             );
         }
         if (routingFromSlice) {

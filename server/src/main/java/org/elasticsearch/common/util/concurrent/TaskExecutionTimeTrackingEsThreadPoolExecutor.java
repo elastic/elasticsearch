@@ -287,11 +287,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         }
 
         if (timedRunnable.unwrap() instanceof QueueTimeAware queueTimeAware) {
-            // an exception escaping beforeExecute would drop the task and leak its ongoingTasks entry
+            // an Exception escaping beforeExecute would drop the task and leak its ongoingTasks entry; Errors still propagate
             try {
                 queueTimeAware.onQueueTime(taskQueueLatency);
             } catch (Exception e) {
-                logger.warn(() -> Strings.format("queue time listener failed on [%s]", this), e);
+                logger.warn(() -> Strings.format("queue time listener failed for [%s]", queueTimeAware), e);
             }
         }
     }

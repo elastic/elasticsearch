@@ -1948,7 +1948,6 @@ public class ComputeService {
             // safely decrement the reference count so only the source operators and doc vectors control when these will be released.
             // Note that only the data drivers will increment the reference count when created, hence the if below.
             if (context.description().equals(DATA_DESCRIPTION)) {
-                shardContexts.iterable().forEach(shardContext -> shardContext.stats().onEsqlQuery());
                 shardContexts.iterable().forEach(RefCounted::decRef);
             }
             if (drivers.isEmpty()) {

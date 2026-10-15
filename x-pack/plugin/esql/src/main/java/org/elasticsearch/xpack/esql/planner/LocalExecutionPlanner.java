@@ -255,7 +255,6 @@ import java.util.Optional;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
@@ -3017,7 +3016,7 @@ public class LocalExecutionPlanner {
             var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
             // node_reduce shares the shard contexts but does not read them
             if (description.equals(ComputeService.DATA_DESCRIPTION) && shardContexts.isEmpty() == false) {
-                driverContext.setQueueTimeListener(splitQueueTimeAcrossShards(shardContexts));
+                driverContext.setQueueTimeListener(recordQueueTimeForAllShards(shardContexts));
             }
             try {
                 source = physicalOperation.source(driverContext);
@@ -3047,24 +3046,18 @@ public class LocalExecutionPlanner {
         }
 
         /**
-         * A data driver reads slices from a queue shared by all the shards of its batch, so its queue wait is split evenly across them.
-         * Exact for a single shard, approximate otherwise. Stats are resolved on the first wait so building a driver never touches them.
+         * A data driver reads slices from a queue shared by all the shards of its batch, so each wait is recorded in full for every
+         * shard. Per shard means are right, but sums over shards count a wait once per shard.
          */
-        private static LongConsumer splitQueueTimeAcrossShards(IndexedByShardId<? extends ShardContext> shardContexts) {
-            final AtomicReference<ShardSearchStats[]> resolvedStats = new AtomicReference<>();
+        private static LongConsumer recordQueueTimeForAllShards(IndexedByShardId<? extends ShardContext> shardContexts) {
+            final ShardSearchStats[] stats = new ShardSearchStats[shardContexts.size()];
+            int i = 0;
+            for (ShardContext shardContext : shardContexts.iterable()) {
+                stats[i++] = shardContext.stats();
+            }
             return queueTimeNanos -> {
-                ShardSearchStats[] stats = resolvedStats.get();
-                if (stats == null) {
-                    stats = new ShardSearchStats[shardContexts.size()];
-                    int i = 0;
-                    for (ShardContext shardContext : shardContexts.iterable()) {
-                        stats[i++] = shardContext.stats();
-                    }
-                    resolvedStats.compareAndSet(null, stats);
-                }
-                final long share = queueTimeNanos / stats.length;
                 for (ShardSearchStats shardStats : stats) {
-                    shardStats.onQueueTime(share);
+                    shardStats.onQueueTime(queueTimeNanos);
                 }
             };
         }

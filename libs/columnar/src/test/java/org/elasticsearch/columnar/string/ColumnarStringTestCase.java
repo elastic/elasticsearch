@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
@@ -185,7 +186,17 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             slotCountsBlockSize,
             randomLengthBlockSize(blockSize)
         );
-        withColumn(docSlots, new StringColumnOptions(policy, StringColumnOptions.DEFAULT_SUMMARY, chunkCodec, sizes), check);
+        withColumn(
+            docSlots,
+            new StringColumnOptions(
+                policy,
+                StringColumnOptions.DEFAULT_SUMMARY,
+                chunkCodec,
+                sizes,
+                StringColumnOptions.DEFAULT_SINGLE_VALUED
+            ),
+            check
+        );
     }
 
     /**
@@ -203,10 +214,20 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
 
     /** As above, with every choice named at once, for a test that cares about one the overloads do not reach. */
     protected void withColumn(final BytesRef[][] docSlots, final StringColumnOptions options, final ColumnCheck check) throws IOException {
+        withColumn(docSlots, () -> cursor(docSlots), options, check);
+    }
+
+    /** As above, writing the column from {@code cursors} rather than from a plain cursor over {@code docSlots}. */
+    protected void withColumn(
+        final BytesRef[][] docSlots,
+        final IOSupplier<StringColumnValues> cursors,
+        final StringColumnOptions options,
+        final ColumnCheck check
+    ) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, options);
+            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docSlots, cursors, options);
             try (ColumnTestFiles.Inputs inputs = ColumnTestFiles.open(dir, COLUMN_FILES, segmentId)) {
                 check.check(metadata, StringColumnReader.open(metadata, inputs.inputs()));
             }
@@ -364,6 +385,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final Directory dir,
         final byte[] segmentId,
         final BytesRef[][] docSlots,
+        final IOSupplier<StringColumnValues> cursors,
         final StringColumnOptions options
     ) throws IOException {
         final StringColumnMetadata written;
@@ -371,7 +393,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             written = StringColumnWriter.write(
                 docSlots.length,
                 totals(docSlots),
-                () -> cursor(docSlots),
+                cursors,
                 options,
                 null,
                 dir,

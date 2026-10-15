@@ -263,7 +263,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
     /**
      * Similar to {@link #testObsoleteSegmentRegionsAreEvicted} but with an open PIT (Point in Time) that holds
      * a reader on the pre-merge segments. The old segments' cache regions should be retained while the PIT is
-     * open and evicted after it is closed and a subsequent commit is processed.
+     * open and evicted as soon as it is closed, without waiting for a subsequent commit to be processed.
      */
     public void testObsoleteSegmentRegionsRetainedByPIT() throws Exception {
         startMasterAndIndexNode();
@@ -336,48 +336,27 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         var closeResponse = client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
         assertThat(closeResponse.status(), equalTo(RestStatus.OK));
 
-        // After PIT close, trigger a new commit so the search node processes retainFilesAndEvict without the PIT reader
-        // TODO Fix this, it would be better to have immediate release/eviction after a reader is closed
-        final var indexEngine = getShardEngine(findIndexShard(indexName), IndexEngine.class);
-        long minGeneration = indexEngine.getCurrentGeneration();
+        // Closing the PIT releases the last reference to the pre-merge segments' reader, which should trigger eviction
+        // of their now-unreferenced cache regions on its own, without waiting for a new commit notification.
+        assertBusy(() -> {
+            assertThat(
+                "cached regions should still match exactly the regions from post-merge segments",
+                searchCacheService.countCachedRegions(
+                    searchShard.shardId(),
+                    (key, region) -> blobsRegionsAfterMerge.containsKey(key.fileName())
+                ),
+                equalTo(blobsRegionsAfterMerge.values().stream().mapToLong(BitSet::cardinality).sum())
+            );
 
-        final var cacheService = asInstanceOf(
-            EvictionTrackingCacheService.class,
-            BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory)
-        );
-        final var future = cacheService.startTracking();
-        searchEngine.addPrimaryTermAndGenerationListener(0L, minGeneration + 2L, ActionListener.releasing(future.refs.acquire()));
-
-        flush(indexName);
-        refresh(indexName);
-
-        cacheService.stopTrackingAndAwait(future);
-
-        var blobsRegionsAfterClosePIT = readAllFilesAndCollectRegions(searchEngine, searchDirectory, searchCacheService);
-
-        assertThat(
-            "post-merge blobs should be entirely new (no overlap with pre-merge blobs)",
-            blobsRegionsAfterClosePIT.keySet().stream().noneMatch(blobsRegionsBeforeMerge::containsKey),
-            equalTo(true)
-        );
-
-        assertThat(
-            "cached regions should match exactly the regions from post-merge segments",
-            searchCacheService.countCachedRegions(
-                searchShard.shardId(),
-                (key, region) -> blobsRegionsAfterClosePIT.containsKey(key.fileName())
-            ),
-            equalTo(blobsRegionsAfterClosePIT.values().stream().mapToLong(BitSet::cardinality).sum())
-        );
-
-        assertThat(
-            "no cached region should belong to a pre-merge blob",
-            searchCacheService.countCachedRegions(
-                searchShard.shardId(),
-                (key, region) -> blobsRegionsBeforeMerge.containsKey(key.fileName())
-            ),
-            equalTo(0L)
-        );
+            assertThat(
+                "no cached region should belong to a pre-merge blob once the PIT is closed",
+                searchCacheService.countCachedRegions(
+                    searchShard.shardId(),
+                    (key, region) -> blobsRegionsBeforeMerge.containsKey(key.fileName())
+                ),
+                equalTo(0L)
+            );
+        });
     }
 
     /**

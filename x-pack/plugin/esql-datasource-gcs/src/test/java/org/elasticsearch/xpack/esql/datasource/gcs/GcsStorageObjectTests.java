@@ -63,7 +63,7 @@ import static org.mockito.Mockito.when;
  */
 public class GcsStorageObjectTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     private final Storage mockStorage = mock(Storage.class);
 

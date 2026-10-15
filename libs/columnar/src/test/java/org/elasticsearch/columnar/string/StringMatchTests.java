@@ -166,6 +166,33 @@ public class StringMatchTests extends ColumnarStringTestCase {
         }
     }
 
+    public void testRunEndsAroundDoublingBoundaries() throws IOException {
+        // NOTE: the run end is bracketed by doubling, so the lengths either side of a power of two are where
+        // an off-by-one hides, and the last run reaches the column's end with no value above it to stop on.
+        final int[] lengths = { 1, 2, 3, 7, 8, 9, 15, 16, 17, 31, 32, 33, 1, 64, 65 };
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < lengths.length; i++) {
+            for (int repeat = 0; repeat < lengths[i]; repeat++) {
+                values.add(orderedTerm(i));
+            }
+        }
+        final BytesRef[] docValues = values.toArray(new BytesRef[0]);
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                final String how = "policy=" + policy;
+                for (int i = 0; i < lengths.length; i++) {
+                    assertEquals(how + " run of " + lengths[i], lengths[i], count(reader.matchTerm(orderedTerm(i))));
+                }
+                assertEquals(how + " past the last run", 0, count(reader.matchTerm(orderedTerm(lengths.length))));
+                assertEquals(how + " below the first run", 0, count(reader.matchTerm(new BytesRef("s"))));
+            });
+        }
+    }
+
+    private static BytesRef orderedTerm(int position) {
+        return new BytesRef(position < 10 ? "t0" + position : "t" + position);
+    }
+
     /**
      * A plain column stores a repeat without its length and a null as a code below every length, so the window
      * over lengths has to give a repeat the answer of the value before it and never offer a null, and a column

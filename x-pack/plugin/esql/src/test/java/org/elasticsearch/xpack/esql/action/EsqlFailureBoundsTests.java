@@ -51,7 +51,7 @@ public class EsqlFailureBoundsTests extends ESTestCase {
     private static final String WINDOW_MESSAGE = "[parent] Data too large, data for [parquet sliding window] would be [1042582912/994.2mb]";
 
     /**
-     * The graph left in the heap dump of elastic/esql-planning#2135: A suppresses B twice and B suppresses A. Rendering it
+     * The graph left in a cyclic heap dump: A suppresses B twice and B suppresses A. Rendering it
      * unbounded writes one level per distinct path and does not finish, so the test goes through {@link EsqlFailureBounds#bound}.
      */
     public void testACyclicFailureIsRebuiltAndRendersSmall() throws IOException {

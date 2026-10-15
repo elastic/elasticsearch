@@ -28,6 +28,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -71,6 +72,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
@@ -1077,6 +1080,152 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             ) {
                 assertEquals("{\"fieldA\":\"valueA\"}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
             }
+        }
+    }
+
+    /**
+     * The decoder that holds the decompressed blocks of {@code _ignored_source} sits behind the field-level-security wrapper, so the
+     * wrapper has to pass on what the decoder reports it can allocate; callers such as ES|QL's fallback synthetic source reader use it to
+     * account for it in their circuit breaker, and would otherwise see {@code 0} for every index with field-level security.
+     * The index here is not written with the TSDB format, so a doc values wrapper that reports a known estimate stands in for the decoder.
+     */
+    public void testIgnoredSourceDocValuesPassOnTheDecodeEstimate() throws Exception {
+        IndexVersion indexVersion = IndexVersion.current();
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.total_fields.limit", 1)
+            .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.use_time_series_doc_values_format", true)
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        assertEquals(
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE,
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
+        );
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("foo").field("type", "keyword").endObject();
+        })).documentMapper();
+        var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "fieldA" }, null));
+        long estimate = randomLongBetween(1, 1L << 30);
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("fieldA", "valueA");
+                b.field("fieldB", "valueB");
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+            try (
+                DirectoryReader filtered = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(withIgnoredSourceDecodeEstimate(DirectoryReader.open(directory), estimate)),
+                    filter,
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
+                    (fieldName) -> true
+                )
+            ) {
+                var leaf = filtered.leaves().get(0).reader();
+                assertEquals(
+                    estimate,
+                    MultiValuedSortableBinaryDocValues.fromMultiValued(leaf, IgnoredSourceFieldMapper.NAME).maxDecodeBytes()
+                );
+            }
+            // Doc values that report nothing give -1, "no estimate", which callers must not mistake for 0, "no buffer".
+            try (DirectoryReader plain = DirectoryReader.open(directory)) {
+                assertEquals(
+                    -1L,
+                    MultiValuedSortableBinaryDocValues.fromMultiValued(plain.leaves().get(0).reader(), IgnoredSourceFieldMapper.NAME)
+                        .maxDecodeBytes()
+                );
+            }
+        }
+    }
+
+    /** Wraps {@code _ignored_source} doc values of every leaf so that they report {@code estimate} as their decode size. */
+    private static DirectoryReader withIgnoredSourceDecodeEstimate(DirectoryReader reader, long estimate) throws IOException {
+        return new FilterDirectoryReader(reader, new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                return new FilterLeafReader(leaf) {
+                    @Override
+                    public BinaryDocValues getBinaryDocValues(String field) throws IOException {
+                        BinaryDocValues values = super.getBinaryDocValues(field);
+                        if (values == null || IgnoredSourceFieldMapper.NAME.equals(field) == false) {
+                            return values;
+                        }
+                        return new DecodeEstimateBinaryDocValues(values, estimate);
+                    }
+
+                    @Override
+                    public CacheHelper getCoreCacheHelper() {
+                        return in.getCoreCacheHelper();
+                    }
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return in.getReaderCacheHelper();
+                    }
+                };
+            }
+        }) {
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+                return withIgnoredSourceDecodeEstimate(in, estimate);
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return in.getReaderCacheHelper();
+            }
+        };
+    }
+
+    private static final class DecodeEstimateBinaryDocValues extends BinaryDocValues
+        implements
+            BlockLoader.OptionalDecodeMemoryUsageEstimator {
+        private final BinaryDocValues delegate;
+        private final long estimate;
+
+        DecodeEstimateBinaryDocValues(BinaryDocValues delegate, long estimate) {
+            this.delegate = delegate;
+            this.estimate = estimate;
+        }
+
+        @Override
+        public long maxDecodeBytes() {
+            return estimate;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            return delegate.advanceExact(target);
+        }
+
+        @Override
+        public BytesRef binaryValue() throws IOException {
+            return delegate.binaryValue();
+        }
+
+        @Override
+        public int docID() {
+            return delegate.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return delegate.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return delegate.advance(target);
+        }
+
+        @Override
+        public long cost() {
+            return delegate.cost();
         }
     }
 

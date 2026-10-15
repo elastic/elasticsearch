@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
@@ -110,6 +111,7 @@ public class TextValuePushdownIT extends AbstractEsqlIntegTestCase {
      * regression this guards: a predicate that stops being pushed emits more rows than it answers.
      */
     public void testTheColumnarIndexAnswersInLucene() {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         for (String tail : List.of(
             "WHERE body LIKE \"the quick*\"",
             "WHERE body RLIKE \"the quick.*\"",

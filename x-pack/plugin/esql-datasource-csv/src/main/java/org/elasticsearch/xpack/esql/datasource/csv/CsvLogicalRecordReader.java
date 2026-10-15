@@ -31,6 +31,8 @@ final class CsvLogicalRecordReader {
      * start offset as {@code bytesRead() - lastRecordBytes()} without re-walking the input.
      */
     private int lastRecordBytes = 0;
+    /** Whether the record {@link #readRecord(boolean)} last returned ended with a line terminator. */
+    private boolean lastRecordTerminated = true;
     /**
      * Cumulative encoded-byte count of every record this reader has returned (including terminators
      * and partial records consumed by the caller — schema discovery, header skipping, mid-record
@@ -144,6 +146,7 @@ final class CsvLogicalRecordReader {
                 // a subsequent caller's offset arithmetic stays anchored.
                 this.lastRecordBytes = recordBytes;
                 this.bytesRead += recordBytes;
+                this.lastRecordTerminated = false;
                 return sb.toString();
             }
             recordBytes = addBytes(recordBytes, ch);
@@ -209,6 +212,7 @@ final class CsvLogicalRecordReader {
             if (ch == '\n') {
                 this.lastRecordBytes = recordBytes;
                 this.bytesRead += recordBytes;
+                this.lastRecordTerminated = true;
                 return sb.toString();
             }
             if (ch == '\r') {
@@ -220,6 +224,7 @@ final class CsvLogicalRecordReader {
                 }
                 this.lastRecordBytes = recordBytes;
                 this.bytesRead += recordBytes;
+                this.lastRecordTerminated = true;
                 return sb.toString();
             }
             if (ch == delimiter) {
@@ -454,6 +459,14 @@ final class CsvLogicalRecordReader {
      */
     int lastRecordBytes() {
         return lastRecordBytes;
+    }
+
+    /**
+     * Whether the record {@link #readRecord(boolean)} last returned ended with a line terminator. A record without one
+     * ran into the end of the input: the end of the file, or the end of a range or chunk that cut the record short.
+     */
+    boolean lastRecordTerminated() {
+        return lastRecordTerminated;
     }
 
     /**

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -15,6 +17,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -36,7 +40,9 @@ import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.MAX_RETRIES_
 import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING;
 import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING;
 import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.isStagnated;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -83,6 +89,55 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
 
         assertThat(foundIndices, hasSize(2));
         assertThat(foundIndices, containsInAnyOrder(stagnatedIdx1, stagnatedIdx3));
+    }
+
+    /**
+     * A backing index of a time series data stream without a configured lifecycle that does not prefer ILM is only considered managed
+     * by ILM, and thus a stagnation candidate, when the minimum lifecycle for time series is disabled.
+     */
+    public void testStagnatingIndicesFinderTimeSeriesDataStreamWithMinimumLifecycle() {
+        var maxTimeOnAction = randomTimeValueInDays();
+        var maxTimeOnStep = randomTimeValueInDays();
+        long maxRetriesPerStep = randomLongBetween(2, 100);
+        // every index managed by ILM is considered stagnated
+        Collection<IlmHealthIndicatorService.RuleCreator> ruleCreators = List.of((action, step, retries) -> (now, indexMetadata) -> true);
+
+        String dataStreamName = "metrics-prod";
+        var backingIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            .settings(
+                settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), randomAlphaOfLength(10))
+                    .put(IndexSettings.PREFER_ILM, false)
+            )
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        var dataStream = DataStream.builder(dataStreamName, List.of(backingIndex.getIndex()))
+            .setGeneration(1)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .build();
+        var metadata = Metadata.builder().put(backingIndex, false).put(dataStream).build();
+
+        var defaultLifecycleDisabled = createStagnatingIndicesFinder(
+            ruleCreators,
+            maxTimeOnAction,
+            maxTimeOnStep,
+            maxRetriesPerStep,
+            () -> 0L,
+            createDataStreamLifecycleSettings(false),
+            metadata
+        );
+        assertThat(defaultLifecycleDisabled.find(), contains(backingIndex));
+
+        var defaultLifecycleEnabled = createStagnatingIndicesFinder(
+            ruleCreators,
+            maxTimeOnAction,
+            maxTimeOnStep,
+            maxRetriesPerStep,
+            () -> 0L,
+            createDataStreamLifecycleSettings(true),
+            metadata
+        );
+        assertThat(defaultLifecycleEnabled.find(), empty());
     }
 
     public void testRecreateRules() {
@@ -252,12 +307,31 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
         LongSupplier timeSupplier,
         IndexMetadata... indicesMetadata
     ) {
+        var metadataBuilder = Metadata.builder();
+        Arrays.stream(indicesMetadata).forEach(im -> metadataBuilder.put(im, false));
+        return createStagnatingIndicesFinder(
+            ruleCreator,
+            maxTimeOnAction,
+            maxTimeOnStep,
+            maxRetriesPerStep,
+            timeSupplier,
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            metadataBuilder.build()
+        );
+    }
+
+    private IlmHealthIndicatorService.StagnatingIndicesFinder createStagnatingIndicesFinder(
+        Collection<IlmHealthIndicatorService.RuleCreator> ruleCreator,
+        TimeValue maxTimeOnAction,
+        TimeValue maxTimeOnStep,
+        long maxRetriesPerStep,
+        LongSupplier timeSupplier,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
+        Metadata metadata
+    ) {
         var clusterService = mock(ClusterService.class);
         var state = mock(ClusterState.class);
-        var metadataBuilder = Metadata.builder();
-
-        Arrays.stream(indicesMetadata).forEach(im -> metadataBuilder.put(im, false));
-        when(state.metadata()).thenReturn(metadataBuilder.build());
+        when(state.metadata()).thenReturn(metadata);
 
         when(clusterService.state()).thenReturn(state);
         var settings = Settings.builder()
@@ -277,7 +351,12 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
             )
         );
 
-        return new IlmHealthIndicatorService.StagnatingIndicesFinder(clusterService, ruleCreator, timeSupplier);
+        return new IlmHealthIndicatorService.StagnatingIndicesFinder(
+            clusterService,
+            ruleCreator,
+            timeSupplier,
+            dataStreamLifecycleSettings
+        );
     }
 
     static IndexMetadataTestCase randomIndexMetadata() {
@@ -296,4 +375,10 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
     }
 
     record IndexMetadataTestCase(String indexName, String policyName, LifecycleExecutionState ilmState) {}
+
+    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
+        var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
+        dataStreamLifecycleSettings.setMinimumLifecycleEnabled(enabled);
+        return dataStreamLifecycleSettings;
+    }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
@@ -70,7 +71,8 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
         "column_prefix",
         "trim_spaces",
         "schema_sample_size",
-        "skip_rows"
+        "skip_rows",
+        "schema_max_fields"
     );
 
     /**
@@ -121,11 +123,11 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
             "csv",
             (s, blockFactory) -> new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withDirectBlockEnabled(
                 CSV_DIRECT_BLOCK_ENABLED.get(s)
-            ),
+            ).withSchemaMaxFields(ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(s)),
             "tsv",
             (s, blockFactory) -> new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv")).withDirectBlockEnabled(
                 CSV_DIRECT_BLOCK_ENABLED.get(s)
-            )
+            ).withSchemaMaxFields(ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(s))
         );
     }
 

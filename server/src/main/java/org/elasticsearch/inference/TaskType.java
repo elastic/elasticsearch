@@ -32,7 +32,8 @@ public enum TaskType implements Writeable {
         }
     },
     CHAT_COMPLETION,
-    EMBEDDING;
+    EMBEDDING,
+    DOCUMENT_EXTRACTION;
 
     public static final String NAME = "task_type";
 

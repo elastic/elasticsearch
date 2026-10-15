@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,6 +38,7 @@ public class TextFieldValueQueriesTests extends MapperServiceTestCase {
     private static final List<String> DOCS = List.of("the quick brown fox", "quick", "jumps over the lazy dog");
 
     public void testColumnarTextAnswersOverItsValues() throws IOException {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         assertWholeValueSemantics(columnar(b -> b.field("type", "text")));
     }
 

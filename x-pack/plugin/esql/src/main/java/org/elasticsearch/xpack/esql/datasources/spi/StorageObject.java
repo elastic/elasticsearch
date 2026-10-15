@@ -465,10 +465,11 @@ public interface StorageObject {
      * Attaches the node telemetry sink and the storage {@code scheme} dimension so that this object's
      * read/retry events are published to {@link ExternalSourceMetrics} (in addition to the profile
      * counters surfaced by {@link #metrics()}). Called once by the operator wiring when it opens the
-     * object. The default is a no-op for objects that don't track I/O; decorator wrappers must forward
-     * to the wrapped object so the metrics attach to the underlying store, not the wrapper layer.
+     * object. Decorator wrappers must forward to the wrapped object so the metrics attach to the underlying
+     * store, not the wrapper layer. Implementations with no I/O counters implement it as an explicit no-op.
+     * There is no default: a silent default let decorators drop the attach without any failure.
      */
-    default void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+    void attachMetrics(ExternalSourceMetrics metrics, String scheme);
 
     /**
      * Binds {@code io} to the query-budget scheduler that will grant this object's GETs.
@@ -478,10 +479,9 @@ public interface StorageObject {
 
     /**
      * Timeout in milliseconds exposed by query-budget decorators for permit-acquire waits.
-     * Parquet coalesced PER_GET byte admission no longer reads this; that wait is
-     * {@code ParquetIoWatermark.DEFAULT_ADMIT_WAIT_MS}. Decorators that wrap a query budget still
-     * return {@link QueryAdmission#DEFAULT_ACQUIRE_TIMEOUT_MS} (or the budget acquire timeout)
-     * so tests and any remaining permit-wait callers can observe it.
+     * Parquet coalesced PER_GET byte admission no longer reads this; that path uses tickets.
+     * Decorators that wrap a query budget still return {@link QueryAdmission#DEFAULT_ACQUIRE_TIMEOUT_MS}
+     * (or the budget acquire timeout) so tests and any remaining permit-wait callers can observe it.
      */
     default long admissionWaitTimeoutMs() {
         return QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS;

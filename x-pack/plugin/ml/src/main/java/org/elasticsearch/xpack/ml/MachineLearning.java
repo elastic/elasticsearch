@@ -869,6 +869,14 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Temporary gate on creation and execution of ES|QL-backed anomaly detection datafeeds, enabled automatically in
+     * snapshot builds and via {@code -Des.esql_datafeeds_feature_flag_enabled=true} in release builds. Removed once
+     * ES|QL datafeeds reach GA (see {@link FeatureFlag}). The flag is fixed for the lifetime of the process and cannot be
+     * toggled per-cluster/per-project at runtime.
+     */
+    public static final FeatureFlag ESQL_DATAFEEDS_FEATURE_FLAG = new FeatureFlag("esql_datafeeds");
+
+    /**
      * The time that has to pass after scaling up, before scaling down is allowed.
      * Note that the ML autoscaling has its own cooldown time to release the hardware.
      */

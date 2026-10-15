@@ -25,7 +25,7 @@ public enum VectorType {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> SPARSE_VECTOR;
             case TEXT_EMBEDDING, EMBEDDING -> DENSE_VECTOR;
-            case RERANK, COMPLETION, CHAT_COMPLETION, ANY -> null;
+            case RERANK, COMPLETION, CHAT_COMPLETION, DOCUMENT_EXTRACTION, ANY -> null;
         };
     }
 

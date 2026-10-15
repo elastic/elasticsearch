@@ -67,7 +67,7 @@ import static org.mockito.Mockito.when;
 
 public class S3StorageObjectReadFailureTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     private static final String BUCKET = "test-bucket";
     private static final String KEY = "data/file.parquet";

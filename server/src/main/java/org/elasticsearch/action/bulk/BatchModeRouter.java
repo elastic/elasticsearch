@@ -105,6 +105,14 @@ final class BatchModeRouter implements Releasable {
     /** Returns the router for this bulk, or {@code null} when batch indexing does not apply. */
     @Nullable
     static BatchModeRouter create(BulkRequest bulkRequest, boolean batchIndexingSupported) {
+        return create(bulkRequest, batchIndexingSupported, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    }
+
+    /**
+     * As {@link #create(BulkRequest, boolean)}, but the x-content encoders obtain their pages from {@code recycler}.
+     */
+    @Nullable
+    static BatchModeRouter create(BulkRequest bulkRequest, boolean batchIndexingSupported, BytesRefRecycler recycler) {
         Map<String, SourceBatch> provided = bulkRequest.getPreBuiltBatches();
         boolean hasProvidedBatch = provided != null && provided.isEmpty() == false;
 
@@ -169,7 +177,7 @@ final class BatchModeRouter implements Releasable {
             );
         }
 
-        return new BatchModeRouter(new BulkBatchEncoders());
+        return new BatchModeRouter(new BulkBatchEncoders(recycler));
     }
 
     /**

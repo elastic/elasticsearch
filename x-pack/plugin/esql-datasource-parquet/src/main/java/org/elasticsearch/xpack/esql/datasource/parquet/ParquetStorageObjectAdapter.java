@@ -512,11 +512,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             }
 
             final boolean wholeFileFill = length <= windowSize;
-            // A whole-file fill becomes a FooterByteCache entry only when the object is its own footer
-            // (wholeFileIsFooter). Any larger whole-file fill would otherwise qualify as a tail read
-            // (fetchPos == 0, toRead == length) and objects up to maxEntryBytes would evict genuine
-            // footers from the configured per-reader footer cache budget.
-            final boolean cacheableFill = wholeFileFill == false || adapter.wholeFileIsFooter;
+            // See wholeFileIsFooter for the admission rule and why larger whole-file fills stay out.
+            final boolean wholeFileFillIsCacheable = wholeFileFill == false || adapter.wholeFileIsFooter;
             final long fetchPos;
             final long toRead;
             if (wholeFileFill) {
@@ -534,7 +531,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
             // Charge before getOrLoad so a breaker trip does not issue that cold-tail GET.
             getOrAllocateWindow();
-            boolean isTailRead = cacheableFill && fetchPos + toRead == length;
+            boolean isTailRead = wholeFileFillIsCacheable && fetchPos + toRead == length;
             if (isTailRead && toRead <= tailCache.maxEntryBytes()) {
                 try {
                     byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> readTailBytes(fetchPos, (int) toRead));
@@ -591,9 +588,11 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 throw e;
             }
 
-            // put() copies the window. Skip that copy when the entry would be rejected, and cache a
-            // whole-file fill only when the object is its own footer (see cacheableFill above).
-            if (cacheableFill && windowLength > 0 && windowStart + windowLength == length && windowLength <= tailCache.maxEntryBytes()) {
+            // put() copies the window. Skip that copy when the entry would be rejected.
+            if (wholeFileFillIsCacheable
+                && windowLength > 0
+                && windowStart + windowLength == length
+                && windowLength <= tailCache.maxEntryBytes()) {
                 byte[] tailBytes = UninitializedArrays.newByteArray(windowLength);
                 System.arraycopy(window, 0, tailBytes, 0, windowLength);
                 tailCache.put(cacheKey, tailBytes);
@@ -617,6 +616,11 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                     int n = in.read(buf, totalRead, chunk);
                     if (n < 0) {
                         break;
+                    }
+                    if (n == 0 && chunk > 0) {
+                        // The window fill below has always rejected this; here the loop would spin forever on a
+                        // stream that answers a non-zero request with zero.
+                        throw new IOException("InputStream.read returned 0 while " + chunk + " bytes were requested");
                     }
                     totalRead += n;
                 }

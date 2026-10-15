@@ -2752,9 +2752,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         );
 
         int offsetIndexRowGroupLimit = unfilteredLimit ? coveringRowGroupLimit(reader.getRowGroups(), rowLimit) : Integer.MAX_VALUE;
-        // A small object's footer entry is the whole object and the preload and column-chunk prefetch
-        // below are served from it, but the parsed footer this read opened with wrote no bytes: re-seed
-        // the entry if it has expired, before either of them peeks the cache.
+        // The preload and the column-chunk prefetch below are both served from the footer byte entry for
+        // a small object, so re-seed it before either of them peeks the cache. See
+        // ParquetStorageObjectAdapter#refillWholeFileFooter for why nothing else on this path would.
         adapter.refillWholeFileFooter();
         PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(
             reader,

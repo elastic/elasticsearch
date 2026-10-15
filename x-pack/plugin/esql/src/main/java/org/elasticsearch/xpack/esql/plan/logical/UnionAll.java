@@ -186,7 +186,7 @@ public class UnionAll extends MergePlan {
      * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
      * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to
      * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the
-     * compute service. It counts leaves under {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs
+     * compute service. It counts leaves under {@link BranchPlan}s too: a union produced by expanding a {@code FROM} pattern or view costs
      * exactly the same at execution time as one the user wrote.
      */
     private static void checkTotalBranchCount(UnionStats stats, int maxBranches, String branchCountSource, Failures failures) {
@@ -217,7 +217,7 @@ public class UnionAll extends MergePlan {
      * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
      * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to
      * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the compute
-     * service. It counts {@link ViewUnionAll}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the same at
+     * service. It counts {@link BranchPlan}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the same at
      * execution time as one the user wrote.
      */
     private static void checkMaxNestingLevel(UnionStats stats, int maxLevels, String branchLevelSource, Failures failures) {

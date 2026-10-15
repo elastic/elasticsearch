@@ -113,7 +113,7 @@ public class PreAnalyzer {
         });
 
         // CPS: collect ViewShadowRelation and DatasetShadowRelation patterns into one linked-indices set.
-        // Both shadow kinds ride inside ViewUnionAll branches (built by ViewResolver and DatasetRewriter
+        // Both shadow kinds ride inside BranchPlan branches (built by ViewResolver and DatasetRewriter
         // respectively); both drive the same lenient flat field-caps pass (EsqlSession.preAnalyzeLinkedIndices),
         // keyed by the shadow's LinkedIndexPattern. A LinkedHashSet preserves emission order for deterministic
         // test output and deduplicates so two shadows with the same indexPattern only produce one lenient call.

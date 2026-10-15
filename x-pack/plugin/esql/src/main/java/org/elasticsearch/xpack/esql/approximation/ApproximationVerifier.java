@@ -58,7 +58,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -144,7 +144,7 @@ public class ApproximationVerifier {
         new SimpleImmutableEntry<>(UriParts.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(UnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(UserAgent.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
-        new SimpleImmutableEntry<>(ViewUnionAll.class, SupportedVersion.SUPPORTED_ON_ALL_NODES)
+        new SimpleImmutableEntry<>(BranchPlan.class, SupportedVersion.SUPPORTED_ON_ALL_NODES)
     );
 
     /**
@@ -286,7 +286,7 @@ public class ApproximationVerifier {
             }
         });
 
-        // Check whether there's a MergePlan (FORK, UnionAll, ViewUnionAll).
+        // Check whether there's a MergePlan (FORK, UnionAll, BranchPlan).
         List<MergePlan> mergePlans = logicalPlan.collect(MergePlan.class);
         if (mergePlans.isEmpty()) {
             // When there's no merge, verify this logical plan.

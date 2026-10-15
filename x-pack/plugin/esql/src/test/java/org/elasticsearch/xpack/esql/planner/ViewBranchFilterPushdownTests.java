@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -53,7 +53,7 @@ public class ViewBranchFilterPushdownTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
         branches.put("a_view", EsqlTestUtils.relation());
         branches.put("main", EsqlTestUtils.relation());
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, branches, Map.of("a_view", BranchIdentity.view("a_view")), List.of());
+        BranchPlan vua = new BranchPlan(Source.EMPTY, branches, Map.of("a_view", BranchIdentity.view("a_view")), List.of());
 
         PhysicalPlan physical = new Mapper().map(new Versioned<>(vua, TransportVersion.current()));
 
@@ -67,7 +67,7 @@ public class ViewBranchFilterPushdownTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
         branches.put("main", EsqlTestUtils.relation());
         branches.put("other", EsqlTestUtils.relation());
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, branches, Map.of(), List.of());
+        BranchPlan vua = new BranchPlan(Source.EMPTY, branches, Map.of(), List.of());
 
         PhysicalPlan physical = new Mapper().map(new Versioned<>(vua, TransportVersion.current()));
 

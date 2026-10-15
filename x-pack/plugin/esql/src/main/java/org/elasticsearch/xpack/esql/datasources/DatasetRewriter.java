@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -87,7 +87,7 @@ public final class DatasetRewriter {
     /**
      * Per-relation engine-side resolution, run from the {@code EsqlResolveDatasetAction} body. Returns the authorized
      * dataset names, the concrete non-dataset names resolved from the same pattern (used in heterogeneous-FROM
-     * {@link ViewUnionAll} building), and the explicitly-named-but-unauthorized datasets — which {@link #rewriteOne}
+     * {@link BranchPlan} building), and the explicitly-named-but-unauthorized datasets — which {@link #rewriteOne}
      * surfaces as {@code Unknown index} (400), the same error a missing index gives, so an unauthorized dataset
      * can't be told apart from a missing name.
      *
@@ -246,7 +246,7 @@ public final class DatasetRewriter {
 
     /**
      * Walks {@code parsed} and rewrites every {@link UnresolvedRelation} that resolved to external dataset(s) into
-     * {@link UnresolvedExternalRelation} (single dataset) or a {@link ViewUnionAll} of such (multi) carrying a
+     * {@link UnresolvedExternalRelation} (single dataset) or a {@link BranchPlan} of such (multi) carrying a
      * {@link BranchIdentity} per branch, using the per-relation {@link DatasetResolution} computed engine-side by
      * {@link #resolve}. All other relations are left untouched. The {@code projectMetadata == null} /
      * no-datasets-registered short-circuits avoid touching the common path.
@@ -433,7 +433,7 @@ public final class DatasetRewriter {
         if (branches.size() == 1) {
             return branches.values().iterator().next();
         }
-        return new ViewUnionAll(relation.source(), branches, identities, List.of());
+        return new BranchPlan(relation.source(), branches, identities, List.of());
     }
 
     /** Uniquifies {@code key} against the branch map ({@code "ds"} → {@code "ds~2"}), like {@code ViewCompaction.makeUniqueKey}. */
@@ -664,7 +664,7 @@ public final class DatasetRewriter {
     /**
      * Per-relation result of {@link #resolve}: the external dataset names the relation resolved to (security-filtered
      * to those the caller may read), the concrete non-dataset names resolved from the same pattern (drives
-     * heterogeneous-FROM {@link ViewUnionAll} building), and the explicitly-named datasets absent from the resolved set
+     * heterogeneous-FROM {@link BranchPlan} building), and the explicitly-named datasets absent from the resolved set
      * (surfaced by {@link #rewriteOne} as {@code Unknown index}).
      */
     public record DatasetResolution(Set<String> resolvedExternalDatasets, Set<String> nonDatasetNames, Set<String> explicitUnauthorized) {}

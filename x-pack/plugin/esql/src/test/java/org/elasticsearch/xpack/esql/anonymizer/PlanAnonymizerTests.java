@@ -195,10 +195,10 @@ public class PlanAnonymizerTests extends ESTestCase {
     }
 
     /**
-     * ViewUnionAll holds a {@code LinkedHashMap<viewName, subPlan>} that surfaces in its nodeString
-     * as {@code ViewUnionAll[[view1, view2]]}. Verifies every key in the map is anonymized.
+     * BranchPlan holds a {@code LinkedHashMap<viewName, subPlan>} that surfaces in its nodeString
+     * as {@code BranchPlan[[view1, view2]]}. Verifies every key in the map is anonymized.
      */
-    public void testViewUnionAllNamesAnonymized() {
+    public void testBranchPlanNamesAnonymized() {
         List<String> sensitiveViews = List.of("payments_v1", "tenant_pii_eu", "billing_secrets_v3");
         EsField field = new EsField(F_EMAIL, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
         FieldAttribute attr = new FieldAttribute(Source.EMPTY, null, null, F_EMAIL, field);
@@ -215,7 +215,7 @@ public class PlanAnonymizerTests extends ESTestCase {
         for (String v : sensitiveViews) {
             namedSubqueries.put(v, inner);
         }
-        org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll vua = new org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll(
+        org.elasticsearch.xpack.esql.plan.logical.BranchPlan vua = new org.elasticsearch.xpack.esql.plan.logical.BranchPlan(
             Source.EMPTY,
             namedSubqueries,
             namedSubqueries.keySet()

@@ -201,13 +201,13 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         QueryBuilder fake = QueryBuilders.termQuery("fake", 1);
         // View branch alongside a bare index: only the bare-index branch survives.
         String mixed = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + INDEX + " | KEEP id", fake);
-        assertThat("the view branch is pruned, leaving the bare-index branch", mixed, containsString("ViewUnionAll[[main]]"));
+        assertThat("the view branch is pruned, leaving the bare-index branch", mixed, containsString("BranchPlan[[main]]"));
         assertThat(mixed, not(containsString(PREFILTERED_VIEW)));
         // Every branch is a view: the union collapses to an empty local relation.
         String allViews = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + STATS_VIEW, fake);
         assertThat("no branch survives", allViews, startsWith("LocalRelation["));
         assertThat(allViews, containsString("EMPTY"));
-        assertThat(allViews, not(containsString("ViewUnionAll")));
+        assertThat(allViews, not(containsString("BranchPlan")));
     }
 
     /** Runs {@code EXPLAIN} over {@code query} with the given request filter and returns the coordinator's optimized logical plan. */
@@ -348,7 +348,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         final int BASE3 = 2000;
         indexRows(idx3, BASE3);
 
-        // View branch first, bare index second: one ViewUnionAll carrying one view branch and one bare-index branch.
+        // View branch first, bare index second: one BranchPlan carrying one view branch and one bare-index branch.
         // status=300 is ids 1 and 4 from the view, 2001 and 2004 from the bare index.
         assertThat(
             "the view branch and the bare-index branch must both be filtered, by different paths",
@@ -469,7 +469,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A view whose body ends in {@code KEEP} — the most ordinary view shape there is. Preserving its boundary for the filter used to
-     * leave everything above the {@code ViewUnionAll} unresolved: the analyzer's merge alignment saw a branch that was already a
+     * leave everything above the {@code BranchPlan} unresolved: the analyzer's merge alignment saw a branch that was already a
      * {@code Project} over exactly the merge columns, rewrote nothing, and returned the merge with the empty output view resolution
      * gave it. The filter rewriter then marked the tree analyzed, so the optimizer hit {@code UnresolvedException: Invalid call to
      * dataType on an unresolved object ?id} instead of verification reporting anything.
@@ -487,7 +487,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     /**
      * Two views that both end in {@code KEEP} over the same columns. Every branch is already an aligned {@code Project}, so the
      * merge alignment rewrites nothing — the same path as {@link #testFilterOnViewEndingInKeep}, but with a multi-branch
-     * {@code ViewUnionAll} that existed before boundaries were ever preserved.
+     * {@code BranchPlan} that existed before boundaries were ever preserved.
      */
     public void testFilterOnTwoViewsBothEndingInKeep() {
         createView("vrf_keep_a", "FROM " + INDEX + " | KEEP id, status");
@@ -504,7 +504,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A view whose body contains a subquery branches internally, so preserving its boundary nests a plain
-     * {@code UnionAll} under the {@code ViewUnionAll} wrapper — a shape that verifies and executes like any other
+     * {@code UnionAll} under the {@code BranchPlan} wrapper — a shape that verifies and executes like any other
      * nested subquery. This test filters on a <em>mapped</em> pass-through field; the computed-field variants below
      * are what distinguish output-filtering from pushdown.
      *
@@ -535,7 +535,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A view whose body is a <em>bare</em> union — no trailing operator — flattens: compaction lifts each body piece
-     * into its own branch of the outer {@code ViewUnionAll}. Each lifted piece is still part of the view, so the filter
+     * into its own branch of the outer {@code BranchPlan}. Each lifted piece is still part of the view, so the filter
      * must apply to its output, not its source scan. Here only the subquery piece computes {@code tag}, so the filter
      * selects its {@code eu} row and binds {@code tag} to NULL on the other piece, matching nothing there — while a
      * pushdown would have matched nothing anywhere.

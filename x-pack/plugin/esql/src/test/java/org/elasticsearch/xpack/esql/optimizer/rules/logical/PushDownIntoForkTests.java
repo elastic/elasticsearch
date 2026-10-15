@@ -294,7 +294,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * {@snippet lang="text":
      * TopN[[Order[emp_no{r}#29,ASC,LAST]],20[INTEGER],false]
-     * \_ViewUnionAll[[unnamed_view_1, unnamed_view_2]]
+     * \_BranchPlan[[unnamed_view_1, unnamed_view_2]]
      *   |_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
      * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
      *   | \_Filter[emp_no{f}#6 > 100[INTEGER]]

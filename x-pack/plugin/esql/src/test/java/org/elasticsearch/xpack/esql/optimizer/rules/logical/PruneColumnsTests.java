@@ -2815,7 +2815,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *
      * Limit[1000[INTEGER],false,false]
      * \_Aggregate[[],[SUM($$partial$$d2{r$}#..,...) AS d2#10]]
-     *   \_ViewUnionAll[[null, unnamed_view_1]]
+     *   \_BranchPlan[[null, unnamed_view_1]]
      *     |_Aggregate[[],[COUNT(*[KEYWORD],...) AS $$partial$$d2#..]]
      *     | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      *     \_Aggregate[[],[COUNT(*[KEYWORD],...) AS $$partial$$d2#..]]

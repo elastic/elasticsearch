@@ -73,7 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -199,7 +199,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         CIDRMatch.class,
         Fork.class,
         UnionAll.class,
-        ViewUnionAll.class
+        BranchPlan.class
     );
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
@@ -577,7 +577,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             // record field
             return new EsStatsQueryExec.BasicStat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
         } else if (argClass == BranchIdentity.class) {
-            // BranchIdentity is a record (final), so the mock fallback cannot proxy it; build a real one. ViewUnionAll's
+            // BranchIdentity is a record (final), so the mock fallback cannot proxy it; build a real one. BranchPlan's
             // constructor normalizes the identity map against the branch map, so random keys are fine.
             return randomFrom(BranchIdentity.INDEX, BranchIdentity.SUBQUERY, BranchIdentity.view(randomIdentifier()));
         } else if (argClass == Integer.class) {
@@ -591,7 +591,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             // ResolvingProject's ctor asserts at most one _unmapped_fields in the child output. randomResolvedExpression can draw
             // UnmappedFieldsAttribute for any Attribute arg, letting the random tree stack two — a shape the analyzer never builds.
             return randomEsRelation();
-        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, ViewUnionAll.class).contains(toBuildClass)
+        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class, BranchPlan.class).contains(toBuildClass)
             && argType == LogicalPlan.class) {
                 // limit recursion of plans, in order to prevent stackoverflow errors
                 return randomEsRelation();

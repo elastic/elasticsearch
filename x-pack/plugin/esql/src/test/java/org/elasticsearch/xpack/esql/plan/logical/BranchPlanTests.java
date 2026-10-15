@@ -23,10 +23,10 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ViewUnionAllTests extends ESTestCase {
+public class BranchPlanTests extends ESTestCase {
 
     public void testIsInstanceOfUnionAll() {
-        ViewUnionAll viewUnion = viewUnionAll();
+        BranchPlan viewUnion = viewUnionAll();
         assertThat(viewUnion, instanceOf(UnionAll.class));
         assertThat(viewUnion, instanceOf(MergePlan.class));
     }
@@ -34,20 +34,20 @@ public class ViewUnionAllTests extends ESTestCase {
     public void testReplaceChildrenPreservesType() {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");
-        ViewUnionAll original = viewUnionAll(child1);
+        BranchPlan original = viewUnionAll(child1);
 
         LogicalPlan replaced = original.replaceChildren(List.of(child2));
-        assertThat(replaced, instanceOf(ViewUnionAll.class));
+        assertThat(replaced, instanceOf(BranchPlan.class));
         assertEquals(List.of(child2), replaced.children());
     }
 
     public void testReplaceSubPlansPreservesType() {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");
-        ViewUnionAll original = viewUnionAll(child1);
+        BranchPlan original = viewUnionAll(child1);
         assertThat(original.namedSubqueries(), equalTo(Map.of("view_0", child1)));
 
-        ViewUnionAll replaced = original.replaceSubPlans(List.of(child2));
+        BranchPlan replaced = original.replaceSubPlans(List.of(child2));
         assertEquals(List.of(child2), replaced.children());
         assertThat(replaced.namedSubqueries(), equalTo(Map.of("view_0", child2)));
     }
@@ -55,11 +55,11 @@ public class ViewUnionAllTests extends ESTestCase {
     public void testReplaceSubPlansAndOutputPreservesType() {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");
-        ViewUnionAll original = viewUnionAll(child1);
+        BranchPlan original = viewUnionAll(child1);
         assertThat(original.namedSubqueries(), equalTo(Map.of("view_0", child1)));
 
         Attribute col1 = new ReferenceAttribute(Source.EMPTY, null, "col", DataType.KEYWORD);
-        ViewUnionAll replaced = original.replaceSubPlansAndOutput(List.of(child2), List.of(col1));
+        BranchPlan replaced = original.replaceSubPlansAndOutput(List.of(child2), List.of(col1));
         assertEquals(List.of(child2), replaced.children());
         assertThat(replaced.namedSubqueries(), equalTo(Map.of("view_0", child2)));
         assertThat(replaced.output(), contains(col1));
@@ -69,10 +69,10 @@ public class ViewUnionAllTests extends ESTestCase {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");
 
-        ViewUnionAll a = viewUnionAll(child1, child2);
-        ViewUnionAll b = viewUnionAll(child1, child2);
-        ViewUnionAll c = viewUnionAll(child1);
-        ViewUnionAll d = viewUnionAll(child2, child1);
+        BranchPlan a = viewUnionAll(child1, child2);
+        BranchPlan b = viewUnionAll(child1, child2);
+        BranchPlan c = viewUnionAll(child1);
+        BranchPlan d = viewUnionAll(child2, child1);
 
         // a and b are identical
         assertEquals(a, b);
@@ -103,50 +103,50 @@ public class ViewUnionAllTests extends ESTestCase {
     public void testReplaceChildrenDoesNotMutateOriginalInstance() {
         LogicalPlan child1 = relation("index1");
         LogicalPlan child2 = relation("index2");
-        ViewUnionAll original = viewUnionAll(child1, child2);
+        BranchPlan original = viewUnionAll(child1, child2);
 
         original.replaceChildren(List.of(child1, child2));
         assertThat(original.namedSubqueries(), equalTo(Map.of("view_0", child1, "view_1", child2)));
 
         // Re-analyzing the same instance a second time (what analyzeWithRetry does) still works.
         LogicalPlan replaced = original.replaceChildren(List.of(child1, child2));
-        assertThat(replaced, instanceOf(ViewUnionAll.class));
+        assertThat(replaced, instanceOf(BranchPlan.class));
         assertEquals(List.of(child1, child2), replaced.children());
     }
 
     public void testNotEqualToPlainUnionAll() {
         LogicalPlan child = relation("index1");
 
-        ViewUnionAll viewUnion = viewUnionAll(child);
+        BranchPlan viewUnion = viewUnionAll(child);
         UnionAll plainUnion = new UnionAll(Source.EMPTY, List.of(child), List.of());
 
-        // ViewUnionAll and UnionAll with same children should NOT be equal (different getClass())
+        // BranchPlan and UnionAll with same children should NOT be equal (different getClass())
         assertNotEquals(viewUnion, plainUnion);
         assertNotEquals(plainUnion, viewUnion);
     }
 
     /**
-     * {@link MergePlan#refreshOutput()} must keep this a {@link ViewUnionAll}, carrying both the named-subqueries map and
+     * {@link MergePlan#refreshOutput()} must keep this a {@link BranchPlan}, carrying both the named-subqueries map and
      * the view-branch keys. It used to be implemented per subclass, and {@link UnionAll}'s version named its own
-     * constructor — so a {@code ViewUnionAll} came back as a plain {@code UnionAll} with its view boundaries erased,
+     * constructor — so a {@code BranchPlan} came back as a plain {@code UnionAll} with its view boundaries erased,
      * which silently sent the request filter down the Lucene push-in path instead of onto the view's output. Reachable
      * from {@code ResolveUnmapped} and {@code DetermineUnmappedFieldsToKeep}, i.e. {@code unmapped_fields} over a view.
      */
     public void testRefreshOutputPreservesTypeAndViewBranchKeys() {
         LogicalPlan child = relation("index1");
-        ViewUnionAll original = viewUnionAll(child);
+        BranchPlan original = viewUnionAll(child);
 
         MergePlan refreshed = original.refreshOutput();
 
-        assertThat(refreshed, instanceOf(ViewUnionAll.class));
-        ViewUnionAll refreshedView = (ViewUnionAll) refreshed;
+        assertThat(refreshed, instanceOf(BranchPlan.class));
+        BranchPlan refreshedView = (BranchPlan) refreshed;
         assertThat(refreshedView.namedSubqueries(), equalTo(Map.of("view_0", child)));
         assertThat(refreshedView.viewBranchKeys(), equalTo(Set.of("view_0")));
         assertTrue("the sole branch must still be recognised as a view branch", refreshedView.isViewBranch("view_0"));
     }
 
-    /** Builds a {@link ViewUnionAll} where every branch is a view branch (keys {@code "view_0"}, {@code "view_1"}, …). */
-    private static ViewUnionAll viewUnionAll(LogicalPlan... children) {
+    /** Builds a {@link BranchPlan} where every branch is a view branch (keys {@code "view_0"}, {@code "view_1"}, …). */
+    private static BranchPlan viewUnionAll(LogicalPlan... children) {
         LinkedHashMap<String, LogicalPlan> namedChildren = LinkedHashMap.newLinkedHashMap(children.length);
         LinkedHashMap<String, BranchIdentity> identities = LinkedHashMap.newLinkedHashMap(children.length);
         for (int i = 0; i < children.length; i++) {
@@ -154,7 +154,7 @@ public class ViewUnionAllTests extends ESTestCase {
             namedChildren.put(key, children[i]);
             identities.put(key, BranchIdentity.view(key));
         }
-        return new ViewUnionAll(Source.EMPTY, namedChildren, identities, List.of());
+        return new BranchPlan(Source.EMPTY, namedChildren, identities, List.of());
     }
 
     private static UnresolvedRelation relation(String name) {

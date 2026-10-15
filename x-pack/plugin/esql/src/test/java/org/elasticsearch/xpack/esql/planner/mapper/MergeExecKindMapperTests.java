@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -44,7 +44,7 @@ public class MergeExecKindMapperTests extends ESTestCase {
         assertEquals(MergeExec.Kind.UNION, merge.kind());
     }
 
-    public void testViewUnionAllMapsToUnionKind() {
+    public void testBranchPlanMapsToUnionKind() {
         PhysicalPlan physical = new Mapper().map(new Versioned<>(viewUnionAll(), TransportVersion.current()));
         MergeExec merge = as(physical, MergeExec.class);
         assertEquals(MergeExec.Kind.UNION, merge.kind());
@@ -74,13 +74,13 @@ public class MergeExecKindMapperTests extends ESTestCase {
         return new UnionAll(Source.EMPTY, List.of(left, right), left.output());
     }
 
-    private static ViewUnionAll viewUnionAll() {
+    private static BranchPlan viewUnionAll() {
         LogicalPlan left = EsqlTestUtils.emptySource();
         LogicalPlan right = EsqlTestUtils.emptySource();
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put("left", left);
         children.put("right", right);
-        return new ViewUnionAll(
+        return new BranchPlan(
             Source.EMPTY,
             children,
             Map.of("left", BranchIdentity.view("left"), "right", BranchIdentity.view("right")),

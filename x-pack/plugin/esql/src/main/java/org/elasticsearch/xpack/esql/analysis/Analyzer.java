@@ -199,7 +199,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -613,7 +613,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Phase 2 of view compaction. Runs in the Initialize batch after index, view-shadow, and dataset-shadow resolution. Dataset shadows
      * must be resolved ({@link ResolveDatasetShadow}) or stripped ({@link StripDatasetShadowRelations}) before this rule runs, so the
      * nested-union flattening below never lifts an unresolved shadow into an outer level. Strips remaining unresolved view shadows,
-     * flattens nested {@code ViewUnionAll} structures when the flat width is within {@link AnalyzerContext#maxBranchCount()}, and
+     * flattens nested {@code BranchPlan} structures when the flat width is within {@link AnalyzerContext#maxBranchCount()}, and
      * unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting compaction
      * across the analyzer boundary.
      */
@@ -655,7 +655,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Source src = unresolvedMetadata.source();
 
             LogicalPlan answered;
-            if (child instanceof ViewUnionAll vua) {
+            if (child instanceof BranchPlan vua) {
                 answered = answerFromIdentities(vua, relationColumns, src);
             } else {
                 answered = answerLone(child, relationColumns, src);
@@ -671,7 +671,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * wrapper is consumed exactly once, here, before compaction can disturb it. The identity fallback covers the
          * one wrapper-less case: a pass-through view that {@code ViewResolver} folded down to its bare index pattern.
          */
-        private static LogicalPlan answerFromIdentities(ViewUnionAll vua, List<NamedExpression> relationColumns, Source src) {
+        private static LogicalPlan answerFromIdentities(BranchPlan vua, List<NamedExpression> relationColumns, Source src) {
             List<LogicalPlan> branches = new ArrayList<>(vua.children().size());
             boolean changed = false;
             for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
@@ -777,10 +777,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Strips any {@link DatasetShadowRelation} that {@link ResolveDatasetShadow} did not fold into a
      * sibling {@code EsRelation}. The dataset analog of {@code ViewCompaction.stripViewShadowRelations},
-     * over the {@link ViewUnionAll} the {@code DatasetRewriter} builds. Runs right after
+     * over the {@link BranchPlan} the {@code DatasetRewriter} builds. Runs right after
      * {@link ResolveDatasetShadow} in the Initialize batch.
      * <p>
-     * Delegates to {@link ViewUnionAll#pruneEmptyBranches(java.util.function.Predicate)} so a matched shadow
+     * Delegates to {@link BranchPlan#pruneEmptyBranches(java.util.function.Predicate)} so a matched shadow
      * (now an {@code EsRelation}) survives alongside the dataset's external relation as a separate branch
      * (no merging into a single combined relation) and the named-subqueries map stays in sync. A union the
      * prune reduces to one branch collapses to that lone child, so {@code FROM ds} with no remote match
@@ -792,9 +792,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformDown(ViewUnionAll.class, vua -> {
+            return plan.transformDown(BranchPlan.class, vua -> {
                 LogicalPlan pruned = vua.pruneEmptyBranches(child -> child instanceof DatasetShadowRelation);
-                if (pruned != vua && pruned instanceof ViewUnionAll prunedVua && prunedVua.children().size() == 1) {
+                if (pruned != vua && pruned instanceof BranchPlan prunedVua && prunedVua.children().size() == 1) {
                     return prunedVua.children().getFirst();
                 }
                 return pruned;
@@ -2084,7 +2084,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
             // FORK always copies a mention to siblings. LOAD_ALL subqueries do too. LOAD does not: a mention in one
             // independent-source branch loads that branch and Eval-nulls siblings.
-            // TODO: VIEW-kind branches (ViewUnionAll.branchIdentity) should be excluded from
+            // TODO: VIEW-kind branches (BranchPlan.branchIdentity) should be excluded from
             // unmapped-field materialization here — _source loading must not reach through the view boundary; the view
             // branch should null-fill like a dataset would, pending the design discussion.
             boolean alignMentionedUnmapped = alignUnmappedAcrossBranches
@@ -2209,7 +2209,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newSubPlans.add(logicalPlan);
             }
 
-            // A merge whose branches already line up still needs its own output populated. View resolution builds a ViewUnionAll
+            // A merge whose branches already line up still needs its own output populated. View resolution builds a BranchPlan
             // with an empty output and relies on this rule to fill it in; when every branch is already a Project over exactly the
             // merge columns (a view body ending in KEEP is the common case) no branch is rewritten, and returning early here would
             // leave that empty output in place. MergePlan.expressionsResolved then fails on the size mismatch and everything above
@@ -6064,9 +6064,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnionAll unionAll, AnalyzerContext context) {
-            // Delegate to UnionAll#pruneEmptyBranches — ViewUnionAll overrides it to preserve
+            // Delegate to UnionAll#pruneEmptyBranches — BranchPlan overrides it to preserve
             // its named-subqueries map so this rule works correctly when an EMPTY_SUBQUERY
-            // branch lives next to a CPS shadow inside a ViewUnionAll.
+            // branch lives next to a CPS shadow inside a BranchPlan.
             Map<IndexPattern, IndexResolution> indexResolutions = context.indexResolution();
             return unionAll.pruneEmptyBranches(child -> resolvesToEmptySubquery(child, indexResolutions));
         }

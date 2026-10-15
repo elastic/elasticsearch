@@ -92,7 +92,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Negative tests for subquery analysis in {@code FROM} (and the related {@code ViewUnionAll}/{@code UnionAll} planning), or those don't
+ * Negative tests for subquery analysis in {@code FROM} (and the related {@code BranchPlan}/{@code UnionAll} planning), or those don't
  * fit the golden tests. The successful plan-shape (positive) tests over real CSV datasets now live in {@code AnalyzerSubqueryGoldenTests}.
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")

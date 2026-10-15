@@ -451,7 +451,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      * Project[[_meta_field{r}#102, ..., salary{r}#112, z{r}#115, language_name{r}#116,
      *               $$x$converted_to$long{r$}#125 AS x#38, $$y$converted_to$long{r$}#126 AS y#41]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_ViewUnionAll[[unnamed_view_1, unnamed_view_2, unnamed_view_3]]
+     *   \_BranchPlan[[unnamed_view_1, unnamed_view_2, unnamed_view_3]]
      *     |_Project[[_meta_field{f}#62, ..., x{r}#5, $$x$converted_to$long{r$}#119, y{r}#128, $$y$converted_to$long{r$}#120, z{r}#11,
      *     |          language_name{r}#86]]
      *     | \_Filter[ISNOTNULL($$y$converted_to$long{r$}#120) AND z{r}#11 > 0[INTEGER]]

@@ -95,7 +95,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         // TODO: unmapped-field resolution must not reach inside view branches. A view is a virtual
         // index, and SET unmapped_fields is an ES-index concept (loading from _source) that its callers should not see
         // through the view boundary — the same principle that keeps the raw request-filter DSL out of a view's source
-        // scans. ViewUnionAll.branchIdentity() now says which branches are views; once the design discussion settles,
+        // scans. BranchPlan.branchIdentity() now says which branches are views; once the design discussion settles,
         // skip resolution in subtrees under VIEW-kind branches (re-enabled later only by SET unmapped_fields inside
         // the view definition itself).
         return switch (context.unmappedResolution()) {

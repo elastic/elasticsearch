@@ -55,7 +55,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
@@ -741,7 +741,7 @@ public class TestAnalyzer {
         if (subplans.size() == 1) {
             return subplans.values().iterator().next();
         } else {
-            return new ViewUnionAll(ur.source(), subplans, identities, List.of());
+            return new BranchPlan(ur.source(), subplans, identities, List.of());
         }
     }
 

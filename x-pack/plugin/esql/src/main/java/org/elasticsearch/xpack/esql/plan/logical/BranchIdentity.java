@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * What a {@link ViewUnionAll} branch <em>is</em>: a resolved view (with its name), a user-written subquery, a resolved
+ * What a {@link BranchPlan} branch <em>is</em>: a resolved view (with its name), a user-written subquery, a resolved
  * dataset (with its name), or a bare index pattern. Carried as first-class state on the union node — not inferred from
  * transient {@link Subquery}/{@link NamedSubquery} wrappers, whose survival depends on compaction decisions, and not
  * from the branch map's keys, which are uniquified ({@code "meow~2"}) and so are labels rather than names.

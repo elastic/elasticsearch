@@ -22,10 +22,13 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * A {@link UnionAll} produced by view resolution, as opposed to user-written subqueries.
- * This type marker allows {@link org.elasticsearch.xpack.esql.view.ViewResolver} to distinguish
- * between unions it has already processed (view-produced) and unions from the parser (subqueries)
- * that may still contain unresolved view references.
+ * The branch point of the logical plan: a {@link UnionAll} whose branches carry a {@link BranchIdentity}. Resolution
+ * and compaction produce one for every composition of sources — resolved views, user-written literal subqueries,
+ * datasets, and bare index patterns — so downstream consumers ask {@link #branchIdentity(String)} what a branch
+ * <em>is</em> instead of inferring it from the branch's inner structure. The type also marks unions
+ * {@link org.elasticsearch.xpack.esql.view.ViewResolver} has already processed, as opposed to parser-produced unions
+ * that may still contain unresolved view references. (FORK still produces a plain {@link UnionAll}; folding it in is
+ * future work, after which {@link MergePlan} would be the single branch node for everything.)
  *
  * <p>Not every entry in {@link #namedSubqueries()} is an actual resolved view. The map also
  * carries bare-index branches (assigned keys like {@code "main"} by {@link
@@ -34,18 +37,22 @@ import java.util.stream.Collectors;
  * org.elasticsearch.xpack.esql.view.ViewCompaction}). Only the keys in {@link #viewBranchKeys()}
  * are actual resolved views; callers that need to apply view-specific logic (e.g. the request
  * filter rewriter) must check {@link #isViewBranch(String)} rather than {@code key != null}.
+ *
+ * <p>The plan dump prints each branch as {@code key=KIND} (with the identity's real name appended as
+ * {@code KIND(name)} when it differs from the key, which uniquification can mangle), in the same order as the child
+ * plans are printed — so the original query's composition stays deducible from the dump alone.
  */
-public class ViewUnionAll extends UnionAll {
+public class BranchPlan extends UnionAll {
     private final LinkedHashMap<String, LogicalPlan> namedSubqueries = new LinkedHashMap<>();
     /** What each branch is — view (with its real name), subquery, or bare index — keyed like {@link #namedSubqueries}. */
     private final Map<String, BranchIdentity> branchIdentities;
 
     /**
-     * Creates a {@link ViewUnionAll} with an explicit {@link BranchIdentity} per branch.
+     * Creates a {@link BranchPlan} with an explicit {@link BranchIdentity} per branch.
      *
      * @param branchIdentities identity per key in {@code children}; a missing entry means a bare index-pattern branch.
      */
-    public ViewUnionAll(
+    public BranchPlan(
         Source source,
         LinkedHashMap<String, LogicalPlan> children,
         Map<String, BranchIdentity> branchIdentities,
@@ -70,14 +77,14 @@ public class ViewUnionAll extends UnionAll {
 
     @Override
     public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        return new ViewUnionAll(source(), asSubqueryMap(newChildren), branchIdentities, output());
+        return new BranchPlan(source(), asSubqueryMap(newChildren), branchIdentities, output());
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
         return NodeInfo.create(
             this,
-            (source, children, identities, output) -> new ViewUnionAll(source, children, identities, output),
+            (source, children, identities, output) -> new BranchPlan(source, children, identities, output),
             namedSubqueries,
             branchIdentities,
             output()
@@ -85,13 +92,13 @@ public class ViewUnionAll extends UnionAll {
     }
 
     @Override
-    public ViewUnionAll replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new ViewUnionAll(source(), asSubqueryMap(subPlans), branchIdentities, output());
+    public BranchPlan replaceSubPlans(List<LogicalPlan> subPlans) {
+        return new BranchPlan(source(), asSubqueryMap(subPlans), branchIdentities, output());
     }
 
     @Override
-    public ViewUnionAll replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
-        return new ViewUnionAll(source(), asSubqueryMap(subPlans), branchIdentities, output);
+    public BranchPlan replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
+        return new BranchPlan(source(), asSubqueryMap(subPlans), branchIdentities, output);
     }
 
     // Currently for testing only, could also be useful for EXPLAIN and PROFILE
@@ -135,7 +142,7 @@ public class ViewUnionAll extends UnionAll {
     private LinkedHashMap<String, LogicalPlan> asSubqueryMap(List<LogicalPlan> children) {
         if (children.size() != namedSubqueries.size()) {
             throw new IllegalArgumentException(
-                "ViewUnionAll.replaceChildren expects a 1:1 positional replacement; use pruneEmptyBranches"
+                "BranchPlan.replaceChildren expects a 1:1 positional replacement; use pruneEmptyBranches"
                     + " to drop branches and preserve the named-subqueries invariant."
             );
         }
@@ -167,7 +174,7 @@ public class ViewUnionAll extends UnionAll {
             return this;
         }
         // The identity constructor retains only the surviving keys' identities.
-        return new ViewUnionAll(source(), kept, branchIdentities, output());
+        return new BranchPlan(source(), kept, branchIdentities, output());
     }
 
     @Override
@@ -180,6 +187,11 @@ public class ViewUnionAll extends UnionAll {
             }
             first = false;
             sb.append(mapper.index(key));
+            BranchIdentity identity = branchIdentity(key);
+            sb.append('=').append(identity.kind());
+            if (identity.name() != null && identity.name().equals(key) == false) {
+                sb.append('(').append(mapper.index(identity.name())).append(')');
+            }
         }
         sb.append("]]");
     }
@@ -195,7 +207,7 @@ public class ViewUnionAll extends UnionAll {
             int v = Objects.hashCode(entry.getValue());
             h += k * (v + 1);
         }
-        return Objects.hash(ViewUnionAll.class, h, branchIdentities, output().size());
+        return Objects.hash(BranchPlan.class, h, branchIdentities, output().size());
     }
 
     @Override
@@ -210,7 +222,7 @@ public class ViewUnionAll extends UnionAll {
         if (super.equals(o) == false) {
             return false;
         }
-        ViewUnionAll other = (ViewUnionAll) o;
+        BranchPlan other = (BranchPlan) o;
 
         // The map comparison requires the same keys to map to the same sub-plans; branch order is already pinned
         // by the positional children comparison in super.equals.

@@ -70,7 +70,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -683,7 +683,7 @@ public class Verifier {
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
                             + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
-                            : p instanceof ViewUnionAll ? "ViewUnionAll"
+                            : p instanceof BranchPlan ? "BranchPlan"
                             : p instanceof NamedSubquery ? "NamedSubquery"
                             : p instanceof TelemetryAware ta ? ta.telemetryLabel()
                             : p.nodeName()
@@ -711,10 +711,10 @@ public class Verifier {
             || plan instanceof LookupJoin
             || plan instanceof Enrich
             || plan instanceof Fork
-            // Every subquery union is a ViewUnionAll now; what LOAD_ALL does not support yet is views, and that is a
+            // Every subquery union is a BranchPlan now; what LOAD_ALL does not support yet is views, and that is a
             // property of the branches (BranchIdentity), not of the node type. Admit unions without view branches.
-            || (plan instanceof ViewUnionAll vua && vua.viewBranchKeys().isEmpty())
-            || (plan instanceof UnionAll && plan instanceof ViewUnionAll == false)
+            || (plan instanceof BranchPlan vua && vua.viewBranchKeys().isEmpty())
+            || (plan instanceof UnionAll && plan instanceof BranchPlan == false)
             || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
             || plan instanceof AbstractSubqueryJoin;
     }

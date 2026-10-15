@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -226,7 +226,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      * SemiJoin[[?dept_id],[]]
      * |_UnresolvedRelation[employees]
      * \_Keep[[?dept_id]]
-     *   \_ViewUnionAll[[dept_view_a, dept_view_b]]
+     *   \_BranchPlan[[dept_view_a, dept_view_b]]
      *     |_NamedSubquery[dept_view_a]
      *     | \_Keep[[?dept_id]]
      *     |   \_UnresolvedRelation[departments]
@@ -249,7 +249,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertUnresolvedRelation(semiJoin.left(), "employees");
 
         Keep keep = as(semiJoin.right(), Keep.class);
-        ViewUnionAll union = as(keep.child(), ViewUnionAll.class);
+        BranchPlan union = as(keep.child(), BranchPlan.class);
         assertEquals(List.of("dept_view_a", "dept_view_b"), List.copyOf(union.namedSubqueries().keySet()));
 
         NamedSubquery viewA = as(union.children().get(0), NamedSubquery.class);
@@ -265,7 +265,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      * AntiJoin[[?dept_id],[]]
      * |_UnresolvedRelation[employees]
      * \_Keep[[?dept_id]]
-     *   \_ViewUnionAll[[dept_view_a, dept_view_b]]
+     *   \_BranchPlan[[dept_view_a, dept_view_b]]
      *     |_NamedSubquery[dept_view_a]
      *     | \_Keep[[?dept_id]]
      *     |   \_UnresolvedRelation[departments]
@@ -288,7 +288,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertUnresolvedRelation(antiJoin.left(), "employees");
 
         Keep keep = as(antiJoin.right(), Keep.class);
-        ViewUnionAll union = as(keep.child(), ViewUnionAll.class);
+        BranchPlan union = as(keep.child(), BranchPlan.class);
         assertEquals(List.of("dept_view_a", "dept_view_b"), List.copyOf(union.namedSubqueries().keySet()));
 
         NamedSubquery viewA = as(union.children().get(0), NamedSubquery.class);
@@ -332,7 +332,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertUnresolvedRelation(semiJoin.left(), "employees");
 
         Keep keep = as(semiJoin.right(), Keep.class);
-        // User-written FROM subqueries produce a plain UnionAll of Subquery branches, not a view-produced ViewUnionAll.
+        // User-written FROM subqueries produce a plain UnionAll of Subquery branches, not a view-produced BranchPlan.
         UnionAll union = as(keep.child(), UnionAll.class);
         assertEquals(UnionAll.class, union.getClass());
         assertEquals(2, union.children().size());
@@ -396,7 +396,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      * SemiJoin[[?dept_id],[]]
      * |_UnresolvedRelation[employees]
      * \_Keep[[?dept_id]]
-     *   \_ViewUnionAll[[dept_view_a, dept_view_b]]
+     *   \_BranchPlan[[dept_view_a, dept_view_b]]
      *     |_NamedSubquery[dept_view_a]
      *     | \_Keep[[?dept_id]]
      *     |   \_SemiJoin[[?dept_id],[]]
@@ -425,7 +425,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertUnresolvedRelation(semiJoin.left(), "employees");
 
         Keep keep = as(semiJoin.right(), Keep.class);
-        ViewUnionAll union = as(keep.child(), ViewUnionAll.class);
+        BranchPlan union = as(keep.child(), BranchPlan.class);
         assertEquals(List.of("dept_view_a", "dept_view_b"), List.copyOf(union.namedSubqueries().keySet()));
 
         NamedSubquery viewA = as(union.children().get(0), NamedSubquery.class);

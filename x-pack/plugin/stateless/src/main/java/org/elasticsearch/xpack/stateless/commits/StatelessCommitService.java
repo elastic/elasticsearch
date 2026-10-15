@@ -2317,7 +2317,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             .getPrimaryTermAndGeneration()
                             .onOrBefore(uploadedBcc.primaryTermAndGeneration())
                     )
-                    .collect(Collectors.toMap(Map.Entry::getKey, entry -> new BlobFileRanges(entry.getValue().blobLocation())));
+                    .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue().blobLocation())));
 
             assert uploadedFilesBlobLocations.values()
                 .stream()

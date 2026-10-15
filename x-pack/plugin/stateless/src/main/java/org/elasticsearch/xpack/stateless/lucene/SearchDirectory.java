@@ -92,6 +92,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     private final boolean hasTimestampField;
     private final long fallbackRegionTimestampMillis;
+    private volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
+    private volatile long currentDataSetSizeInBytes = 0L;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
@@ -107,6 +109,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         this.generationalFilesTermAndGens = new HashMap<>();
         this.hasTimestampField = hasTimestampField;
         this.fallbackRegionTimestampMillis = resolveFallbackRegionTimestampMillis(hasTimestampField, creationVersion);
+    }
+
+    @Override
+    protected Map<String, BlobFileRanges> getCurrentMetadata() {
+        return currentMetadata;
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() {
+        return currentDataSetSizeInBytes;
     }
 
     private static long resolveFallbackRegionTimestampMillis(boolean hasTimestampField, IndexVersion creationVersion) {
@@ -522,20 +534,24 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     /// Creates a metadata-read directory that stamps regions according to `timestampBackfillEnabled`.
     /// Caller should ensure that `backfillMetadataReadTimestamps` is called after the reads are done if backfill was enabled.
     public BlobStoreCacheDirectory createMetadataReadDirectory(boolean timestampBackfillEnabled) {
-        return createNewInstance(blobContainer.get(), timestampBackfillEnabled);
+        return createNewInstance(blobContainer.get(), timestampBackfillEnabled, Map.of(), 0L);
     }
 
     /// Default implementation with timestamp backfill disabled. For timestamp enabled metadata reads an intermediate directory should be
     /// created with [#createMetadataReadDirectory(boolean)] and then another directory via [#createPerBccMetadataReadDirectory].
     @Override
-    public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
-        return createMetadataReadDirectory(false);
+    public BlobStoreCacheDirectory createPerBccMetadataReadDirectory(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
+        return createNewInstance(blobContainer.get(), false, metadata, dataSetSizeInBytes);
     }
 
-    private BlobStoreCacheDirectory createNewInstance(
+    // package private for testing
+    BlobStoreCacheDirectory createNewInstance(
         @Nullable LongFunction<BlobContainer> blobContainerFunction,
-        boolean timestampBackfillEnabled
+        boolean timestampBackfillEnabled,
+        Map<String, BlobFileRanges> metadata,
+        long dataSetSizeInBytes
     ) {
+        final Map<String, BlobFileRanges> installedMetadata = Map.copyOf(metadata);
         return new BlobStoreCacheDirectory(
             cacheService,
             shardId,
@@ -543,6 +559,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             totalBytesWarmedFromObjectStore,
             blobContainerFunction
         ) {
+            @Override
+            protected Map<String, BlobFileRanges> getCurrentMetadata() {
+                return installedMetadata;
+            }
+
+            @Override
+            public long estimateDataSetSizeInBytes() {
+                return dataSetSizeInBytes;
+            }
+
             @Override
             protected long fallbackRegionTimestampMillis() {
                 return timestampBackfillEnabled
@@ -585,8 +611,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             /// @return the [BlobStoreCacheDirectory] for a single BCC metadata read through cache that inherits parent's
             /// fallbackRegionTimestampMillis value.
             @Override
-            public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
-                return SearchDirectory.this.createNewInstance(this::getBlobContainer, timestampBackfillEnabled);
+            public BlobStoreCacheDirectory createPerBccMetadataReadDirectory(
+                Map<String, BlobFileRanges> childMetadata,
+                long childDataSetSizeInBytes
+            ) {
+                return SearchDirectory.this.createNewInstance(
+                    this::getBlobContainer,
+                    timestampBackfillEnabled,
+                    childMetadata,
+                    childDataSetSizeInBytes
+                );
             }
         };
     }
@@ -707,7 +741,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         mergeMetadata(incomingFileRanges, true);
     }
 
-    private void mergeMetadata(final Map<String, BlobFileRanges> incomingFileRanges, final boolean pitContextRelocationTransfer) {
+    // package private for testing
+    void mergeMetadata(final Map<String, BlobFileRanges> incomingFileRanges, final boolean pitContextRelocationTransfer) {
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
 
         var previousGenerationalFilesTermAndGen = this.lastAcquiredGenerationalFilesTermAndGen;

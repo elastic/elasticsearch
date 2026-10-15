@@ -1517,16 +1517,12 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
-        for (var commandAndLabel : List.of(
-            Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
-            Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
-            Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND")
-        )) {
+        for (var commandAndLabel : List.of(Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"))) {
             test().statementError(
                 setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, WHERE, "
+                        + "SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
                         + commandAndLabel.v2()
                         + "] is not supported yet"
                 )
@@ -1546,6 +1542,20 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             | LIMIT 10
             """));
         assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x")));
+    }
+
+    /**
+     * {@code GROK} and {@code DISSECT} are supported under LOAD_ALL. Both read from an input field (here the mapped {@code first_name}
+     * and {@code last_name}) and add named columns, which the allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} permits.
+     */
+    public void testLoadAllModeAllowsGrokAndDissect() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test
+            | GROK first_name "%{WORD:a} %{WORD:b}"
+            | DISSECT last_name "%{c} %{d}"
+            | KEEP first_name, a, b, last_name, c, d
+            """));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("first_name", "a", "b", "last_name", "c", "d")));
     }
 
     public void testLoadAllModeAllowsInlineStats() {
@@ -1824,16 +1834,18 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, WHERE, "
+                        + "SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not "
+                        + "supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, WHERE, "
+                        + "SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not "
+                        + "supported yet"
                 )
             );
     }

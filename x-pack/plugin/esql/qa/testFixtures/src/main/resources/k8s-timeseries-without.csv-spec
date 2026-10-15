@@ -97,6 +97,25 @@ avg_cost:double        | _timeseries:keyword
 8.833333333333334      | "{""cluster"":""qa""}"
 ;
 
+// FORK aligns its branches at resolution like a union does, so the WITHOUT
+// grouping must already carry its final _timeseries name there too.
+without_avg_fork
+skip_flattened_rewrite: without_unsupported
+required_capability: esql_without_grouping
+required_capability: fork_v9
+required_capability: ts_without_grouping_named_at_resolution
+TS k8s
+| STATS avg_cost = avg(network.cost) BY WITHOUT(pod, region)
+| FORK (WHERE avg_cost > 6) (WHERE avg_cost <= 6)
+| KEEP avg_cost, _timeseries, _fork
+| SORT _fork, avg_cost;
+
+avg_cost:double        | _timeseries:keyword        | _fork:keyword
+6.208333333333333      | "{""cluster"":""prod""}"    | fork1
+8.833333333333334      | "{""cluster"":""qa""}"      | fork1
+5.291666666666667      | "{""cluster"":""staging""}" | fork2
+;
+
 
 without_max
 skip_flattened_rewrite: without_unsupported

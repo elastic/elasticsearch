@@ -1209,6 +1209,32 @@ null                     | null         | 8.833333        | "{""cluster"":""qa""
 2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
 ;
 
+// As above, but the outer query addresses the _timeseries column by name
+// in KEEP, confirming the WITHOUT grouping is usable after the union.
+subqueryInFromWithTsSubqueryWithoutGroupingKeep
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: esql_without_grouping
+required_capability: ts_without_grouping_named_at_resolution
+
+FROM sample_data,
+     (TS k8s
+      | STATS avg_cost = ROUND(avg(network.cost), 6) BY WITHOUT(pod, region)
+      | SORT avg_cost)
+| WHERE avg_cost IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT avg_cost, @timestamp
+| KEEP @timestamp, client_ip, avg_cost, _timeseries
+;
+
+@timestamp:datetime      | client_ip:ip | avg_cost:double | _timeseries:keyword
+null                     | null         | 5.291667        | "{""cluster"":""staging""}"
+null                     | null         | 6.208333        | "{""cluster"":""prod""}"
+null                     | null         | 8.833333        | "{""cluster"":""qa""}"
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
 // Mirrors irate_of_long_grouping - exercises IRATE inside a TS subquery.
 subqueryInFromWithTsSubqueryIrate
 skip_flattened_rewrite: subquery_bleed

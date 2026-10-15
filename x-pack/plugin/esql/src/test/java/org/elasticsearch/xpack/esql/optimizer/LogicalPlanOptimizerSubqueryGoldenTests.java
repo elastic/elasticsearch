@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -46,6 +47,7 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
+    private static final String PACK_DIMS_AGG = "pack_dims_agg";
 
     public void testMatchAfterSubquerySortWithoutLimit() {
         runGoldenTest("""
@@ -578,6 +580,37 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             | FORK (WHERE true) (WHERE true)
             | KEEP x
             """, STAGES);
+    }
+
+    /**
+     * A {@code WITHOUT(...)} grouping inside a union subquery branch. The grouping's output column is named
+     * {@code _timeseries} from resolution onward (see {@code Analyzer.ResolveRefs#timeSeriesWithoutRenames}), so the
+     * union's alignment null-fills and output carry that final name through optimization. Aligning under the parser's
+     * sourceText name ({@code WITHOUT(pod, region)}) used to fail the post-optimization merge consistency check once
+     * project-combining normalized the branch's attributes by name id. The SUM overflow fix is this query's floor; at
+     * {@code pack_dims_agg} the PackDims node folds into the TimeSeriesAggregate, so the older shape lives in
+     * {@code before_pack_dims_agg}.
+     */
+    public void testWithoutGroupingInsideSubqueryUnion() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        builder("""
+            FROM employees, (TS k8s | STATS avg_cost = AVG(network.cost) BY WITHOUT(pod, region))
+            | KEEP emp_no, avg_cost, _timeseries
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    /**
+     * Same merge-plan resolution as the union case, exercised through {@code FORK}: the fork's branches are aligned at
+     * resolution time, so the {@code WITHOUT(...)} grouping must already carry its final {@code _timeseries} name.
+     */
+    public void testWithoutGroupingFollowedByFork() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        builder("""
+            TS k8s
+            | STATS avg_cost = AVG(network.cost) BY WITHOUT(pod, region)
+            | FORK (WHERE avg_cost > 6) (WHERE avg_cost <= 6)
+            | KEEP avg_cost, _timeseries, _fork
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     public void testForkOutputUpdatedAfterConflictingTypesFromExternalDatasetSubqueries() {

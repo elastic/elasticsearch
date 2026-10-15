@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class RangeStorageObjectTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     private static final byte[] FILE_BYTES = "Hello, World! This is test data for range reads.".getBytes(StandardCharsets.UTF_8);
 

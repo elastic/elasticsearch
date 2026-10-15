@@ -11,6 +11,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -19,6 +21,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -282,6 +290,51 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
         expectThrows(NumberFormatException.class, () -> parseUpperRangeTerm("18incorrectnumber", true));
     }
 
+    public void testFieldData() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+        Document doc0 = new Document();
+        doc0.add(new SortedNumericDocValuesField("unsigned_long1", 10));
+        doc0.add(new SortedNumericDocValuesField("unsigned_long2", 5));
+        doc0.add(new SortedNumericDocValuesField("unsigned_long2", 12));
+        w.addDocument(doc0);
+        // a second doc with a different singleton value, and no value for the multi-valued field
+        Document doc1 = new Document();
+        doc1.add(new SortedNumericDocValuesField("unsigned_long1", 20));
+        w.addDocument(doc1);
+        // a third doc with no value for either field
+        w.addDocument(new Document());
+        try (DirectoryReader reader = DirectoryReader.open(w)) {
+            // single-valued
+            UnsignedLongFieldType f1 = new UnsignedLongFieldType("unsigned_long1");
+            IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test"))
+                .build(null, null);
+            assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.LONG);
+            LeafNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
+            SortedNumericDoubleValues values = leafFieldData.getDoubleValues();
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(10), values.nextValue(), 0);
+            assertTrue(values.advanceExact(1));
+            assertEquals(1, values.docValueCount());
+            assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(20), values.nextValue(), 0);
+            assertFalse(values.advanceExact(2));
+
+            // multi-valued
+            UnsignedLongFieldType f2 = new UnsignedLongFieldType("unsigned_long2");
+            fielddata = (IndexNumericFieldData) f2.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test")).build(null, null);
+            leafFieldData = fielddata.load(reader.leaves().get(0));
+            values = leafFieldData.getDoubleValues();
+            assertTrue(values.advanceExact(0));
+            assertEquals(2, values.docValueCount());
+            assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(5), values.nextValue(), 0);
+            assertEquals(UnsignedLongLeafFieldData.convertUnsignedLongToDouble(12), values.nextValue(), 0);
+            assertFalse(values.advanceExact(1));
+            assertFalse(values.advanceExact(2));
+        }
+        IOUtils.close(w, dir);
+    }
+
     public void testFetchSourceValue() throws IOException {
         MappedFieldType mapper = new UnsignedLongFieldMapper.Builder("field", defaultIndexSettings()).build(
             MapperBuilderContext.root(false, false)
@@ -295,5 +348,43 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
             "18446744073709551615"
         ).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));
+    }
+
+    public void testDocValueReadEstimators() throws IOException {
+        UnsignedLongDocValuesField field = new UnsignedLongDocValuesField(longDocValues(1, 2, 3), "test");
+        field.setNextDocId(0);
+        assertEquals(24, UnsignedLongAllocationEstimators.boxedLongBytes((UnsignedLongScriptDocValues) field.toScriptDocValues(), 0));
+        long list = 32 + ((16 + 8 * 3 + 7) & ~7L);
+        assertEquals(list + 24 * 3, UnsignedLongAllocationEstimators.longValuesBytes(field));
+        assertEquals(list + 48 * 3, UnsignedLongAllocationEstimators.bigIntegersBytes(field));
+
+        // An empty field returns the shared empty list, which costs nothing.
+        UnsignedLongDocValuesField empty = new UnsignedLongDocValuesField(longDocValues(), "test");
+        empty.setNextDocId(0);
+        assertEquals(0, UnsignedLongAllocationEstimators.longValuesBytes(empty));
+        assertEquals(0, UnsignedLongAllocationEstimators.bigIntegersBytes(empty));
+    }
+
+    /** Numeric doc values over one document holding {@code values}. */
+    private static SortedNumericLongValues longDocValues(long... values) {
+        return new SortedNumericLongValues(null) {
+            private int next;
+
+            @Override
+            public boolean advanceExact(int doc) {
+                next = 0;
+                return doc == 0 && values.length > 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.length;
+            }
+
+            @Override
+            public long nextValue() {
+                return values[next++];
+            }
+        };
     }
 }

@@ -41,7 +41,9 @@ import java.util.Set;
  * {@link #MAX_LISTED_CHILDREN}), when a listing fails mid-walk, and after one probe listing when no level matched a
  * hint (typically a data-column filter), and at the first level no pending hint matches — whether a pending hint
  * is a deeper partition key or a data column is unknowable without listing every level in between, and
- * {@code WHERE <partition> AND <data column>} is the everyday shape, so the walk never descends speculatively.
+     * {@code WHERE <partition> AND <data column>} is the everyday shape, so the walk never descends speculatively
+     * on a {@code **} glob. A keyed glob ({@code key=*} / {@code key=literal} segments) may descend an
+     * unhinted leading identity key when a hinted key of that glob is still pending.
  * Survivors are finished with one recursive listing each, but only when something was pruned and the survivor
  * count satisfies {@link #MAX_FINISH_SURVIVORS} / {@link #MAX_FINISH_SURVIVOR_FRACTION}; otherwise one flat
  * listing is cheaper.
@@ -128,14 +130,46 @@ final class PartitionPruningWalk {
         GlobMatcher matcher,
         ExclusionConfig.NameFilter nameFilter,
         List<PartitionFilterHint> hints,
-        int maxDiscoveredFiles
+        int maxDiscoveredFiles,
+        String glob
+    ) {
+        return tryWalk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, glob, null);
+    }
+
+    static WalkResult tryWalk(
+        StorageProvider provider,
+        StoragePath prefix,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        String glob,
+        @Nullable FolderRangePredicate folderRange
     ) {
         try {
-            return walk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles);
+            return walk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, keyedGlobKeys(glob), folderRange);
         } catch (IOException | ExternalUnavailableException e) {
             logger.debug(() -> "Partition-pruning walk of [" + prefix + "] failed; falling back to a flat listing", e);
             return null;
         }
+    }
+
+    /**
+     * Hive {@code key=} segments of {@code globPart} (star or pinned value). A {@code **} glob has none, so
+     * the walk still withdraws at an unhinted first level.
+     */
+    static Set<String> keyedGlobKeys(String glob) {
+        if (glob == null || glob.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> keys = new HashSet<>();
+        for (String segment : glob.split("/")) {
+            String key = PartitionValueMatcher.folderKey(segment);
+            if (key != null) {
+                keys.add(key);
+            }
+        }
+        return keys;
     }
 
     @Nullable
@@ -145,12 +179,17 @@ final class PartitionPruningWalk {
         GlobMatcher matcher,
         ExclusionConfig.NameFilter nameFilter,
         List<PartitionFilterHint> hints,
-        int maxDiscoveredFiles
+        int maxDiscoveredFiles,
+        Set<String> keyedGlobKeys,
+        @Nullable FolderRangePredicate folderRange
     ) throws IOException {
         Collector collector = new Collector(prefix.toString(), matcher, nameFilter, maxDiscoveredFiles);
         Set<String> pending = new HashSet<>();
         for (PartitionFilterHint hint : hints) {
             pending.add(hint.columnName());
+        }
+        if (folderRange != null) {
+            pending.addAll(folderRange.bindKeys());
         }
         // A key prunes only at its outermost occurrence: HivePartitionDetector binds the FIRST key=value segment of
         // a path. The prefix's own segments count — under data/year=2024/ every file's year IS 2024, so a deeper
@@ -265,6 +304,21 @@ final class PartitionPruningWalk {
                     }
                 }
             }
+            if (folderRange != null && shapedDirs.isEmpty() == false) {
+                // The predicate ran at this level even if nothing dropped: year=2026 kept by [2026-10-01, ∞)
+                // must still count as hinted so the walk descends to month/day.
+                hintedLevel = true;
+                for (int i = 0; i < keep.length; i++) {
+                    if (keep[i] == false) {
+                        continue;
+                    }
+                    Map<String, String> bindings = PartitionValueMatcher.pathBindings(shapedDirs.get(i).path());
+                    if (folderRange.mayContain(bindings) == false) {
+                        keep[i] = false;
+                        prunedColumns.add(shapedKeys.get(i));
+                    }
+                }
+            }
 
             // Retroactive peek: a new partition key at this level confirms a multi-level layout, so it is now
             // safe to list the direct children of dirs pruned at the previous level. Any key=value dirs found
@@ -297,6 +351,16 @@ final class PartitionPruningWalk {
             pendingPeeks = newPeeks != null ? newPeeks : List.of();
 
             if (hintedLevel == false) {
+                if (descendUnhintedKeyedLevel(byKey.keySet(), pending, keyedGlobKeys)) {
+                    // Leading identity keys of a keyed glob (aws-account-id=*, aws-region=*) with year/month/day
+                    // still pending: keep every child and walk on. Do not prune this level. A ** glob has no
+                    // keyed segments and never takes this path.
+                    for (StorageEntry file : levelFiles) {
+                        collector.add(file);
+                    }
+                    dirs = next;
+                    continue;
+                }
                 if (anyLevelHinted == false) {
                     // No level has matched a hint yet — typically a data-column filter, where walking on would
                     // spend a LIST per folder for nothing. Withdrawing after one probe also forfeits pruning for
@@ -327,6 +391,32 @@ final class PartitionPruningWalk {
             dirs = next;
         }
         return collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
+    }
+
+    /**
+     * A keyed glob may walk through an unhinted hive level (keep every child) when a hinted key of that
+     * glob is still pending. Never prune the unhinted level. Empty keyed set ({@code **}) stays fail-closed.
+     */
+    private static boolean descendUnhintedKeyedLevel(Set<String> levelKeys, Set<String> pending, Set<String> keyedGlobKeys) {
+        if (keyedGlobKeys.isEmpty() || levelKeys.isEmpty()) {
+            return false;
+        }
+        boolean pendingKeyedHint = false;
+        for (String column : pending) {
+            if (keyedGlobKeys.contains(column)) {
+                pendingKeyedHint = true;
+                break;
+            }
+        }
+        if (pendingKeyedHint == false) {
+            return false;
+        }
+        for (String key : levelKeys) {
+            if (keyedGlobKeys.contains(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

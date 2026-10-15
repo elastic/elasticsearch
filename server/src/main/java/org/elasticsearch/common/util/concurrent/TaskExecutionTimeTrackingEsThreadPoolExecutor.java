@@ -18,12 +18,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.Instrument;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -110,23 +108,20 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
         var instruments = new ArrayList<Instrument>();
         instruments.add(
-            meterRegistry.registerLongsAsyncGauge(
+            meterRegistry.registerLongAsyncGauge(
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
                 "Time tasks spent in the queue for the " + threadPoolName + " thread pool",
                 "milliseconds",
-                () -> {
+                measurement -> {
                     long[] snapshot = queueLatencyMillisHistogram.getSnapshot();
                     int[] bucketUpperBounds = queueLatencyMillisHistogram.calculateBucketUpperBounds();
-                    List<LongWithAttributes> metricValues = Arrays.stream(LATENCY_PERCENTILES_TO_REPORT)
-                        .mapToObj(
-                            percentile -> new LongWithAttributes(
-                                queueLatencyMillisHistogram.getPercentile(percentile / 100f, snapshot, bucketUpperBounds),
-                                Map.of("percentile", String.valueOf(percentile))
-                            )
-                        )
-                        .toList();
+                    for (int percentile : LATENCY_PERCENTILES_TO_REPORT) {
+                        measurement.record(
+                            queueLatencyMillisHistogram.getPercentile(percentile / 100f, snapshot, bucketUpperBounds),
+                            Map.of("percentile", String.valueOf(percentile))
+                        );
+                    }
                     queueLatencyMillisHistogram.clear();
-                    return metricValues;
                 }
             )
         );

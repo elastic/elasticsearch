@@ -33,12 +33,14 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
@@ -51,6 +53,8 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope;
@@ -80,6 +84,7 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -135,8 +140,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private AutoPrefilteringScope autoPrefilteringScope;
     private QueryBuilder aliasFilter;
-    @Nullable
-    private String sliceRouting;
+    private SliceSelection sliceSelection = SliceSelection.UNSPECIFIED;
     private boolean rewriteToNamedQueries = false;
 
     private final Integer requestSize;
@@ -241,6 +245,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardSearchStats,
             circuitBreaker
         );
+        this.sliceSelection = source.sliceSelection;
+        this.fieldVisibilityPredicate = source.fieldVisibilityPredicate;
     }
 
     private SearchExecutionContext(
@@ -323,14 +329,35 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return aliasFilter;
     }
 
-    // Set slice routing, so it can be applied as a shard-level filter in search context.
-    public void setSliceRouting(@Nullable String sliceRouting) {
-        this.sliceRouting = sliceRouting;
+    /**
+     * Sets the slices this request reads from the shard.
+     */
+    public void setSliceSelection(SliceSelection sliceSelection) {
+        this.sliceSelection = Objects.requireNonNull(sliceSelection);
     }
 
+    /**
+     * The slices this request reads from the shard.
+     */
+    public SliceSelection sliceSelection() {
+        return sliceSelection;
+    }
+
+    /**
+     * A filter matching the documents of the selected slices, or {@code null} when the request is not restricted to named
+     * slices. It matches no document on an index without slices.
+     */
     @Nullable
-    public String getSliceRouting() {
-        return sliceRouting;
+    public Query sliceFilter() {
+        if (sliceSelection.isRestricted() == false) {
+            return null;
+        }
+        final MappedFieldType routingFieldType = getIndexSettings().isSliceEnabled() ? getFieldType(RoutingFieldMapper.NAME) : null;
+        if (routingFieldType == null) {
+            return Queries.NO_DOCS_INSTANCE;
+        }
+        final List<String> names = sliceSelection.names();
+        return names.size() == 1 ? routingFieldType.termQuery(names.get(0), this) : routingFieldType.termsQuery(names, this);
     }
 
     /**
@@ -769,6 +796,29 @@ public class SearchExecutionContext extends QueryRewriteContext {
             }
         }
         return fieldsInIndex.contains(fieldname);
+    }
+
+    /**
+     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. It
+     * returns {@code false} when the index mode is strict columnar and unmapped fields are not routed to the flattened
+     * {@code _unmapped} field, when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
+     * when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
+     * {@link IndexSettings#retainsUnmappedFields()} and {@link RootObjectMapper#canRetainUnmappedFields()}) and no segment
+     * has an {@code _ignored} field. Without a searcher it returns {@code true} unless the index mode decides.
+     */
+    public boolean mayHoldUnmappedFields() {
+        if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
+            return false;
+        }
+        if (searcher == null) {
+            return true;
+        }
+        if (mappingLookup.isSourceSynthetic()) {
+            return fieldExistsInIndex(IgnoredSourceFieldMapper.NAME);
+        }
+        return indexSettings.retainsUnmappedFields()
+            || mappingLookup.getMapping().getRoot().canRetainUnmappedFields()
+            || fieldExistsInIndex(IgnoredFieldMapper.NAME);
     }
 
     /**

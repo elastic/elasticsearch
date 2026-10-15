@@ -518,6 +518,24 @@ book_no:keyword | title:keyword                                                 
 ;
 
 
+# The EVAL moves below HIGHLIGHT so only the top row is highlighted; columns keep their query order.
+highlightEvalSortLimit
+required_capability: highlight_v6
+
+FROM books
+| WHERE MATCH(title, "Return")
+| KEEP book_no, title
+| HIGHLIGHT "return" ON title
+| EVAL title_length = LENGTH(title)
+| SORT title_length DESC
+| LIMIT 1
+;
+
+book_no:keyword | title:text                                                        | highlight_title:keyword                                                    | title_length:integer
+2714            | Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings | 64
+;
+
+
 # The original field is preserved alongside the appended highlight_<field> column.
 highlightKeepsOriginalColumn
 required_capability: highlight_v6
@@ -2163,7 +2181,7 @@ Return of the King Being the Third Part of The Lord of the Rings | Return of the
 
 
 # HIGHLIGHT's internal index key must not keep otherwise identical rows apart in DEDUP.
-# A second HIGHLIGHT after DEDUP has no single source index and falls back to standard.
+# A second HIGHLIGHT after DEDUP has no single source index, so it needs WITH to pick one analyzer for title.
 highlightPerIndexAnalyzerBeforeDedup
 required_capability: highlight_mapping_analyzer
 required_capability: dedup_command
@@ -2173,31 +2191,284 @@ FROM books,books_english
 | KEEP title
 | HIGHLIGHT "ring" ON title
 | DEDUP
-| HIGHLIGHT prefix = "again_" "ring" ON title
+| HIGHLIGHT prefix = "again_" "ring" ON title WITH { "analyzer": "standard" }
 | KEEP title, highlight_title, again_title
 ;
 
-warningRegex:HIGHLIGHT on \[title\] falls back to \[standard\]: the queried indices disagree on the analyzer for this field.*
 title:text | highlight_title:keyword | again_title:keyword
 Fellowship of the Ring 2ND Edition | Fellowship of the <em>Ring</em> 2ND Edition | Fellowship of the <em>Ring</em> 2ND Edition
 ;
 
 
-# After STATS a row has no single source index, so HIGHLIGHT uses standard and emits a warning.
-# "ring" matches "Ring", not "Rings".
-highlightPerIndexAnalyzerAfterStatsFallsBackToStandard
+# FORK's merged title carries no mapping of its own, so HIGHLIGHT uses the mapping analyzer both branches agree on.
+# english stems "Rings", so "ring" matches it.
+highlightMappingAnalyzerAfterFork
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+
+FROM books_english
+| WHERE book_no == "2714" OR book_no == "2936"
+| FORK (WHERE book_no == "2714")
+       (WHERE book_no == "2936")
+| HIGHLIGHT "ring" ON title
+| KEEP _fork, book_no, highlight_title
+| SORT _fork
+;
+
+_fork:keyword | book_no:keyword | highlight_title:keyword
+fork1         | 2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | 2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# FUSE reads each column through FIRST, which returns title as keyword. HIGHLIGHT still follows it back to the field,
+# so english stems "Rings" and "ring" matches it.
+highlightMappingAnalyzerAfterForkAndFuse
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+required_capability: fuse_v6
+
+FROM books_english METADATA _id, _index, _score
+| FORK (WHERE book_no == "2714" | LIMIT 10)
+       (WHERE book_no == "2936" | LIMIT 10)
+| FUSE
+| HIGHLIGHT "ring" ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# FUSE groups by _index, so each row still comes from one index and HIGHLIGHT uses that index's analyzer.
+# The books_english row matches "Rings", and the books row does not.
+highlightPerIndexAnalyzerAfterForkAndFuse
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+required_capability: fuse_v6
+
+FROM books,books_english METADATA _id, _index, _score
+| FORK (WHERE book_no == "2714" | LIMIT 10)
+       (WHERE book_no == "2714" | LIMIT 10)
+| FUSE
+| HIGHLIGHT "ring" ON title
+| KEEP _index, title, highlight_title
+| SORT _index
+;
+
+_index:keyword | title:keyword                                                    | highlight_title:keyword
+books          | Return of the King Being the Third Part of The Lord of the Rings | null
+books_english  | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# FUSE KEY BY aliased key columns still reads title through FIRST, so english stems "Rings" and "ring" matches it.
+highlightMappingAnalyzerAfterFuseKeyByAlias
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+required_capability: fuse_v6
+
+FROM books_english METADATA _id, _index, _score
+| EVAL new_id = _id, new_index = _index
+| FORK (WHERE book_no == "2714" | LIMIT 10)
+       (WHERE book_no == "2936" | LIMIT 10)
+| FUSE KEY BY new_id, new_index
+| HIGHLIGHT "ring" ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# FUSE KEY BY a copy of _index still groups by each row's index, so HIGHLIGHT uses that index's analyzer.
+# The books_english row matches "Rings", and the books row does not.
+highlightPerIndexAnalyzerAfterFuseKeyByIndexCopy
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+required_capability: fuse_v6
+
+FROM books,books_english METADATA _id, _index, _score
+| EVAL new_id = _id, new_index = _index
+| FORK (WHERE book_no == "2714" | LIMIT 10)
+       (WHERE book_no == "2714" | LIMIT 10)
+| FUSE KEY BY new_id, new_index
+| HIGHLIGHT "ring" ON title
+| KEEP new_index, title, highlight_title
+| SORT new_index
+;
+
+new_index:keyword | title:keyword                                                    | highlight_title:keyword
+books             | Return of the King Being the Third Part of The Lord of the Rings | null
+books_english     | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# FUSE reads t through FIRST, which drops the english analyzer TO_TEXT declares. HIGHLIGHT still uses english, so
+# "ring" matches "Rings", which standard would miss.
+highlightDeclaredAnalyzerAfterForkAndFuse
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+required_capability: fuse_v6
+
+FROM books METADATA _id, _index, _score
+| EVAL t = TO_TEXT(CONCAT(title, ""), {"analyzer": "english"})
+| FORK (WHERE book_no == "2714" | LIMIT 10)
+       (WHERE book_no == "2714" | LIMIT 10)
+| FUSE
+| HIGHLIGHT "ring" ON t
+| KEEP book_no, highlight_t
+;
+
+book_no:keyword | highlight_t:keyword
+2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# FUSE GROUP BY an aliased fork column still reads title through FIRST, so english stems "Rings" and "ring" matches it.
+highlightMappingAnalyzerAfterFuseGroupByAlias
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+required_capability: fuse_v6
+
+FROM books_english METADATA _id, _index, _score
+| FORK (WHERE book_no == "2714" | LIMIT 10)
+       (WHERE book_no == "2936" | LIMIT 10)
+| EVAL new_fork = _fork
+| DROP _fork
+| FUSE GROUP BY new_fork
+| HIGHLIGHT "ring" ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# One FORK branch reads title from the index and the other computes it, so the branches disagree on its analyzer, and
+# HIGHLIGHT rejects the query unless WITH picks one. english stems "Rings", so "ring" matches it in both rows.
+highlightAnalyzerOptionAfterForkOfMappedAndComputed
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+
+FROM books_english
+| WHERE book_no == "2714"
+| FORK (WHERE book_no == "2714")
+       (EVAL title = TO_TEXT(CONCAT(title, "")))
+| HIGHLIGHT "ring" ON title WITH { "analyzer": "english" }
+| KEEP _fork, title, highlight_title
+| SORT _fork
+;
+
+_fork:keyword | title:text                                                       | highlight_title:keyword
+fork1         | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# The computed subquery declares english, which is the analyzer of the mapped title, so both rows use english and
+# HIGHLIGHT emits no warning.
+highlightMappingAnalyzerAfterUnionAllOfMappedAndComputedColumn
+required_capability: highlight_mapping_analyzer
+required_capability: subquery_in_from_command
+
+FROM (FROM books_english | WHERE book_no == "2714"),
+     (FROM books_english | WHERE book_no == "2936" | EVAL title = TO_TEXT(CONCAT(title, ""), {"analyzer": "english"}))
+| HIGHLIGHT "ring" ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+2936            | Fellowship of the <em>Ring</em> 2ND Edition
+;
+
+
+# After FORK over indices that disagree on title's analyzer, each branch still carries its rows' index, so HIGHLIGHT
+# uses each row's own index analyzer. fork1 keeps only the books_english row, since standard does not stem "Rings" for
+# MATCH, and fork2 keeps both rows. The books_english rows match "Rings", and the books row does not. No warning.
+highlightPerIndexAnalyzerAfterFork
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+
+FROM books,books_english
+| WHERE book_no == "2714"
+| FORK (WHERE MATCH(title, "ring"))
+       (WHERE MATCH(title, "return"))
+| HIGHLIGHT "ring" ON title
+| KEEP _fork, title, highlight_title
+| SORT _fork, highlight_title
+;
+
+_fork:keyword | title:text                                                       | highlight_title:keyword
+fork1         | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | Return of the King Being the Third Part of The Lord of the Rings | null
+;
+
+
+# UNION ALL branches read books and books_english, which disagree on title's analyzer, yet each row comes from one index.
+# english stems "Rings" for the books_english row, and standard does not for the books row. No warning.
+highlightPerIndexAnalyzerAcrossUnionAllBranches
+required_capability: highlight_mapping_analyzer
+required_capability: subquery_in_from_command
+
+FROM (FROM books | WHERE book_no == "2714"), (FROM books_english | WHERE book_no == "2714")
+| HIGHLIGHT "ring" ON title
+| KEEP title, highlight_title
+| SORT highlight_title
+;
+
+title:text                                                       | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+Return of the King Being the Third Part of The Lord of the Rings | null
+;
+
+
+# The nested UNION ALL's branches agree on title's analyzer, but its rows still come from books, not books_english. No warning.
+highlightPerIndexAnalyzerAcrossNestedUnionAll
+required_capability: highlight_mapping_analyzer
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+
+FROM (FROM (FROM books | WHERE book_no == "2714"), (FROM books | WHERE book_no == "2714")),
+     (FROM books_english | WHERE book_no == "2714")
+| HIGHLIGHT "ring" ON title
+| KEEP title, highlight_title
+| SORT highlight_title
+;
+
+title:text                                                       | highlight_title:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+Return of the King Being the Third Part of The Lord of the Rings | null
+Return of the King Being the Third Part of The Lord of the Rings | null
+;
+
+
+# After STATS a row has no single source index, and books and books_english disagree on title's analyzer, so
+# HIGHLIGHT needs WITH to pick one. english stems "Rings", so "ring" matches it.
+highlightPerIndexAnalyzerAfterStatsWithAnalyzer
 required_capability: highlight_mapping_analyzer
 
 FROM books,books_english
 | WHERE MATCH(title, "ring") AND book_no == "2714"
 | STATS c = COUNT(*) BY title
-| HIGHLIGHT "ring" ON title
+| HIGHLIGHT "ring" ON title WITH { "analyzer": "english" }
 | KEEP title, highlight_title
 ;
 
-warningRegex:HIGHLIGHT on \[title\] falls back to \[standard\]: the queried indices disagree on the analyzer for this field.*
 title:text | highlight_title:keyword
-Return of the King Being the Third Part of The Lord of the Rings | null
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 
@@ -2234,8 +2505,41 @@ Return of the King Being the Third Part of The Lord of the Rings | Return of the
 ;
 
 
-# RENAME drops the mapping analyzer; Rings is not stemmed.
-highlightMappingAnalyzerRenamedFieldFallsBackToStandard
+# A STATS BY alias copies title, so t keeps the mapping analyzer. english stems "Rings", so "ring" matches it.
+highlightMappingAnalyzerStatsByAlias
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| STATS c = COUNT(*) BY t = title
+| HIGHLIGHT "ring" ON t
+| KEEP t, highlight_t
+;
+
+t:text | highlight_t:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# An INLINE STATS BY alias copies title too, so t keeps the mapping analyzer.
+highlightMappingAnalyzerInlineStatsByAlias
+required_capability: highlight_mapping_analyzer
+required_capability: inline_stats
+
+FROM books_english
+| WHERE book_no == "2714"
+| INLINE STATS c = COUNT(*) BY t = title
+| HIGHLIGHT "ring" ON t
+| KEEP t, highlight_t
+;
+
+t:text | highlight_t:keyword
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# RENAME keeps the mapping analyzer, so t is analyzed exactly as title. english stems "Rings", so "ring" matches it.
+highlightMappingAnalyzerRenamedField
 required_capability: highlight_mapping_analyzer
 
 FROM books_english
@@ -2246,13 +2550,13 @@ FROM books_english
 ;
 
 t:text | highlight_t:keyword
-Return of the King Being the Third Part of The Lord of the Rings | null
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 
-# The borrowed MATCH follows the RENAME, but the mapping analyzer does not: t is analyzed with standard on both
-# sides, so the "Rings" that english matched in WHERE goes unhighlighted. Known limitation, see HighlightAnalyzers.
-highlightMappingAnalyzerLostByRenameUnderImplicitQuery
+# The borrowed MATCH and the mapping analyzer both follow the RENAME, so the "Rings" that english matched in WHERE is
+# highlighted.
+highlightMappingAnalyzerKeptByRenameUnderImplicitQuery
 required_capability: highlight_mapping_analyzer
 required_capability: highlight_implicit_query_and_fields
 
@@ -2264,7 +2568,100 @@ FROM books_english
 ;
 
 t:text | highlight_t:keyword
-Return of the King Being the Third Part of The Lord of the Rings | null
+Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# EVAL t = title keeps the mapping analyzer, so t is analyzed like title. english stems "Rings", so "ring" matches it.
+highlightMappingAnalyzerEvalCopy
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| EVAL t = title
+| HIGHLIGHT "ring" ON t
+| KEEP highlight_t
+;
+
+highlight_t:keyword
+Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# CONCAT(title, "") is a new column, so it has no mapping analyzer and uses standard. standard keeps "the", which
+# english drops as a stop word, and does not stem "Rings". No warning.
+highlightMappingAnalyzerComputedFromFieldUsesStandard
+required_capability: highlight_mapping_analyzer
+
+FROM books_english
+| WHERE book_no == "2714"
+| EVAL t = TO_TEXT(CONCAT(title, ""))
+| HIGHLIGHT "the ring" ON t
+| KEEP highlight_t
+;
+
+highlight_t:keyword
+Return of <em>the</em> King Being <em>the</em> Third Part of <em>The</em> Lord of <em>the</em> Rings
+;
+
+
+# EVAL t = title keeps each index's analyzer. The books_english row matches "Rings", and the books row does not.
+# No warning.
+highlightPerIndexAnalyzerEvalCopy
+required_capability: highlight_mapping_analyzer
+
+FROM books,books_english METADATA _index
+| WHERE book_no == "2714"
+| EVAL t = title
+| HIGHLIGHT "ring" ON t
+| KEEP _index, t, highlight_t
+| SORT _index
+;
+
+_index:keyword | t:text                                                           | highlight_t:keyword
+books          | Return of the King Being the Third Part of The Lord of the Rings | null
+books_english  | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# A renamed field keeps each index's analyzer, exactly as title does. The books_english row matches "Rings", and the
+# books row does not. No warning.
+highlightPerIndexAnalyzerRenamedField
+required_capability: highlight_mapping_analyzer
+
+FROM books,books_english METADATA _index
+| WHERE book_no == "2714"
+| RENAME title AS t
+| HIGHLIGHT "ring" ON t
+| KEEP _index, t, highlight_t
+| SORT _index
+;
+
+_index:keyword | t:text                                                           | highlight_t:keyword
+books          | Return of the King Being the Third Part of The Lord of the Rings | null
+books_english  | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+;
+
+
+# Each FORK branch renames title, and each row still uses its own index's analyzer. No warning.
+highlightPerIndexAnalyzerRenamedInForkBranches
+required_capability: highlight_mapping_analyzer
+required_capability: fork_v9
+
+FROM books,books_english METADATA _index
+| WHERE book_no == "2714"
+| FORK (RENAME title AS t)
+       (RENAME title AS t)
+| HIGHLIGHT "ring" ON t
+| KEEP _fork, _index, t, highlight_t
+| SORT _fork, _index
+;
+
+_fork:keyword | _index:keyword | t:text                                                           | highlight_t:keyword
+fork1         | books          | Return of the King Being the Third Part of The Lord of the Rings | null
+fork1         | books_english  | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
+fork2         | books          | Return of the King Being the Third Part of The Lord of the Rings | null
+fork2         | books_english  | Return of the King Being the Third Part of The Lord of the Rings | Return of the King Being the Third Part of The Lord of the <em>Rings</em>
 ;
 
 
@@ -2345,7 +2742,7 @@ The Lord of the <em>Rings</em>
 ;
 
 
-# RENAME keeps a TO_TEXT analyzer declaration; mapped-field RENAME does not (see highlightMappingAnalyzerRenamedFieldFallsBackToStandard).
+# RENAME keeps a TO_TEXT analyzer declaration, as it keeps a mapped field's analyzer (see highlightMappingAnalyzerRenamedField).
 highlightUnindexedDeclaredAnalyzerSurvivesRename
 required_capability: highlight_mapping_analyzer
 

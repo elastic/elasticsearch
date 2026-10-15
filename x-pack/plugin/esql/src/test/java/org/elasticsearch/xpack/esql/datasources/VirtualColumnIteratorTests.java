@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class VirtualColumnIteratorTests extends ESTestCase {
 
     private final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testTwoDataTwoPartitionColumns() {

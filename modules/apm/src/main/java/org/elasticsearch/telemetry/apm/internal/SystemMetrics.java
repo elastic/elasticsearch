@@ -15,8 +15,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.monitor.jvm.SunThreadInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.lang.management.GarbageCollectorMXBean;
@@ -139,56 +137,44 @@ public class SystemMetrics extends AbstractLifecycleComponent {
         if (pools.isEmpty()) {
             return;
         }
-        metrics.add(registry.registerLongsAsyncGauge(prefix + ".used", "The amount of memory in bytes used by this pool.", "By", () -> {
-            var result = new ArrayList<LongWithAttributes>(pools.size());
-            for (MemoryPoolMXBean pool : pools) {
-                result.add(
-                    new LongWithAttributes(
-                        pool.getUsage().getUsed(),
-                        Map.of("name", pool.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE)
-                    )
-                );
-            }
-            return result;
-        }));
         metrics.add(
-            registry.registerLongsAsyncGauge(
+            registry.registerLongAsyncGauge(prefix + ".used", "The amount of memory in bytes used by this pool.", "By", measurement -> {
+                for (MemoryPoolMXBean pool : pools) {
+                    measurement.record(pool.getUsage().getUsed(), poolAttributes(pool));
+                }
+            })
+        );
+        metrics.add(
+            registry.registerLongAsyncGauge(
                 prefix + ".committed",
                 "The amount of memory in bytes committed for the JVM to use in this pool.",
                 "By",
-                () -> {
-                    var result = new ArrayList<LongWithAttributes>(pools.size());
+                measurement -> {
                     for (MemoryPoolMXBean pool : pools) {
-                        result.add(
-                            new LongWithAttributes(
-                                pool.getUsage().getCommitted(),
-                                Map.of("name", pool.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE)
-                            )
-                        );
+                        measurement.record(pool.getUsage().getCommitted(), poolAttributes(pool));
                     }
-                    return result;
                 }
             )
         );
         metrics.add(
-            registry.registerLongsAsyncGauge(
+            registry.registerLongAsyncGauge(
                 prefix + ".max",
                 "The maximum amount of memory in bytes that can be used by this pool.",
                 "By",
-                () -> {
-                    var result = new ArrayList<LongWithAttributes>(pools.size());
+                measurement -> {
                     for (MemoryPoolMXBean pool : pools) {
                         long max = pool.getUsage().getMax();
                         if (max >= 0) {
-                            result.add(
-                                new LongWithAttributes(max, Map.of("name", pool.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE))
-                            );
+                            measurement.record(max, poolAttributes(pool));
                         }
                     }
-                    return result;
                 }
             )
         );
+    }
+
+    private static Map<String, Object> poolAttributes(MemoryPoolMXBean pool) {
+        return Map.of("name", pool.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE);
     }
 
     // TODO: jvm.gc.count and jvm.gc.time can be removed when dashboards are migrated to OTel SDK auto-emitted (ES-14386)
@@ -200,35 +186,29 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             return;
         }
 
-        metrics.add(registry.registerLongsAsyncGauge("jvm.gc.count", "The total number of collections that have occurred.", "1", () -> {
-            var measurements = new ArrayList<LongWithAttributes>(beans.size());
-            for (GarbageCollectorMXBean bean : beans) {
-                long count = bean.getCollectionCount();
-                if (count >= 0) {
-                    measurements.add(
-                        new LongWithAttributes(count, Map.of("name", bean.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE))
-                    );
+        metrics.add(
+            registry.registerLongAsyncGauge("jvm.gc.count", "The total number of collections that have occurred.", "1", measurement -> {
+                for (GarbageCollectorMXBean bean : beans) {
+                    long count = bean.getCollectionCount();
+                    if (count >= 0) {
+                        measurement.record(count, gcAttributes(bean));
+                    }
                 }
-            }
-            return measurements;
-        }));
+            })
+        );
 
         metrics.add(
-            registry.registerLongsAsyncGauge(
+            registry.registerLongAsyncGauge(
                 "jvm.gc.time",
                 "The approximate accumulated collection elapsed time in milliseconds.",
                 "ms",
-                () -> {
-                    var measurements = new ArrayList<LongWithAttributes>(beans.size());
+                measurement -> {
                     for (GarbageCollectorMXBean bean : beans) {
                         long timeMs = bean.getCollectionTime();
                         if (timeMs >= 0) {
-                            measurements.add(
-                                new LongWithAttributes(timeMs, Map.of("name", bean.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE))
-                            );
+                            measurement.record(timeMs, gcAttributes(bean));
                         }
                     }
-                    return measurements;
                 }
             )
         );
@@ -239,11 +219,14 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                 "An approximation of the total amount of memory, in bytes, allocated in heap memory.",
                 "By",
                 measurement -> {
-                    LongWithAttributes observed = ALLOCATED_BYTES_METRICS.readAllocatedBytes();
-                    measurement.record(observed.value(), observed.attributes());
+                    measurement.record(ALLOCATED_BYTES_METRICS.readAllocatedBytes(), INTERNAL_DATASET);
                 }
             )
         );
+    }
+
+    private static Map<String, Object> gcAttributes(GarbageCollectorMXBean bean) {
+        return Map.of("name", bean.getName(), INTERNAL_DATASET_KEY, INTERNAL_DATASET_VALUE);
     }
 
     // TODO: remove when dashboards are migrated to OTel SDK auto-emitted jvm.thread.count (ES-14386)
@@ -345,20 +328,22 @@ public class SystemMetrics extends AbstractLifecycleComponent {
     // TODO: system.process.cpu.total.norm.pct can be removed when dashboards are migrated to OTel SDK
     // auto-emitted jvm.cpu.recent_utilization. system.cpu.total.norm.pct has no OTel SDK equivalent and must be kept.
     private void registerSystemCpuMetrics() {
-        metrics.add(registry.registerDoublesAsyncGauge("system.cpu.total.norm.pct", "System-wide CPU usage as a ratio.", "1", () -> {
-            double cpuLoad = OsProbe.getCpuLoad();
-            if (cpuLoad < 0) {
-                return List.of();
-            }
-            return List.of(new DoubleWithAttributes(cpuLoad, INTERNAL_DATASET));
-        }));
-        metrics.add(registry.registerDoublesAsyncGauge("system.process.cpu.total.norm.pct", "Process CPU usage as a ratio.", "1", () -> {
-            double cpuLoad = ProcessProbe.getProcessCpuLoad();
-            if (cpuLoad < 0) {
-                return List.of();
-            }
-            return List.of(new DoubleWithAttributes(cpuLoad, INTERNAL_DATASET));
-        }));
+        metrics.add(
+            registry.registerDoubleAsyncGauge("system.cpu.total.norm.pct", "System-wide CPU usage as a ratio.", "1", measurement -> {
+                double cpuLoad = OsProbe.getCpuLoad();
+                if (cpuLoad >= 0) {
+                    measurement.record(cpuLoad, INTERNAL_DATASET);
+                }
+            })
+        );
+        metrics.add(
+            registry.registerDoubleAsyncGauge("system.process.cpu.total.norm.pct", "Process CPU usage as a ratio.", "1", measurement -> {
+                double cpuLoad = ProcessProbe.getProcessCpuLoad();
+                if (cpuLoad >= 0) {
+                    measurement.record(cpuLoad, INTERNAL_DATASET);
+                }
+            })
+        );
     }
 
     private void registerLongGaugeUnlessNegative(
@@ -383,11 +368,11 @@ public class SystemMetrics extends AbstractLifecycleComponent {
 
         private AllocatedBytesMetrics() {}
 
-        LongWithAttributes readAllocatedBytes() {
+        long readAllocatedBytes() {
             if (sunThreadInfo == null) {
                 if (SunThreadInfo.INSTANCE.isThreadAllocatedMemorySupported() == false
                     || SunThreadInfo.INSTANCE.isThreadAllocatedMemoryEnabled() == false) {
-                    return new LongWithAttributes(0, INTERNAL_DATASET);
+                    return 0;
                 }
                 this.sunThreadInfo = SunThreadInfo.INSTANCE;
             }
@@ -398,7 +383,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                     total += allocated;
                 }
             }
-            return new LongWithAttributes(total, INTERNAL_DATASET);
+            return total;
         }
     }
 }

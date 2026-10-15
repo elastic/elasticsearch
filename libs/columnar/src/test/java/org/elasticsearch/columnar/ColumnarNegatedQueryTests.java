@@ -53,9 +53,8 @@ public class ColumnarNegatedQueryTests extends ESTestCase {
     private static final ScanBudget NO_BUDGET = s -> {};
 
     public void testAsFilterAcceptsAnExclusionThatScansAColumn() {
-        final Query term = ColumnarStringTermQuery.term("f", new BytesRef("x"), NO_BUDGET);
-        assertEquals(new ColumnarNegatedQuery(term), ColumnarNegatedQuery.asFilter(term));
-        assertNotNull(ColumnarNegatedQuery.asFilter(ColumnarStringTermQuery.contains("f", new BytesRef("x"), NO_BUDGET)));
+        final Query contains = ColumnarStringTermQuery.contains("f", new BytesRef("x"), NO_BUDGET);
+        assertEquals(new ColumnarNegatedQuery(contains), ColumnarNegatedQuery.asFilter(contains));
         assertNotNull(ColumnarNegatedQuery.asFilter(ColumnarStringTermQuery.prefix("f", new BytesRef("x"), NO_BUDGET)));
         assertNotNull(
             ColumnarNegatedQuery.asFilter(new ColumnarStringRangeQuery("f", new BytesRef("a"), true, new BytesRef("z"), true, NO_BUDGET))
@@ -63,6 +62,22 @@ public class ColumnarNegatedQueryTests extends ESTestCase {
         assertNotNull(
             ColumnarNegatedQuery.asFilter(new ColumnarStringAnyOfQuery("f", List.of(new BytesRef("a"), new BytesRef("b")), NO_BUDGET))
         );
+    }
+
+    /**
+     * A whole-value term, including the empty one of {@code != ""}, is settled from stored lengths or by bisection,
+     * so Lucene's exclusion handling already suits it. Requiring it would add a check per document for nothing.
+     */
+    public void testAsFilterLeavesAWholeValueExclusionProhibited() {
+        assertNull(ColumnarNegatedQuery.asFilter(ColumnarStringTermQuery.term("f", new BytesRef("x"), NO_BUDGET)));
+        assertNull(ColumnarNegatedQuery.asFilter(ColumnarStringTermQuery.term("f", new BytesRef(""), NO_BUDGET)));
+    }
+
+    public void testAsFilterStillAcceptsAWholeValueTermBesideACostlyScan() {
+        final Query query = new BooleanQuery.Builder().add(ColumnarStringTermQuery.term("f", new BytesRef("x"), NO_BUDGET), Occur.SHOULD)
+            .add(ColumnarStringTermQuery.contains("g", new BytesRef("y"), NO_BUDGET), Occur.SHOULD)
+            .build();
+        assertNotNull(ColumnarNegatedQuery.asFilter(query));
     }
 
     public void testAsFilterSeesThroughWrappers() {
@@ -218,6 +233,59 @@ public class ColumnarNegatedQueryTests extends ESTestCase {
                     "prohibited, the exclusion is confirmed far more often: " + prohibitedConfirmations + " vs " + kept,
                     prohibitedConfirmations > 5 * kept
                 );
+            }
+        }
+    }
+
+    /**
+     * The case where required costs more than prohibited, and why {@link ColumnarNegatedQuery#asFilter} cannot rule it
+     * out. The exclusion rejects 49 documents in 50 and costs more to confirm than the clause that requires documents,
+     * which keeps every document. Prohibited, Lucene confirms the exclusion on every document and the required clause
+     * only on the few left. Required, the clauses are ordered by cost, so the required clause comes first and is
+     * confirmed on every document too: the exclusion's column is read just as often, and the other clause's column is
+     * read on top of it.
+     *
+     * <p>When the exclusion is the clause that narrows, converting it adds a read of the other clause's column for
+     * every document. Whether an exclusion does is a fact about the data that the query cannot see, which is why only
+     * a clause that is dear to confirm in itself is converted, and the loss is bounded by the other clause's cost.
+     */
+    public void testSelectiveExclusionAheadOfARequiredScanCostsMoreAsRequired() throws IOException {
+        final int docs = between(2_000, 6_000);
+        int survivors = 0;
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int d = 0; d < docs; d++) {
+                writer.addDocument(new Document());
+                if (d % 50 == 0) {
+                    survivors++;
+                }
+            }
+            writer.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                searcher.setQueryCache(null);
+                final AtomicInteger exclusionConfirmations = new AtomicInteger();
+                final AtomicInteger requiredConfirmations = new AtomicInteger();
+                // Keeps every document: it narrows nothing, and it is the cheaper of the two to confirm.
+                final Query requiredScan = new ScanLike(d -> true, 100f, requiredConfirmations);
+                // Excludes 49 documents in 50, and is the dearer of the two to confirm.
+                final Query exclusion = new ScanLike(d -> d % 50 != 0, 1000f, exclusionConfirmations);
+
+                final Query prohibited = new BooleanQuery.Builder().add(requiredScan, Occur.FILTER).add(exclusion, Occur.MUST_NOT).build();
+                assertEquals(survivors, searcher.count(prohibited));
+                final int prohibitedRequiredConfirmations = requiredConfirmations.getAndSet(0);
+                final int prohibitedExclusionConfirmations = exclusionConfirmations.getAndSet(0);
+
+                final Query required = new BooleanQuery.Builder().add(requiredScan, Occur.FILTER)
+                    .add(new ColumnarNegatedQuery(exclusion), Occur.FILTER)
+                    .build();
+                assertEquals(survivors, searcher.count(required));
+
+                assertEquals("required, the other clause decides every document", docs, requiredConfirmations.get());
+                assertTrue(
+                    "prohibited, it decides far fewer: " + prohibitedRequiredConfirmations + " vs " + docs,
+                    prohibitedRequiredConfirmations < docs / 10
+                );
+                assertEquals("the exclusion is read as often either way", prohibitedExclusionConfirmations, exclusionConfirmations.get());
             }
         }
     }

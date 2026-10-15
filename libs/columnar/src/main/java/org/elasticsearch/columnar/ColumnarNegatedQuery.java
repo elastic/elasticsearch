@@ -53,6 +53,12 @@ import java.util.Objects;
  *
  * <p>Use {@link #asFilter} to choose between the two forms; wrapping a query that Lucene already excludes well only
  * adds a confirmation per document.
+ *
+ * <p>Required is not always the cheaper form. Which clause is confirmed on the most documents decides the cost, and
+ * the order follows {@link TwoPhaseIterator#matchCost}, not the size of a column or how many documents a clause
+ * rejects. An exclusion that rejects nearly every document, next to a large column the other clauses also scan, can
+ * cost more required than prohibited: the large column is then read on every document the exclusion would have
+ * removed first.
  */
 public final class ColumnarNegatedQuery extends Query {
 
@@ -80,9 +86,9 @@ public final class ColumnarNegatedQuery extends Query {
     }
 
     /**
-     * Whether {@code query}, or something it contains, is a {@link ColumnarScanQuery} that adds to the documents the
-     * query must look at. A scan inside a nested {@code MUST_NOT} does not count: it is itself an exclusion, so it is
-     * not what makes this query read the column.
+     * Whether {@code query}, or something it contains, is a {@link ColumnarScanQuery} that is
+     * {@link ColumnarScanQuery#costlyToExclude costly to exclude}. A scan inside a nested {@code MUST_NOT} does not
+     * count: it is itself an exclusion, so it is not what makes this query read the column.
      */
     static boolean scansColumn(Query query) {
         final boolean[] found = new boolean[1];
@@ -94,7 +100,7 @@ public final class ColumnarNegatedQuery extends Query {
 
             @Override
             public void visitLeaf(Query leaf) {
-                if (leaf instanceof ColumnarScanQuery) {
+                if (leaf instanceof ColumnarScanQuery scan && scan.costlyToExclude()) {
                     found[0] = true;
                 }
             }
@@ -111,10 +117,10 @@ public final class ColumnarNegatedQuery extends Query {
     public Query rewrite(IndexSearcher searcher) throws IOException {
         final Query rewritten = negated.rewrite(searcher);
         if (rewritten instanceof MatchNoDocsQuery) {
-            return new MatchAllDocsQuery();
+            return MatchAllDocsQuery.INSTANCE;
         }
         if (rewritten instanceof MatchAllDocsQuery) {
-            return new MatchNoDocsQuery("negation of a query matching every document");
+            return MatchNoDocsQuery.INSTANCE;
         }
         return rewritten == negated ? this : new ColumnarNegatedQuery(rewritten);
     }

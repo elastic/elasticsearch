@@ -135,6 +135,30 @@ public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
         assertUserSeesOnlyAuthorizedDocs(CAROL, NO_PROFILE_VISIBLE_DOC_IDS);
     }
 
+    /** An API key resolves to its owner's profile, so a Kibana task running under alice's key sees alice's memories. */
+    public void testApiKeySeesItsOwnersMemories() throws Exception {
+        putKibanaPrivileges();
+        putMemoryReaderRole();
+        putUser(ALICE);
+        putUser(BOB);
+        final String aliceUid = activateProfile(ALICE);
+        final String bobUid = activateProfile(BOB);
+        createMemoryIndexWithDocs(aliceUid, bobUid);
+
+        final Request createKey = new Request("POST", "/_security/api_key");
+        createKey.setOptions(userOptions(ALICE));
+        createKey.setJsonEntity("{ \"name\": \"alice-task-key\" }");
+        final Response createKeyResponse = client().performRequest(createKey);
+        assertOK(createKeyResponse);
+        final String encoded = ObjectPath.createFromResponse(createKeyResponse).evaluate("encoded");
+
+        assertSeesOnlyAuthorizedDocs(
+            "api key of " + ALICE,
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + encoded).build(),
+            ALICE_VISIBLE_DOC_IDS
+        );
+    }
+
     /** The grant is read-only: a user cannot write (and so cannot forge a scope_id) through it. */
     public void testImplicitGrantDoesNotAllowWrites() throws Exception {
         putKibanaPrivileges();
@@ -163,12 +187,12 @@ public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
     }
 
-    /** Grants memory/read in marketing only, with no explicit index privileges. */
+    /** Grants memory/read in marketing only, with no explicit index privileges. The cluster privilege is for the API key test. */
     private void putMemoryReaderRole() throws Exception {
         final Request request = new Request("PUT", "/_security/role/" + MEMORY_READER_ROLE);
         request.setJsonEntity(Strings.format("""
             {
-              "cluster": [],
+              "cluster": ["manage_own_api_key"],
               "applications": [
                 {
                   "application": "%s",
@@ -344,24 +368,28 @@ public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(query, containsString("\"scope_id\":{\"value\":\"user://{{_user.profile_uid}}\"}"));
     }
 
-    /** Asserts the DLS-visible set through both query engines, so the two cannot drift apart. */
     private void assertUserSeesOnlyAuthorizedDocs(String username, List<String> expectedIds) throws Exception {
+        assertSeesOnlyAuthorizedDocs(username, userOptions(username), expectedIds);
+    }
+
+    /** Asserts the DLS-visible set through both query engines, so the two cannot drift apart. */
+    private void assertSeesOnlyAuthorizedDocs(String label, RequestOptions options, List<String> expectedIds) throws Exception {
         final Request searchRequest = new Request("GET", "/" + MEMORY_INDEX + "/_search");
-        searchRequest.setOptions(userOptions(username));
+        searchRequest.setOptions(options);
 
         final Request esqlRequest = new Request("POST", "/_query");
-        esqlRequest.setOptions(userOptions(username));
+        esqlRequest.setOptions(options);
         esqlRequest.setJsonEntity(Strings.format("{ \"query\": \"FROM %s METADATA _id | KEEP _id | LIMIT 100\" }", MEMORY_INDEX));
 
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
         final List<Map<String, Object>> searchHits = ObjectPath.createFromResponse(searchResponse).evaluate("hits.hits");
-        assertVisibleIds(username + " via _search", searchHits.stream().map(hit -> (String) hit.get("_id")).toList(), expectedIds);
+        assertVisibleIds(label + " via _search", searchHits.stream().map(hit -> (String) hit.get("_id")).toList(), expectedIds);
 
         final Response esqlResponse = client().performRequest(esqlRequest);
         assertOK(esqlResponse);
         final List<List<Object>> esqlRows = ObjectPath.createFromResponse(esqlResponse).evaluate("values");
-        assertVisibleIds(username + " via ES|QL", esqlRows.stream().map(row -> (String) row.get(0)).toList(), expectedIds);
+        assertVisibleIds(label + " via ES|QL", esqlRows.stream().map(row -> (String) row.get(0)).toList(), expectedIds);
     }
 
     private static void assertVisibleIds(String engine, List<String> ids, List<String> expectedIds) {

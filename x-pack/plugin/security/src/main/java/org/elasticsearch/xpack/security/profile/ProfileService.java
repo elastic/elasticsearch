@@ -47,6 +47,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -72,10 +73,12 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRespo
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountAuthor;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -155,19 +158,18 @@ public class ProfileService implements ProfileUidResolver {
     }
 
     /**
-     * Resolves the profile uid that DLS role query templates read as {@code _user.profile_uid}. Only realm users have
-     * profiles, so API keys, service accounts, internal and anonymous users and run-as targets resolve to {@code null}
-     * without a lookup, as does a user whose profile has not been activated. Results, including the absence of a
-     * profile, are cached per subject for {@link #PROFILE_UID_CACHE_TTL} and dropped when that subject activates its
-     * profile through this node. A lookup failure resolves to {@code null} rather than failing authorization.
+     * Resolves the profile uid that DLS role query templates read as {@code _user.profile_uid}. A realm user resolves to
+     * its own profile and an API key to its owner's, the same identity {@link #resolveProfileUidsForApiKeys} answers
+     * with. Service accounts, internal and anonymous users, run-as targets and keys owned by a service account resolve
+     * to {@code null} without a lookup, as does a user whose profile has not been activated. Results, including the
+     * absence of a profile, are cached per subject for {@link #PROFILE_UID_CACHE_TTL} and dropped when that subject
+     * activates its profile through this node. A lookup failure resolves to {@code null} rather than failing
+     * authorization.
      */
     @Override
     public void resolve(Authentication authentication, ActionListener<String> listener) {
-        final Subject subject = authentication.getEffectiveSubject();
-        if (authentication.isRunAs()
-            || Subject.Type.USER != subject.getType()
-            || subject.getUser() instanceof InternalUser
-            || subject.getUser() instanceof AnonymousUser) {
+        final Subject subject = profileSubject(authentication);
+        if (subject == null) {
             listener.onResponse(null);
             return;
         }
@@ -189,6 +191,42 @@ public class ProfileService implements ProfileUidResolver {
 
     private static String profileUidCacheKey(Subject subject) {
         return subject.getRealm().getType() + "/" + subject.getRealm().getName() + "/" + subject.getUser().principal();
+    }
+
+    /** The subject whose profile backs the authentication: the user itself, the owner of an API key, or none. */
+    @Nullable
+    private Subject profileSubject(Authentication authentication) {
+        if (authentication.isRunAs()) {
+            return null;
+        }
+        final Subject subject = authentication.getEffectiveSubject();
+        return switch (subject.getType()) {
+            case USER -> subject.getUser() instanceof InternalUser || subject.getUser() instanceof AnonymousUser ? null : subject;
+            case API_KEY -> getApiKeyOwnerSubject(subject);
+            case CLOUD_API_KEY, CLOUD_SERVICE_ACCOUNT, SERVICE_ACCOUNT, CROSS_CLUSTER_ACCESS -> null;
+        };
+    }
+
+    /** As {@link #getApiKeyCreatorSubject}, from the creator realm an authenticated API key carries in its metadata. */
+    @Nullable
+    private Subject getApiKeyOwnerSubject(Subject apiKeySubject) {
+        final Map<String, Object> metadata = apiKeySubject.getMetadata();
+        final String realmName = (String) metadata.get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
+        final String realmType = (String) metadata.get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
+        if (realmName == null || realmType == null || ServiceAccountSettings.REALM_TYPE.equals(realmType)) {
+            return null;
+        }
+        final Authentication.RealmRef realmRef = realmRefLookup.apply(new RealmConfig.RealmIdentifier(realmType, realmName));
+        if (realmRef == null) {
+            logger.debug(
+                "api key owner [{}] belongs to realm [{}/{}], which is not configured on the local node",
+                apiKeySubject.getUser().principal(),
+                realmType,
+                realmName
+            );
+            return null;
+        }
+        return new Subject(new User(apiKeySubject.getUser().principal(), Strings.EMPTY_ARRAY), realmRef);
     }
 
     public void getProfiles(List<String> uids, Set<String> dataKeys, ActionListener<ResultsAndErrors<Profile>> listener) {

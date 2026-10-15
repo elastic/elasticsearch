@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -95,6 +96,7 @@ import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
@@ -446,7 +448,19 @@ public class ProfileServiceTests extends ESTestCase {
 
     public void testResolveProfileUidSkipsLookupForSubjectsWithoutProfiles() {
         final List<Authentication> authentications = List.of(
+            // The default realm lookup knows no realm, so the key's owner cannot be resolved on this node.
             AuthenticationTestHelper.builder().apiKey().build(),
+            AuthenticationTestHelper.builder()
+                .apiKey()
+                .metadata(
+                    Map.of(
+                        AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+                        ServiceAccountSettings.REALM_NAME,
+                        AuthenticationField.API_KEY_CREATOR_REALM_TYPE,
+                        ServiceAccountSettings.REALM_TYPE
+                    )
+                )
+                .build(),
             AuthenticationTestHelper.builder().serviceAccount().build(),
             AuthenticationTestHelper.builder().internal().build(),
             AuthenticationTestHelper.builder().anonymous().build(),
@@ -458,6 +472,42 @@ public class ProfileServiceTests extends ESTestCase {
             assertThat(authentication.toString(), future.actionGet(), nullValue());
         }
         verify(client, never()).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+    }
+
+    public void testResolveProfileUidForApiKeyLooksUpTheOwner() {
+        realmRefLookup = identifier -> new Authentication.RealmRef(identifier.getName(), identifier.getType(), "node");
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
+            var resp = new MultiSearchResponse(
+                new MultiSearchResponse.Item[] {
+                    new MultiSearchResponse.Item(SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(), null) },
+                1L
+            );
+            try {
+                listener.onResponse(resp);
+            } finally {
+                resp.decRef();
+            }
+            return null;
+        }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+
+        final User owner = new User("alice");
+        final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey().user(owner).build();
+        final String creatorRealmType = (String) apiKeyAuthentication.getEffectiveSubject()
+            .getMetadata()
+            .get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
+
+        final PlainActionFuture<String> future = new PlainActionFuture<>();
+        profileService.resolve(apiKeyAuthentication, future);
+        assertThat(future.actionGet(), nullValue());
+
+        // The lookup is for the owner in the creator realm, not for the API key subject.
+        final ArgumentCaptor<MultiSearchRequest> captor = ArgumentCaptor.forClass(MultiSearchRequest.class);
+        verify(client).execute(eq(TransportMultiSearchAction.TYPE), captor.capture(), anyActionListener());
+        final String query = Strings.toString(captor.getValue().requests().get(0).source().query());
+        assertThat(query, containsString("\"user_profile.user.username.keyword\":{\"value\":\"alice\""));
+        assertThat(query, containsString("\"user_profile.user.realm.type\":{\"value\":\"" + creatorRealmType + "\""));
     }
 
     public void testResolveProfileUidCachesLookupUntilActivation() {

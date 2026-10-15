@@ -184,7 +184,8 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
     /**
      * When processing an event fails, the processor converts the error into the unified chat completion format. The base class
      * must forward that exception unchanged so the status, type and code reach the client rather than a generic 500.
-     * Processing an event resets demand to zero, so the error is parked until the downstream requests again.
+     * Errors are not subject to backpressure, so the error is delivered immediately rather than parked until the downstream requests
+     * again.
      */
     public void testProcessingFailureForwardsUnifiedChatCompletionExceptionDownstream() {
         var upstream = mock(Flow.Subscription.class);
@@ -202,9 +203,6 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
 
         processor.onNext(failingOutput);
         verify(upstream, times(1)).cancel();
-        verify(downstream, never()).onError(any());
-
-        sub.getValue().request(1);
         verify(downstream, times(1)).onError(assertArg(e -> {
             assertThat(e, isA(UnifiedChatCompletionException.class));
             assertThat(((UnifiedChatCompletionException) e).status(), is(RestStatus.BAD_REQUEST));

@@ -6175,6 +6175,53 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * The null side of {@link #assertDeclaredDatetimeReads}: every position null, on all three routes. A value the
+     * file holds and {@code date} represents, but which the decode cannot carry, has to be refused the same way
+     * whichever route produces the column -- the eager vectorized reader, the row-at-a-time reader, or the deferred
+     * extractor. Asserting it on all three is the point: a fix applied to the eager readers alone makes them
+     * disagree with the deferred one, which is a wrong answer that depends on the plan's shape rather than on the
+     * data, and this is what fails when that happens.
+     */
+    private void assertDeclaredDatetimeNulls(byte[] parquetData, String column, int positionCount) throws Exception {
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, column, DataType.DATETIME));
+        for (String decoder : List.of("pageReader", "rowAtATime")) {
+            ParquetFormatReader base = new ParquetFormatReader(blockFactory);
+            ParquetFormatReader r = (ParquetFormatReader) (decoder.equals("rowAtATime") ? base.withBaselinePath() : base)
+                .withDeclaredTypeColumns(Set.of(column));
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of(column), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+                )
+            ) {
+                LongBlock l = (LongBlock) it.next().getBlock(0);
+                assertEquals(decoder, positionCount, l.getPositionCount());
+                for (int i = 0; i < positionCount; i++) {
+                    assertTrue(decoder + " position " + i + " must be null", l.isNull(i));
+                }
+            }
+        }
+        ParquetFormatReader deferred = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of(column));
+        long[] positions = new long[positionCount];
+        for (int i = 0; i < positionCount; i++) {
+            positions[i] = i;
+        }
+        try (ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, deferred, footerOf(storageObject), ErrorPolicy.STRICT)) {
+            Block[] blocks = extractor.extract(new String[] { column }, new DataType[] { DataType.DATETIME }, positions, blockFactory);
+            try {
+                LongBlock l = (LongBlock) blocks[0];
+                assertEquals("deferred", positionCount, l.getPositionCount());
+                for (int i = 0; i < positionCount; i++) {
+                    assertTrue("deferred position " + i + " must be null", l.isNull(i));
+                }
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
     /** The file's footer, for the extractor routes that take one directly. */
     private ParquetMetadata footerOf(StorageObject storageObject) throws IOException {
         try (
@@ -10841,14 +10888,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A {@code TIMESTAMP(MICROS)} column — Arrow's and Spark's default timestamp unit — infers {@code date_nanos}, so
-     * declaring it {@code date} narrows through {@code castBlock}. A value before 1970 is an ordinary instant for
-     * {@code date}, and it must read rather than fail the whole column: the 1970 floor belongs to the source type.
-     * The coercion is shared, but the {@code date_nanos} decode beneath it is not -- one decoder scales its batch
-     * array, the other reads value by value -- so the case runs both, selected with
-     * {@link ParquetFormatReader#withBaselinePath()}.
-     */
-    /**
      * The scale from a sub-millisecond unit to milliseconds floors; it does not truncate toward zero. The two
      * disagree only below the epoch, by one millisecond, and they must not: the same value read through
      * {@code DeclaredTypeCoercions}' narrowing floors, so a value that changed route would change answer.
@@ -10883,6 +10922,37 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A microsecond timestamp outside the nanosecond domain, read as a declared {@code date}. {@code date} is
+     * milliseconds and represents 1500-01-01 exactly, but the decode materialises nanoseconds before narrowing, so
+     * the value is refused -- and refused on every route, which is what this pins. Closing that gap means decoding
+     * straight to milliseconds, and doing it only in the eager readers splits them from the deferred extractor,
+     * which is why this asserts all three rather than one.
+     */
+    public void testOutOfNanosRangeMicrosTimestampDeclaredDatetimeNullsOnEveryRoute() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group beforeFloor = factory.newGroup();
+            beforeFloor.add("ts", -14_831_769_600_000_000L); // 1500-01-01T00:00:00Z
+            Group afterCeiling = factory.newGroup();
+            afterCeiling.add("ts", 32_503_680_000_000_000L); // 3000-01-01T00:00:00Z
+            return List.of(beforeFloor, afterCeiling);
+        });
+        assertDeclaredDatetimeNulls(parquetData, "ts", 2);
+    }
+
+    /**
+     * A {@code TIMESTAMP(MICROS)} column — Arrow's and Spark's default timestamp unit — infers {@code date_nanos}, so
+     * declaring it {@code date} narrows through {@code castBlock}. A value before 1970 is an ordinary instant for
+     * {@code date}, and it must read rather than fail the whole column: the 1970 floor belongs to the source type.
+     * The coercion is shared, but the {@code date_nanos} decode beneath it is not -- one decoder scales its batch
+     * array, the other reads value by value -- so the case runs both, selected with
+     * {@link ParquetFormatReader#withBaselinePath()}.
+     */
     public void testPreEpochMicrosTimestampDeclaredDatetimeReads() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)

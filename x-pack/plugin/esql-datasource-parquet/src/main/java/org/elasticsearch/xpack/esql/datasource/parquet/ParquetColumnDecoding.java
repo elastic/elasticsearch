@@ -74,10 +74,12 @@ final class ParquetColumnDecoding {
 
     static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
         if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-            // floorDiv, not `/`. Java's `/` truncates toward zero, so a pre-epoch value would round the wrong
-            // way here and disagree with DeclaredTypeCoercions' date_nanos -> date narrowing, which floors. The
-            // two have to agree: a declared `date` over a sub-millisecond column reaches the instant through
-            // this method, and the same value reached through the narrowing must land on the same millisecond.
+            // Only the MILLIS arm is reachable today: a TIMESTAMP(MICROS|NANOS) column renders date_nanos, and a
+            // declared `date` over it is not a fused pair, so it narrows through castBlock rather than arriving
+            // here. The sub-millisecond arms are kept, and floor rather than truncate with `/`, so that they agree
+            // with that narrowing -- which floors -- if a route ever does reach them. Java's `/` rounds toward
+            // zero, so the two would disagree by a millisecond below the epoch, which is the range that route
+            // would exist to open.
             return switch (ts.getUnit()) {
                 case MILLIS -> raw;
                 case MICROS -> Math.floorDiv(raw, 1_000L);
@@ -163,12 +165,14 @@ final class ParquetColumnDecoding {
             && time2.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS;
         return switch (declaredType) {
             // An identity read never nulls, and neither does a narrowing: floorDiv is total over the whole long
-            // domain. MICROS declines here, which is now CONSERVATIVE rather than necessary: since `date` over a
-            // sub-millisecond column became a fused pair, its decode scales straight to millis with floorDiv and
-            // cannot null, so IS NULL could be pushed over such a column. It is left declining because this
-            // predicate gates row-group pruning -- a wrong `false` drops rows, while a wrong `true` only costs a
-            // scan -- and relaxing it needs the totality of every INT64 route to `date` established rather than
-            // argued. The MICROS arm of the TIME units is here for the same reason.
+            // domain. MICROS declines because its decode genuinely nulls: a column rendering date_nanos read as
+            // `date` is NOT a fusedInDecode pair, so it decodes to nanoseconds first, where microsOverflowsNanos
+            // nulls anything outside the nanosecond domain, and only then narrows. The decline is necessary, not
+            // conservative, and must not be relaxed while that two-step route stands -- this predicate gates
+            // row-group pruning, so a wrong `false` here drops rows. The MICROS arm of the TIME units is the same
+            // case. Relaxing it also needs the arm decided by FILE type rather than declared: a uint64 column
+            // reaches `date` through Numbers.toLong, which throws at or above 2^63, and a scale-0 DECIMAL through
+            // safeDoubleToLong.
             case DATETIME -> (logical == null || millisAnnotated || nanosAnnotated || timeAnnotated) == false;
             // A bare INT64 widens millis->nanos via castBlock and nulls pre-epoch/post-2262 values; NANOS is the
             // identity; MICROS/MILLIS scale and can overflow.

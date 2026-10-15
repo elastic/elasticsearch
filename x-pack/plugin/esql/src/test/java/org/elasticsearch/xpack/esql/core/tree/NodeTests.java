@@ -478,6 +478,84 @@ public class NodeTests extends ESTestCase {
         assertAsyncTransform(node, (n, listener) -> listener.onResponse(n), result -> assertSame(node, result));
     }
 
+    private static ChildrenAreAProperty deepChain(int depth) {
+        ChildrenAreAProperty node = new ChildrenAreAProperty(randomSource(), List.of(), "leaf");
+        for (int i = 0; i < depth; i++) {
+            node = new ChildrenAreAProperty(randomSource(), List.of(node), "n");
+        }
+        return node;
+    }
+
+    private static void assertLeafIs(Dummy chain, String expected) {
+        Dummy n = chain;
+        while (n.children().isEmpty() == false) {
+            n = n.children().get(0);
+        }
+        assertEquals(expected, n.thing());
+    }
+
+    /**
+     * Rules that complete synchronously must not grow the stack with the depth of the tree. The rule leaves the tree unchanged,
+     * because comparing a changed deep tree with the original is a recursive {@code equals} in {@link Dummy} itself.
+     */
+    public void testTransformDownAsyncDeepTreeSyncRule() throws InterruptedException {
+        Dummy chain = deepChain(100_000);
+        assertAsyncTransform(chain, (n, listener) -> listener.onResponse(n), result -> assertSame(chain, result));
+    }
+
+    /** Rules that complete on another thread must not grow the stack with the depth of the tree either. */
+    public void testTransformDownAsyncDeepTreeAsyncRule() throws InterruptedException {
+        Dummy chain = deepChain(100_000);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        chain.transformDown((Dummy n, ActionListener<Dummy> l) -> {
+            // Half of the nodes complete inline, the rest on another thread
+            if (randomBoolean()) {
+                l.onResponse(n);
+            } else {
+                new Thread(() -> l.onResponse(n)).start();
+            }
+        }, new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
+            assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
+            assertSame(chain, result);
+        }), latch));
+        assertTrue("timed out after 30s", latch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testTransformDownAsyncModifiedChain() throws InterruptedException {
+        assertAsyncTransform(deepChain(200), (n, listener) -> {
+            listener.onResponse(n.children().isEmpty() ? new NoChildren(n.source(), "changed") : n);
+        }, result -> assertLeafIs(result, "changed"));
+    }
+
+    public void testTransformDownAsyncRuleFailure() throws InterruptedException {
+        Dummy chain = deepChain(10);
+        CountDownLatch latch = new CountDownLatch(1);
+        chain.transformDown((Dummy n, ActionListener<Dummy> l) -> {
+            if (n.children().isEmpty()) {
+                l.onFailure(new IllegalStateException("boom"));
+            } else {
+                l.onResponse(n);
+            }
+        }, new LatchedActionListener<>(ActionListener.wrap(r -> fail("unexpected success"), e -> {
+            assertEquals(IllegalStateException.class, e.getClass());
+            assertEquals("boom", e.getMessage());
+        }), latch));
+        assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));
+    }
+
+    public void testTransformDownAsyncRuleThrows() throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        deepChain(3).transformDown(
+            (Dummy n, ActionListener<Dummy> l) -> { throw new IllegalStateException("thrown"); },
+            new LatchedActionListener<>(
+                ActionListener.wrap(r -> fail("unexpected success"), e -> assertEquals("thrown", e.getMessage())),
+                latch
+            )
+        );
+        assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));
+    }
+
     private void assertAsyncTransform(Dummy node, BiConsumer<? super Dummy, ActionListener<Dummy>> rule, Consumer<Dummy> assertions)
         throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
@@ -488,7 +566,7 @@ public class NodeTests extends ESTestCase {
             assertions.accept(result);
         }), latch);
 
-        node.transformDown(rule, Runnable::run, listener);
+        node.transformDown(rule, listener);
         assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));
     }
 

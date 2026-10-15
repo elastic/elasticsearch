@@ -7,9 +7,6 @@
 package org.elasticsearch.xpack.esql.core.tree;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -19,7 +16,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -409,13 +406,6 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     /**
-     * Number of descent levels between executor bounces in the async {@link #transformDown}.
-     * Small enough that each stretch of recursion stays well within the default {@code -Xss1m} thread stack,
-     * large enough that ordinary (shallow) plans never bounce.
-     */
-    private static final int ASYNC_TRANSFORM_STACK_DEPTH_LIMIT = 100;
-
-    /**
      * Asynchronous variant of {@link #transformDown(Function)} that allows the transformation rule to perform
      * async I/O operations (e.g., transport actions) without blocking the caller thread.
      * <p>
@@ -423,54 +413,137 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      * This method is intended for cases where async I/O is needed during transformation, not for parallel
      * processing.
      * <p>
-     * The provided executor is used to bounce the recursion every {@link #ASYNC_TRANSFORM_STACK_DEPTH_LIMIT}
-     * levels to avoid stack overflow.
+     * Like the synchronous variant, the traversal keeps its state on the heap, so its depth is not bounded by the thread stack,
+     * whether the rule completes its listener synchronously or asynchronously (on any thread).
      */
-    public void transformDown(BiConsumer<? super T, ActionListener<T>> rule, Executor executor, ActionListener<T> listener) {
-        transformDown(rule, executor, 0, listener);
+    @SuppressWarnings("unchecked")
+    public void transformDown(BiConsumer<? super T, ActionListener<T>> rule, ActionListener<T> listener) {
+        new AsyncTransformDown<T>(rule, listener).run((T) this);
     }
 
-    @SuppressWarnings("unchecked")
-    void transformDown(BiConsumer<? super T, ActionListener<T>> rule, Executor executor, int depth, ActionListener<T> listener) {
-        rule.accept((T) this, listener.delegateFailureAndWrap((originalListener, root) -> {
-            Node<T> node = this.equals(root) ? this : root;
-            node.transformChildren((child, childListener) -> {
-                if (depth > 0 && depth % ASYNC_TRANSFORM_STACK_DEPTH_LIMIT == 0) {
-                    ActionListener<T> bounced = new ThreadedActionListener<>(executor, childListener);
-                    executor.execute(ActionRunnable.wrap(bounced, l -> child.transformDown(rule, executor, depth + 1, l)));
-                } else {
-                    child.transformDown(rule, executor, depth + 1, childListener);
+    /**
+     * Iterative driver of the asynchronous {@link #transformDown(BiConsumer, ActionListener)}. It is a trampoline: {@link #run}
+     * applies the rule node after node in a loop. If the rule completes its listener before returning, the loop carries on
+     * inline, so synchronous completions never grow the call stack. If the rule has not completed yet, the loop returns and
+     * the {@link Step} that is completed later continues the traversal from whichever thread completes it.
+     */
+    private static final class AsyncTransformDown<T extends Node<T>> {
+        private final BiConsumer<? super T, ActionListener<T>> rule;
+        private final ActionListener<T> listener;
+        private final Deque<Frame<T>> stack = new ArrayDeque<>();
+
+        AsyncTransformDown(BiConsumer<? super T, ActionListener<T>> rule, ActionListener<T> listener) {
+            this.rule = rule;
+            this.listener = listener;
+        }
+
+        /** Applies the rule to {@code toRule}, and keeps going until the traversal is finished, failed or waiting on the rule. */
+        void run(T toRule) {
+            while (toRule != null) {
+                Step step = new Step(toRule);
+                try {
+                    rule.accept(toRule, step);
+                } catch (Exception e) {
+                    step.state.set(Step.ABANDONED);
+                    listener.onFailure(e);
+                    return;
                 }
-            }, originalListener);
-        }));
-    }
-
-    @SuppressWarnings("unchecked")
-    protected void transformChildren(BiConsumer<T, ActionListener<T>> traversalOperation, ActionListener<T> listener) {
-        if (children.isEmpty()) {
-            listener.onResponse((T) this);
-            return;
+                if (step.state.compareAndSet(Step.RUNNING, Step.WAITING)) {
+                    // The rule is completing asynchronously: the step resumes the traversal when it is done.
+                    return;
+                }
+                toRule = onRuleResult(step);
+            }
         }
 
-        final Holder<List<T>> updatedChildren = new Holder<>();
-        SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
-        for (int i = 0; i < children.size(); i++) {
-            var index = i;
-            var child = children.get(index);
-            chain = chain.andThen(originalListener -> {
-                traversalOperation.accept(child, originalListener.delegateFailureAndWrap((o, maybeTransformed) -> {
-                    if (maybeTransformed.equals(child) == false) {
-                        if (updatedChildren.get() == null) {
-                            updatedChildren.set(new ArrayList<>(children));
-                        }
-                        updatedChildren.get().set(index, maybeTransformed);
+        /**
+         * Consumes the outcome of a rule application and advances the traversal.
+         *
+         * @return the next node to apply the rule to, or {@code null} if the traversal is finished (the listener has been notified)
+         */
+        private T onRuleResult(Step step) {
+            try {
+                if (step.failure != null) {
+                    listener.onFailure(step.failure);
+                    return null;
+                }
+                // Same identity-preservation as applyRulePreservingIdentity: keep the original node if the rule returned an equal one.
+                stack.push(new Frame<>(step.input.equals(step.result) ? step.input : step.result));
+                return advance();
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return null;
+            }
+        }
+
+        /**
+         * Pops completed frames, merging them into their parents, until a node whose rule has not been applied yet is found.
+         *
+         * @return that node, or {@code null} if the root completed (the listener has been notified)
+         */
+        private T advance() {
+            T completed = null;
+            while (true) {
+                Frame<T> frame = stack.peek();
+                if (completed != null) {
+                    mergeChildResult(frame, completed);
+                    completed = null;
+                }
+                if (frame.nextChild < frame.children.size()) {
+                    return frame.children.get(frame.nextChild);
+                }
+                stack.pop();
+                completed = frame.anyChildChanged ? frame.node.replaceChildrenSameSize(frame.results) : frame.node;
+                if (stack.isEmpty()) {
+                    listener.onResponse(completed);
+                    return null;
+                }
+            }
+        }
+
+        /** One rule application. Completed at most once; whoever observes the completion second continues the traversal. */
+        private final class Step implements ActionListener<T> {
+            static final int RUNNING = 0;
+            static final int WAITING = 1;
+            static final int DONE = 2;
+            static final int ABANDONED = 3;
+
+            final T input;
+            final AtomicInteger state = new AtomicInteger(RUNNING);
+            // Written before the state transition that publishes it, read only after observing that transition.
+            T result;
+            Exception failure;
+
+            Step(T input) {
+                this.input = input;
+            }
+
+            @Override
+            public void onResponse(T response) {
+                this.result = response;
+                complete();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                this.failure = e;
+                complete();
+            }
+
+            private void complete() {
+                if (state.compareAndSet(RUNNING, DONE)) {
+                    // Completed before the rule returned: run() carries on inline.
+                    return;
+                }
+                if (state.compareAndSet(WAITING, DONE)) {
+                    T next = onRuleResult(this);
+                    if (next != null) {
+                        run(next);
                     }
-                    o.onResponse(null);
-                }));
-            });
+                }
+                // Otherwise the traversal was abandoned after the rule threw, or the rule completed the listener twice: ignore.
+            }
         }
-        chain.andThenApply(ignored -> updatedChildren.get() == null ? (T) this : replaceChildrenSameSize(updatedChildren.get()))
-            .addListener(listener);
     }
 
     @SuppressWarnings("unchecked")

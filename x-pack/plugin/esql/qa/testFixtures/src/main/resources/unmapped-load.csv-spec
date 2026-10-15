@@ -4284,3 +4284,33 @@ all_types_unmapped_synthetic | key1            | true            | 1            
 all_types_unmapped           | key2            | false           | 2               | 2.2            | 2024-01-02T00:00:00.000Z | 127.0.0.2  | 2.0.0           | "{""boolean"":""false"",""byte"":2,""constant_keyword-foo"":""foo"",""date"":""2024-01-02T00:00:00.000Z"",""date_nanos"":""2024-01-02T00:00:00.000000002Z"",""double"":2.2,""float"":2.2,""half_float"":2.2,""scaled_float"":2.2,""integer"":2,""ip"":""127.0.0.2"",""keyword"":""key2"",""long"":200,""unsigned_long"":200,""short"":20,""text"":""text2"",""version"":""2.0.0"",""wildcard"":""wild2""}"
 all_types_unmapped_synthetic | key2            | false           | 2               | 2.2            | 2024-01-02T00:00:00.000Z | 127.0.0.2  | 2.0.0           | "{""boolean"":""false"",""byte"":2,""constant_keyword-foo"":""foo"",""date"":""2024-01-02T00:00:00.000Z"",""date_nanos"":""2024-01-02T00:00:00.000000002Z"",""double"":2.2,""float"":2.2,""half_float"":2.2,""integer"":2,""ip"":""127.0.0.2"",""keyword"":""key2"",""long"":200,""scaled_float"":2.2,""short"":20,""text"":""text2"",""unsigned_long"":200,""version"":""2.0.0"",""wildcard"":""wild2""}"
 ;
+
+// order.items.qty is not in nested_paths_mapped's mapping, so it loads from _source even though its parent is nested; the declared
+// order.items.name does not load there. The decision is per shard, so nested_paths_unmapped loads both.
+nestedPathsUndeclaredLeafLoads
+required_capability: optional_fields_v5
+required_capability: fix_nested_subfield_extraction
+
+SET unmapped_fields="LOAD"\;
+FROM nested_paths_mapped, nested_paths_unmapped
+| KEEP id, order.items.name, order.items.qty
+| SORT id
+;
+
+id:keyword | order.items.name:keyword | order.items.qty:keyword
+m | null | [1, 2]
+u | [a, b] | [1, 2]
+;
+
+nestedPathsLoneUndeclaredLeafLoads
+required_capability: optional_fields_v5
+required_capability: fix_nested_subfield_extraction
+
+SET unmapped_fields="LOAD"\;
+FROM nested_paths_mapped
+| KEEP order.items.qty
+;
+
+order.items.qty:keyword
+[1, 2]
+;

@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -34,7 +34,8 @@ import java.util.Set;
 public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSeriesAggregate> {
     @Override
     public LogicalPlan rule(TimeSeriesAggregate agg) {
-        Set<Attribute> metrics = new HashSet<>();
+        // Preserve expression order so equivalent plans produce the same null-filter predicate.
+        Set<Attribute> metrics = new LinkedHashSet<>();
         agg.forEachExpression(Attribute.class, attr -> {
             if (attr.isMetric()) {
                 metrics.add(attr);

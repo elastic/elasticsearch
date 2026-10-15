@@ -99,24 +99,11 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         Filter filter = as(tsAgg.child(), Filter.class);
         Or or = as(filter.expressions().getFirst(), Or.class);
 
-        // For reasons beyond my comprehension, the ordering of the conditionals inside the OR is nondeterministic.
-        IsNotNull condition;
-        FieldAttribute attribute;
-
-        condition = as(or.left(), IsNotNull.class);
-        attribute = as(condition.field(), FieldAttribute.class);
-        if (attribute.fieldName().string().equals("metric_1")) {
-            condition = as(or.right(), IsNotNull.class);
-            attribute = as(condition.field(), FieldAttribute.class);
-            assertEquals("metric_2", attribute.fieldName().string());
-        } else if (attribute.fieldName().string().equals("metric_2")) {
-            condition = as(or.right(), IsNotNull.class);
-            attribute = as(condition.field(), FieldAttribute.class);
-            assertEquals("metric_1", attribute.fieldName().string());
-        } else {
-            // something weird happened
-            assert false;
-        }
+        // Null checks follow the order of metrics in the aggregate expressions.
+        IsNotNull left = as(or.left(), IsNotNull.class);
+        assertEquals("metric_1", as(left.field(), FieldAttribute.class).fieldName().string());
+        IsNotNull right = as(or.right(), IsNotNull.class);
+        assertEquals("metric_2", as(right.field(), FieldAttribute.class).fieldName().string());
     }
 
     public void testSkipCoalescedMetrics() {

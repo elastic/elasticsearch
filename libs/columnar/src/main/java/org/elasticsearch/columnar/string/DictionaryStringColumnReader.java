@@ -602,6 +602,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         if (ordinalSkipperMeta == null) {
             return presence;
         }
+        assert escapeCount == 0 : "a column with escapes has no ordinal skip index";
         final DocValuesSkipper skipper = SkipIndexCodec.forId(ordinalSkipperMeta.codecId()).reader(ordinalSkipperMeta, skipIndex);
         return new OrdinalRangePresence(presence, skipper, lowOrdinal, highOrdinal);
     }

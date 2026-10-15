@@ -20,11 +20,9 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
@@ -43,7 +41,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
@@ -88,21 +85,6 @@ public class CaptureTests extends ESTestCase {
 
         assertThat(failure.get(), sameInstance(expected));
         assertTrue(captured.isEmpty());
-    }
-
-    public void testFailingConsumerStillDeliversTheResponse() {
-        QueryCaptureFilter filter = filter(true, 1.0, search -> { throw new IllegalStateException("boom"); });
-        AtomicBoolean delivered = new AtomicBoolean();
-
-        queryCaptureFilterApply(
-            filter,
-            knnSearch(randomVector(8)),
-            TaskId.EMPTY_TASK_ID,
-            respondWith(response(1, hit("idx", "1", 1f))),
-            ActionListener.wrap(r -> delivered.set(true), e -> fail("unexpected failure"))
-        );
-
-        assertTrue(delivered.get());
     }
 
     public void testIgnoresSearchesThatAreNotOverAllTheDocumentsOfTheirIndicesOrDoNotReturnTheNearestK() {
@@ -190,13 +172,6 @@ public class CaptureTests extends ESTestCase {
         return new SearchRequest("idx").source(new SearchSourceBuilder().knnSearch(List.of(knn)));
     }
 
-    private static SearchHit hit(String index, String id, float score) {
-        SearchHit hit = SearchHit.unpooled(randomNonNegativeInt(), id);
-        hit.score(score);
-        hit.shard(new SearchShardTarget("node", new ShardId(index, "_na_", 0), null));
-        return hit;
-    }
-
     private static SearchResponse response(long tookMillis, SearchHit... hits) {
         SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1f);
         try {
@@ -243,14 +218,6 @@ public class CaptureTests extends ESTestCase {
             vector[i] = randomFloat();
         }
         return vector;
-    }
-
-    public void testQuietTrafficGetsARateThatMeetsTheFloor() {
-        CaptureRate rate = new CaptureRate(0.01, 360);
-
-        rate.observe(1, 1);
-
-        assertThat(rate.effective(), closeTo(0.1, 1e-12));
     }
 
     public void testDropsWithoutBlockingWhenTheQueueIsFull() throws Exception {

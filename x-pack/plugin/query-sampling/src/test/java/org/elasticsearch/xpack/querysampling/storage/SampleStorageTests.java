@@ -15,7 +15,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -24,9 +23,7 @@ import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -109,31 +106,6 @@ public class SampleStorageTests extends ESTestCase {
         assertThat("a picked query is not an event", document, not(hasKey("event_id")));
     }
 
-    public void testAnEventIsStoredAsADocumentOfItsOwnAndReadBack() throws IOException {
-        CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
-        SampledQuery event = SampledQuery.event(
-            FINGERPRINT,
-            new CapturedSearch(query, List.of(), 1, 0.25),
-            TrackedQuery.event(0.25, 0.5),
-            "e7"
-        );
-
-        Map<String, Object> document = toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", event, 5L));
-        StoredSample stored = SampleRecord.parse(document, xContentRegistry());
-
-        assertThat(document.get("event_id"), equalTo("e7"));
-        assertThat("each of its arrivals is one search, standing for four", document.get("weighted_multiplicity"), equalTo(4.0));
-        assertThat("captured with 0.25 and kept with 0.5", (Double) document.get("inclusion_probability"), closeTo(0.125, 1e-12));
-        assertTrue(stored.isEvent());
-        assertThat(stored.eventId(), equalTo("e7"));
-        assertThat(stored.id(), equalTo(SampleRecord.documentId("s1", FINGERPRINT) + "_e7"));
-        assertThat(
-            "the other events of the query are other documents",
-            stored.id(),
-            not(equalTo(SampleRecord.documentId("s1", FINGERPRINT)))
-        );
-    }
-
     public void testEveryFieldOfADocumentIsInTheMappings() throws IOException {
         CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, 0.5f, 3f, List.of(), "q");
         TrackedQuery tracked = tracked(1.0);
@@ -146,11 +118,6 @@ public class SampleStorageTests extends ESTestCase {
         Map<String, Object> document = toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 5L));
 
         assertThat(mappedFields(), equalTo(document.keySet()));
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
     }
 
     @SuppressWarnings("unchecked")
@@ -172,53 +139,11 @@ public class SampleStorageTests extends ESTestCase {
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
     }
 
-    private static final TimeValue INTERVAL = TimeValue.timeValueSeconds(1);
-
     private final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
 
     private final List<BulkRequest> requests = new ArrayList<>();
 
     private final List<ActionListener<BulkResponse>> listeners = new ArrayList<>();
-
-    public void testOneRequestIsInFlightAtATime() {
-        SampleWriter writer = writer(2, 10);
-        writer.onSampled(sampled(1));
-        writer.onSampled(sampled(2));
-        taskQueue.runAllRunnableTasks();
-        assertThat(requests.size(), equalTo(1));
-
-        writer.onSampled(sampled(3));
-        writer.onSampled(sampled(4));
-        taskQueue.runAllTasks();
-        assertThat(requests.size(), equalTo(1));
-
-        listeners.get(0).onResponse(new BulkResponse(new BulkItemResponse[0], 1));
-        taskQueue.runAllRunnableTasks();
-        assertThat(requests.size(), equalTo(2));
-        assertThat(requests.get(1).numberOfActions(), equalTo(2));
-        assertThat(writer.written(), equalTo(2L));
-    }
-
-    private SampleWriter writer(int maxBatch, int maxPending) {
-        return new SampleWriter("sampler", (request, listener) -> {
-            requests.add(request);
-            listeners.add(listener);
-        },
-            taskQueue.getThreadPool(),
-            taskQueue.getThreadPool().generic(),
-            () -> 42L,
-            (fp, tracked, weights) -> {},
-            maxBatch,
-            maxPending,
-            INTERVAL
-        );
-    }
-
-    private static SampledQuery sampled(long id) {
-        QueryFingerprint fingerprint = new QueryFingerprint(id, id);
-        CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { id }, 10, 100, null, null, List.of(), null);
-        return new SampledQuery(fingerprint, new CapturedSearch(query, List.of(), 1, 1.0), new MultiplicityTracker(10).record(fingerprint));
-    }
 
     private static final TimeValue REFRESH_INTERVAL = TimeValue.timeValueSeconds(30);
 

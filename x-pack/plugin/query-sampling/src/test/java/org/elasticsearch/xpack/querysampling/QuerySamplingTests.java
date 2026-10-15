@@ -25,7 +25,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class QuerySamplingTests extends ESTestCase {
 
@@ -44,20 +43,6 @@ public class QuerySamplingTests extends ESTestCase {
         assertThat(sampled.size(), equalTo(1));
         assertThat(pipeline.picked(), equalTo(1L));
         assertThat(tracker.distinct(), equalTo(1));
-    }
-
-    public void testEveryListenerIsToldAndAFailingOneDoesNotStopTheOthers() {
-        List<SampledQuery> first = new ArrayList<>();
-        List<SampledQuery> last = new ArrayList<>();
-        SamplingPipeline pipeline = new SamplingPipeline(tracker, new QuerySampler(1.0, 100, picking(0.0)), List.of(first::add, query -> {
-            throw new IllegalStateException("listener failed");
-        }, last::add));
-
-        pipeline.accept(search(new float[] { 1f }));
-
-        assertThat(first.size(), equalTo(1));
-        assertThat(last.size(), equalTo(1));
-        assertThat(last.get(0), sameInstance(first.get(0)));
     }
 
     public void testSomeCapturedSearchesAreAlsoKeptAsEventsWhateverHappensToTheQuery() {

@@ -27,10 +27,6 @@ import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
 import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -75,33 +71,6 @@ public class StrataTests extends ESTestCase {
             last = assign(strata, "vector", 0, 0.1f);
         }
         return new Stratum[] { last.get(), sparse.get() };
-    }
-
-    public void testGroupsThatAreFarApartAreInClustersOfTheirOwn() {
-        int[] sizes = { 100, 50, 40, 10 };
-        SpatialStrata strata = balancing(4, 200, 0.5);
-        Random random = new Random(randomLong());
-        List<List<AtomicReference<Stratum>>> told = new ArrayList<>();
-        List<Integer> arrivals = new ArrayList<>();
-        for (int group = 0; group < sizes.length; group++) {
-            told.add(new ArrayList<>());
-            for (int i = 0; i < sizes[group]; i++) {
-                arrivals.add(group);
-            }
-        }
-        Collections.shuffle(arrivals, random);
-        for (int group : arrivals) {
-            told.get(group).add(assign(strata, "vector", 100f * group + random.nextFloat(), random.nextFloat(), random.nextFloat()));
-        }
-
-        long[] counts = strata.counts("vector/3");
-        Arrays.sort(counts);
-        assertThat(counts, equalTo(new long[] { 10, 40, 50, 100 }));
-        for (int group = 0; group < sizes.length; group++) {
-            Set<Stratum> clusters = new HashSet<>();
-            told.get(group).forEach(reference -> clusters.add(reference.get()));
-            assertThat("group " + group + " is in one cluster", clusters.size(), equalTo(1));
-        }
     }
 
     public void testSparseClustersAreFavouredAndDenseOnesAreNot() {

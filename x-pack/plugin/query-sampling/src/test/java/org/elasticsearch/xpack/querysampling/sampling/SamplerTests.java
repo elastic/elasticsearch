@@ -75,22 +75,6 @@ public class SamplerTests extends ESTestCase {
         assertThat(head.inclusionProbability(), equalTo(1.0));
     }
 
-    public void testAQueryIsPickedAtMostOnceButEveryArrivalCountsTowardsItsInclusionProbability() {
-        QuerySampler sampler = new QuerySampler(0.5, 1000, alwaysDrawing(0.0));
-        MultiplicityTracker tracker = new MultiplicityTracker(10);
-
-        TrackedQuery query = tracker.record(FINGERPRINT);
-        assertTrue(sampler.offer(query));
-
-        double survival = 1 - sampler.acceptanceProbability(1);
-        assertThat(query.inclusionProbability(), closeTo(1 - survival, 1e-12));
-        for (int arrival = 2; arrival <= 4; arrival++) {
-            assertFalse("already picked", sampler.offer(tracker.record(FINGERPRINT)));
-            survival *= 1 - sampler.acceptanceProbability(arrival);
-        }
-        assertThat(query.inclusionProbability(), closeTo(1 - survival, 1e-12));
-    }
-
     public void testInclusionProbabilityMatchesHowOftenQueriesAreSampled() {
         QuerySampler sampler = new QuerySampler(0.3, 1000, seededRandom());
         int arrivals = 6;

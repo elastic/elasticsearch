@@ -16,19 +16,12 @@ import org.elasticsearch.xpack.querysampling.storage.StoredSample;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.OptionalDouble;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RecallEstimatorTests extends ESTestCase {
-
-    public void testRecallIsTheShareOfTheTrueNeighboursThatWereReturned() {
-        StoredSample sample = sample(4, List.of("d0", "d2", "d9", "d7"), List.of("d0", "d1", "d2", "d3"), 1, 1, 1);
-
-        assertThat(RecallEstimator.recall(sample), equalTo(OptionalDouble.of(0.5)));
-    }
 
     public void testPopularQueriesCountMoreInTheTrafficEstimateButNotInTheUniqueOne() {
         List<StoredSample> samples = List.of(

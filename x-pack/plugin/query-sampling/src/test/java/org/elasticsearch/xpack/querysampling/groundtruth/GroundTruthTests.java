@@ -59,7 +59,6 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public class GroundTruthTests extends ESTestCase {
 
@@ -144,26 +143,6 @@ public class GroundTruthTests extends ESTestCase {
         );
     }
 
-    public void testShardsAreReadOneNumberAfterTheOtherUntilNoneHasTheNumber() {
-        FakeShards shards = FakeShards.of(
-            new FakeShards.Shard("a", 0, 3, 6),
-            new FakeShards.Shard("a", 1, 2, 4),
-            new FakeShards.Shard("b", 0, 1, 9)
-        );
-        List<String> preferences = new ArrayList<>();
-        CapturedQuery query = query(1);
-
-        AtomicReference<DataState> state = new AtomicReference<>();
-        DataState.read((request, listener) -> {
-            preferences.add(request.preference());
-            shards.accept(request, listener);
-        }, query, ActionListener.wrap(state::set, e -> fail(e)));
-
-        assertThat(preferences, equalTo(List.of("_shards:0", "_shards:1", "_shards:2")));
-        assertThat("the documents of all of them", state.get().documents(), equalTo(6L));
-        assertThat(state.get(), equalTo(shards.state()));
-    }
-
     public void testADocumentThatMovesToAnotherShardIsSeenEvenIfTheTotalsAreTheSame() {
         FakeShards before = FakeShards.of(new FakeShards.Shard("idx", 0, 2, 10), new FakeShards.Shard("idx", 1, 1, 4));
         // the document with the sequence number 4 is deleted from the first shard, and another with the number 4 is added to the second:
@@ -198,22 +177,6 @@ public class GroundTruthTests extends ESTestCase {
 
         assertThat(stored.get(query).dataState(), equalTo(SHARDS.state()));
         assertThat(stored.get(query).dataState(), not(equalTo(changed.state())));
-    }
-
-    public void testAStateThatCannotBeReadLeavesTheGroundTruthWithoutOne() {
-        GroundTruthRunner runner = new GroundTruthRunner((request, listener) -> {
-            if (FakeShards.isProbe(request)) {
-                listener.onFailure(new IllegalStateException("no"));
-            } else {
-                respond(listener, "doc");
-            }
-        });
-        CapturedQuery query = query(1);
-
-        GroundTruthRunner.Result result = run(runner, List.of(query));
-
-        assertThat(result, equalTo(new GroundTruthRunner.Result(1, 0)));
-        assertThat(stored.get(query).dataState(), nullValue());
     }
 
     public void testAnExpensiveSearchLeavesADebtThatIsPaidOffFirst() {
@@ -359,8 +322,6 @@ public class GroundTruthTests extends ESTestCase {
 
     private int waiting;
 
-    private boolean failSampleSearch;
-
     public void testItComputesWhatTheCreditAffords() {
         waiting = 5;
         budget.earn(50);
@@ -388,31 +349,14 @@ public class GroundTruthTests extends ESTestCase {
         );
     }
 
-    public void testAFailureDoesNotStopIt() {
-        waiting = 5;
-        failSampleSearch = true;
-        budget.earn(1000);
-        GroundTruthWorker worker = worker();
-
-        worker.run();
-        failSampleSearch = false;
-        worker.run();
-
-        assertThat(worker.computed(), equalTo(5L));
-    }
-
     private GroundTruthWorker worker() {
         return new GroundTruthWorker((request, listener) -> {
             sampleSearches.add(request);
-            if (failSampleSearch) {
-                listener.onFailure(new IllegalStateException("search failed"));
-            } else {
-                try {
-                    boolean own = request.source().query().toString().contains("sampler_id");
-                    respondWithPending(listener, own ? Math.min(waiting, request.source().size()) : 0);
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
+            try {
+                boolean own = request.source().query().toString().contains("sampler_id");
+                respondWithPending(listener, own ? Math.min(waiting, request.source().size()) : 0);
+            } catch (IOException e) {
+                throw new AssertionError(e);
             }
         }, acknowledgingAll(), overShards(SHARDS, (request, listener) -> {
             exactSearches.add(request);

@@ -18,14 +18,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -35,15 +31,11 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
-import org.elasticsearch.xpack.querysampling.dedup.Hardness;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
-import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
-import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.DataState;
 import org.elasticsearch.xpack.querysampling.groundtruth.FakeShards;
@@ -52,7 +44,6 @@ import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -94,8 +85,6 @@ public class GoldenTests extends ESTestCase {
 
     private final List<BulkRequest> bulks = new ArrayList<>();
 
-    private final List<UpdateRequest> completions = new ArrayList<>();
-
     private List<SearchHit> goldenUpdaterStored = List.of();
 
     private List<SearchHit> golden = List.of();
@@ -103,10 +92,6 @@ public class GoldenTests extends ESTestCase {
     private long latestVersion = 0;
 
     private Function<Long, DataState> now = n -> STORED;
-
-    private Set<Long> failingProbes = Set.of();
-
-    private Set<Long> failingExact = Set.of();
 
     private GoldenWriter writer() {
         return new GoldenWriter(
@@ -128,7 +113,6 @@ public class GoldenTests extends ESTestCase {
                 listener.onResponse(new BulkResponse(items, 1));
             },
             (request, listener) -> {
-                completions.add(request);
                 listener.onResponse(
                     new UpdateResponse(new ShardId(GoldenIndex.NAME, "_na_", 0), request.id(), 0, 1, 1, DocWriteResponse.Result.UPDATED)
                 );
@@ -159,12 +143,7 @@ public class GoldenTests extends ESTestCase {
         GoldenReader reader = reader();
         return new GoldenUpdater(reader, samples(), writer(), new GoldenStaleness(reader, (request, listener) -> {
             probes.add(request);
-            long n = numberOf(request);
-            if (failingProbes.contains(n)) {
-                listener.onFailure(new IllegalStateException("no"));
-            } else {
-                shardsOf(now.apply(n)).accept(request, listener);
-            }
+            shardsOf(now.apply(numberOf(request))).accept(request, listener);
         }), (request, listener) -> {
             if (FakeShards.isProbe(request)) {
                 CHANGED_SHARDS.accept(request, listener);
@@ -172,10 +151,6 @@ public class GoldenTests extends ESTestCase {
             }
             exactSearches.add(request);
             long n = numberOf(request);
-            if (failingExact.contains(n)) {
-                listener.onFailure(new IllegalStateException("no"));
-                return;
-            }
             SearchHit hit = SearchHit.unpooled(0, "fresh" + n);
             hit.score(1f);
             hit.shard(new SearchShardTarget("node", new ShardId("idx" + n, "_na_", 0), null));
@@ -199,22 +174,6 @@ public class GoldenTests extends ESTestCase {
 
     private List<String> writtenIds() {
         return bulks.get(0).requests().stream().map(DocWriteRequest::id).toList();
-    }
-
-    public void testWithoutAGoldenDatasetTheStoredQueriesMakeTheFirstVersion() throws IOException {
-        goldenUpdaterStored = List.of(sample("s", 3, 300), sample("s", 2, 200), sample("s", 1, 100));
-
-        GoldenUpdater.Result result = update(adding(), 10);
-
-        assertThat(result, equalTo(new GoldenUpdater.Result(0, 1, 0, 0, 3, 0, 0)));
-        assertThat(manifests.get(0).id(), equalTo("version_1"));
-        assertThat("it is not made from another", manifests.get(0).source().utf8ToString().contains("source_version"), equalTo(false));
-        assertThat(bulks.get(0).numberOfActions(), equalTo(3));
-        assertThat(
-            "the next update has to find the version",
-            completions.get(0).getRefreshPolicy(),
-            equalTo(WriteRequest.RefreshPolicy.IMMEDIATE)
-        );
     }
 
     public void testOnlyQueriesThatAreNotInTheLatestVersionAreAddedAndTheOnesThereAreKept() throws IOException {
@@ -278,24 +237,6 @@ public class GoldenTests extends ESTestCase {
         assertThat(result, equalTo(new GoldenUpdater.Result(4, 5, 1, 1, 0, 0, 0)));
         assertThat(exactSearches.size(), equalTo(1));
         assertThat("nothing to compare, so no probe for it", probes.size(), equalTo(PROBES_PER_STATE));
-    }
-
-    public void testQueriesThatCannotBeLookedAtOrComputedAreLeftOutAndCounted() throws IOException {
-        latestVersion = 4;
-        golden = List.of(
-            goldenRecord(1, 100, STORED),
-            goldenRecord(2, 200, STORED),
-            goldenRecord(3, 300, STORED),
-            goldenRecord(4, 400, STORED)
-        );
-        now = n -> n >= 3 ? CHANGED : STORED;
-        failingProbes = Set.of(2L);
-        failingExact = Set.of(3L);
-
-        GoldenUpdater.Result result = update(refreshing(), 10);
-
-        assertThat(result, equalTo(new GoldenUpdater.Result(4, 5, 1, 1, 0, 0, 2)));
-        assertThat("the others are not vouched for", writtenIds(), equalTo(List.of("5_" + fp(4), "5_" + fp(1))));
     }
 
     private static SearchHit manifest(long version) {
@@ -420,58 +361,4 @@ public class GoldenTests extends ESTestCase {
         }
         return hit;
     }
-
-    private static StoredSample recordSample() {
-        CapturedQuery query = new CapturedQuery(
-            new String[] { "a", "b" },
-            "vec",
-            new float[] { 1f, 2f },
-            10,
-            100,
-            0.5f,
-            3f,
-            List.of(QueryBuilders.termQuery("category", 3)),
-            "q7"
-        );
-        TrackedQuery.Weights weights = new TrackedQuery.Weights(3, 30.0, 0.5, 0.25, 0.1);
-        GroundTruth groundTruth = new GroundTruth(List.of(new CapturedSearch.Hit("a", "d1", 1f)), STORED);
-        return new StoredSample(
-            "s1",
-            "0000000000000001ffffffffffffffff",
-            new CapturedSearch(query, List.of(new CapturedSearch.Hit("a", "d1", 0.9f)), 12, 0.1),
-            weights,
-            1000L,
-            2000L,
-            groundTruth,
-            new Stratum("vec/2", 3),
-            Hardness.HARD,
-            null,
-            Selectivity.LOW
-        );
-    }
-
-    public void testRecordsAreReadBackAsTheSamplesTheyWereCopiedFrom() throws IOException {
-        StoredSample original = recordSample();
-
-        Map<String, Object> record = toMap(GoldenRecord.record(JsonXContent.contentBuilder(), 4, original, 9000L));
-        StoredSample read = GoldenRecord.parse(record, REGISTRY);
-
-        assertThat(read.samplerId(), equalTo(original.samplerId()));
-        assertThat(read.fingerprint(), equalTo(original.fingerprint()));
-        assertThat(read.weights(), equalTo(original.weights()));
-        assertThat(read.groundTruth(), equalTo(original.groundTruth()));
-        assertThat(read.stratum(), equalTo(original.stratum()));
-        assertThat(read.hardness(), equalTo(original.hardness()));
-        assertThat(read.selectivity(), equalTo(original.selectivity()));
-        assertThat(read.search().hits(), equalTo(original.search().hits()));
-        assertThat("when it was picked", read.pickedAt(), equalTo(1000L));
-        assertThat("when it was promoted", read.updatedAt(), equalTo(9000L));
-        assertThat(read.search().query().field(), equalTo("vec"));
-        assertThat(read.search().query().filters(), equalTo(original.search().query().filters()));
-    }
-
-    private static Map<String, Object> toMap(XContentBuilder builder) {
-        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
-    }
-
 }

@@ -1,4 +1,34 @@
 area: Columnar
+highlight:
+  body: |-
+    Removes the `columnar_codec` feature flag. The ColumNAR codec is now
+    used by default for `keyword`, `text` and `match_only_text` fields in
+    strict columnar indices created at or after the new
+    `COLUMNAR_CODEC_NO_FEATURE_FLAG` index version. Indices created before
+    it keep the doc values format they were written with, so no existing
+    index changes format on upgrade.
+
+    `index.columnar_codec.enabled` and `cluster.columnar_codec.enabled` are
+    kept as kill switches and are now always registered. The per-index
+    setting defaults to `true` from the new index version and `false` before
+    it.
+
+    The format baseline stays at `FormatVersion` 0.
+
+    Snapshot builds of `main` wrote the codec under older index versions,
+    which this build reads as not using it. Upgrade tests that create
+    columnar indices on such a build (`bcUpgradeTest`) therefore set
+    `index.columnar_codec.enabled: false` on those indices. A new
+    `index.columnar_codec_no_feature_flag` test feature identifies builds
+    that no longer have the flag. Upgrades from released versions are
+    unaffected, since no release ever wrote the codec. This replaces the
+    temporary upgrade-test guard from #160431.
+
+    Relates to #161814
+
+    🤖 Generated with [Claude Code](https://claude.com/claude-code)
+  notable: true
+  title: Remove the `columnar_codec` feature flag
 issues: []
 pr: 161944
 summary: Remove the `columnar_codec` feature flag

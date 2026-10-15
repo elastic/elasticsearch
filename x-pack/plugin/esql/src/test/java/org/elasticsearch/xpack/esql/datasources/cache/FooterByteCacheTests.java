@@ -196,36 +196,107 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     /**
-     * An entry's life is not extended by reading it. Reads here span twice the TTL, so an access-based cache
-     * would still hold the entry at the end.
+     * Reading an entry renews it. The reads below span more than twice the TTL, so under a write clock the
+     * entry would be gone by the last one. This is the whole of what the clock buys: a dashboard's footer
+     * working set is stored as one cohort in the run's opening seconds, and a write clock drops all of it
+     * one TTL later however hard the dashboard is still using it.
      */
-    public void testReadingAnEntryDoesNotExtendItsLife() {
-        TimeValue ttl = TimeValue.timeValueMillis(400);
+    public void testReadingAnEntryRenewsIt() {
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
         FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
         FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
         byte[] data = randomByteArrayOfLength(64);
 
         shortLived.put(key, data);
         assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(key));
-        long readUntil = System.nanoTime() + TimeValue.timeValueMillis(1000).nanos();
+        long readUntil = System.nanoTime() + TimeValue.timeValueSeconds(5).nanos();
         while (System.nanoTime() < readUntil) {
+            assertArrayEquals("an entry read at least once per TTL is still served past one TTL", data, shortLived.get(key));
+            safeSleep(50);
+        }
+    }
+
+    /**
+     * The clock still releases what nothing is reading. Without this the test above would pass on a cache
+     * with no clock at all, and the TTL would have stopped bounding anything.
+     */
+    public void testAnEntryNobodyReadsExpires() {
+        TimeValue ttl = TimeValue.timeValueSeconds(2);
+        FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+
+        shortLived.put(key, randomByteArrayOfLength(64));
+        assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(key));
+        safeSleep(ttl.millis() * 3);
+
+        assertNull("an entry unread for a TTL is released", shortLived.get(key));
+    }
+
+    /**
+     * The write cap expires an entry even when it is being continuously read, so a same-length-overwrite
+     * staleness window is bounded. TTL=500ms → write cap=3s (6×). Reads every 50ms keep the access clock
+     * alive for five TTLs before the cap fires; the entry must be present at 2.5s (access clock renewal
+     * confirmed, cap not yet fired) and absent at 3.5s (cap fired; continuous reads cannot keep it alive).
+     * A cache with only an access clock would still serve the entry at 3.5s, so the final assertion
+     * discriminates the cap from a pure access clock.
+     */
+    public void testWriteCapExpiresAnEntryDespiteContinuousReads() {
+        TimeValue ttl = TimeValue.timeValueMillis(500);
+        FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        byte[] data = randomByteArrayOfLength(64);
+
+        shortLived.put(key, data);
+        long writeNanos = System.nanoTime();
+        assertNotNull("the entry must be stored to begin with", shortLived.get(key));
+
+        long priorCapDeadline = writeNanos + TimeValue.timeValueMillis(2500).nanos();
+        while (System.nanoTime() < priorCapDeadline) {
             shortLived.get(key);
             safeSleep(50);
         }
+        assertNotNull(
+            "entry kept alive by continuous reads must be present at 2.5s: access clock is renewed and write cap has not fired yet",
+            shortLived.get(key)
+        );
 
-        assertNull("an entry read continuously still expires one TTL after it was stored", shortLived.get(key));
+        long postCapDeadline = writeNanos + TimeValue.timeValueMillis(3500).nanos();
+        while (System.nanoTime() < postCapDeadline) {
+            shortLived.get(key);
+            safeSleep(50);
+        }
+        assertNull("write cap must force-expire the entry at 3s even though it was continuously read through 3.5s", shortLived.get(key));
     }
 
     public void testFromSettingsUsesConfiguredTtl() {
         Settings settings = Settings.builder().put("esql.external.cache.footer.ttl", "42s").build();
         FooterByteCache configured = FooterByteCache.fromSettings(settings);
-        assertEquals(TimeValue.timeValueSeconds(42), configured.expireAfterWrite());
+        assertEquals(TimeValue.timeValueSeconds(42), configured.expireAfterAccess());
     }
 
     public void testFromSettingsDefaults() {
         FooterByteCache defaults = FooterByteCache.fromSettings(Settings.EMPTY);
-        assertEquals(TimeValue.timeValueMinutes(5), defaults.expireAfterWrite());
+        assertEquals(TimeValue.timeValueMinutes(5), defaults.expireAfterAccess());
+        assertEquals(TimeValue.timeValueMinutes(30), defaults.expireAfterWrite());
         assertThat(defaults.maxEntryBytes(), lessThanOrEqualTo(FooterByteCache.DEFAULT_MAX_ENTRY_BYTES));
+    }
+
+    public void testWriteCapIsSixTimesAccessTtl() {
+        Settings settings = Settings.builder().put("esql.external.cache.footer.ttl", "3m").build();
+        FooterByteCache configured = FooterByteCache.fromSettings(settings);
+        assertEquals(TimeValue.timeValueMinutes(3), configured.expireAfterAccess());
+        assertEquals(TimeValue.timeValueMinutes(18), configured.expireAfterWrite());
+    }
+
+    public void testWriteCapSaturatesOnLargeTtl() {
+        // 20000 days exceeds Long.MAX_VALUE / WRITE_CAP_MULTIPLIER nanoseconds;
+        // without the saturation guard, WRITE_CAP_MULTIPLIER * ttl_nanos wraps negative.
+        FooterByteCache large = new FooterByteCache(1024 * 1024, 512 * 1024, TimeValue.timeValueDays(20000));
+        assertEquals(Long.MAX_VALUE, large.expireAfterWrite().nanos());
+        // Boundary: exactly Long.MAX_VALUE / WRITE_CAP_MULTIPLIER nanos does not saturate.
+        long boundaryNanos = Long.MAX_VALUE / FooterByteCache.WRITE_CAP_MULTIPLIER;
+        FooterByteCache boundary = new FooterByteCache(1024 * 1024, 512 * 1024, TimeValue.timeValueNanos(boundaryNanos));
+        assertEquals(boundaryNanos * FooterByteCache.WRITE_CAP_MULTIPLIER, boundary.expireAfterWrite().nanos());
     }
 
     public void testFromSettingsClampsMaxEntryToBudgetFraction() {

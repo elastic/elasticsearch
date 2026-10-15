@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -771,6 +772,10 @@ public class FileSplitProvider implements SplitProvider {
                 PartitionSpec.fromConfig(config)
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
+            // Resolution (bounded sample) cannot hit the 25k cap; skip the predicate there.
+            FolderRangePredicate folderRange = extents.boundsFileSet()
+                ? null
+                : folderRangePredicateForQuery(context.filterHints(), PartitionSpec.fromConfig(config));
             if (extents.boundsFileSet()) {
                 // Not the cache, though the key would hold it correctly now: the extent joins the listing cache
                 // identity (GlobExpander#listingCacheDiscriminator), so a prefix is addressed as a prefix and two
@@ -789,7 +794,8 @@ public class FileSplitProvider implements SplitProvider {
                     storagePath,
                     extents,
                     scanMemory(context),
-                    context.isCancelled()
+                    context.isCancelled(),
+                    folderRange
                 );
             }
             // The whole pattern either way, so it is cacheable: the query's file set is the dataset's, narrowed by
@@ -805,7 +811,8 @@ public class FileSplitProvider implements SplitProvider {
                     narrowing,
                     config,
                     scanMemory(context),
-                    context.isCancelled()
+                    context.isCancelled(),
+                    folderRange
                 )
                 : listingService.expand(
                     pattern,
@@ -815,7 +822,8 @@ public class FileSplitProvider implements SplitProvider {
                     storagePath,
                     ListingExtents.UNBOUNDED,
                     scanMemory(context),
-                    context.isCancelled()
+                    context.isCancelled(),
+                    folderRange
                 );
         } finally {
             StorageProviderCache.closeLease(provider);
@@ -846,6 +854,20 @@ public class FileSplitProvider implements SplitProvider {
             PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), spec.boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
         );
         return dropNonListingKeys(spec.projectListingHints(merged), partitionKeys, requestedMetadata);
+    }
+
+    /**
+     * TEMPORAL extract as a folder-range predicate, before {@link #dropNonListingKeys}. Null when the spec is
+     * empty or no temporal group has a usable bound. Does not put {@code @timestamp} / {@code NOW()} in the
+     * hint list.
+     */
+    static FolderRangePredicate folderRangePredicateForQuery(List<Expression> filters, PartitionSpec spec) {
+        if (spec == null || spec.isEmpty() || filters == null || filters.isEmpty()) {
+            return null;
+        }
+        return spec.folderRangePredicate(
+            PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), spec.boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
+        );
     }
 
     static List<PartitionFilterHintExtractor.PartitionFilterHint> dropNonListingKeys(

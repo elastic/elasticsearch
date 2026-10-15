@@ -495,9 +495,6 @@ tests:
 - class: org.elasticsearch.index.mapper.DynamicMappingIT
   method: testCombineDynamicMappingUpdatesSettingIsDynamic
   issue: https://github.com/elastic/elasticsearch/issues/162026
-- class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
-  method: test {csv-spec:csv-multifile-resolution.ffwSalaryStats [csv.gz/S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/162041
 - class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
   method: testMaxFillNullFieldsSetting
   issue: https://github.com/elastic/elasticsearch/issues/162061

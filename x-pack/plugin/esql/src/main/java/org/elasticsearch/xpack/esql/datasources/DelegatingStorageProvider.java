@@ -57,6 +57,16 @@ public abstract class DelegatingStorageProvider implements StorageProvider {
         return delegate().listObjects(prefix, recursive);
     }
 
+    /**
+     * Forwarded, because {@link StorageProvider}'s default drops the name prefix and lists the whole directory. A
+     * wrapper that inherited that default would silently widen every narrowed listing passing through it, which is
+     * a slowdown rather than a wrong answer and so would not show up as a failure.
+     */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
+        return delegate().listObjects(prefix, namePrefix, recursive);
+    }
+
     @Override
     public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
         return delegate().listChildren(prefix, limit);

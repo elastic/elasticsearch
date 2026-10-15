@@ -1,8 +1,33 @@
 import { describe, expect, test } from "vitest";
 import type { TestSummary } from "./junit-reports-analyzer.ts";
-import { renderMarkdown, severity } from "./render.ts";
+import { CONTACT_NOTE, renderMarkdown, severity } from "./render.ts";
 
 describe("renderMarkdown / severity", () => {
+  test("a report with real failures tells the author who to contact, at the top, even when truncated", () => {
+    const failing = (className: string): TestSummary => ({
+      className,
+      method: "y",
+      passes: 0,
+      failures: 1,
+      failureKinds: ["assertion"],
+      exampleFailures: [{ name: "y", message: "boom" }],
+    });
+    const totals = { iterations: 1, realFailures: 1, suiteTimeoutMarkers: 0, successfulCases: 0 };
+
+    const md = renderMarkdown({ batches: [], perTest: [failing("X")], totals });
+    expect(md).toContain(CONTACT_NOTE);
+    expect(md.indexOf(CONTACT_NOTE)).toBeLessThan(md.indexOf("- Iterations attempted"));
+
+    const clean = { iterations: 1, realFailures: 0, suiteTimeoutMarkers: 0, successfulCases: 1 };
+    expect(renderMarkdown({ batches: [], perTest: [], totals: clean })).not.toContain(CONTACT_NOTE);
+
+    // Class names are not shortened, so 100 rows of 10k-character names push the body past the limit.
+    const huge = Array.from({ length: 100 }, (_, i) => failing(`${i}`.padEnd(10_000, "C")));
+    const truncated = renderMarkdown({ batches: [], perTest: huge, totals: { ...totals, realFailures: 100 } });
+    expect(truncated).toContain("Annotation truncated");
+    expect(truncated).toContain(CONTACT_NOTE);
+  });
+
   test("renders the failures table when there are real failures", () => {
     const md = renderMarkdown({
       batches: [],

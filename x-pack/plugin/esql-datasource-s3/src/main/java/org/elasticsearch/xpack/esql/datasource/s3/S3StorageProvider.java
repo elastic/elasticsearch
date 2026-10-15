@@ -784,6 +784,16 @@ public class S3StorageProvider implements StorageProvider {
 
     @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+        return listObjects(prefix, "", recursive);
+    }
+
+    /**
+     * S3 lists by key prefix natively, so {@code namePrefix} is appended to the directory's key and the store does
+     * the narrowing. The separator closing that directory's key is added either way; what differs is that with a
+     * name prefix the key asked for then deliberately stops mid-name.
+     */
+    @Override
+    public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) throws IOException {
         validateS3Scheme(prefix);
         String bucket = prefix.host();
         String keyPrefix = extractKey(prefix);
@@ -791,6 +801,7 @@ public class S3StorageProvider implements StorageProvider {
         if (keyPrefix.isEmpty() == false && keyPrefix.endsWith(StoragePath.PATH_SEPARATOR) == false) {
             keyPrefix += StoragePath.PATH_SEPARATOR;
         }
+        keyPrefix += namePrefix;
 
         // Prefer the already-discovered client when available; fall back to s3Client for the first call.
         DiscoveredClients dcNow = discoveredClients;

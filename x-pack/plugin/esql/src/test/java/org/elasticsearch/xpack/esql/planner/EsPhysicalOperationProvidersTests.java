@@ -72,6 +72,7 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
@@ -419,12 +420,12 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ByteSizeValue.ofKb(100),
             ByteSizeValue.ofKb(300)
         );
-        assertThat(blockLoader, instanceOf(UnmappedKeywordBlockLoader.class));
+        assertThat(blockLoader, hasToString("UnmappedFields.Named[item.extra]"));
     }
 
     /**
-     * A field genuinely unmapped on the shard under {@code unmapped_fields="load"} loads from {@code _source} via
-     * {@link UnmappedKeywordBlockLoader}, whose stored-field spec must request only that field's own source paths.
+     * A field genuinely unmapped on the shard under {@code unmapped_fields="load"} loads from {@code _source} via the loader
+     * the mapping hands out for unmapped fields, whose stored-field spec must request only that field's own source paths.
      */
     public void testUnmappedKeywordBlockLoaderRequestsOnlyItsOwnSourcePath() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
@@ -448,7 +449,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ByteSizeValue.ofKb(100),
             ByteSizeValue.ofKb(300)
         );
-        assertThat(blockLoader, instanceOf(UnmappedKeywordBlockLoader.class));
+        assertThat(blockLoader, hasToString("UnmappedFields.Named[unmapped_kw]"));
         assertThat(
             "unmapped keyword loader must filter _source to its own path rather than request the whole document",
             blockLoader.rowStrideStoredFieldSpec(),

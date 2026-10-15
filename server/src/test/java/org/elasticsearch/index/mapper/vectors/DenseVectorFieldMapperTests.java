@@ -947,6 +947,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         merge(mapperService, fieldMapping(b -> baseMapping.clone().indexOptions(oversampleFourIndexOptionsMap).build(b)));
         indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertEquals(4f, indexOptions.rescoreVector.oversample(), 0f);
+
+        final Map<String, Object> preconditionTrueIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(
+            oversampleFourIndexOptionsMap,
+            "precondition",
+            true
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> baseMapping.clone().indexOptions(preconditionTrueIndexOptionsMap).build(b)))
+        );
     }
 
     public void testAutoCalibrateDefaultEnabledProfile() throws IOException {
@@ -981,7 +991,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testAutoCalibrateMappingUpdates() throws IOException {
-        // auto_calibrate only steers merge-time calibration, so any change is accepted: unset, on, off and between profiles
         List<Object> values = new ArrayList<>(Arrays.asList(null, true, "true", false, "false"));
         for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
             values.add(profile.toString());

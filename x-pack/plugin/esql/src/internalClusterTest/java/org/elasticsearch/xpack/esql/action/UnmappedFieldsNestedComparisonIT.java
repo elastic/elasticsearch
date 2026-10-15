@@ -106,7 +106,8 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
      *     declared, so it is plain unmapped loading.</li>
      * <li>noField: the same leaf simply not mapped on the special index.</li>
      * <li>flattened: the Verifier rejects loading the sub-key, so cells that would load it error instead.
-     *     Exception: {@code LOAD_ALL} + {@code KEEP *} with nothing referencing it - {@code _source} discovery surfaces it.</li>
+     *     Under {@code LOAD_ALL} + {@code KEEP *} nothing references it, and discovery does not surface it either: the sub-key
+     *     is part of the value of the mapped {@code flattened} field, so the index that maps it returns null.</li>
      * </ul>
      */
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -127,11 +128,11 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
             cell("load", "mapped_only_special", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
             cell("load", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
 
-            cell("load_all", "unmapped_both", "*", LOADED, LOADED, LOADED, LOADED, LOADED),
+            cell("load_all", "unmapped_both", "*", LOADED, LOADED, LOADED, LOADED, NULL),
             cell("load_all", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, VERIFIER_ERROR),
             cell("load_all", "mapped_both", "*", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
             cell("load_all", "mapped_both", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load_all", "mapped_only_special", "*", NULL, LOADED, NULL, LOADED, LOADED),
+            cell("load_all", "mapped_only_special", "*", NULL, LOADED, NULL, LOADED, NULL),
             cell("load_all", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR)
         );
     }

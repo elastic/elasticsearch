@@ -50,6 +50,12 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
     /** Closed {@code Range: bytes=<start>-<end>}. Not missing, not {@code bytes=N-}, not suffix {@code bytes=-N}. */
     private static final Pattern CLOSED_BYTE_RANGE = Pattern.compile("bytes=\\d+-\\d+");
 
+    /**
+     * First-segment closed range {@code bytes=0-<end>}. {@code computeSegments} probes start at a stride
+     * {@code > 0}; finite resumes are {@code newStream(resumeFrom, remaining)} with {@code resumeFrom > 0}.
+     */
+    private static final Pattern FROM_START_CLOSED_BYTE_RANGE = Pattern.compile("bytes=0-\\d+");
+
     private final HttpHandler delegate;
     private volatile FaultConfig activeFault;
 
@@ -65,7 +71,7 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
     }
 
     public void setFault(FaultType type, int count, Predicate<String> pathFilter) {
-        this.activeFault = new FaultConfig(type, new AtomicInteger(count), pathFilter, DEFAULT_MID_BODY_RESET_AFTER_BYTES, false);
+        this.activeFault = new FaultConfig(type, new AtomicInteger(count), pathFilter, DEFAULT_MID_BODY_RESET_AFTER_BYTES, null);
     }
 
     /**
@@ -82,18 +88,42 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
     /**
      * Like {@link #setMidBodyResetFault(int, int, Predicate)} but, when {@code closedRangesOnly} is true, only
      * closed {@code Range: bytes=<start>-<end>} requests are truncated. Missing Range (metadata / schema-sample
-     * full GETs), open-ended {@code bytes=N-} resumes, and suffix {@code bytes=-N} ranges pass through and do
-     * not consume the budget. {@code newStream(pos, len)} — segment body reads and finite-window probes — is
-     * the closed-range form.
+     * full GETs), open-ended {@code bytes=N-}, and suffix {@code bytes=-N} pass through and do not consume the
+     * budget. Finite-length {@code newStream(pos, len)} — segment body, advancing-boundary probes, and finite
+     * resumes — is the closed-range form; a stride probe is also closed, so this does not isolate segment GETs.
      */
     public void setMidBodyResetFault(int count, int resetAfterBytes, Predicate<String> pathFilter, boolean closedRangesOnly) {
+        setMidBodyResetFault(count, resetAfterBytes, pathFilter, closedRangesOnly ? FaultInjectingS3HttpHandler::isClosedByteRange : null);
+    }
+
+    /**
+     * Mid-body reset restricted by {@code rangeFilter} on the raw {@code Range} header (null when missing).
+     * A {@code false} result passes through and does not consume the budget. Use
+     * {@link #isFromStartClosedByteRange(String)} to pin the fault on the first segment GET
+     * ({@code bytes=0-<end>}), skipping stride probes and finite resumes that start past 0.
+     */
+    public void setMidBodyResetFault(int count, int resetAfterBytes, Predicate<String> pathFilter, Predicate<String> rangeFilter) {
         this.activeFault = new FaultConfig(
             FaultType.CONNECTION_RESET_MID_BODY,
             new AtomicInteger(count),
             pathFilter,
             resetAfterBytes,
-            closedRangesOnly
+            rangeFilter
         );
+    }
+
+    /** Closed {@code Range: bytes=<start>-<end>}. */
+    public static boolean isClosedByteRange(String range) {
+        return range != null && CLOSED_BYTE_RANGE.matcher(range).matches();
+    }
+
+    /**
+     * Closed range from byte 0 ({@code bytes=0-<end>}). First-segment GETs use this form; probes start at a
+     * stride {@code > 0}; a finite resume is {@code newStream(resumeFrom, remaining)} with {@code resumeFrom > 0}.
+     * A {@code bytes=0-0} size probe also matches but cannot cross a positive truncate threshold.
+     */
+    public static boolean isFromStartClosedByteRange(String range) {
+        return range != null && FROM_START_CLOSED_BYTE_RANGE.matcher(range).matches();
     }
 
     public void clearFault() {
@@ -120,7 +150,7 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
         FaultConfig fault = this.activeFault;
         if (fault != null && fault.remaining.get() > 0 && fault.pathFilter.test(exchange.getRequestURI().getPath())) {
             if (fault.type == FaultType.CONNECTION_RESET_MID_BODY) {
-                if (fault.closedRangesOnly && isClosedByteRange(exchange) == false) {
+                if (fault.rangeFilter != null && fault.rangeFilter.test(exchange.getRequestHeaders().getFirst("Range")) == false) {
                     delegate.handle(exchange);
                     return;
                 }
@@ -144,11 +174,6 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
             }
         }
         delegate.handle(exchange);
-    }
-
-    private static boolean isClosedByteRange(HttpExchange exchange) {
-        String range = exchange.getRequestHeaders().getFirst("Range");
-        return range != null && CLOSED_BYTE_RANGE.matcher(range).matches();
     }
 
     private static void injectFault(HttpExchange exchange, FaultType type) throws IOException {
@@ -190,7 +215,7 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
         AtomicInteger remaining,
         Predicate<String> pathFilter,
         int resetAfterBytes,
-        boolean closedRangesOnly
+        Predicate<String> rangeFilter
     ) {}
 
     /**

@@ -33,8 +33,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Unit tests for {@link FaultInjectingS3HttpHandler}: countdown consumption, 64 KiB response chunking,
- * and closed-range-only mid-body faults. Lives in the same qa/server project as the handler so this is a
- * plain {@link ESTestCase} (no cluster, no fixture HTTP server).
+ * closed-range mid-body faults, and the from-start ({@code bytes=0-<end>}) pin. Lives in the same qa/server
+ * project as the handler so this is a plain {@link ESTestCase} (no cluster, no fixture HTTP server).
  */
 @SuppressForbidden(reason = "stubs HttpExchange to exercise fault-injection countdown without HttpServer")
 public class FaultInjectingS3HttpHandlerTests extends ESTestCase {
@@ -197,7 +197,7 @@ public class FaultInjectingS3HttpHandlerTests extends ESTestCase {
         byte[] payload = patternedBytes(200);
         int resetAfterBytes = 50;
         AtomicInteger closes = new AtomicInteger();
-        StubExchange closed = new StubExchange("/bucket/data.ndjson", closes, "bytes=0-199");
+        StubExchange closed = new StubExchange("/bucket/data.ndjson", closes, "bytes=10-199");
         FaultInjectingS3HttpHandler handler = new FaultInjectingS3HttpHandler(ex -> {
             ex.sendResponseHeaders(200, payload.length);
             ex.getResponseBody().write(payload);
@@ -207,6 +207,54 @@ public class FaultInjectingS3HttpHandlerTests extends ESTestCase {
         IOException thrown = expectThrows(IOException.class, () -> handler.handle(closed));
         assertThat(thrown.getMessage(), containsString("connection reset"));
         assertArrayEquals(Arrays.copyOf(payload, resetAfterBytes), closed.bodyBytes());
+        assertEquals(0, handler.remainingFaults());
+        assertEquals(1, closes.get());
+    }
+
+    public void testFromStartClosedRangeSkipsProbeAndResumeRanges() throws Exception {
+        byte[] payload = patternedBytes(200);
+        int resetAfterBytes = 50;
+        FaultInjectingS3HttpHandler handler = new FaultInjectingS3HttpHandler(ex -> {
+            ex.sendResponseHeaders(200, payload.length);
+            ex.getResponseBody().write(payload);
+        });
+        handler.setMidBodyResetFault(1, resetAfterBytes, path -> true, FaultInjectingS3HttpHandler::isFromStartClosedByteRange);
+
+        StubExchange noRange = new StubExchange("/bucket/data.ndjson", new AtomicInteger());
+        handler.handle(noRange);
+        assertArrayEquals(payload, noRange.bodyBytes());
+        assertEquals(1, handler.remainingFaults());
+
+        StubExchange schemaSample = new StubExchange("/bucket/data.ndjson", new AtomicInteger(), "bytes=0-");
+        handler.handle(schemaSample);
+        assertArrayEquals(payload, schemaSample.bodyBytes());
+        assertEquals(1, handler.remainingFaults());
+
+        StubExchange probe = new StubExchange("/bucket/data.ndjson", new AtomicInteger(), "bytes=4096-16383");
+        handler.handle(probe);
+        assertArrayEquals(payload, probe.bodyBytes());
+        assertEquals(1, handler.remainingFaults());
+
+        StubExchange resume = new StubExchange("/bucket/data.ndjson", new AtomicInteger(), "bytes=50-199");
+        handler.handle(resume);
+        assertArrayEquals(payload, resume.bodyBytes());
+        assertEquals(1, handler.remainingFaults());
+    }
+
+    public void testFromStartClosedRangeFaultsFirstSegment() throws Exception {
+        byte[] payload = patternedBytes(200);
+        int resetAfterBytes = 50;
+        AtomicInteger closes = new AtomicInteger();
+        StubExchange firstSegment = new StubExchange("/bucket/data.ndjson", closes, "bytes=0-199");
+        FaultInjectingS3HttpHandler handler = new FaultInjectingS3HttpHandler(ex -> {
+            ex.sendResponseHeaders(200, payload.length);
+            ex.getResponseBody().write(payload);
+        });
+        handler.setMidBodyResetFault(1, resetAfterBytes, path -> true, FaultInjectingS3HttpHandler::isFromStartClosedByteRange);
+
+        IOException thrown = expectThrows(IOException.class, () -> handler.handle(firstSegment));
+        assertThat(thrown.getMessage(), containsString("connection reset"));
+        assertArrayEquals(Arrays.copyOf(payload, resetAfterBytes), firstSegment.bodyBytes());
         assertEquals(0, handler.remainingFaults());
         assertEquals(1, closes.get());
     }

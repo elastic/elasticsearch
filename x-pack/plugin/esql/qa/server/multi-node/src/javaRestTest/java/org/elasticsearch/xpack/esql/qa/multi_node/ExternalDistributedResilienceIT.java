@@ -235,11 +235,12 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
      * already-open stream, which the self-healing storage read ({@code RetryableStorageObject}'s resuming
      * stream) recovers beneath the coordinator by re-opening the remaining byte range and resuming byte-exact.
      * Schema-sample full GETs can exceed 1 MiB, so a byte-count threshold alone cannot isolate the streaming
-     * read; the closed-range filter does (segment and finite-window probe reads use {@code newStream(pos, len)}
-     * → {@code bytes=<start>-<end>}; metadata has no Range; resumes are open-ended {@code bytes=N-}). Before
-     * the fix this failed the query with "Parallel parsing failed" caused by a
-     * {@link java.net.SocketException}; the full count coming back proves exactly-once recovery through the
-     * real stack.
+     * read. A closed-range filter is not enough either: {@code computeSegments} advancing-boundary probes use
+     * {@code newStream(stride, fileLength - stride)} — a closed range the fixture {@code writeTo}s in one call —
+     * and a finite resume is {@code newStream(resumeFrom, remaining)}, also closed. The fault is therefore pinned
+     * to {@code bytes=0-<end>}, the first segment GET; probes and resumes start past 0. Before the fix this
+     * failed the query with "Parallel parsing failed" caused by a {@link java.net.SocketException}; the full
+     * count coming back proves exactly-once recovery through the real stack.
      */
     public void testMultiSegmentNdjsonReadRecoversFromMidReadReset() throws Exception {
         int rows = 200_000;
@@ -256,11 +257,16 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
             s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
 
             // Reference a column (salary) so the read does NOT take the empty-projection schema-bind, which streams
-            // the whole file as one object read during setup. With a projected column the fault lands on a segment
-            // byte-range read — exactly the newStream(pos,len) range the storage layer re-opens and resumes.
+            // the whole file as one object read during setup. Pin the 1 MiB reset to bytes=0-<end> so it lands on
+            // the first segment GET, not a stride probe (start > 0) or a finite resume (resumeFrom > 0).
             // max(salary) is deterministic: salary = 40000 + (i % 50000), so the max over 200k rows is 89999.
             String query = fromS3(key) + " | STATS count = COUNT(*), max_salary = MAX(salary)";
-            faultHandler().setMidBodyResetFault(1, 1024 * 1024, path -> path.endsWith(fileName), true);
+            faultHandler().setMidBodyResetFault(
+                1,
+                1024 * 1024,
+                path -> path.endsWith(fileName),
+                FaultInjectingS3HttpHandler::isFromStartClosedByteRange
+            );
 
             Map<String, Object> result = runQueryWithMode(query, mode, 4);
             @SuppressWarnings("unchecked")

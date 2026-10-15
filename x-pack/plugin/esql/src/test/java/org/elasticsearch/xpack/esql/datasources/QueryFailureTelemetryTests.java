@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -161,6 +162,28 @@ public class QueryFailureTelemetryTests extends ESTestCase {
                 new ElasticsearchException("wrapper", roundTrip(new ExternalClientException(Condition.ACCESS_DENIED, PATH, "", "")))
             ),
             equalTo(new Failure("storage_auth", "400"))
+        );
+    }
+
+    /**
+     * The coordinator invalidates its listing caches when a read fails because the object changed. A class match cannot see that
+     * failure once it has crossed a node boundary, so the check has to be by condition.
+     */
+    public void testObjectChangedIsFoundAfterTheTransportRoundTrip() throws IOException {
+        Exception received = roundTrip(new ExternalObjectChangedException(PATH));
+        assertThat(received, instanceOf(NotSerializableExceptionWrapper.class));
+        assertThat(ExceptionsHelper.unwrap(received, ExternalObjectChangedException.class), nullValue());
+        assertThat(ExternalException.hasCondition(received, Condition.OBJECT_CHANGED), equalTo(true));
+        assertThat(
+            ExternalException.hasCondition(new ElasticsearchException("wrapper", received), Condition.OBJECT_CHANGED),
+            equalTo(true)
+        );
+        assertThat(
+            ExternalException.hasCondition(
+                roundTrip(new ExternalClientException(Condition.ACCESS_DENIED, PATH, "", "")),
+                Condition.OBJECT_CHANGED
+            ),
+            equalTo(false)
         );
     }
 

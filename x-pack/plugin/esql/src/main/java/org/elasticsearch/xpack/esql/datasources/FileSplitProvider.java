@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -264,6 +265,12 @@ public class FileSplitProvider implements SplitProvider {
 
     static final String RANGE_SPLIT_KEY = "_range_split";
     static final String FILE_LENGTH_KEY = "_file_length";
+    /**
+     * The object version the listing reported for the split's file, carried in the split's config as the file length
+     * is. A reader on a data node addresses the same footer-cache entry as the coordinator through it. An absent key
+     * means unversioned, which is correct on its own: the footer is then read from storage and not cached.
+     */
+    static final String FILE_VERSION_KEY = "_file_version";
     public static final String CONFIG_TARGET_SPLIT_SIZE = "target_split_size";
 
     /**
@@ -771,6 +778,10 @@ public class FileSplitProvider implements SplitProvider {
                 PartitionSpec.fromConfig(config)
             );
             List<PartitionFilterHintExtractor.PartitionFilterHint> narrowing = hints.isEmpty() ? null : hints;
+            // Resolution (bounded sample) cannot hit the 25k cap; skip the predicate there.
+            FolderRangePredicate folderRange = extents.boundsFileSet()
+                ? null
+                : folderRangePredicateForQuery(context.filterHints(), PartitionSpec.fromConfig(config));
             if (extents.boundsFileSet()) {
                 // Not the cache, though the key would hold it correctly now: the extent joins the listing cache
                 // identity (GlobExpander#listingCacheDiscriminator), so a prefix is addressed as a prefix and two
@@ -789,7 +800,8 @@ public class FileSplitProvider implements SplitProvider {
                     storagePath,
                     extents,
                     scanMemory(context),
-                    context.isCancelled()
+                    context.isCancelled(),
+                    folderRange
                 );
             }
             // The whole pattern either way, so it is cacheable: the query's file set is the dataset's, narrowed by
@@ -805,7 +817,8 @@ public class FileSplitProvider implements SplitProvider {
                     narrowing,
                     config,
                     scanMemory(context),
-                    context.isCancelled()
+                    context.isCancelled(),
+                    folderRange
                 )
                 : listingService.expand(
                     pattern,
@@ -815,7 +828,8 @@ public class FileSplitProvider implements SplitProvider {
                     storagePath,
                     ListingExtents.UNBOUNDED,
                     scanMemory(context),
-                    context.isCancelled()
+                    context.isCancelled(),
+                    folderRange
                 );
         } finally {
             StorageProviderCache.closeLease(provider);
@@ -846,6 +860,20 @@ public class FileSplitProvider implements SplitProvider {
             PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), spec.boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
         );
         return dropNonListingKeys(spec.projectListingHints(merged), partitionKeys, requestedMetadata);
+    }
+
+    /**
+     * TEMPORAL extract as a folder-range predicate, before {@link #dropNonListingKeys}. Null when the spec is
+     * empty or no temporal group has a usable bound. Does not put {@code @timestamp} / {@code NOW()} in the
+     * hint list.
+     */
+    static FolderRangePredicate folderRangePredicateForQuery(List<Expression> filters, PartitionSpec spec) {
+        if (spec == null || spec.isEmpty() || filters == null || filters.isEmpty()) {
+            return null;
+        }
+        return spec.folderRangePredicate(
+            PartitionFilterHintExtractor.fromConjuncts(filters, Set.of(), spec.boundColumns(), PartitionFilterHintExtractor.TEMPORAL)
+        );
     }
 
     static List<PartitionFilterHintExtractor.PartitionFilterHint> dropNonListingKeys(
@@ -1684,7 +1712,7 @@ public class FileSplitProvider implements SplitProvider {
             filePath,
             fileLength,
             extensionFormat(filePath),
-            context.config(),
+            withFileVersion(context.config(), fileList.version(fileIndex)),
             batch.partitionValues().get(slot),
             columnMapping,
             readSchema,
@@ -1860,7 +1888,7 @@ public class FileSplitProvider implements SplitProvider {
                     int fileIndex = batch.fileIndices()[i];
                     StoragePath path = fileList.path(fileIndex);
                     long length = fileList.size(fileIndex);
-                    List<SplitRange> cached = peekCachedSplitRanges(path, length, config, hoistedProvider);
+                    List<SplitRange> cached = peekCachedSplitRanges(path, length, fileList.version(fileIndex), config, hoistedProvider);
                     if (cached != null) {
                         slots[i] = planResultFromCachedRanges(resolveSurvivor(batch, i), cached);
                     } else {
@@ -1960,6 +1988,7 @@ public class FileSplitProvider implements SplitProvider {
     private List<SplitRange> peekCachedSplitRanges(
         StoragePath path,
         long length,
+        @Nullable String version,
         Map<String, Object> config,
         @Nullable StorageProvider hoistedProvider
     ) {
@@ -1967,7 +1996,7 @@ public class FileSplitProvider implements SplitProvider {
             FormatReader reader = resolveConfiguredReader(path, config);
             if (reader instanceof RangeAwareFormatReader rangeReader) {
                 StorageProvider provider = resolveProvider(path, config, hoistedProvider);
-                StorageObject object = provider.newObject(path, length);
+                StorageObject object = newObject(provider, path, length, 0L, version);
                 return rangeReader.cachedSplitRanges(object);
             }
             return null;
@@ -2615,7 +2644,13 @@ public class FileSplitProvider implements SplitProvider {
                     continue;
                 }
                 StorageProvider provider = resolveProvider(path, config, hoistedProvider);
-                StorageObject object = provider.newObject(path, fileList.size(fileIndex));
+                StorageObject object = newObject(
+                    provider,
+                    path,
+                    fileList.size(fileIndex),
+                    fileList.lastModifiedMillis(fileIndex),
+                    fileList.version(fileIndex)
+                );
                 if (object.readBytesAsyncReleasesExecutor() == false) {
                     return splitDiscoveryConcurrency();
                 }
@@ -3197,7 +3232,13 @@ public class FileSplitProvider implements SplitProvider {
      * bind (file-leading bytes, not the split window), and range-leaf / batch reads.
      */
     static StorageObject newObjectForFile(StorageProvider storageProvider, FileSplit fileSplit) {
-        return newObject(storageProvider, fileSplit.path(), fileLengthHint(fileSplit), fileMtimeHint(fileSplit));
+        return newObject(
+            storageProvider,
+            fileSplit.path(),
+            fileLengthHint(fileSplit),
+            fileMtimeHint(fileSplit),
+            fileVersionHint(fileSplit)
+        );
     }
 
     /**
@@ -3205,12 +3246,54 @@ public class FileSplitProvider implements SplitProvider {
      * size {@code 0} is a known empty object; mtime {@code 0} is unknown.
      */
     static StorageObject newObject(StorageProvider storageProvider, StoragePath path, @Nullable Long length, long mtimeMillis) {
+        return newObject(storageProvider, path, length, mtimeMillis, null);
+    }
+
+    /**
+     * As {@link #newObject(StorageProvider, StoragePath, Long, long)}, with the object {@code version} when the listing
+     * reported one. A versioned object is created through the versioned overload even when its mtime is unknown, so
+     * the version is never dropped. The exception is a split without a length: the SPI creates a version only together
+     * with a length, so that object is unversioned. Its footer is read from storage and not cached, which costs a read
+     * but cannot answer from a footer of another version.
+     */
+    static StorageObject newObject(
+        StorageProvider storageProvider,
+        StoragePath path,
+        @Nullable Long length,
+        long mtimeMillis,
+        @Nullable String version
+    ) {
         if (length == null) {
             return storageProvider.newObject(path);
+        }
+        if (version != null) {
+            // An unknown mtime stays unknown, so the object probes it when asked rather than reporting the epoch.
+            return storageProvider.newObject(path, length, mtimeMillis > 0 ? Instant.ofEpochMilli(mtimeMillis) : null, version);
         }
         return mtimeMillis > 0
             ? storageProvider.newObject(path, length, Instant.ofEpochMilli(mtimeMillis))
             : storageProvider.newObject(path, length);
+    }
+
+    /** The per-file config for a file the listing reported a version for; the query's config otherwise. */
+    static Map<String, Object> withFileVersion(Map<String, Object> config, @Nullable String version) {
+        if (version == null) {
+            return config;
+        }
+        Map<String, Object> versioned = new HashMap<>(config);
+        versioned.put(FILE_VERSION_KEY, version);
+        return versioned;
+    }
+
+    @Nullable
+    private static String fileVersionHint(FileSplit fileSplit) {
+        return fileVersion(fileSplit.config());
+    }
+
+    /** The file's version from a per-file config, or {@code null} when the listing reported none. */
+    @Nullable
+    static String fileVersion(Map<String, Object> config) {
+        return config.get(FILE_VERSION_KEY) instanceof String version ? version : null;
     }
 
     /**
@@ -3316,7 +3399,7 @@ public class FileSplitProvider implements SplitProvider {
             // Use the hoisted provider when available to avoid constructing a new cloud client
             // per file. Fall back to the registry for zero-config or legacy callers.
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
-            StorageObject object = provider.newObject(filePath, fileLength);
+            StorageObject object = newObject(provider, filePath, fileLength, 0L, fileVersion(config));
             long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength, splitDiscoveryCpuNanos::addAndGet);
 
             if (boundaries.length == 0) {
@@ -3457,7 +3540,7 @@ public class FileSplitProvider implements SplitProvider {
 
         try {
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
-            StorageObject object = provider.newObject(filePath, fileLength);
+            StorageObject object = newObject(provider, filePath, fileLength, 0L, fileVersion(config));
 
             List<SplitRange> ranges = rangeReader.discoverSplitRanges(object);
             if (ranges.isEmpty()) {
@@ -3521,7 +3604,7 @@ public class FileSplitProvider implements SplitProvider {
         RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
         try {
             StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
-            StorageObject object = provider.newObject(task.filePath(), task.fileLength());
+            StorageObject object = newObject(provider, task.filePath(), task.fileLength(), 0L, fileVersion(task.config()));
             rangeReader.discoverSplitRangesAsync(object, fanOut, ActionListener.wrap(ranges -> {
                 runRecordingDiscoveryCpu(() -> {
                     if (ranges == null || ranges.isEmpty()) {
@@ -3779,7 +3862,7 @@ public class FileSplitProvider implements SplitProvider {
             return null;
         }
         StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
-        StorageObject object = provider.newObject(task.filePath(), fileLength);
+        StorageObject object = newObject(provider, task.filePath(), fileLength, 0L, fileVersion(task.config()));
         return new DeferredNewlineSplits(task, object, splitter, minSegment, targetStrideBytes, positions);
     }
 
@@ -3943,7 +4026,7 @@ public class FileSplitProvider implements SplitProvider {
     ) {
         try {
             StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
-            StorageObject object = provider.newObject(filePath, fileLength);
+            StorageObject object = newObject(provider, filePath, fileLength, 0L, fileVersion(config));
 
             if (indexedCodec.hasIndex(object) == false) {
                 return false;
@@ -4015,10 +4098,18 @@ public class FileSplitProvider implements SplitProvider {
         if (hoistedProvider != null) {
             return hoistedProvider;
         }
-        if (config != null && config.isEmpty() == false) {
+        if (config != null && carriesQueryConfig(config)) {
             throw new AssertionError("inline-config split discovery requires a hoisted storage provider");
         }
         return storageRegistry.provider(filePath);
+    }
+
+    /**
+     * Whether a config carries query options. A file's version is internal bookkeeping, not an option: a query with no
+     * {@code WITH} options has no hoisted provider, and its files must still resolve through the registry default.
+     */
+    static boolean carriesQueryConfig(Map<String, Object> config) {
+        return config.size() > (config.containsKey(FILE_VERSION_KEY) ? 1 : 0);
     }
 
     /**

@@ -5512,6 +5512,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         try (var response = run(request, TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), nullValue());
             assertThat(rows.get(0).get(1), equalTo(2L));
         }
     }

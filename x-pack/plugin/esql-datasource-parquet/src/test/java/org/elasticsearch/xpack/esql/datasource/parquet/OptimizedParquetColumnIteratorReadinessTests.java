@@ -1593,6 +1593,15 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             this.asyncIo = asyncIo;
         }
 
+        /**
+         * A version, so this object's footer cache key is non-null. Without one the key is null, nothing is ever
+         * stored or read, and NO_FOOTER_BYTE_CACHE stops being what keeps the cache out of these tests.
+         */
+        @Override
+        public String version() {
+            return "v1";
+        }
+
         @Override
         public void bindRowGroup(RowGroupIo io) {
             boundLease = io;

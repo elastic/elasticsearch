@@ -479,7 +479,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
      * A lookup can reach a copy of the enrich index that was just relocated away, before the coordinating node
      * applies the cluster state that removes it. The lookup must move on to another copy instead of failing.
      */
-    public void testLookupRetriesAnotherCopyWhenShardIsNotAvailable() {
+    public void testEnrichRetriesAnotherCopyWhenShardIsNotAvailable() {
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen();
         AtomicBoolean failedOnce = new AtomicBoolean();
@@ -511,7 +511,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
      * A coordinating node that is more than one cluster state behind can route a lookup only to copies that
      * are all gone. The lookup must wait for a newer cluster state and try the copies it lists.
      */
-    public void testLookupResolvesCopiesAgainAfterAllCopiesFail() throws Exception {
+    public void testEnrichResolvesCopiesAgainAfterAllCopiesFail() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen();
         int copies = clusterService().state().nodes().getDataNodes().size();
@@ -534,7 +534,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
      * The enrich index can be deleted while a lookup waits to resolve its copies again, for example after a policy
      * re-execution replaced it. The lookup must then fail with the missing index instead of waiting forever.
      */
-    public void testLookupFailsWhenIndexIsDeletedAfterAllCopiesFail() throws Exception {
+    public void testEnrichFailsWhenIndexIsDeletedAfterAllCopiesFail() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen();
         int copies = clusterService().state().nodes().getDataNodes().size();

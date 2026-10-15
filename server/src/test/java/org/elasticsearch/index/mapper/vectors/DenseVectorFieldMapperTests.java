@@ -997,9 +997,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     public void testAutoCalibrateDefaultByIndexVersion() throws IOException {
         IndexVersion enabledByDefaultVersion = IndexVersions.DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT;
-        IndexVersion lastDisabledByDefaultVersion = IndexVersionUtils.getPreviousVersion(
-            IndexVersions.DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT
-        );
+        IndexVersion lastDisabledByDefaultVersion = IndexVersionUtils.getPreviousVersion(enabledByDefaultVersion);
         List<Tuple<IndexVersion, IvfAutoCalibrationProfile>> testCases = List.of(
             Tuple.tuple(
                 IndexVersionUtils.randomVersionBetween(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE, lastDisabledByDefaultVersion),

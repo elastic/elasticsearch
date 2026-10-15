@@ -62,12 +62,12 @@ public class PlanConsistencyChecker {
         }
 
         List<Attribute> output = p.output();
-        var outputAttributeNames = new HashMap<String, Attribute>();
+        var outputAttributesByName = new HashMap<String, Attribute>();
         var outputAttributeIds = Sets.<NameId>newHashSetWithExpectedSize(output.size());
         for (Attribute outputAttr : output) {
             // Metadata source fields share the canonical wire name but have distinct extraction configurations.
             // Their aliases name the result columns; source references are identified by NameId.
-            Attribute previous = outputAttributeNames.putIfAbsent(outputAttr.name(), outputAttr);
+            Attribute previous = outputAttributesByName.putIfAbsent(outputAttr.name(), outputAttr);
             boolean duplicateName = previous != null
                 && (previous instanceof TimeSeriesMetadataAttribute == false || outputAttr instanceof TimeSeriesMetadataAttribute == false);
             if (duplicateName || outputAttributeIds.add(outputAttr.id()) == false) {

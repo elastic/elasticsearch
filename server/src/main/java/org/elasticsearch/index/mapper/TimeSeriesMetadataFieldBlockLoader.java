@@ -45,9 +45,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         assert context.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
 
         if (context.indexSettings().getMode().isTsdb() == false) {
-            throw new IllegalStateException(
-                TimeSeriesMetadataFieldBlockLoader.class.getSimpleName() + " requires index mode: [ " + IndexMode.TIME_SERIES + " ]"
-            );
+            throw new IllegalStateException("TimeSeriesMetadataFieldBlockLoader requires index mode: [ " + IndexMode.TIME_SERIES + " ]");
         }
 
         var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) context.blockLoaderFunctionConfig();
@@ -58,8 +56,6 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         for (var m : dimensionMappers.values()) {
             result.add(m.fieldType().name());
         }
-
-        assert config != null;
 
         for (var skip : config.skipFieldNames()) {
             // Resolve field name (e.g. `cpu`) to canonical form (e.g. `attributes.cpu`)
@@ -116,11 +112,11 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     private static final class TimeSeriesReader extends BlockStoredFieldsReader {
-        private final SourceFilter filter;
+        private final SourceFilter sourceFilter;
 
         private TimeSeriesReader(CircuitBreaker breaker, Set<String> metadataFields) {
             super(breaker);
-            filter = metadataFields.isEmpty() ? null : new SourceFilter(metadataFields.toArray(String[]::new), null);
+            sourceFilter = metadataFields.isEmpty() ? null : new SourceFilter(metadataFields.toArray(String[]::new), null);
         }
 
         /**
@@ -154,10 +150,9 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            // Filter is needed because stored-fields are merged across readers
-            // and shared source may contain dimensions excluded by this node.
+            // Readers share the union of their requested source fields. Apply this reader's exclusions independently.
             ((BytesRefBuilder) builder).appendBytesReference(
-                toJson(filter != null ? storedFields.source().filter(filter) : Source.empty(XContentType.JSON))
+                toJson(sourceFilter != null ? storedFields.source().filter(sourceFilter) : Source.empty(XContentType.JSON))
             );
         }
 

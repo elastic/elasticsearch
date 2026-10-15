@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -552,15 +551,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         if (match != VectorMatch.NONE && (returnsScalar(left) || returnsScalar(right))) {
                             failures.add(fail(lp, "vector matching only allowed between instant vectors [{}]", lp.sourceText()));
                         } else if (binaryOperator.usesJoin()) {
-                            var joiningSide = match.grouping() == VectorMatch.Joining.RIGHT ? right : left;
-
                             boolean leftConcrete = hasConcreteLabels(left);
                             boolean rightConcrete = hasConcreteLabels(right);
-                            boolean groupingConcrete = match.groupingLabels().isEmpty() || hasConcreteLabels(joiningSide);
+                            boolean manySideConcrete = match.grouping() == VectorMatch.Joining.RIGHT ? rightConcrete : leftConcrete;
+                            boolean canCopyLabels = match.groupingLabels().isEmpty() || manySideConcrete;
 
                             boolean supported = switch (match.filter()) {
-                                case ON -> groupingConcrete;
-                                case NONE -> (leftConcrete || rightConcrete) && groupingConcrete;
+                                case ON -> canCopyLabels;
+                                case NONE -> (leftConcrete || rightConcrete) && canCopyLabels;
                                 case IGNORING -> leftConcrete && rightConcrete;
                             };
 
@@ -835,7 +833,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     private static boolean hasConcreteLabels(LogicalPlan plan) {
-        return plan.output().stream().noneMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
+        return PromqlLabels.hasRuntimeLabels(plan.output()) == false;
     }
 
     /**

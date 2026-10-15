@@ -31,13 +31,13 @@ public final class RemoveRedundantTimeSeriesAliases extends Rule<LogicalPlan, Lo
     public LogicalPlan apply(LogicalPlan plan) {
         // Merge inputs are aligned by name, independently of their output ids. These aliases define the
         // resolved branch schema, so they are not redundant even when a branch has only one metadata field.
-        Set<NameId> mergeInputs = new HashSet<>();
+        Set<NameId> mergeInputIds = new HashSet<>();
         plan.forEachDown(MergePlan.class, merge -> {
             for (LogicalPlan child : merge.children()) {
-                child.output().forEach(attribute -> mergeInputs.add(attribute.id()));
+                child.output().forEach(attribute -> mergeInputIds.add(attribute.id()));
             }
         });
-        Set<NameId> renamed = new HashSet<>();
+        Set<NameId> renamedIds = new HashSet<>();
         LogicalPlan result = plan.transformUp(TimeSeriesAggregate.class, aggregate -> {
             var metadata = aggregate.child().output().stream().filter(TimeSeriesMetadataAttribute.class::isInstance).toList();
             if (metadata.size() != 1) {
@@ -53,7 +53,7 @@ public final class RemoveRedundantTimeSeriesAliases extends Rule<LogicalPlan, Lo
                 return aggregate;
             }
             Alias alias = (Alias) metadataGroupings.getFirst();
-            if (mergeInputs.contains(alias.id())) {
+            if (mergeInputIds.contains(alias.id())) {
                 return aggregate;
             }
             Attribute field = metadata.getFirst();
@@ -62,15 +62,15 @@ public final class RemoveRedundantTimeSeriesAliases extends Rule<LogicalPlan, Lo
             groupings.replaceAll(g -> g == alias ? replacement : g);
             LogicalPlan child = aggregate.child()
                 .transformExpressionsDown(Attribute.class, a -> a.id().equals(field.id()) ? replacement : a);
-            renamed.add(alias.id());
+            renamedIds.add(alias.id());
             return aggregate.with(child, groupings, aggregate.aggregates());
         });
         // References may occur above the aggregate, including in filters and projections.
-        return renamed.isEmpty()
+        return renamedIds.isEmpty()
             ? result
             : result.transformExpressionsDown(
                 Attribute.class,
-                a -> renamed.contains(a.id()) ? a.withName(MetadataAttribute.TIMESERIES) : a
+                a -> renamedIds.contains(a.id()) ? a.withName(MetadataAttribute.TIMESERIES) : a
             );
     }
 }

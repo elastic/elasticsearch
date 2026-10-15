@@ -45,7 +45,7 @@ public record TranslationSchema(Set<String> labels, Set<Set<String>> skips) {
         return new TranslationSchema(Set.of(), Set.of(new LinkedHashSet<>(skip)));
     }
 
-    /** Every runtime label **/
+    /** Every runtime label. */
     public static TranslationSchema open() {
         return open(Set.of());
     }

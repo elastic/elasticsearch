@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+
+import java.util.Collection;
 
 /**
  * Shared naming conventions for PromQL labels represented as ES|QL fields.
@@ -17,6 +20,11 @@ public final class PromqlLabels {
     private PromqlLabels() {}
 
     public static final String PROMETHEUS_LABELS_PREFIX = "labels.";
+
+    /** Whether the output carries labels in time-series metadata instead of exposing every label as a named column. */
+    public static boolean hasRuntimeLabels(Collection<? extends Attribute> attributes) {
+        return attributes.stream().anyMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
+    }
 
     /**
      * Whether {@code name} is a valid PromQL label name, used at analysis time to validate the destination (and, for

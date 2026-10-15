@@ -62,12 +62,7 @@ def remoteDatasetInvisibleTest = tasks.register("remoteDatasetInvisibleTest", St
     includeTestsMatching remoteDatasetInvisibleTestPattern
   }
 }
-tasks.named("check").configure {
-  dependsOn remoteDatasetInvisibleTest
-  dependsOn currentToCurrent
-}
-
-// Exercise the success branch alongside the existing BWC newToOld/oldToNew runs of this suite.
+// Run metadata projection tests on current clusters as well as through the BWC newToOld/oldToNew tasks.
 def promqlMetadataTest = tasks.register("promqlMetadataTest", StandaloneRestIntegTestTask) {
   systemProperty("tests.version.remote_cluster", currentVersion)
   systemProperty("tests.version.local_cluster", currentVersion)
@@ -79,6 +74,8 @@ def promqlMetadataTest = tasks.register("promqlMetadataTest", StandaloneRestInte
   }
 }
 tasks.named("check").configure {
+  dependsOn remoteDatasetInvisibleTest
+  dependsOn currentToCurrent
   dependsOn promqlMetadataTest
 }
 

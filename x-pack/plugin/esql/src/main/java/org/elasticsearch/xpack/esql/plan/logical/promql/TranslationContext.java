@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -69,7 +68,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.intersect;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.project;
@@ -88,7 +86,7 @@ public record TranslationContext(
     /* The current evaluation time (default: @timestamp). */
     Expression time,
     /* Names assigned on first access, shared by every branch of this translation. */
-    Map<Set<String>, String> metadataNames
+    Map<Set<String>, String> metadataColumnNames
 ) {
     /** PromQL plans with several source identities require independent metadata readers on every participating node. */
     public static final TransportVersion PROMQL_MULTIPLE_TIMESERIES_METADATA = TransportVersion.fromName(
@@ -107,7 +105,7 @@ public record TranslationContext(
 
     /** Translate an independent child without changing the enclosing branch's timing or aggregation state. */
     public TranslationContext withRequired(TranslationSchema childRequired) {
-        return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time, metadataNames);
+        return new TranslationContext(cmd, analyzer, stepBucketAlias, childRequired, time, metadataColumnNames);
     }
 
     /**
@@ -133,7 +131,7 @@ public record TranslationContext(
     public IntermediateResult translateIntermediate(LogicalPlan branch, NameId stepId, NameId valueId) {
         Expression branchTime = cmd.collectEvaluationTimestampForBranch(branch);
         Alias step = canCreateStepBucket() ? emitStepBucketExpression(stepId, branchTime) : null;
-        var run = new TranslationContext(cmd, analyzer, step, required, branchTime, metadataNames);
+        var run = new TranslationContext(cmd, analyzer, step, required, branchTime, metadataColumnNames);
         return run.translateIntermediate(branch, valueId);
     }
 
@@ -147,7 +145,7 @@ public record TranslationContext(
 
         if (branches.size() == 1) {
             IntermediateResult intermediateResult = translateIntermediate(cmd.promqlPlan(), cmd.stepId(), cmd.valueId());
-            Attribute declared = find(cmd.output(), asMetadataLabel());
+            Attribute declared = find(cmd.output(), MetadataAttribute.TIMESERIES);
             LogicalPlan plan = emitTimeSeriesAlias(intermediateResult, declared != null ? declared.id() : new NameId());
             return doTranslateFinal(plan, intermediateResult.kind().constant);
         }
@@ -380,7 +378,7 @@ public record TranslationContext(
                 Attribute resolved = find(plan.output(), label);
                 return resolved != null ? resolved : mapToRef(label);
             }).toList();
-            Alias metadata = new Alias(source, asMetadataLabel(skip), new TimeSeriesWithout(source, excluded));
+            Alias metadata = new Alias(source, metadataColumnName(skip), new TimeSeriesWithout(source, excluded));
             groupKeys.add(metadata);
             outKeys.add(metadata.toAttribute());
         }
@@ -420,7 +418,7 @@ public record TranslationContext(
         var nulls = new ArrayList<Alias>();
         var keys = new ArrayList<Attribute>();
         for (Set<String> skip : finestFirst(schema.skips())) {
-            Attribute carrier = find(available, asMetadataLabel(skip));
+            Attribute carrier = find(available, metadataColumnName(skip));
             assert carrier != null : "invariant: metadata column " + skip + " must be carried by the child";
             keys.add(carrier);
         }
@@ -685,24 +683,22 @@ public record TranslationContext(
 
     // -- helpers --
 
-    /** The canonical name exposed at a finished command's boundary. */
-    public static String asMetadataLabel() {
-        return MetadataAttribute.TIMESERIES;
-    }
-
     /**
      * Opaque names for source metadata projections, reused per exclusion set. Ordered translation makes first-access
      * ids stable for the same query. The whole metadata keeps its canonical name and does not allocate an id.
      */
-    public String asMetadataLabel(Set<String> skip) {
-        return skip.isEmpty()
+    public String metadataColumnName(Set<String> excludedLabels) {
+        return excludedLabels.isEmpty()
             ? MetadataAttribute.TIMESERIES
-            : metadataNames.computeIfAbsent(Set.copyOf(skip), ignored -> MetadataAttribute.TIMESERIES + "$" + (metadataNames.size() + 1));
+            : metadataColumnNames.computeIfAbsent(
+                Set.copyOf(excludedLabels),
+                ignored -> MetadataAttribute.TIMESERIES + "$" + (metadataColumnNames.size() + 1)
+            );
     }
 
     /** Resolve a table's metadata column using the names shared by this translation's branches. */
     public Attribute metadataColumn(IntermediateResult table, Set<String> skip) {
-        return find(table.plan().output(), asMetadataLabel(skip));
+        return find(table.plan().output(), metadataColumnName(skip));
     }
 
     /** Canonical label names in declaration order, without duplicates. */
@@ -712,8 +708,7 @@ public record TranslationContext(
 
     /** Label names ignore the physical field prefix used for Prometheus passthrough dimensions. */
     public static String mapFinite(Attribute attribute) {
-        String name = attribute instanceof FieldAttribute field ? field.fieldName().string() : attribute.name();
-        return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
+        return PromqlLabels.labelName(attribute);
     }
 
     /** A missing label's reference, subsequently defined as null by its consumer. */

@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -129,7 +128,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         // Output `_timeseries` if grouping is not constant, e.g. `without(...)`
         if (grouping == Grouping.WITHOUT) {
             List<Attribute> childOutput = child().output();
-            if (childOutput.stream().noneMatch(a -> MetadataAttribute.isTimeSeriesAttributeName(a.name()))) {
+            if (PromqlLabels.hasRuntimeLabels(childOutput) == false) {
                 Set<String> excluded = new HashSet<>();
                 for (Attribute label : groupings) {
                     excluded.add(labelKey(label));

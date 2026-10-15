@@ -7,21 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.xpack.esql.SerializationTestUtils;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializationTests;
-
-import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomSerializableEsField;
@@ -40,37 +31,6 @@ public class FieldAttributeTests extends AbstractNamedExpressionSerializationTes
 
     private static EsField randomRepresentableEsField(int maxDepth) {
         return randomValueOtherThanMany(f -> false == isRepresentable(f.getDataType()), () -> randomSerializableEsField(maxDepth));
-    }
-
-    public void testMetadataProjectionAliasesUseExistingWireFormat() {
-        for (var version : List.of(FieldAttribute.ESQL_TIMESERIES_METADATA_ATTRIBUTE, TransportVersion.current())) {
-            var full = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of());
-            var withoutPod = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("pod"));
-            var withoutCluster = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("cluster"));
-            List<Expression> projections = List.of(
-                new Alias(Source.EMPTY, "_timeseries", full),
-                new Alias(Source.EMPTY, "_timeseries$1", withoutPod),
-                new Alias(Source.EMPTY, "_timeseries$2", withoutCluster),
-                withoutPod
-            );
-            List<Expression> copies = SerializationTestUtils.serializeDeserialize(projections, (out, values) -> {
-                out.setTransportVersion(version);
-                out.writeNamedWriteableCollection(values);
-            }, in -> {
-                in.setTransportVersion(version);
-                return in.readNamedWriteableCollectionAsList(Expression.class);
-            });
-            assertEquals(projections, copies);
-            for (int i = 0; i < 3; i++) {
-                var original = (Alias) projections.get(i);
-                var copy = (Alias) copies.get(i);
-                assertEquals(original.id(), copy.id());
-                var metadata = (TimeSeriesMetadataAttribute) copy.child();
-                assertEquals(MetadataAttribute.TIMESERIES, metadata.name());
-                assertEquals(((TimeSeriesMetadataAttribute) original.child()).excludedFields(), metadata.excludedFields());
-            }
-            assertSame(((Alias) copies.get(1)).child(), copies.get(3));
-        }
     }
 
     @Override

@@ -80,38 +80,38 @@ public class TranslationContextTests extends ESTestCase {
         assertThat(retained.skips(), contains(Set.of("pod")));
     }
 
-    public void testMetadataNamesAssignedOnFirstAccessAndSharedByChildren() {
+    public void testMetadataColumnNamesAssignedOnFirstAccessAndSharedByChildren() {
         for (int i = 0; i < 2; i++) {
             var context = new TranslationContext(null, null);
-            assertThat(context.asMetadataLabel(Set.of()), equalTo(MetadataAttribute.TIMESERIES));
-            assertTrue(context.metadataNames().isEmpty());
+            assertThat(context.metadataColumnName(Set.of()), equalTo(MetadataAttribute.TIMESERIES));
+            assertTrue(context.metadataColumnNames().isEmpty());
             var exclusions = new LinkedHashSet<>(List.of("region", "pod"));
-            assertThat(context.asMetadataLabel(exclusions), equalTo("_timeseries$1"));
+            assertThat(context.metadataColumnName(exclusions), equalTo("_timeseries$1"));
             exclusions.clear();
             var child = context.withRequired(open(Set.of("pod")));
-            assertThat(child.asMetadataLabel(new LinkedHashSet<>(List.of("pod", "region"))), equalTo("_timeseries$1"));
-            assertThat(child.asMetadataLabel(Set.of("cluster")), equalTo("_timeseries$2"));
-            assertThat(context.asMetadataLabel(Set.of("cluster")), equalTo("_timeseries$2"));
+            assertThat(child.metadataColumnName(new LinkedHashSet<>(List.of("pod", "region"))), equalTo("_timeseries$1"));
+            assertThat(child.metadataColumnName(Set.of("cluster")), equalTo("_timeseries$2"));
+            assertThat(context.metadataColumnName(Set.of("cluster")), equalTo("_timeseries$2"));
         }
     }
 
-    public void testMetadataNamesDistinguishSetsWithEqualHashCodes() {
+    public void testMetadataColumnNamesDistinguishSetsWithEqualHashCodes() {
         var context = new TranslationContext(null, null);
         assertEquals(Set.of("Aa").hashCode(), Set.of("BB").hashCode());
-        assertThat(context.asMetadataLabel(Set.of("Aa")), equalTo("_timeseries$1"));
-        assertThat(context.asMetadataLabel(Set.of("BB")), equalTo("_timeseries$2"));
-        assertThat(context.asMetadataLabel(Set.of("Aa")), equalTo("_timeseries$1"));
+        assertThat(context.metadataColumnName(Set.of("Aa")), equalTo("_timeseries$1"));
+        assertThat(context.metadataColumnName(Set.of("BB")), equalTo("_timeseries$2"));
+        assertThat(context.metadataColumnName(Set.of("Aa")), equalTo("_timeseries$1"));
     }
 
     public void testFindByNameMatchesCanonicalNamesAndPrefersPassthroughFields() {
         var context = new TranslationContext(null, null);
         Attribute bare = attr("cluster");
         Attribute prefixed = new ReferenceAttribute(Source.EMPTY, "labels.cluster", DataType.KEYWORD);
-        Attribute metadata = attr(context.asMetadataLabel(Set.of("pod")));
+        Attribute metadata = attr(context.metadataColumnName(Set.of("pod")));
 
         assertThat(TranslationContext.find(List.of(bare, prefixed), "cluster"), sameInstance(prefixed));
         assertThat(TranslationContext.find(List.of(bare), "cluster"), sameInstance(bare));
-        assertThat(TranslationContext.find(List.of(bare, metadata), context.asMetadataLabel(Set.of("pod"))), sameInstance(metadata));
+        assertThat(TranslationContext.find(List.of(bare, metadata), context.metadataColumnName(Set.of("pod"))), sameInstance(metadata));
         assertNull(TranslationContext.find(List.of(bare), "pod"));
         assertThat(TranslationContext.mapFinite(List.of(bare, prefixed, attr("pod"))), contains("cluster", "pod"));
     }

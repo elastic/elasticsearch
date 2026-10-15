@@ -471,9 +471,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   method: testSplitAfterResharding
   issue: https://github.com/elastic/elasticsearch/issues/161783
-- class: org.elasticsearch.xpack.stateless.objectstore.AzureBccUploadRefillRaceIT
-  method: testConcurrentRefillsDoNotCorruptUploadedBcc
-  issue: https://github.com/elastic/elasticsearch/issues/161785
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/161788

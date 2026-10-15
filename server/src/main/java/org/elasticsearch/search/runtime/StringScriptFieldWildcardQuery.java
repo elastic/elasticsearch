@@ -10,6 +10,7 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.Nullable;
@@ -72,5 +73,10 @@ public class StringScriptFieldWildcardQuery extends AbstractStringScriptFieldAut
 
     boolean caseInsensitive() {
         return caseInsensitive;
+    }
+
+    @Override
+    protected long ownMemoryUsage() {
+        return RamUsageEstimator.sizeOf(pattern);
     }
 }

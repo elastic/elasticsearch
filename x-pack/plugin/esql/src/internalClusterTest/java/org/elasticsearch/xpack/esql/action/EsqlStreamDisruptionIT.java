@@ -36,6 +36,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -64,6 +65,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -411,23 +413,47 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testExchangeFaultAfterFirstPageYieldsErrorAsLastLine() throws Exception {
-        AtomicReference<AtomicLong> faultHits = new AtomicReference<>(new AtomicLong());
-        StreamOutcome outcome = streamPausingAt(
-            1,
-            streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"),
-            true,
-            () -> faultHits.set(failActionOnAllNodes(ExchangeService.EXCHANGE_ACTION_NAME, "injected failure after the first page")),
-            "batch_size=5",
-            "allow_partial_results=false"
-        );
+        AtomicLong faultHits = new AtomicLong();
+        AtomicBoolean firstFetchPassed = new AtomicBoolean();
+        AtomicBoolean failing = new AtomicBoolean();
+        List<TransportChannel> held = new ArrayList<>();
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+                    // One fetch delivers the first page; parking the rest keeps the exchange from draining before the fault is armed.
+                    if (firstFetchPassed.compareAndSet(false, true)) {
+                        handler.messageReceived(request, channel, task);
+                        return;
+                    }
+                    synchronized (held) {
+                        if (failing.get() == false) {
+                            held.add(channel);
+                            return;
+                        }
+                    }
+                    faultHits.incrementAndGet();
+                    channel.sendResponse(new RuntimeException("injected failure after the first page"));
+                });
+        }
+        StreamOutcome outcome = streamPausingAt(1, streamBody("FROM " + STREAM_INDEX + " | LIMIT 1000"), true, () -> {
+            List<TransportChannel> toFail;
+            synchronized (held) {
+                failing.set(true);
+                toFail = List.copyOf(held);
+                held.clear();
+            }
+            for (TransportChannel channel : toFail) {
+                faultHits.incrementAndGet();
+                channel.sendResponse(new RuntimeException("injected failure after the first page"));
+            }
+        }, "batch_size=5", "allow_partial_results=false");
         assertServerFullyCleanedUp();
         assertStreamInvariants(outcome, false, 1000);
         assertThat(outcome.httpStatus(), equalTo(200));
         assertThat("line 1 must be a values line", outcome.lines().get(1), hasKey("values"));
-        if (faultHits.get().get() > 0) {
-            assertThat("an exchange fault after the first page must end with an error line", outcome.terminal(), equalTo(Terminal.ERROR));
-            assertNotEquals("error type must not be remote_transport_exception", "remote_transport_exception", outcome.errorType());
-        }
+        assertThat("the exchange fault must be hit after the first page", faultHits.get(), greaterThan(0L));
+        assertThat("an exchange fault after the first page must end with an error line", outcome.terminal(), equalTo(Terminal.ERROR));
+        assertNotEquals("error type must not be remote_transport_exception", "remote_transport_exception", outcome.errorType());
     }
 
     public void testBreakerTripBeforeFirstPageYieldsHttpError() throws Exception {

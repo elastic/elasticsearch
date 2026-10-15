@@ -207,7 +207,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
     }
 
     private void onDeferredSendFailure(RestStatus status, Exception e) {
-        logger.error("failed to send streaming response", e);
+        logger.warn("failed to send streaming response", e);
         terminalEmitted.set(true);
         synchronized (continuationMonitor) {
             pendingPagePart = null;
@@ -224,7 +224,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             channel.sendResponse(RestResponse.chunked(errorStatus, new NdjsonFooterBodyPart(footer), this::release));
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.error("failed to send failure response", inner);
+            logger.warn("failed to send failure response", inner);
         }
     }
 

@@ -563,13 +563,12 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     /**
      * The query warns even when no unmapped field could have been returned anyway, e.g. after an exact KEEP or a STATS: a column
-     * of that name is still not what its name suggests. The identical warnings of the queries collapse into one.
+     * of that name is still not what its name suggests.
      */
     public void testNameTakenWarnsEvenWhenNoUnmappedFieldCouldBeReturnedAnyway() {
-        assertNoUnmappedFieldsAttribute("FROM test | WHERE _unmapped_fields == \"x\" | KEEP emp_no");
-        assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no, _unmapped_fields");
-        assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = \"mine\" | STATS c = COUNT(*) BY _unmapped_fields");
-        assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+        assertUnmappedFieldsNameTaken("FROM test | WHERE _unmapped_fields == \"x\" | KEEP emp_no");
+        assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no, _unmapped_fields");
+        assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\" | STATS c = COUNT(*) BY _unmapped_fields");
     }
 
     /** A field of the lookup index named like the column of unmapped fields is a column of the query, and wins. */

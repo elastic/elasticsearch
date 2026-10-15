@@ -227,9 +227,9 @@ public final class GlobExpander {
      * The bound truncates where {@code maxListedObjects} fails: reaching it is the expected outcome, not an error.
      * The result is a prefix of the matching files in listing order, flagged {@link FileList#isTruncated()}, and it
      * is left uncompacted, because neither compacted encoding carries the truncation flag — see
-     * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. Only a schema discovery
-     * resolution may pass a bound; {@code Integer.MAX_VALUE} is the unbounded path every reading query takes,
-     * byte for byte as before.
+     * {@link FileListCompactor#compact}, which refuses a truncated list for that reason. Schema discovery passes a
+     * bound for its first attempt; the scan also bounds its first attempt. {@code Integer.MAX_VALUE} is the
+     * unbounded path.
      */
     /** As below, for a caller with no query behind the listing: nothing is waiting on it, so nothing cancels it. */
     public static FileList expandAndCompact(
@@ -1051,8 +1051,9 @@ public final class GlobExpander {
             // soon as the current one is exhausted, so asking it after the bound is reached buys a ListObjectsV2
             // whose result is then discarded. Reaching the bound therefore marks the listing truncated without
             // establishing that more keys exist - a dataset of exactly the file-set extent is marked truncated when it
-            // is not. That costs such a dataset its cache entry and an exact file count, and saves every larger one a
-            // request.
+            // is not. Only a bounded listing feels it: that dataset loses its exact count and the scan relists it.
+            // Under UNBOUNDED the extent is Integer.MAX_VALUE, so nothing reaches the case. It saves every larger
+            // dataset a request.
             while (listed < extents.maxFiles() && iterator.hasNext()) {
                 StorageEntry entry = iterator.next();
                 listed++;
@@ -2607,7 +2608,7 @@ public final class GlobExpander {
                     // list+desc is reverse(concat) rather than reverse(concat(reverse(g1), reverse(g2))).
                     FileOrderConfig.DEFAULT,
                     // A key budget has no single meaning across the segments of a comma list, so each
-                    // segment lists in full; expand() never hands this path a bound.
+                    // segment lists unbounded whatever the caller asked for.
                     ListingExtents.UNBOUNDED,
                     // Each segment reserves against the same budget, so a comma list is charged for every entry it
                     // retains rather than for none of them. ExternalSourceResolver.chargeListingPlanning subtracts
@@ -2668,7 +2669,9 @@ public final class GlobExpander {
      * {@link PartitionConfig} (strategy AND path template), the effective (post-rewrite) glob pattern, the
      * {@code _file.*} metadata filters, the partition hints when the effective pattern is walk-eligible or a rewrite
      * left the original pattern walk-eligible (see {@link PartitionPruningWalk}), the resolved
-     * {@link ExclusionConfig}, and the resolved {@link FileOrderConfig}.
+     * {@link ExclusionConfig}, the resolved {@link FileOrderConfig}, and the {@link ListingExtents} the caller
+     * asked for - a bounded ask and an unbounded one over the same pattern are different values, so they are
+     * different addresses.
      * These are the inputs {@link #doExpandGlob} consults beyond the storage contents themselves — via
      * {@link #effectivePattern}, {@link #applyFileMetadataFilters} and {@link #partitionPruningHints} — and this
      * value shares those same helpers, so the listing cache key cannot drift from the listing it names. It binds only
@@ -2687,7 +2690,8 @@ public final class GlobExpander {
         List<String> encodedFileHints,
         List<String> encodedPartitionHints,
         ExclusionConfig exclusionConfig,
-        FileOrderConfig fileOrder
+        FileOrderConfig fileOrder,
+        int maxFiles
     ) {
 
         static ListingIdentity of(
@@ -2695,7 +2699,8 @@ public final class GlobExpander {
             @Nullable List<PartitionFilterHint> hints,
             PartitionConfig partitionConfig,
             ExclusionConfig exclusionConfig,
-            FileOrderConfig fileOrder
+            FileOrderConfig fileOrder,
+            ListingExtents extents
         ) {
             String effectivePattern = effectiveWholePathPattern(path, hints, partitionConfig);
             // The empty-rewrite retry lists the original glob with these hints. A splice can make the effective
@@ -2724,7 +2729,12 @@ public final class GlobExpander {
                     ? encodedHints(partitionPruningHints(hints))
                     : encodedHints(folderPostFilterHints(hints, partitionConfig)),
                 exclusionConfig,
-                fileOrder
+                fileOrder,
+                // How far the listing was asked to run is part of which files it holds, so it is part of the key.
+                // Without it a prefix of a dataset and the whole dataset collide on one address, which is why a
+                // bounded listing had to bypass the cache: there was no way for a holder to say which of the two
+                // values it had.
+                extents.maxFiles()
             );
         }
 
@@ -2761,6 +2771,13 @@ public final class GlobExpander {
             // stays uniform with every other field.
             appendLengthPrefixed(sb, fileOrder.sortBy().name());
             appendLengthPrefixed(sb, fileOrder.order().name());
+            // How far the listing was asked to run. Two different asks are two different values and take
+            // different addresses; what comes back under a bounded key is whatever that ask produces, which is a
+            // prefix when the bound bit and the whole pattern when an empty bounded pass was retried unbounded
+            // (see expandGlobWithRewriteFallback) - a superset of what the bound promised, and so a correct answer
+            // for every holder of this key. Length-prefixed like every other field so no content can forge a
+            // field boundary.
+            appendLengthPrefixed(sb, Integer.toString(maxFiles));
             return sb.toString();
         }
     }
@@ -2808,12 +2825,22 @@ public final class GlobExpander {
         @Nullable List<PartitionFilterHint> hints,
         @Nullable Map<String, Object> config
     ) {
+        return listingCacheDiscriminator(path, hints, config, ListingExtents.UNBOUNDED);
+    }
+
+    public static String listingCacheDiscriminator(
+        String path,
+        @Nullable List<PartitionFilterHint> hints,
+        @Nullable Map<String, Object> config,
+        ListingExtents extents
+    ) {
         return ListingIdentity.of(
             path,
             hints,
             PartitionConfig.fromConfig(config),
             ExclusionConfig.fromConfig(config),
-            FileOrderConfig.forListing(config)
+            FileOrderConfig.forListing(config),
+            extents
         ).encode();
     }
 

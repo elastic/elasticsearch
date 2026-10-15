@@ -9,15 +9,13 @@ package org.elasticsearch.xpack.security.cli;
 
 import com.unboundid.util.ssl.cert.KeyUsageExtension;
 
-import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.asn1.x509.KeyPurposeId;
-import org.bouncycastle.asn1.x509.KeyUsage;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
+import org.elasticsearch.xpack.security.cli.bc.KeyPurpose;
+import org.elasticsearch.xpack.security.cli.bc.SubjectAlternativeNames;
 import org.junit.BeforeClass;
 
 import java.math.BigInteger;
@@ -39,9 +37,8 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
 
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.KEY_USAGE_MAPPINGS;
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildKeyUsage;
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.isValidKeyUsage;
+import static org.elasticsearch.xpack.security.cli.bc.CertGenUtils.KEY_USAGE_MAPPINGS;
+import static org.elasticsearch.xpack.security.cli.bc.CertGenUtils.isValidKeyUsage;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -106,25 +103,27 @@ public class CertGenUtilsTests extends ESTestCase {
         final boolean resolveName = randomBoolean();
         InetAddress address = InetAddresses.forString("127.0.0.1");
 
-        GeneralNames generalNames = CertGenUtils.getSubjectAlternativeNames(resolveName, Collections.singleton(address));
+        SubjectAlternativeNames generalNames = CertGenUtils.getSubjectAlternativeNames(resolveName, Collections.singleton(address));
         assertThat(generalNames, notNullValue());
-        GeneralName[] generalNameArray = generalNames.getNames();
-        assertThat(generalNameArray, notNullValue());
 
         logger.info("resolve name [{}], address [{}], subject alt names [{}]", resolveName, NetworkAddress.format(address), generalNames);
+        // inspect the names through the JDK's view of a certificate that carries them: type 7 is iPAddress, type 2 is dNSName
+        final KeyPair keyPair = CertGenUtils.generateKeyPair(2048);
+        final X509Certificate certificate = CertGenUtils.generateSignedCertificate(
+            new X500Principal("CN=san"),
+            generalNames,
+            keyPair,
+            null,
+            null,
+            30
+        );
+        final List<Integer> sanTypes = certificate.getSubjectAlternativeNames().stream().map(san -> (Integer) san.get(0)).toList();
         if (resolveName && isResolvable(address)) {
-            assertThat(generalNameArray.length, is(2));
-            int firstType = generalNameArray[0].getTagNo();
-            if (firstType == GeneralName.iPAddress) {
-                assertThat(generalNameArray[1].getTagNo(), is(GeneralName.dNSName));
-            } else if (firstType == GeneralName.dNSName) {
-                assertThat(generalNameArray[1].getTagNo(), is(GeneralName.iPAddress));
-            } else {
-                fail("unknown tag value: " + firstType);
-            }
+            assertThat(generalNames.size(), is(2));
+            assertThat(sanTypes, containsInAnyOrder(7, 2));
         } else {
-            assertThat(generalNameArray.length, is(1));
-            assertThat(generalNameArray[0].getTagNo(), is(GeneralName.iPAddress));
+            assertThat(generalNames.size(), is(1));
+            assertThat(sanTypes, equalTo(List.of(7)));
         }
     }
 
@@ -152,7 +151,7 @@ public class CertGenUtilsTests extends ESTestCase {
             notBefore,
             notAfter,
             null,
-            buildKeyUsage(rootCaKeyUsages),
+            rootCaKeyUsages,
             Set.of()
         );
 
@@ -170,7 +169,7 @@ public class CertGenUtilsTests extends ESTestCase {
             notBefore,
             notAfter,
             null,
-            buildKeyUsage(subCaKeyUsage),
+            subCaKeyUsage,
             Set.of()
         );
 
@@ -188,8 +187,8 @@ public class CertGenUtilsTests extends ESTestCase {
             notBefore,
             notAfter,
             null,
-            buildKeyUsage(endEntityKeyUsage),
-            Set.of(new ExtendedKeyUsage(KeyPurposeId.anyExtendedKeyUsage))
+            endEntityKeyUsage,
+            Set.of(KeyPurpose.ANY)
         );
 
         final X509Certificate[] certChain = new X509Certificate[] { endEntityCert, subCaCert, rootCaCert };
@@ -200,7 +199,7 @@ public class CertGenUtilsTests extends ESTestCase {
         assertThat(rootCaCert.getIssuerX500Principal(), equalTo(rootCaCert.getSubjectX500Principal()));
 
         // verify custom extended key usage
-        assertThat(endEntityCert.getExtendedKeyUsage(), equalTo(List.of(KeyPurposeId.anyExtendedKeyUsage.toASN1Primitive().toString())));
+        assertThat(endEntityCert.getExtendedKeyUsage(), equalTo(List.of(KeyPurpose.ANY.oid())));
 
         // verify cert chaining based on PKIX rules (ex: SubjectDNs/IssuerDNs, SKIs/AKIs, BC, KU, EKU, etc)
         final KeyStore trustStore = KeyStore.getInstance("PKCS12", "SunJSSE"); // EX: SunJSSE, BC, BC-FIPS
@@ -222,54 +221,46 @@ public class CertGenUtilsTests extends ESTestCase {
 
     }
 
-    public void testBuildKeyUsage() {
+    public void testBuildKeyUsage() throws Exception {
         // sanity check that lookup maps are containing the same keyUsage entries
         assertThat(KEY_USAGE_BITS.keySet(), containsInAnyOrder(KEY_USAGE_MAPPINGS.keySet().toArray()));
 
-        // passing null or empty list of keyUsage names should return null
-        assertThat(buildKeyUsage(null), is(nullValue()));
-        assertThat(buildKeyUsage(List.of()), is(nullValue()));
+        // passing null or empty list of keyUsage names should not add a key usage extension
+        assertThat(generateCertificateWithKeyUsage(null).getKeyUsage(), is(nullValue()));
+        assertThat(generateCertificateWithKeyUsage(List.of()).getKeyUsage(), is(nullValue()));
 
         // invalid names should throw IAE
-        var e = expectThrows(IllegalArgumentException.class, () -> buildKeyUsage(List.of(randomAlphanumericOfLength(5))));
+        var e = expectThrows(IllegalArgumentException.class, () -> generateCertificateWithKeyUsage(List.of(randomAlphanumericOfLength(5))));
         assertThat(e.getMessage(), containsString("Unknown keyUsage"));
 
         {
             final List<String> keyUsages = randomNonEmptySubsetOf(KEY_USAGE_MAPPINGS.keySet());
-            final KeyUsage keyUsage = buildKeyUsage(keyUsages);
-            for (String usageName : keyUsages) {
-                final Integer usage = KEY_USAGE_MAPPINGS.get(usageName);
-                assertThat(" mapping for keyUsage [" + usageName + "] is missing", usage, is(notNullValue()));
-                assertThat("expected keyUsage [" + usageName + "] to be set in [" + keyUsage + "]", keyUsage.hasUsages(usage), is(true));
-            }
-
-            final Set<String> keyUsagesNotSet = KEY_USAGE_MAPPINGS.keySet()
-                .stream()
-                .filter(u -> keyUsages.contains(u) == false)
-                .collect(Collectors.toSet());
-
-            for (String usageName : keyUsagesNotSet) {
-                final Integer usage = KEY_USAGE_MAPPINGS.get(usageName);
-                assertThat(" mapping for keyUsage [" + usageName + "] is missing", usage, is(notNullValue()));
-                assertThat(
-                    "expected keyUsage [" + usageName + "] not to be set in [" + keyUsage + "]",
-                    keyUsage.hasUsages(usage),
-                    is(false)
-                );
-            }
-
+            assertExpectedKeyUsage(generateCertificateWithKeyUsage(keyUsages), keyUsages);
         }
 
         {
             // test that duplicates and whitespaces are ignored
-            KeyUsage keyUsage = buildKeyUsage(
+            final X509Certificate certificate = generateCertificateWithKeyUsage(
                 List.of("digitalSignature   ", "    nonRepudiation", "\tkeyEncipherment", "keyEncipherment\n")
             );
-            assertThat(keyUsage.hasUsages(KEY_USAGE_MAPPINGS.get("digitalSignature")), is(true));
-            assertThat(keyUsage.hasUsages(KEY_USAGE_MAPPINGS.get("nonRepudiation")), is(true));
-            assertThat(keyUsage.hasUsages(KEY_USAGE_MAPPINGS.get("digitalSignature")), is(true));
-            assertThat(keyUsage.hasUsages(KEY_USAGE_MAPPINGS.get("keyEncipherment")), is(true));
+            assertExpectedKeyUsage(certificate, List.of("digitalSignature", "nonRepudiation", "keyEncipherment"));
         }
+    }
+
+    private static X509Certificate generateCertificateWithKeyUsage(List<String> keyUsages) throws Exception {
+        final KeyPair keyPair = CertGenUtils.generateKeyPair(2048);
+        return CertGenUtils.generateSignedCertificate(
+            new X500Principal("CN=key usage"),
+            null,
+            keyPair,
+            null,
+            null,
+            randomBoolean(),
+            randomIntBetween(1, 365),
+            null,
+            keyUsages,
+            Set.of()
+        );
     }
 
     public void testIsValidKeyUsage() {

@@ -1,0 +1,22 @@
+## FIPS 140 JVM options
+##
+## These options restrict the Elasticsearch server JVM to the Bouncy Castle
+## FIPS provider in approved-only mode. The command line tools receive the
+## equivalent options through CLI_JAVA_OPTS in bin/elasticsearch-env.
+
+# Reject any non-approved algorithm or parameter (e.g. short passwords) at runtime
+-Dorg.bouncycastle.fips.approved_only=true
+
+# Replace (==, not overlay) the JDK's java.security so that only the Bouncy
+# Castle FIPS providers and the SUN/SunJGSS providers remain registered, and
+# BCFKS is the default keystore type. An overlay would leave the JDK's own
+# SunJCE and SunJSSE providers available as fallbacks for non-approved
+# algorithms.
+-Djava.security.properties==${ES_PATH_CONF}/fips_java.security
+
+# Keystores used by the JDK's TLS implementation must be BCFKS. The trust store
+# is the bundled JDK's CA certificate bundle, converted to BCFKS at build time.
+-Djavax.net.ssl.keyStoreType=BCFKS
+-Djavax.net.ssl.trustStoreType=BCFKS
+-Djavax.net.ssl.trustStore=${ES_PATH_CONF}/cacerts.bcfks
+-Djavax.net.ssl.trustStorePassword=passwordcacert

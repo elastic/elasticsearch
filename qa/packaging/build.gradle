@@ -31,6 +31,20 @@ dependencies {
   testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
+// The BC FIPS jars a FIPS-enabled node keeps in lib, for ArchiveSecurityCliWithBcFipsTests. Same versions as elasticsearch.fips.gradle.
+configurations {
+  bcFipsJars
+}
+dependencies {
+  bcFipsJars 'org.bouncycastle:bc-fips:2.0.2'
+  bcFipsJars 'org.bouncycastle:bcutil-fips:2.0.7'
+  bcFipsJars 'org.bouncycastle:bctls-fips:2.0.24'
+}
+tasks.withType(Test).configureEach {
+  inputs.files(configurations.bcFipsJars).withNormalizer(ClasspathNormalizer)
+  nonInputProperties.systemProperty "tests.bcfips.jars", "${-> configurations.bcFipsJars.asPath}"
+}
+
 // we don't have additional tests for the tests themselves
 tasks.named("test").configure { enabled = false }
 

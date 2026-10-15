@@ -1,0 +1,13 @@
+
+# FIPS 140: the command line tools, and the server launcher that runs security
+# auto-configuration, use the same Bouncy Castle FIPS provider configuration as
+# the server JVM (see jvm.options.d/fips.options). Values set in CLI_JAVA_OPTS
+# by the caller are kept, and take precedence.
+CLI_JAVA_OPTS="-Djava.security.properties==$ES_PATH_CONF/fips_java.security \
+-Dorg.bouncycastle.fips.approved_only=true \
+-Djavax.net.ssl.keyStoreType=BCFKS \
+-Djavax.net.ssl.trustStoreType=BCFKS \
+-Djavax.net.ssl.trustStore=$ES_PATH_CONF/cacerts.bcfks \
+-Djavax.net.ssl.trustStorePassword=passwordcacert \
+-Dorg.bouncycastle.jsse.client.assumeOriginalHostName=true \
+${CLI_JAVA_OPTS}"

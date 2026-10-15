@@ -187,7 +187,8 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         }
 
         if (distribution.getType() == ElasticsearchDistributionTypes.ARCHIVE) {
-            return projectName + platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
+            String fips = distribution.getFips() ? "-fips" : "";
+            return projectName + platform.toString() + archString + fips + (platform == ElasticsearchDistribution.Platform.WINDOWS
                 ? "-zip"
                 : "-tar");
         }

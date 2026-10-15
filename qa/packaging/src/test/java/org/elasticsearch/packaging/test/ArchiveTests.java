@@ -59,6 +59,10 @@ public class ArchiveTests extends PackagingTestCase {
         installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
         setFileSuperuser("test_superuser", "test_superuser_password");
+        // The FIPS tar replaces java.security entirely and writes BCFKS keystores, so the PKCS#12 MAC tweak does not apply.
+        if (distribution.isFips()) {
+            return;
+        }
         // See https://bugs.openjdk.java.net/browse/JDK-8267701. In short, when generating PKCS#12 keystores in JDK 12 and later
         // the MAC algorithm used for integrity protection is incompatible with any previous JDK version. This affects us as we generate
         // PKCS12 keystores on startup ( with the bundled JDK ) but we also need to run certain tests with a JDK other than the bundled
@@ -222,16 +226,12 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
         Path tempDir = createTempDir("bc-backup");
-        Files.move(
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.86.jar"),
-            tempDir.resolve("bcprov-jdk18on-1.86.jar")
-        );
+        // the certificate generation code (and its shaded Bouncy Castle) lives in the security-cli-bc jar
+        final String bcJar = "elasticsearch-security-cli-bc-" + distribution.version + ".jar";
+        Files.move(installation.lib.resolve("tools").resolve("security-cli").resolve(bcJar), tempDir.resolve(bcJar));
         Shell.Result result = runElasticsearchStartCommand(null, false, false);
-        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/bouncycastle/", null);
-        Files.move(
-            tempDir.resolve("bcprov-jdk18on-1.86.jar"),
-            installation.lib.resolve("tools").resolve("security-cli").resolve("bcprov-jdk18on-1.86.jar")
-        );
+        assertElasticsearchFailure(result, "java.lang.NoClassDefFoundError: org/elasticsearch/xpack/security/cli/bc/", null);
+        Files.move(tempDir.resolve(bcJar), installation.lib.resolve("tools").resolve("security-cli").resolve(bcJar));
         Platforms.onWindows(() -> sh.chown(installation.config));
         FileUtils.rm(tempDir);
     }

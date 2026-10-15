@@ -36,6 +36,7 @@ import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.hasSize;
@@ -230,6 +231,17 @@ public class Archives {
 
         Stream.of("users", "users_roles", "roles.yml", "role_mapping.yml", "log4j2.properties")
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
+
+        if (distribution.isFips()) {
+            Stream.of("fips_java.security", "cacerts.bcfks")
+                .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
+            assertThat(es.config("jvm.options.d").resolve("fips.options"), file(File, owner, owner, p660));
+            assertThat(slurp(es.config("elasticsearch.yml")), containsString("xpack.security.fips_mode.enabled: true"));
+            Stream.of("bc-fips-*.jar", "bctls-fips-*.jar", "bcutil-fips-*.jar").forEach(glob -> {
+                List<Path> jars = lsGlob(es.lib, glob);
+                assertThat(glob, jars, hasSize(1));
+            });
+        }
     }
 
     /**

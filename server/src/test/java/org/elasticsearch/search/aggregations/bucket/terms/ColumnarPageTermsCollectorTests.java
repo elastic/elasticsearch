@@ -342,6 +342,55 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         assertThat(enough.pages, greaterThan(0));
     }
 
+    /**
+     * A column where documents can hold several values, and whose pages repeat too little for a dictionary, is read as
+     * pages only until it has shown that three times in a row. The rest of the leaf is read the ordinary way.
+     */
+    public void testAMultiValuedColumnThatDoesNotRepeatIsGivenUp() throws IOException {
+        final int pages = ColumnarPageTermsCollector.FLAT_PAGES_BEFORE_GIVING_UP + 3;
+        final String[][] docs = distinctValues(pages * ColumnarPageTermsCollector.PAGE_DOCS, true);
+        final Outcome outcome = collectRange(docs, 0, docs.length);
+        assertThat(outcome.counts, equalTo(expected(docs, null)));
+        assertThat("the pages read before giving up", outcome.pages, equalTo(ColumnarPageTermsCollector.FLAT_PAGES_BEFORE_GIVING_UP));
+        assertThat(
+            "the rest went the ordinary way",
+            outcome.perDocumentDocs,
+            equalTo(docs.length - ColumnarPageTermsCollector.FLAT_PAGES_BEFORE_GIVING_UP * ColumnarPageTermsCollector.PAGE_DOCS)
+        );
+    }
+
+    /** With one value a document a flat page is as fast as the ordinary way or faster, so it is never given up. */
+    public void testASingleValuedColumnThatDoesNotRepeatIsNotGivenUp() throws IOException {
+        final int pages = ColumnarPageTermsCollector.FLAT_PAGES_BEFORE_GIVING_UP + 3;
+        final String[][] docs = distinctValues(pages * ColumnarPageTermsCollector.PAGE_DOCS, false);
+        final Outcome outcome = collectRange(docs, 0, docs.length);
+        assertThat(outcome.counts, equalTo(expected(docs, null)));
+        assertThat(outcome.pages, equalTo(pages));
+        assertThat(outcome.perDocumentDocs, equalTo(0));
+    }
+
+    /** A column that repeats is never given up, however many pages it has. */
+    public void testAMultiValuedColumnThatRepeatsIsNotGivenUp() throws IOException {
+        final int pages = ColumnarPageTermsCollector.FLAT_PAGES_BEFORE_GIVING_UP + 3;
+        final String[][] docs = new String[pages * ColumnarPageTermsCollector.PAGE_DOCS][];
+        for (int i = 0; i < docs.length; i++) {
+            docs[i] = i % 10 == 0 ? new String[] { "term-0", "term-1" } : new String[] { "term-" + randomIntBetween(0, 3) };
+        }
+        final Outcome outcome = collectRange(docs, 0, docs.length);
+        assertThat(outcome.counts, equalTo(expected(docs, null)));
+        assertThat(outcome.pages, equalTo(pages));
+        assertThat(outcome.perDocumentDocs, equalTo(0));
+    }
+
+    /** Values that are all different, with one document in ten holding two when {@code multiValued}. */
+    private static String[][] distinctValues(int numDocs, boolean multiValued) {
+        final String[][] docs = new String[numDocs][];
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = multiValued && i % 10 == 0 ? new String[] { "a-" + i, "b-" + i } : new String[] { "a-" + i };
+        }
+        return docs;
+    }
+
     private record Outcome(Map<String, Long> counts, int perDocumentDocs, int pages) {}
 
     /** Collects {@code [from, to)} as one range, and reports how many documents went the ordinary way and how many pages. */

@@ -72,6 +72,15 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
     static final int MIN_PAGE_DOCS_SINGLE_VALUED = 128;
 
     /**
+     * Consecutive pages that repeat too little for a dictionary, after which a column where documents can hold several
+     * values is read the ordinary way for the rest of the leaf. Such a page is handed over as values, and for this kind
+     * of column that was 10% to 15% slower than the ordinary way in the benchmark, from about five thousand distinct
+     * values. For a column with one value a document it was level or faster, so it is never given up. A leaf pays for
+     * these pages once and not for the rest of it.
+     */
+    static final int FLAT_PAGES_BEFORE_GIVING_UP = 3;
+
+    /**
      * As {@link #MIN_PAGE_DOCS_SINGLE_VALUED}, for a column where documents can hold several values or none, which a
      * page reads more slowly. In the benchmark a window of about two hundred matches was 16% to 23% slower and one of
      * about four hundred was level, so a window has to be larger than that.
@@ -84,6 +93,10 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
     private final LeafBucketCollector perDocument;
     /** A batch with fewer documents than this is counted the ordinary way. */
     private final int minPageDocs;
+    /** Whether documents can hold several values or none, which decides if flat pages are given up. */
+    private final boolean multiValued;
+    /** Pages read since one last repeated enough for a dictionary. */
+    private int flatPageStreak;
     private final ValueDeduplicator duplicates = new ValueDeduplicator(SortableBinaryDocValues.ValueOrder.ARRAY);
     private final PageSink sink = new PageSink();
     /** How the pages read so far arrived, for a test to see which shape the column chose. */
@@ -100,6 +113,7 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
         this.target = target;
         this.perDocument = perDocument;
         this.minPageDocs = minPageDocs;
+        this.multiValued = reader.hasValueAddresses();
     }
 
     @Override
@@ -118,9 +132,11 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
         assert docs.length > 0 : "the scratch array sets the size of a page";
         // A count of zero says the stream has nothing left. Its documents arrive in order, which the column needs.
         for (int count = stream.intoArray(docs); count > 0; count = stream.intoArray(docs)) {
-            // Too few documents to earn back the cost of a page, or a page the column declines: read them one at a
-            // time as they always were.
-            if (count < minPageDocs || reader.readBlock(docs, 0, count, sink, target.budget()) == false) {
+            // Too few documents to earn back the cost of a page, a column that has shown it repeats too little, or a page
+            // the column declines: read them one at a time as they always were.
+            if (count < minPageDocs
+                || (multiValued && flatPageStreak >= FLAT_PAGES_BEFORE_GIVING_UP)
+                || reader.readBlock(docs, 0, count, sink, target.budget()) == false) {
                 for (int i = 0; i < count; i++) {
                     perDocument.collect(docs[i], 0);
                 }
@@ -137,6 +153,7 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
         @Override
         public void appendOrdinals(int[] ordinals, int valueCount, int[] valueCounts, int docCount, BytesRef[] dictionary, int size) {
             ordinalPages++;
+            flatPageStreak = 0;
             if (slotCounts.length < size) {
                 final int capacity = ArrayUtil.oversize(size, Integer.BYTES);
                 slotCounts = new int[capacity];
@@ -172,6 +189,7 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
         @Override
         public Values values(int valueCount, int[] valueCounts, int docCount) {
             flatPages++;
+            flatPageStreak++;
             return flat.reset(valueCounts);
         }
     }

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.QueryFailureTelemetry;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -324,7 +325,8 @@ public class PlanExecutor {
                 planTelemetry,
                 executionInfo,
                 begin,
-                client
+                client,
+                externalSourceResolver
             )
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
@@ -396,7 +398,8 @@ public class PlanExecutor {
         PlanTelemetry planTelemetry,
         EsqlExecutionInfo executionInfo,
         long begin,
-        String client
+        String client,
+        ExternalSourceResolver externalSourceResolver
     ) {
         // The general ES|QL counters (metrics.total / metrics.failed, keyed by QueryMetric) deliberately stay on "rest": changing
         // them would alter dashboards outside the datasource telemetry. The external-source metrics split by client from the
@@ -412,6 +415,12 @@ public class PlanExecutor {
             ex
         );
         queryLog.onQueryFailure(request.queryDescription(), settings, ex, System.nanoTime() - begin);
+        // Matched by condition, not class: a failure from a remote data node arrives as a wrapper that keeps only the condition.
+        if (cacheService != null && ExternalException.hasCondition(ex, ExternalException.Condition.OBJECT_CHANGED)) {
+            // The object was rewritten after the listing this query used was cached. Drop the entries this query read, so the
+            // client's next attempt lists them again; other queries' entries stay.
+            externalSourceResolver.invalidateUsedCacheEntries();
+        }
         listener.onFailure(ex);
     }
 

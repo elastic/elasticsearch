@@ -32,6 +32,8 @@ $$$esql-federation-enabled$$$
     - **Default:** `false`
     - **Valid values:** `true`, `false`
 
+    {applies_to}`stack: experimental 9.6+` {{esql}} Data Federation isn't available on Windows. On a Windows node, this setting has no effect, and {{es}} logs a message at startup.
+
 ## Object limits
 
 These settings cap the number of data sources and datasets a cluster can hold.

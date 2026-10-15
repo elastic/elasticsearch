@@ -70,10 +70,10 @@ public class ParquetSameLengthOverwriteIT extends ESRestTestCase {
     private static final String KEY_LONGER = WAREHOUSE + "/same_length/longer.parquet";
     private static final String DATASET_LONGER = "same_length_longer";
 
-    private static final String V1 = "/same_length_overwrite_v1.parquet";
-    private static final String V2 = "/same_length_overwrite_v2.parquet";
-    private static final String LARGE_V1 = "/same_length_overwrite_large_v1.parquet";
-    private static final String LARGE_V2 = "/same_length_overwrite_large_v2.parquet";
+    private static final String V1 = "/same_length_overwrite/v1.parquet";
+    private static final String V2 = "/same_length_overwrite/v2.parquet";
+    private static final String LARGE_V1 = "/same_length_overwrite/large_v1.parquet";
+    private static final String LARGE_V2 = "/same_length_overwrite/large_v2.parquet";
     private static final String LONGER_V2 = "/same_length_overwrite_longer_v2.parquet";
 
     static DataSourcesS3HttpFixture fixture = new DataSourcesS3HttpFixture();

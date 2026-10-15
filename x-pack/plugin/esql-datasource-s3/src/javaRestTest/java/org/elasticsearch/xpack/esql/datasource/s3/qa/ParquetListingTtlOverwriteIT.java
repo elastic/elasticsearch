@@ -58,8 +58,8 @@ public class ParquetListingTtlOverwriteIT extends ESRestTestCase {
     private static final String ENCRYPTION_PASSWORD_ID = "test";
     private static final String DATA_SOURCE = "same_length_ds";
 
-    private static final String LARGE_V1 = "/same_length_overwrite_large_v1.parquet";
-    private static final String LARGE_V2 = "/same_length_overwrite_large_v2.parquet";
+    private static final String LARGE_V1 = "/same_length_overwrite/large_v1.parquet";
+    private static final String LARGE_V2 = "/same_length_overwrite/large_v2.parquet";
 
     // The listing-TTL cases overwrite while the listing of the first query is cached. Each has its own key and dataset: the
     // one-hour cache outlives a test, so a shared dataset would answer the next test from the previous one's cache.
@@ -182,7 +182,7 @@ public class ParquetListingTtlOverwriteIT extends ESRestTestCase {
     }
 
     private static byte[] resource(String name) throws IOException {
-        try (InputStream in = ParquetSameLengthOverwriteIT.class.getResourceAsStream(name)) {
+        try (InputStream in = ParquetListingTtlOverwriteIT.class.getResourceAsStream(name)) {
             assertNotNull("missing test resource " + name, in);
             return in.readAllBytes();
         }

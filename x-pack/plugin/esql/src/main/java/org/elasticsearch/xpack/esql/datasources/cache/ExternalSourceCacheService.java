@@ -1894,17 +1894,19 @@ public class ExternalSourceCacheService implements Closeable {
     /**
      * Drops the listings of the datasets a query read, so the next query lists them again. A query whose read failed with the
      * object-changed condition names the listings it used, and every cached listing of those datasets goes too: a dataset is cached
-     * under one key per filter-hint set, and split discovery builds keys that the query did not record. Other datasets keep their
-     * listings.
+     * under one key per filter-hint set, and split discovery builds keys that the query did not record. A dataset is matched by
+     * its scheme, bucket, prefix and storage identity, so another store with the same bucket and prefix keeps its listings, as
+     * do other datasets. Entries that differ only in their credentials or dataset definition read the same objects, so they are
+     * dropped too.
      */
     public void invalidateListings(Collection<ListingCacheKey> used) {
         Set<List<String>> datasets = new HashSet<>();
         for (ListingCacheKey key : used) {
-            datasets.add(List.of(key.scheme(), key.bucketOrContainer(), key.prefixAndGlob()));
+            datasets.add(List.of(key.scheme(), key.bucketOrContainer(), key.prefixAndGlob(), key.storageIdentity()));
         }
         List<ListingCacheKey> matches = new ArrayList<>();
         for (ListingCacheKey key : listingStore.cache().keys()) {
-            if (datasets.contains(List.of(key.scheme(), key.bucketOrContainer(), key.prefixAndGlob()))) {
+            if (datasets.contains(List.of(key.scheme(), key.bucketOrContainer(), key.prefixAndGlob(), key.storageIdentity()))) {
                 matches.add(key);
             }
         }

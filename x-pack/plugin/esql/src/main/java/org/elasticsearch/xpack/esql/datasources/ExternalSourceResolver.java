@@ -251,6 +251,11 @@ public class ExternalSourceResolver {
     private final DatasetListingService listingService;
     /** The schema, file-metadata and dataset-aggregate caches. Listing goes through {@link #listingService}. */
     private final ExternalSourceCacheService cacheService;
+    /**
+     * Set while the first resolution pass runs: an object-changed failure then is retried by {@link #resolve}, so it is logged at
+     * DEBUG and not counted as a discovery failure. The second pass runs with it clear, so a failure that reaches the caller is.
+     */
+    private volatile boolean objectChangeRetryAhead;
     /** The listings and file-metadata entries this query read from the caches, so a failure can drop exactly those. */
     private final Set<ListingCacheKey> usedListings = ConcurrentHashMap.newKeySet();
     private final Set<FileMetadataCacheKey> usedFileMetadata = ConcurrentHashMap.newKeySet();
@@ -777,6 +782,10 @@ public class ExternalSourceResolver {
      * that happens here, during resolution, nothing has run yet and the query's task is still live, so resolution drops
      * the cache entries it used and runs once more: the second pass lists the object again and reads its new version. A
      * second failure is returned as it is. A rewrite caught later, by a read during execution, is not retried here.
+     * <p>
+     * The first pass's planning-memory charges are held until the query ends, so the second pass runs with roughly twice the
+     * listing and schema-map charge. A glob near the planning limit can then trip the request breaker, a retryable 429, where a
+     * fresh query would not.
      */
     public void resolve(
         List<String> paths,
@@ -788,6 +797,7 @@ public class ExternalSourceResolver {
         @Nullable Map<String, FolderRangePredicate> folderRanges,
         ActionListener<ExternalSourceResolution> listener
     ) {
+        objectChangeRetryAhead = true;
         resolveOnce(
             paths,
             pathConfigs,
@@ -796,7 +806,8 @@ public class ExternalSourceResolver {
             pathsRequiringStats,
             pathsReadingNoRows,
             folderRanges,
-            listener.delegateResponse((l, e) -> {
+            ActionListener.runBefore(listener, () -> objectChangeRetryAhead = false).delegateResponse((l, e) -> {
+                objectChangeRetryAhead = false;
                 if (ExternalException.hasCondition(e, ExternalException.Condition.OBJECT_CHANGED) == false || isCancelled()) {
                     l.onFailure(e);
                     return;
@@ -1123,11 +1134,19 @@ public class ExternalSourceResolver {
      * As a side effect, a failure that is not a cancellation is recorded as a discovery failure in the external-source
      * telemetry, once per failed discovery, classified from the exception returned here.
      */
+    // Visible for testing: marks the first resolution pass as {@link #resolve} does.
+    void objectChangeRetryAhead(boolean retryAhead) {
+        this.objectChangeRetryAhead = retryAhead;
+    }
+
     // Package-private so the client-status recovery gate below can be tested directly.
     RuntimeException mapResolveFailure(String path, Exception e) {
         RuntimeException mapped = doMapResolveFailure(path, e);
-        // A cancellation is the query's outcome, not a discovery failure, and is not counted.
-        if (ExceptionsHelper.unwrap(mapped, TaskCancelledException.class) == null) {
+        // A cancellation is the query's outcome, not a discovery failure, and is not counted. Nor is an object change the retry
+        // in resolve() will handle: only the failure that reaches the caller counts.
+        boolean retriedObjectChange = objectChangeRetryAhead
+            && ExternalException.hasCondition(mapped, ExternalException.Condition.OBJECT_CHANGED);
+        if (ExceptionsHelper.unwrap(mapped, TaskCancelledException.class) == null && retriedObjectChange == false) {
             recordDiscoveryFailure(path, mapped);
         }
         return mapped;
@@ -1159,7 +1178,11 @@ public class ExternalSourceResolver {
             ExternalObjectChangedException.class
         );
         if (changed != null) {
-            LOGGER.warn("External source [{}] changed during resolution: {}", path, changed.getMessage());
+            if (objectChangeRetryAhead) {
+                LOGGER.debug("External source [{}] changed during resolution, resolving again: {}", path, changed.getMessage());
+            } else {
+                LOGGER.warn("External source [{}] changed during resolution: {}", path, changed.getMessage());
+            }
             return changed.withoutCause();
         }
         // Expired session tokens are a typed 400 so prefetch/listing fail-fast can instanceof them.

@@ -51,13 +51,13 @@ public class GcsSameLengthOverwriteIT extends ESRestTestCase {
     private static final String DATA_SOURCE = "same_length_gcs_ds";
     private static final String DATASET = "same_length_gcs_stats";
     private static final String KEY = WAREHOUSE + "/same_length/gcs/stats.parquet";
-    private static final String V1 = "/same_length_overwrite_large_v1.parquet";
-    private static final String V2 = "/same_length_overwrite_large_v2.parquet";
+    private static final String V1 = "/same_length_overwrite/large_v1.parquet";
+    private static final String V2 = "/same_length_overwrite/large_v2.parquet";
     // The 100-row fixtures are under the 64 KiB footer prefetch, so their rows are served from the footer cache.
     private static final String KEY_ROWS = WAREHOUSE + "/same_length/gcs/rows/part-1.parquet";
     private static final String DATASET_ROWS = "same_length_gcs_rows";
-    private static final String SMALL_V1 = "/same_length_overwrite_v1.parquet";
-    private static final String SMALL_V2 = "/same_length_overwrite_v2.parquet";
+    private static final String SMALL_V1 = "/same_length_overwrite/v1.parquet";
+    private static final String SMALL_V2 = "/same_length_overwrite/v2.parquet";
 
     static final DataSourcesGcsHttpFixture fixture = new DataSourcesGcsHttpFixture();
     // Built in @BeforeClass: the fixture draws its service-account key from the randomized test context.

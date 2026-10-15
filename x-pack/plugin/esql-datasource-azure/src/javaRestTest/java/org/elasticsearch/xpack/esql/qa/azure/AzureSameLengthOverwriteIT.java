@@ -51,13 +51,17 @@ public class AzureSameLengthOverwriteIT extends ESRestTestCase {
     private static final String DATA_SOURCE = "same_length_azure_ds";
     private static final String DATASET = "same_length_azure_stats";
     private static final String KEY = WAREHOUSE + "/same_length/azure/stats.parquet";
-    private static final String V1 = "/same_length_overwrite_large_v1.parquet";
-    private static final String V2 = "/same_length_overwrite_large_v2.parquet";
+    private static final String V1 = "/same_length_overwrite/large_v1.parquet";
+    private static final String V2 = "/same_length_overwrite/large_v2.parquet";
     // The 100-row fixtures are under the 64 KiB footer prefetch, so their rows are served from the footer cache.
     private static final String KEY_ROWS = WAREHOUSE + "/same_length/azure/rows/part-1.parquet";
     private static final String DATASET_ROWS = "same_length_azure_rows";
-    private static final String SMALL_V1 = "/same_length_overwrite_v1.parquet";
-    private static final String SMALL_V2 = "/same_length_overwrite_v2.parquet";
+    private static final String SMALL_V1 = "/same_length_overwrite/v1.parquet";
+    private static final String SMALL_V2 = "/same_length_overwrite/v2.parquet";
+    // The glob case takes its versions from List Blobs, which reports ETags unquoted, while downloads quote them.
+    private static final String KEY_GLOB = WAREHOUSE + "/same_length/azure/glob/part-1.parquet";
+    private static final String GLOB = WAREHOUSE + "/same_length/azure/glob/*.parquet";
+    private static final String DATASET_GLOB = "same_length_azure_glob";
 
     static final DataSourcesAzureHttpFixture fixture = new DataSourcesAzureHttpFixture();
     private static final AzureBackendFixture backend = new AzureBackendFixture(fixture);
@@ -129,6 +133,25 @@ public class AzureSameLengthOverwriteIT extends ESRestTestCase {
 
         safeSleep(1_100);
         backend.uploadBlob(KEY_ROWS, resource(SMALL_V2));
+        assertEquals(
+            "the blob was overwritten with a file of the same length; the rows must come from the new file",
+            List.of(List.of(1_000_000L)),
+            query(firstRow)
+        );
+    }
+
+    /**
+     * As the rows case, through a glob. The listing supplies each blob's ETag unquoted, and the download reports it quoted, so
+     * the read succeeds only if the two forms are compared as the same version.
+     */
+    public void testGlobRowsAfterSameLengthOverwriteComeFromNewFile() throws Exception {
+        register(DATASET_GLOB, GLOB);
+        backend.uploadBlob(KEY_GLOB, resource(SMALL_V1));
+        String firstRow = "FROM " + DATASET_GLOB + " | SORT v | KEEP v | LIMIT 1";
+        assertEquals(List.of(List.of(0L)), query(firstRow));
+
+        safeSleep(1_100);
+        backend.uploadBlob(KEY_GLOB, resource(SMALL_V2));
         assertEquals(
             "the blob was overwritten with a file of the same length; the rows must come from the new file",
             List.of(List.of(1_000_000L)),

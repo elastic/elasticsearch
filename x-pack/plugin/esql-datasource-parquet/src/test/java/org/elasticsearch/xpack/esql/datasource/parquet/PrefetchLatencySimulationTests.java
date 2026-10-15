@@ -62,9 +62,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-
 /**
  * Tests that the prefetch pipeline reduces the number of synchronous I/O calls by serving
  * row group data from memory. Uses an instrumented {@link CountingStorageObject} to count
@@ -277,10 +274,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
             assertTrue(storage.successfulAsyncReads.await(10, TimeUnit.SECONDS));
             assertTrue(iter.hasNext());
             assertFalse("the re-ticketed GET is a successful probe and must leave probe mode", opi.probingPrefetch());
-            // Depth moves with whether the consumer parked for a ready group, which is a scheduling outcome. The contract is
-            // the bounds: never below the floor, never above the maximum.
-            assertThat(opi.prefetchDepth(), greaterThanOrEqualTo(floor));
-            assertThat(opi.prefetchDepth(), lessThanOrEqualTo(OptimizedParquetColumnIterator.MAX_PREFETCH_DEPTH));
+            assertEquals(floor, opi.prefetchDepth());
             Page second = iter.next();
             second.releaseBlocks();
             assertFalse(iter.hasNext());

@@ -372,6 +372,7 @@ public class AzureHttpHandler implements HttpHandler {
                                    <Name>%s</Name>
                                    <Properties>
                                      <Last-Modified>%s</Last-Modified>
+                                     <Etag>%s</Etag>
                                      <Content-Length>%s</Content-Length>
                                      <BlobType>BlockBlob</BlobType>
                                      %s
@@ -379,6 +380,9 @@ public class AzureHttpHandler implements HttpHandler {
                                 </Blob>""",
                             blobPath,
                             DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.getValue().lastModified().atOffset(ZoneOffset.UTC)),
+                            // List Blobs reports the ETag unquoted, while Get Properties and downloads quote it, as the real
+                            // service does.
+                            blob.getValue().etag().replace("\"", ""),
                             blob.getValue().getContents().length(),
                             tier != null ? "<AccessTier>" + tier + "</AccessTier>" : ""
                         )

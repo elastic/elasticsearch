@@ -88,12 +88,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * Reuse is bounded by the store's write clock, so an entry goes whether or not anything reads it and
-     * reading cannot postpone that.
-     */
-    /**
      * A dataset is cached under one listing key per filter-hint set. A failed query drops every key of the datasets it read,
-     * including a hint-set key the query itself did not record, and it leaves another dataset's listings alone.
+     * including a hint-set key the query itself did not record. It leaves another dataset's listings alone, and those of another
+     * store that happens to use the same bucket and prefix.
      */
     public void testInvalidateDropsEveryHintVariantOfAUsedDataset() throws Exception {
         Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
@@ -102,25 +99,26 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             ListingCacheKey recorded = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "");
             ListingCacheKey hinted = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "", "", Map.of(), "year=2024");
             ListingCacheKey other = ListingCacheKey.build("s3", "other", "/data/*.parquet", "", "", Map.of(), "");
-            for (ListingCacheKey key : List.of(recorded, hinted, other)) {
+            ListingCacheKey otherStore = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", "other-endpoint", "", Map.of(), "");
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
                 service.getOrComputeListing(key, k -> {
                     loads.incrementAndGet();
                     return testCompactFileList();
                 });
             }
-            assertEquals(3, loads.get());
+            assertEquals(4, loads.get());
 
             service.invalidateListings(List.of(recorded));
 
-            for (ListingCacheKey key : List.of(recorded, hinted, other)) {
+            for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
                 service.getOrComputeListing(key, k -> {
                     loads.incrementAndGet();
                     return testCompactFileList();
                 });
             }
             assertEquals(
-                "the recorded and the hinted listing of the used dataset are read again, the other dataset is not",
-                5,
+                "the recorded and the hinted listing of the used dataset are read again, the other dataset and store are not",
+                6,
                 loads.get()
             );
         }
@@ -176,6 +174,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Reuse is bounded by the store's write clock, so an entry goes whether or not anything reads it and
+     * reading cannot postpone that.
+     */
     public void testSchemaIsNotServedPastTheWindow() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(withSchemaTtl("1ms"))) {
             SchemaCacheKey key = SchemaCacheKey.build(

@@ -38,6 +38,19 @@ These settings control how many concurrent requests each node sends to external 
 | `esql.external.max_concurrent_segmenters` {applies_to}`stack: experimental 9.6+`<br>`esql.external.max_concurrent_segmentators` {applies_to}`stack: experimental =9.5` | `0` | Maximum number of file segmentation tasks that run concurrently. `0` derives the value automatically. Range 0–4096. |
 | `esql.external.admission.rescue.enabled` {applies_to}`stack: experimental 9.6+` | true | When a byte-budget FIFO head has waited without a grant, admit it over the cap as a plain hold so the queue can progress. At most one rescued hold is live. Disable to observe a hang for diagnosis. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
 
+## Concurrent dataset queries
+```{applies_to}
+stack: experimental 9.6+
+```
+
+These settings limit how many {{esql}} queries over datasets each node coordinates at once. Every such query lists its dataset and builds planning state for each file before it reads any data, and a dashboard sends one query per panel at the same time, so the number of these queries in flight decides how much heap they need. A query that finds every slot taken waits in a queue, holding no thread and having read nothing from storage. A query that finds the queue full, or waits longer than the timeout, is refused with HTTP 429 and can be retried. Queries over indices are not affected.
+
+| Setting | Default | Description |
+|---|---|---|
+| `esql.external.admission.max_concurrent_queries` | A quarter of heap (or half of `indices.breaker.request.limit` when tighter) divided by 64 MiB, minimum 2 and maximum 64: 4 on a 1 GB heap, 16 on a 4 GB heap | Maximum dataset queries a node runs at once. `0` removes the limit. Range 0–10,000. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+| `esql.external.admission.max_queued_queries` | Four times `esql.external.admission.max_concurrent_queries` | Maximum dataset queries that wait for a slot. `0` refuses a query as soon as every slot is taken. Range 0–10,000. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+| `esql.external.admission.queue_timeout` | 30s | How long a query waits for a slot before it is refused. `0` refuses a query as soon as every slot is taken. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+
 ## Glob and file-discovery limits
 
 These settings limit how many files and objects glob patterns can discover. Not all caps behave the same way when exceeded — some abort the query, while others fall back to a slower discovery path.
@@ -56,7 +69,18 @@ These settings limit how much CPU and read-thread time a single compressed objec
 |---|---|---|
 | `esql.external.max_decompression_ratio` {applies_to}`stack: experimental 9.6+` | 200 | Maximum ratio of decompressed to compressed bytes for gzip and other stream-only codecs. A read fails with a 400 error if the object expands beyond this multiple of its compressed size. `0` disables the check. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
 | `esql.external.max_decompression_ratio.zstd` {applies_to}`stack: experimental 9.6+` | 2000 | Maximum decompression ratio for zstd-compressed objects. Overrides `esql.external.max_decompression_ratio` for zstd, which can legitimately reach higher ratios than gzip. `0` disables the check for zstd. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
-| `esql.external.schema_max_fields` {applies_to}`stack: experimental 9.6+` | 1000 | Default maximum number of fields or columns a file's schema can have. For NDJSON, it counts objects as well as leaf fields. For CSV, TSV, and Parquet, it counts columns. If a file's schema exceeds this limit, the query fails with an HTTP 400 error. The same limit applies to the number of columns a dataset declares with `mappings`, and to the width of the schema merged from all files under `schema_resolution: union_by_name`. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns rather than by the width of the files it reads, since only the declared columns are read. Parquet files wider than 100,000 columns can still be refused, because the planner reads a footer at that limit to check the declared types. With `dynamic: true`, each file's inferred schema is held to the limit as well. A dataset overrides it with its `schema_max_fields` setting. Range 1–100,000. Applied at node startup only. |
+| `esql.external.schema_max_fields` {applies_to}`stack: experimental 9.6+` | 1000 | Default maximum number of fields or columns a file's schema can have. For NDJSON, it counts objects as well as leaf fields. For CSV, TSV, and Parquet, it counts columns. This limit bounds the schema a read resolves, not necessarily each file's width. Under `first_file_wins`, a file reached behind a narrower first file is read through the settled schema, so only the settled schema's width is bounded — a later file wider than the limit is read rather than refused. A CSV or TSV file whose header names more than 100,000 columns is still refused, because the header is split to locate the settled schema's columns and that split is capped at 100,000; a compressed NDJSON, CSV or TSV file can be refused for the same reason when its sample is wider than that. For CSV, TSV, NDJSON, and Parquet under all other strategies, a file's schema is held to the limit directly. ORC does not enforce a per-file cap. The same limit applies to the number of columns a dataset declares with `mappings`, and to the width of the schema merged from all files under `schema_resolution: union_by_name`. With `dynamic: false`, a declared schema is held to the limit by its number of declared columns rather than by the width of the files it reads, since only the declared columns are read. Parquet files wider than 100,000 columns can still be refused, because the planner reads a footer at that limit to check the declared types. With `dynamic: true`, each file's inferred schema is held to the limit as well. A dataset overrides it with its `schema_max_fields` setting. Range 1–100,000. Applied at node startup only. |
+
+## Compressed read-ahead
+
+A gzip or zstd text file (CSV, TSV, or NDJSON) can't be entered in the middle, so each object is decompressed as one sequential stream. Reading it over a single connection limits throughput when the node is far from the bucket, for example across regions. These settings feed the decompressor from several concurrent ranged reads, delivered in order. They apply only when a query scans a compressed object with parallel parsing. A query with a `LIMIT` reads one stream as before.
+
+Each range in flight holds one per-query and one node request permit, plus a buffer of `range_size` charged to the circuit breaker. Each open compressed stream therefore holds up to `ranges` × `range_size` of breaker memory: 32 MiB with the defaults.
+
+| Setting | Default | Description |
+|---|---|---|
+| `esql.external.compressed_read_ahead.ranges` {applies_to}`stack: experimental 9.6+` | 4 | Number of ranged reads kept in flight for each open gzip or zstd text stream. `0` disables read-ahead and reads each object over one connection. Range 0–64. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
+| `esql.external.compressed_read_ahead.range_size` {applies_to}`stack: experimental 9.6+` | 8mb | Size of each ranged read. Range 1mb–64mb. [Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting). |
 
 ## Authentication
 

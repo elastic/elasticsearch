@@ -86,7 +86,9 @@ public abstract class AbstractStringTermsSlicingBenchmark {
         final BytesRef[] values = data().generate(numDocs, new Random(42));
 
         // NOTE: the terms are spread across the distinct values rather than taken from the front, so a set of
-        // them reaches the whole dictionary and no bisection is favoured by where its target sits.
+        // them reaches the whole dictionary and no bisection is favoured by where its target sits. Each sits in
+        // the middle of its share, so a single term is the median: the smallest term would be excluded from
+        // most intervals of any column by its bounds alone, clustered or not.
         final NavigableSet<BytesRef> distinct = new TreeSet<>();
         for (BytesRef value : values) {
             distinct.add(BytesRef.deepCopyOf(value));
@@ -97,7 +99,7 @@ public abstract class AbstractStringTermsSlicingBenchmark {
         final BytesRef[] ordered = distinct.toArray(new BytesRef[0]);
         terms = new TreeSet<>();
         for (int i = 0; i < queryTerms(); i++) {
-            final BytesRef held = ordered[(int) ((long) i * ordered.length / queryTerms())];
+            final BytesRef held = ordered[(int) ((2L * i + 1) * ordered.length / (2L * queryTerms()))];
             // NOTE: a trailing null byte names a value just past one the column holds, which no value can
             // equal, so an absent term still resolves against the same part of the dictionary.
             terms.add(probe() == Probe.PRESENT ? held : withTrailingZero(held));

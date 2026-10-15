@@ -11,6 +11,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.hamcrest.Matcher;
@@ -25,6 +26,8 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -34,6 +37,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.tree.SourceTests.randomSource;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class NodeTests extends ESTestCase {
@@ -270,6 +274,64 @@ public class NodeTests extends ESTestCase {
     public void testTransformDownAsyncNoChange() throws InterruptedException {
         NoChildren node = new NoChildren(randomSource(), "unchanged");
         assertAsyncTransform(node, (n, listener) -> listener.onResponse(n), result -> assertSame(node, result));
+    }
+
+    public void testTransformDownAsyncStackOverflowIsAFailure() throws InterruptedException {
+        NoChildren node = new NoChildren(randomSource(), "overflows");
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        LatchedActionListener<Dummy> listener = new LatchedActionListener<>(
+            ActionListener.wrap(result -> fail("expected a failure"), failure::set),
+            latch
+        );
+
+        node.transformDown((n, l) -> { throw new StackOverflowError(); }, Runnable::run, listener);
+
+        assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));
+        assertThat(failure.get(), instanceOf(IllegalStateException.class));
+        assertThat(failure.get().getCause(), instanceOf(StackOverflowError.class));
+    }
+
+    /**
+     * The overflow happens on the thread of an executor, after the traversal has moved to it: an error thrown there ends the chain of
+     * listeners without completing it, so the caller waits forever unless the error is given to the listener.
+     */
+    public void testTransformDownAsyncStackOverflowOnExecutorThreadIsAFailure() throws InterruptedException {
+        Dummy node = new NoChildren(randomSource(), "leaf");
+        for (int i = 0; i < 100; i++) {
+            node = new ChildrenAreAProperty(randomSource(), List.of(node), "node" + i);
+        }
+        AtomicInteger visits = new AtomicInteger();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        LatchedActionListener<Dummy> listener = new LatchedActionListener<>(
+            ActionListener.wrap(result -> fail("expected a failure"), failure::set),
+            latch
+        );
+
+        try (TestThreadPool threadPool = new TestThreadPool(getTestName())) {
+            node.transformDown((n, l) -> {
+                if (visits.incrementAndGet() == 60) {
+                    throw new StackOverflowError();
+                }
+                l.onResponse(n);
+            }, threadPool.generic(), listener);
+
+            assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));
+        }
+        assertThat(failure.get(), instanceOf(IllegalStateException.class));
+        assertThat(failure.get().getCause(), instanceOf(StackOverflowError.class));
+    }
+
+    /**
+     * The errors that stop the JVM are not given to the listener: the handler of fatal errors of the executor needs to see them.
+     */
+    public void testTransformDownAsyncFatalErrorIsThrownAgain() {
+        NoChildren node = new NoChildren(randomSource(), "fatal");
+        expectThrows(
+            InternalError.class,
+            () -> node.transformDown((n, l) -> { throw new InternalError("fatal"); }, Runnable::run, ActionListener.noop())
+        );
     }
 
     private void assertAsyncTransform(Dummy node, BiConsumer<? super Dummy, ActionListener<Dummy>> rule, Consumer<Dummy> assertions)

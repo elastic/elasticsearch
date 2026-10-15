@@ -114,7 +114,7 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *  {@code ViewResolver} and {@code InSubqueryResolver} to do the view and IN subquery resolution respectively.
  */
 public class ViewResolver {
-    public static final int MAX_EXPANDED_SIZE = 20_000;
+    public static final int MAX_EXPANDED_SIZE = 50_000;
 
     protected Logger log = LogManager.getLogger(getClass());
     private final Executor executor;
@@ -237,6 +237,8 @@ public class ViewResolver {
         // Counts the nodes contributed by expanding views into the plan, so expansion stops before we can hold the tree in memory
         // This only ever grows inside resolve()
         AtomicInteger numOfPlanNodes = new AtomicInteger(0);
+        // Counts the plan nodes visited by all the nested traversals of this resolution, so they bounce to the executor together
+        AtomicInteger visitedNodes = new AtomicInteger(0);
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
         if (noViews && InSubqueryResolver.hasInSubquery(plan) == false) {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries, false));
@@ -257,6 +259,7 @@ public class ViewResolver {
             viewQueries,
             hasInSubquery,
             numOfPlanNodes,
+            visitedNodes,
             0,
             0,
             preserveViewBoundaries,
@@ -275,6 +278,7 @@ public class ViewResolver {
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
         AtomicInteger numOfPlanNodes,
+        AtomicInteger visitedNodes,
         int depth,
         int pipesAbove,
         boolean preserveViewBoundaries,
@@ -315,6 +319,7 @@ public class ViewResolver {
                     viewQueries,
                     hasInSubquery,
                     numOfPlanNodes,
+                    visitedNodes,
                     depth,
                     above,
                     preserveViewBoundaries,
@@ -342,6 +347,7 @@ public class ViewResolver {
                             viewQueries,
                             hasInSubquery,
                             numOfPlanNodes,
+                            visitedNodes,
                             depth,
                             above,
                             preserveViewBoundaries,
@@ -370,6 +376,7 @@ public class ViewResolver {
                             viewQueries,
                             hasInSubquery,
                             numOfPlanNodes,
+                            visitedNodes,
                             depth,
                             above,
                             preserveViewBoundaries,
@@ -398,6 +405,7 @@ public class ViewResolver {
                             viewQueries,
                             hasInSubquery,
                             numOfPlanNodes,
+                            visitedNodes,
                             depth,
                             above,
                             preserveViewBoundaries,
@@ -417,6 +425,7 @@ public class ViewResolver {
                     viewQueries,
                     hasInSubquery,
                     numOfPlanNodes,
+                    visitedNodes,
                     depth,
                     above,
                     preserveViewBoundaries,
@@ -435,6 +444,7 @@ public class ViewResolver {
                     viewQueries,
                     hasInSubquery,
                     numOfPlanNodes,
+                    visitedNodes,
                     depth,
                     above,
                     preserveViewBoundaries,
@@ -448,7 +458,7 @@ public class ViewResolver {
                 );
                 default -> planListener.onResponse(p);
             }
-        }, executor, listener);
+        }, executor, visitedNodes, listener);
     }
 
     private void replaceViewsMergePlan(
@@ -460,6 +470,7 @@ public class ViewResolver {
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
         AtomicInteger numOfPlanNodes,
+        AtomicInteger visitedNodes,
         int depth,
         int pipesAbove,
         boolean preserveViewBoundaries,
@@ -480,6 +491,7 @@ public class ViewResolver {
                     viewQueries,
                     hasInSubquery,
                     numOfPlanNodes,
+                    visitedNodes,
                     depth + 1,
                     pipesAbove + (isCounted(mergePlan) ? 1 : 0),
                     preserveViewBoundaries,
@@ -515,6 +527,7 @@ public class ViewResolver {
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
         AtomicInteger numOfPlanNodes,
+        AtomicInteger visitedNodes,
         int depth,
         int pipesAbove,
         boolean preserveViewBoundaries,
@@ -532,6 +545,7 @@ public class ViewResolver {
                 viewQueries,
                 hasInSubquery,
                 numOfPlanNodes,
+                visitedNodes,
                 depth + 1,
                 pipesAbove + 1,
                 preserveViewBoundaries,
@@ -553,6 +567,7 @@ public class ViewResolver {
                 viewQueries,
                 hasInSubquery,
                 numOfPlanNodes,
+                visitedNodes,
                 depth + 1,
                 pipesAbove + 1,
                 preserveViewBoundaries,
@@ -580,6 +595,7 @@ public class ViewResolver {
         Map<String, String> viewQueries,
         Holder<Boolean> hasInSubquery,
         AtomicInteger numOfPlanNodes,
+        AtomicInteger visitedNodes,
         int depth,
         int pipesAbove,
         boolean preserveViewBoundaries,
@@ -717,6 +733,7 @@ public class ViewResolver {
                             MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields()),
                             pipesAbove,
                             numOfPlanNodes,
+                            visitedNodes,
                             branchSeenViews
                         ),
                         projectRouting,
@@ -726,6 +743,7 @@ public class ViewResolver {
                         viewQueries,
                         hasInSubquery,
                         numOfPlanNodes,
+                        visitedNodes,
                         depth + 1,
                         pipesAbove,
                         // Resolving a view's *body*: never preserve boundaries in here. The request filter applies to
@@ -1229,6 +1247,7 @@ public class ViewResolver {
         boolean keepViewIdentity,
         int pipesAbove,
         AtomicInteger numOfPlanNodes,
+        AtomicInteger visitedNodes,
         LinkedHashSet<String> viewPath
     ) {
         log.debug("Resolving view '{}'", view.name());

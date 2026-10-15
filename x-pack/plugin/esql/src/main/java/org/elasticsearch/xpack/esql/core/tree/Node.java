@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -297,11 +298,11 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     /**
-     * Number of descent levels between executor bounces in the async {@link #transformDown}.
+     * Number of nodes visited between executor bounces in the async {@link #transformDown}.
      * Small enough that each stretch of recursion stays well within the default {@code -Xss1m} thread stack,
-     * large enough that ordinary (shallow) plans never bounce.
+     * large enough that ordinary (small) plans never bounce.
      */
-    private static final int ASYNC_TRANSFORM_STACK_DEPTH_LIMIT = 100;
+    private static final int ASYNC_TRANSFORM_STEPS_PER_STACK = 25;
 
     /**
      * Asynchronous variant of {@link #transformDown(Function)} that allows the transformation rule to perform
@@ -311,26 +312,68 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      * This method is intended for cases where async I/O is needed during transformation, not for parallel
      * processing.
      * <p>
-     * The provided executor is used to bounce the recursion every {@link #ASYNC_TRANSFORM_STACK_DEPTH_LIMIT}
-     * levels to avoid stack overflow.
+     * The provided executor is used to bounce the recursion every {@link #ASYNC_TRANSFORM_STEPS_PER_STACK}
+     * visited nodes to avoid stack overflow.
      */
     public void transformDown(BiConsumer<? super T, ActionListener<T>> rule, Executor executor, ActionListener<T> listener) {
-        transformDown(rule, executor, 0, listener);
+        transformDown(rule, executor, new AtomicInteger(), listener);
+    }
+
+    /**
+     * Same as {@link #transformDown(BiConsumer, Executor, ActionListener)}, with the count of visited nodes supplied by the caller.
+     * A rule that starts another traversal from inside itself must pass the same {@code visited} to it: the listeners complete on the
+     * stack of the caller, so nested traversals share one stack, and a count that starts from zero in each of them never gets to the
+     * point where the recursion bounces.
+     */
+    public void transformDown(
+        BiConsumer<? super T, ActionListener<T>> rule,
+        Executor executor,
+        AtomicInteger visited,
+        ActionListener<T> listener
+    ) {
+        if (visited.incrementAndGet() % ASYNC_TRANSFORM_STEPS_PER_STACK == 0) {
+            ActionListener<T> bounced = new ThreadedActionListener<>(executor, listener);
+            executor.execute(ActionRunnable.wrap(bounced, l -> transformDownNode(rule, executor, visited, l)));
+        } else {
+            transformDownNode(rule, executor, visited, listener);
+        }
     }
 
     @SuppressWarnings("unchecked")
-    void transformDown(BiConsumer<? super T, ActionListener<T>> rule, Executor executor, int depth, ActionListener<T> listener) {
-        rule.accept((T) this, listener.delegateFailureAndWrap((originalListener, root) -> {
-            Node<T> node = this.equals(root) ? this : root;
-            node.transformChildren((child, childListener) -> {
-                if (depth > 0 && depth % ASYNC_TRANSFORM_STACK_DEPTH_LIMIT == 0) {
-                    ActionListener<T> bounced = new ThreadedActionListener<>(executor, childListener);
-                    executor.execute(ActionRunnable.wrap(bounced, l -> child.transformDown(rule, executor, depth + 1, l)));
-                } else {
-                    child.transformDown(rule, executor, depth + 1, childListener);
-                }
-            }, originalListener);
-        }));
+    private void transformDownNode(
+        BiConsumer<? super T, ActionListener<T>> rule,
+        Executor executor,
+        AtomicInteger visited,
+        ActionListener<T> listener
+    ) {
+        try {
+            rule.accept((T) this, listener.delegateFailureAndWrap((originalListener, root) -> {
+                Node<T> node = this.equals(root) ? this : root;
+                node.transformChildren(
+                    (child, childListener) -> child.transformDown(rule, executor, visited, childListener),
+                    originalListener
+                );
+            }));
+        } catch (Throwable t) {
+            failOnThrowable(listener, t);
+        }
+    }
+
+    /**
+     * Passes what a rule threw to the listener, so that the caller gets a failure and does not wait for a response that never comes:
+     * an {@link Error} thrown on the thread of an executor does not reach the listener by itself, and the listeners complete on the
+     * stack of the code that completes them, so a {@link StackOverflowError} there ends the whole chain. The errors that stop the JVM
+     * (out of memory, for example) are thrown again for the handler of fatal errors of the executor. A stack overflow is not one of them:
+     * the stack is empty again once the error has been thrown, and the failure is the right answer for a plan that is too deep.
+     */
+    private static void failOnThrowable(ActionListener<?> listener, Throwable t) {
+        if (t instanceof Exception e) {
+            listener.onFailure(e);
+        } else if (t instanceof VirtualMachineError && t instanceof StackOverflowError == false) {
+            throw (Error) t;
+        } else {
+            listener.onFailure(new IllegalStateException("failed to transform the tree: [" + t + "]", t));
+        }
     }
 
     @SuppressWarnings("unchecked")

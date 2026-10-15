@@ -211,7 +211,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     public void testAuthenticateRestRequestIsANoOpIfHeaderIsMissing() throws Exception {
         final RestRequest request = new FakeRestRequest();
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
-        authenticator.authenticateAndAttachToContext(request.getHttpRequest(), future);
+        authenticator.authenticateHttpRequest(request.getHttpRequest(), future);
 
         assertThat(future.result(), nullValue());
         assertThat(SecondaryAuthentication.readFromContext(securityContext), nullValue());
@@ -236,7 +236,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Fake " + randomAlphaOfLengthBetween(5, 30));
         final RestRequest request = new FakeRestRequest();
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
-        authenticator.authenticateAndAttachToContext(request.getHttpRequest(), future);
+        authenticator.authenticateHttpRequest(request.getHttpRequest(), future);
 
         final ElasticsearchSecurityException ex = expectThrows(
             ExecutionException.class,
@@ -259,7 +259,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     public void testAuthenticateRestRequestSucceedsWithBasicAuthentication() throws Exception {
         final SecondaryAuthentication secondaryAuthentication = assertAuthenticateWithBasicAuthentication(listener -> {
             final RestRequest request = new FakeRestRequest();
-            authenticator.authenticateAndAttachToContext(request.getHttpRequest(), listener);
+            authenticator.authenticateHttpRequest(request.getHttpRequest(), listener);
         });
         assertThat(SecondaryAuthentication.readFromContext(securityContext), equalTo(secondaryAuthentication));
     }
@@ -381,7 +381,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     public void testAuthenticateRestRequestFailsWithIncorrectPassword() throws Exception {
         assertAuthenticateWithIncorrectPassword(listener -> {
             final RestRequest request = new FakeRestRequest();
-            authenticator.authenticateAndAttachToContext(request.getHttpRequest(), listener);
+            authenticator.authenticateHttpRequest(request.getHttpRequest(), listener);
         });
         assertThat(SecondaryAuthentication.readFromContext(securityContext), nullValue());
     }
@@ -497,7 +497,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         if (useTransportRequest) {
             mockAuthenticator.authenticate(AuthenticateAction.NAME, AuthenticateRequest.INSTANCE, future);
         } else {
-            mockAuthenticator.authenticateAndAttachToContext(new FakeRestRequest().getHttpRequest(), future);
+            mockAuthenticator.authenticateHttpRequest(new FakeRestRequest().getHttpRequest(), future);
         }
 
         assertThat(future.result(), notNullValue());

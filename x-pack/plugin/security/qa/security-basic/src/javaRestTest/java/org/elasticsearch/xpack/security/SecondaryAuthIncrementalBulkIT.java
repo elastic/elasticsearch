@@ -19,8 +19,7 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Secondary authentication of a user that isn't cached completes asynchronously, but the streamed bulk handler must still be
- * dispatched on the channel's event loop.
+ * Streamed bulk requests with secondary credentials. A new native user isn't cached, so secondary authentication completes asynchronously.
  */
 public class SecondaryAuthIncrementalBulkIT extends SecurityInBasicRestTestCase {
 
@@ -51,7 +50,8 @@ public class SecondaryAuthIncrementalBulkIT extends SecurityInBasicRestTestCase 
                 .addHeader("es-secondary-authorization", basicAuthHeaderValue(username, new SecureString(password.toCharArray())))
         );
         final StringBuilder body = new StringBuilder();
-        for (int i = 0; i < randomIntBetween(1, 50); i++) {
+        final int docs = randomIntBetween(1, 50);
+        for (int i = 0; i < docs; i++) {
             body.append(Strings.format("{\"index\":{\"_index\":\"secondary_auth_bulk\"}}\n{\"value\":%d}\n", i));
         }
         bulk.setJsonEntity(body.toString());

@@ -22,8 +22,7 @@ public interface RestInterceptor {
      *                 or {@code False} if the request has been entirely handled by the interceptor.
      *                 In the case of {@link ActionListener#onFailure(Exception)}, the target handler
      *                 will not be called, the request will be treated as unhandled, and the regular
-     *                 rest exception handling will be performed.
-     *                 The listener must be completed on the channel's event loop, the thread that called this method.
+     *                 rest exception handling will be performed
      */
     void intercept(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener) throws Exception;
 

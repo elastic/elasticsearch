@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestChannel;
@@ -86,11 +85,6 @@ public class SecurityRestFilter implements RestInterceptor {
             final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
             try {
                 auditTrailService.get().authenticationSuccess(wrappedRequest);
-            } catch (ElasticsearchStatusException e) {
-                handleException(aggregatedRestRequest, e, listener);
-                return;
-            }
-            try {
                 secondaryAuthenticator.completeAuthentication(wrappedRequest);
             } catch (Exception e) {
                 handleException(aggregatedRestRequest, e, listener);

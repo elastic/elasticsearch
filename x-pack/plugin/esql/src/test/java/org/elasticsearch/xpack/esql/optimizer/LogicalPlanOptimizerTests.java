@@ -7399,6 +7399,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * a TS STATS aggregate alias that collides with a grouping key must be shadowed (grouping wins)
      * when TranslateTimeSeriesAggregate builds the PackDims Project, matching non-TS STATS behavior.
      */
+    /**
+     * Grouping by a non-dimension TEXT field while dropping all aggregates must not change the output type to KEYWORD.
+     */
+    public void testMetricsTextGroupingKeepsTypeWhenAggregatesDropped() {
+        var plan = planMetrics("TS k8s | STATS x = absent(events_received) BY event_log | DROP x");
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("event_log")));
+    }
+
     public void testMetricsAggregateAliasCollidesWithGroupingKey() {
         assumeTrue(
             "Requires fix for TS STATS alias/grouping shadowing",

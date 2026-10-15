@@ -85,6 +85,7 @@ public class DelegatingStorageProviderTests extends ESTestCase {
         forwarding.newObject(path, 1L);
         forwarding.newObject(path, 1L, Instant.EPOCH);
         forwarding.listObjects(path, false);
+        forwarding.listObjects(path, "part-", false);
         forwarding.listChildren(path, 1);
         forwarding.exists(path);
         forwarding.objectMetadata(path);
@@ -99,6 +100,7 @@ public class DelegatingStorageProviderTests extends ESTestCase {
                 "newObject/2",
                 "newObject/3",
                 "listObjects",
+                "listObjects/3[part-]",
                 "listChildren",
                 "exists",
                 "objectMetadata",
@@ -165,6 +167,17 @@ public class DelegatingStorageProviderTests extends ESTestCase {
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
             seen.add("listObjects");
+            return null;
+        }
+
+        /**
+         * Records the name prefix, not just the call. The base could satisfy the declaration gate and still forward
+         * to the two-argument form, which drops the prefix and lists the whole directory — a cost, not a wrong
+         * answer, so nothing else at this level would notice.
+         */
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, String namePrefix, boolean recursive) {
+            seen.add("listObjects/3[" + namePrefix + "]");
             return null;
         }
 

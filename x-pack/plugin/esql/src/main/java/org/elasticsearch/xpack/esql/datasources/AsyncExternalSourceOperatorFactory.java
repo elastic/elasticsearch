@@ -1446,7 +1446,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Do NOT clear the filter entirely: YES-pushed conjuncts (LIKE-family) were
                     // removed from FilterExec and must still be enforced by the reader. Re-push only
                     // the YES conjuncts from the original list so they reach the evaluator, while the
-                    // RECHECK conjuncts remain in FilterExec. See elastic/esql-planning#2052.
+                    // RECHECK conjuncts remain in FilterExec.
                     List<Expression> yesConjuncts = pushedExpressions.stream()
                         .filter(e -> pushdownSupport.canPush(e) == FilterPushdownSupport.Pushability.YES)
                         .toList();
@@ -2759,7 +2759,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             StoragePath filePath = files.path(fileIndex);
             long size = files.size(fileIndex);
             long mtime = files.lastModifiedMillis(fileIndex);
-            StorageObject obj = FileSplitProvider.newObject(storageProvider, filePath, size, mtime);
+            StorageObject obj = FileSplitProvider.newObject(storageProvider, filePath, size, mtime, files.version(fileIndex));
             attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
             state.buffer.trackStorageObject(obj);
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the

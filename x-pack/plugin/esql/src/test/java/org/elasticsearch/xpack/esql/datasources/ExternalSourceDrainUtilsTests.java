@@ -16,12 +16,16 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.PageRowLimitingIterator;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -180,6 +184,62 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         assertNull(error.get());
         assertEquals(1, buffer.size());
         buffer.finish(true);
+    }
+
+    /**
+     * A page can land after {@code tryAdvance} returns null while {@code waitForReady} stays done.
+     * That is not EOF: {@code isExhausted} is still false, so the drain must retry and return the
+     * page. Fails on the old two-poll EOF rule. Must not call {@code hasNext}.
+     */
+    public void testTryAdvanceOrParkRetriesWhenReadyButNotExhausted() {
+        Page page = createTestPage(1, 2);
+        AtomicInteger tryAdvanceCalls = new AtomicInteger();
+        CloseableIterator<Page> scripted = new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                throw new AssertionError("tryAdvanceOrPark must not call hasNext");
+            }
+
+            @Override
+            public Page next() {
+                throw new AssertionError("tryAdvanceOrPark must not call next");
+            }
+
+            @Override
+            public Page tryAdvance() {
+                int n = tryAdvanceCalls.incrementAndGet();
+                if (n == 3) {
+                    return page;
+                }
+                return null;
+            }
+
+            @Override
+            public SubscribableListener<Void> waitForReady() {
+                return SubscribableListener.newSucceeded(null);
+            }
+
+            @Override
+            public boolean isExhausted() {
+                return tryAdvanceCalls.get() > 3;
+            }
+
+            @Override
+            public void close() {}
+        };
+        Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
+        try {
+            Page got = ExternalSourceDrainUtils.tryAdvanceOrPark(scripted, blockedOn);
+            assertSame(page, got);
+            assertNull(blockedOn.get());
+            assertEquals(3, tryAdvanceCalls.get());
+            Page eof = ExternalSourceDrainUtils.tryAdvanceOrPark(scripted, blockedOn);
+            assertNull(eof);
+            assertNull(blockedOn.get());
+            assertTrue(scripted.isExhausted());
+        } finally {
+            page.releaseBlocks();
+        }
     }
 
     /**
@@ -351,7 +411,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         assertTrue(latch.await(10, TimeUnit.SECONDS));
         assertNull(error.get());
         assertFalse(hasNextCalled.get());
-        assertThat(tryAdvanceCalls.get(), greaterThanOrEqualTo(2));
+        assertThat(tryAdvanceCalls.get(), greaterThanOrEqualTo(1));
         assertEquals(0, buffer.size());
         buffer.finish(true);
     }
@@ -377,6 +437,11 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
                     return raced;
                 }
                 return null;
+            }
+
+            @Override
+            public boolean isExhausted() {
+                return tryAdvanceCalls.get() >= 2;
             }
 
             @Override
@@ -440,6 +505,11 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
             }
 
             @Override
+            public boolean isExhausted() {
+                return emitted;
+            }
+
+            @Override
             public boolean hasNext() {
                 hasNextCalled.set(true);
                 throw new AssertionError("drain must park on waitForReady, not block in hasNext, when phase-2 I/O starts");
@@ -499,6 +569,11 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
                     return page;
                 }
                 return null;
+            }
+
+            @Override
+            public boolean isExhausted() {
+                return emitted.get();
             }
 
             @Override
@@ -1334,7 +1409,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     }
 
     /**
-     * U6: {@code waitForReady} is not done at the park check; a side thread completes it so
+     * {@code waitForReady} is not done at the park check; a side thread completes it so
      * {@code addListener} often runs the resume inline. Must not fail as overlapping drain run.
      */
     public void testAlreadyDoneParkDoesNotFailAsOverlap() throws Exception {
@@ -1343,7 +1418,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
             AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
             Page page = createTestPage(1, 10);
             SubscribableListener<Void> ready = new SubscribableListener<>();
-            Thread completer = new Thread(() -> ready.onResponse(null), "u6-drain-complete");
+            Thread completer = new Thread(() -> ready.onResponse(null), "park-drain-complete");
             completer.setDaemon(true);
             AtomicBoolean completerStarted = new AtomicBoolean();
             CloseableIterator<Page> parked = new CloseableIterator<>() {
@@ -1403,7 +1478,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     }
 
     /**
-     * U7: racing a waitForReady resume with further parks still completes the drain once.
+     * Racing a waitForReady resume with further parks still completes the drain once.
      */
     public void testCompleteDrainFiresOnceWithParkResume() throws Exception {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
@@ -1464,7 +1539,7 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
     }
 
     /**
-     * U7: {@code completeDrain}/{@code failDrain} CAS, not a double {@code onResponse} on
+     * {@code completeDrain}/{@code failDrain} CAS, not a double {@code onResponse} on
      * {@code SubscribableListener} (that is a no-op and never reaches {@code completeDrain}).
      */
     public void testCompleteDrainAndFailDrainOnceFromTwoThreads() throws Exception {
@@ -1530,6 +1605,40 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
                 } catch (Exception ignored) {}
             }
         };
+    }
+
+    /**
+     * Guard: a forgotten {@code isExhausted} on a {@code waitForReady} override is silent drain EOF.
+     */
+    public void testWaitForReadyOverridesAlsoDeclareIsExhausted() throws Exception {
+        Class<?>[] production = {
+            StreamingParallelParsingCoordinator.StreamingParallelIterator.class,
+            SchemaAdaptingIterator.class,
+            VirtualColumnIterator.class,
+            StatsCapturingIterator.class,
+            PageRowLimitingIterator.class,
+            Class.forName("org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator$AsReadyParallelIterator"),
+            Class.forName("org.elasticsearch.xpack.esql.datasources.spi.NullSpliceRowPositionStrategy$NullSplicingIterator"), };
+        for (Class<?> clazz : production) {
+            assertWaitForReadyOverrideDeclaresIsExhausted(clazz);
+        }
+    }
+
+    private static void assertWaitForReadyOverrideDeclaresIsExhausted(Class<?> clazz) {
+        boolean waitForReady = false;
+        boolean isExhausted = false;
+        for (Method method : clazz.getMethods()) {
+            if (method.getDeclaringClass() != clazz || method.getParameterCount() != 0) {
+                continue;
+            }
+            if ("waitForReady".equals(method.getName())) {
+                waitForReady = true;
+            } else if ("isExhausted".equals(method.getName())) {
+                isExhausted = true;
+            }
+        }
+        assertTrue(clazz.getName() + " must override waitForReady", waitForReady);
+        assertTrue(clazz.getName() + " overrides waitForReady without isExhausted", isExhausted);
     }
 
     private static void closeQuietly(CloseableIterator<?> iterator) {

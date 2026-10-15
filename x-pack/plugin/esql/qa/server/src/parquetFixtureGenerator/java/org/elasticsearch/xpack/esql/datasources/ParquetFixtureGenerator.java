@@ -343,7 +343,7 @@ public final class ParquetFixtureGenerator {
         return switch (type) {
             case "integer", "short", "byte" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32);
             case "long" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64);
-            // uint32 is physical INT32 (ESQL widens it to LONG — esql-planning#1030); uint16
+            // uint32 is physical INT32 (ESQL widens it to LONG); uint16
             // stays physical INT32 too, but always fits ESQL INTEGER without widening.
             case "uint32" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.intType(32, false));
             case "uint16" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32).as(LogicalTypeAnnotation.intType(16, false));

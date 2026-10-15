@@ -271,7 +271,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#1056: a top-level list column must be published under its attribute name (so
+     * A top-level list column must be published under its attribute name (so
      * {@code findColumn} hits) but with an <em>unknown</em> null count, which makes {@code COUNT} /
      * {@code IS NOT NULL} decline the footer fast path and scan. Before the fix the list stats were
      * keyed by the leaf path {@code ints.list.element}, never matching the attribute {@code ints}, so
@@ -315,10 +315,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#1055: a list nested in a STRUCT is surfaced by the flattener at its logical dotted
+     * A list nested in a STRUCT is surfaced by the flattener at its logical dotted
      * name {@code s.blist} (not the struct root {@code s}, and not the raw leaf {@code s.blist.list.element}).
      * The stats must therefore publish under {@code s.blist} with an <em>unknown</em> null count — like a
-     * top-level list (#1056), a stats-based {@code rowCount - nullCount} count is wrong for a leaf with
+     * top-level list, a stats-based {@code rowCount - nullCount} count is wrong for a leaf with
      * several values per row, so COUNT falls back to a scan. No phantom marker is published under the
      * struct root {@code s}, and the flat struct leaf {@code s.a} keeps its concrete null count.
      */
@@ -708,7 +708,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * flattened like a STRUCT into the Variant encoding's internals. Before the fix the flattener
      * descended into an unshredded variant and emitted {@code var.metadata} / {@code var.value} as
      * {@code keyword} (both are un-annotated BINARY), so a query returned the raw Variant binary
-     * encoding instead of the user's data. esql-planning#1970.
+     * encoding instead of the user's data.
      */
     public void testUnshreddedVariantColumnIsUnsupported() throws Exception {
         MessageType schema = MessageTypeParser.parseMessageType("""
@@ -1009,9 +1009,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Bytes the cache served are not stored back into it, which would give the entry a fresh write time with
-     * no read behind it. The executor below holds the parse past the entry's expiry, so the absent-key case is
-     * the one under test.
+     * Bytes the cache served are not stored back into it. The executor below holds the parse past the
+     * entry's expiry, so the absent-key case is the one under test: the parse must work from the array it
+     * was handed, and must not revive a key the cache has since released.
      */
     public void testBytesServedFromTheFooterCacheAreNotStoredAgain() throws Exception {
         byte[] parquetData = createVpcFlowShapedParquet();
@@ -1042,6 +1042,85 @@ public class ParquetFormatReaderTests extends ESTestCase {
         } finally {
             pool.shutdownNow();
         }
+    }
+
+    /**
+     * An object overwritten in place with a file of the same length keeps its {@code (path, length)} footer key. The
+     * second read must report the new file's statistics, not the footer cached for the first file. See
+     * elastic/esql-planning#2094.
+     */
+    public void testSameLengthOverwriteReadsNewFooterStatistics() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("overwritten");
+        byte[] before = createParquetFile(schema, factory -> valueGroups(factory, 0, 100));
+        byte[] after = createParquetFile(schema, factory -> valueGroups(factory, 1_000_000, 100));
+        assertEquals("the overwrite must keep the file length", before.length, after.length);
+
+        String location = "memory://overwrite/same-length.parquet";
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        assertEquals(Optional.of(0L), valueColumn(readMetadata(reader, createStorageObject(before, location))).minValue());
+        assertEquals(
+            "the second read must report the new file's statistics",
+            Optional.of(1_000_000L),
+            valueColumn(readMetadata(reader, createStorageObject(after, location, "v2"))).minValue()
+        );
+    }
+
+    /** An overwrite that changes the length has its own footer key, so the new statistics are read. */
+    public void testDifferentLengthOverwriteReadsNewFooterStatistics() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("overwritten");
+        byte[] before = createParquetFile(schema, factory -> valueGroups(factory, 0, 100));
+        byte[] after = createParquetFile(schema, factory -> valueGroups(factory, 1_000_000, 101));
+        assertNotEquals(before.length, after.length);
+
+        String location = "memory://overwrite/different-length.parquet";
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        assertEquals(Optional.of(0L), valueColumn(readMetadata(reader, createStorageObject(before, location))).minValue());
+        assertEquals(Optional.of(1_000_000L), valueColumn(readMetadata(reader, createStorageObject(after, location, "v2"))).minValue());
+    }
+
+    /**
+     * An object with no version has no footer-cache key, so its footer is read from storage on every read and never
+     * cached. A versioned object's second read is served from the cache; see the footer cache hit tests.
+     */
+    public void testUnversionedObjectReadsFooterFromStorageEveryTime() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        try {
+            AtomicInteger asyncReadCount = new AtomicInteger();
+            StorageObject unversioned = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null, null, null);
+            metadataAsyncDirect(reader, unversioned);
+            int firstRead = asyncReadCount.get();
+            assertTrue("the first read must reach storage", firstRead > 0);
+            metadataAsyncDirect(reader, unversioned);
+            assertEquals(
+                "the second read must reach storage again: nothing is cached without a version",
+                2 * firstRead,
+                asyncReadCount.get()
+            );
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    private static List<Group> valueGroups(SimpleGroupFactory factory, long firstValue, int rows) {
+        List<Group> groups = new ArrayList<>();
+        for (int i = 0; i < rows; i++) {
+            Group group = factory.newGroup();
+            group.add("v", firstValue + i);
+            groups.add(group);
+        }
+        return groups;
+    }
+
+    private SourceMetadata readMetadata(ParquetFormatReader reader, StorageObject object) throws Exception {
+        PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+        reader.metadataAsync(object, Runnable::run, future);
+        return future.actionGet(30, TimeUnit.SECONDS);
+    }
+
+    private static SourceStatistics.ColumnStatistics valueColumn(SourceMetadata metadata) {
+        return metadata.statistics().get().columnStatistics().get().get("v");
     }
 
     /**
@@ -2563,6 +2642,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
                 @Override
+                public String version() {
+                    return "v1";
+                }
+
+                @Override
                 public StorageIdentity storageIdentity() {
                     return AbstractTestStorageObject.NOOP;
                 }
@@ -3187,7 +3271,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Pins the operator-isolation half of elastic/esql-planning#1803: each operator obtains its own
+     * Pins operator isolation: each operator obtains its own
      * {@link ParquetReaderCounters} via {@link ParquetFormatReader#newReadCounters()}, so two operators
      * reading from the same reader instance own independent counter structs. Sibling-parity with
      * {@code CsvFormatReaderStatusSnapshotTests#testSiblingQueryReadersHaveIsolatedCounters}.
@@ -3743,7 +3827,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     /**
      * A single Parquet file mixing timestamp[ms]/[us]/[ns] columns with distinct sub-millisecond fractions:
      * the millis column stays DATETIME (epoch-millis) while the micros/nanos columns resolve to DATE_NANOS and
-     * round-trip their full fractional precision (the core of elastic/esql-planning#1027).
+    * round-trip their full fractional precision (the core of ).
      */
     public void testReadMixedTimestampUnitsPreservesPrecision() throws Exception {
         MessageType schema = Types.buildMessage()
@@ -4816,7 +4900,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertThat("both notices must use the supplied relay", drainWarnings(), empty());
     }
 
-    // --- LIST-under-STRUCT tests (elastic/esql-planning#1055) ---
+    // --- LIST-under-STRUCT tests ---
     //
     // A list leaf reached through a struct (struct<list<...>>, the shape of e.g. SQuAD's `answers`)
     // used to bind to no column descriptor and silently read as all-null: the flattener names the
@@ -6851,7 +6935,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertThat(drainWarnings(), contains(ParquetColumnDecoding.NULL_LIST_ELEMENTS_SUMMARY, droppedElementsNotice("events")));
     }
 
-    // --- Dropped-null-element notices (esql-planning#1799) ---
+    // --- Dropped-null-element notices ---
 
     /** The per-column detail line for a LIST read that dropped null elements. */
     private static String droppedElementsNotice(String column) {
@@ -7860,6 +7944,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -7957,9 +8046,26 @@ public class ParquetFormatReaderTests extends ESTestCase {
         List<long[]> reads,
         AtomicInteger streamCount
     ) {
+        return createAsyncStorageObject(data, pool, asyncReadCount, reads, streamCount, "v1");
+    }
+
+    /** As {@link #createAsyncStorageObject(byte[], ExecutorService, AtomicInteger, List, AtomicInteger)}, with the given version. */
+    private static StorageObject createAsyncStorageObject(
+        byte[] data,
+        ExecutorService pool,
+        AtomicInteger asyncReadCount,
+        List<long[]> reads,
+        AtomicInteger streamCount,
+        String version
+    ) {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return version;
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -8051,6 +8157,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -8130,9 +8241,22 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     private StorageObject createStorageObject(byte[] data, String locationUri) {
+        return createStorageObject(data, locationUri, "v1");
+    }
+
+    /**
+     * An in-memory object of a given version. Footers are cached under the version, so a test that rewrites an object
+     * in place gives the new bytes a different version, as a store with an ETag or generation would.
+     */
+    private StorageObject createStorageObject(byte[] data, String locationUri, String version) {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return version;
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -8950,7 +9074,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Regression for esql-planning#2068: when a row group holds values but records no min/max bound,
+    * Regression for : when a row group holds values but records no min/max bound,
      * {@code extractStatistics} must mark the column's bounds as unknown so {@code MIN}/{@code MAX}
      * fall back to a scan rather than returning an answer sourced only from the other row groups.
      * <p>
@@ -9328,7 +9452,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
-    // esql-planning#1030: WHERE pushdown over a uint32 column (physical INT32, widened to
+    // WHERE pushdown over a uint32 column (physical INT32, widened to
     // ESQL LONG) used to build a Parquet longColumn FilterPredicate, which parquet-mr rejects
     // against the file's INT32 schema — every comparator 500d. This exercises the full read
     // path end to end: the reader must not throw, and must return exactly the matching rows.
@@ -9471,7 +9595,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(List.of(200_000L, 3_000_000_000L, 4_000_000_000L), andSurvivors);
     }
 
-    // esql-planning#1030 follow-up: aggregate (MIN/MAX) pushdown reads a uint32 column's row-group
+    // follow-up: aggregate (MIN/MAX) pushdown reads a uint32 column's row-group
     // statistics straight off the Parquet footer, which stores the raw INT32 bit pattern. Without
     // widening, a value above Integer.MAX_VALUE (e.g. 4_000_000_000) sign-extends into a negative
     // long, breaking both the SourceStatistics SPI contract (values must match ESQL's in-memory
@@ -10384,6 +10508,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         @Override
         public long length() {
             return span;
+        }
+
+        @Override
+        public String version() {
+            return file.version();
         }
 
         @Override

@@ -644,7 +644,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
     /**
      * Full scan (no predicate, no threshold): the caller passes empty column/offset index sets, so
      * the preload must fetch zero page-index byte ranges and expose no column/offset indexes. This
-     * is the core optimization in esql-planning#817 — page indexes that no plan consumes are no
+    * is the core optimization in — page indexes that no plan consumes are no
      * longer fetched and decoded.
      */
     public void testFullScanEmitsZeroPageIndexRanges() throws IOException {
@@ -1424,6 +1424,11 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         }
 
         @Override
+        public String version() {
+            return "v1";
+        }
+
+        @Override
         public StorageIdentity storageIdentity() {
             return AbstractTestStorageObject.NOOP;
         }
@@ -1519,6 +1524,11 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1585,6 +1595,11 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -1640,6 +1655,11 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {

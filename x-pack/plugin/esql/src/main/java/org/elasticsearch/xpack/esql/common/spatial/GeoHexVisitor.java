@@ -12,10 +12,10 @@ import org.apache.lucene.geo.GeoUtils;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
-import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.TriangleTreeDecodedVisitor;
-import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.abFromTriangle;
-import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.bcFromTriangle;
-import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.caFromTriangle;
+import static org.elasticsearch.xpack.esql.common.spatial.TriangleTreeVisitor.TriangleTreeDecodedVisitor;
+import static org.elasticsearch.xpack.esql.common.spatial.TriangleTreeVisitor.abFromTriangle;
+import static org.elasticsearch.xpack.esql.common.spatial.TriangleTreeVisitor.bcFromTriangle;
+import static org.elasticsearch.xpack.esql.common.spatial.TriangleTreeVisitor.caFromTriangle;
 
 /**
  * A reusable tree reader visitor for a previous serialized {@link org.elasticsearch.geometry.Geometry}.

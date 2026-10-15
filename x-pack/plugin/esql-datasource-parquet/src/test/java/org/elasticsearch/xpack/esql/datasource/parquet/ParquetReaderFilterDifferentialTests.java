@@ -515,7 +515,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     // ---------------------------------------------------------------------------------------
-    // List-column (multivalue) regression — esql-planning#1070
+    // List-column (multivalue) regression —
     // ---------------------------------------------------------------------------------------
 
     /**
@@ -1773,6 +1773,11 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
 
             @Override
             public StorageIdentity storageIdentity() {

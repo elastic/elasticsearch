@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
-import org.elasticsearch.index.mapper.SingleValuedColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestIndexWriterBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -409,16 +408,10 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                         default -> throw new UnsupportedOperationException();
                     }
                 }
-                case DOC_VALUES_ONLY_SINGLE_VALUED -> {
+                case DOC_VALUES_ONLY_SINGLE_VALUED, DOC_VALUES_ONLY_SINGLE_VALUED_COLUMNAR -> {
                     switch (v) {
                         // The blob is the value's own bytes, with no count beside it.
                         case String s -> fields.add(new BinaryDocValuesField("foo", new BytesRef(s)));
-                        default -> throw new UnsupportedOperationException();
-                    }
-                }
-                case DOC_VALUES_ONLY_SINGLE_VALUED_COLUMNAR -> {
-                    switch (v) {
-                        case String s -> fields.add(new SingleValuedColumnarBinaryDocValuesField("foo", new BytesRef(s)));
                         default -> throw new UnsupportedOperationException();
                     }
                 }

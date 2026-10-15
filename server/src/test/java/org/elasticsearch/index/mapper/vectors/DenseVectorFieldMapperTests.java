@@ -27,7 +27,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOConsumer;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Build;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1034,39 +1033,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             );
             assertThat(message, e.getMessage(), containsString("Cannot update parameter [index_options]"));
         }
-    }
-
-    /**
-     * Data nodes apply a mapping the master already validated and persisted through {@link MapperService#updateMapping}, on the cluster
-     * applier thread. There reading the cluster state to answer a feature check is forbidden, and there is nothing left to check because
-     * the master did it before persisting. A profile name is the one {@code auto_calibrate} value that needs a feature check to parse,
-     * so it must still be applied when the predicate cannot be asked.
-     */
-    public void testUpdateMappingAppliesProfileWithoutCheckingClusterFeatures() throws IOException {
-        MapperService mapperService = new TestMapperServiceBuilder().settings(EXPERIMENTAL_FEATURES_ENABLED).clusterSupportsFeature(f -> {
-            throw new AssertionError("cluster feature [" + f.id() + "] must not be checked while applying a persisted mapping");
-        }).build();
-        IndexMetadata current = mapperService.getIndexSettings().getIndexMetadata();
-        IndexMetadata updated = IndexMetadata.builder(current).mappingVersion(current.getMappingVersion() + 1).putMapping("""
-            {
-              "_doc": {
-                "properties": {
-                  "field": {
-                    "type": "dense_vector",
-                    "dims": 128,
-                    "index": true,
-                    "index_options": { "type": "bbq_disk", "auto_calibrate": "quality" }
-                  }
-                }
-              }
-            }""").build();
-
-        mapperService.updateMapping(current, updated);
-
-        assertEquals(
-            IvfAutoCalibrationProfile.QUALITY,
-            getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
-        );
     }
 
     public void testAutoCalibrateProfilesRequireClusterFeature() throws IOException {

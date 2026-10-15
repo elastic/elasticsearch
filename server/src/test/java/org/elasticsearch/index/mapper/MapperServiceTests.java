@@ -25,11 +25,13 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -38,15 +40,20 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MapperServiceTests extends MapperServiceTestCase {
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new FeatureProbeFieldMapper.Plugin());
+    }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
@@ -267,6 +274,26 @@ public class MapperServiceTests extends MapperServiceTestCase {
         );
         updateMapping(nameLengthLimited, mapping(b -> b.startObject("much_longer_than_three").field("type", "keyword").endObject()));
         assertNotNull(nameLengthLimited.mappingLookup().getFieldType("much_longer_than_three"));
+    }
+
+    /**
+     * {@link MapperService#updateMapping} runs on the cluster applier thread, where the cluster state cannot be read to answer
+     * a feature check. The master node already checked features before persisting the mapping, so parsing in
+     * {@link MapperService#updateMapping} must not perform another feature check.
+     */
+    public void testUpdateMappingDoesNotCheckClusterFeatures() throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().clusterSupportsFeature(f -> {
+            throw new AssertionError("cluster feature [" + f.id() + "] must not be checked while applying a persisted mapping");
+        }).build();
+
+        updateMapping(
+            mapperService,
+            mapping(b -> b.startObject("p").field("type", FeatureProbeFieldMapper.CONTENT_TYPE).field("gated", true).endObject())
+        );
+
+        Mapper mapper = mapperService.documentMapper().mappers().getMapper("p");
+        assertThat(mapper, instanceOf(FeatureProbeFieldMapper.class));
+        assertTrue(((FeatureProbeFieldMapper) mapper).gated());
     }
 
     private static void updateMapping(MapperService mapperService, XContentBuilder mapping) throws IOException {

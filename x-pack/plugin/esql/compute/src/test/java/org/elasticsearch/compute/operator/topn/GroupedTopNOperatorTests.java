@@ -38,6 +38,7 @@ import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -425,25 +426,19 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
 
         RandomBlocksResult randomBlocksResult = generateRandomSingleValueBlocks(rows, blocksCount, driverContext);
 
-        List<Integer> sortColumns = new ArrayList<>();
-        for (int i = 0; i < sortingByColumns; i++) {
-            sortColumns.add(
-                randomValueOtherThanMany(
-                    c -> randomBlocksResult.validSortKeys[c] == false || sortColumns.contains(c),
-                    () -> randomIntBetween(0, blocksCount - 1)
-                )
-            );
+        // Range and geo columns are not valid sort keys, so a random page can have fewer valid columns than the
+        // sort and group keys need. Pick from the valid columns directly, otherwise the selection never ends.
+        List<Integer> validColumns = new ArrayList<>();
+        for (int c = 0; c < blocksCount; c++) {
+            if (randomBlocksResult.validSortKeys[c]) {
+                validColumns.add(c);
+            }
         }
-
-        List<Integer> groupKeys = new ArrayList<>();
-        for (int i = 0; i < groupKeysCount; i++) {
-            groupKeys.add(
-                randomValueOtherThanMany(
-                    c -> sortColumns.contains(c) || groupKeys.contains(c) || randomBlocksResult.validSortKeys[c] == false,
-                    () -> randomIntBetween(0, blocksCount - 1)
-                )
-            );
-        }
+        Collections.shuffle(validColumns, random());
+        sortingByColumns = Math.min(sortingByColumns, validColumns.size() - 1);
+        groupKeysCount = Math.min(groupKeysCount, validColumns.size() - sortingByColumns);
+        List<Integer> sortColumns = new ArrayList<>(validColumns.subList(0, sortingByColumns));
+        List<Integer> groupKeys = new ArrayList<>(validColumns.subList(sortingByColumns, sortingByColumns + groupKeysCount));
 
         List<SortOrder> uniqueOrders = sortColumns.stream().map(column -> new SortOrder(column, randomBoolean(), randomBoolean())).toList();
 

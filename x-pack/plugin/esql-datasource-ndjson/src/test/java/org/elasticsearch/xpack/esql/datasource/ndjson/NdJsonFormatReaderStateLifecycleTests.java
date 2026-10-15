@@ -89,12 +89,14 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         WitherLifecycle.SHARES_COUNTERS,
         "withReadConfig",
         WitherLifecycle.SHARES_COUNTERS,
+        "withSchemaSampleShare",
+        WitherLifecycle.SHARES_COUNTERS,
         "withPushedFilter",
         WitherLifecycle.IDENTITY_NO_COPY,
         "withDeclaredTypeColumns",
         WitherLifecycle.IDENTITY_NO_COPY,
         "withDeclaredProvenanceBinding",
-        WitherLifecycle.IDENTITY_NO_COPY,
+        WitherLifecycle.SHARES_COUNTERS,
         "withHeaderBindingByProvenance",
         WitherLifecycle.IDENTITY_NO_COPY
     );
@@ -247,6 +249,7 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
             case "withSchema" -> new Object[] { List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG)) };
             case "withDeclaredDateFormats" -> new Object[] { Map.of("b", "yyyy-MM-dd") };
             case "withReadConfig" -> new Object[] { "0123456789abcdef0123456789abcdef" };
+            case "withSchemaSampleShare" -> new Object[] { 8 };
             case "withPushedFilter" -> new Object[] { new Object() };
             case "withDeclaredTypeColumns" -> new Object[] { Set.of("a") };
             case "withDeclaredProvenanceBinding" -> new Object[] { true };

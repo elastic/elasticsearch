@@ -18,12 +18,15 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.concurrent.ExecutionException;
@@ -53,6 +56,11 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     private final CircuitBreaker breaker;
     @Nullable
     private final ParquetIoWatermark ioWatermark;
+    /** Current row-group lease; window {@code forceAdd} attributes untracked bytes here, not via TLS. */
+    @Nullable
+    private volatile RowGroupIo boundLease;
+    /** Window bytes currently charged on {@link #ioWatermark}. Used to re-home lease.untracked on bind. */
+    private long windowBytesCharged;
 
     /**
      * Optional pre-warmed cache installed before {@code RowGroupFilter} runs. When set, reads
@@ -66,10 +74,17 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * fetch, so an install or clear takes effect immediately even for streams that were already
      * open when the install happened — which matters because parquet-mr opens the file's
      * {@code SeekableInputStream} during {@code ParquetFileReader.open}, before the caller has had
-     * a chance to install the cache. The map itself is expected to be unmodifiable (see
-     * {@link PreloadedRowGroupMetadata#preWarmedChunks()}).
+     * a chance to install the cache. The map is a live view: {@link
+     * PreloadedRowGroupMetadata#releaseRawBuffers()} clears it, so the adapter must
+     * {@link #installPreWarmedChunks}{@code (null)} first and must not treat the view as a snapshot.
      */
     private volatile NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks;
+
+    /**
+     * Streams created by {@link #newStream()} that are still open. Footer-load streams drop out in
+     * {@code close()} (try-with-resources). The reader's stream stays until the iterator closes.
+     */
+    private final List<WindowedSeekableInputStream> openStreams = new ArrayList<>(2);
 
     /**
      * Default window size for the sliding range cache: just under 4 MiB so the window's {@code byte[]}, header
@@ -77,6 +92,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * Do not round it back up; see {@link HeapFootprint#regionFriendlyLength(int)}.
      */
     static final int DEFAULT_WINDOW_SIZE = HeapFootprint.regionFriendlyLength(4 * 1024 * 1024);
+
+    /** Circuit-breaker label for a sliding window {@code byte[]}. */
+    static final String WINDOW_BREAKER_LABEL = "parquet sliding window";
 
     /**
      * Maximum window size, just under 8 MiB. Caps adaptive window hints so large {@code forRange} splits do not
@@ -134,6 +152,43 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     }
 
     /**
+     * Attributes later sliding-window {@code forceAdd} to {@code io}. Call from the iterator when
+     * it binds a row-group lease; TLS is not open on the window alloc path. If a window was already
+     * charged with a null lease (open-time footer stream), moves that untracked onto {@code io}
+     * without touching node {@code used}.
+     */
+    public synchronized void bindRowGroup(RowGroupIo io) {
+        RowGroupIo prev = this.boundLease;
+        if (prev == io) {
+            return;
+        }
+        if (windowBytesCharged > 0L) {
+            if (prev != null) {
+                prev.releaseUntracked(windowBytesCharged);
+            }
+            if (io != null) {
+                io.addUntracked(windowBytesCharged);
+            }
+        }
+        this.boundLease = io;
+    }
+
+    private synchronized void chargeWindow(long charge) {
+        if (ioWatermark != null) {
+            ioWatermark.forceAdd(charge, boundLease);
+        }
+        windowBytesCharged += charge;
+    }
+
+    private synchronized void refundWindow(long charge) {
+        if (ioWatermark != null) {
+            ioWatermark.release(charge, boundLease);
+        }
+        long next = windowBytesCharged - charge;
+        windowBytesCharged = next < 0L ? 0L : next;
+    }
+
+    /**
      * Window for a range of {@code rangeBytes}: {@link #DEFAULT_WINDOW_SIZE} when the range fits in it, otherwise
      * {@link #MAX_WINDOW_SIZE}. Snapped to those two region-friendly sizes rather than sized to the range: a window
      * in between (say 6 MiB) is humongous and occupies 8 MiB of heap at 4 MiB and 8 MiB G1 regions anyway, so the
@@ -171,7 +226,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     }
 
     /**
-     * Returns the cache key identifying this file by {@code (path, length)}. Shared with
+     * Returns the cache key identifying this file by {@code (path, length, version)}. Shared with
      * {@link FooterByteCache} and the parsed-footer cache held by {@link ParquetFormatReader} so
      * that callers reusing this adapter can hit those caches without recomputing the key.
      */
@@ -202,7 +257,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         // opened before {@link #installPreWarmedChunks} (notably the one parquet-mr opens at
         // {@code ParquetFileReader.open}) must still observe a later install, otherwise the
         // pre-warm optimization would be silently bypassed.
-        return new WindowedSeekableInputStream(
+        WindowedSeekableInputStream stream = new WindowedSeekableInputStream(
             storageObject,
             cacheKey,
             footerBytes,
@@ -210,8 +265,14 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             windowSize,
             breaker,
             ioWatermark,
-            this::currentPreWarmedChunks
+            this::currentPreWarmedChunks,
+            openStreams,
+            this
         );
+        synchronized (openStreams) {
+            openStreams.add(stream);
+        }
+        return stream;
     }
 
     private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> currentPreWarmedChunks() {
@@ -235,6 +296,34 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     }
 
     /**
+     * Drops cached sliding windows on every still-open stream. Caller owns the reader; there
+     * must be no concurrent reads through these streams.
+     *
+     * <p>After the row-group filter, the optimized iterator reads through
+     * {@link ColumnChunkPrefetcher}, not the reader stream. Leaving the window allocated would
+     * keep it charged on the node byte budget for the whole ticket wait. A later read
+     * re-allocates lazily via {@code getOrAllocateWindow}. Called on the constructing thread;
+     * {@code close()} on another thread sees the release through the executor/listener hand-off
+     * that publishes the iterator to the driver. The window field is not {@code volatile}.
+     */
+    void releaseIdleWindows() {
+        WindowedSeekableInputStream[] streams;
+        synchronized (openStreams) {
+            streams = openStreams.toArray(WindowedSeekableInputStream[]::new);
+        }
+        for (WindowedSeekableInputStream stream : streams) {
+            stream.releaseWindow();
+        }
+    }
+
+    /** Test hook: streams still open, including those whose window was already released. */
+    int trackedStreamCount() {
+        synchronized (openStreams) {
+            return openStreams.size();
+        }
+    }
+
+    /**
      * SeekableInputStream backed by a sliding window cache over range reads.
      * Never calls {@link StorageObject#newStream()} (full GET) or {@link InputStream#skip(long)}.
      * On seek: if the target position is within the current window, only the cursor is updated;
@@ -250,8 +339,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
         /** Caps each stream-read iteration so the JDK's thread-local direct buffer stays bounded. */
         private static final int STREAM_READ_CHUNK_SIZE = 256 * 1024;
-
-        private static final String WINDOW_BREAKER_LABEL = "parquet sliding window";
 
         private final StorageObject storageObject;
         private final FooterByteCache.Key cacheKey;
@@ -273,6 +360,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
          * the pre-warm map. The cost is one volatile read per cache-miss.
          */
         private final Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier;
+        private final List<WindowedSeekableInputStream> openStreams;
+        private final ParquetStorageObjectAdapter adapter;
 
         private long windowStart;
         private int windowLength;
@@ -287,7 +376,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             int windowSize,
             CircuitBreaker breaker,
             @Nullable ParquetIoWatermark ioWatermark,
-            Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier
+            Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier,
+            List<WindowedSeekableInputStream> openStreams,
+            ParquetStorageObjectAdapter adapter
         ) {
             this.storageObject = storageObject;
             this.cacheKey = cacheKey;
@@ -299,6 +390,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.ioWatermark = ioWatermark;
             this.window = null;
             this.preWarmedChunksSupplier = preWarmedChunksSupplier;
+            this.openStreams = openStreams;
+            this.adapter = adapter;
             this.windowStart = -1;
             this.windowLength = 0;
             this.position = 0;
@@ -372,7 +465,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             // Charge before getOrLoad so a breaker trip does not issue that cold-tail GET.
             getOrAllocateWindow();
             boolean isTailRead = wholeFileFill == false && fetchPos + toRead == length;
-            if (isTailRead && toRead <= tailCache.maxEntryBytes()) {
+            if (cacheKey != null && isTailRead && toRead <= tailCache.maxEntryBytes()) {
                 try {
                     byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> readTailBytes(fetchPos, (int) toRead));
                     if (tailBytes.length > 0 && fillFromCachedTail(tailBytes, fetchPos, (int) toRead)) {
@@ -430,7 +523,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
             // put() copies the window. Skip that copy when the entry would be rejected, and never
             // cache a whole-file fill (see isTailRead above).
-            if (wholeFileFill == false
+            if (cacheKey != null
+                && wholeFileFill == false
                 && windowLength > 0
                 && windowStart + windowLength == length
                 && windowLength <= tailCache.maxEntryBytes()) {
@@ -473,6 +567,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         }
 
         private boolean fillFromTailCache(FooterByteCache tailCache, long pos, int toRead) {
+            if (cacheKey == null) {
+                return false;
+            }
             byte[] cached = tailCache.get(cacheKey);
             return cached != null && fillFromCachedTail(cached, pos, toRead);
         }
@@ -624,45 +721,90 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         }
 
         private void allocateWindow() {
-            // CBE escapes here. LimitedBreaker throws before its compare-and-set;
-            // ChildMemoryCircuitBreaker undoes a parent-limit trip before rethrowing.
-            // Do not catch this call: forceAdd has not run, and a catch would refund a rolled-back add.
-            breaker.addEstimateBytesAndMaybeBreak(windowCharge, WINDOW_BREAKER_LABEL);
-            if (ioWatermark != null) {
-                ioWatermark.forceAdd(windowCharge);
-            }
-            try {
-                window = UninitializedArrays.newByteArray(windowSize);
-            } catch (Throwable t) {
-                if (ioWatermark != null) {
-                    ioWatermark.release(windowCharge);
+            Throwable allocFailure = null;
+            synchronized (openStreams) {
+                if (closed) {
+                    throw new IllegalStateException("stream is closed");
                 }
-                breaker.addWithoutBreaking(-windowCharge);
-                throw t;
+                if (window != null) {
+                    return;
+                }
+                // CBE escapes here. LimitedBreaker throws before its compare-and-set;
+                // ChildMemoryCircuitBreaker undoes a parent-limit trip before rethrowing.
+                // Do not catch this call: forceAdd has not run, and a catch would refund a rolled-back add.
+                breaker.addEstimateBytesAndMaybeBreak(windowCharge, WINDOW_BREAKER_LABEL);
+                adapter.chargeWindow(windowCharge);
+                try {
+                    window = UninitializedArrays.newByteArray(windowSize);
+                } catch (Throwable t) {
+                    allocFailure = t;
+                }
+            }
+            if (allocFailure != null) {
+                refundWindowCharge(windowCharge);
+                if (allocFailure instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                }
+                if (allocFailure instanceof Error error) {
+                    throw error;
+                }
+                throw new UncheckedIOException(new IOException(allocFailure));
             }
         }
 
         /**
-         * Same refund close() uses. No-op when uncharged.
+         * Same refund close() uses. No-op when uncharged. The breaker and watermark refunds run
+         * outside {@code openStreams}: {@code NodeByteBudgetService.release} may complete other
+         * drivers' ticket grants on this thread.
          */
         private void releaseWindowCharge() {
-            if (window != null) {
-                breaker.addWithoutBreaking(-windowCharge);
-                if (ioWatermark != null) {
-                    ioWatermark.release(windowCharge);
+            refundWindowCharge(takeWindowCharge());
+        }
+
+        private long takeWindowCharge() {
+            synchronized (openStreams) {
+                if (window == null) {
+                    return 0L;
                 }
                 window = null;
+                return windowCharge;
             }
+        }
+
+        private void refundWindowCharge(long charge) {
+            if (charge == 0L) {
+                return;
+            }
+            breaker.addWithoutBreaking(-charge);
+            adapter.refundWindow(charge);
+        }
+
+        /**
+         * Invalidates the cached range and refunds the window charge. Safe while the stream is
+         * still open. A later read re-allocates lazily.
+         */
+        private void releaseWindow() {
+            synchronized (openStreams) {
+                windowStart = -1;
+                windowLength = 0;
+            }
+            releaseWindowCharge();
         }
 
         @Override
         public void close() throws IOException {
-            if (closed == false) {
+            long charge;
+            synchronized (openStreams) {
+                if (closed) {
+                    return;
+                }
                 closed = true;
                 windowStart = -1;
                 windowLength = 0;
-                releaseWindowCharge();
+                charge = takeWindowCharge();
+                openStreams.remove(this);
             }
+            refundWindowCharge(charge);
         }
 
         @Override

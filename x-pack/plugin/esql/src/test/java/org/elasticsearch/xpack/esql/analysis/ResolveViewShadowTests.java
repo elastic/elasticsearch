@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
  *       {@code EsRelation}; a valid-but-empty resolution counts as no match;</li>
  *   <li>shadow with no lenient entry (or an invalid resolution) → left unresolved, then stripped
  *       by {@code ViewCompactionPostIndexResolution};</li>
- *   <li>strict + matched shadow at the same level → both kept as siblings (Strategy A — no
+ *   <li>strict + matched shadow at the same level → both kept as siblings (no
  *       merging into a single combined {@code EsRelation});</li>
  *   <li>two shadows with the same view name but different exclusions resolve independently —
  *       the lookup key is the full {@link ViewShadowRelation#linkedIndexPattern()}, so the same view
@@ -178,7 +178,7 @@ public class ResolveViewShadowTests extends AnalyzerTestCase {
     }
 
     /**
-     * Strategy A: when both strict and shadow resolve, they live as separate {@link EsRelation}
+     * When both strict and shadow resolve, they live as separate {@link EsRelation}
      * siblings inside the {@link ViewUnionAll}. No merging into a single combined
      * {@code EsRelation}.
      */

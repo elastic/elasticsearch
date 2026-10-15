@@ -60,7 +60,7 @@ public final class ExternalPlanningIo {
     }
 
     /**
-     * Counts a metadata GET that never went through {@code newStream} (S3 suffix-range / HEAD).
+     * Counts a metadata GET that never went through {@code newStream} (S3 first-byte range GET / HEAD).
      * Planning holder only — does not touch execution APM {@code storage.requests.total}.
      */
     public static void addMetadataGet(long bytes) {

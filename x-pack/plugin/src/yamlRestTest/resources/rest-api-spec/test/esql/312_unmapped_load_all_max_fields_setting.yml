@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_max_fields_setting, optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard ]
+          capabilities: [ optional_fields_load_all_max_fields_setting, optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_name_collision_warning ]
       reason: >
         The cluster setting esql.query.unmapped_fields.load_all_max_fields downgrades LOAD_ALL to LOAD when it is 0. Older nodes
         reject the setting as unknown, so this file cannot run against them. The _unmapped_fields column is only produced on nodes
@@ -134,6 +134,8 @@ teardown:
 ---
 'a query column named _unmapped_fields wins over the discovered fields':
   - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | EVAL _unmapped_fields = "mine" | LIMIT 10'

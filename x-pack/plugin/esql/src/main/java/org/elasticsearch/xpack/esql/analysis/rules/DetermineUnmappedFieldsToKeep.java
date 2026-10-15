@@ -58,8 +58,9 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  *
  * <p>The rule also leaves the plan untouched when the query has a column named {@code _unmapped_fields} of its own, at any
  * node: a mapped or demand-loaded field, an {@code EVAL} or {@code RENAME} target, an {@code ENRICH} or {@code LOOKUP JOIN}
- * field. The query's column wins. Adding the {@link UnmappedFieldsAttribute} next to it would not work anyway, since
- * {@code EVAL} shadows by name and union and fork branches line their columns up by name.
+ * field. The query's column wins, and a warning says so unless no unmapped field could have been returned anyway. Adding the
+ * {@link UnmappedFieldsAttribute} next to it would not work, since {@code EVAL} shadows by name and union and fork branches line
+ * their columns up by name.
  *
  * <p>{@link MergePlan} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
  * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, so that
@@ -75,6 +76,10 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  * For any other {@link UnmappedResolution} the rule is a no-op.
  */
 public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+    /** Header warning for a query with a column named like the one of unmapped fields, which therefore is not returned. */
+    public static final String UNMAPPED_FIELDS_NAME_TAKEN_WARNING = "The query has a column named ["
+        + UnmappedFieldsAttribute.ATTRIBUTE_NAME
+        + "], so the unmapped fields are not returned in a column of that name; rename that column to get them";
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -88,6 +93,10 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return plan;
         }
         if (plan.anyMatch(p -> p.output().stream().anyMatch(a -> a.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)))) {
+            // Nothing is lost when no unmapped field could have been returned anyway, e.g. after an exact KEEP.
+            if (computeUnmappedFieldsToKeep(plan).isNone() == false) {
+                context.deferredHeaderWarnings().add(UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+            }
             return plan;
         }
         UnmappedFieldsPattern pattern = computeUnmappedFieldsToKeep(plan);

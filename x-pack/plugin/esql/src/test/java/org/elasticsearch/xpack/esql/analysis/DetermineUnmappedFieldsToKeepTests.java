@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -407,6 +408,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      * which is only named like the column it becomes. A pattern-less KEEP of that name therefore yields no such attribute at all.
      */
     public void testKeepUnmappedFieldsIsAnOrdinarySourceField() {
+        // No warning: an exact KEEP could not have returned any unmapped field anyway.
         assertNoUnmappedFieldsAttribute("FROM test | KEEP _unmapped_fields");
     }
 
@@ -415,7 +417,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      * gets no {@link UnmappedFieldsAttribute}. So the DROP leaves no {@code _unmapped_fields} column in the response.
      */
     public void testDropUnmappedFieldsOmitsUnmappedFieldsAttribute() {
-        assertNoUnmappedFieldsAttribute("FROM test | DROP _unmapped_fields");
+        assertUnmappedFieldsNameTaken("FROM test | DROP _unmapped_fields");
     }
 
     public void testSubqueryKeepExactNameOmitsUnmappedFieldsAttribute() {
@@ -535,40 +537,47 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      * two could not live side by side. Here the query's column is a source field of that name, referenced explicitly.
      */
     public void testRenameOfSourceFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
-        assertNoUnmappedFieldsAttribute("FROM test | RENAME _unmapped_fields AS extras");
+        assertUnmappedFieldsNameTaken("FROM test | RENAME _unmapped_fields AS extras");
     }
 
     public void testScalarFunctionOnSourceFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
-        assertNoUnmappedFieldsAttribute("FROM test | EVAL len = LENGTH(_unmapped_fields)");
+        assertUnmappedFieldsNameTaken("FROM test | EVAL len = LENGTH(_unmapped_fields)");
     }
 
     public void testWhereOnSourceFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
-        assertNoUnmappedFieldsAttribute("FROM test | WHERE _unmapped_fields == \"x\"");
+        assertUnmappedFieldsNameTaken("FROM test | WHERE _unmapped_fields == \"x\"");
     }
 
     /** The referenced field is demand-loaded as a column of the relation even though no later command outputs it. */
     public void testWhereOnSourceFieldNamedUnmappedFieldsThenKeepOmitsUnmappedFieldsAttribute() {
-        assertNoUnmappedFieldsAttribute("FROM test | WHERE _unmapped_fields == \"x\" | KEEP first_name*");
+        assertUnmappedFieldsNameTaken("FROM test | WHERE _unmapped_fields == \"x\" | KEEP first_name*");
     }
 
     public void testEvalNamedUnmappedFieldsFromUnmappedFieldOmitsUnmappedFieldsAttribute() {
-        assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = unmapped_extra::keyword");
+        assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = unmapped_extra::keyword");
+    }
+
+    /** No warning when nothing could have been returned anyway: the exact KEEP leaves no pattern for unmapped fields to match. */
+    public void testNoWarningWhenNoUnmappedFieldCouldBeReturnedAnyway() {
+        assertNoUnmappedFieldsAttribute("FROM test | WHERE _unmapped_fields == \"x\" | KEEP emp_no");
+        assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no, _unmapped_fields");
+        assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = \"mine\" | STATS c = COUNT(*) BY _unmapped_fields");
     }
 
     public void testEvalNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
-        assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = \"mine\"");
+        assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\"");
     }
 
     public void testEvalNamedUnmappedFieldsThenDropOmitsUnmappedFieldsAttribute() {
-        assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = \"mine\" | DROP _unmapped_fields");
+        assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\" | DROP _unmapped_fields");
     }
 
     public void testRenameToUnmappedFieldsOmitsUnmappedFieldsAttribute() {
-        assertNoUnmappedFieldsAttribute("FROM test | RENAME last_name AS _unmapped_fields");
+        assertUnmappedFieldsNameTaken("FROM test | RENAME last_name AS _unmapped_fields");
     }
 
     public void testForkBranchNamingUnmappedFieldsOmitsUnmappedFieldsAttribute() {
-        assertNoUnmappedFieldsAttribute("FROM test | FORK (EVAL _unmapped_fields = \"mine\") (WHERE true)");
+        assertUnmappedFieldsNameTaken("FROM test | FORK (EVAL _unmapped_fields = \"mine\") (WHERE true)");
     }
 
     public void testForkSurfacesUnmappedFieldsAttribute() {
@@ -862,6 +871,12 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         for (EsRelation relation : plan.collect(EsRelation.class)) {
             assertThat("expected no UnmappedFieldsAttribute on " + relation, unmappedFieldsAttributes(relation), empty());
         }
+    }
+
+    /** The query has a column named like the one of unmapped fields: it wins, there is no such attribute, and a warning says so. */
+    private void assertUnmappedFieldsNameTaken(String query) {
+        assertNoUnmappedFieldsAttribute(query);
+        assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
     }
 
     private static void assertNotKept(UnmappedFieldsPattern pattern, String... names) {

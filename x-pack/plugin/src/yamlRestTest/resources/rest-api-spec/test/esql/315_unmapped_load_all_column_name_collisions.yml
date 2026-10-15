@@ -1,12 +1,12 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [ capabilities, warnings ]
       capabilities:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_name_collision_warning ]
       reason: The single _unmapped_fields column only exists on nodes with the single-column layout.
 
   # _unmapped_fields is not a reserved name: the documents hold a source field called that, next to an ordinary unmapped one.
@@ -39,6 +39,8 @@ teardown:
 ---
 'referencing _unmapped_fields reads the source field of that name, not the discovered fields':
   - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_name | WHERE _unmapped_fields == "src" | LIMIT 10'
@@ -62,6 +64,8 @@ teardown:
 ---
 'a column named _unmapped_fields by EVAL replaces the discovered fields':
   - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_name | EVAL _unmapped_fields = "mine" | SORT id | LIMIT 10'
@@ -75,6 +79,8 @@ teardown:
 ---
 'a column named _unmapped_fields by RENAME replaces the discovered fields':
   - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_name | EVAL x = TO_STRING(id) | RENAME x AS _unmapped_fields | SORT id | LIMIT 10'

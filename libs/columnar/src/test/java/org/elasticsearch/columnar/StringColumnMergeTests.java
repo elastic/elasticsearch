@@ -660,13 +660,8 @@ public class StringColumnMergeTests extends ESTestCase {
 
     public void testSegmentsOfOneFieldInBothFramingsMergeIntoEitherFraming() throws IOException {
         final int numDocs = between(200, 1500);
-        final String[] values = new String[numDocs];
-        for (int d = 0; d < numDocs; d++) {
-            if (random().nextInt(10) != 0) {
-                values[d] = rarely() ? "rare-" + d : randomFrom("nginx", "apache", "kafka", "");
-            }
-        }
         final int split = between(1, numDocs - 1);
+        final String[] values = randomValuesWithAValueOnEachSideOf(split, numDocs);
         for (boolean mergedSingleValued : new boolean[] { false, true }) {
             final boolean firstSingleValued = randomBoolean();
             try (Directory dir = newDirectory()) {
@@ -690,6 +685,18 @@ public class StringColumnMergeTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private static String[] randomValuesWithAValueOnEachSideOf(int split, int numDocs) {
+        final String[] values = new String[numDocs];
+        final int valuedBeforeSplit = between(0, split - 1);
+        final int valuedAfterSplit = between(split, numDocs - 1);
+        for (int d = 0; d < numDocs; d++) {
+            if (d == valuedBeforeSplit || d == valuedAfterSplit || random().nextInt(10) != 0) {
+                values[d] = rarely() ? "rare-" + d : randomFrom("nginx", "apache", "kafka", "");
+            }
+        }
+        return values;
     }
 
     private static Codec codecFor(boolean singleValued) {

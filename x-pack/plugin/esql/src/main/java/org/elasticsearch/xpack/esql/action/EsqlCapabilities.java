@@ -2727,8 +2727,9 @@ public class EsqlCapabilities {
          * The {@code WITHOUT(...)} grouping column is named {@code _timeseries} from resolution onward, so a
          * {@code FROM idx, (TS ... BY WITHOUT(...))} union surfaces it as {@code _timeseries} — the same name a lone
          * TS query shows — instead of the parser's sourceText name, which changed mid-plan when the grouping was
-         * lowered and failed the post-optimization merge consistency check. Gates the affected csv-spec test so
-         * mixed-version clusters skip it on older nodes that still surface the sourceText name.
+         * lowered and failed the post-optimization merge consistency check. A user alias ({@code BY dims = WITHOUT(...)})
+         * is now kept as the output name, and {@code WITHOUT(unmapped)} works under {@code unmapped_fields="nullify"}.
+         * Gates the affected csv-spec tests so mixed-version clusters skip them on older nodes.
          */
         TS_WITHOUT_GROUPING_NAMED_AT_RESOLUTION,
 

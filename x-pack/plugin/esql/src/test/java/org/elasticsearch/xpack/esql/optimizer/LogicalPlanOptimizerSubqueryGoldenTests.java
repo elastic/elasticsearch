@@ -600,6 +600,34 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     /**
+     * A user alias on the {@code WITHOUT(...)} grouping is kept as the output name: the union aligns under {@code dims},
+     * the outer {@code KEEP} addresses it, and the lowering leaves the alias over a {@code _timeseries} attribute with its
+     * own id instead of renaming the grouping.
+     */
+    public void testWithoutGroupingAliasInsideSubqueryUnion() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        builder("""
+            FROM employees, (TS k8s | STATS avg_cost = AVG(network.cost) BY dims = WITHOUT(pod, region))
+            | KEEP emp_no, avg_cost, dims
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    /**
+     * {@code WITHOUT(unmapped)} under {@code unmapped_fields="nullify"} resolves only after {@code ResolveUnmapped} has
+     * nullified the field, so the grouping is unresolved when the aggregate is first visited. Its parser-generated export
+     * into the aggregates is still bound by name at that point; the {@code _timeseries} rename must wait for resolution
+     * or the export is orphaned and nullified as an input field.
+     */
+    public void testWithoutUnmappedDimensionNullifyInsideSubqueryUnion() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        builder("""
+            SET unmapped_fields="nullify";
+            FROM employees, (TS k8s | STATS max_cost = MAX(network.cost) BY WITHOUT(missing_dimension))
+            | KEEP emp_no, max_cost, _timeseries
+            """).stages(STAGES).since(Sum.ESQL_SUM_LONG_OVERFLOW_FIX).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    /**
      * Same merge-plan resolution as the union case, exercised through {@code FORK}: the fork's branches are aligned at
      * resolution time, so the {@code WITHOUT(...)} grouping must already carry its final {@code _timeseries} name.
      */

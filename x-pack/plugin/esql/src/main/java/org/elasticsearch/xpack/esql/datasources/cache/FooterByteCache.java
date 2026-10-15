@@ -27,11 +27,13 @@ import java.util.concurrent.ExecutionException;
  *   <li>Thundering-herd protection via {@link Cache#computeIfAbsent} — concurrent callers for the
  *       same key coalesce into a single load; exactly one thread performs I/O while others wait
  *       for the result</li>
- *   <li>Time-based expiration via {@link CacheBuilder#setExpireAfterWrite} — an entry expires the
- *       configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) after it was stored. The TTL bounds
+ *   <li>Time-based expiration via two clocks. The primary clock ({@link CacheBuilder#setExpireAfterAccess})
+ *       expires an entry the configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) after it
+ *       was last read — a working set that keeps being read keeps its entries, and entries no longer all expire
+ *       together at one TTL. A write cap ({@link #WRITE_CAP_MULTIPLIER} × TTL) forces expiry at most
+ *       {@code WRITE_CAP_MULTIPLIER × TTL} after an entry was written, regardless of reads. The clocks bound
  *       memory, not staleness: the key carries the object's version, so a rewritten object misses the entry
- *       whatever the TTL. Every store here follows a storage read in the same call, so an entry lives at
- *       most one TTL past that read; {@link ParsedFooterCache} does not share that property.</li>
+ *       whatever the clocks — see {@link Key}.</li>
  * </ul>
  *
  * <h2>Why one instance per root format reader instead of per-query?</h2>
@@ -53,7 +55,7 @@ import java.util.concurrent.ExecutionException;
  * copy constructor, so all concurrent queries on a node coalesce on one cache. When a
  * query-scoped context is introduced into the format reader API, this cache should migrate to an
  * instance held by that context. Until then, the version in the key keeps a rewritten object from reading another
- * version's footer, and the write-based TTL bounds memory.
+ * version's footer, and the two clocks bound memory.
  *
  * <h2>Cache key design</h2>
  * The key is {@code (storageIdentity, path, fileLength, version)}. The version is the object's
@@ -73,6 +75,12 @@ public class FooterByteCache {
      * LRU. This is not a read limit.
      */
     public static final long DEFAULT_MAX_ENTRY_BYTES = 2L * 1024 * 1024;
+
+    /**
+     * The write-cap multiplier: both footer caches are built with a write cap of this many times the
+     * access TTL. Shared by {@link ParsedFooterCache} so the two caches always agree on the policy.
+     */
+    static final long WRITE_CAP_MULTIPLIER = 6L;
 
     /**
      * Cache key identifying one version of a file by its storage configuration, path, total length and version.
@@ -136,6 +144,7 @@ public class FooterByteCache {
 
     private final Cache<Key, byte[]> cache;
     private final long maxEntryBytes;
+    private final TimeValue expireAfterAccess;
     private final TimeValue expireAfterWrite;
 
     /**
@@ -152,21 +161,30 @@ public class FooterByteCache {
         return new FooterByteCache(maxBytes, maxEntryBytes, ExternalSourceCacheSettings.FOOTER_CACHE_TTL.get(settings));
     }
 
-    FooterByteCache(long maxBytes, long maxEntryBytes, TimeValue expireAfterWrite) {
+    FooterByteCache(long maxBytes, long maxEntryBytes, TimeValue expireAfterAccess) {
         this.maxEntryBytes = maxEntryBytes;
-        this.expireAfterWrite = expireAfterWrite;
+        this.expireAfterAccess = expireAfterAccess;
+        long accessNanos = expireAfterAccess.nanos();
+        long capNanos = accessNanos <= Long.MAX_VALUE / WRITE_CAP_MULTIPLIER ? accessNanos * WRITE_CAP_MULTIPLIER : Long.MAX_VALUE;
+        this.expireAfterWrite = TimeValue.timeValueNanos(capNanos);
         this.cache = CacheBuilder.<Key, byte[]>builder()
             .setMaximumWeight(maxBytes)
+            .setExpireAfterAccess(expireAfterAccess)
             .setExpireAfterWrite(expireAfterWrite)
             .weigher((key, value) -> value.length)
             .build();
     }
 
     /**
-     * The expire-after-write TTL this cache was built with. The paired {@link ParsedFooterCache}
-     * is constructed with the same value so the byte and parsed caches age out together. If the
-     * bytes are stale, the parse derived from them is stale too.
+     * The expire-after-access TTL this cache was built with. The paired {@link ParsedFooterCache} is
+     * constructed with the same value, but the two no longer age out together: a reader that answers from
+     * the parsed cache does not read bytes, so a parsed entry can be renewed while its bytes go cold.
      */
+    public TimeValue expireAfterAccess() {
+        return expireAfterAccess;
+    }
+
+    /** The write cap this cache was built with: six times the access TTL. */
     public TimeValue expireAfterWrite() {
         return expireAfterWrite;
     }

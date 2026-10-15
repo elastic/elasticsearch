@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
       reason: >
         LOAD_ALL returns the discovered leaves as one flattened JSON object, keeping the JSON scalar type of each value and
         turning an array into a JSON array, so the JSON *shape* of a value in _source, not the type it would have been

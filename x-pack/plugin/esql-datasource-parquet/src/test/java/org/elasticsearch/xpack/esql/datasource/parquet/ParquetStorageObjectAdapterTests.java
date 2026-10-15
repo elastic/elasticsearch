@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -1692,6 +1693,55 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         });
         assertTrue("reports the early end of stream: " + failure.getMessage(), failure.getMessage().contains("Unexpected end of stream"));
         assertNull("still nothing stored", footerByteCache.get(adapter.cacheKey()));
+    }
+
+    /**
+     * An object that fits the footer prefetch but not the cache's per-entry budget is also never served whole,
+     * so there is nothing to refill. This band is operator-reachable: {@code FOOTER_CACHE_SIZE} takes any
+     * positive size, and {@code maxEntryBytes} is a quarter of it, so a 128kb budget puts the per-entry cap at
+     * 32 KiB and leaves every object between that and 64 KiB here. Without the budget conjunct in
+     * {@code wholeFileIsFooter} the refill would issue a whole-object GET per scan and store nothing, because
+     * {@link FooterByteCache#getOrLoad} rejects an entry over the cap after reading it.
+     */
+    public void testRefillWholeFileFooterIsNoopBelowTheCacheEntryBudget() throws IOException {
+        FooterByteCache noEntries = FooterByteCache.fromSettings(
+            Settings.builder().put(ExternalSourceCacheSettings.FOOTER_CACHE_SIZE.getKey(), "1b").build()
+        );
+        byte[] data = new byte[100];
+        randomBytes(data);
+        assertThat(data.length, Matchers.lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
+        assertThat(
+            "the object must exceed the cache's per-entry budget",
+            (long) data.length,
+            Matchers.greaterThan(noEntries.maxEntryBytes())
+        );
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, noEntries, breaker);
+
+        adapter.refillWholeFileFooter();
+        assertEquals("an object the cache cannot hold is never read for a refill", 0, rangeGets.size());
+        assertNull(noEntries.get(adapter.cacheKey()));
+    }
+
+    /**
+     * The refill absorbs a storage read failure — its bytes have no consumer, so the scan's own GETs still
+     * serve the query — but it does not absorb a breaker trip. A {@link CircuitBreakingException} from its own
+     * window charge means the request breaker is at its limit while the scan is about to ask for far larger
+     * buffers, so it propagates rather than being hidden at {@code debug}.
+     */
+    public void testRefillWholeFileFooterPropagatesABreakerTrip() {
+        byte[] data = new byte[100];
+        randomBytes(data);
+        List<long[]> rangeGets = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, rangeGets);
+        CircuitBreaker exhausted = new LimitedBreaker("refill-breaker", ByteSizeValue.ofBytes(1));
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, footerByteCache, exhausted);
+
+        expectThrows(CircuitBreakingException.class, adapter::refillWholeFileFooter);
+        assertEquals("the trip happens before the GET is issued", 0, rangeGets.size());
+        assertNull("a tripped refill stores nothing", footerByteCache.get(adapter.cacheKey()));
+        assertEquals("the tripped refill leaves no stream open", 0, adapter.trackedStreamCount());
     }
 
     /** An object larger than the footer prefetch is never served whole from the cache, so there is nothing to refill. */

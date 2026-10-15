@@ -1322,6 +1322,102 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A refill that cannot read must leave the query working, not break it. This is the claim the swallow in
+     * {@code ParquetStorageObjectAdapter.refillWholeFileFooter} rests on, and the adapter's own failure tests
+     * only assert cache state: nothing stored, no stream leaked, charges refunded. Here the whole query runs
+     * with the refill's route to storage ({@code newStream}) failing and the scan's route
+     * ({@code readBytesAsync}) healthy, so the scan must fall back to ranged data GETs and still return the
+     * rows. The two routes are separate in production too — the refill opens a stream while the preload and
+     * the column-chunk prefetch read asynchronously — which is why a failure on one need not condemn the other.
+     */
+    public void testQueryStillRunsWhenTheFooterRefillCannotRead() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        assertThat(parquetData.length, lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        AtomicInteger streamAttempts = new AtomicInteger();
+        try {
+            StorageObject healthy = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null);
+            // Same bytes and the same cache key, but every stream open fails. readBytesAsync still works.
+            StorageObject streamsFail = new StorageObject() {
+                @Override
+                public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                @Override
+                public StorageIdentity storageIdentity() {
+                    return AbstractTestStorageObject.NOOP;
+                }
+
+                @Override
+                public InputStream newStream() throws IOException {
+                    streamAttempts.incrementAndGet();
+                    throw new IOException("simulated stream failure");
+                }
+
+                @Override
+                public InputStream newStream(long position, long length) throws IOException {
+                    streamAttempts.incrementAndGet();
+                    throw new IOException("simulated stream failure");
+                }
+
+                @Override
+                public void readBytesAsync(
+                    long position,
+                    long length,
+                    DirectBufferFactory factory,
+                    Executor ignored,
+                    ActionListener<DirectReadBuffer> listener
+                ) {
+                    healthy.readBytesAsync(position, length, factory, ignored, listener);
+                }
+
+                @Override
+                public long length() {
+                    return parquetData.length;
+                }
+
+                @Override
+                public Instant lastModified() {
+                    return Instant.ofEpochMilli(0);
+                }
+
+                @Override
+                public boolean exists() {
+                    return true;
+                }
+
+                @Override
+                public boolean supportsNativeAsync() {
+                    return true;
+                }
+
+                @Override
+                public StoragePath path() {
+                    return healthy.path();
+                }
+            };
+
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(healthy);
+            metadataAsyncDirect(reader, healthy);
+            assertEquals("the async prefetch stores the whole small object", 1, asyncReadCount.get());
+            assertNotNull(reader.footerByteCacheForTests().get(key));
+
+            // The state the refill exists for: byte entry gone, parsed entry still warm.
+            reader.footerByteCacheForTests().invalidateAll();
+            assertNotNull("the parsed entry must survive the byte expiry", reader.parsedFooterForTests(key));
+
+            assertEquals("the query still returns its rows", 1, drainAllRows(reader, streamsFail));
+            assertThat("the refill tried to read and failed", streamAttempts.get(), greaterThan(0));
+            assertNull("a failed refill stores nothing", reader.footerByteCacheForTests().get(key));
+            assertThat("with no entry to serve it, the scan fetched its data with ranged GETs", asyncReadCount.get(), greaterThan(1));
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    /**
      * The scan path only peeks the footer byte cache ({@code CoalescedRangeReader.lookupFooterCacheHit}) and a
      * parsed-footer hit reads no bytes, so once a small file's byte entry has expired while its parsed entry
      * stays warm nothing would write it back: every later scan would issue ranged data GETs for the life of

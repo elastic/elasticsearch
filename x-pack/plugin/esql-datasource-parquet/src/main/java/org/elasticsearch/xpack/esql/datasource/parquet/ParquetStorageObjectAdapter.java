@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.io.SeekableInputStream;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
@@ -258,15 +259,30 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * Stores this object in {@link #footerBytes} when it is its own footer ({@link #wholeFileIsFooter}) and
      * the entry is absent. The optimized scan only peeks that cache
      * ({@code CoalescedRangeReader.lookupFooterCacheHit}) and the parsed footer it opens with reads no bytes,
-     * so once the entry has expired nothing on the scan path would write it back and every scan would issue
-     * ranged GETs for the life of the parsed entry. One whole-file fill here, coalesced with concurrent
+     * so once the entry is gone — expired on its write cap, or evicted against the byte budget — nothing on
+     * the scan path would write it back and every scan would issue ranged GETs for as long as the parsed
+     * entry lives. One whole-file fill here, coalesced with concurrent
      * openers of the same key by {@link FooterByteCache#getOrLoad}, restores the zero-GET scan. No-op for an
      * object larger than the footer prefetch: its data pages are never served from the cache, and the page
      * indexes in its tail are re-read by the preload's own coalesced GET when that entry is gone.
      *
-     * <p>A read failure is logged and swallowed. These bytes have no consumer of their own — the scan's own
-     * coalesced GETs fetch what they need — so a failed refill leaves a query slow rather than broken, which
-     * is also what the {@link FooterByteCache} load failure in {@code fetchWindowAt} does. Nothing is stored.
+     * <p><strong>A read failure is logged and abandoned, and only an {@link IOException}.</strong> These bytes
+     * have no consumer of their own — the scan's own coalesced GETs fetch what they need — so a storage read
+     * that fails here must leave the query slow rather than break it, and {@code StorageObject.newStream}
+     * declares {@code IOException}, so that is the class a failed read arrives as. Everything unchecked
+     * propagates deliberately. A {@link org.elasticsearch.common.breaker.CircuitBreakingException} from this
+     * method's own window charge means the request breaker is already at its limit while the scan is about to
+     * ask for buffers far larger than this one; raising it at the first small charge is more legible to an
+     * operator than hiding it here and failing later from somewhere with less context. Anything else unchecked
+     * is a defect in this class, and swallowing those at {@code debug} is how they stay hidden.
+     *
+     * <p><strong>Why {@code debug} and not {@code warn}.</strong> The failure costs latency, never
+     * correctness: the scan still returns the right rows. It is also per object and per expiry, and a single
+     * dataset can resolve up to {@code ExternalSourceSettings.MAX_DISCOVERED_FILES} objects, so a storage
+     * blip at {@code warn} would emit one line per object and bury the signal it was meant to raise. The
+     * message therefore carries the object and the consequence, so a {@code debug} investigation is
+     * conclusive on its own. What an operator sees without logs at all is the query's own
+     * {@code request_count} and {@code bytes_read} climbing, which is how this failure mode was found.
      */
     void refillWholeFileFooter() {
         if (wholeFileIsFooter == false || footerBytes.get(cacheKey) != null) {
@@ -275,8 +291,14 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         try (SeekableInputStream stream = newStream()) {
             // The seek is the whole-file fill: an object that fits the window is fetched from offset 0.
             stream.seek(0);
-        } catch (Exception e) {
-            logger.debug("footer byte cache refill failed; the scan falls back to ranged GETs", e);
+        } catch (IOException e) {
+            logger.debug(
+                () -> Strings.format(
+                    "footer byte cache refill failed for [%s]; its scans read ranged GETs until the parsed footer entry expires",
+                    cacheKey.path()
+                ),
+                e
+            );
         }
     }
 

@@ -12,25 +12,24 @@ package org.elasticsearch.search.profile.rescore;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Timer;
-import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Profiles a single rescorer. There is one instance per
  * {@link org.elasticsearch.search.rescore.RescoreContext} of a search request.
  * <p>
- * Each instance owns a dedicated {@link QueryProfiler}. While the rescorer runs, that profiler is installed on the shard's searcher so
- * that queries executed by the rescorer are reported as children of the rescore node instead of leaking, unlabeled, into the query tree
- * of the main query.
+ * Queries executed by the rescorer are still recorded by the profiler of the main query. Rescorers that do work the query profiler
+ * can't see, such as running a model, can report it with {@link #addDebugInfo}.
  */
 public final class RescoreProfiler extends AbstractProfileBreakdown<RescoreTimingType> {
 
     private final String type;
     private final int windowSize;
-    private final QueryProfiler queryProfiler = new QueryProfiler();
+    private final Map<String, Object> rescorerDebugInfo = new HashMap<>();
     private int docsBeforeRescore;
     private int docsAfterRescore;
     private boolean timedOut;
@@ -43,13 +42,6 @@ public final class RescoreProfiler extends AbstractProfileBreakdown<RescoreTimin
         super(RescoreTimingType.class);
         this.type = type;
         this.windowSize = windowSize;
-    }
-
-    /**
-     * The profiler that must be set on the searcher while the rescorer runs.
-     */
-    public QueryProfiler getQueryProfiler() {
-        return queryProfiler;
     }
 
     /**
@@ -82,9 +74,18 @@ public final class RescoreProfiler extends AbstractProfileBreakdown<RescoreTimin
         this.timedOut = true;
     }
 
+    /**
+     * Add rescorer specific information to the {@code debug} section of this rescorer's profile, for example the time spent in each
+     * step of the rescorer. Values must be serializable with
+     * {@link org.elasticsearch.common.io.stream.StreamOutput#writeGenericValue}.
+     */
+    public void addDebugInfo(String key, Object value) {
+        rescorerDebugInfo.put(key, value);
+    }
+
     @Override
     protected Map<String, Object> toDebugMap() {
-        Map<String, Object> debug = new HashMap<>();
+        Map<String, Object> debug = new HashMap<>(rescorerDebugInfo);
         debug.put("window_size", windowSize);
         debug.put("docs_before_rescore", docsBeforeRescore);
         if (timedOut) {
@@ -92,14 +93,10 @@ public final class RescoreProfiler extends AbstractProfileBreakdown<RescoreTimin
         } else {
             debug.put("docs_after_rescore", docsAfterRescore);
         }
-        debug.put("rewrite_time", queryProfiler.getRewriteTime());
         return Collections.unmodifiableMap(debug);
     }
 
-    /**
-     * Build the result for this rescorer. Queries run by the rescorer are the children of the returned node.
-     */
     public ProfileResult buildResult() {
-        return new ProfileResult(type, "window_size=" + windowSize, toBreakdownMap(), toDebugMap(), toNodeTime(), queryProfiler.getTree());
+        return new ProfileResult(type, "rescore top documents", toBreakdownMap(), toDebugMap(), toNodeTime(), List.of());
     }
 }

@@ -100,8 +100,8 @@ public class RescorePhase {
     }
 
     /**
-     * Runs a single rescorer. When profiling, the rescorer is timed and its queries are recorded on a dedicated profiler, so they are
-     * reported as part of the rescore profile instead of the profile of the main query.
+     * Runs a single rescorer. When profiling, the rescorer is timed and can report details of its execution through
+     * {@link RescoreContext#profiler()}. Queries run by the rescorer are still recorded by the profiler of the main query.
      */
     private static TopDocs rescore(SearchContext context, RescoreContext ctx, TopDocs topDocs) throws IOException {
         Profilers profilers = context.getProfilers();
@@ -111,11 +111,10 @@ public class RescorePhase {
         String type = ctx.name() != null ? ctx.name() : ctx.rescorer().getClass().getName();
         RescoreProfiler rescoreProfiler = profilers.addRescoreProfiler(type, ctx.getWindowSize());
         rescoreProfiler.setDocsBeforeRescore(topDocs.scoreDocs.length);
-        ContextIndexSearcher searcher = context.searcher();
-        searcher.setProfiler(rescoreProfiler.getQueryProfiler());
+        ctx.setProfiler(rescoreProfiler);
         Timer timer = rescoreProfiler.startRescoreTimer();
         try {
-            TopDocs rescored = ctx.rescorer().rescore(topDocs, searcher, ctx);
+            TopDocs rescored = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
             rescoreProfiler.setDocsAfterRescore(rescored.scoreDocs.length);
             return rescored;
         } catch (ContextIndexSearcher.TimeExceededException e) {
@@ -123,7 +122,7 @@ public class RescorePhase {
             throw e;
         } finally {
             timer.stop();
-            searcher.setProfiler(profilers.getCurrentQueryProfiler());
+            ctx.setProfiler(null);
         }
     }
 

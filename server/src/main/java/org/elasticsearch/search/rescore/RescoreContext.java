@@ -11,6 +11,7 @@ package org.elasticsearch.search.rescore;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.search.profile.rescore.RescoreProfiler;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,6 +28,7 @@ public class RescoreContext {
     private Set<Integer> rescoredDocs; // doc Ids for which rescoring was applied
     private Runnable isCancelled;
     private String name;
+    private RescoreProfiler profiler;
 
     /**
      * Build the context.
@@ -48,6 +50,19 @@ public class RescoreContext {
 
     void setName(String name) {
         this.name = name;
+    }
+
+    /**
+     * The profiler of this rescorer, which rescorers can use to report details of their own execution. It is {@code null} unless the
+     * search request is profiled and the rescorer is running.
+     */
+    @Nullable
+    public RescoreProfiler profiler() {
+        return profiler;
+    }
+
+    void setProfiler(@Nullable RescoreProfiler profiler) {
+        this.profiler = profiler;
     }
 
     public void setCancellationChecker(Runnable isCancelled) {

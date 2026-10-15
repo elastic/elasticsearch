@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -144,8 +145,8 @@ public class RescorePhaseTests extends IndexShardTestCase {
     }
 
     /**
-     * Each rescorer gets its own node in the rescore profile, in execution order, with the queries it ran as children. Those queries
-     * must not leak into the profile of the main query.
+     * Each rescorer gets its own node in the rescore profile, in execution order. The queries the rescorers run stay in the profile of
+     * the main query, after the main query itself.
      */
     public void testProfileRescorers() throws IOException {
         try (Directory dir = newDirectory()) {
@@ -162,20 +163,76 @@ public class RescorePhaseTests extends IndexShardTestCase {
 
                     SearchProfileQueryPhaseResult result = profilers.buildQueryPhaseResults();
                     List<ProfileResult> mainQueries = result.getQueryProfileResults().get(0).getQueryResults();
-                    assertThat(mainQueries.stream().map(ProfileResult::getLuceneDescription).toList(), equalTo(List.of("f:a")));
+                    assertThat(
+                        mainQueries.stream().map(ProfileResult::getLuceneDescription).toList(),
+                        equalTo(List.of("f:a", "f:c", "f:b"))
+                    );
 
                     List<ProfileResult> rescoreResults = result.getRescoreProfileResults();
                     assertThat(rescoreResults, hasSize(2));
-                    assertRescoreResult(rescoreResults.get(0), 1, "f:c");
-                    assertRescoreResult(rescoreResults.get(1), 2, "f:b");
+                    assertRescoreResult(rescoreResults.get(0), 1);
+                    assertRescoreResult(rescoreResults.get(1), 2);
                 }
             }
         }
     }
 
     /**
-     * A rescorer that times out is still reported, flagged as timed out, and the profiler of the main query is reinstalled on the
-     * searcher afterwards.
+     * A rescorer can add its own information to its profile through {@link RescoreContext#profiler()}, which is only set while the
+     * rescorer runs on a profiled request.
+     */
+    public void testRescorerAddsDebugInfo() throws IOException {
+        try (Directory dir = newDirectory()) {
+            indexDocs(dir);
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher searcher = newContextIndexSearcher(reader);
+                boolean profile = randomBoolean();
+                Profilers profilers = profile ? new Profilers(searcher) : null;
+                TopDocs firstPass = profile
+                    ? firstPass(searcher, profilers)
+                    : new TopDocs(new TotalHits(2, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1f) });
+                Rescorer debugInfoRescorer = new Rescorer() {
+                    @Override
+                    public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) {
+                        if (profile) {
+                            assertNotNull(rescoreContext.profiler());
+                            rescoreContext.profiler().addDebugInfo("model_time_in_nanos", 42L);
+                        } else {
+                            assertNull(rescoreContext.profiler());
+                        }
+                        return topDocs;
+                    }
+
+                    @Override
+                    public Explanation explain(
+                        int topLevelDocId,
+                        IndexSearcher searcher,
+                        RescoreContext rescoreContext,
+                        Explanation sourceExplanation
+                    ) {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+                RescoreContext rescoreContext = new RescoreContext(10, debugInfoRescorer);
+                try (SearchContext context = new ProfilingSearchContext(searcher, profilers, List.of(rescoreContext))) {
+                    context.queryResult().topDocs(new TopDocsAndMaxScore(firstPass, 1f), new DocValueFormat[0]);
+
+                    RescorePhase.execute(context);
+
+                    assertNull(rescoreContext.profiler());
+                    if (profile) {
+                        List<ProfileResult> rescoreResults = profilers.buildQueryPhaseResults().getRescoreProfileResults();
+                        assertThat(rescoreResults, hasSize(1));
+                        assertThat(rescoreResults.get(0).getDebugInfo().get("model_time_in_nanos"), equalTo(42L));
+                        assertThat(rescoreResults.get(0).getDebugInfo().get("window_size"), equalTo(10));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * A rescorer that times out is still reported, flagged as timed out.
      */
     public void testProfileRescorerTimeout() throws IOException {
         try (Directory dir = newDirectory()) {
@@ -209,10 +266,10 @@ public class RescorePhaseTests extends IndexShardTestCase {
                     RescorePhase.execute(context);
 
                     assertTrue(context.queryResult().searchTimedOut());
-                    searcher.createWeight(new TermQuery(new Term("f", "b")), ScoreMode.COMPLETE, 1f);
+                    assertNull(rescorers.get(0).profiler());
                     SearchProfileQueryPhaseResult result = profilers.buildQueryPhaseResults();
                     List<ProfileResult> mainQueries = result.getQueryProfileResults().get(0).getQueryResults();
-                    assertThat(mainQueries.stream().map(ProfileResult::getLuceneDescription).toList(), equalTo(List.of("f:a", "f:b")));
+                    assertThat(mainQueries.stream().map(ProfileResult::getLuceneDescription).toList(), equalTo(List.of("f:a", "f:c")));
 
                     List<ProfileResult> rescoreResults = result.getRescoreProfileResults();
                     assertThat(rescoreResults, hasSize(1));
@@ -220,26 +277,20 @@ public class RescorePhaseTests extends IndexShardTestCase {
                     assertThat(rescoreResult.getQueryName(), equalTo(timingOutRescorer.getClass().getName()));
                     assertThat(rescoreResult.getDebugInfo().get("timed_out"), equalTo(true));
                     assertThat(rescoreResult.getDebugInfo(), not(hasKey("docs_after_rescore")));
-                    assertThat(
-                        rescoreResult.getProfiledChildren().stream().map(ProfileResult::getLuceneDescription).toList(),
-                        equalTo(List.of("f:c"))
-                    );
+                    assertThat(rescoreResult.getProfiledChildren(), empty());
                 }
             }
         }
     }
 
-    private static void assertRescoreResult(ProfileResult rescoreResult, int windowSize, String rescoreQuery) {
+    private static void assertRescoreResult(ProfileResult rescoreResult, int windowSize) {
         assertThat(rescoreResult.getQueryName(), equalTo("query"));
-        assertThat(rescoreResult.getLuceneDescription(), equalTo("window_size=" + windowSize));
+        assertThat(rescoreResult.getLuceneDescription(), equalTo("rescore top documents"));
         assertThat(rescoreResult.getTimeBreakdown().get("rescore_count"), equalTo(1L));
         assertThat(rescoreResult.getDebugInfo().get("window_size"), equalTo(windowSize));
         assertThat(rescoreResult.getDebugInfo().get("docs_before_rescore"), equalTo(2));
         assertThat(rescoreResult.getDebugInfo().get("docs_after_rescore"), equalTo(2));
-        assertThat(
-            rescoreResult.getProfiledChildren().stream().map(ProfileResult::getLuceneDescription).toList(),
-            equalTo(List.of(rescoreQuery))
-        );
+        assertThat(rescoreResult.getProfiledChildren(), empty());
     }
 
     /**

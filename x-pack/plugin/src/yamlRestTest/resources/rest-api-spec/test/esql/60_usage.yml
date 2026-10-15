@@ -191,4 +191,4 @@ setup:
   - match: {esql.functions.cos: $functions_cos}
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
-  - length: {esql.functions: 144} # check the "sister" test above for a likely update to the same esql.functions length check
+  - length: {esql.functions: 135} # release builds omit 13 snapshot-only functions; check the sister test above too

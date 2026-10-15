@@ -156,8 +156,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.InferenceIT
   method: testInferRegressionModel
   issue: https://github.com/elastic/elasticsearch/issues/160936
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  issue: https://github.com/elastic/elasticsearch/issues/161084
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   method: testDynamicUpdates
   issue: https://github.com/elastic/elasticsearch/issues/161200

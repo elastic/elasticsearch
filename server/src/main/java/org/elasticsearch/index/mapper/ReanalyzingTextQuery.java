@@ -438,14 +438,16 @@ public final class ReanalyzingTextQuery extends Query {
     private final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
     private final boolean scansEveryDocument;
-    private final boolean valuesSpellTheirTokens;
+    /** The field's own analyzer, where its values spell the tokens they hold, and null where they do not. */
+    @Nullable
+    private final Analyzer valuesAnalyzer;
 
     public ReanalyzingTextQuery(
         Query in,
         IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
         Analyzer indexAnalyzer
     ) {
-        this(in, valueFetcherProvider, indexAnalyzer, false, false);
+        this(in, valueFetcherProvider, indexAnalyzer, false, null);
     }
 
     public ReanalyzingTextQuery(
@@ -454,31 +456,40 @@ public final class ReanalyzingTextQuery extends Query {
         Analyzer indexAnalyzer,
         boolean scansEveryDocument
     ) {
-        this(in, valueFetcherProvider, indexAnalyzer, scansEveryDocument, false);
+        this(in, valueFetcherProvider, indexAnalyzer, scansEveryDocument, null);
     }
 
     /**
-     * @param scansEveryDocument     whether the field indexes no terms, leaving no postings to narrow the documents
-     *                               read or to weigh a term
-     * @param valuesSpellTheirTokens whether the values of this field spell the tokens they hold, which lets a
-     *                               document be ruled out by reading its values rather than analyzing them
+     * @param scansEveryDocument whether the field indexes no terms, leaving no postings to narrow the documents
+     *                           read or to weigh a term
+     * @param valuesAnalyzer     the field's own analyzer, where its values spell the tokens they hold, which lets a
+     *                           document be ruled out, and sometimes answered, by reading its values rather than
+     *                           analyzing them; null where they do not. This is the field's analyzer rather than
+     *                           {@code indexAnalyzer}, which is the index-wide wrapper around every field's and
+     *                           names none of them.
      */
     public ReanalyzingTextQuery(
         Query in,
         IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
         Analyzer indexAnalyzer,
         boolean scansEveryDocument,
-        boolean valuesSpellTheirTokens
+        @Nullable Analyzer valuesAnalyzer
     ) {
         this.in = in;
         this.valueFetcherProvider = valueFetcherProvider;
         this.indexAnalyzer = indexAnalyzer;
         this.scansEveryDocument = scansEveryDocument;
-        this.valuesSpellTheirTokens = valuesSpellTheirTokens;
+        this.valuesAnalyzer = valuesAnalyzer;
     }
 
     public Query getQuery() {
         return in;
+    }
+
+    /** The analyzer this query reads its values for tokens with, which is the field's own and not the index's. */
+    @Nullable
+    Analyzer valuesAnalyzer() {
+        return valuesAnalyzer;
     }
 
     @Override
@@ -497,7 +508,7 @@ public final class ReanalyzingTextQuery extends Query {
         // Query is sufficient to establish identity.
         return Objects.equals(in, that.in)
             && scansEveryDocument == that.scansEveryDocument
-            && valuesSpellTheirTokens == that.valuesSpellTheirTokens;
+            && (valuesAnalyzer != null) == (that.valuesAnalyzer != null);
     }
 
     @Override
@@ -505,7 +516,7 @@ public final class ReanalyzingTextQuery extends Query {
         // We intentionally do not hash the value fetcher or analyzer, as they
         // do not typically implement hashCode() themselves, and the inner
         // Query is sufficient to establish identity.
-        return 31 * Objects.hash(in, scansEveryDocument, valuesSpellTheirTokens) + classHash();
+        return 31 * Objects.hash(in, scansEveryDocument, valuesAnalyzer != null) + classHash();
     }
 
     @Override
@@ -518,17 +529,17 @@ public final class ReanalyzingTextQuery extends Query {
         // A term the index does not hold rewrites away, so where it holds none the query is left as it is.
         Query inRewritten = scansEveryDocument ? in : in.rewrite(searcher);
         if (inRewritten != in) {
-            return new ReanalyzingTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesSpellTheirTokens);
+            return new ReanalyzingTextQuery(inRewritten, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesAnalyzer);
         } else if (in instanceof ConstantScoreQuery) {
             Query sub = ((ConstantScoreQuery) in).getQuery();
             return new ConstantScoreQuery(
-                new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesSpellTheirTokens)
+                new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesAnalyzer)
             );
         } else if (in instanceof BoostQuery) {
             Query sub = ((BoostQuery) in).getQuery();
             float boost = ((BoostQuery) in).getBoost();
             return new BoostQuery(
-                new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesSpellTheirTokens),
+                new ReanalyzingTextQuery(sub, valueFetcherProvider, indexAnalyzer, scansEveryDocument, valuesAnalyzer),
                 boost
             );
         } else if (in instanceof MatchNoDocsQuery) {
@@ -777,6 +788,8 @@ public final class ReanalyzingTextQuery extends Query {
 
         private int doc = -1;
         private float freq;
+        /** Whether a document that holds what the query asks reports the frequency it would after analysis. */
+        private final boolean holdingSettlesFreq;
 
         private ReanalyzingScorer(
             DocIdSetIterator approximation,
@@ -798,7 +811,13 @@ public final class ReanalyzingTextQuery extends Query {
             this.walkableClauses = scansEveryDocument ? walkableClauses(query, field) : null;
             // Only where nothing narrows the documents read is there anything to rule out: elsewhere the postings
             // of the field's own terms have done it already.
-            this.candidates = scansEveryDocument && valuesSpellTheirTokens ? CandidateValues.of(query, field) : CandidateValues.ANY;
+            this.candidates = scansEveryDocument && valuesAnalyzer != null
+                ? CandidateValues.of(query, field).readingTokensOf(valuesAnalyzer)
+                : CandidateValues.ANY;
+            // A document holding what the query asks reports a frequency of one wherever one is all a document
+            // can report: the clauses answered are the score, and this query names one of them. Where a term is
+            // weighed, how often the document holds it is the score, and only analyzing it says.
+            this.holdingSettlesFreq = scansEveryDocument && maxFreq == 1f;
             twoPhase = new TwoPhaseIterator(approximation) {
 
                 @Override
@@ -879,10 +898,24 @@ public final class ReanalyzingTextQuery extends Query {
         }
 
         private float computeFreq() throws IOException {
-            if (candidates.reads() && candidates.mayHold(values()) == false) {
-                // The values spell none of the terms this query cannot be answered without, so analyzing them
-                // would answer no, as it does for the documents the postings of an indexed field leave out.
-                return 0;
+            if (candidates.reads()) {
+                switch (candidates.held(values())) {
+                    case NO -> {
+                        // The values spell none of the terms this query cannot be answered without, so analyzing
+                        // them would answer no, as it does for the documents the postings of an indexed field
+                        // leave out.
+                        return 0;
+                    }
+                    case YES -> {
+                        if (holdingSettlesFreq) {
+                            // The values hold a token this query asks for, which is the answer analyzing them
+                            // would come to, so they are left unanalyzed.
+                            return 1;
+                        }
+                    }
+                    case MAYBE -> {
+                    }
+                }
             }
             if (scansEveryDocument && walkablePhrase != null) {
                 // One clause, so holding the phrase counts once however often the document holds it, and the walk

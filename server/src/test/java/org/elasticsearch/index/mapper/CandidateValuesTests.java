@@ -337,6 +337,131 @@ public class CandidateValuesTests extends ESTestCase {
         assertThat("no query ever matched, so the comparison proved nothing", matched, greaterThan(0));
     }
 
+    /** A value holding the term as a whole token is answered yes, and nothing of it is analyzed. */
+    public void testATokenOfItsOwnIsHeld() {
+        final CandidateValues candidates = readingTokens(new TermQuery(new Term(FIELD, "the")));
+        assertEquals(CandidateValues.Answer.YES, candidates.held(values("the quick brown fox")));
+        assertEquals("a token at the end of a value", CandidateValues.Answer.YES, candidates.held(values("quick the")));
+        assertEquals("the whole of a value", CandidateValues.Answer.YES, candidates.held(values("the")));
+        assertEquals("one of the values holding it is enough", CandidateValues.Answer.YES, candidates.held(values("a fox", "the fox")));
+        assertEquals("case is answered for the ASCII letters", CandidateValues.Answer.YES, candidates.held(values("The Quick")));
+        assertEquals("a token the punctuation around it ends", CandidateValues.Answer.YES, candidates.held(values("(the) quick")));
+    }
+
+    /** A stretch spelling the term inside a longer token holds nothing, which rules the value out unanalyzed. */
+    public void testAStretchOfALongerTokenHoldsNothing() {
+        final CandidateValues candidates = readingTokens(new TermQuery(new Term(FIELD, "cat")));
+        assertEquals(CandidateValues.Answer.NO, candidates.held(values("catalog")));
+        assertEquals(CandidateValues.Answer.NO, candidates.held(values("a bobcat")));
+        assertEquals("a digit runs the token on", CandidateValues.Answer.NO, candidates.held(values("cat5 cable")));
+        assertEquals("an underscore holds two runs together", CandidateValues.Answer.NO, candidates.held(values("the cat_house")));
+        assertEquals("one of them standing on its own is enough", CandidateValues.Answer.YES, candidates.held(values("catalog the cat")));
+    }
+
+    /** Where a byte between two words could hold them together, the value is analyzed rather than answered. */
+    public void testWhatTheBytesAroundDoNotSay() {
+        final CandidateValues candidates = readingTokens(new TermQuery(new Term(FIELD, "the")));
+        assertEquals(CandidateValues.Answer.MAYBE, candidates.held(values("a.the")));
+        assertEquals(CandidateValues.Answer.MAYBE, candidates.held(values("the'd")));
+        assertEquals(
+            "a full stop with no word beyond it ends the token",
+            CandidateValues.Answer.YES,
+            candidates.held(values("quick the."))
+        );
+        assertEquals("a comma between words is no join for letters", CandidateValues.Answer.YES, candidates.held(values("the, quick")));
+    }
+
+    /** Outside ASCII a byte says nothing about where a token ends, so the value is analyzed. */
+    public void testBytesOutsideAsciiAreNotRead() {
+        final CandidateValues candidates = readingTokens(new TermQuery(new Term(FIELD, "the")));
+        assertEquals(
+            "a character before it that these bytes do not spell out",
+            CandidateValues.Answer.MAYBE,
+            candidates.held(values("éthe"))
+        );
+        assertEquals(CandidateValues.Answer.YES, candidates.held(values("é the")));
+        // The value spells the term with a character that lowers onto one of its own, which is read as a token of
+        // something, but not as a token of the term.
+        final CandidateValues kelvin = readingTokens(new TermQuery(new Term(FIELD, "k")));
+        assertEquals(CandidateValues.Answer.MAYBE, kelvin.held(values("\u212A")));
+        assertTrue("and the analyzer answers yes", matches(new StandardAnalyzer(), List.of("\u212A"), new TermQuery(new Term(FIELD, "k"))));
+    }
+
+    /** Holding every term of a phrase is not answering it, since the order they sit in is not read. */
+    public void testAPhraseIsNotAnsweredByHoldingItsTerms() {
+        final CandidateValues candidates = readingTokens(new PhraseQuery(FIELD, "quick", "brown"));
+        assertEquals(CandidateValues.Answer.MAYBE, candidates.held(values("the quick brown fox")));
+        assertEquals("what it asks for is still required", CandidateValues.Answer.NO, candidates.held(values("the quick fox")));
+    }
+
+    /** A term the analyzer drops is no token of its values, so holding it answers nothing. */
+    public void testATermTheAnalyzerDropsIsNotHeld() {
+        final StopAnalyzer drops = new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
+        final CandidateValues candidates = CandidateValues.of(new TermQuery(new Term(FIELD, "the")), FIELD).readingTokensOf(drops);
+        assertEquals(CandidateValues.Answer.MAYBE, candidates.held(values("the quick brown fox")));
+        assertFalse("and the analyzer answers no", matches(drops, List.of("the quick brown fox"), new TermQuery(new Term(FIELD, "the"))));
+    }
+
+    /** An analyzer that keeps the case of what it reads is not read for tokens, since a stretch may spell another. */
+    public void testAnAnalyzerThatKeepsItsCaseIsNotReadForTokens() {
+        for (Analyzer analyzer : List.of(new WhitespaceAnalyzer(), new KeywordAnalyzer())) {
+            final CandidateValues candidates = CandidateValues.of(new TermQuery(new Term(FIELD, "the")), FIELD).readingTokensOf(analyzer);
+            assertEquals(CandidateValues.Answer.MAYBE, candidates.held(values("the quick brown fox")));
+        }
+    }
+
+    /** Without an analyzer to read tokens for, the answer is the one this gave before them. */
+    public void testWithoutTokensToReadNothingIsHeld() {
+        final CandidateValues candidates = CandidateValues.of(new TermQuery(new Term(FIELD, "the")), FIELD);
+        assertEquals(CandidateValues.Answer.MAYBE, candidates.held(values("the quick brown fox")));
+        assertEquals(CandidateValues.Answer.NO, candidates.held(values("a quick brown fox")));
+    }
+
+    /**
+     * The read against the analysis it stands in front of: a value answered yes holds what the query asks, and one
+     * answered no holds none of it. What the bytes leave unsettled is not held against them.
+     */
+    public void testAnAnsweredValueIsTheAnalyzersAnswer() {
+        for (int iteration = 0; iteration < 2000; iteration++) {
+            final Analyzer analyzer = randomAnalyzer();
+            final List<String> documentValues = randomValues();
+            final Query query = randomQuery(documentValues);
+            final CandidateValues candidates = CandidateValues.of(query, FIELD).readingTokensOf(analyzer);
+            if (candidates.reads() == false) {
+                continue;
+            }
+            final CandidateValues.Answer answer = candidates.held(values(documentValues.toArray(String[]::new)));
+            final boolean analyzed = matches(analyzer, documentValues, query);
+            if (answer == CandidateValues.Answer.YES) {
+                assertTrue("read as held but the analyzer answers no: " + query + " over " + documentValues, analyzed);
+            }
+            if (answer == CandidateValues.Answer.NO) {
+                assertFalse("read as holding none but the analyzer answers yes: " + query + " over " + documentValues, analyzed);
+            }
+        }
+    }
+
+    /**
+     * An underscore ends a token for an analyzer that keeps letters alone, so a value holding the term between two
+     * of them holds the term. An analyzer keeping letters and digits reads the same bytes as one token.
+     */
+    public void testAnUnderscoreEndsATokenWhereOnlyLettersAreKept() {
+        final Query query = new TermQuery(new Term(FIELD, "k"));
+        for (Analyzer analyzer : List.of(new SimpleAnalyzer(), new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET))) {
+            final CandidateValues candidates = CandidateValues.of(query, FIELD).readingTokensOf(analyzer);
+            assertEquals(analyzer.toString(), CandidateValues.Answer.YES, candidates.held(values("_k_")));
+            assertTrue(analyzer.toString(), matches(analyzer, List.of("_k_"), query));
+        }
+        final CandidateValues standard = CandidateValues.of(query, FIELD).readingTokensOf(new StandardAnalyzer());
+        assertEquals(CandidateValues.Answer.NO, standard.held(values("_k_")));
+        assertFalse(matches(new StandardAnalyzer(), List.of("_k_"), query));
+    }
+
+    /** Reading a query for the tokens of the standard analyzer, which is what a text field is analyzed by. */
+    private static CandidateValues readingTokens(Query query) {
+        return CandidateValues.of(query, FIELD).readingTokensOf(new StandardAnalyzer());
+    }
+
     private Analyzer randomAnalyzer() {
         return randomFrom(
             new StandardAnalyzer(),
@@ -347,16 +472,29 @@ public class CandidateValuesTests extends ESTestCase {
         );
     }
 
-    private static final String[] WORDS = { "quick", "brown", "fox", "the", "a", "QUICK", "Fox", "café", "naïve", "x" };
+    private static final String[] WORDS = { "quick", "brown", "fox", "the", "a", "QUICK", "Fox", "café", "naïve", "x", "k", "k9" };
+
+    /**
+     * What sits between two words of a value. Each analyzer of the allowlist cuts its tokens differently here: an
+     * underscore holds two runs together for one keeping letters and digits and ends a token for one keeping
+     * letters, and a dot or an apostrophe between two words can hold them together.
+     */
+    private static final String[] SEPARATORS = { " ", ", ", " - ", "_", ".", "'", "9", "-" };
 
     private List<String> randomValues() {
         final List<String> values = new ArrayList<>();
         for (int i = between(1, 3); i > 0; i--) {
             final StringBuilder value = new StringBuilder();
             for (int w = between(0, 6); w > 0; w--) {
-                value.append(value.isEmpty() ? "" : randomFrom(" ", ", ", " - ")).append(randomFrom(WORDS));
+                value.append(value.isEmpty() ? "" : randomFrom(SEPARATORS)).append(randomFrom(WORDS));
             }
-            values.add(value.toString());
+            if (randomBoolean() && value.isEmpty() == false) {
+                // A value starting or ending on a separator, where a token sits against the edge of the value.
+                final String edge = randomFrom(SEPARATORS);
+                values.add(randomBoolean() ? edge + value : value + edge);
+            } else {
+                values.add(value.toString());
+            }
         }
         return values;
     }
@@ -385,7 +523,7 @@ public class CandidateValuesTests extends ESTestCase {
             return randomFrom(WORDS).toLowerCase(Locale.ROOT);
         }
         // A word of the document itself, so the query is answered often enough for the comparison to mean something.
-        final String[] words = String.join(" ", documentValues).split("[ ,-]+");
+        final String[] words = String.join(" ", documentValues).split("[ ,.'_9-]+");
         return words.length == 0 ? "x" : randomFrom(words).toLowerCase(Locale.ROOT);
     }
 

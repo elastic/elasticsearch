@@ -32,6 +32,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -425,6 +426,25 @@ public class TextNoTermsSearchTests extends MapperServiceTestCase {
             default -> {
             }
         }
+    }
+
+    /**
+     * The yes-answer runs on the analyzer the query carries, which has to be the field's own: the index-wide
+     * analyzer a query is built with wraps every field's and is none of them, so nothing can be read for its
+     * tokens.
+     */
+    public void testTheQueryCarriesTheAnalyzerItsValuesAreReadWith() throws IOException {
+        final SearchExecutionContext context = createSearchExecutionContext(mapper(false));
+        final List<ReanalyzingTextQuery> answeredFromValues = new ArrayList<>();
+        collectValueQueries(QueryBuilders.matchQuery("body", "quick").toQuery(context), answeredFromValues);
+        assertEquals(1, answeredFromValues.size());
+        final ReanalyzingTextQuery answered = answeredFromValues.get(0);
+        final CandidateValues candidates = CandidateValues.of(answered.getQuery(), "body").readingTokensOf(answered.valuesAnalyzer());
+        assertEquals(
+            "a value holding the term as a token is answered without being analyzed",
+            CandidateValues.Answer.YES,
+            candidates.held(List.<Object>of(new BytesRef("the quick brown fox")))
+        );
     }
 
     /** The analyzer decides whether the values are read at all, whatever the query asks. */

@@ -581,7 +581,11 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         builder.setIndices(Collections.singletonList("data-index"));
         DatafeedConfig config = builder.build();
 
-        blockingCall(listener -> jobConfigProvider.validateDatafeedJob(config, listener), responseHolder, exceptionHolder);
+        blockingCall(
+            listener -> jobConfigProvider.validateDatafeedJob(config, Collections.emptyMap(), listener),
+            responseHolder,
+            exceptionHolder
+        );
         assertTrue(responseHolder.get());
         assertNull(exceptionHolder.get());
 
@@ -598,7 +602,11 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         builder.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(histogram));
         DatafeedConfig badConfig = builder.build();
 
-        blockingCall(listener -> jobConfigProvider.validateDatafeedJob(badConfig, listener), responseHolder, exceptionHolder);
+        blockingCall(
+            listener -> jobConfigProvider.validateDatafeedJob(badConfig, Collections.emptyMap(), listener),
+            responseHolder,
+            exceptionHolder
+        );
         assertNotNull(exceptionHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ElasticsearchStatusException.class));
         assertEquals(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD, exceptionHolder.get().getMessage());

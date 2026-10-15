@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,6 +45,22 @@ public class ChunkedDataExtractor implements DataExtractor {
     /** Let us set a minimum chunk span of 1 minute */
     private static final long MIN_CHUNK_SPAN = 60000L;
 
+    /**
+     * Target row count per chunk for ESQL datafeeds, used both to size the initial chunk span (when it is not specified)
+     * and as the target when a truncated chunk is shrunk. It is deliberately far below
+     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT}, so that non-uniform (bursty) data distributions still leave headroom
+     * before a result is truncated.
+     */
+    private static final long DEFAULT_ESQL_CHUNK_DOCS = 500L;
+
+    /**
+     * Maximum number of times one ES|QL chunk is re-queried with a smaller interval after its result was truncated at
+     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT}. The counter restarts with every new chunk. Each attempt cuts the
+     * interval roughly by the ratio of {@link #DEFAULT_ESQL_CHUNK_DOCS} to the row limit, and shrinking never goes below
+     * one grouping interval.
+     */
+    static final int MAX_ESQL_SHRINK_ATTEMPTS = 5;
+
     private final DataExtractorFactory dataExtractorFactory;
     private final ChunkedDataExtractorContext context;
     private long currentStart;
@@ -52,6 +69,8 @@ public class ChunkedDataExtractor implements DataExtractor {
     private boolean isCancelled;
     private DataExtractor currentExtractor;
     private List<LinkedClusterState> lastLinkedClusterStates = List.of();
+    private SearchInterval incompleteSearchInterval;
+    private int esqlShrinkAttempts;
 
     ChunkedDataExtractor(DataExtractorFactory dataExtractorFactory, ChunkedDataExtractorContext context) {
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
@@ -104,7 +123,16 @@ public class ChunkedDataExtractor implements DataExtractor {
             throw e;
         }
         if (dataSummary.hasData()) {
-            currentStart = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            long earliestTime = context.timeAligner().alignToFloor(dataSummary.earliestTime());
+            // For ESQL datafeeds the query may transform the time field (e.g. DATE_TRUNC), so the
+            // summary's MIN(??timeField) can be earlier than the window we just queried -- clamp so we
+            // never rewind currentStart. Unlike DSL, this must still jump currentStart *forward* to
+            // earliestTime: without it, an unbounded preview/first real _start walks the chunked extractor
+            // one chunk at a time across the *entire* configured range (e.g. epoch to "now") instead of
+            // straight to where the data actually starts, which is what made ES|QL datafeed unbounded
+            // preview ~750x slower than the DSL equivalent (elastic-workspace-g2sz.1) -- verified by
+            // DEBUG-logging ChunkedDataExtractor during the repro: ~5000 resync round trips instead of ~3.
+            currentStart = context.hasEsqlQuery() ? Math.max(currentStart, earliestTime) : earliestTime;
             currentEnd = currentStart;
 
             if (context.chunkSpan() != null) {
@@ -112,6 +140,14 @@ public class ChunkedDataExtractor implements DataExtractor {
             } else if (context.hasAggregations()) {
                 // This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig}
                 chunkSpan = DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * context.histogramInterval();
+            } else if (context.hasEsqlQuery()) {
+                long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
+                if (timeSpread <= 0) {
+                    chunkSpan = context.end() - currentEnd;
+                } else {
+                    // Target roughly DEFAULT_ESQL_CHUNK_DOCS rows per chunk assuming data is evenly distributed over time.
+                    chunkSpan = Math.max(MIN_CHUNK_SPAN, DEFAULT_ESQL_CHUNK_DOCS * timeSpread / dataSummary.totalHits());
+                }
             } else {
                 long timeSpread = dataSummary.latestTime() - dataSummary.earliestTime();
                 if (timeSpread <= 0) {
@@ -166,6 +202,16 @@ public class ChunkedDataExtractor implements DataExtractor {
                     result.linkedClusterStates()
                 );
             }
+            if (shouldRetryWithSmallerEsqlChunk(result)) {
+                if (result.data().isPresent()) {
+                    result.data().get().close();
+                }
+                shrinkCurrentEsqlChunk(result.rowCount());
+                continue;
+            }
+            if (incompleteSearchInterval == null && isIncompleteEsqlChunk(result)) {
+                incompleteSearchInterval = result.searchInterval();
+            }
             if (result.data().isPresent()) {
                 return result;
             }
@@ -195,6 +241,47 @@ public class ChunkedDataExtractor implements DataExtractor {
         return new Result(lastSearchInterval, Optional.empty(), lastLinkedClusterStates);
     }
 
+    /**
+     * An ES|QL result is truncated only when it reached the row limit {@link EsqlDataExtractor} injects into the query
+     * ({@link EsqlDataExtractor#INJECTED_ROW_LIMIT}); anything below it is complete, however many rows it holds.
+     */
+    private boolean isTruncatedEsqlResult(Result result) {
+        return context.hasEsqlQuery() && result.rowCount() >= EsqlDataExtractor.INJECTED_ROW_LIMIT;
+    }
+
+    private boolean canShrinkEsqlChunk(Result result) {
+        long intervalLength = result.searchInterval().endMs() - result.searchInterval().startMs();
+        return esqlShrinkAttempts < MAX_ESQL_SHRINK_ATTEMPTS && intervalLength > context.timeAligner().alignToCeil(1L);
+    }
+
+    /**
+     * Whether the chunk is still truncated after the allowed shrinks, or can no longer be shrunk (one grouping interval).
+     */
+    private boolean isIncompleteEsqlChunk(Result result) {
+        return isTruncatedEsqlResult(result) && canShrinkEsqlChunk(result) == false;
+    }
+
+    private boolean shouldRetryWithSmallerEsqlChunk(Result result) {
+        return isTruncatedEsqlResult(result) && canShrinkEsqlChunk(result);
+    }
+
+    private void shrinkCurrentEsqlChunk(long rowCount) {
+        currentExtractor.destroy();
+        long intervalLength = currentEnd - currentStart;
+        long targetLength = Math.max(
+            1L,
+            intervalLength / rowCount * DEFAULT_ESQL_CHUNK_DOCS + intervalLength % rowCount * DEFAULT_ESQL_CHUNK_DOCS / rowCount
+        );
+        long shrunkEnd = context.timeAligner().alignToFloor(currentStart + targetLength);
+        if (shrunkEnd <= currentStart) {
+            shrunkEnd = currentStart + context.timeAligner().alignToCeil(1L);
+        }
+        currentEnd = Math.min(shrunkEnd, currentEnd);
+        currentExtractor = dataExtractorFactory.newExtractor(currentStart, currentEnd);
+        esqlShrinkAttempts++;
+        LOGGER.debug("[{}] shrinks ES|QL chunk to [{}, {}) after receiving [{}] rows", context.jobId(), currentStart, currentEnd, rowCount);
+    }
+
     private void advanceTime() {
         // Destroy the previous extractor to clean up any scroll contexts before creating a new one
         if (currentExtractor != null) {
@@ -203,6 +290,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         currentStart = currentEnd;
         currentEnd = Math.min(currentStart + chunkSpan, context.end());
         currentExtractor = dataExtractorFactory.newExtractor(currentStart, currentEnd);
+        esqlShrinkAttempts = 0;
         LOGGER.debug("[{}] advances time to [{}, {})", context.jobId(), currentStart, currentEnd);
     }
 
@@ -235,6 +323,11 @@ public class ChunkedDataExtractor implements DataExtractor {
     @Override
     public List<LinkedClusterState> getLinkedClusterStates() {
         return lastLinkedClusterStates;
+    }
+
+    @Override
+    public Optional<SearchInterval> getIncompleteSearchInterval() {
+        return Optional.ofNullable(incompleteSearchInterval);
     }
 
     ChunkedDataExtractorContext getContext() {

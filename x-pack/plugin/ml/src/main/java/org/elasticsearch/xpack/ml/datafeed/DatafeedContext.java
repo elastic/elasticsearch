@@ -7,19 +7,31 @@
 
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 
 import java.util.Objects;
 
-public record DatafeedContext(DatafeedConfig datafeedConfig, Job job, RestartTimeInfo restartTimeInfo, DatafeedTimingStats timingStats) {
+public record DatafeedContext(
+    DatafeedConfig datafeedConfig,
+    Job job,
+    RestartTimeInfo restartTimeInfo,
+    DatafeedTimingStats timingStats,
+    @Nullable EsqlDatafeedSourceCheckpoint esqlSourceCheckpoint
+) {
 
     public DatafeedContext {
         Objects.requireNonNull(datafeedConfig);
         Objects.requireNonNull(job);
         Objects.requireNonNull(restartTimeInfo);
         Objects.requireNonNull(timingStats);
+    }
+
+    public DatafeedContext(DatafeedConfig datafeedConfig, Job job, RestartTimeInfo restartTimeInfo, DatafeedTimingStats timingStats) {
+        this(datafeedConfig, job, restartTimeInfo, timingStats, null);
     }
 }

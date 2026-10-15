@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -131,6 +132,7 @@ public final class CredentialTransitions {
     private final NamedXContentRegistry xContentRegistry;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final EsqlDatafeedQueryValidator esqlQueryValidator;
     private final MintFailureLogThrottle mintFailureLogThrottle = new MintFailureLogThrottle();
 
     public CredentialTransitions(
@@ -142,6 +144,29 @@ public final class CredentialTransitions {
         DatafeedConfigProvider datafeedConfigProvider,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
+        this(
+            auditor,
+            apiKeyServiceSupplier,
+            credentialManagerSupplier,
+            client,
+            xContentRegistry,
+            datafeedConfigProvider,
+            crossProjectModeDecider,
+            new EsqlDatafeedQueryValidator()
+        );
+    }
+
+    // visible for testing: lets tests substitute the ES|QL probe, which needs the ES|QL plugin's request builder
+    CredentialTransitions(
+        AnomalyDetectionAuditor auditor,
+        Supplier<InternalCloudApiKeyService> apiKeyServiceSupplier,
+        Supplier<CloudCredentialManager> credentialManagerSupplier,
+        Client client,
+        NamedXContentRegistry xContentRegistry,
+        DatafeedConfigProvider datafeedConfigProvider,
+        CrossProjectModeDecider crossProjectModeDecider,
+        EsqlDatafeedQueryValidator esqlQueryValidator
+    ) {
         this.auditor = auditor;
         this.apiKeyServiceSupplier = apiKeyServiceSupplier;
         this.credentialManagerSupplier = credentialManagerSupplier;
@@ -149,6 +174,7 @@ public final class CredentialTransitions {
         this.xContentRegistry = xContentRegistry;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.crossProjectModeDecider = crossProjectModeDecider;
+        this.esqlQueryValidator = esqlQueryValidator;
     }
 
     public static Intent decideForUpdate(TransitionContext ctx) {
@@ -427,6 +453,19 @@ public final class CredentialTransitions {
             crossProjectModeDecider,
             callerCredential != null
         );
+        final Client searchClient = credentialManager.wrapClient(client, callerCredential);
+        if (effectiveConfig.getEsqlQuery() != null) {
+            // ES|QL datafeeds have no indices or indices options (a DSL SearchRequest cannot be built from them);
+            // probe with the ES|QL equivalent: `esqlQuery | LIMIT 0` under the caller's credential and headers.
+            esqlQueryValidator.validateAccessForMint(
+                searchClient,
+                headers,
+                effectiveConfig.getEsqlQuery(),
+                effectiveConfig.getProjectRouting(),
+                listener
+            );
+            return;
+        }
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0);
         QueryBuilder query = effectiveConfig.getParsedQuery(xContentRegistry);
         if (query != null) {
@@ -435,13 +474,13 @@ public final class CredentialTransitions {
         if (effectiveConfig.getRuntimeMappings() != null && effectiveConfig.getRuntimeMappings().isEmpty() == false) {
             sourceBuilder.runtimeMappings(effectiveConfig.getRuntimeMappings());
         }
-        SearchRequest searchRequest = new SearchRequest(effectiveConfig.getIndices().toArray(String[]::new)).indicesOptions(
-            effectiveConfig.getIndicesOptions()
-        ).source(sourceBuilder);
+        SearchRequest searchRequest = new SearchRequest(effectiveConfig.getIndices().toArray(String[]::new)).source(sourceBuilder);
+        if (effectiveConfig.getIndicesOptions() != null) {
+            searchRequest.indicesOptions(effectiveConfig.getIndicesOptions());
+        }
         if (effectiveConfig.getProjectRouting() != null) {
             searchRequest.setProjectRouting(effectiveConfig.getProjectRouting());
         }
-        final Client searchClient = credentialManager.wrapClient(client, callerCredential);
         boolean flatWorldOnly = effectiveConfig.getIndices().stream().noneMatch(RemoteClusterAware::isRemoteIndexName);
         ActionListener<Void> probeListener = listener.delegateResponse((l, e) -> {
             if (flatWorldOnly && ExceptionsHelper.unwrapCause(e) instanceof NoMatchingProjectException) {

@@ -22,13 +22,18 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
@@ -51,7 +56,10 @@ import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DatafeedJobBuilderTests extends ESTestCase {
@@ -209,6 +217,49 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         datafeedJobBuilder.build(datafeedTask, datafeedContext, datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
+    }
+
+    public void testBuildGivenEsqlDatafeedShouldRestorePersistedCheckpointSourceEnd() throws Exception {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Detector.Builder detector = new Detector.Builder("count", null);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
+        Job.Builder jobBuilder = new Job.Builder("esql-job");
+        jobBuilder.setAnalysisConfig(analysisConfig);
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("esql-datafeed", jobBuilder.getId()).setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
+            .build();
+        String fingerprint = EsqlDatafeedSourceCheckpoint.computeFingerprint(datafeed, "time");
+        EsqlDatafeedSourceCheckpoint checkpoint = new EsqlDatafeedSourceCheckpoint(
+            jobBuilder.getId(),
+            datafeed.getId(),
+            3_600_000L,
+            fingerprint
+        );
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
+            assertThat(datafeedJob.esqlSourceEndMs(), equalTo(3_600_000L));
+            wasHandlerCalled.compareAndSet(false, true);
+        });
+
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed,
+            jobBuilder.build(),
+            new RestartTimeInfo(7_200_000L, 7_200_000L, true),
+            new DatafeedTimingStats(jobBuilder.getId()),
+            checkpoint
+        );
+
+        datafeedJobBuilder.build(newDatafeedTask("esql-datafeed"), datafeedContext, datafeedJobHandler);
+
+        assertBusy(() -> wasHandlerCalled.get());
+        verify(jobResultsPersister, never()).persistEsqlDatafeedSourceCheckpoint(any());
     }
 
     public void testBuildGivenRemoteIndicesButNoRemoteSearching() throws Exception {

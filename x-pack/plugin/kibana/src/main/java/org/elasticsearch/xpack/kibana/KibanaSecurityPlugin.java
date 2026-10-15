@@ -28,7 +28,8 @@ public class KibanaSecurityPlugin extends Plugin implements SecurityExtension {
         new KibanaCasesImplicitPrivilegesProvider(),
         new KibanaWorkflowsImplicitPrivilegesProvider(),
         new KibanaNightshiftImplicitPrivilegesProvider(),
-        new ElasticAiIndexImplicitPrivilegesProvider()
+        new ElasticAiIndexImplicitPrivilegesProvider(),
+        new ElasticAiMemoryImplicitPrivilegesProvider()
     );
 
     @Override

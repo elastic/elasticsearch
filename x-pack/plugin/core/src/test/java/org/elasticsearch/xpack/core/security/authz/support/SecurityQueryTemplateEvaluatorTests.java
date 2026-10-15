@@ -18,6 +18,7 @@ import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -82,7 +83,33 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
         userModel.put("email", user.email());
         userModel.put("roles", Arrays.asList(user.roles()));
         userModel.put("metadata", user.metadata());
+        userModel.put("profile_uid", Profile.computeDefaultUid("_username"));
         assertThat(usedScript.getParams().get("_user"), equalTo(userModel));
+    }
+
+    public void testDocLevelSecurityTemplateWithProfileUid() throws Exception {
+        User user = new User("alice", new String[] { "role1" }, null, null, Map.of(), true);
+
+        final MustacheScriptEngine mustache = new MustacheScriptEngine(Settings.EMPTY);
+        when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenAnswer(inv -> {
+            Script script = (Script) inv.getArguments()[0];
+            return mustache.compile(script.getIdOrCode(), script.getIdOrCode(), TemplateScript.CONTEXT, script.getOptions());
+        });
+
+        String template = """
+            {
+              "template": {
+                "source": {
+                  "term": {
+                    "scope_id": "user://{{_user.profile_uid}}"
+                  }
+                }
+              }
+            }""";
+
+        String evaluated = SecurityQueryTemplateEvaluator.evaluateTemplate(template, scriptService, user);
+        assertThat(evaluated, equalTo("""
+            {"term":{"scope_id":"user://u_K9gGyX8OAK8aH8Myj6djqSaXI8jbj6xPk69x2xhtbpA_0"}}"""));
     }
 
     public void testDocLevelSecurityTemplateWithOpenIdConnectStyleMetadata() throws Exception {

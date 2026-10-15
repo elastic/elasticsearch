@@ -1,0 +1,16 @@
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "scope_id": {
+          "type": "keyword"
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Additional template mappings applied to memory AI indices.",
+    "managed": true
+  },
+  "version": ${xpack.stack.ai-index.template.version}
+}

@@ -1,0 +1,90 @@
+---
+setup:
+  # Wait for the AI index template registry to finish installing its templates.
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+teardown:
+  - do:
+      cluster.delete_component_template:
+        name: ai-index@custom
+        ignore: 404
+
+---
+"Dot-prefixed memory AI index composes the shared, Elastic-managed and memory mappings":
+  - requires:
+      test_runner_features: ["allowed_warnings_regex"]
+
+  # MetadataCreateIndexService warns for any non-hidden dot-prefixed index. The template
+  # deliberately leaves index.hidden unset.
+  - do:
+      allowed_warnings_regex:
+        - "index name .* starts with a dot.*"
+      indices.create:
+        index: .ai-memory-foo
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: .ai-memory-foo
+  # From ai-index@mappings.
+  - match: { \.ai-memory-foo.mappings.properties.type.type: keyword }
+  - match: { \.ai-memory-foo.mappings.properties.title.fields.semantic.type: semantic_text }
+
+  # From ai-index-managed@mappings.
+  - match: { \.ai-memory-foo.mappings.dynamic: strict }
+  - match: { \.ai-memory-foo.mappings.properties.permissions.properties.kibana.properties.privileges.type: nested }
+
+  # From ai-memory@mappings.
+  - match: { \.ai-memory-foo.mappings.properties.scope_id.type: keyword }
+
+---
+"Elastic-managed memory AI index accepts scope_id and rejects unmapped fields":
+  - requires:
+      test_runner_features: ["allowed_warnings_regex"]
+
+  - do:
+      allowed_warnings_regex:
+        - "index name .* starts with a dot.*"
+      indices.create:
+        index: .ai-memory-foo
+
+  - do:
+      index:
+        index: .ai-memory-foo
+        body: { type: "memory", scope_id: ["user://u_abc_0", "user://u_def_0"] }
+  - match: { result: created }
+
+  - do:
+      catch: /strict_dynamic_mapping_exception/
+      index:
+        index: .ai-memory-foo
+        body: { not_a_mapped_field: "x" }
+
+---
+"A user ai-index@custom component does not reach the Elastic-managed memory AI index":
+  - requires:
+      test_runner_features: ["allowed_warnings_regex"]
+
+  - do:
+      cluster.put_component_template:
+        name: ai-index@custom
+        body:
+          template:
+            mappings:
+              properties:
+                user_custom_field:
+                  type: keyword
+
+  - do:
+      allowed_warnings_regex:
+        - "index name .* starts with a dot.*"
+      indices.create:
+        index: .ai-memory-foo
+
+  - do:
+      indices.get_mapping:
+        index: .ai-memory-foo
+  - is_false: \.ai-memory-foo.mappings.properties.user_custom_field

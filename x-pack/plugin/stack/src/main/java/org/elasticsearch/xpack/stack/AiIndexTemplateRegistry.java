@@ -34,14 +34,19 @@ import java.util.Map;
  * {@code .ai-index-ds-*}) is reserved for Elastic-managed AI indices and layers the
  * {@code ai-index-managed@mappings} component on top of the shared ones, while the undotted name is
  * available to users and composes the optional {@code ai-index@custom} escape hatch instead.
+ *
+ * <p>Memory is a specialised, Elastic-managed AI index with its own dot-prefixed name ({@code .ai-memory-*}) so that
+ * it stays out of the {@code ai-index-*} search pattern. It layers the {@code ai-memory@mappings} component (which
+ * adds {@code scope_id}) on top of the shared and Elastic-managed mappings so the memory implicit privilege provider
+ * can enforce space and user scope with DLS.
  */
 public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
 
     // This number must be incremented when we make changes to built-in templates.
-    static final int REGISTRY_VERSION = 4;
+    static final int REGISTRY_VERSION = 5;
 
     // The computed checksum of all templates and components that are registered in this registry.
-    static final String COMPUTED_CHECKSUM = "ddf8f49f";
+    static final String COMPUTED_CHECKSUM = "f5d9887e";
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.ai-index.template.version";
 
@@ -57,14 +62,19 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final String DOT_AI_INDEX_IDX_PATTERN = DOT_AI_INDEX_IDX_PREFIX + "*";
     public static final String DOT_AI_INDEX_DS_PATTERN = DOT_AI_INDEX_DS_PREFIX + "*";
 
+    public static final String DOT_AI_MEMORY_PREFIX = ".ai-memory-";
+    public static final String DOT_AI_MEMORY_PATTERN = DOT_AI_MEMORY_PREFIX + "*";
+
     public static final String AI_INDEX_MAPPINGS_COMPONENT_NAME = "ai-index@mappings";
     public static final String AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME = "ai-index-managed@mappings";
     public static final String AI_INDEX_DS_SETTINGS_COMPONENT_NAME = "ai-index@ds-settings";
+    public static final String AI_MEMORY_MAPPINGS_COMPONENT_NAME = "ai-memory@mappings";
 
     public static final String AI_INDEX_IDX_TEMPLATE_NAME = "ai-index-idx";
     public static final String AI_INDEX_DS_TEMPLATE_NAME = "ai-index-ds";
     public static final String AI_INDEX_IDX_MANAGED_TEMPLATE_NAME = "ai-index-idx-managed";
     public static final String AI_INDEX_DS_MANAGED_TEMPLATE_NAME = "ai-index-ds-managed";
+    public static final String AI_MEMORY_MANAGED_TEMPLATE_NAME = "ai-memory-managed";
 
     private static final String ROOT_RESOURCE_PATH = "/ai-index/";
     private static final String JSON_EXTENSION = ".json";
@@ -102,6 +112,12 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
                 ROOT_RESOURCE_PATH + AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME + JSON_EXTENSION,
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                AI_MEMORY_MAPPINGS_COMPONENT_NAME,
+                ROOT_RESOURCE_PATH + AI_MEMORY_MAPPINGS_COMPONENT_NAME + JSON_EXTENSION,
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
             ) };
     }
 
@@ -136,6 +152,13 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 Map.of("ai-index.ds.dot_index_pattern", DOT_AI_INDEX_DS_PATTERN)
+            ),
+            new IndexTemplateConfig(
+                AI_MEMORY_MANAGED_TEMPLATE_NAME,
+                ROOT_RESOURCE_PATH + AI_MEMORY_MANAGED_TEMPLATE_NAME + JSON_EXTENSION,
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                Map.of("ai-memory.dot_index_pattern", DOT_AI_MEMORY_PATTERN)
             ) };
     }
 

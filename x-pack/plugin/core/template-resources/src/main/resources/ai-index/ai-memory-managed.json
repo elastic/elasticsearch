@@ -1,0 +1,14 @@
+{
+  "index_patterns": ["${ai-memory.dot_index_pattern}"],
+  "priority": 500,
+  "composed_of": [
+    "ai-index@mappings",
+    "ai-index-managed@mappings",
+    "ai-memory@mappings"
+  ],
+  "_meta": {
+    "description": "Template applied to the Elastic-managed memory AI indices, backed by dot-prefixed ES indices.",
+    "managed": true
+  },
+  "version": ${xpack.stack.ai-index.template.version}
+}

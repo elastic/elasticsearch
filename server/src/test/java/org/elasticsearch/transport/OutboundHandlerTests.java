@@ -157,7 +157,8 @@ public class OutboundHandlerTests extends ESTestCase {
                 long requestId,
                 String action,
                 TransportRequest request,
-                TransportRequestOptions options
+                TransportRequestOptions options,
+                int networkMessageSize
             ) {
                 nodeRef.set(node);
                 requestIdRef.set(requestId);
@@ -224,7 +225,7 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicReference<String> actionRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action) {
+            public void onResponseSent(long requestId, String action, int networkMessageSize) {
                 requestIdRef.set(requestId);
                 actionRef.set(action);
             }
@@ -283,7 +284,7 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicReference<Exception> responseRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action, Exception error) {
+            public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
                 requestIdRef.set(requestId);
                 actionRef.set(action);
                 responseRef.set(error);
@@ -340,7 +341,7 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action) {
+            public void onResponseSent(long requestId, String action, int networkMessageSize) {
                 assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(0L));
                 requestIdRef.set(requestId);
@@ -349,7 +350,7 @@ public class OutboundHandlerTests extends ESTestCase {
             }
 
             @Override
-            public void onResponseSent(long requestId, String action, Exception error) {
+            public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
                 assertNotNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(requestId));
                 assertThat(actionRef.get(), equalTo(action));
@@ -401,7 +402,7 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action) {
+            public void onResponseSent(long requestId, String action, int networkMessageSize) {
                 assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(0L));
                 requestIdRef.set(requestId);
@@ -410,7 +411,7 @@ public class OutboundHandlerTests extends ESTestCase {
             }
 
             @Override
-            public void onResponseSent(long requestId, String action, Exception error) {
+            public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
                 assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(requestId));
                 assertThat(actionRef.get(), equalTo(action));
@@ -455,7 +456,7 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicReference<String> actionRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action) {
+            public void onResponseSent(long requestId, String action, int networkMessageSize) {
                 assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(0L));
                 requestIdRef.set(requestId);
@@ -464,7 +465,7 @@ public class OutboundHandlerTests extends ESTestCase {
             }
 
             @Override
-            public void onResponseSent(long requestId, String action, Exception error) {
+            public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
                 throw new AssertionError("failing to send a handshake response should not send failure");
             }
         });
@@ -503,12 +504,12 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         handler.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action) {
+            public void onResponseSent(long requestId, String action, int networkMessageSize) {
                 throw new AssertionError("must not be called");
             }
 
             @Override
-            public void onResponseSent(long requestId, String action, Exception error) {
+            public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
                 assertNull(channel.getMessageCaptor().get());
                 assertThat(requestIdRef.get(), equalTo(0L));
                 requestIdRef.set(requestId);
@@ -560,6 +561,111 @@ public class OutboundHandlerTests extends ESTestCase {
             f.get();
             mockLog.assertAllExpectationsMatched();
         }
+    }
+
+    public void testSendRequestReportsNetworkMessageSize() throws IOException {
+        AtomicReference<Integer> capturedNetworkMessageSize = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onRequestSent(
+                DiscoveryNode node,
+                long requestId,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                int networkMessageSize
+            ) {
+                assertTrue("request reported more than once", capturedNetworkMessageSize.compareAndSet(null, networkMessageSize));
+            }
+        });
+        Compression.Scheme compress = randomFrom(compressionScheme, null);
+        handler.sendRequest(
+            node,
+            channel,
+            randomLongBetween(0, 300),
+            randomAlphaOfLength(10),
+            new TestRequest(randomAlphaOfLength(randomIntBetween(1, 1000))),
+            options,
+            TransportVersionUtils.randomCompatibleVersion(),
+            compress,
+            false
+        );
+        BytesReference reference = channel.getMessageCaptor().get();
+        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
+        if (randomBoolean()) {
+            sendListener.onResponse(null);
+        } else {
+            sendListener.onFailure(new IOException("failed"));
+        }
+
+        assertEquals(reference.length(), capturedNetworkMessageSize.get().intValue());
+    }
+
+    public void testSendResponseReportsNetworkMessageSize() {
+        AtomicReference<Integer> capturedNetworkMessageSize = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, int networkMessageSize) {
+                assertTrue("response reported more than once", capturedNetworkMessageSize.compareAndSet(null, networkMessageSize));
+            }
+
+            @Override
+            public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
+                throw new AssertionError("must not be called");
+            }
+        });
+        Compression.Scheme compress = randomFrom(compressionScheme, null);
+        handler.sendResponse(
+            TransportVersionUtils.randomCompatibleVersion(),
+            channel,
+            randomLongBetween(0, 300),
+            randomAlphaOfLength(10),
+            new TestResponse(randomAlphaOfLength(randomIntBetween(1, 1000))),
+            compress,
+            false,
+            ResponseStatsConsumer.NONE
+        );
+        BytesReference reference = channel.getMessageCaptor().get();
+        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
+        if (randomBoolean()) {
+            sendListener.onResponse(null);
+        } else {
+            sendListener.onFailure(new IOException("failed"));
+        }
+
+        assertEquals(reference.length(), capturedNetworkMessageSize.get().intValue());
+    }
+
+    public void testSendErrorResponseReportsNetworkMessageSize() {
+        AtomicReference<Integer> capturedNetworkMessageSize = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, int networkMessageSize) {
+                throw new AssertionError("must not be called");
+            }
+
+            @Override
+            public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
+                assertTrue("response reported more than once", capturedNetworkMessageSize.compareAndSet(null, networkMessageSize));
+            }
+        });
+        handler.sendErrorResponse(
+            TransportVersionUtils.randomCompatibleVersion(),
+            channel,
+            randomLongBetween(0, 300),
+            randomAlphaOfLength(10),
+            ResponseStatsConsumer.NONE,
+            new ElasticsearchException(randomAlphaOfLength(randomIntBetween(1, 1000)))
+        );
+        BytesReference reference = channel.getMessageCaptor().get();
+        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
+        if (randomBoolean()) {
+            sendListener.onResponse(null);
+        } else {
+            sendListener.onFailure(new IOException("failed"));
+        }
+
+        assertEquals(reference.length(), capturedNetworkMessageSize.get().intValue());
     }
 
     static class ReleasbleTestResponse extends TestResponse {

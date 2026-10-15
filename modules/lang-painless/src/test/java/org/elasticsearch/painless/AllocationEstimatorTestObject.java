@@ -118,6 +118,16 @@ public class AllocationEstimatorTestObject {
         return 0;
     }
 
+    /** Getter reachable by property shorthand ({@code o.estimatedValue}); its estimator must run on that path too. */
+    public int getEstimatedValue() {
+        return 0;
+    }
+
+    /** Fixed-cost estimator for {@link #getEstimatedValue()}. */
+    public static long estimatedValueEstimate(AllocationEstimatorTestObject receiver) {
+        return 72;
+    }
+
     /** Fixed-cost estimator for {@link #constantBoxed}: instance signature (receiver first) with the boxed parameter type. */
     public static long constantBoxedEstimate(AllocationEstimatorTestObject receiver, Integer n) {
         return 48;

@@ -294,7 +294,14 @@ public class FakeStatelessNode implements Closeable {
             transportService.acceptIncomingRequests();
             localCloseables.add(transportService::stop);
 
-            objectStoreService = new ObjectStoreService(nodeSettings, repoService, threadPool, clusterService, projectResolver);
+            objectStoreService = new ObjectStoreService(
+                nodeSettings,
+                repoService,
+                threadPool,
+                clusterService,
+                projectResolver,
+                meterRegistry != null ? meterRegistry : MeterRegistry.NOOP
+            );
             if (projectResolver.supportsMultipleProjects()) {
                 clusterService.addStateApplier(objectStoreService);
             }
@@ -311,7 +318,7 @@ public class FakeStatelessNode implements Closeable {
                 telemetryProvider,
                 clusterSettings,
                 warmingRatioProvider,
-                new SearchRecoveryTimeoutCalculationService(sharedCacheService, threadPool, clusterSettings)
+                new SearchRecoveryTimeoutCalculationService(sharedCacheService, threadPool, clusterSettings, () -> Integer.MAX_VALUE)
             );
             onlinePrewarmingService = new StatelessOnlinePrewarmingService(
                 nodeSettings,

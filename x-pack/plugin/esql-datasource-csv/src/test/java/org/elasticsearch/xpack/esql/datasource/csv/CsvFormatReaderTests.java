@@ -6115,27 +6115,46 @@ public class CsvFormatReaderTests extends ESTestCase {
      *   <li>{@code duckdb} with {@code read_csv(..., columns={'ts':'TIMESTAMP_NS'})} returns
      *       {@code 2021-01-02 00:00:00}</li>
      * </ul>
-     * ES|QL nulls it instead, before and after this change and for two independent reasons: the template
-     * asks {@code LocalDateTime.of}, which rejects hour 24, and the ISO stage below it requires the
-     * {@code T} separator. So this is neither caused nor fixed here, and it is deliberately not grouped
-     * with the calendar-invalid cells above — {@code 2021-02-30} is a date no engine accepts (both
-     * error on it, re-measured the same way), whereas this is a date they both accept and we do not.
+     * A declared {@code date} agrees with them: its ladder ends in {@code DateUtils.asDateTime}, whose
+     * whitespace formatter resolves hour 24 to the following midnight, so the cell reads as
+     * {@code 2021-01-02T00:00:00Z}. An undeclared column does too, because {@code CsvSchemaInferrer}
+     * classifies through the same {@code asDateTime} call and then leaves the column {@code datetime}.
+     * <p>
+     * Only {@code date_nanos} nulls it, before and after this change and for two independent reasons: the
+     * template asks {@code LocalDateTime.of}, which rejects hour 24, and the ISO stage below it requires
+     * the {@code T} separator — and that ladder has no {@code asDateTime} tail to fall into. So hour 24 is
+     * a disagreement between the two temporal types rather than between ES|QL and the engines, it is
+     * neither caused nor fixed here, and both arms are pinned below so the asymmetry is recorded rather
+     * than described. It is deliberately not grouped with the calendar-invalid cells above —
+     * {@code 2021-02-30} is a date no engine accepts (both error on it, re-measured the same way),
+     * whereas this is a date they both accept and only one of our two types does.
      */
-    public void testHour24CellNullsUnderDateNanosAsAKnownDivergence() throws Exception {
-        StorageObject object = createStorageObject("2021-01-01 24:00:00\n");
-        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATE_NANOS));
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", false, "error_mode", "null_field")
-        );
-        try (
-            CloseableIterator<Page> it = reader.read(
-                object,
-                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
-            )
-        ) {
-            Page page = it.next();
-            assertTrue("hour 24 nulls under date_nanos -- a divergence from both engines, pinned not endorsed", page.getBlock(0).isNull(0));
-            page.releaseBlocks();
+    public void testHour24CellNullsUnderDateNanosButReadsUnderDate() throws Exception {
+        for (DataType declared : List.of(DataType.DATE_NANOS, DataType.DATETIME)) {
+            StorageObject object = createStorageObject("2021-01-01 24:00:00\n");
+            List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", declared));
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+                Map.of("header_row", false, "error_mode", "null_field")
+            );
+            try (
+                CloseableIterator<Page> it = reader.read(
+                    object,
+                    FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+                )
+            ) {
+                Page page = it.next();
+                if (declared == DataType.DATE_NANOS) {
+                    assertTrue("hour 24 nulls under date_nanos -- pinned, not endorsed", page.getBlock(0).isNull(0));
+                } else {
+                    assertFalse("hour 24 reads under date, as both reference engines read it", page.getBlock(0).isNull(0));
+                    assertEquals(
+                        "date resolves hour 24 to the following midnight",
+                        Instant.parse("2021-01-02T00:00:00Z").toEpochMilli(),
+                        ((LongBlock) page.getBlock(0)).getLong(0)
+                    );
+                }
+                page.releaseBlocks();
+            }
         }
     }
 

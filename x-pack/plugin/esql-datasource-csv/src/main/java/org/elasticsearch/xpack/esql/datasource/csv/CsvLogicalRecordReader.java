@@ -242,7 +242,7 @@ final class CsvLogicalRecordReader {
                 this.lastRecordTerminated = false;
                 return sb.toString();
             }
-            recordBytes = addBytes(recordBytes, ch);
+            recordBytes = addBytes(recordBytes, ch, inQuotes);
 
             if (inQuotes) {
                 if (escapeAware && ch == escapeChar) {
@@ -252,7 +252,7 @@ final class CsvLogicalRecordReader {
                     int next = readChar();
                     if (next != -1) {
                         failIfLineBreak(next);
-                        recordBytes = addBytes(recordBytes, next);
+                        recordBytes = addBytes(recordBytes, next, true);
                         sb.append((char) next);
                     }
                     continue;
@@ -260,7 +260,7 @@ final class CsvLogicalRecordReader {
                 if (ch == quoteChar) {
                     int next = readChar();
                     if (next == quoteChar) {
-                        recordBytes = addBytes(recordBytes, next);
+                        recordBytes = addBytes(recordBytes, next, true);
                         sb.append((char) ch);
                         sb.append((char) next);
                         continue;
@@ -397,7 +397,7 @@ final class CsvLogicalRecordReader {
                 }
                 return recLen != 0;
             }
-            recordBytes = addBytes(recordBytes, ch);
+            recordBytes = addBytes(recordBytes, ch, inQuotes);
 
             if (inQuotes) {
                 if (escapeAware && ch == escapeChar) {
@@ -405,7 +405,7 @@ final class CsvLogicalRecordReader {
                     int next = nextBulkChar();
                     if (next != -1) {
                         failIfLineBreak(next);
-                        recordBytes = addBytes(recordBytes, next);
+                        recordBytes = addBytes(recordBytes, next, true);
                         appendRecord((char) next);
                     }
                     continue;
@@ -413,7 +413,7 @@ final class CsvLogicalRecordReader {
                 if (ch == quoteChar) {
                     int next = nextBulkChar();
                     if (next == quoteChar) {
-                        recordBytes = addBytes(recordBytes, next);
+                        recordBytes = addBytes(recordBytes, next, true);
                         appendRecord((char) ch);
                         appendRecord((char) next);
                         continue;
@@ -569,6 +569,17 @@ final class CsvLogicalRecordReader {
     }
 
     /**
+     * The stream this reader pulls from, positioned at the next character it would return. Only valid while this reader
+     * has not read ahead: the leading-record reader never enables bulk buffering, and a completed record leaves no
+     * pushed-back character.
+     */
+    Reader source() {
+        assert bulkBuffered == false : "a bulk-buffered reader has read ahead of its source";
+        assert pending == NO_PENDING : "a pushed-back character is not on the source";
+        return reader;
+    }
+
+    /**
      * Cumulative encoded-byte count of all records this reader has returned. Mirrors NDJSON's
      * {@code JsonParser.getCurrentLocation().getByteOffset()} so a split-relative byte offset
      * survives multi-split layouts: the same physical record sits at the same
@@ -592,9 +603,23 @@ final class CsvLogicalRecordReader {
     }
 
     private int addBytes(int recordBytes, int ch) throws CsvRecordTooLargeException, IOException {
+        return addBytes(recordBytes, ch, false);
+    }
+
+    /**
+     * Counts {@code ch} toward the record cap. {@code inQuotes} is the quote state before {@code ch} is applied.
+     * A newline inside a quoted field, while the line-span guard is armed, fails that contract before the cap is
+     * considered, and a cap tripped inside the field still fails it when the newline comes before the quote closes.
+     * Otherwise an oversized record is drained to the next physical line and reported as too large, so a lenient
+     * {@code error_mode} can resume at the next record.
+     */
+    private int addBytes(int recordBytes, int ch, boolean inQuotes) throws CsvRecordTooLargeException, IOException {
+        if (inQuotes) {
+            failIfLineBreak(ch);
+        }
         // Hot ASCII fast path: under UTF-8 every code unit <= 0x7f is exactly one byte, which is the
         // overwhelming majority of CSV content, so skip the encodedLength/charset call chain for it.
-        int next = recordBytes + (utf8 && ch <= 0x7f ? 1 : encodedLength(ch));
+        int next = recordBytes + encodedWidth(ch);
         if (next > maxRecordBytes) {
             // Oversized record. Drain to the end of the physical line so the reader is left at the
             // next record's first byte and bytesRead counts the whole line. The lenient error policy
@@ -605,25 +630,117 @@ final class CsvLogicalRecordReader {
             // through readChar()/pushBack(), not the underlying reader directly, so in bulk mode it
             // consumes any chars already pulled into inBuf/pending rather than skipping past them and
             // desyncing the stream (which would leave the next nextRecord() resuming mid-line).
-            if (ch == '\r') {
-                next = drainCarriageReturn(next);
-            } else if (ch != '\n') {
-                int c;
-                while ((c = readChar()) != -1) {
-                    next += encodedLength(c);
-                    if (c == '\n') {
-                        break;
-                    }
-                    if (c == '\r') {
-                        next = drainCarriageReturn(next);
-                        break;
-                    }
-                }
-            }
+            // While the line-span guard is armed, a newline that is still inside the quoted field (or a
+            // backslash-escaped newline) fails the contract instead, so the tail is not read as further rows.
+            next = drainOverCap(next, ch, inQuotes);
             this.bytesRead += next;
             throw new CsvRecordTooLargeException(maxRecordBytes);
         }
         return next;
+    }
+
+    private int encodedWidth(int ch) {
+        return utf8 && ch <= 0x7f ? 1 : encodedLength(ch);
+    }
+
+    /**
+     * Finishes an over-cap record whose tipping character {@code ch} is already included in {@code counted}.
+     * Returns the total bytes consumed through the record's terminator.
+     */
+    private int drainOverCap(int counted, int ch, boolean inQuotes) throws IOException {
+        if (failOnLineSpan == false) {
+            return drainPhysicalLine(counted, ch);
+        }
+        if (inQuotes) {
+            return drainOpenQuote(counted, ch);
+        }
+        if (escapeAware) {
+            return drainPhysicalLineAware(counted, ch);
+        }
+        return drainPhysicalLine(counted, ch);
+    }
+
+    /** Quote-blind drain used when the line-span guard is off. {@code ch} is already included in {@code counted}. */
+    private int drainPhysicalLine(int counted, int ch) throws IOException {
+        if (ch == '\r') {
+            return drainCarriageReturn(counted);
+        }
+        if (ch == '\n') {
+            return counted;
+        }
+        int c;
+        while ((c = readChar()) != -1) {
+            counted += encodedLength(c);
+            if (c == '\n') {
+                return counted;
+            }
+            if (c == '\r') {
+                return drainCarriageReturn(counted);
+            }
+        }
+        return counted;
+    }
+
+    /**
+     * Drains from inside an open quoted field. A line break before the quote closes fails the line-span contract.
+     * Once the quote closes, the rest of the line is a single-line record that is only too large.
+     * {@code ch} is already included in {@code counted} and has not yet been applied to the quote state.
+     */
+    private int drainOpenQuote(int counted, int ch) throws IOException {
+        int current = ch;
+        boolean pendingEscape = false;
+        while (true) {
+            if (pendingEscape) {
+                pendingEscape = false;
+                failIfLineBreak(current);
+            } else if (escapeAware && current == escapeChar) {
+                pendingEscape = true;
+            } else if (current == quoteChar) {
+                int next = readChar();
+                if (next == -1) {
+                    return counted;
+                }
+                counted += encodedWidth(next);
+                if (next != quoteChar) {
+                    return drainPhysicalLineAware(counted, next);
+                }
+            } else {
+                failIfLineBreak(current);
+            }
+            int next = readChar();
+            if (next == -1) {
+                return counted;
+            }
+            current = next;
+            counted += encodedWidth(next);
+        }
+    }
+
+    /**
+     * Drains to the next unescaped line terminator. A backslash-escaped newline fails the line-span contract.
+     * {@code ch} is already included in {@code counted}.
+     */
+    private int drainPhysicalLineAware(int counted, int ch) throws IOException {
+        int current = ch;
+        boolean pendingEscape = false;
+        while (true) {
+            if (pendingEscape) {
+                pendingEscape = false;
+                failIfLineBreak(current);
+            } else if (escapeAware && current == escapeChar) {
+                pendingEscape = true;
+            } else if (current == '\n') {
+                return counted;
+            } else if (current == '\r') {
+                return drainCarriageReturn(counted);
+            }
+            int next = readChar();
+            if (next == -1) {
+                return counted;
+            }
+            current = next;
+            counted += encodedWidth(next);
+        }
     }
 
     /**

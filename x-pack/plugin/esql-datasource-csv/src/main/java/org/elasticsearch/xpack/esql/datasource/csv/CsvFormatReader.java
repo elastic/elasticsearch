@@ -1405,13 +1405,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Whether a quoting or escaping dialect is cut at plain newlines, which avoids proving record boundaries by walking the
-     * file: unless {@code multiline_fields} is {@code true}, on the contract that no record spans a raw newline. Parsing
-     * itself stays quote-aware, and every read fails on a record that breaks the contract, see
-     * {@link CsvLogicalRecordReader#failOnLineSpan()}; Jackson cannot apply that guard, see {@link #jacksonGrammarApplies()}.
-     * Bracketed multi-values can span lines by design, so they keep the quote-aware walk whatever the flag
-     * ({@link #parseOptionsFromConfig} rejects an explicit {@code false} with them, and only an explicit one: unset is
-     * {@code false} everywhere else, but here it is simply the walk the brackets need). A plain dialect (no quoting, no
-     * escaping) is cut at newlines regardless, as no record of it can span one; it is not this case.
+     * file: unless {@code multiline_fields} is {@code true}, on the contract that no record spans a raw newline. A quoting
+     * read stays quote-aware and fails on a record that breaks the contract, see {@link CsvLogicalRecordReader#failOnLineSpan()};
+     * Jackson cannot apply that guard, see {@link #jacksonGrammarApplies()}. {@code mode: escaped} (escaping on, quoting off)
+     * is cut here too when the flag is unset, but a raw newline already ends its records: an in-field newline is the two
+     * bytes {@code \}+{@code n}, so the flag does not change the rows. Bracketed multi-values can span lines by design, so
+     * they keep the quote-aware walk whatever the flag ({@link #parseOptionsFromConfig} rejects an explicit {@code false}
+     * with them, and only an explicit one: unset is {@code false} everywhere else, but here it is simply the walk the
+     * brackets need). A plain dialect (no quoting, no escaping) is cut at newlines regardless, as no record of it can span
+     * one; it is not this case.
      */
     private boolean newlineSplitting() {
         return multilineFields == false
@@ -1630,6 +1632,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // No type annotations on this path, so the fields are bare names — unwrap RFC 4180 quoting.
             unquoteHeaderNames(columnNames, options.quoteChar());
         }
+        recordReader = sampleRecordReader(recordReader);
         Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
@@ -1657,6 +1660,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Consumer<String> warningSink,
         Consumer<WidenedColumn> widenedColumnSink
     ) throws IOException {
+        recordReader = sampleRecordReader(recordReader);
         Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
@@ -2356,8 +2360,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             );
         // Under the default gate, the read that owns a headered file's start steps over its skip_rows and header with the reader
         // fileHeaderColumns uses for every later split, and names the columns from that same pass. The two cannot then disagree
-        // on where the header ends, which an escape-aware data reader would (an escaped quote before a line break), and every
-        // split binds the same names. That reader reads one character at a time, so the data reader below resumes exactly after
+        // on where the header ends, which the data reader would when it is escape-aware and this one is not (an escaped quote
+        // before a line break), and every split binds the same names. That reader reads one character at a time, so the data
+        // reader below resumes exactly after
         // the header, and nothing is buffered however many comment or skipped lines come first. With headerBindingByProvenance
         // set, the header is read on the data reader instead, as main does; see the header step in the schema block.
         List<String> leadingColumns = null;
@@ -2593,12 +2598,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public RecordSplitter recordSplitter(int maxRecordBytes) {
         // Splitter chosen once, from the (quoting, escaping) pair and multiline_fields - never a per-byte
         // branch. Plain data (no quoting, no escaping: every byte literal) has raw line terminators that are
-        // always record boundaries, so it can use the cheap strided terminator scan. When quoting is on a raw
-        // newline can sit inside a quoted field, and when escaping is on a backslash-escaped raw newline is
-        // in-field content; boundary detection then needs the quote/escape state machine and must be driven
-        // sequentially from a known record start. The exception is a dataset not declared multiline_fields: true
-        // (newlineSplitting): its newlines are presumed to be boundaries, so it is cut by the cheap scan too, and every
-        // read fails loudly, via CsvLogicalRecordReader#failOnLineSpan, on a record that proves the presumption wrong.
+        // always record boundaries, so it can use the cheap strided terminator scan. When quoting is on, a raw
+        // newline can sit inside a quoted field and a backslash can escape one; boundary detection then needs the
+        // quote/escape state machine and must be driven sequentially from a known record start. The exception is a
+        // dataset not declared multiline_fields: true (newlineSplitting): its newlines are presumed to be boundaries,
+        // so it is cut by the cheap scan too, and a quoting read fails loudly, via CsvLogicalRecordReader#failOnLineSpan,
+        // on a record that proves the presumption wrong. mode=escaped (escaping on, quoting off) is cut the same way
+        // when the flag is unset, but a raw newline already ends its records, so the rows do not change.
         if ((options.quoting() == false && options.escaping() == false) || newlineSplitting()) {
             return new NewlineRecordSplitter(maxRecordBytes);
         }
@@ -2782,7 +2788,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Opens a file's leading records, past a byte-order mark and {@code skip_rows}, the one way {@link #readSchema} and
      * {@link #fileHeaderColumns} read them, so schema inference and the header columns handed to every split agree on
      * where the header ends: the header record ends where the dialect's quoting says, never escape-aware, and a record
-     * is capped at {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}.
+     * is capped at {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}. An escaped quote therefore does not move
+     * the header boundary. Sampled data rows of a quoting and escaping dialect are read escape-aware afterwards, see
+     * {@link #sampleRecordReader}.
      * <p>
      * The data path of a read is not the same reader: for a quoting and escaping dialect it is escape-aware, and it caps
      * records at the query's {@code maxRecordBytes}. So the read that owns a headered file's start steps over these
@@ -2801,11 +2809,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * The reader of a file's leading records: never escape-aware, records capped at
      * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}, and without read-ahead, so a caller sharing {@code reader}
      * resumes exactly after the last record it returned. Under {@link #newlineSplitting()} it fails on a record that spans
-     * lines, as every data read does, so a header or sampled row that breaks the contract is reported at planning rather
-     * than by the first split read. Only a quoted span, though: as this reader is not escape-aware, an escaped line
-     * break in a sampled row of an escaping dialect reads here as two short rows and is caught, if at all, by the data
-     * read of the split it lands in. That read also catches only what parses as a span; a cut inside a multi-line value
-     * whose fragments both parse as complete records goes unnoticed, hence the contract rather than a proof.
+     * lines, as every data read does, so a header that breaks the contract is reported at planning rather than by the
+     * first split read. It stays unaware of escapes so a backslash before a closing quote does not move where the header
+     * ends; sampled data rows are the escape-aware reader, see {@link #sampleRecordReader}. A cut inside a multi-line
+     * value whose tail is read without the split that owns the value's start goes unnoticed, hence the contract rather
+     * than a proof.
      */
     private CsvLogicalRecordReader leadingRecordReader(BufferedReader reader) {
         CsvLogicalRecordReader leading = new CsvLogicalRecordReader(
@@ -2817,6 +2825,31 @@ public class CsvFormatReader implements SegmentableFormatReader {
             options.quoting()
         );
         return newlineSplitting() ? leading.failOnLineSpan() : leading;
+    }
+
+    /**
+     * The reader of rows sampled for schema inference, continuing on the stream {@code leading} has positioned.
+     * The header itself stays on {@code leading}, which is not escape-aware. Under {@link #newlineSplitting()} on a
+     * quoting and escaping dialect the sample is: a backslash-escaped newline is in-field content for the data read
+     * and fails the line-span contract, so the sample must fail the same way rather than as two short rows. Escaped
+     * mode (quoting off) is not this case — a raw newline already ends its records.
+     */
+    private CsvLogicalRecordReader sampleRecordReader(CsvLogicalRecordReader leading) {
+        if (newlineSplitting() == false || options.quoting() == false || options.escaping() == false) {
+            return leading;
+        }
+        CsvLogicalRecordReader sample = new CsvLogicalRecordReader(
+            leading.source(),
+            options.quoteChar(),
+            options.delimiter(),
+            options.escapeChar(),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            options.encoding(),
+            true,
+            true
+        );
+        sample.setInitialByteOffset(leading.bytesRead());
+        return sample.failOnLineSpan();
     }
 
     /**

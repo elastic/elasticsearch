@@ -264,12 +264,15 @@ public class CsvModeReadTests extends ESTestCase {
 
     /**
      * Splitter dispatch is decided once, from the (quoting, escaping) pair and {@code multiline_fields}: plain (no
-     * quoting, no escaping) and a quoting dataset not declared {@code multiline_fields: true} take the strided terminator scan.
-     * Escaped keeps quoting off but escaping on, and a
-     * backslash-escaped raw newline is in-field content, so it needs the escape-aware quote-state splitter.
+     * quoting, no escaping) and a quoting or escaping dataset not declared {@code multiline_fields: true} take the
+     * strided terminator scan. {@code mode: escaped} is in that group when the flag is unset. A raw newline already
+     * ends its records (an in-field newline is the two bytes {@code \}+{@code n}), so the quote-state splitter is used
+     * only when {@code multiline_fields} is {@code true}, and that does not change the rows.
      */
     public void testSplitterDispatchByQuoting() throws IOException {
         assertThat(tsvReader(Map.of("mode", "plain")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(tsvReader(Map.of("mode", "escaped")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(csvReader(Map.of("mode", "escaped")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
         assertThat(
             tsvReader(Map.of("mode", "escaped", "multiline_fields", true)).recordSplitter(1024),
             instanceOf(CsvRecordSplitter.class)
@@ -337,6 +340,78 @@ public class CsvModeReadTests extends ESTestCase {
         );
         assertThat(ExceptionsHelper.unwrapCause(lenient).getMessage(), containsString("multiline_fields"));
         assertEquals(2, csvReader(Map.of("multiline_fields", true)).metadata(bytes(csv)).schema().size());
+    }
+
+    /**
+     * An unquoted backslash-escaped newline is in-field content for a quoting dialect. The schema sample uses the same
+     * escape-aware guard as the data read, so the failure is reported at planning rather than as two short rows.
+     */
+    public void testSchemaInferenceFailsOnEscapedLineBreak() throws IOException {
+        // Untyped header: a typed header returns before the sample rows are read.
+        String csv = "k\nfoo\\\nbar\n";
+        Exception e = expectThrows(ExternalClientException.class, () -> csvReader(Map.of()).metadata(bytes(csv)));
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
+        Exception lenient = expectThrows(
+            ExternalClientException.class,
+            () -> csvReader(Map.of("error_mode", "skip_row")).metadata(bytes(csv))
+        );
+        assertThat(ExceptionsHelper.unwrapCause(lenient).getMessage(), containsString("multiline_fields"));
+        assertEquals(1, csvReader(Map.of("multiline_fields", true)).metadata(bytes(csv)).schema().size());
+    }
+
+    /**
+     * A quoted line that also crosses the record cap is still a line-span failure. The cap must not turn it into a
+     * skipped oversized row and then parse the tail of the value as further rows.
+     */
+    public void testOverCapQuotedLineSpanIsNotSkippedByErrorMode() throws IOException {
+        int cap = 16;
+        String csv = "a,b\n\"" + "a".repeat(cap) + "\nline\",z\nu,v\n";
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(100)
+            .firstSplit(true)
+            .lastSplit(true)
+            .recordAligned(false)
+            .readSchema(TWO_KEYWORDS)
+            .fileHeaderColumns(List.of("a", "b"))
+            .maxRecordBytes(cap)
+            .build();
+        for (String errorMode : List.of("fail_fast", "skip_row", "null_field")) {
+            for (boolean directBlock : List.of(true, false)) {
+                CsvFormatReader reader = csvReader(Map.of("error_mode", errorMode)).withDirectBlockEnabled(directBlock)
+                    .withSchema(TWO_KEYWORDS);
+                Exception e = expectThrows(ExternalClientException.class, () -> drain(reader, bytes(csv), context));
+                assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
+            }
+        }
+    }
+
+    /**
+     * A single-line quoted field that only exceeds the record cap stays a cap failure: the quote closes before the
+     * newline, so {@code skip_row} drops that row and keeps the next one.
+     */
+    public void testOverCapSingleLineQuotedFieldIsSkipped() throws IOException {
+        int cap = 16;
+        String csv = "a,b\n\"" + "a".repeat(cap) + "\",z\nu,v\n";
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(100)
+            .firstSplit(true)
+            .lastSplit(true)
+            .recordAligned(false)
+            .readSchema(TWO_KEYWORDS)
+            .fileHeaderColumns(List.of("a", "b"))
+            .maxRecordBytes(cap)
+            .build();
+        CsvFormatReader reader = csvReader(Map.of("error_mode", "skip_row")).withSchema(TWO_KEYWORDS);
+        assertEquals(1, drain(reader, bytes(csv), context));
+        List<String> warnings = drainWarnings();
+        assertTrue(
+            "skip_row summarizes the skipped rows, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("cannot be read; skipping them"))
+        );
+        assertTrue(
+            "the skipped row is the oversized one, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("record exceeds [16b]"))
+        );
     }
 
     /**

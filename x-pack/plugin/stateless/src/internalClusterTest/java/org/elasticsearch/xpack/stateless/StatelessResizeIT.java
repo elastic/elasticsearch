@@ -11,15 +11,22 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardSplitAction;
 
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
@@ -167,6 +174,58 @@ public class StatelessResizeIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(targetIndex);
 
         checkIndicesAfterResize(sourceIndex, targetIndex, shards, shards, numDocs);
+    }
+
+    /**
+     * Clones an index while the source files are still on local disk, so that the target shard recovery hard-links them.
+     */
+    public void testCloneIndexWithSourceFilesOnLocalDisk() throws Exception {
+        startMasterOnlyNode();
+        // avoid uploading the source commits before the source files are held on local disk
+        startIndexNode(
+            Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+                .build()
+        );
+        startSearchNode();
+        String sourceIndex = "source";
+        String targetIndex = "target";
+
+        createIndex(sourceIndex, indexSettings(1, 1).build());
+        ensureGreen(sourceIndex);
+
+        int numDocs = randomIntBetween(1, 50);
+        indexDocsAndRefresh(sourceIndex, numDocs);
+
+        final var sourceShard = findIndexShard(resolveIndex(sourceIndex), 0);
+        final var sourceDirectory = IndexDirectory.unwrapDirectory(sourceShard.store().directory());
+        final List<Releasable> localFileRefs = new ArrayList<>();
+        try {
+            for (String file : sourceDirectory.listAll()) {
+                localFileRefs.add(sourceDirectory.tryAcquireLocalFileRef(file));
+            }
+            flush(sourceIndex);
+            for (String file : sourceShard.store().readLastCommittedSegmentsInfo().files(false)) {
+                assertTrue(file, Files.exists(sourceShard.shardPath().resolveIndex().resolve(file)));
+            }
+            updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIndex);
+            ensureGreen(sourceIndex);
+
+            assertAcked(
+                executeResize(
+                    ResizeType.CLONE,
+                    sourceIndex,
+                    targetIndex,
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).putNull("index.blocks.write")
+                )
+            );
+            ensureGreen(targetIndex);
+        } finally {
+            Releasables.close(localFileRefs);
+        }
+
+        checkIndicesAfterResize(sourceIndex, targetIndex, 1, 1, numDocs);
     }
 
     public void testShrinkThenSplit() throws Exception {

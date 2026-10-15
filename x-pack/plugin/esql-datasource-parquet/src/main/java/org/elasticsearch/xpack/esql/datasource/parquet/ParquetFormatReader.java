@@ -4459,7 +4459,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                             cr,
                             info.maxDefLevel(),
                             rowsToRead,
-                            ParquetColumnDecoding.int32IsUnsigned(info.logicalType()) == false
+                            ParquetColumnDecoding.isUnsignedInt32(info.logicalType()) == false
                         );
                     }
                     // A 64-bit unsigned column maps to UNSIGNED_LONG, which ESQL stores sign-flip-encoded

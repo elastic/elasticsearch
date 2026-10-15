@@ -856,9 +856,9 @@ final class ParquetPushedExpressions {
                 }
                 if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
                     // TIME(MILLIS) stores the millisecond of day, which IS the epoch-millis value the literal is in,
-                    // so the relation is the identity and the bound pushes unscaled. This column pushed through the
-                    // LONG arm before it became a temporal one, and declining here instead would have lost its
-                    // pruning. A literal outside int range narrows to null and declines, which costs only pruning:
+                    // so the relation is the identity and the bound pushes unscaled. Declining here instead would
+                    // cost this column its pruning for nothing. A literal outside int range narrows to null and
+                    // declines, which costs only pruning:
                     // every stored value is below 86_400_000, so such a bound matches nothing or everything and
                     // FilterExec decides it exactly.
                     Integer bound = narrowLongToPhysicalInt32(millis, ptype);
@@ -1280,9 +1280,9 @@ final class ParquetPushedExpressions {
                         yield days.isEmpty() ? null : inPredicate(FilterApi.intColumn(columnName), days, v -> (Integer) v);
                     }
                     if (logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
-                        // The IN sibling of buildDatetimePredicate's TIME arm, and here for the same reason: this
-                        // column pushed through translateLongIn before it became a temporal one, so declining would
-                        // lose pruning main performs. TIME(MILLIS) stores the millisecond of day, which IS the
+                        // The IN sibling of buildDatetimePredicate's TIME arm, and here for the same reason:
+                        // declining would cost this column its pruning for nothing. TIME(MILLIS) stores the
+                        // millisecond of day, which IS the
                         // epoch-millis value the literal is in, so each literal narrows unscaled. A literal outside
                         // int range is dropped rather than declining the whole set — an exact subset, like the
                         // DATE arm above it, so it stays correct under NOT.

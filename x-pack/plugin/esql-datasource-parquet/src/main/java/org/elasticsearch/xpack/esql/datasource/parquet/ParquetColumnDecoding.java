@@ -601,21 +601,16 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * Whether an {@code INT32} column's value widens to {@code long} as unsigned. Only an {@code INT} annotation
-     * that declares itself unsigned does; a bare {@code INT32}, a {@code TIME}, and any other annotation sign-extend,
-     * which is the historical reading. The decode arms -- both engines' scalar arms, the list arm and
-     * {@link #int32AsInferredLong} -- ask this method; the stats-normalization, sort-threshold, and predicate-pushdown
-     * paths ask the pre-existing {@link #isUnsignedInt32}, which additionally checks the physical bit width. The two
-     * differ on an {@code INT32} whose unsigned annotation is narrower than 32 bits ({@code uint8}, {@code uint16}),
-     * where both widenings produce the same value because every such value fits the positive int range. The decode
-     * arms previously open-coded
-     * the check in two different idioms, one of them an unchecked cast to {@code IntLogicalTypeAnnotation}. No file
-     * has been identified that reached that cast with another annotation: every shape {@code convertParquetTypeToEsql}
-     * routes to {@code long} carries either no annotation or an {@code INT} one. Its safety was a coupling between
-     * two distant methods rather than a property of the arm, which is what asking a predicate replaces.
+     * Whether an {@code INT32} column's value widens to {@code long} as unsigned: the annotation overload of
+     * {@link #isUnsignedInt32(PrimitiveType)}, for the arms that hold the annotation rather than the primitive. Only
+     * {@code uint32} does. A bare {@code INT32}, a {@code TIME}, a narrower unsigned annotation and every other
+     * annotation sign-extend, which for {@code uint8} and {@code uint16} is the same value either way, since those
+     * fit the positive int range.
      */
-    static boolean int32IsUnsigned(@Nullable LogicalTypeAnnotation logical) {
-        return logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical && intLogical.isSigned() == false;
+    static boolean isUnsignedInt32(@Nullable LogicalTypeAnnotation logical) {
+        return logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
+            && intLogical.isSigned() == false
+            && intLogical.getBitWidth() == 32;
     }
 
     /**
@@ -629,7 +624,7 @@ final class ParquetColumnDecoding {
      * the positive int range.
      */
     static long int32AsInferredLong(int raw, @Nullable LogicalTypeAnnotation logical) {
-        return int32IsUnsigned(logical) ? Integer.toUnsignedLong(raw) : raw;
+        return isUnsignedInt32(logical) ? Integer.toUnsignedLong(raw) : raw;
     }
 
     /**
@@ -1415,7 +1410,7 @@ final class ParquetColumnDecoding {
         NullElementTally tally,
         @Nullable LogicalTypeAnnotation logical
     ) {
-        boolean unsigned = int32IsUnsigned(logical);
+        boolean unsigned = isUnsignedInt32(logical);
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
             Runnable appender = unsigned
                 ? () -> builder.appendLong(Integer.toUnsignedLong(input.reader().getInteger()))

@@ -1,6 +1,6 @@
 area: ES|QL
 issues: []
 pr: 161976
-summary: "ES|QL|DS: Fix a batch of coercion bugs when reading Parquet columns as date,
-  date_nanos and unsigned types"
+summary: Fix wrong and failed Parquet reads of temporal and unsigned columns; TIME now
+  reads as a time of day
 type: bug

@@ -143,7 +143,11 @@ class NodeHeapMemoryShardMovementSimulator {
                 return new NodeHeapMetrics(
                     initialMetrics.nodeId(),
                     initialMetrics.totalBytes(),
-                    new NodeHeapEstimates(adjustedTotalUsage, adjustedHostedShardsUsage)
+                    new NodeHeapEstimates(
+                        adjustedTotalUsage,
+                        adjustedHostedShardsUsage,
+                        initialMetrics.nodeHeapEstimates().nonShardHeapUsage()
+                    )
                 );
             }
             return entry.getValue();

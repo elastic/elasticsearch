@@ -267,9 +267,10 @@ public class InboundHandler {
         );
 
         try {
-            messageListener.onRequestReceived(requestId, action);
+            final int requestSize = header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
+            messageListener.onRequestReceived(requestId, action, requestSize);
             if (reg != null) {
-                reg.addRequestStats(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
+                reg.addRequestStats(requestSize);
             }
 
             if (message.isShortCircuit()) {
@@ -371,7 +372,11 @@ public class InboundHandler {
         var header = message.getHeader();
         assert header.actionName.equals(TransportHandshaker.HANDSHAKE_ACTION_NAME);
         final long requestId = header.getRequestId();
-        messageListener.onRequestReceived(requestId, TransportHandshaker.HANDSHAKE_ACTION_NAME);
+        messageListener.onRequestReceived(
+            requestId,
+            TransportHandshaker.HANDSHAKE_ACTION_NAME,
+            header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE
+        );
         // Cannot short circuit handshakes
         assert message.isShortCircuit() == false;
         final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());

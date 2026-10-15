@@ -3725,6 +3725,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_COLUMN_FROM_SHARD(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a query that has a column named {@code _unmapped_fields} of its own is not given
+         * the column of unmapped fields, and a warning says so.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_NAME_COLLISION_WARNING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,

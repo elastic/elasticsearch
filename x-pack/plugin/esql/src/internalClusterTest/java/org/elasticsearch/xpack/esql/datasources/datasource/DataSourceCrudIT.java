@@ -936,14 +936,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
     }
 
     private static PutDataSourceAction.Request requiredSecretDataSourceRequest(String name, Map<String, Object> settings) {
-        return new PutDataSourceAction.Request(
-            TEST_TIMEOUT,
-            TEST_TIMEOUT,
-            name,
-            "test_requires_secret",
-            null,
-            new HashMap<>(settings)
-        );
+        return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test_requires_secret", null, new HashMap<>(settings));
     }
 
     /** Decrypts a secret setting's carrier using the test encryption key from {@link TestEncryptionServicePlugin}. */

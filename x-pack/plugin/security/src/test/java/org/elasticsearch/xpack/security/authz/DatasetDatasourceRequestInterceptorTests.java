@@ -55,16 +55,12 @@ public class DatasetDatasourceRequestInterceptorTests extends ESTestCase {
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
 
-        var settings = Settings.builder()
-            .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
-            .build();
+        var settings = Settings.builder().put(XPackSettings.AUDIT_ENABLED.getKey(), true).build();
 
         auditTrail = mock(AuditTrail.class);
         var threadContext = new ThreadContext(Settings.EMPTY);
         var clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(settings, Set.of(XPackSettings.AUDIT_ENABLED))
-        );
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Set.of(XPackSettings.AUDIT_ENABLED)));
         var auditTrailService = new AuditTrailService(auditTrail, licenseState, clusterService);
 
         requestId = AuditUtil.getOrGenerateRequestId(threadContext);

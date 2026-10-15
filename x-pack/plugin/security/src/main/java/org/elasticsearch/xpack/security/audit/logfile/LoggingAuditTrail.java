@@ -901,42 +901,34 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(updateCrossClusterApiKeyRequest).build();
                 } else if (msg instanceof SecurityConfigChangeRequest change) {
                     switch (action) {
-                        case EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME ->
-                            securityChangeLogEntryBuilder(requestId, authentication, ctx).withSecurityConfigChange(
-                                "put_data_source",
-                                PUT_CONFIG_FIELD_NAME,
-                                "data_source",
-                                change.auditFields()
-                            ).build();
-                        case EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME ->
-                            securityChangeLogEntryBuilder(requestId, authentication, ctx).withSecurityConfigChange(
-                                "delete_data_source",
-                                DELETE_CONFIG_FIELD_NAME,
-                                "data_source",
-                                change.auditFields()
-                            ).build();
-                        case EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME ->
-                            securityChangeLogEntryBuilder(requestId, authentication, ctx).withSecurityConfigChange(
-                                "put_dataset",
-                                PUT_CONFIG_FIELD_NAME,
-                                "dataset",
-                                change.auditFields()
-                            ).build();
-                        case EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME ->
-                            securityChangeLogEntryBuilder(requestId, authentication, ctx).withSecurityConfigChange(
-                                "delete_dataset",
-                                DELETE_CONFIG_FIELD_NAME,
-                                "dataset",
-                                change.auditFields()
-                            ).build();
-                        default ->
-                            throw new IllegalStateException(
-                                "Unknown action type ["
-                                    + msg.getClass().getSimpleName()
-                                    + "] for the \"security change\" action ["
-                                    + action
-                                    + "]"
-                            );
+                        case EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("put_data_source", PUT_CONFIG_FIELD_NAME, "data_source", change.auditFields()).build();
+                        case EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("delete_data_source", DELETE_CONFIG_FIELD_NAME, "data_source", change.auditFields())
+                            .build();
+                        case EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("put_dataset", PUT_CONFIG_FIELD_NAME, "dataset", change.auditFields()).build();
+                        case EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("delete_dataset", DELETE_CONFIG_FIELD_NAME, "dataset", change.auditFields()).build();
+                        default -> throw new IllegalStateException(
+                            "Unknown action type ["
+                                + msg.getClass().getSimpleName()
+                                + "] for the \"security change\" action ["
+                                + action
+                                + "]"
+                        );
                     }
                 } else {
                     throw new IllegalStateException(

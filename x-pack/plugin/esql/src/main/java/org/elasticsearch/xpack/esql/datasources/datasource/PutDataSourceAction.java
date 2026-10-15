@@ -88,12 +88,8 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SETTINGS);
         }
 
-        public static Request fromXContent(
-            XContentParser parser,
-            TimeValue masterNodeTimeout,
-            TimeValue ackTimeout,
-            String name
-        ) throws IOException {
+        public static Request fromXContent(XContentParser parser, TimeValue masterNodeTimeout, TimeValue ackTimeout, String name)
+            throws IOException {
             return PARSER.parse(parser, new ParseContext(name, masterNodeTimeout, ackTimeout));
         }
 

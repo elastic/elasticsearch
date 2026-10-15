@@ -847,33 +847,28 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
     public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithStoredTaskSettings() throws IOException {
         assertDocumentExtractionInferSendsRequest(
-            new ElasticInferenceServiceDocumentExtractionTaskSettings(
-                "markdown",
-                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), null)
-            ),
+            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", "ocr", Map.of("page", 2)),
             Map.of(),
-            Map.of("output_format", "markdown", "css", Map.of("extract_only", List.of(".main-content")))
+            Map.of("output_format", "markdown", "preset", "ocr", "parameters", Map.of("page", 2))
         );
     }
 
     public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_WithRequestTaskSettings() throws IOException {
         assertDocumentExtractionInferSendsRequest(
             ElasticInferenceServiceDocumentExtractionTaskSettings.EMPTY_SETTINGS,
-            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav"))),
-            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav")))
+            Map.of("output_format", "text", "preset", "pdf", "parameters", Map.of("page", 2, "retain_images", "none")),
+            Map.of("output_format", "text", "preset", "pdf", "parameters", Map.of("page", 2, "retain_images", "none"))
         );
     }
 
     public void testDocumentExtractionInfer_SendsDocumentExtractionRequest_RequestTaskSettingsOverrideStoredOnesPerField()
         throws IOException {
         assertDocumentExtractionInferSendsRequest(
-            new ElasticInferenceServiceDocumentExtractionTaskSettings(
-                "markdown",
-                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), List.of("nav"))
-            ),
-            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"))),
-            // output_format and css.extract_only come from the request, css.remove is kept from the stored settings
-            Map.of("output_format", "text", "css", Map.of("extract_only", List.of("#post-body"), "remove", List.of("nav")))
+            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", "pdf", Map.of("page", 1, "retain_images", "none")),
+            Map.of("preset", "ocr", "parameters", Map.of("page", 3)),
+            // preset and the page parameter come from the request, output_format and the other parameters are kept from the stored
+            // settings
+            Map.of("output_format", "markdown", "preset", "ocr", "parameters", Map.of("page", 3, "retain_images", "none"))
         );
     }
 

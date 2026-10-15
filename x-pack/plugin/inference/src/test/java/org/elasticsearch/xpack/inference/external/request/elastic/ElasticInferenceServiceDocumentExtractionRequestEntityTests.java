@@ -21,6 +21,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 
@@ -80,13 +81,7 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
         var entity = new ElasticInferenceServiceDocumentExtractionRequestEntity(
             List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, pdfDocValue1)),
             modelId,
-            new ElasticInferenceServiceDocumentExtractionTaskSettings(
-                "markdown",
-                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(
-                    List.of(".main-content", "#post-body"),
-                    List.of("nav")
-                )
-            )
+            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", "ocr", Map.of("page", 2))
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString(Strings.format("""
@@ -94,7 +89,8 @@ public class ElasticInferenceServiceDocumentExtractionRequestEntityTests extends
                 "model": "%s",
                 "input": [{"content": {"type":"pdf","format":"base64","value":"%s"}}],
                 "output_format": "markdown",
-                "css": {"extract_only": [".main-content", "#post-body"], "remove": ["nav"]}
+                "preset": "ocr",
+                "parameters": {"page": 2}
             }""", modelId, pdfDocValue1)));
     }
 

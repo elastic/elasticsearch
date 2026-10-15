@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -45,8 +46,7 @@ public class FuzzyHighlightHeapPressureIT extends HeapPressureTestCase {
     private static final String INDEX = "fuzzy-highlight-heap-pressure";
     private static final int SHARDS = 5;
     private static final int FIELDS = 4;
-    // More than the REST client's default of 10 connections per route, so no more than that many are parked at once and the rest wait
-    // for one to be freed. Five shards each, even ten are enough to occupy the whole search pool.
+    // Create 8 parallel requests, to create enough heap pressure.
     private static final int THREAD_COUNT = 8;
     // Under the standard tokenizer's maximum token length of 255, so the term is indexed whole and the documents match it.
     private static final int HEAVY_TERM_LENGTH = 250;
@@ -171,6 +171,6 @@ public class FuzzyHighlightHeapPressureIT extends HeapPressureTestCase {
     }
 
     private static Stream<String> fieldNames() {
-        return Stream.iterate(0, i -> i + 1).limit(FIELDS).map(i -> "f" + i);
+        return IntStream.range(0, FIELDS).mapToObj(i -> "f" + i);
     }
 }

@@ -50,8 +50,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates
  * each non-LOOKUP {@link EsRelation} with an {@link UnmappedFieldsAttribute} carrying the
  * {@link UnmappedFieldsPattern} that describes which additional (currently unmapped) source fields
- * would survive to the query output. Flattening that column into the single {@code _unmapped_fields}
- * output column is a coordinator-level post-processing step and does not affect data-node execution.
+ * would survive to the query output. The shard reads only the fields that pattern includes.
  *
  * <p>When the computed pattern is {@link UnmappedFieldsPattern#NONE}—e.g., a pattern-less {@code KEEP}
  * that can never let an unmapped source field through—the rule leaves the plan untouched, so data nodes
@@ -188,7 +187,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     /**
      * Union alignment {@link Project}s snapshot their projections before this rule adds
      * {@code $$unmapped_fields}. {@link ResolvingProject} already re-appends it; other Projects
-     * would otherwise drop the column before the coordinator can flatten it.
+     * would otherwise drop the column before it is returned.
      */
     private static Project passThroughUnmappedFields(Project project) {
         if (project instanceof ResolvingProject rp && rp.unmappedFieldsPattern().isNone()) {

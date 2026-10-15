@@ -51,6 +51,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
@@ -318,7 +319,7 @@ public class FakeStatelessNode implements Closeable {
                 telemetryProvider,
                 clusterSettings,
                 warmingRatioProvider,
-                new SearchRecoveryTimeoutCalculationService(sharedCacheService, threadPool, clusterSettings, () -> Integer.MAX_VALUE)
+                new SearchRecoveryTimeoutCalculationService(sharedCacheService, threadPool, clusterSettings, ByteSizeValue.ZERO)
             );
             onlinePrewarmingService = new StatelessOnlinePrewarmingService(
                 nodeSettings,

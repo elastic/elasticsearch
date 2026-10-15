@@ -667,6 +667,16 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               "indices": [
                 {
                   "names": [
+                    "$.nightshift.sources.*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "read_view_metadata"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
                     "*"
                   ],
                   "privileges": [

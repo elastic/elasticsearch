@@ -1,5 +1,0 @@
-area: ES|QL
-type: bug
-issues: []
-pr: 162045
-summary: "Fix Parquet footers expiring from the cache while ES|QL queries are still reading them"

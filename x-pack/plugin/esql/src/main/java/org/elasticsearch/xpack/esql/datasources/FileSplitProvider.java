@@ -273,9 +273,9 @@ public class FileSplitProvider implements SplitProvider {
      * records outgrow the default raises it here and every query over that dataset resolves the offsets the
      * default lost.
      * <p>
-     * It bounds the probes of a strided scan (NDJSON, plain CSV/TSV, and default-dialect CSV whose schema sample held no
-     * quote or escape byte). Other quoted or escaped CSV/TSV is not probed at a fixed offset at all but walked,
-     * and what bounds that walk is the splitter's own convergence window
+     * It bounds the probes of a strided scan (NDJSON, plain CSV/TSV, and quoted or escaped CSV/TSV not declared
+     * {@code multiline_fields: true}). Quoted or escaped CSV/TSV declared {@code multiline_fields: true} is not probed at
+     * a fixed offset at all but walked, and what bounds that walk is the splitter's own convergence window
      * together with {@code external_max_record_size}; neither of those is this key.
      * <p>
      * It is independent of {@link #CONFIG_MAX_SPLIT_PROBES}, and the two multiply into the bytes a strided query

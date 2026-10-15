@@ -60,7 +60,7 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
     private static final int LINES_PER_ROW = 3;
     private static final int LINE_WIDTH = 60;
     private static final long TRUE_ROW_COUNT = ROWS;
-    private static final int QUOTE_FREE_PREFIX_ROWS = 8000;
+    private static final int PLAIN_PREFIX_ROWS = 8000;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -257,12 +257,14 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
     /**
      * Unless {@code multiline_fields} is {@code true}, a {@code .csv} is split at plain newlines with no look at the data,
      * so quoted multi-line fields, even ones that appear only after a long run of plain rows, are a contradiction of that
-     * contract. The read must fail and say how to fix it, rather than return rows cut inside quoted fields.
+     * contract. The read must fail and say how to fix it, rather than return rows cut inside quoted fields. The schema
+     * sample is kept inside the plain prefix so that it is a split read that meets the contradiction; the planning-time
+     * failure is {@link #testUnsetMultilineFieldsFailsAtPlanning}.
      */
     public void testUnsetMultilineFieldsFailsOnQuotedMultilineRows() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
 
-        Path csvFile = writeQuoteFreePrefixThenQuotedMultilineCsv();
+        Path csvFile = writePlainPrefixThenQuotedMultilineCsv();
         try {
             String query = "EXTERNAL \""
                 + StoragePath.fileUri(csvFile)
@@ -274,20 +276,43 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
         }
     }
 
-    /** The remedy the error message gives: with {@code multiline_fields: true} the same file counts exactly. */
-    public void testMultilineFieldsTrueReadsQuoteFreePrefixThenQuotedMultilineCsv() throws Exception {
+    /**
+     * The contract does not depend on the file's size or on how it is read: a file too small to split, whose quoted
+     * multi-line value is met by schema inference, fails at planning with the same remedy, and reads exactly with it.
+     */
+    public void testUnsetMultilineFieldsFailsAtPlanning() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
 
-        Path csvFile = writeQuoteFreePrefixThenQuotedMultilineCsv();
+        Path csvFile = createTempDir().resolve("small-quoted-multiline.csv");
+        Files.writeString(csvFile, "a,b\n0,\"multi\nline\"\n1,plain\n");
+        try {
+            String uri = StoragePath.fileUri(csvFile);
+            String query = "EXTERNAL \"" + uri + "\" | STATS c = COUNT(*)";
+            Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5)).close());
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
+            String remedied = "EXTERNAL \"" + uri + "\" WITH {\"multiline_fields\":true} | STATS c = COUNT(*)";
+            try (var response = run(syncEsqlQueryRequest(remedied), TimeValue.timeValueMinutes(5))) {
+                assertThat(((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(2L));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    /** The remedy the error message gives: with {@code multiline_fields: true} the same file counts exactly. */
+    public void testMultilineFieldsTrueReadsPlainPrefixThenQuotedMultilineCsv() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        Path csvFile = writePlainPrefixThenQuotedMultilineCsv();
         try {
             String query = "EXTERNAL \""
                 + StoragePath.fileUri(csvFile)
                 + "\" WITH {\"multiline_fields\":true,\"target_split_size\":\"1mb\"} | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
             try (var response = run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(5))) {
                 List<List<Object>> values = getValuesList(response);
-                assertThat(((Number) values.get(0).get(0)).longValue(), equalTo((long) QUOTE_FREE_PREFIX_ROWS + ROWS));
+                assertThat(((Number) values.get(0).get(0)).longValue(), equalTo((long) PLAIN_PREFIX_ROWS + ROWS));
                 assertThat(((Number) values.get(0).get(1)).longValue(), equalTo(0L));
-                assertThat(((Number) values.get(0).get(2)).longValue(), equalTo((long) QUOTE_FREE_PREFIX_ROWS + ROWS - 1));
+                assertThat(((Number) values.get(0).get(2)).longValue(), equalTo((long) PLAIN_PREFIX_ROWS + ROWS - 1));
             }
         } finally {
             Files.deleteIfExists(csvFile);
@@ -355,17 +380,18 @@ public class ExternalCsvQuotedMultilineMacroSplitIT extends AbstractExternalData
     }
 
     /**
-     * {@value #QUOTE_FREE_PREFIX_ROWS} plain rows (well past the schema sample's first read buffer), then {@value #ROWS} rows
-     * whose second column is a quoted three-line value. Column {@code a} is the row index.
+     * {@value #PLAIN_PREFIX_ROWS} plain rows, then {@value #ROWS} rows whose second column is a quoted three-line value.
+     * Column {@code a} is the row index. The prefix lets a query keep its schema sample inside the plain rows, so that the
+     * contract is broken by a split read rather than at planning (see {@link #testUnsetMultilineFieldsFailsAtPlanning}).
      */
-    private Path writeQuoteFreePrefixThenQuotedMultilineCsv() throws Exception {
-        Path file = createTempDir().resolve("quote-free-prefix.csv");
+    private Path writePlainPrefixThenQuotedMultilineCsv() throws Exception {
+        Path file = createTempDir().resolve("plain-prefix.csv");
         StringBuilder sb = new StringBuilder("a,b\n");
-        for (int i = 0; i < QUOTE_FREE_PREFIX_ROWS; i++) {
+        for (int i = 0; i < PLAIN_PREFIX_ROWS; i++) {
             sb.append(i).append(",plain value ").append(i).append('\n');
         }
         for (int i = 0; i < ROWS; i++) {
-            sb.append(QUOTE_FREE_PREFIX_ROWS + i).append(",\"");
+            sb.append(PLAIN_PREFIX_ROWS + i).append(",\"");
             for (int line = 0; line < LINES_PER_ROW; line++) {
                 sb.append("x".repeat(LINE_WIDTH));
                 if (line < LINES_PER_ROW - 1) {

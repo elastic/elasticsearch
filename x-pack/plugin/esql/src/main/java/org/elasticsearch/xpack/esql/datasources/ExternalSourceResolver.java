@@ -2416,7 +2416,6 @@ public class ExternalSourceResolver {
             composed.putAll(readStatistics);
         }
         final Map<String, Object> finalMetadata = stripStripeBookkeeping(composed);
-        final Map<String, Object> readerConfig = mergedConfig;
 
         return new CacheBackedMetadata() {
             @Override
@@ -2446,7 +2445,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> config() {
-                return readerConfig;
+                return mergedConfig;
             }
 
             @Override
@@ -5951,7 +5950,6 @@ public class ExternalSourceResolver {
         } else {
             mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
-        final Map<String, Object> readerConfig = mergedConfig;
 
         Map<String, Object> enrichedSourceMetadata = metadata.statistics()
             .map(stats -> SourceStatisticsSerializer.embedStatistics(metadata.sourceMetadata(), stats))
@@ -5980,7 +5978,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> config() {
-                return readerConfig;
+                return mergedConfig;
             }
         };
     }

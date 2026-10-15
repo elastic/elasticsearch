@@ -326,7 +326,7 @@ $$$csv-mode$$$
 
     An explicit `quote` or `escape` value overrides the preset.
 
-    {applies_to}`stack: experimental 9.6+` `mode` doesn't change how files are split. Unless [`multiline_fields`](#csv-multiline-fields) is `true`, files are split on newlines, and a quoted field or an escaped line break that spans several lines fails the query, whatever the `error_mode`. To read such files, set `multiline_fields` to `true`.
+    {applies_to}`stack: experimental 9.6+` `mode` doesn't change how files are split, or whether a quoted field or an escaped line break can span several lines. [`multiline_fields`](#csv-multiline-fields) decides both.
 
     :::{dropdown} Why `escaped` with `quote` is rejected
     Setting `quote` turns quoting on, and the quoting parser doesn't decode escape sequences. The combination therefore reads neither as escaped nor as quoted data, so it's rejected when you create or update the dataset. A dataset stored with this combination before the check took effect continues to read.
@@ -477,7 +477,7 @@ $$$csv-multiline-fields$$$
 
     With `multi_value_syntax` set to `brackets`, files are always split with quote awareness, because bracketed cells can span lines.
 
-    If a file split on plain newlines holds a value that spans lines, the read fails, whatever the `error_mode`, and suggests setting `multiline_fields` to `true`. A read that scans the whole file in one piece isn't affected, and neither is a file read without splitting.
+    If a value spans lines while `multiline_fields` isn't `true`, the query fails, whatever the `error_mode` and however the file is read: when the value falls within the rows sampled for schema inference, when the file is read in one piece, and when it's split. The error suggests setting `multiline_fields` to `true`.
 
 $$$csv-multi-value-syntax$$$
 

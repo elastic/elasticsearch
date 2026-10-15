@@ -301,26 +301,45 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * A quoted field holding a line break proves the newline-splitting assumption wrong when the file was cut on plain newlines: fail
-     * rather than return misaligned rows. A read that owns the whole file was never cut, so it reads the field exactly.
+     * A quoted field holding a line break breaks the contract the file is read on when {@code multiline_fields} is not
+     * {@code true}: fail rather than return misaligned rows. The failure does not depend on how the file was read: a cut
+     * split, a parallel-parsing chunk and a file read in one piece fail alike, so the same file cannot read while it is
+     * small and fail once it grows past the split threshold.
      */
-    public void testNewlineSplittingContradictedByMultiLineFieldInASplit() throws IOException {
+    public void testMultiLineFieldFailsHoweverTheFileIsRead() throws IOException {
         String csv = "x,y\n\"multi\nline\",z\n";
         CsvFormatReader reader = csvReader(Map.of()).withSchema(TWO_KEYWORDS);
-        // The first of several splits: its record runs into the newline the file was cut at.
-        Exception e = expectThrows(Exception.class, () -> drain(reader, bytes(csv), splitContext(true, false, true)));
-        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
-        // Whole-file read (the first line is the header): nothing was cut, so the multi-line field is parsed exactly.
-        assertEquals(1, drain(reader, bytes(csv), splitContext(true, true, false)));
-        // Data without multi-line fields is unaffected.
-        assertEquals(1, drain(reader, bytes("x,y\nu,v\n"), splitContext(true, false, true)));
+        for (FormatReadContext context : List.of(
+            splitContext(true, false, true), // the first of several splits: its record runs into the newline the file was cut at
+            splitContext(true, true, true),  // a lone parallel-parsing chunk
+            splitContext(true, true, false)  // the whole file in one piece
+        )) {
+            Exception e = expectThrows(Exception.class, () -> drain(reader, bytes(csv), context));
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("spans several lines"));
+            // Data without multi-line fields is unaffected.
+            assertEquals(1, drain(reader, bytes("x,y\nu,v\n"), context));
+        }
+    }
+
+    /**
+     * Schema inference reads the file's first rows on the same contract, so a multi-line value within the sample is
+     * reported at planning, with the same remedy, rather than by the first split read.
+     */
+    public void testSchemaInferenceFailsOnMultiLineFieldUnlessMultilineFields() throws IOException {
+        String csv = "x,y\n\"multi\nline\",z\n";
+        Exception e = expectThrows(Exception.class, () -> csvReader(Map.of()).metadata(bytes(csv)));
+        assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("multiline_fields"));
+        // The failure is not a sampling error that error_mode may skip.
+        Exception lenient = expectThrows(Exception.class, () -> csvReader(Map.of("error_mode", "skip_row")).metadata(bytes(csv)));
+        assertThat(ExceptionsHelper.unwrapCause(lenient).getMessage(), containsString("multiline_fields"));
+        assertEquals(2, csvReader(Map.of("multiline_fields", true)).metadata(bytes(csv)).schema().size());
     }
 
     /**
      * The failure is not a bad row: no {@code error_mode} may turn it into a skipped row, on the record-iterator path
      * (reached here with the direct-to-block read disabled) or the direct path.
      */
-    public void testQuoteFreeContradictionIsNotSkippedByErrorMode() throws IOException {
+    public void testLineSpanningRecordIsNotSkippedByErrorMode() throws IOException {
         for (String errorMode : List.of("fail_fast", "skip_row", "null_field")) {
             Map<String, Object> config = Map.of("error_mode", errorMode);
             for (boolean directBlock : List.of(true, false)) {
@@ -403,6 +422,20 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
+     * The splitting decision follows the options a reader currently holds, not those it was built with: a reader derived
+     * through {@link CsvFormatReader#withOptions} lands where one built from the same options does.
+     */
+    public void testWithOptionsDerivesSplittingFromTheNewOptions() {
+        CsvFormatReader fromTsv = new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"));
+        assertThat(fromTsv.recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(fromTsv.withOptions(CsvFormatOptions.DEFAULT).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        CsvFormatReader multiline = csvReader(Map.of("multiline_fields", true));
+        assertThat(multiline.recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        assertThat(multiline.withOptions(CsvFormatOptions.TSV).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(multiline.withOptions(CsvFormatOptions.DEFAULT).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+    }
+
+    /**
      * A bzip2 block split reaches the reader as a decompressed range that starts in the middle of a record the previous
      * split already emitted ({@code firstSplit=false}, {@code recordAligned=false}). Even with a pinned schema that tail
      * must be dropped rather than parsed as a row: the stream below is what {@code decompressRange} yields for the second
@@ -427,10 +460,12 @@ public class CsvModeReadTests extends ESTestCase {
     }
 
     /**
-     * The discarded tail belongs to the previous split, which applies the quote-free guards to it: a closing quote in the
-     * tail of a value that split read to its end must not fail this one.
+     * Unless {@code multiline_fields} is {@code true}, the discarded tail ends at the first newline, by contract, whatever
+     * quote state a quote-aware read would enter on it: a tail that starts with the closing quote of the previous split's
+     * value ({@code 1,"a,|"} cut before the quote) would otherwise open a quoted field and swallow the rows up to the next
+     * quote. A quote inside the tail is just as inert.
      */
-    public void testByteRangeSplitDiscardedTailIsNotCheckedForStrayQuote() throws IOException {
+    public void testByteRangeSplitDiscardsLeadingPartialRecordUpToTheNewline() throws IOException {
         List<Attribute> schema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
@@ -444,8 +479,9 @@ public class CsvModeReadTests extends ESTestCase {
             .fileHeaderColumns(List.of("id", "name"))
             .build();
         CsvFormatReader reader = csvReader(Map.of()).withSchema(schema);
-        byte[] tail = "12\" ruler,x\n3,cc\n4,dd\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(2, drain(reader, new InMemoryStorageObject(tail), split));
+        for (String tail : List.of("\"\n3,cc\n4,dd\n", "\",x\r\n3,cc\n4,dd\n", "12\" ruler,x\n3,cc\n4,dd\n")) {
+            assertEquals(tail, 2, drain(reader, bytes(tail), split));
+        }
     }
 
     private static int drain(CsvFormatReader reader, StorageObject object, FormatReadContext context) throws IOException {

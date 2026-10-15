@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 161813
-summary: Split CSV files on newlines by default, unless `multiline_fields` is set
+summary: Split CSV files on newlines unless `multiline_fields` is `true`
 type: bug

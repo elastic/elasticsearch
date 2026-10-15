@@ -60,6 +60,8 @@ final class CsvLogicalRecordReader {
      * untouched.
      */
     private final boolean escapeAware;
+    /** Whether a record that spans a line terminator fails the read; see {@link #failOnLineSpan()}. */
+    private boolean failOnLineSpan;
 
     /**
      * Bulk input buffer, used only in {@link #bulkBuffered} mode. The record state machine pulls
@@ -102,8 +104,6 @@ final class CsvLogicalRecordReader {
         this(reader, quoteChar, delimiter, CsvFormatOptions.DEFAULT_ESCAPE, maxRecordBytes, charset, quoteAware, false);
     }
 
-    private boolean failOnLineSpan;
-
     CsvLogicalRecordReader(
         Reader reader,
         char quoteChar,
@@ -133,13 +133,15 @@ final class CsvLogicalRecordReader {
 
     /**
      * Makes this reader fail, with a client error, on a record that spans a line terminator (a quoted field or an escape
-     * holding one). Used when range splits were cut at plain newlines on the evidence that the file's sample holds no
-     * quote or escape character: such a record proves the evidence wrong and the splits unreliable.
+     * holding one). Armed on every read of a dataset that does not declare {@code multiline_fields: true}: its files are
+     * cut at plain newlines on the contract that no record spans one, so such a record breaks the contract and makes the
+     * splits unreliable. The reads that cut nothing (the schema sample, a file read in one piece) arm it too, so the same
+     * file fails the same way whatever its size and however it is read.
      *
-     * <p>This is a best-effort guard, not a proof. A cut that lands inside a multi-line quoted value is reported by the
-     * split that owns the value's start (its record runs into the cut newline), so a scan that reads every split fails
-     * loudly. A split that starts inside the value cannot recognise that on its own: a scan that stops early (a
-     * satisfied {@code LIMIT}) may return rows built from the value's tail before the owning split has been read.
+     * <p>Within a cut file this is a best-effort guard, not a proof. A cut that lands inside a multi-line quoted value is
+     * reported by the split that owns the value's start (its record runs into the cut newline), so a scan that reads every
+     * split fails loudly. A split that starts inside the value cannot recognise that on its own: a scan that stops early
+     * (a satisfied {@code LIMIT}) may return rows built from the value's tail before the owning split has been read.
      */
     CsvLogicalRecordReader failOnLineSpan() {
         failOnLineSpan = true;
@@ -148,37 +150,73 @@ final class CsvLogicalRecordReader {
 
     /**
      * Discards the partial record a byte-range split (bzip2 block, zstd frame) starts in the middle of: the previous split
-     * read past its end to finish it, so it is not this split's. The line-span check is suspended for it, since the
-     * previous split's reader owns that record and applies it.
+     * read past its end to finish it, so it is not this split's.
+     * <p>
+     * Under the line-span guard the record ends at the first line terminator, by the contract the guard enforces, so it is
+     * discarded without quote or escape state: the tail of a quoted value may start with its closing quote, which a
+     * quote-aware read would take for an opening one and swallow the rows up to the next quote. Without the guard the
+     * record is read as the previous split read it, quote-aware.
      */
-    String discardLeadingPartialRecord(boolean bracketAware) throws IOException {
-        boolean spanGuard = failOnLineSpan;
-        failOnLineSpan = false;
-        try {
-            return readRecord(bracketAware);
-        } finally {
-            failOnLineSpan = spanGuard;
+    void discardLeadingPartialRecord(boolean bracketAware) throws IOException {
+        if (failOnLineSpan) {
+            discardLine();
+        } else {
+            readRecord(bracketAware);
         }
     }
 
     /**
-     * Marks the failure as a broken newline-splitting assumption. It is the cause of the client error so that the row-error
-     * handling of the record-iterator path, which would otherwise count the error as a skipped row and carry on with the
-     * tail of the value, can recognise it and rethrow whatever the {@code error_mode}.
+     * Consumes the input up to and including the next line terminator, with no quote, escape or bracket state, committing
+     * the bytes to {@link #bytesRead} like {@link #readRecord(boolean)} does so the offsets of the records after it stay
+     * anchored. An over-cap line is drained and reported by {@link #addBytes} as for any record.
      */
-    static final class QuoteFreeContradictionException extends RuntimeException {
-        QuoteFreeContradictionException() {
-            super("quote-free splitting contradicted by the data", null, false, false);
+    private void discardLine() throws IOException {
+        int lineBytes = 0;
+        boolean terminated = false;
+        int ch;
+        while ((ch = readChar()) != -1) {
+            lineBytes = addBytes(lineBytes, ch);
+            if (ch == '\n') {
+                terminated = true;
+                break;
+            }
+            if (ch == '\r') {
+                int next = readChar();
+                if (next == '\n') {
+                    lineBytes = addBytes(lineBytes, next);
+                } else if (next != -1) {
+                    pushBack(next);
+                }
+                terminated = true;
+                break;
+            }
+        }
+        if (lineBytes > 0) {
+            this.lastRecordBytes = lineBytes;
+            this.bytesRead += lineBytes;
+            this.lastRecordTerminated = terminated;
         }
     }
 
-    private static final String QUOTE_FREE_ASSUMPTION_FAILED = "A quoted field or an escaped line break spans several lines, "
-        + "but the file was split on plain newlines because [multiline_fields] is not [true]. Set [multiline_fields] to "
-        + "[true] to read it with quote- and escape-aware splitting";
+    /**
+     * Marks the failure as a record that spans a line terminator while the file is read on the contract that none does. It
+     * is the cause of the client error so that the row-error handling of the record-iterator path, which would otherwise
+     * count the error as a skipped row and carry on with the tail of the value, can recognise it and rethrow whatever the
+     * {@code error_mode}.
+     */
+    static final class LineSpanningRecordException extends RuntimeException {
+        LineSpanningRecordException() {
+            super("a record spans several lines while [multiline_fields] is not [true]", null, false, false);
+        }
+    }
+
+    private static final String LINE_SPANNING_RECORD_MESSAGE = "A quoted field or an escaped line break spans several lines, "
+        + "but [multiline_fields] is not [true], so files are read and split on the assumption that no value does. Set "
+        + "[multiline_fields] to [true] to read such values";
 
     private void failIfLineBreak(int ch) {
         if (failOnLineSpan && (ch == '\n' || ch == '\r')) {
-            throw ExternalFailures.rowError(new QuoteFreeContradictionException(), QUOTE_FREE_ASSUMPTION_FAILED);
+            throw ExternalFailures.rowError(new LineSpanningRecordException(), LINE_SPANNING_RECORD_MESSAGE);
         }
     }
 

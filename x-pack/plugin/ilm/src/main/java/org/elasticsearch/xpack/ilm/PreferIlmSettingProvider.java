@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Defaults {@link IndexSettings#PREFER_ILM} to {@code false} on new data stream backing indices whose ILM policy is the
@@ -63,6 +64,7 @@ public class PreferIlmSettingProvider implements IndexSettingProvider {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    private static final Set<String> AFFECTED_SETTINGS = Set.of(IndexSettings.PREFER_ILM);
 
     private volatile boolean enabled;
 
@@ -116,6 +118,11 @@ public class PreferIlmSettingProvider implements IndexSettingProvider {
         additionalSettings.put(IndexSettings.PREFER_ILM, false);
     }
 
+    @Override
+    public Set<String> affectedSettings() {
+        return enabled ? AFFECTED_SETTINGS : Set.of();
+    }
+
     /**
      * Determines whether the metrics policy is the pre-installed one, and it hasn't been customised, namely:
      * <ul>
@@ -153,4 +160,5 @@ public class PreferIlmSettingProvider implements IndexSettingProvider {
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }
+
 }

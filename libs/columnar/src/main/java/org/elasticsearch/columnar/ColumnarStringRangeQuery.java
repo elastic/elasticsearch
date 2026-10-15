@@ -52,6 +52,7 @@ public final class ColumnarStringRangeQuery extends Query {
     private final BytesRef upper;
     private final boolean includeLower;
     private final boolean includeUpper;
+    private final boolean singleValued;
     private final ScanBudget budget;
 
     public ColumnarStringRangeQuery(
@@ -60,6 +61,7 @@ public final class ColumnarStringRangeQuery extends Query {
         boolean includeLower,
         BytesRef upper,
         boolean includeUpper,
+        boolean singleValued,
         ScanBudget budget
     ) {
         this.field = Objects.requireNonNull(field);
@@ -67,6 +69,7 @@ public final class ColumnarStringRangeQuery extends Query {
         this.upper = upper == null ? null : BytesRef.deepCopyOf(upper);
         this.includeLower = includeLower;
         this.includeUpper = includeUpper;
+        this.singleValued = singleValued;
         this.budget = Objects.requireNonNull(budget);
     }
 
@@ -97,9 +100,10 @@ public final class ColumnarStringRangeQuery extends Query {
                             return DocIdSetIterator.empty();
                         }
                         if (values instanceof StringColumnSource columnar) {
+                            assert columnar.singleValued() == singleValued : "framing of [" + field + "] differs between query and column";
                             return columnar.reader().matchRange(lower, includeLower, upper, includeUpper);
                         }
-                        return fallbackIterator(values, ColumNARDocValuesFormat.isSingleValued(info));
+                        return fallbackIterator(values);
                     }
                 };
             }
@@ -111,7 +115,7 @@ public final class ColumnarStringRangeQuery extends Query {
         };
     }
 
-    private DocIdSetIterator fallbackIterator(BinaryDocValues values, boolean singleValued) {
+    private DocIdSetIterator fallbackIterator(BinaryDocValues values) {
         if (singleValued) {
             return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
                 @Override
@@ -189,6 +193,7 @@ public final class ColumnarStringRangeQuery extends Query {
         }
         final ColumnarStringRangeQuery that = (ColumnarStringRangeQuery) other;
         return field.equals(that.field)
+            && singleValued == that.singleValued
             && includeLower == that.includeLower
             && includeUpper == that.includeUpper
             && Objects.equals(lower, that.lower)
@@ -197,6 +202,6 @@ public final class ColumnarStringRangeQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, lower, upper, includeLower, includeUpper);
+        return Objects.hash(classHash(), field, lower, upper, includeLower, includeUpper, singleValued);
     }
 }

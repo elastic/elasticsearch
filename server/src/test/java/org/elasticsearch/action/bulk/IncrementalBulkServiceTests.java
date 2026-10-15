@@ -9,6 +9,10 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -26,11 +30,14 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -184,5 +191,43 @@ public class IncrementalBulkServiceTests extends ESTestCase {
 
         assertThat(taskManager.getTasks().values(), empty());
         assertFalse("no timeout task should be scheduled for a rejected request", taskQueue.hasDeferredTasks());
+    }
+
+    /**
+     * Items that already failed individually are nulled out of the {@link BulkRequest} before the bulk fails as a
+     * whole; building the item-level failures must skip them rather than throw, so the final listener is completed.
+     */
+    public void testBulkFailureWithNulledItems() throws Exception {
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        Client client = mock(Client.class);
+        IncrementalBulkService service = new IncrementalBulkService(
+            client,
+            new IndexingPressure(Settings.EMPTY),
+            MeterRegistry.NOOP,
+            newTaskManager(taskQueue.getThreadPool()),
+            taskQueue.getThreadPool(),
+            ClusterSettings.createBuiltInClusterSettings(Settings.EMPTY)
+        );
+        RuntimeException failure = new RuntimeException("bulk failed");
+        doAnswer(invocation -> {
+            BulkRequest request = invocation.getArgument(0);
+            request.requests.set(0, null);
+            invocation.<ActionListener<BulkResponse>>getArgument(1).onFailure(failure);
+            return null;
+        }).when(client).bulk(any(), any());
+
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        try (var handler = service.newBulkRequest()) {
+            List<DocWriteRequest<?>> items = List.of(
+                new IndexRequest("index").id("1").source("{}", XContentType.JSON),
+                new IndexRequest("index").id("2").source("{}", XContentType.JSON)
+            );
+            handler.lastItems(items, () -> {}, future);
+        }
+        assertThat(expectThrows(RuntimeException.class, future::actionGet).getMessage(), equalTo("bulk failed"));
+    }
+
+    private static TaskManager newTaskManager(ThreadPool threadPool) {
+        return new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
     }
 }

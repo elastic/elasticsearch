@@ -448,14 +448,20 @@ public class IncrementalBulkService {
         }
 
         private void addItemLevelFailures(List<DocWriteRequest<?>> items) {
-            BulkItemResponse[] bulkItemResponses = new BulkItemResponse[items.size()];
+            // Items that already failed individually (e.g. during index resolution) are replaced by null in the request; their
+            // failure is reported elsewhere, so they are skipped here.
+            List<BulkItemResponse> itemResponses = new ArrayList<>(items.size());
             int idx = 0;
             for (DocWriteRequest<?> item : items) {
+                idx++;
+                if (item == null) {
+                    continue;
+                }
                 BulkItemResponse.Failure failure = new BulkItemResponse.Failure(item.index(), item.id(), bulkActionLevelFailure);
-                bulkItemResponses[idx++] = BulkItemResponse.failure(idx, item.opType(), failure);
+                itemResponses.add(BulkItemResponse.failure(idx, item.opType(), failure));
             }
 
-            responses.add(new BulkResponse(bulkItemResponses, 0, 0));
+            responses.add(new BulkResponse(itemResponses.toArray(BulkItemResponse[]::new), 0, 0));
         }
 
         private boolean internalAddItems(List<DocWriteRequest<?>> items, Releasable releasable) {

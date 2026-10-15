@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
@@ -74,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
@@ -129,6 +132,8 @@ public class PlanWritables {
             Rerank.ENTRY,
             Sample.ENTRY,
             SampledAggregate.ENTRY,
+            Sequence.ENTRY,
+            SequenceStage.ENTRY,
             TopNPreFilter.ENTRY,
             Subquery.ENTRY,
             TimeSeriesAggregate.ENTRY,
@@ -172,6 +177,7 @@ public class PlanWritables {
             RerankExec.ENTRY,
             SampleExec.ENTRY,
             SampledAggregateExec.ENTRY,
+            SequenceExec.ENTRY,
             TopNPreFilterExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,

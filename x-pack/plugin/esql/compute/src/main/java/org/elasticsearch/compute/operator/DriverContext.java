@@ -82,6 +82,8 @@ public class DriverContext {
 
     private final WarningsMode warningsMode;
 
+    private @Nullable Warnings.Budget warningsBudget;
+
     private final @Nullable String driverDescription;
 
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
@@ -333,6 +335,32 @@ public class DriverContext {
      */
     public WarningsMode warningsMode() {
         return warningsMode;
+    }
+
+    /**
+     * Shares expression warning allowances with other drivers that evaluate the same query in separate batches.
+     * Set this before executing the driver, including when its evaluators were constructed during planning.
+     * Warnings continue to be collected and snapshotted in this driver's own sink.
+     */
+    public void setWarningsBudget(Warnings.Budget budget) {
+        Objects.requireNonNull(budget);
+        if (isFinished()) {
+            throw new IllegalStateException("DriverContext was finished already");
+        }
+        if (warningsBudget != null && warningsBudget != budget) {
+            throw new IllegalStateException("DriverContext already has a warnings budget");
+        }
+        synchronized (warnings) {
+            if (warnings.isEmpty() == false) {
+                throw new IllegalStateException("Warnings budget must be set before registering warnings");
+            }
+            warningsBudget = budget;
+        }
+    }
+
+    @Nullable
+    Warnings.Budget warningsBudget() {
+        return warningsBudget;
     }
 
     /**

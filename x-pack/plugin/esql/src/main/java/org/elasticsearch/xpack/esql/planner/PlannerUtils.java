@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
+import org.elasticsearch.xpack.esql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -515,7 +516,7 @@ public class PlannerUtils {
     }
 
     /**
-     * Stamps the request {@code esFilter} onto every {@link FragmentExec} so it is pushed into the Lucene scan — except fragments
+     * Stamps the request {@code esFilter} onto every {@link SequenceExec} and {@link FragmentExec} for raw source scans, except fragments
      * under a view branch, whose filter {@code ViewRequestFilterRewriter} has already installed as a logical {@code Filter} above
      * the view's output. When {@code minimumVersion} is too old for that rewrite to have run
      * ({@link ViewRequestFilterRewriter#supportsRewrite}), view-branch fragments are stamped like any other so the filter is not
@@ -530,7 +531,10 @@ public class PlannerUtils {
             return plan;
         }
         boolean viewBranchesFilteredAtOutput = ViewRequestFilterRewriter.supportsRewrite(minimumVersion);
-        return plan.transformUp(FragmentExec.class, f -> {
+        return plan.transformUp(SequenceExec.class, s -> {
+            var existing = s.esFilter();
+            return s.withFilter(existing == null ? esFilter : boolQuery().filter(existing).filter(esFilter));
+        }).transformUp(FragmentExec.class, f -> {
             // View-branch fragments must not receive the Lucene esFilter: the request filter has already been applied
             // as a logical Filter above the view's output boundary (by ViewRequestFilterRewriter). Pushing the raw DSL
             // filter into the Lucene scan would apply it before any aggregation or field computation the view performs,

@@ -156,7 +156,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.progressListener = task.getProgressListener();
         this.client = client;
-        this.batchQueryPhase = batchQueryPhase;
+        // A node batch authorizes the union of its shards' aliases. An out-of-scope shard's alias can also target an
+        // in-scope index, broadening that index's DLS/FLS again. Coordinator-local PIT authorization also cannot
+        // travel in a node batch. Keep requests with either authorization field isolated per shard request.
+        this.batchQueryPhase = batchQueryPhase
+            && request.getPointInTimeAuthorizationIndices() == null
+            && request.getPointInTimeAuthorizationScope() == null;
         // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {
             notifyListShards(progressListener, clusters, request, skippedByClusterAlias);

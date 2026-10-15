@@ -14,6 +14,8 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -93,6 +95,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.execution.sequence.SequenceSourceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -219,6 +222,7 @@ public class ComputeService {
     private final FormatReaderRegistry formatReaderRegistry;
     private final Executor searchExecutor;
     private final ThreadPool threadPool;
+    private final Client sequenceClient;
     // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
     // re-resolving it from ClusterSettings for every query.
     private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
@@ -234,6 +238,32 @@ public class ComputeService {
         OperatorFactoryRegistry operatorFactoryRegistry,
         FormatReaderRegistry formatReaderRegistry
     ) {
+        this(
+            transportActionServices,
+            enrichLookupService,
+            lookupFromIndexService,
+            threadPool,
+            bigArrays,
+            blockFactory,
+            operatorFactoryRegistry,
+            formatReaderRegistry,
+            null
+        );
+    }
+
+    /** Adds the authorized client used by native sequence snapshot searches and cancellation-independent cleanup. */
+    @SuppressWarnings("this-escape")
+    public ComputeService(
+        TransportActionServices transportActionServices,
+        EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupFromIndexService,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        FormatReaderRegistry formatReaderRegistry,
+        Client sequenceClient
+    ) {
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
@@ -241,6 +271,7 @@ public class ComputeService {
         this.blockFactory = blockFactory;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.threadPool = threadPool;
+        this.sequenceClient = sequenceClient;
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
@@ -1428,7 +1459,8 @@ public class ComputeService {
                 null,
                 exchangeSinkSupplier,
                 false,
-                false
+                false,
+                execInfo
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
@@ -1552,7 +1584,8 @@ public class ComputeService {
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier,
                             false,
-                            false
+                            false,
+                            execInfo
                         ),
                         coordinatorPlan,
                         plannerSettings.get(),
@@ -1578,19 +1611,15 @@ public class ComputeService {
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
-                                execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
-                                    var builder = new EsqlExecutionInfo.Cluster.Builder(v);
-                                    applyShardCounts(
-                                        builder,
-                                        v,
-                                        r.getTotalShards(),
-                                        r.getSuccessfulShards(),
-                                        r.getSkippedShards(),
-                                        r.getFailedShards(),
-                                        exchangeSinkSupplier != null
-                                    );
-                                    return builder.addFailures(r.failures).build();
-                                });
+                                execInfo.setDataNodeShardCounts(
+                                    LOCAL_CLUSTER,
+                                    r.getTotalShards(),
+                                    r.getSuccessfulShards(),
+                                    r.getSkippedShards(),
+                                    r.getFailedShards(),
+                                    r.failures,
+                                    exchangeSinkSupplier != null
+                                );
                                 dataNodesListener.onResponse(r.getCompletionInfo());
                             }, e -> {
                                 if (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e)) {
@@ -1701,7 +1730,8 @@ public class ComputeService {
                     exchangeSource::createExchangeSource,
                     exchangeSinkSupplier,
                     false,
-                    false
+                    false,
+                    execInfo
                 ),
                 coordinatorPlan,
                 plannerSettings.get(),
@@ -2014,7 +2044,25 @@ public class ComputeService {
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
-                clusterService.state().getMinTransportVersion()
+                clusterService.state().getMinTransportVersion(),
+                sequenceClient == null
+                    ? null
+                    : (sequence, stagePlanner) -> new SequenceSourceOperator.Factory(
+                        sequence,
+                        new ParentTaskAssigningClient(sequenceClient, clusterService.localNode(), task),
+                        sequenceClient,
+                        task,
+                        context.configuration(),
+                        stagePlanner,
+                        (drivers, done) -> driverRunner.executeDrivers(
+                            task,
+                            drivers,
+                            parallelWorkerExecutor,
+                            ActionListener.releaseAfter(done, () -> Releasables.close(drivers))
+                        ),
+                        threadPool.getThreadContext().newRestorableContext(true),
+                        context.executionInfo()
+                    )
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

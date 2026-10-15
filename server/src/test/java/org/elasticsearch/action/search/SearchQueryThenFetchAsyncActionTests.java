@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -70,6 +71,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
@@ -90,10 +92,127 @@ import java.util.function.LongSupplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
+    /** Scoped PIT paging must not combine a source alias with broader grants belonging to another physical index. */
+    public void testScopedPointInTimeDisablesNodeQueryBatching() {
+        assertPointInTimeQueryDispatch(true, true);
+    }
+
+    public void testOrdinaryPointInTimeRetainsNodeQueryBatching() {
+        assertPointInTimeQueryDispatch(false, false);
+    }
+
+    public void testAuthorizationOnlyPointInTimeDisablesNodeQueryBatching() {
+        assertPointInTimeQueryDispatch(true, false);
+    }
+
+    public void testScopeOnlyPointInTimeDisablesNodeQueryBatching() {
+        // Security rejects this incomplete contract; dispatch must still never serialize its local field.
+        assertPointInTimeQueryDispatch(false, true);
+    }
+
+    private void assertPointInTimeQueryDispatch(boolean authorized, boolean scoped) {
+        DiscoveryNode coordinator = DiscoveryNodeUtils.create("coordinator");
+        DiscoveryNode dataNode = DiscoveryNodeUtils.create("data");
+        Transport.Connection connection = new SearchAsyncActionTests.MockConnection(dataNode);
+        // Only network delivery is controlled: the ordinary action selects singleton or batched requests using real
+        // PIT requests, shard iterators and its result collection. No response is needed to assert the dispatch boundary.
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(coordinator);
+        List<List<String>> singletonAliases = new ArrayList<>();
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection target,
+                ShardSearchRequest request,
+                SearchTask task,
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                assertSame(connection, target);
+                singletonAliases.add(List.of(request.indices()));
+            }
+        };
+        List<SearchShardIterator> shards = new ArrayList<>();
+        shards.addAll(
+            SearchAsyncActionTests.getShardsIter(
+                "stage-a",
+                new OriginalIndices(new String[] { "narrow-alias" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+                1,
+                false,
+                dataNode,
+                null
+            )
+        );
+        // This broader alias may also point at stage-a. Batching it with narrow-alias would merge their permissions.
+        shards.addAll(
+            SearchAsyncActionTests.getShardsIter(
+                "stage-b",
+                new OriginalIndices(new String[] { "broad-alias" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+                1,
+                false,
+                dataNode,
+                null
+            )
+        );
+        SearchRequest request = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot"))).size(0)
+        ).allowPartialSearchResults(false);
+        if (authorized) {
+            request.setPointInTimeAuthorizationIndices(
+                new OriginalIndices(new String[] { "narrow-alias", "broad-alias" }, request.indicesOptions())
+            );
+        }
+        if (scoped) {
+            request.setPointInTimeAuthorizationScope(new OriginalIndices(new String[] { "narrow-alias" }, request.indicesOptions()));
+        }
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Map.of());
+        try (var results = new ArraySearchPhaseResults<SearchPhaseResult>(shards.size())) {
+            var action = new SearchQueryThenFetchAsyncAction(
+                logger,
+                null,
+                searchTransportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
+                (clusterAlias, node) -> connection,
+                Map.of("_na_", AliasFilter.EMPTY),
+                Map.of(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                results,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                request,
+                ActionListener.noop(),
+                shards,
+                Map.of(),
+                new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime),
+                new ClusterState.Builder(new ClusterName("test")).build(),
+                task,
+                SearchResponse.Clusters.EMPTY,
+                null,
+                true,
+                false,
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+                Map.of()
+            );
+            action.start();
+            assertEquals(authorized || scoped ? List.of(List.of("narrow-alias"), List.of("broad-alias")) : List.of(), singletonAliases);
+            verify(transportService, times(authorized || scoped ? 0 : 1)).sendChildRequest(
+                any(Transport.Connection.class),
+                eq(SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME),
+                any(TransportRequest.class),
+                eq(task),
+                any()
+            );
+        }
+    }
+
     public void testBottomFieldSort() throws Exception {
         testCase(false, false);
     }

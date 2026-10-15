@@ -328,7 +328,8 @@ final class SubPlansExecutor {
                         exchange::exchangeSource,
                         parent == null ? null : () -> parent.exchange.exchangeSink(() -> {}),
                         false,
-                        false
+                        false,
+                        execInfo
                     ),
                     plan,
                     computeService.plannerSettings().get(),

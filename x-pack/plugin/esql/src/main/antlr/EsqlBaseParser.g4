@@ -46,6 +46,7 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
+    | {this.isDevVersion()}? sequenceCommand
     | {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? externalCommand
     ;
 
@@ -117,6 +118,10 @@ externalCommand
     : DEV_EXTERNAL stringOrParameter commandNamedParameters
     ;
 
+sequenceCommand
+    : DEV_SEQUENCE (BY qualifiedNames)? WITH mapExpression subquery (COMMA subquery)+
+    ;
+
 indexPatternAndMetadataFields
     : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
     ;
@@ -134,6 +139,7 @@ subquerySourceCommand
     : fromCommand
     | rowCommand
     | timeSeriesCommand
+    | {this.isDevVersion()}? sequenceCommand
     ;
 
 indexPattern

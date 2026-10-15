@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -66,6 +67,9 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
 
     private static final long DEFAULT_ABSOLUTE_START_MILLIS = -1;
 
+    /** Preserves a caller-supplied date-math clock across local transport searches. */
+    public static final TransportVersion SEARCH_REQUEST_ABSOLUTE_START_TIME = TransportVersion.fromName("esql_sequence");
+
     private static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE = TransportVersion.fromName(
         "re_remove_min_compatible_shard_node"
     );
@@ -77,6 +81,12 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
+
+    @Nullable
+    private OriginalIndices pointInTimeAuthorizationIndices;
+
+    @Nullable
+    private OriginalIndices pointInTimeAuthorizationScope;
 
     @Nullable
     private ResolvedIndexExpressions resolvedIndexExpressions = null;
@@ -138,6 +148,20 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
+        this.finalReduce = true;
+        this.ccsMinimizeRoundtrips = true;
+    }
+
+    /**
+     * Anchors date math to the parent query's start time when several searches implement one logical request.
+     * Paging and evidence replay must evaluate relative dates against the same clock, including alias filters.
+     */
+    public SearchRequest(long absoluteStartMillis) {
+        if (absoluteStartMillis < 0) {
+            throw new IllegalArgumentException("absoluteStartMillis must not be negative but was [" + absoluteStartMillis + "]");
+        }
+        this.localClusterAlias = null;
+        this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = true;
         this.ccsMinimizeRoundtrips = true;
     }
@@ -274,6 +298,8 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         this.resolvedIndexExpressions = searchRequest.resolvedIndexExpressions;
         this.resolvedTargetProjects = searchRequest.resolvedTargetProjects;
         this.bufferSubSearchResponseForMultiSearch = searchRequest.bufferSubSearchResponseForMultiSearch;
+        this.pointInTimeAuthorizationIndices = searchRequest.pointInTimeAuthorizationIndices;
+        this.pointInTimeAuthorizationScope = searchRequest.pointInTimeAuthorizationScope;
     }
 
     /**
@@ -301,7 +327,9 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             absoluteStartMillis = in.readVLong();
             finalReduce = in.readBoolean();
         } else {
-            absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
+            absoluteStartMillis = in.getTransportVersion().supports(SEARCH_REQUEST_ABSOLUTE_START_TIME)
+                ? in.readZLong()
+                : DEFAULT_ABSOLUTE_START_MILLIS;
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
@@ -333,6 +361,7 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         } else {
             this.routingFromSlice = false;
         }
+
     }
 
     @Override
@@ -341,6 +370,17 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
     }
 
     public void writeTo(StreamOutput out, boolean skipIndices) throws IOException {
+        if (pointInTimeAuthorizationIndices != null || pointInTimeAuthorizationScope != null) {
+            // The caller must add its source membership query; this contract cannot cross a transport boundary.
+            throw new IllegalArgumentException("PIT authorization expressions are coordinator-local and cannot be serialized");
+        }
+        if (localClusterAlias == null
+            && absoluteStartMillis != DEFAULT_ABSOLUTE_START_MILLIS
+            && out.getTransportVersion().supports(SEARCH_REQUEST_ABSOLUTE_START_TIME) == false) {
+            throw new IllegalArgumentException(
+                "A search with an explicit start time is not supported in transport version [" + out.getTransportVersion() + "]"
+            );
+        }
         super.writeTo(out);
         out.writeByte(searchType.id());
         // write list of expressions that always resolves to no indices the same way we do it in security code to safely skip sending the
@@ -361,6 +401,8 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         if (localClusterAlias != null) {
             out.writeVLong(absoluteStartMillis);
             out.writeBoolean(finalReduce);
+        } else if (out.getTransportVersion().supports(SEARCH_REQUEST_ABSOLUTE_START_TIME)) {
+            out.writeZLong(absoluteStartMillis);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
         if (out.getTransportVersion().supports(RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE) == false) {
@@ -378,6 +420,7 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
                 out.writeOptionalString(searchSlice());
             }
         }
+
     }
 
     @Override
@@ -391,6 +434,18 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
 
         if (source != null) {
             validationException = source.validate(validationException, scroll, allowPartialSearchResults);
+        }
+        if (pointInTimeAuthorizationIndices != null && (pointInTimeBuilder() == null || localClusterAlias != null)) {
+            validationException = addValidationError(
+                "PIT authorization expressions require a local point in time search",
+                validationException
+            );
+        }
+        if (pointInTimeAuthorizationScope != null && pointInTimeAuthorizationIndices == null) {
+            validationException = addValidationError(
+                "PIT authorization scope requires full PIT authorization expressions",
+                validationException
+            );
         }
         if (scroll) {
             if (requestCache != null && requestCache) {
@@ -449,15 +504,15 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
      * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
      * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
      * request. When created through {@link #subSearchRequest(TaskId, SearchRequest, String[], IndicesOptions, String, long, boolean)},
-     * this method returns the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
+     * or {@link #SearchRequest(long)}, this method returns the supplied time, otherwise it returns {@link System#currentTimeMillis()}.
      */
-    long getOrCreateAbsoluteStartMillis() {
+    public long getOrCreateAbsoluteStartMillis() {
         return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? System.currentTimeMillis() : absoluteStartMillis;
     }
 
     /**
-     * Returns the provided <code>absoluteStartMillis</code> when created through {@link #subSearchRequest} and
-     * -1 otherwise.
+     * Returns the provided <code>absoluteStartMillis</code> when created through {@link #subSearchRequest}
+     * or {@link #SearchRequest(long)}, and -1 otherwise.
      */
     long getAbsoluteStartMillis() {
         return absoluteStartMillis;
@@ -649,6 +704,58 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             return source.pointInTimeBuilder();
         }
         return null;
+    }
+
+    /**
+     * Supplies the original source expressions for internal local PIT paging. These expressions do not change the PIT's
+     * shard enumeration or filters. Security must resolve and authorize them under the caller's current permissions and
+     * verify that the resulting access control covers every concrete PIT index. The caller must also add its source membership
+     * query. This coordinator-local field has no REST or wire representation; serializing a request that sets it is rejected.
+     */
+    public void setPointInTimeAuthorizationIndices(OriginalIndices originalIndices) {
+        pointInTimeAuthorizationIndices = copyPointInTimeAuthorizationIndices(originalIndices);
+    }
+
+    private static OriginalIndices copyPointInTimeAuthorizationIndices(OriginalIndices originalIndices) {
+        Objects.requireNonNull(originalIndices, "PIT authorization indices must not be null");
+        String[] expressions = Objects.requireNonNull(originalIndices.indices(), "PIT authorization expressions must not be null");
+        if (expressions.length == 0) {
+            throw new IllegalArgumentException("PIT authorization expressions must not be empty");
+        }
+        for (String expression : expressions) {
+            Objects.requireNonNull(expression, "PIT authorization expression must not be null");
+        }
+        return new OriginalIndices(
+            expressions.clone(),
+            Objects.requireNonNull(originalIndices.indicesOptions(), "PIT authorization indices options must not be null")
+        );
+    }
+
+    /** Returns a defensive copy of the internal PIT source expressions, or null for ordinary PIT requests. */
+    @Nullable
+    public OriginalIndices getPointInTimeAuthorizationIndices() {
+        return pointInTimeAuthorizationIndices == null
+            ? null
+            : new OriginalIndices(pointInTimeAuthorizationIndices.indices().clone(), pointInTimeAuthorizationIndices.indicesOptions());
+    }
+
+    /**
+     * Restricts internal shared-PIT paging to one source's independently authorized permissions. The complete snapshot must first be
+     * authorized through {@link #setPointInTimeAuthorizationIndices(OriginalIndices)}. Scope indices must belong to the fully authorized
+     * sources; indices omitted from the snapshot by can-match remain empty. Other shard slots remain present for stable document
+     * ordinals but cannot match documents. Like the full authorization expressions, this field is coordinator-local and cannot
+     * be serialized; the caller remains responsible for its source membership query.
+     */
+    public void setPointInTimeAuthorizationScope(OriginalIndices originalIndices) {
+        pointInTimeAuthorizationScope = copyPointInTimeAuthorizationIndices(originalIndices);
+    }
+
+    /** Returns a defensive copy of the independently authorized PIT source scope, or null when no scope was supplied. */
+    @Nullable
+    public OriginalIndices getPointInTimeAuthorizationScope() {
+        return pointInTimeAuthorizationScope == null
+            ? null
+            : new OriginalIndices(pointInTimeAuthorizationScope.indices().clone(), pointInTimeAuthorizationScope.indicesOptions());
     }
 
     /**
@@ -920,6 +1027,8 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         SearchRequest that = (SearchRequest) o;
         return searchType == that.searchType
             && Arrays.equals(indices, that.indices)
+            && Objects.equals(pointInTimeAuthorizationIndices, that.pointInTimeAuthorizationIndices)
+            && Objects.equals(pointInTimeAuthorizationScope, that.pointInTimeAuthorizationScope)
             && Objects.equals(routing, that.routing)
             && routingFromSlice == that.routingFromSlice
             && Objects.equals(preference, that.preference)
@@ -942,6 +1051,8 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         return Objects.hash(
             searchType,
             Arrays.hashCode(indices),
+            pointInTimeAuthorizationIndices,
+            pointInTimeAuthorizationScope,
             routing,
             routingFromSlice,
             preference,
@@ -967,6 +1078,10 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             + searchType
             + ", indices="
             + Arrays.toString(indices)
+            + ", pointInTimeAuthorizationIndices="
+            + pointInTimeAuthorizationIndices
+            + ", pointInTimeAuthorizationScope="
+            + pointInTimeAuthorizationScope
             + ", indicesOptions="
             + indicesOptions
             + ", routing='"

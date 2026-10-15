@@ -1,0 +1,102 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ sequence_command ]
+      reason: "Native SEQUENCE is available on development snapshot builds"
+
+  - do:
+      indices.create:
+        index: sequence-source-http-a
+        body:
+          settings: { number_of_shards: 1, number_of_replicas: 0, index.mapping.source.mode: stored }
+          mappings:
+            dynamic: false
+            properties:
+              "@timestamp": { type: date_nanos }
+              key: { type: keyword }
+              payload: { type: keyword }
+              number: { type: long }
+  - do:
+      indices.create:
+        index: sequence-source-http-b
+        body:
+          settings: { number_of_shards: 1, number_of_replicas: 0, index.mapping.source.mode: stored }
+          mappings:
+            dynamic: false
+            properties:
+              "@timestamp": { type: date_nanos }
+              key: { type: keyword }
+              payload: { type: keyword }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { index: { _index: sequence-source-http-a, _id: A } }
+          - { "@timestamp": "2026-09-25T21:14:51.389000000Z", key: shared, payload: first, number: 9007199254740993,
+              unused: { array: [duplicate, null, duplicate], object: {nested: [{value: one}, {value: two}]}, explicit_null: null } }
+          - { index: { _index: sequence-source-http-b, _id: B } }
+          - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: second, explicit_null: null }
+
+---
+"Stage source columns render as objects in row JSON":
+  - do:
+      esql.query:
+        body:
+          query: >-
+            SEQUENCE BY key WITH {"maxspan":"30s"}
+            (FROM sequence-source-http-a METADATA _id, _index, _source),
+            (FROM sequence-source-http-b METADATA _id, _index, _source)
+            | KEEP key, stage1._source, stage2._source | LIMIT 1
+  - match:
+      columns:
+        - {name: key, type: keyword}
+        - {name: stage1._source, type: _source}
+        - {name: stage2._source, type: _source}
+  - match:
+      values:
+        - - shared
+          - { "@timestamp": "2026-09-25T21:14:51.389000000Z", key: shared, payload: first, number: 9007199254740993,
+              unused: { array: [duplicate, null, duplicate], object: {nested: [{value: one}, {value: two}]}, explicit_null: null } }
+          - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: second, explicit_null: null }
+  - is_false: sequences
+
+---
+"Stage source columns retain objects in columnar JSON":
+  - do:
+      esql.query:
+        body:
+          query: >-
+            SEQUENCE BY key WITH {"maxspan":"30s"}
+            (FROM sequence-source-http-a METADATA _source), (FROM sequence-source-http-b METADATA _source)
+            | KEEP key, stage1._source, stage2._source | LIMIT 1
+          columnar: true
+  - match:
+      values:
+        - [shared]
+        - - { "@timestamp": "2026-09-25T21:14:51.389000000Z", key: shared, payload: first, number: 9007199254740993,
+                unused: { array: [duplicate, null, duplicate], object: {nested: [{value: one}, {value: two}]}, explicit_null: null } }
+        - - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: second, explicit_null: null }
+  - is_false: sequences
+
+---
+"Stage source columns retain objects with pretty JSON":
+  - do:
+      esql.query:
+        pretty: true
+        body:
+          query: >-
+            SEQUENCE BY key WITH {"maxspan":"30s"}
+            (FROM sequence-source-http-a METADATA _source), (FROM sequence-source-http-b METADATA _source)
+            | KEEP key, stage1._source, stage2._source | LIMIT 1
+  - match:
+      values:
+        - - shared
+          - { "@timestamp": "2026-09-25T21:14:51.389000000Z", key: shared, payload: first, number: 9007199254740993,
+              unused: { array: [duplicate, null, duplicate], object: {nested: [{value: one}, {value: two}]}, explicit_null: null } }
+          - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: second, explicit_null: null }
+  - is_false: sequences

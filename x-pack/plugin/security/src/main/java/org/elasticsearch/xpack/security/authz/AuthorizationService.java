@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
@@ -30,6 +31,7 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndexComponentSelector;
@@ -48,11 +50,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
@@ -65,6 +69,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.usage.UsageService;
@@ -152,6 +157,7 @@ public class AuthorizationService {
     private final ClusterService clusterService;
     private final AuditTrailService auditTrailService;
     private final IndicesAndAliasesResolver indicesAndAliasesResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AuthenticationFailureHandler authcFailureHandler;
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
@@ -205,6 +211,7 @@ public class AuthorizationService {
             resolver,
             crossProjectModeDecider
         );
+        this.indexNameExpressionResolver = resolver;
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = new SecurityContext(settings, this.threadContext);
@@ -545,7 +552,8 @@ public class AuthorizationService {
                     authzInfo,
                     authzEngine,
                     auditTrail,
-                    listener
+                    listener,
+                    false
                 );
 
                 // Wrapping here in order to have exceptions thrown from the {@code authorizeIndexAction} method
@@ -554,6 +562,40 @@ public class AuthorizationService {
                 ActionListener.run(
                     listener,
                     l -> authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier, projectMetadata)
+                        .andThenApply(result -> checkPointInTimeAuthorization(request, result))
+                        .<IndexAuthorizationResult>andThen(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext, (scopeListener, result) -> {
+                            if (result.isGranted() == false
+                                || request instanceof SearchRequest == false
+                                || ((SearchRequest) request).getPointInTimeAuthorizationScope() == null) {
+                                scopeListener.onResponse(result);
+                                return;
+                            }
+                            // A sibling source's permissions must not be inherited from a broader parent search.
+                            RequestInfo scopeRequestInfo = new RequestInfo(authentication, request, action, null);
+                            AsyncSupplier<ResolvedIndices> scopedIndicesSupplier = makeResolvedIndicesAsyncSupplier(
+                                targetProjects,
+                                scopeRequestInfo,
+                                requestId,
+                                request,
+                                action,
+                                projectMetadata,
+                                authzInfo,
+                                authzEngine,
+                                auditTrail,
+                                l,
+                                true
+                            );
+                            authzEngine.authorizeIndexAction(scopeRequestInfo, authzInfo, scopedIndicesSupplier, projectMetadata)
+                                .andThenApply(
+                                    scopeResult -> combinePointInTimeScopeAuthorization(
+                                        (SearchRequest) request,
+                                        projectMetadata,
+                                        result,
+                                        scopeResult
+                                    )
+                                )
+                                .addListener(scopeListener);
+                        })
                         .addListener(wrapPreservingContext(new AuthorizationResultListener<>(result -> {
                             setIndexResolutionException(authzInfo, request, authentication, action);
                             handleIndexActionAuthorizationResult(
@@ -586,15 +628,29 @@ public class AuthorizationService {
         AuthorizationInfo authzInfo,
         AuthorizationEngine authzEngine,
         AuditTrail auditTrail,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        boolean pitScope
     ) {
         return new CachingAsyncSupplier<>(() -> {
+            TransportRequest resolutionRequest = request;
             if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
-                var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
-                return SubscribableListener.newSucceeded(resolvedIndices);
+                OriginalIndices original = pitScope
+                    ? searchRequest.getPointInTimeAuthorizationScope()
+                    : searchRequest.getPointInTimeAuthorizationIndices();
+                if (original == null) {
+                    var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
+                    return SubscribableListener.newSucceeded(resolvedIndices);
+                }
+                // Resolve through the ordinary caller-scoped path without adding indices to the actual PIT request.
+                resolutionRequest = new SearchRequest(original.indices()).indicesOptions(original.indicesOptions());
             }
+            final TransportRequest finalResolutionRequest = resolutionRequest;
 
-            final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request, targetProjects);
+            final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(
+                action,
+                finalResolutionRequest,
+                targetProjects
+            );
             if (resolvedIndices != null) {
                 return SubscribableListener.newSucceeded(resolvedIndices);
             } else {
@@ -604,15 +660,84 @@ public class AuthorizationService {
                     authzInfo,
                     projectMetadata.getIndicesLookup(),
                     ActionListener.wrap(authorizedIndices -> {
-                        resolvedIndicesListener.onResponse(
-                            indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices, targetProjects)
+                        ResolvedIndices resolved = indicesAndAliasesResolver.resolve(
+                            action,
+                            finalResolutionRequest,
+                            projectMetadata,
+                            authorizedIndices,
+                            targetProjects
                         );
+                        if (request instanceof SearchRequest searchRequest && searchRequest.getPointInTimeAuthorizationIndices() != null) {
+                            SearchRequest authorized = (SearchRequest) finalResolutionRequest;
+                            if (pitScope) {
+                                searchRequest.setPointInTimeAuthorizationScope(new OriginalIndices(authorized));
+                            } else {
+                                searchRequest.setPointInTimeAuthorizationIndices(new OriginalIndices(authorized));
+                            }
+                        }
+                        resolvedIndicesListener.onResponse(resolved);
                     }, e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e))
                 );
 
                 return resolvedIndicesListener;
             }
         });
+    }
+
+    /** Alias permissions must cover the complete PIT before success is audited or any shard phase can run. */
+    private IndexAuthorizationResult checkPointInTimeAuthorization(TransportRequest request, IndexAuthorizationResult result) {
+        if (request instanceof SearchRequest searchRequest
+            && searchRequest.getPointInTimeAuthorizationScope() != null
+            && searchRequest.getPointInTimeAuthorizationIndices() == null) {
+            return IndexAuthorizationResult.DENIED;
+        }
+        if (request instanceof SearchRequest searchRequest && searchRequest.getPointInTimeAuthorizationIndices() != null) {
+            IndicesAccessControl accessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
+            if (searchRequest.pointInTimeBuilder() == null || accessControl == null || accessControl.isGranted() == false) {
+                return IndexAuthorizationResult.DENIED;
+            }
+            for (String index : SearchContextId.decodeIndices(searchRequest.pointInTimeBuilder().getEncodedId())) {
+                if (RemoteClusterAware.isRemoteIndexName(index) || accessControl.hasIndexPermissions(index) == false) {
+                    return IndexAuthorizationResult.DENIED;
+                }
+            }
+            return new IndexAuthorizationResult(accessControl);
+        }
+        return result;
+    }
+
+    /** Uses source-only DLS/FLS on overlapping indices and retains full-snapshot grants solely for slots made empty by the coordinator. */
+    private IndexAuthorizationResult combinePointInTimeScopeAuthorization(
+        SearchRequest request,
+        ProjectMetadata projectMetadata,
+        IndexAuthorizationResult fullResult,
+        IndexAuthorizationResult scopedResult
+    ) {
+        IndicesAccessControl scopedAccessControl = indicesAccessControlWrapper.wrap(scopedResult.getIndicesAccessControl());
+        if (scopedAccessControl == null || scopedAccessControl.isGranted() == false) {
+            return IndexAuthorizationResult.DENIED;
+        }
+        Set<String> snapshotIndices = Set.of(SearchContextId.decodeIndices(request.pointInTimeBuilder().getEncodedId()));
+        OriginalIndices scope = request.getPointInTimeAuthorizationScope();
+        Index[] scopedIndices = indexNameExpressionResolver.concreteIndices(
+            projectMetadata,
+            scope,
+            request.getOrCreateAbsoluteStartMillis()
+        );
+        Map<String, IndicesAccessControl.IndexAccessControl> permissions = new HashMap<>();
+        for (String index : snapshotIndices) {
+            permissions.put(index, fullResult.getIndicesAccessControl().getIndexPermissions(index));
+        }
+        for (Index index : scopedIndices) {
+            if (fullResult.getIndicesAccessControl().hasIndexPermissions(index.getName()) == false
+                || scopedAccessControl.hasIndexPermissions(index.getName()) == false) {
+                return IndexAuthorizationResult.DENIED;
+            }
+            if (snapshotIndices.contains(index.getName())) {
+                permissions.put(index.getName(), scopedAccessControl.getIndexPermissions(index.getName()));
+            }
+        }
+        return new IndexAuthorizationResult(new IndicesAccessControl(true, permissions));
     }
 
     private TargetProjects maybeSetResolvedTargetProjects(
@@ -764,8 +889,11 @@ public class AuthorizationService {
         final ProjectMetadata projectMetadata,
         final ActionListener<Void> listener
     ) {
-        final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
         final TransportRequest request = requestInfo.getRequest();
+        final IndicesAccessControl indicesAccessControl = request instanceof SearchRequest searchRequest
+            && searchRequest.getPointInTimeAuthorizationIndices() != null
+                ? result.getIndicesAccessControl()
+                : indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
         final String action = requestInfo.getAction();
         securityContext.putIndicesAccessControl(indicesAccessControl);
 

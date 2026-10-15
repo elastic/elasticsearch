@@ -540,6 +540,7 @@ public class EsqlSession {
         // ViewCompaction.postIndexResolution(), which runs as an analyzer rule after ResolveTable so
         // lenient field-caps can pair each shadow with its strict sibling.
         LogicalPlan plan = ViewCompaction.preIndexResolution(viewResolution.plan());
+        plan = SequenceSourceExpressions.resolve(plan, configuration.absoluteStartedTimeInMillis());
         // For EXPLAIN (detected and unwrapped right after parsing), enable profile to capture plans from all nodes
         final Configuration finalConfiguration = explainContext != null ? configuration.withExplainOnly() : configuration;
         final FoldContext foldContext = finalConfiguration.newFoldContext();

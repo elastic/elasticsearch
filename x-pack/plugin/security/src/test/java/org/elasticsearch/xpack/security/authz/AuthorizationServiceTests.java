@@ -278,6 +278,7 @@ import static org.mockito.Mockito.when;
 public class AuthorizationServiceTests extends ESTestCase {
     private ProjectId projectId;
     private AuditTrail auditTrail;
+    private MockLicenseState licenseState;
     private AuditTrailService auditTrailService;
     private ClusterService clusterService;
     private AuthorizationService authorizationService;
@@ -319,7 +320,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         mockEmptyMetadata();
 
         auditTrail = mock(AuditTrail.class);
-        MockLicenseState licenseState = mock(MockLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         auditTrailService = new AuditTrailService(auditTrail, licenseState, clusterService);
         threadContext = new ThreadContext(settings);
@@ -1652,6 +1653,364 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(new String[] { role.getName() })
         );
         verifyNoMoreInteractions(auditTrail);
+    }
+
+    /** Alias-aware paging and independently authorized shard phases retain the caller's DLS/FLS controls. */
+    public void testSearchPitAuthorizationAliasesRetainDocumentAndFieldPermissions() {
+        when(licenseState.isAllowed(org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE)).thenReturn(true);
+        RoleDescriptor role = new RoleDescriptor(
+            "alias_reader",
+            null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder()
+                    .indices("alias-*")
+                    .privileges("read")
+                    .grantedFields("visible")
+                    .query("{\"term\":{\"tenant\":\"allowed\"}}")
+                    .build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        Authentication authentication = createAuthentication(new User("alias-user", role.getName()));
+        IndexMetadata index = IndexMetadata.builder(createIndexMetadata("private"))
+            .putAlias(AliasMetadata.builder("alias-events").build())
+            .build();
+        mockClusterState(ProjectMetadata.builder(projectId).put(index, true).build());
+        SearchRequest request = aliasPitRequest(createEncodedPIT(index.getIndex()), "alias-*");
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        setFakeOriginatingAction = false;
+        authorize(authentication, TransportSearchAction.TYPE.name(), request, true, () -> {
+            var permission = INDICES_PERMISSIONS_VALUE.get(threadContext).getIndexPermissions("private");
+            assertNotNull(permission);
+            assertTrue(permission.getDocumentPermissions().hasDocumentLevelPermissions());
+            assertTrue(permission.getFieldPermissions().grantsAccessTo("visible"));
+            assertFalse(permission.getFieldPermissions().grantsAccessTo("secret"));
+            assertNull("DLS/FLS shard phases must retain ordinary authorization", securityContext.getParentAuthorization());
+        });
+        assertEquals(0, request.indices().length);
+        assertArrayEquals(new String[] { "alias-events" }, request.getPointInTimeAuthorizationIndices().indices());
+
+        // A separate authorization call represents a remote data node, which cannot reuse a local parent IAC.
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            request.getPointInTimeAuthorizationIndices(),
+            request,
+            new ShardId(index.getIndex(), 0),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            System.currentTimeMillis(),
+            null
+        );
+        authorize(authentication, SearchTransportService.QUERY_ACTION_NAME, shardRequest, true, () -> {
+            var permission = INDICES_PERMISSIONS_VALUE.get(threadContext).getIndexPermissions("private");
+            assertNotNull(permission);
+            assertTrue(permission.getDocumentPermissions().hasDocumentLevelPermissions());
+            assertFalse(permission.getFieldPermissions().grantsAccessTo("secret"));
+        });
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), new SearchRequest("private")),
+            TransportSearchAction.TYPE.name(),
+            "alias-user"
+        );
+    }
+
+    /** One permitted alias must not authorize a PIT containing another index, including mixed permitted/denied snapshots. */
+    public void testSearchPitAuthorizationAliasesRequireEverySnapshotIndex() {
+        RoleDescriptor role = new RoleDescriptor(
+            "alias_reader",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("alias-public").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        Authentication authentication = createAuthentication(new User("alias-user", role.getName()));
+        IndexMetadata permitted = IndexMetadata.builder(createIndexMetadata("public"))
+            .putAlias(AliasMetadata.builder("alias-public").build())
+            .build();
+        IndexMetadata denied = createIndexMetadata("private");
+        mockClusterState(ProjectMetadata.builder(projectId).put(permitted, true).put(denied, true).build());
+        String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        for (boolean scoped : new boolean[] { false, true }) {
+            SearchRequest request = aliasPitRequest(createEncodedPIT(permitted.getIndex(), denied.getIndex()), "alias-public");
+            if (scoped) {
+                request.setPointInTimeAuthorizationScope(new OriginalIndices(new String[] { "alias-public" }, request.indicesOptions()));
+            }
+            assertThrowsAuthorizationException(
+                () -> authorize(authentication, TransportSearchAction.TYPE.name(), request),
+                TransportSearchAction.TYPE.name(),
+                "alias-user"
+            );
+            verify(auditTrail).accessDenied(
+                eq(requestId),
+                eq(authentication),
+                eq(TransportSearchAction.TYPE.name()),
+                eq(request),
+                authzInfoRoles(new String[] { role.getName() })
+            );
+        }
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    /** Re-resolving an alias that moved to another index must not authorize an existing snapshot of its former index. */
+    public void testSearchPitAuthorizationAliasesAreResolvedAgainstCurrentMetadata() {
+        RoleDescriptor role = new RoleDescriptor(
+            "alias_reader",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("alias-events").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        Authentication authentication = createAuthentication(new User("alias-user", role.getName()));
+        IndexMetadata former = createIndexMetadata("former");
+        IndexMetadata current = IndexMetadata.builder(createIndexMetadata("current"))
+            .putAlias(AliasMetadata.builder("alias-events").build())
+            .build();
+        mockClusterState(ProjectMetadata.builder(projectId).put(former, true).put(current, true).build());
+        SearchRequest request = aliasPitRequest(createEncodedPIT(former.getIndex()), "alias-events");
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request),
+            TransportSearchAction.TYPE.name(),
+            "alias-user"
+        );
+    }
+
+    /** The internal alias-aware paging contract cannot be used with remote-cluster snapshot entries. */
+    public void testSearchPitAuthorizationAliasesRejectRemoteSnapshot() {
+        RoleDescriptor role = new RoleDescriptor(
+            "alias_reader",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("alias-events").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        Authentication authentication = createAuthentication(new User("alias-user", role.getName()));
+        IndexMetadata index = IndexMetadata.builder(createIndexMetadata("private"))
+            .putAlias(AliasMetadata.builder("alias-events").build())
+            .build();
+        mockClusterState(ProjectMetadata.builder(projectId).put(index, true).build());
+        DiscoveryNode node = DiscoveryNodeUtils.create("node_1");
+        TestSearchPhaseResult result = new TestSearchPhaseResult(new ShardSearchContextId("a", 1), node);
+        result.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId(index.getIndex(), 0), "other_cluster"));
+        BytesReference encoded = SearchContextId.encode(
+            List.of(result),
+            Collections.emptyMap(),
+            TransportVersion.current(),
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+        SearchRequest request = aliasPitRequest(encoded, "alias-events");
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request),
+            TransportSearchAction.TYPE.name(),
+            "alias-user"
+        );
+    }
+
+    /** Sources that share a concrete index retain independent DLS/FLS, including separately authorized remote shard phases. */
+    public void testSearchPitAuthorizationScopeRetainsIndependentAliasPermissions() {
+        when(licenseState.isAllowed(org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
+        when(licenseState.isAllowed(org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE)).thenReturn(true);
+        String queryA = "{\"term\":{\"tenant\":\"a\"}}";
+        String queryB = "{\"term\":{\"tenant\":\"b\"}}";
+        RoleDescriptor role = new RoleDescriptor(
+            "scoped_alias_reader",
+            null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices("alias-a").privileges("read").grantedFields("visible-a").query(queryA).build(),
+                IndicesPrivileges.builder().indices("alias-b").privileges("read").grantedFields("visible-b").query(queryB).build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        Authentication authentication = createAuthentication(new User("scoped-alias-user", role.getName()));
+        IndexMetadata shared = IndexMetadata.builder(createIndexMetadata("shared"))
+            .putAlias(AliasMetadata.builder("alias-a").build())
+            .putAlias(AliasMetadata.builder("alias-b").build())
+            .build();
+        // A broader alias also targets an out-of-scope index; its retained slot must keep ordinary authorization.
+        IndexMetadata other = IndexMetadata.builder(createIndexMetadata("other"))
+            .putAlias(AliasMetadata.builder("alias-b").build())
+            .build();
+        mockClusterState(ProjectMetadata.builder(projectId).put(shared, true).put(other, true).build());
+        String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        setFakeOriginatingAction = false;
+        SearchRequest ordinary = new SearchRequest("alias-a", "alias-b");
+        authorize(authentication, TransportSearchAction.TYPE.name(), ordinary, true, () -> {
+            var permission = INDICES_PERMISSIONS_VALUE.get(threadContext).getIndexPermissions("shared");
+            assertEquals(
+                Set.of(new BytesArray(queryA), new BytesArray(queryB)),
+                permission.getDocumentPermissions().getSingleSetOfQueries()
+            );
+            assertTrue(permission.getFieldPermissions().grantsAccessTo("visible-a"));
+            assertTrue(permission.getFieldPermissions().grantsAccessTo("visible-b"));
+        });
+        SearchRequest request = aliasPitRequest(createEncodedPIT(shared.getIndex(), other.getIndex()), "alias-*");
+        request.setPointInTimeAuthorizationScope(new OriginalIndices(new String[] { "alias-*", "-alias-b" }, request.indicesOptions()));
+        authorize(authentication, TransportSearchAction.TYPE.name(), request, true, () -> {
+            var permissions = INDICES_PERMISSIONS_VALUE.get(threadContext);
+            var sharedPermission = permissions.getIndexPermissions("shared");
+            assertEquals(Set.of(new BytesArray(queryA)), sharedPermission.getDocumentPermissions().getSingleSetOfQueries());
+            assertTrue(sharedPermission.getFieldPermissions().grantsAccessTo("visible-a"));
+            assertFalse(sharedPermission.getFieldPermissions().grantsAccessTo("visible-b"));
+            var otherPermission = permissions.getIndexPermissions("other");
+            assertEquals(Set.of(new BytesArray(queryB)), otherPermission.getDocumentPermissions().getSingleSetOfQueries());
+            assertTrue(otherPermission.getFieldPermissions().grantsAccessTo("visible-b"));
+            assertNull("DLS/FLS shard phases must retain ordinary authorization", securityContext.getParentAuthorization());
+        });
+        assertArrayEquals(new String[] { "alias-a" }, request.getPointInTimeAuthorizationScope().indices());
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchAction.TYPE.name()),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            request.getPointInTimeAuthorizationScope(),
+            request,
+            new ShardId(shared.getIndex(), 0),
+            0,
+            2,
+            AliasFilter.EMPTY,
+            1.0f,
+            System.currentTimeMillis(),
+            null
+        );
+        authorize(authentication, SearchTransportService.QUERY_ACTION_NAME, shardRequest, true, () -> {
+            var permission = INDICES_PERMISSIONS_VALUE.get(threadContext).getIndexPermissions("shared");
+            assertEquals(Set.of(new BytesArray(queryA)), permission.getDocumentPermissions().getSingleSetOfQueries());
+            assertTrue(permission.getFieldPermissions().grantsAccessTo("visible-a"));
+            assertFalse(permission.getFieldPermissions().grantsAccessTo("visible-b"));
+        });
+    }
+
+    /** An empty source still authorizes the complete retained snapshot before the coordinator makes every slot empty. */
+    public void testSearchPitAuthorizationScopeAllowsEmptySource() {
+        RoleDescriptor role = new RoleDescriptor(
+            "alias_reader",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("alias-events").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        Authentication authentication = createAuthentication(new User("alias-user", role.getName()));
+        IndexMetadata index = IndexMetadata.builder(createIndexMetadata("events"))
+            .putAlias(AliasMetadata.builder("alias-events").build())
+            .build();
+        mockClusterState(ProjectMetadata.builder(projectId).put(index, true).build());
+        SearchRequest request = aliasPitRequest(createEncodedPIT(index.getIndex()), "alias-events");
+        request.setPointInTimeAuthorizationScope(new OriginalIndices(new String[] { "*", "-*" }, IndicesOptions.lenientExpandOpen()));
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        setFakeOriginatingAction = false;
+        authorize(authentication, TransportSearchAction.TYPE.name(), request, true, () -> {
+            assertTrue(INDICES_PERMISSIONS_VALUE.get(threadContext).hasIndexPermissions("events"));
+        });
+        assertArrayEquals(new String[] { "*", "-*" }, request.getPointInTimeAuthorizationScope().indices());
+    }
+
+    /** PIT can-match can omit a granted, empty alias source while keeping the other independently granted sources. */
+    public void testSearchPitAuthorizationScopeAllowsAuthorizedSourceOmittedFromSnapshot() {
+        RoleDescriptor role = new RoleDescriptor(
+            "alias_reader",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("alias-*").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        Authentication authentication = createAuthentication(new User("alias-user", role.getName()));
+        IndexMetadata omitted = IndexMetadata.builder(createIndexMetadata("events-a"))
+            .putAlias(AliasMetadata.builder("alias-a").filter("{\"match_none\":{}}").build())
+            .build();
+        IndexMetadata retained = IndexMetadata.builder(createIndexMetadata("events-b"))
+            .putAlias(AliasMetadata.builder("alias-b").build())
+            .build();
+        mockClusterState(ProjectMetadata.builder(projectId).put(omitted, true).put(retained, true).build());
+        SearchRequest request = aliasPitRequest(createEncodedPIT(retained.getIndex()), "alias-a", "alias-b");
+        request.setPointInTimeAuthorizationScope(new OriginalIndices(new String[] { "alias-a" }, request.indicesOptions()));
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        setFakeOriginatingAction = false;
+        authorize(authentication, TransportSearchAction.TYPE.name(), request, true, () -> {
+            var permissions = INDICES_PERMISSIONS_VALUE.get(threadContext);
+            assertTrue(permissions.hasIndexPermissions("events-b"));
+            assertFalse("An omitted source must not introduce a new search slot", permissions.hasIndexPermissions("events-a"));
+        });
+    }
+
+    /** A granted full snapshot cannot lend its concrete-index permission to an alias that was not separately granted. */
+    public void testSearchPitAuthorizationScopeRejectsUnpermittedAlias() {
+        RoleDescriptor role = new RoleDescriptor(
+            "alias_reader",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("alias-public").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        Authentication authentication = createAuthentication(new User("alias-user", role.getName()));
+        IndexMetadata index = IndexMetadata.builder(createIndexMetadata("events"))
+            .putAlias(AliasMetadata.builder("alias-public").build())
+            .putAlias(AliasMetadata.builder("alias-private").build())
+            .build();
+        mockClusterState(ProjectMetadata.builder(projectId).put(index, true).build());
+        SearchRequest request = aliasPitRequest(createEncodedPIT(index.getIndex()), "alias-public");
+        request.setPointInTimeAuthorizationScope(new OriginalIndices(new String[] { "alias-private" }, request.indicesOptions()));
+        String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request),
+            TransportSearchAction.TYPE.name(),
+            "alias-user"
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchAction.TYPE.name()),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    /** A separately granted scope cannot target an index outside the full authorized source union, even after an alias is retargeted. */
+    public void testSearchPitAuthorizationScopeMustBelongToFullyAuthorizedSources() {
+        RoleDescriptor role = new RoleDescriptor(
+            "alias_reader",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("alias-*").privileges("read").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        Authentication authentication = createAuthentication(new User("alias-user", role.getName()));
+        IndexMetadata snapshot = IndexMetadata.builder(createIndexMetadata("snapshot"))
+            .putAlias(AliasMetadata.builder("alias-snapshot").build())
+            .build();
+        IndexMetadata outside = IndexMetadata.builder(createIndexMetadata("outside"))
+            .putAlias(AliasMetadata.builder("alias-current").build())
+            .build();
+        mockClusterState(ProjectMetadata.builder(projectId).put(snapshot, true).put(outside, true).build());
+        SearchRequest request = aliasPitRequest(createEncodedPIT(snapshot.getIndex()), "alias-snapshot");
+        request.setPointInTimeAuthorizationScope(new OriginalIndices(new String[] { "alias-current" }, request.indicesOptions()));
+        String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request),
+            TransportSearchAction.TYPE.name(),
+            "alias-user"
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchAction.TYPE.name()),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    private static SearchRequest aliasPitRequest(BytesReference encodedPit, String... aliases) {
+        SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(encodedPit)))
+            .allowPartialSearchResults(false);
+        request.setPointInTimeAuthorizationIndices(new OriginalIndices(aliases, request.indicesOptions()));
+        return request;
     }
 
     public void testScrollRelatedRequestsAllowed() {
@@ -4213,14 +4572,14 @@ public class AuthorizationServiceTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {}
     }
 
-    private static BytesReference createEncodedPIT(Index index) {
+    private static BytesReference createEncodedPIT(Index... indices) {
         DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
-        TestSearchPhaseResult testSearchPhaseResult1 = new TestSearchPhaseResult(new ShardSearchContextId("a", 1), node1);
-        testSearchPhaseResult1.setSearchShardTarget(
-            new SearchShardTarget("node_1", new ShardId(index.getName(), index.getUUID(), 0), null)
-        );
         List<SearchPhaseResult> results = new ArrayList<>();
-        results.add(testSearchPhaseResult1);
+        for (int i = 0; i < indices.length; i++) {
+            TestSearchPhaseResult result = new TestSearchPhaseResult(new ShardSearchContextId("a", i + 1), node1);
+            result.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId(indices[i], 0), null));
+            results.add(result);
+        }
         return SearchContextId.encode(results, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY);
     }
 

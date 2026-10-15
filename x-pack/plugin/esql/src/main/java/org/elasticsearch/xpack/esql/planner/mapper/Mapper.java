@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -101,6 +103,9 @@ public class Mapper {
     }
 
     private PhysicalPlan mapInner(LogicalPlan p) {
+        if (p instanceof Sequence sequence) {
+            return new SequenceExec(sequence.source(), sequence);
+        }
         if (p instanceof LeafPlan leaf) {
             return mapLeaf(leaf);
         }

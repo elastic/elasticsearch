@@ -82,6 +82,8 @@ import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
@@ -152,6 +154,10 @@ public class ApproximationSupportTests extends ESTestCase {
         // They require chained stats commands.
         TimeSeriesAggregate.class,
         TimeSeriesCollapse.class,
+
+        // Sequence selection requires the complete, ordered event stream.
+        Sequence.class,
+        SequenceStage.class,
 
         // HIGHLIGHT is not supported;
         Highlight.class,

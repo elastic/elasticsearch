@@ -78,6 +78,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -1922,15 +1923,80 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final String[] concreteLocalIndices;
         if (resolvedIndices.getSearchContextId() != null) {
             assert searchRequest.pointInTimeBuilder() != null;
-            aliasFilter = resolvedIndices.getSearchContextId().aliasFilter();
             concreteLocalIndices = resolvedIndices.getLocalIndices() == null ? new String[0] : resolvedIndices.getLocalIndices().indices();
+            Map<String, AliasFilter> pitAliasFilters = resolvedIndices.getSearchContextId().aliasFilter();
+            Map<String, OriginalIndices> authorizationIndices = null;
+            OriginalIndices authorizationExpressions = searchRequest.getPointInTimeAuthorizationIndices();
+            if (authorizationExpressions != null) {
+                if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+                    throw new IllegalArgumentException("PIT authorization expressions support local indices only");
+                }
+                Set<Index> authorizedIndices = Set.of(
+                    indexNameExpressionResolver.concreteIndices(
+                        projectState.metadata(),
+                        authorizationExpressions,
+                        searchRequest.getOrCreateAbsoluteStartMillis()
+                    )
+                );
+                for (ShardId shard : resolvedIndices.getSearchContextId().shards().keySet()) {
+                    if (authorizedIndices.contains(shard.getIndex()) == false) {
+                        throw new IllegalArgumentException("PIT authorization expressions do not cover its complete snapshot");
+                    }
+                }
+                Set<ResolvedExpression> expressions = indexNameExpressionResolver.resolveExpressions(
+                    projectState.metadata(),
+                    authorizationExpressions.indicesOptions(),
+                    true,
+                    false,
+                    authorizationExpressions.indices()
+                );
+                authorizationIndices = buildPerIndexOriginalIndices(
+                    projectState,
+                    expressions,
+                    concreteLocalIndices,
+                    authorizationExpressions.indicesOptions()
+                );
+                OriginalIndices scope = searchRequest.getPointInTimeAuthorizationScope();
+                if (scope != null) {
+                    Set<Index> scopedIndices = Set.of(
+                        indexNameExpressionResolver.concreteIndices(
+                            projectState.metadata(),
+                            scope,
+                            searchRequest.getOrCreateAbsoluteStartMillis()
+                        )
+                    );
+                    pitAliasFilters = applyPointInTimeAuthorizationScope(
+                        resolvedIndices.getSearchContextId(),
+                        authorizedIndices,
+                        scopedIndices
+                    );
+                    Set<ResolvedExpression> scopedExpressions = indexNameExpressionResolver.resolveExpressions(
+                        projectState.metadata(),
+                        scope.indicesOptions(),
+                        true,
+                        false,
+                        scope.indices()
+                    );
+                    Set<String> snapshotIndices = Set.of(concreteLocalIndices);
+                    authorizationIndices.putAll(
+                        buildPerIndexOriginalIndices(
+                            projectState,
+                            scopedExpressions,
+                            scopedIndices.stream().map(Index::getName).filter(snapshotIndices::contains).toArray(String[]::new),
+                            scope.indicesOptions()
+                        )
+                    );
+                }
+            }
+            aliasFilter = pitAliasFilters;
             localShardIterators = getLocalShardsIteratorFromPointInTime(
                 projectState,
                 searchRequest.indicesOptions(),
                 searchRequest.getLocalClusterAlias(),
                 resolvedIndices.getSearchContextId(),
                 searchRequest.pointInTimeBuilder().getKeepAlive(),
-                searchRequest.allowPartialSearchResults()
+                searchRequest.allowPartialSearchResults(),
+                authorizationIndices
             );
         } else {
             final Index[] indices = resolvedIndices.getConcreteLocalIndices();
@@ -2106,6 +2172,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         int numShards,
         int defaultPreFilterShardSize
     ) {
+        if (searchRequest.getPointInTimeAuthorizationScope() != null) {
+            // Every source of a shared PIT must keep the same shardRequestIndex, including slots that cannot match.
+            return false;
+        }
         if (searchRequest.searchType() != QUERY_THEN_FETCH) {
             // we can't do this for DFS it needs to fan out to all shards all the time
             return false;
@@ -2120,6 +2190,28 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
         return preFilterShardSize < numShards && (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source));
+    }
+
+    /**
+     * Makes out-of-scope PIT slots empty while preserving their ordinals. Authorized source indices omitted by PIT can-match
+     * contribute no slots and no documents, while source indices outside the fully authorized union are rejected.
+     */
+    static Map<String, AliasFilter> applyPointInTimeAuthorizationScope(
+        SearchContextId searchContext,
+        Set<Index> authorizedIndices,
+        Set<Index> scopedIndices
+    ) {
+        Set<Index> snapshotIndices = searchContext.shards().keySet().stream().map(ShardId::getIndex).collect(Collectors.toSet());
+        if (authorizedIndices.containsAll(scopedIndices) == false) {
+            throw new IllegalArgumentException("PIT authorization scope must be contained in its fully authorized sources");
+        }
+        Map<String, AliasFilter> filters = new HashMap<>(searchContext.aliasFilter());
+        for (Index index : snapshotIndices) {
+            if (scopedIndices.contains(index) == false) {
+                filters.put(index.getUUID(), AliasFilter.of(new MatchNoneQueryBuilder()));
+            }
+        }
+        return filters;
     }
 
     private static boolean hasReadOnlyIndices(String[] indices, ProjectState projectState) {
@@ -2549,6 +2641,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         TimeValue keepAlive,
         boolean allowPartialSearchResults
     ) {
+        return getLocalShardsIteratorFromPointInTime(
+            projectState,
+            indicesOptions,
+            localClusterAlias,
+            searchContext,
+            keepAlive,
+            allowPartialSearchResults,
+            null
+        );
+    }
+
+    /** Retains authorized aliases on shard phases without changing the PIT's document ordinal enumeration. */
+    static List<SearchShardIterator> getLocalShardsIteratorFromPointInTime(
+        ProjectState projectState,
+        IndicesOptions indicesOptions,
+        String localClusterAlias,
+        SearchContextId searchContext,
+        TimeValue keepAlive,
+        boolean allowPartialSearchResults,
+        Map<String, OriginalIndices> authorizationIndices
+    ) {
         final Set<String> missingNodes = new HashSet<>();
         final List<SearchShardIterator> iterators = new ArrayList<>(searchContext.shards().size());
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
@@ -2600,7 +2713,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     missingNodes.add(perNode.getNode());
                 }
 
-                OriginalIndices finalIndices = new OriginalIndices(new String[] { shardId.getIndexName() }, indicesOptions);
+                OriginalIndices finalIndices = authorizationIndices == null
+                    ? new OriginalIndices(new String[] { shardId.getIndexName() }, indicesOptions)
+                    : Objects.requireNonNull(
+                        authorizationIndices.get(shardId.getIndexName()),
+                        "PIT shard requires authorization expressions"
+                    );
                 iterators.add(
                     new SearchShardIterator(
                         localClusterAlias,

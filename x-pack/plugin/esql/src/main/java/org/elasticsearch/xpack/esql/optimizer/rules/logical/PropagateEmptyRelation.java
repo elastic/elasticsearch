@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagate
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -47,6 +49,16 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext ctx) {
+        if (plan instanceof Sequence sequence
+            && sequence.children()
+                .stream()
+                .anyMatch(stage -> ((SequenceStage) stage).child() instanceof LocalRelation local && local.hasEmptySupplier())) {
+            return new LocalRelation(sequence.source(), sequence.output(), EmptyLocalSupplier.EMPTY);
+        }
+        if (plan instanceof SequenceStage) {
+            // Keep stage boundaries until the enclosing sequence can produce an empty result with its complete wide schema.
+            return plan;
+        }
         if (plan instanceof InsertEmptyBuckets) {
             // InsertEmptyBuckets creates the missing histogram buckets and therefore emits rows even when its input is empty.
             return plan;

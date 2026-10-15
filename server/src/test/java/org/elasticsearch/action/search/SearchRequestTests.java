@@ -11,9 +11,11 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.SliceIndexing;
@@ -57,7 +59,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (randomBoolean()) {
             return request;
         }
-        // clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
+        // Exercise the independently supplied CCS clock and local-reduction metadata as well as ordinary requests.
         return SearchRequest.subSearchRequest(
             new TaskId("node", 1),
             request,
@@ -118,6 +120,121 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals(deserializedRequest, searchRequest);
         assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
         assertNotSame(deserializedRequest, searchRequest);
+        assertNull(deserializedRequest.getPointInTimeAuthorizationIndices());
+        assertNull(deserializedRequest.getPointInTimeAuthorizationScope());
+    }
+
+    public void testExplicitStartTimeSurvivesSerializationAndCopy() throws Exception {
+        long started = randomNonNegativeLong();
+        SearchRequest request = new SearchRequest(started).source(new SearchSourceBuilder());
+        SearchRequest copy = new SearchRequest(request);
+        SearchRequest transported = copyWriteable(copy, namedWriteableRegistry, SearchRequest::new);
+        assertNull(transported.getLocalClusterAlias());
+        assertTrue(transported.isFinalReduce());
+        assertEquals(started, transported.getAbsoluteStartMillis());
+        assertEquals(started, transported.getOrCreateAbsoluteStartMillis());
+        assertEquals(request, transported);
+        expectThrows(IllegalArgumentException.class, () -> new SearchRequest(-1L));
+    }
+
+    public void testExplicitStartTimeRejectsOlderPeers() {
+        SearchRequest request = new SearchRequest(randomNonNegativeLong()).source(new SearchSourceBuilder());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> copyWriteable(
+                request,
+                namedWriteableRegistry,
+                SearchRequest::new,
+                TransportVersionUtils.getPreviousVersion(SearchRequest.SEARCH_REQUEST_ABSOLUTE_START_TIME)
+            )
+        );
+    }
+
+    /** Source expressions survive local copies but can never be sent to another coordinator. */
+    public void testPitAuthorizationExpressionsSurviveCopyAndRejectTransport() throws Exception {
+        SearchRequest request = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")))
+        );
+        String[] expressions = { "events-alias-*" };
+        OriginalIndices original = new OriginalIndices(expressions, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        request.setPointInTimeAuthorizationIndices(original);
+        expressions[0] = "changed";
+        request.getPointInTimeAuthorizationIndices().indices()[0] = "also-changed";
+        assertArrayEquals(new String[] { "events-alias-*" }, request.getPointInTimeAuthorizationIndices().indices());
+        SearchRequest copy = new SearchRequest(request);
+        assertEquals(request, copy);
+        assertEquals(request.hashCode(), copy.hashCode());
+        assertEquals(0, copy.indices().length);
+        assertNull(copy.validate());
+        assertPitAuthorizationCannotBeSerialized(request);
+    }
+
+    public void testPitAuthorizationExpressionsRequireLocalPit() {
+        SearchRequest request = new SearchRequest().source(new SearchSourceBuilder());
+        request.setPointInTimeAuthorizationIndices(new OriginalIndices(new String[] { "alias" }, request.indicesOptions()));
+        assertEquals(List.of("PIT authorization expressions require a local point in time search"), request.validate().validationErrors());
+        request.source().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")));
+        assertNull(request.validate());
+        SearchRequest remote = SearchRequest.subSearchRequest(
+            new TaskId("node", 1),
+            request,
+            Strings.EMPTY_ARRAY,
+            request.indicesOptions(),
+            "remote",
+            1,
+            true
+        );
+        assertEquals(List.of("PIT authorization expressions require a local point in time search"), remote.validate().validationErrors());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> request.setPointInTimeAuthorizationIndices(new OriginalIndices(Strings.EMPTY_ARRAY, request.indicesOptions()))
+        );
+    }
+
+    /** Scope-only and fully authorized PIT requests both enforce the same local-only boundary. */
+    public void testPitAuthorizationScopeRequiresFullAuthorizationAndRejectsTransport() throws Exception {
+        SearchRequest request = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")))
+        );
+        String[] scopedExpressions = { "stage-alias-*" };
+        request.setPointInTimeAuthorizationScope(new OriginalIndices(scopedExpressions, request.indicesOptions()));
+        scopedExpressions[0] = "changed";
+        request.getPointInTimeAuthorizationScope().indices()[0] = "also-changed";
+        assertArrayEquals(new String[] { "stage-alias-*" }, request.getPointInTimeAuthorizationScope().indices());
+        assertEquals(List.of("PIT authorization scope requires full PIT authorization expressions"), request.validate().validationErrors());
+        assertPitAuthorizationCannotBeSerialized(request);
+        request.setPointInTimeAuthorizationIndices(new OriginalIndices(new String[] { "all-alias-*" }, request.indicesOptions()));
+        assertNull(request.validate());
+        SearchRequest copy = new SearchRequest(request);
+        assertPitAuthorizationCannotBeSerialized(request);
+        assertEquals(request, copy);
+        assertEquals(request.hashCode(), copy.hashCode());
+        copy.setPointInTimeAuthorizationScope(new OriginalIndices(new String[] { "other-stage" }, request.indicesOptions()));
+        assertNotEquals(request, copy);
+        assertArrayEquals(new String[] { "stage-alias-*" }, request.getPointInTimeAuthorizationScope().indices());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> request.setPointInTimeAuthorizationScope(new OriginalIndices(Strings.EMPTY_ARRAY, request.indicesOptions()))
+        );
+    }
+
+    /** Reject before writing any bytes, including the batched-search writer and older peers. */
+    private void assertPitAuthorizationCannotBeSerialized(SearchRequest request) throws IOException {
+        for (TransportVersion version : List.of(
+            TransportVersion.current(),
+            TransportVersionUtils.getPreviousVersion(SearchRequest.SEARCH_REQUEST_ABSOLUTE_START_TIME)
+        )) {
+            for (boolean skipIndices : List.of(false, true)) {
+                try (BytesStreamOutput out = new BytesStreamOutput()) {
+                    out.setTransportVersion(version);
+                    assertEquals(
+                        "PIT authorization expressions are coordinator-local and cannot be serialized",
+                        expectThrows(IllegalArgumentException.class, () -> request.writeTo(out, skipIndices)).getMessage()
+                    );
+                    assertEquals(0, out.size());
+                }
+            }
+        }
     }
 
     private static RescoreVectorBuilder randomRescoreVectorBuilder() {

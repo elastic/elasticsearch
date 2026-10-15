@@ -108,6 +108,10 @@ dependencies {
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
   internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
   internalClusterTestImplementation project(xpackModule('analytics'))
+  // Differential sequence tests execute the actual EQL engine on the same indexed events.
+  // EQL's QL dependency is compileOnly, so the test runtime supplies the existing QL module explicitly.
+  internalClusterTestImplementation project(xpackModule('eql'))
+  internalClusterTestImplementation project(xpackModule('ql'))
   internalClusterTestImplementation project(xpackModule('spatial'))
   internalClusterTestImplementation project(xpackModule('mapper-unsigned-long'))
   internalClusterTestImplementation project(xpackModule('wildcard'))
@@ -175,6 +179,13 @@ tasks.named("test").configure {
   // Remote-fetch TopN is on by default in snapshot builds; keep it off for the bulk of unit
   // and golden tests so unrelated planner goldens stay stable. See remoteFetchTopnFeatureFlagTest.
   systemProperty 'es.esql_remote_fetch_topn_feature_flag_enabled', 'false'
+}
+
+// Exercise the same positive-sequence corpus as EQL without a production dependency on its engine.
+tasks.named("processTestResources").configure {
+  from(project(':x-pack:plugin:eql').file('src/test/resources/sequences.series-spec')) {
+    into 'sequence'
+  }
 }
 
 // Planner unit tests and remote-fetch golden tests need the feature flag enabled in a dedicated JVM.

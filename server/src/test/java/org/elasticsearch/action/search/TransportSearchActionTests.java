@@ -71,6 +71,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -1819,6 +1820,156 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
+    public void testPointInTimeAuthorizationScopePreservesAllShardSlots() {
+        ProjectId project = randomProjectIdOrDefault();
+        ClusterState initialState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+            project,
+            new String[] { "stage-a", "stage-b" },
+            2,
+            0
+        );
+        // This helper uses the same placeholder UUID for every index; PIT filters require real, distinct identities.
+        ProjectMetadata.Builder metadata = ProjectMetadata.builder(project);
+        RoutingTable.Builder routing = RoutingTable.builder();
+        for (String name : List.of("stage-a", "stage-b")) {
+            IndexMetadata original = initialState.metadata().getProject(project).index(name);
+            IndexMetadata index = IndexMetadata.builder(original)
+                .settings(Settings.builder().put(original.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
+                .build();
+            metadata.put(index, true);
+            IndexRoutingTable.Builder indexRouting = IndexRoutingTable.builder(index.getIndex());
+            for (int shard = 0; shard < index.getNumberOfShards(); shard++) {
+                indexRouting.addShard(
+                    TestShardRouting.newShardRouting(
+                        new ShardId(index.getIndex(), shard),
+                        initialState.routingTable(project).index(original.getIndex()).shard(shard).primaryShard().currentNodeId(),
+                        true,
+                        ShardRoutingState.STARTED
+                    )
+                );
+            }
+            routing.add(indexRouting);
+        }
+        ClusterState state = ClusterState.builder(initialState)
+            .putProjectMetadata(metadata)
+            .putRoutingTable(project, routing.build())
+            .build();
+        Index indexA = state.metadata().getProject(project).index("stage-a").getIndex();
+        Index indexB = state.metadata().getProject(project).index("stage-b").getIndex();
+        Set<Index> authorizedIndices = Set.of(indexA, indexB);
+        Map<ShardId, SearchContextIdForNode> contexts = new HashMap<>();
+        for (Index index : List.of(indexA, indexB)) {
+            for (int shard = 0; shard < 2; shard++) {
+                ShardId shardId = new ShardId(index, shard);
+                contexts.put(
+                    shardId,
+                    new SearchContextIdForNode(
+                        null,
+                        state.routingTable(project).index(index).shard(shard).primaryShard().currentNodeId(),
+                        new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong())
+                    )
+                );
+            }
+        }
+        AliasFilter filterA = AliasFilter.of(QueryBuilders.termQuery("tenant", "a"), "alias-a");
+        AliasFilter filterB = AliasFilter.of(QueryBuilders.termQuery("tenant", "b"), "alias-b");
+        SearchContextId snapshot = new SearchContextId(contexts, Map.of(indexA.getUUID(), filterA, indexB.getUUID(), filterB));
+        Map<String, AliasFilter> scopedFilters = TransportSearchAction.applyPointInTimeAuthorizationScope(
+            snapshot,
+            authorizedIndices,
+            Set.of(indexA)
+        );
+        assertEquals(filterA, scopedFilters.get(indexA.getUUID()));
+        assertEquals(AliasFilter.of(new MatchNoneQueryBuilder()), scopedFilters.get(indexB.getUUID()));
+        assertEquals(filterB, snapshot.aliasFilter().get(indexB.getUUID()));
+
+        OriginalIndices scopeA = new OriginalIndices(new String[] { "alias-a" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        OriginalIndices unionB = new OriginalIndices(new String[] { "alias-b" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> ordinary = TransportSearchAction.getLocalShardsIteratorFromPointInTime(
+            state.projectState(project),
+            SearchRequest.DEFAULT_INDICES_OPTIONS,
+            null,
+            snapshot,
+            null,
+            false
+        );
+        List<SearchShardIterator> scoped = TransportSearchAction.getLocalShardsIteratorFromPointInTime(
+            state.projectState(project),
+            SearchRequest.DEFAULT_INDICES_OPTIONS,
+            null,
+            snapshot,
+            null,
+            false,
+            Map.of(indexA.getName(), scopeA, indexB.getName(), unionB)
+        );
+        ordinary.sort(SearchShardIterator::compareTo);
+        scoped.sort(SearchShardIterator::compareTo);
+        assertEquals(
+            ordinary.stream().map(SearchShardIterator::shardId).toList(),
+            scoped.stream().map(SearchShardIterator::shardId).toList()
+        );
+        for (int ordinal = 0; ordinal < ordinary.size(); ordinal++) {
+            assertEquals(ordinary.get(ordinal).getSearchContextId(), scoped.get(ordinal).getSearchContextId());
+            assertEquals(ordinary.get(ordinal).getTargetNodeIds(), scoped.get(ordinal).getTargetNodeIds());
+            assertFalse(scoped.get(ordinal).skip());
+            assertFalse(scoped.get(ordinal).prefiltered());
+            assertEquals(
+                scoped.get(ordinal).shardId().getIndex().equals(indexA) ? scopeA : unionB,
+                scoped.get(ordinal).getOriginalIndices()
+            );
+        }
+
+        Map<String, AliasFilter> emptyScope = TransportSearchAction.applyPointInTimeAuthorizationScope(
+            snapshot,
+            authorizedIndices,
+            Set.of()
+        );
+        assertEquals(AliasFilter.of(new MatchNoneQueryBuilder()), emptyScope.get(indexA.getUUID()));
+        assertEquals(AliasFilter.of(new MatchNoneQueryBuilder()), emptyScope.get(indexB.getUUID()));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportSearchAction.applyPointInTimeAuthorizationScope(
+                snapshot,
+                authorizedIndices,
+                Set.of(new Index(indexA.getName(), "new-uuid"))
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportSearchAction.applyPointInTimeAuthorizationScope(
+                snapshot,
+                authorizedIndices,
+                Set.of(new Index("outside", "uuid"))
+            )
+        );
+
+        // Opening a PIT can omit an authorized source whose alias filter rewrites to match_none.
+        Map<ShardId, SearchContextIdForNode> contextsB = new HashMap<>(contexts);
+        contextsB.keySet().removeIf(shard -> shard.getIndex().equals(indexA));
+        SearchContextId omittedSourceSnapshot = new SearchContextId(contextsB, Map.of(indexB.getUUID(), filterB));
+        Map<String, AliasFilter> omittedSourceScope = TransportSearchAction.applyPointInTimeAuthorizationScope(
+            omittedSourceSnapshot,
+            authorizedIndices,
+            Set.of(indexA)
+        );
+        assertEquals(Map.of(indexB.getUUID(), AliasFilter.of(new MatchNoneQueryBuilder())), omittedSourceScope);
+        assertEquals(filterB, omittedSourceSnapshot.aliasFilter().get(indexB.getUUID()));
+
+        SearchRequest request = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")))
+                .query(new MatchNoneQueryBuilder())
+        );
+        request.setPreFilterShardSize(1);
+        assertTrue(
+            TransportSearchAction.shouldPreFilterSearchShards(state.projectState(project), request, new String[] { "stage-a" }, 4, 1)
+        );
+        request.setPointInTimeAuthorizationIndices(new OriginalIndices(new String[] { "alias-a", "alias-b" }, request.indicesOptions()));
+        request.setPointInTimeAuthorizationScope(scopeA);
+        assertFalse(
+            TransportSearchAction.shouldPreFilterSearchShards(state.projectState(project), request, new String[] { "stage-a" }, 4, 1)
+        );
+    }
+
     public void testLocalShardIteratorFromPointInTime() {
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(0, 2);
@@ -1888,6 +2039,28 @@ public class TransportSearchActionTests extends ESTestCase {
             assertThat(shardIterator.getTargetNodeIds().get(0), equalTo(context.getNode()));
             assertThat(shardIterator.getSearchContextId(), equalTo(context.getSearchContextId()));
             assertThat(shardIterator.getSearchContextKeepAlive(), equalTo(keepAlive));
+        }
+
+        // Alias-aware PIT paging changes only the permission resource names carried to shard phases.
+        OriginalIndices aliases = new OriginalIndices(new String[] { "event-alias" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> aliasIterators = TransportSearchAction.getLocalShardsIteratorFromPointInTime(
+            clusterState.projectState(project),
+            null,
+            null,
+            new SearchContextId(contexts, aliasFilterMap),
+            keepAlive,
+            false,
+            Map.of(indexMetadata.getIndex().getName(), aliases)
+        );
+        aliasIterators.sort(Comparator.comparing(SearchShardIterator::shardId));
+        assertEquals(
+            shardIterators.stream().map(SearchShardIterator::shardId).toList(),
+            aliasIterators.stream().map(SearchShardIterator::shardId).toList()
+        );
+        for (int id = 0; id < numberOfShards; id++) {
+            assertEquals(aliases, aliasIterators.get(id).getOriginalIndices());
+            assertEquals(shardIterators.get(id).getSearchContextId(), aliasIterators.get(id).getSearchContextId());
+            assertEquals(shardIterators.get(id).getTargetNodeIds(), aliasIterators.get(id).getTargetNodeIds());
         }
 
         // Fails when some indices don't exist and `allowPartialSearchResults` is false.

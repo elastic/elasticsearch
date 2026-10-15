@@ -183,6 +183,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -1332,6 +1333,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Rename r -> resolveRename(r, context.unmappedResolution());
                 case Keep k -> resolveKeep(k, context.unmappedResolution());
                 case MergePlan mergePlan -> resolveMergePlan(mergePlan, context);
+                case Sequence sequence -> sequence.resolveSchema();
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);

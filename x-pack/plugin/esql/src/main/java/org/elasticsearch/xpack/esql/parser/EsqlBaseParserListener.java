@@ -163,6 +163,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#sequenceCommand}.
+   * @param ctx the parse tree
+   */
+  void enterSequenceCommand(EsqlBaseParser.SequenceCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#sequenceCommand}.
+   * @param ctx the parse tree
+   */
+  void exitSequenceCommand(EsqlBaseParser.SequenceCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
    * @param ctx the parse tree
    */

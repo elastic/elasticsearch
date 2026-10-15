@@ -255,7 +255,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays,
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
-            dataSourceModule.formatReaderRegistry()
+            dataSourceModule.formatReaderRegistry(),
+            client
         );
 
         this.activityLogger = new QueryLogger<>(

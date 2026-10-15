@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 
@@ -20,6 +21,37 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase<OpenPointInTimeRequest> {
+    public void testExplicitClockSurvivesTransportAndRejectsOlderPeers() throws Exception {
+        long started = randomNonNegativeLong();
+        var request = new OpenPointInTimeRequest(started, "alias").keepAlive(TimeValue.timeValueMinutes(2));
+        var copy = copyWriteable(request, getNamedWriteableRegistry(), OpenPointInTimeRequest::new);
+        assertEquals(started, copy.getAbsoluteStartMillis());
+        assertEquals(request, copy);
+        assertEquals(request.hashCode(), copy.hashCode());
+        expectThrows(IllegalArgumentException.class, () -> new OpenPointInTimeRequest(-1L, "alias"));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> copyWriteable(
+                request,
+                getNamedWriteableRegistry(),
+                OpenPointInTimeRequest::new,
+                TransportVersionUtils.getPreviousVersion(OpenPointInTimeRequest.OPEN_POINT_IN_TIME_ABSOLUTE_START_TIME)
+            )
+        );
+    }
+
+    public void testDefaultClockRemainsCompatibleWithOlderPeers() throws Exception {
+        var request = createTestInstance();
+        var copy = copyWriteable(
+            request,
+            getNamedWriteableRegistry(),
+            OpenPointInTimeRequest::new,
+            TransportVersionUtils.getPreviousVersion(OpenPointInTimeRequest.OPEN_POINT_IN_TIME_ABSOLUTE_START_TIME)
+        );
+        assertEquals(-1L, copy.getAbsoluteStartMillis());
+        assertEquals(request, copy);
+    }
+
     @Override
     protected Writeable.Reader<OpenPointInTimeRequest> instanceReader() {
         return OpenPointInTimeRequest::new;

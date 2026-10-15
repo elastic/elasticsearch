@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -60,6 +61,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -144,6 +146,9 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.execution.sequence.SequenceDocValuesFetchSubPhase;
+import org.elasticsearch.xpack.esql.execution.sequence.SequenceDocValuesSearchExt;
+import org.elasticsearch.xpack.esql.execution.sequence.SequenceSourceStatus;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
@@ -374,6 +379,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
 
+    private final SetOnce<BlockFactory> sequenceBlockFactory = new SetOnce<>();
+    private final SetOnce<ClusterSettings> sequenceClusterSettings = new SetOnce<>();
+
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
 
@@ -400,6 +408,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 .bytesRefRamOverestimateThreshold(PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.get(settings))
                 .bytesRefRamOverestimateFactor(PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.get(settings))
         );
+        sequenceBlockFactory.set(blockFactoryProvider.blockFactory());
+        sequenceClusterSettings.set(services.clusterService().getClusterSettings());
         setupSharedSecrets();
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
@@ -860,6 +870,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(TsInfoOperator.Status.ENTRY);
         entries.add(LinearScoreEvalOperator.Status.ENTRY);
         entries.add(MMROperator.Status.ENTRY);
+        entries.add(SequenceSourceStatus.ENTRY);
 
         entries.add(FileSplit.ENTRY);
         entries.add(CoalescedSplit.ENTRY);
@@ -942,6 +953,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     protected void loadMetricsCollectors(ExtensionLoader loader) {
         metricsCollectors.addAll(loader.loadExtensions(QueryMetricsListener.class));
+    }
+
+    @Override
+    public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+        return List.of(new SequenceDocValuesFetchSubPhase(sequenceBlockFactory::get, sequenceClusterSettings::get));
+    }
+
+    @Override
+    public List<SearchExtSpec<?>> getSearchExts() {
+        return List.of(
+            new SearchExtSpec<>(SequenceDocValuesSearchExt.NAME, SequenceDocValuesSearchExt::new, SequenceDocValuesSearchExt::fromXContent)
+        );
     }
 
     @Override

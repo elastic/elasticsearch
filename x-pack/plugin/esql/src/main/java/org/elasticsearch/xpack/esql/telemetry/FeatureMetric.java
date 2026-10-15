@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
@@ -141,7 +142,8 @@ public enum FeatureMetric {
     // IN_SUBQUERY is collected by InSubqueryResolver on the pre-resolution plan (when the
     // InSubquery expression is still in place); by the time the Analyzer/Verifier walk runs,
     // InSubquery has already been rewritten to SemiJoin/AntiJoin/MarkJoin.
-    IN_SUBQUERY(plan -> false);
+    IN_SUBQUERY(plan -> false),
+    SEQUENCE(Sequence.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

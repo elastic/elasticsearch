@@ -127,6 +127,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private transient ExternalPlanningReservation externalPlanning;
     private transient boolean hasLinkedProjects;
 
+    // Coordinator-managed sources use Search API requests rather than data-node compute. Keep their contribution
+    // separate so a later data-node response cannot overwrite it, and repeated searches of one snapshot are not summed.
+    private final transient ConcurrentMap<String, CoordinatorShardCounts> coordinatorShardCounts = new ConcurrentHashMap<>();
+
     private final EsqlQueryProfile queryProfile;
 
     /**
@@ -327,6 +331,97 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             }
             return newCluster;
         });
+    }
+
+    /**
+     * Adds a coordinator source's change in snapshot shard counts. Sources report deltas from their last contribution,
+     * including negative successful-shard deltas if a previously opened shard later fails. Paging and payload fetches
+     * from the same snapshot must replace that source's contribution, rather than count the shards again.
+     */
+    public void addCoordinatorShardCounts(String clusterAlias, int total, int successful, int skipped, int failed) {
+        synchronized (coordinatorShardCounts) {
+            CoordinatorShardCounts previous = coordinatorShardCounts.getOrDefault(clusterAlias, CoordinatorShardCounts.EMPTY);
+            CoordinatorShardCounts updated = previous.add(total, successful, skipped, failed);
+            Cluster updatedCluster = swapCluster(clusterAlias, (alias, cluster) -> {
+                if (cluster == null) {
+                    return null;
+                }
+                return new Cluster.Builder(cluster).setTotalShards(
+                    Math.addExact(Objects.requireNonNullElse(cluster.getTotalShards(), 0), total)
+                )
+                    .setSuccessfulShards(Math.addExact(Objects.requireNonNullElse(cluster.getSuccessfulShards(), 0), successful))
+                    .setSkippedShards(Math.addExact(Objects.requireNonNullElse(cluster.getSkippedShards(), 0), skipped))
+                    .setFailedShards(Math.addExact(Objects.requireNonNullElse(cluster.getFailedShards(), 0), failed))
+                    .build();
+            });
+            if (updatedCluster != null) {
+                coordinatorShardCounts.put(clusterAlias, updated);
+            }
+        }
+    }
+
+    /**
+     * Replaces the distributed-compute shard counts while retaining coordinator-managed source contributions. Both
+     * updates share a lock, so concurrent source callbacks cannot lose each other's counts.
+     */
+    public void setDataNodeShardCounts(
+        String clusterAlias,
+        int total,
+        int successful,
+        int skipped,
+        int failed,
+        List<ShardSearchFailure> failures
+    ) {
+        setDataNodeShardCounts(clusterAlias, total, successful, skipped, failed, failures, false);
+    }
+
+    /** Accumulates merge-branch responses without counting coordinator-managed sources twice. */
+    public void setDataNodeShardCounts(
+        String clusterAlias,
+        int total,
+        int successful,
+        int skipped,
+        int failed,
+        List<ShardSearchFailure> failures,
+        boolean accumulate
+    ) {
+        synchronized (coordinatorShardCounts) {
+            CoordinatorShardCounts coordinator = coordinatorShardCounts.getOrDefault(clusterAlias, CoordinatorShardCounts.EMPTY);
+            swapCluster(clusterAlias, (alias, cluster) -> {
+                if (cluster == null) {
+                    return null;
+                }
+                CoordinatorShardCounts previous = accumulate
+                    ? new CoordinatorShardCounts(
+                        Objects.requireNonNullElse(cluster.getTotalShards(), 0),
+                        Objects.requireNonNullElse(cluster.getSuccessfulShards(), 0),
+                        Objects.requireNonNullElse(cluster.getSkippedShards(), 0),
+                        Objects.requireNonNullElse(cluster.getFailedShards(), 0)
+                    )
+                    : coordinator;
+                CoordinatorShardCounts counts = previous.add(total, successful, skipped, failed);
+                return new Cluster.Builder(cluster).setTotalShards(counts.total)
+                    .setSuccessfulShards(counts.successful)
+                    .setSkippedShards(counts.skipped)
+                    .setFailedShards(counts.failed)
+                    .addFailures(failures)
+                    .build();
+            });
+        }
+    }
+
+    /** Retains native-source totals independently of replaceable data-node response counts. */
+    private record CoordinatorShardCounts(int total, int successful, int skipped, int failed) {
+        private static final CoordinatorShardCounts EMPTY = new CoordinatorShardCounts(0, 0, 0, 0);
+
+        private CoordinatorShardCounts add(int totalDelta, int successfulDelta, int skippedDelta, int failedDelta) {
+            return new CoordinatorShardCounts(
+                Math.addExact(total, totalDelta),
+                Math.addExact(successful, successfulDelta),
+                Math.addExact(skipped, skippedDelta),
+                Math.addExact(failed, failedDelta)
+            );
+        }
     }
 
     @Override

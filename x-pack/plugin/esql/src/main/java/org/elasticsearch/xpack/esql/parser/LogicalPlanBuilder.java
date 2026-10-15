@@ -86,6 +86,8 @@ import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Sequence;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -457,11 +459,91 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public LogicalPlan visitSequenceCommand(EsqlBaseParser.SequenceCommandContext ctx) {
+        if (ctx.subquery().size() > Sequence.MAX_STAGES) {
+            throw new ParsingException(
+                source(ctx),
+                "Sequence cannot contain more than {} stages; found [{}]",
+                Sequence.MAX_STAGES,
+                ctx.subquery().size()
+            );
+        }
+        List<Attribute> keys = ctx.qualifiedNames() == null
+            ? List.of()
+            : ctx.qualifiedNames().qualifiedName().stream().map(q -> (Attribute) visitQualifiedName(q)).toList();
+        Set<String> names = new HashSet<>();
+        for (Attribute key : keys) {
+            if (names.add(key.name()) == false) {
+                throw new ParsingException(key.source(), "Duplicate SEQUENCE BY column [{}]", key.name());
+            }
+        }
+        MapExpression options = visitMapExpression(ctx.mapExpression());
+        long maxSpanNanos = sequenceMaxSpan(options);
+        List<LogicalPlan> stages = new ArrayList<>(ctx.subquery().size());
+        for (EsqlBaseParser.SubqueryContext stage : ctx.subquery()) {
+            if (stage.subquerySourceCommand().fromCommand() == null) {
+                throw new ParsingException(source(stage), "SEQUENCE stages must start with FROM");
+            }
+            for (EsqlBaseParser.ProcessingCommandContext command : stage.processingCommand()) {
+                if (command.whereCommand() == null
+                    && command.evalCommand() == null
+                    && command.keepCommand() == null
+                    && command.dropCommand() == null
+                    && command.renameCommand() == null
+                    && command.mvExpandCommand() == null
+                    && command.dissectCommand() == null
+                    && command.grokCommand() == null) {
+                    throw new ParsingException(
+                        source(command),
+                        "[{}] is not supported inside a SEQUENCE stage",
+                        command.getStart().getText()
+                    );
+                }
+            }
+            stages.add(new SequenceStage(source(stage), visitSubquery(stage), keys));
+        }
+        return new Sequence(source(ctx), stages, maxSpanNanos);
+    }
+
+    private static long sequenceMaxSpan(MapExpression options) {
+        Expression maxSpan = null;
+        Set<String> names = new HashSet<>();
+        for (var entry : options.entryExpressions()) {
+            String name = BytesRefs.toString(((Literal) entry.key()).value());
+            if (names.add(name) == false) {
+                throw new ParsingException(entry.source(), "Duplicate SEQUENCE option [{}]", name);
+            }
+            if (name.equals("maxspan") == false) {
+                throw new ParsingException(entry.source(), "Unknown SEQUENCE option [{}]", name);
+            }
+            maxSpan = entry.value();
+        }
+        if (maxSpan == null) {
+            throw new ParsingException(options.source(), "SEQUENCE requires a [maxspan] option");
+        }
+        if (maxSpan instanceof Literal literal && DataType.isString(literal.dataType()) && literal.value() != null) {
+            try {
+                TimeValue span = TimeValue.parseTimeValue(BytesRefs.toString(literal.value()), "maxspan");
+                // TimeValue.nanos() saturates on overflow. Reject instead of silently changing the requested span.
+                long nanos = Math.multiplyExact(span.duration(), span.timeUnit().toNanos(1));
+                if (nanos > 0) {
+                    return nanos;
+                }
+            } catch (IllegalArgumentException | ArithmeticException e) {
+                throw new ParsingException(maxSpan.source(), "Invalid SEQUENCE [maxspan]: {}", e.getMessage());
+            }
+        }
+        throw new ParsingException(maxSpan.source(), "SEQUENCE [maxspan] must be a positive duration string");
+    }
+
+    @Override
     public LogicalPlan visitSubquerySourceCommand(EsqlBaseParser.SubquerySourceCommandContext ctx) {
         if (ctx.fromCommand() != null) {
             return visitFromCommand(ctx.fromCommand());
         } else if (ctx.timeSeriesCommand() != null) {
             return visitTimeSeriesCommand(ctx.timeSeriesCommand());
+        } else if (ctx.sequenceCommand() != null) {
+            return visitSequenceCommand(ctx.sequenceCommand());
         } else {
             return visitRowCommand(ctx.rowCommand());
         }

@@ -448,8 +448,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: test {yaml=/37_columnar_collapse/collapse on a columnar keyword field with the columnar codec disabled}
   issue: https://github.com/elastic/elasticsearch/issues/161604
-- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/161608
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/161633
@@ -491,9 +489,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.inference.ingest.IngestModelMemoryServiceTests
   method: testTransientFirstFetchFailureShouldStayInexactUntilIngestChangeRetries
   issue: https://github.com/elastic/elasticsearch/issues/161995
-- class: org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodecTests
-  method: testTruncatedMemberThrows
-  issue: https://github.com/elastic/elasticsearch/issues/162000
 - class: org.elasticsearch.index.mapper.DynamicMappingIT
   method: testCombineDynamicMappingUpdatesSettingIsDynamic
   issue: https://github.com/elastic/elasticsearch/issues/162026
@@ -515,3 +510,15 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
   method: testClientInitializer
   issue: https://github.com/elastic/elasticsearch/issues/162143
+- class: org.elasticsearch.search.heappressure.ColumnarKeywordWildcardHeapPressureIT
+  method: testPausedHeavyCaseInsensitiveWildcardsTripBreaker
+  issue: https://github.com/elastic/elasticsearch/issues/162159
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
+  method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
+  issue: https://github.com/elastic/elasticsearch/issues/162163
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
+  issue: https://github.com/elastic/elasticsearch/issues/162175
+- class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
+  method: testAutomatonStaysChargedUntilSearchContextReleased
+  issue: https://github.com/elastic/elasticsearch/issues/162192

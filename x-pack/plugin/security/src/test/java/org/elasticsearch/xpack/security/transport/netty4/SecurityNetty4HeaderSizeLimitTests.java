@@ -98,7 +98,7 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
         requestIdReceived = new AtomicLong(-1L);
         securityNettyTransport.setMessageListener(new TransportMessageListener() {
             @Override
-            public void onRequestReceived(long requestId, String action) {
+            public void onRequestReceived(long requestId, String action, int networkMessageSize) {
                 requestIdReceived.set(requestId);
             }
         });

@@ -1238,6 +1238,15 @@ public final class ParallelParsingCoordinator {
             return sharedQueue.poll();
         }
 
+        @Override
+        public boolean isExhausted() {
+            if (closed) {
+                return true;
+            }
+            checkError();
+            return remainingSegments.get() == 0 && sharedQueue.isEmpty() && buffered == null;
+        }
+
         /**
          * Drains the shared queue in as-ready order. Returns the next data page, or {@code null} once every
          * segment has finished and the queue is empty. Polls with a timeout (rather than blocking forever) so

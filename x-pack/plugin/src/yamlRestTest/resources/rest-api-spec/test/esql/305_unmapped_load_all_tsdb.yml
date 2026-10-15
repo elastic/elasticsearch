@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
       reason: >
         index.mode=time_series defaults _source to synthetic and, like logsdb, leaves isStrictColumnar() false -
         so a dynamic:false field survives in _ignored_source and LOAD_ALL can recover it
@@ -86,15 +86,13 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_tsdb | KEEP dim, extra_dim*, labels.*, samples* | SORT dim | LIMIT 5'
-  - length: { columns: 4 }
+  - length: { columns: 2 }
   - match: { columns.0.name: dim }
   - match: { columns.0.type: keyword }
-  - match: { columns.1.name: extra_dim }
-  - match: { columns.1.type: keyword }
-  - match: { columns.2.name: labels.az }
-  - match: { columns.3.name: samples }
-  - match: { values.0: [ "d1", "e1", "eu-1", [ "3", "1", "3" ] ] }
-  - match: { values.1: [ "d2", "e2", "eu-2", "4" ] }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "d1", { extra_dim: e1, labels.az: eu-1, samples: [ 3, 1, 3 ] } ] }
+  - match: { values.1: [ "d2", { extra_dim: e2, labels.az: eu-2, samples: 4 } ] }
 
 ---
 'tsdb with stored source agrees with tsdb with synthetic source':
@@ -102,31 +100,29 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_tsdb_stored | KEEP dim, extra_dim*, labels.*, samples* | SORT dim | LIMIT 5'
-  - length: { columns: 4 }
-  - match: { values.0: [ "d1", "e1", "eu-1", [ "3", "1", "3" ] ] }
-  - match: { values.1: [ "d2", "e2", "eu-2", "4" ] }
+  - length: { columns: 2 }
+  - match: { values.0: [ "d1", { extra_dim: e1, labels.az: eu-1, samples: [ 3, 1, 3 ] } ] }
+  - match: { values.1: [ "d2", { extra_dim: e2, labels.az: eu-2, samples: 4 } ] }
 
 ---
-'tsdb: a dimension keeps its keyword type and a metric keeps its long type alongside discovered columns':
+'tsdb: a dimension keeps its keyword type and a metric keeps its long type alongside the discovered leaves':
   # The mapped columns must be untouched by discovery: dim stays a dimension keyword and gauge stays a long,
-  # while extra_dim - which looks like a dimension but was never mapped as one - is a plain discovered keyword.
+  # while extra_dim - which looks like a dimension but was never mapped as one - is a plain discovered leaf.
   - do:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_tsdb | SORT dim | LIMIT 5'
-  - length: { columns: 6 }
+  - length: { columns: 4 }
   - match: { columns.0.name: "@timestamp" }
   - match: { columns.0.type: date }
   - match: { columns.1.name: dim }
   - match: { columns.1.type: keyword }
   - match: { columns.2.name: gauge }
   - match: { columns.2.type: long }
-  - match: { columns.3.name: extra_dim }
-  - match: { columns.3.type: keyword }
-  - match: { columns.4.name: labels.az }
-  - match: { columns.4.type: keyword }
-  - match: { columns.5.name: samples }
-  - match: { columns.5.type: keyword }
+  - match: { columns.3.name: _unmapped_fields }
+  - match: { columns.3.type: _source }
+  - match: { values.0.3: { extra_dim: e1, labels.az: eu-1, samples: [ 3, 1, 3 ] } }
+  - match: { values.1.3: { extra_dim: e2, labels.az: eu-2, samples: 4 } }
 
 ---
 'tsdb: STATS over a discovered column':

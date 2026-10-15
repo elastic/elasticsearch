@@ -36,7 +36,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
-import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
@@ -52,7 +51,6 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -722,10 +720,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         }
         flush(indexName);
 
-        final var blobsBeforeMerge = checksumLastCommitFiles(indexEngine, cacheDirectory).values()
-            .stream()
-            .map(BlobLocation::blobName)
-            .collect(Collectors.toSet());
+        final var blobsBeforeMerge = checksumLastCommitFiles(indexEngine, cacheDirectory);
         assertThat("segments should be in different BCCs", blobsBeforeMerge.size(), greaterThan(1));
         assertThat(
             "regions of the BCCs should be cached",
@@ -736,10 +731,7 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
         assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get());
         flush(indexName);
 
-        final var blobsAfterMerge = checksumLastCommitFiles(indexEngine, cacheDirectory).values()
-            .stream()
-            .map(BlobLocation::blobName)
-            .collect(Collectors.toSet());
+        final var blobsAfterMerge = checksumLastCommitFiles(indexEngine, cacheDirectory);
         assertThat(Sets.intersection(blobsAfterMerge, blobsBeforeMerge), empty());
         final long cachedRegionsAfterMerge = cacheService.countCachedRegions(
             indexShard.shardId(),
@@ -772,21 +764,21 @@ public class ObsoleteSegmentCacheEvictionIT extends AbstractStatelessPluginInteg
 
     /**
      * Reads every file of the last commit of the indexing engine through the cache directory to populate the cache, and returns the
-     * location of each file.
+     * names of the blobs the files are located in.
      */
-    private static Map<String, BlobLocation> checksumLastCommitFiles(IndexEngine indexEngine, IndexBlobStoreCacheDirectory cacheDirectory)
+    private static Set<String> checksumLastCommitFiles(IndexEngine indexEngine, IndexBlobStoreCacheDirectory cacheDirectory)
         throws Exception {
         try (Engine.IndexCommitRef commitRef = indexEngine.acquireLastIndexCommit(false)) {
-            var locations = new HashMap<String, BlobLocation>();
+            var blobNames = new HashSet<String>();
             for (var file : commitRef.getIndexCommit().getFileNames()) {
                 try (var input = cacheDirectory.openInput(file, IOContext.READONCE)) {
                     CodecUtil.checksumEntireFile(input);
                 }
                 var blobLocation = BlobStoreCacheDirectoryTestUtils.getBlobLocation(cacheDirectory, file);
                 assertNotNull(blobLocation);
-                locations.put(file, blobLocation);
+                blobNames.add(blobLocation.blobName());
             }
-            return locations;
+            return blobNames;
         }
     }
 

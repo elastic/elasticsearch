@@ -163,14 +163,6 @@ public final class BatchMappingContext implements Releasable {
      * {@code _source}). Unlike {@link #columns()} this does not {@link #frozen freeze} the context, so the caller may still
      * attach or {@link #removeColumnsIf remove} columns afterwards; columns attached later are not seen by the returned cursor.
      */
-    public MappedColumns.RowCursor rowCursor() {
-        return mappedColumns().rowCursor();
-    }
-
-    /**
-     * Like {@link #rowCursor()}, but only reads back the columns accepted by {@code include}. A caller that does not use every field
-     * of a row should say so, as building the fields of the other columns is wasted work.
-     */
     public MappedColumns.RowCursor rowCursor(Predicate<? super LuceneColumn> include) {
         return mappedColumns().rowCursor(include);
     }

@@ -537,3 +537,18 @@ from colors metadata _score
 color:text | vec:dense_vector
 green      | [0.0, 128.0, 0.0]
 ;
+
+knnWithPrefilterOverValuesAndLimit
+required_capability: knn_function_v5
+
+from colors metadata _score
+| where knn(rgb_vector, [0, 128, 0]) and color like "t*"
+| sort _score desc, color asc
+| keep color
+| limit 2
+;
+
+color:text
+teal
+turquoise
+;

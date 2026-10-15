@@ -83,7 +83,7 @@ public class LongSwissHashTests extends ESTestCase {
         long[] v = values.stream().mapToLong(Long::longValue).toArray();
 
         TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
             assertThat(hash.size(), equalTo(0L));
 
@@ -182,7 +182,7 @@ public class LongSwissHashTests extends ESTestCase {
             long[] keys = values.stream().mapToLong(Long::longValue).toArray();
 
             TestRecycler recycler = new TestRecycler();
-            CircuitBreaker breaker = new NoopCircuitBreaker("test");
+            CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
             try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
                 assertFalse("empty table is still on the small core", hash.shouldPrefetch());
 
@@ -242,7 +242,7 @@ public class LongSwissHashTests extends ESTestCase {
 
     private void testSameBucketCollisionsImpl(int count) {
         TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
             // mask must match the table mask used by LongSwissHash
             int mask = 0xFFFF; // oversized; we only need lower bits locked
@@ -277,7 +277,7 @@ public class LongSwissHashTests extends ESTestCase {
 
     private void testSameControlDataCollisionsImpl(int count) {
         TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
             int control = randomIntBetween(1, 120); // avoid EMPTY/SENTINEL values
             long[] keys = makeSameControlDataKeys(control, count);
@@ -305,7 +305,7 @@ public class LongSwissHashTests extends ESTestCase {
 
     public void testEmpty() {
         TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
             assertThat(hash.size(), equalTo(0L));
             assertFalse(hash.iterator().next());
@@ -324,7 +324,7 @@ public class LongSwissHashTests extends ESTestCase {
 
     private void testWorstCaseCollisionClusterImpl(int count) {
         TestRecycler recycler = new TestRecycler();
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
         try (LongSwissHash hash = new LongSwissHash(recycler, breaker)) {
             // Pick a fixed 7-bit metadata and fixed low bits.
             int control = randomIntBetween(1, 120);

@@ -24,9 +24,10 @@ import java.util.Map;
  * Builds a project's native library from source and offers the result to consumers.
  *
  * <p>Applied to the project owning the native sources. The build is described by
- * {@link NativeLibraryBuildExtension}; the result is published through the
- * {@value #ELEMENTS_CONFIGURATION} consumable configuration, which {@link NativeLibrariesPlugin}
- * resolves.
+ * {@link NativeLibraryBuildExtension}; the result is offered through the
+ * {@value #ELEMENTS_CONFIGURATION} consumable configuration, which consumers depend on as a project
+ * dependency. Whether the library is downloaded or compiled is decided by
+ * {@link BuildNativeLibraryTask}, not by the consumer.
  */
 public class NativeLibraryBuildPlugin implements Plugin<Project> {
 
@@ -38,6 +39,9 @@ public class NativeLibraryBuildPlugin implements Plugin<Project> {
 
     /** Task running the native build. */
     public static final String BUILD_TASK = "buildNativeLibrary";
+
+    /** Environment variable that, when set, replaces the toolchain image. */
+    public static final String TOOLCHAIN_IMAGE_OVERRIDE = "NATIVE_TOOLCHAIN_IMAGE";
 
     @Override
     public void apply(Project project) {
@@ -52,14 +56,22 @@ public class NativeLibraryBuildPlugin implements Plugin<Project> {
         TaskProvider<BuildNativeLibraryTask> buildTask = project.getTasks().register(BUILD_TASK, BuildNativeLibraryTask.class, task -> {
             task.setGroup("native");
             task.setDescription("Builds the native library from source into the platform layout consumers expect");
-            task.getSourceFiles().from(sourceFiles(extension));
-            task.getNativeDir().set(extension.getSourceDir());
+            task.getSourceFiles().from(sourceFiles(project, extension));
+            task.getSourceRoot().set(project.getLayout().getProjectDirectory());
+            task.getWorkingDir().set(extension.getWorkingDir());
             task.getOutputDir().set(outputDir);
             task.getMode().set(mode);
-            task.getToolchainImage().set(extension.getToolchainImage());
+            task.getToolchainImage().set(providers.environmentVariable(TOOLCHAIN_IMAGE_OVERRIDE).orElse(extension.getToolchainImage()));
+            task.getSupportedPlatforms().set(extension.getSupportedPlatforms());
+            task.getArtifactRepositoryUrl().set(extension.getArtifactRepositoryUrl());
+            task.getArtifactName().set(extension.getArtifactName());
+            task.getPublishApiKey().set(extension.getPublishCredentialEnvironmentVariable().flatMap(providers::environmentVariable));
+            // Read here because a task must not reach for Project; see the property's javadoc.
+            task.getOffline().set(project.getGradle().getStartParameter().isOffline());
             task.getDockerCommand().set(extension.getDockerCommand());
             task.getHostCommand().set(outputDir.map(extension::hostCommandFor));
             task.getCollect().set(extension.getCollect());
+            task.getDebugInfoCollect().set(extension.getDebugInfoCollect());
             task.getEnvironment().set(forwardedEnvironment(providers, extension));
         });
 
@@ -69,10 +81,10 @@ public class NativeLibraryBuildPlugin implements Plugin<Project> {
         project.getArtifacts().add(ELEMENTS_CONFIGURATION, buildTask.flatMap(BuildNativeLibraryTask::getOutputDir));
     }
 
-    /** The declared source patterns, resolved against the declared source directory. */
-    private static Provider<FileTree> sourceFiles(NativeLibraryBuildExtension extension) {
-        return extension.getSourceDir()
-            .zip(extension.getSources(), (directory, patterns) -> directory.getAsFileTree().matching(filter -> filter.include(patterns)));
+    /** The declared source patterns, resolved against the project directory. */
+    private static Provider<FileTree> sourceFiles(Project project, NativeLibraryBuildExtension extension) {
+        Directory projectDirectory = project.getLayout().getProjectDirectory();
+        return extension.getSources().map(patterns -> projectDirectory.getAsFileTree().matching(filter -> filter.include(patterns)));
     }
 
     /** The declared environment variables that are set, so an unset one is simply absent. */

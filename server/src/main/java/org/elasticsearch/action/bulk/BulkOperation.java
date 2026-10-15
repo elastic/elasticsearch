@@ -58,6 +58,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -202,7 +203,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
         Map<ShardId, List<BulkItemRequest>> requestsByShard = groupBulkRequestsByShards(clusterState);
-        executeBulkRequestsByShard(requestsByShard, clusterState, this::redirectFailuresOrCompleteBulkOperation);
+        executeBulkRequestsByShard(requestsByShard, clusterState, router, this::redirectFailuresOrCompleteBulkOperation);
     }
 
     private void doRedirectFailures() {
@@ -220,7 +221,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // Get new cluster state that includes any potential failure store rollovers.
             var rolledOverState = observer.setAndGetObservedState();
             Map<ShardId, List<BulkItemRequest>> requestsByShard = drainAndGroupRedirectsByShards(rolledOverState);
-            executeBulkRequestsByShard(requestsByShard, rolledOverState, this::completeBulkOperation);
+            executeBulkRequestsByShard(requestsByShard, rolledOverState, null, this::completeBulkOperation);
         };
         rollOverFailureStores(executeRedirectRequests);
     }
@@ -406,9 +407,15 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         }
     }
 
+    /**
+     * @param batchRouter the router whose batches back these requests, or {@code null} when the requests carry inline source. Only the
+     *                    initial pass has batches to build; the failure-store redirect pass passes {@code null}, since redirected
+     *                    items are new requests that were never batch-encoded.
+     */
     private void executeBulkRequestsByShard(
         Map<ShardId, List<BulkItemRequest>> requestsByShard,
         ClusterState clusterState,
+        @Nullable BatchModeRouter batchRouter,
         Runnable onRequestsCompleted
     ) {
         if (requestsByShard.isEmpty()) {
@@ -419,7 +426,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
         // Build per-shard source batches. For the inline-encoder path, batches are finalized here
         // (rows were accumulated during routing). For provided-batch mode the source is scattered here.
-        Map<ShardId, SourceBatch> shardBatches = router != null ? router.shardBatches() : Map.of();
+        Map<ShardId, SourceBatch> shardBatches = batchRouter != null ? batchRouter.shardBatches() : Map.of();
         BatchModeRouter.validateBatchAlignment(requestsByShard, shardBatches);
 
         String nodeId = clusterService.localNode().getId();
@@ -670,7 +677,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      *                              Requests are only routed to a failure store if they are headed to a data stream with an active failure
      *                              store.
      * @param error the shard-level error the request encountered. Version conflicts and exceptions related to backpressure are not
-     *              redirected.
+     *              redirected. A cluster block exception is treated as backpressure only if every one of its blocks is retryable or every
+     *              one has a 429 status (for example the flood-stage disk block). Otherwise at least one block, such as an index write
+     *              block, describes a permanent condition of the target index, so retrying cannot succeed and the document is redirected.
      * @return true if the request and error should be redirected to the provided data stream's failure store, false if it should not
      */
     private boolean shouldRedirectRequestToFailureStore(boolean isFailureStoreRequest, DataStream failureStoreCandidate, Throwable error) {
@@ -681,7 +690,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             case VersionConflictEngineException err -> false;
             case EsRejectedExecutionException err -> false;
             case CircuitBreakingException err -> false;
-            case ClusterBlockException err -> false;
+            case ClusterBlockException err -> err.retryable() == false && err.status() != RestStatus.TOO_MANY_REQUESTS;
             case ElasticsearchException err -> err.status().getStatus() != 429;
             default -> true;
         };

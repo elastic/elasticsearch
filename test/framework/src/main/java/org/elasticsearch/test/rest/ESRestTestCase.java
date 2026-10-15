@@ -1493,8 +1493,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             for (Object view : views) {
                 try {
                     @SuppressWarnings("unchecked")
-                    Map<String, String> viewMap = (Map<String, String>) view;
-                    String viewName = viewMap.get("name");
+                    Map<String, Object> viewMap = (Map<String, Object>) view;
+                    if (Boolean.TRUE.equals(viewMap.get("reserved"))) {
+                        // Reserved views are managed by the cluster itself and cannot be deleted through the REST API
+                        continue;
+                    }
+                    String viewName = (String) viewMap.get("name");
                     assertAcked(
                         "Failed to delete view [" + viewName + ']',
                         cleanupClient().performRequest(new Request("DELETE", "_query/view/" + viewName))
@@ -3096,6 +3100,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("enrich_resolution", instanceOf(Map.class))
             .entry("inference_resolution", instanceOf(Map.class))
             .entry("analysis", instanceOf(Map.class))
+            .entry("planning_cpu_nanos", IntOrLongMatcher.isIntOrLong())
             .entry("field_caps_calls", instanceOf(Integer.class))
             .entry("unmapped_fields", instanceOf(String.class))
             .entry("drivers", instanceOf(List.class))

@@ -18,6 +18,7 @@ import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Cluster wide kill switch for ColumNAR keyword doc values adoption, complementing the per-index
@@ -47,6 +48,7 @@ public final class ColumnarCodecClusterSettingProvider implements IndexSettingPr
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    public static final Set<String> AFFECTED_SETTINGS = Set.of(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey());
 
     private volatile boolean enabled;
 
@@ -92,6 +94,11 @@ public final class ColumnarCodecClusterSettingProvider implements IndexSettingPr
         }
         final String modeName = settings.get(IndexSettings.MODE.getKey());
         return modeName == null ? null : IndexMode.fromString(modeName);
+    }
+
+    @Override
+    public Set<String> affectedSettings() {
+        return enabled ? Set.of() : AFFECTED_SETTINGS;
     }
 
     @Override

@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 158722
+pr: 159231
+summary: Fork `top_hits` fetch context once per aggregator
+type: bug

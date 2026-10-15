@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import java.io.IOException;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 /**
@@ -662,6 +663,10 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
 
     @Override
     public byte[] binaryValue() {
+        if (currentToken == Token.VALUE_STRING) {
+            // Mirror JSON parsers: binary fields are supplied as base64 strings unless the column carries raw bytes.
+            return Base64.getDecoder().decode(text());
+        }
         return BytesRef.deepCopyOf(cachedBinary).bytes;
     }
 

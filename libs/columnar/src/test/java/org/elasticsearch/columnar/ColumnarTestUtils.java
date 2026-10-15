@@ -33,7 +33,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
@@ -214,16 +217,15 @@ public final class ColumnarTestUtils {
         return type;
     }
 
-    /**
-     * As {@link #columnarBinaryFieldType()}, carrying {@link ColumNARDocValuesFormat#SINGLE_VALUED_ATTRIBUTE}, as the mapper
-     * writes a {@code multi_value: false} string field: each document's blob is its one value's own bytes, not a payload.
-     */
-    public static FieldType singleValuedBinaryFieldType() {
-        final FieldType type = new FieldType();
-        type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE, "true");
-        type.freeze();
-        return type;
+    public static Codec singleValuedStringCodec() {
+        return columnarCodec(
+            new ColumNARDocValuesFormat(
+                (fieldName, type) -> NumericPipeline::defaultPipeline,
+                field -> ColumnarFieldType.STRING,
+                ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
+                StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(true))
+            )
+        );
     }
 
     /**

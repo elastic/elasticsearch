@@ -44,6 +44,8 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1100,6 +1102,49 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         );
     }
 
+    public void testNoDecisionForNodeMissingAwarenessAttribute() {
+        final Settings settings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .build();
+        final AwarenessAllocationDecider decider = new AwarenessAllocationDecider(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        final Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), 1, 1)))
+            .build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.getProject().index("test")).build()
+            )
+            .nodes(DiscoveryNodes.builder().add(newNode("X-0", emptyMap())))
+            .build();
+        final ShardRouting unassignedShard = shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0);
+        final RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(decider)
+            .build();
+        final RoutingNode nodeWithoutAttribute = routingAllocation.routingNodes().node("X-0");
+
+        assertThat(
+            decider.canAllocate(unassignedShard, nodeWithoutAttribute, routingAllocation),
+            isNoDecisionWithNoExplanation(AwarenessAllocationDecider.NAME)
+        );
+
+        routingAllocation.debugDecision(true);
+        assertThat(
+            decider.canAllocate(unassignedShard, nodeWithoutAttribute, routingAllocation),
+            isNoDecisionWithExplanationMatching(
+                AwarenessAllocationDecider.NAME,
+                equalTo(
+                    "node does not contain the awareness attribute [zone]; required attributes cluster setting ["
+                        + AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey()
+                        + "=[zone]]"
+                )
+            )
+        );
+    }
+
     private void testExplanation(
         Settings.Builder settingsBuilder,
         UnaryOperator<DiscoveryNodes.Builder> nodesOperator,
@@ -1155,9 +1200,14 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         routingAllocation.debugDecision(true);
 
         final Decision decision = decider.canAllocate(unassignedShard, emptyNode, routingAllocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(decision.label(), equalTo("awareness"));
-        assertThat(decision.getExplanation(), equalTo(expectedMessage));
+        assertThat(decision, isNoDecisionWithExplanationMatching(AwarenessAllocationDecider.NAME, equalTo(expectedMessage)));
+
+        // without debug the label is retained but there is no explanation
+        routingAllocation.debugDecision(false);
+        assertThat(
+            decider.canAllocate(unassignedShard, emptyNode, routingAllocation),
+            isNoDecisionWithNoExplanation(AwarenessAllocationDecider.NAME)
+        );
     }
 
 }

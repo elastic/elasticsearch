@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
@@ -188,9 +189,16 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            WarmingRatioProvider warmingRatioProvider,
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
-            return new NoopSharedBlobCacheWarmingService(cacheService, threadPool, clusterSettings, warmingRatioProvider);
+            return new NoopSharedBlobCacheWarmingService(
+                cacheService,
+                threadPool,
+                clusterSettings,
+                warmingRatioProvider,
+                searchRecoveryTimeoutCalculationService
+            );
         }
     }
 
@@ -601,11 +609,25 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             }, task)
         );
 
+        // The post-recovery flush on the relocation target creates a commit newer than the recovered one. Search may
+        // fetch that commit while it has not yet been uploaded. Generations up to the recovered one were uploaded before the
+        // handoff and must be read from the object store.
+        long recoveredGeneration = internalCluster().getInstance(StatelessCommitService.class, indexNodeB).getRecoveredGeneration(shardId);
         final var indexNodeBTransportService = MockTransportService.getInstance(indexNodeB);
         indexNodeBTransportService.addRequestHandlingBehavior(
             TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
             (handler, request, channel, task) -> {
-                assert false : "Search shard should not send any requests to the indexNodeB and should have fetched from object store";
+                var chunkRequest = (GetVirtualBatchedCompoundCommitChunkRequest) request;
+                assertThat(
+                    "search fetched pre-relocation generation ["
+                        + chunkRequest.getVirtualBatchedCompoundCommitGeneration()
+                        + "] from the relocation target; recovered generation ["
+                        + recoveredGeneration
+                        + "]",
+                    chunkRequest.getVirtualBatchedCompoundCommitGeneration(),
+                    greaterThan(recoveredGeneration)
+                );
+                handler.messageReceived(request, channel, task);
             }
         );
 
@@ -1166,7 +1188,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
         indexNodeTransportService.addMessageListener(new TransportMessageListener() {
             @Override
-            public void onResponseSent(long requestId, String action) {
+            public void onResponseSent(long requestId, String action, int networkMessageSize) {
                 if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")
                     && awaitingChunk1TransportSendComplete.compareAndSet(true, false)) {
                     // Channel send has completed, but OutboundHandler has not yet released the zero-copy chunk bytes.

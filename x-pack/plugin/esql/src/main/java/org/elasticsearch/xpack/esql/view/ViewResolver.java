@@ -30,7 +30,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
@@ -169,12 +171,18 @@ public class ViewResolver {
     }
 
     /**
-     * Result of view resolution containing the rewritten plan, the view queries, and whether any {@code InSubquery} expression was
-     * rewritten into a {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin} during resolution.
+     * Result of view resolution containing the rewritten plan, the view queries, whether any {@code InSubquery} expression was
+     * rewritten into a {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin} during resolution, and the views each index pattern was
+     * reached through.
      * <p>
      * {@code hasInSubquery} drives the {@code IN_SUBQUERY} telemetry counter (see {@code EsqlSession#gatherInSubqueryMetrics}).
      */
-    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries, boolean hasInSubquery) {}
+    public record ViewResolutionResult(
+        LogicalPlan plan,
+        Map<String, String> viewQueries,
+        boolean hasInSubquery,
+        IndexViewOrigins indexViewOrigins
+    ) {}
 
     /**
      * Entry point for view + IN subquery resolution; see the {@link ViewResolver} class documentation for the traversal model and the
@@ -212,6 +220,7 @@ public class ViewResolver {
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
+        IndexViewOrigins.Builder indexViewOrigins = new IndexViewOrigins.Builder();
         // Set when the traversal below rewrites an InSubquery (in the query or in a view body) into a Semi/Anti/MarkJoin; reported in
         // the result so the session can count IN_SUBQUERY telemetry even for IN subqueries that only exist inside a view definition.
         // A Holder (not a plain boolean) because it is written from inside the async resolution callbacks; cross-thread visibility is
@@ -219,7 +228,7 @@ public class ViewResolver {
         Holder<Boolean> hasInSubquery = new Holder<>(false);
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
         if (noViews && InSubqueryResolver.hasInSubquery(plan) == false) {
-            listener.onResponse(new ViewResolutionResult(plan, viewQueries, false));
+            listener.onResponse(new ViewResolutionResult(plan, viewQueries, false, IndexViewOrigins.EMPTY));
             return;
         }
         // Note: this returns the uncompacted nested plan. Compaction (UnionAll/ViewUnionAll
@@ -227,8 +236,7 @@ public class ViewResolver {
         // {@link org.elasticsearch.xpack.esql.view.ViewCompaction} and is applied by EsqlSession
         // between view resolution and pre-analysis, so PreAnalyzer extracts the same index
         // patterns that the analyzer's ResolveTable will later look up. Keeping the resolver's
-        // output uncompacted is the foundation for the CPS lenient-field-caps work in
-        // esql-planning #543, #472.
+        // output uncompacted is the foundation for CPS lenient field-caps.
         replaceViews(
             plan,
             projectRouting,
@@ -236,11 +244,14 @@ public class ViewResolver {
             parser,
             new LinkedHashSet<>(),
             viewQueries,
+            indexViewOrigins,
             hasInSubquery,
             0,
             preserveViewBoundaries,
             listener.delegateFailureAndWrap(
-                (l, rewritten) -> l.onResponse(new ViewResolutionResult(rewritten, viewQueries, hasInSubquery.get()))
+                (l, rewritten) -> l.onResponse(
+                    new ViewResolutionResult(rewritten, viewQueries, hasInSubquery.get(), indexViewOrigins.build())
+                )
             )
         );
     }
@@ -252,6 +263,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        IndexViewOrigins.Builder indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
@@ -285,6 +297,7 @@ public class ViewResolver {
                     parser,
                     seenInner,
                     viewQueries,
+                    indexViewOrigins,
                     hasInSubquery,
                     depth,
                     preserveViewBoundaries,
@@ -310,6 +323,7 @@ public class ViewResolver {
                             parser,
                             seenInner,
                             viewQueries,
+                            indexViewOrigins,
                             hasInSubquery,
                             depth,
                             preserveViewBoundaries,
@@ -336,6 +350,7 @@ public class ViewResolver {
                             parser,
                             seenInner,
                             viewQueries,
+                            indexViewOrigins,
                             hasInSubquery,
                             depth,
                             preserveViewBoundaries,
@@ -362,6 +377,7 @@ public class ViewResolver {
                             parser,
                             seenInner,
                             viewQueries,
+                            indexViewOrigins,
                             hasInSubquery,
                             depth,
                             preserveViewBoundaries,
@@ -379,6 +395,7 @@ public class ViewResolver {
                     parser,
                     seenInner,
                     viewQueries,
+                    indexViewOrigins,
                     hasInSubquery,
                     depth,
                     preserveViewBoundaries,
@@ -395,6 +412,7 @@ public class ViewResolver {
                     seenInner,
                     seenWildcards,
                     viewQueries,
+                    indexViewOrigins,
                     hasInSubquery,
                     depth,
                     preserveViewBoundaries,
@@ -418,6 +436,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        IndexViewOrigins.Builder indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
@@ -436,13 +455,11 @@ public class ViewResolver {
                     parser,
                     seenViews,
                     viewQueries,
+                    indexViewOrigins,
                     hasInSubquery,
                     depth + 1,
                     preserveViewBoundaries,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
-                        if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
-                            newPlan = named;
-                        }
                         if (newPlan.equals(subplan) == false) {
                             var updatedSubplansInner = updatedSubplans;
                             if (updatedSubplansInner == null) {
@@ -472,6 +489,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        IndexViewOrigins.Builder indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
@@ -487,6 +505,7 @@ public class ViewResolver {
                 parser,
                 seenViews,
                 viewQueries,
+                indexViewOrigins,
                 hasInSubquery,
                 depth + 1,
                 preserveViewBoundaries,
@@ -506,6 +525,7 @@ public class ViewResolver {
                 parser,
                 seenViews,
                 viewQueries,
+                indexViewOrigins,
                 hasInSubquery,
                 depth + 1,
                 preserveViewBoundaries,
@@ -531,11 +551,13 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
+        IndexViewOrigins.Builder indexViewOrigins,
         Holder<Boolean> hasInSubquery,
         int depth,
         boolean preserveViewBoundaries,
         ActionListener<LogicalPlan> listener
     ) {
+        indexViewOrigins.record(unresolvedRelation.indexPattern().indexPattern(), seenViews);
         // Avoid re-resolving wildcards preserved for non-view matches in subsequent transformDown visits.
         var patterns = Arrays.stream(unresolvedRelation.indexPattern().indexPattern().split(","))
             .filter(pattern -> Regex.isSimpleMatchPattern(pattern) == false || seenWildcards.contains(pattern) == false)
@@ -569,7 +591,7 @@ public class ViewResolver {
         }
 
         // ViewShadowRelation siblings are only emitted in CPS mode — they exist solely to drive a
-        // per-level lenient field-caps lookup against linked projects (esql-planning #543). In
+        // per-level lenient field-caps lookup against linked projects. In
         // non-CPS mode the shadow has no consumer, so we skip the bookkeeping entirely; the rest of
         // the resolver behaves as if shadows are simply not part of the tree.
         boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
@@ -661,12 +683,13 @@ public class ViewResolver {
                         }
                     }
                     replaceViews(
-                        resolve(view, parser, viewQueries),
+                        resolve(view, parser, viewQueries, MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields())),
                         projectRouting,
                         wildcardsMatchViews,
                         parser,
                         branchSeenViews,
                         viewQueries,
+                        indexViewOrigins,
                         hasInSubquery,
                         depth + 1,
                         // Resolving a view's *body*: never preserve boundaries in here. The request filter applies to
@@ -987,7 +1010,12 @@ public class ViewResolver {
         EsqlResolveViewAction.Request request,
         ActionListener<EsqlResolveViewAction.Response> listener
     ) {
-        client.execute(EsqlResolveViewAction.TYPE, request, new ThreadedActionListener<>(executor, listener));
+        // Metered inside the fork, so planning CPU is measured on the SEARCH thread, not the transport thread.
+        client.execute(
+            EsqlResolveViewAction.TYPE,
+            request,
+            new ThreadedActionListener<>(executor, PlanningCpuTracker.inheritMeteredCpu(listener))
+        );
     }
 
     protected record OriginViewsResolution(boolean resolveLocalViews, @Nullable String originProjectAlias) {}
@@ -1019,7 +1047,7 @@ public class ViewResolver {
                 // Bare UnresolvedRelation branch: either a pass-through view or a plain index/alias
                 // ref from the user's query. Neither is a view branch — see the note above.
             } else if (vp.plan instanceof ViewShadowRelation) {
-                // Leave ViewShadowRelation bare — Phase A's ViewCompaction strip recognises it by
+                // Leave ViewShadowRelation bare — ViewCompaction's strip recognises it by
                 // type and removes it directly. Wrapping in NamedSubquery would hide it from the
                 // strip and keep its name out of the dropped-entries' keyspace.
                 plans.put(key, vp.plan);
@@ -1033,7 +1061,7 @@ public class ViewResolver {
         // compaction work has moved to the {@link ViewCompaction} analyzer rule, but a per-level merge
         // here keeps the resolved plan compact: a wide branching level (e.g. {@code FROM v1, v2, ... v9}
         // of compactable views) folds into a single {@link UnresolvedRelation} entry rather than a
-        // ViewUnionAll that would later trip {@link MergePlan#MAX_BRANCHES} at post-analysis verification.
+        // ViewUnionAll that would later trip {@link MergePlan} limit at logical verification.
         mergeCompatibleUnresolvedRelations(plans, buildAliasResolver());
         // Remove any view-branch keys that were merged away (bare UR merge can eliminate entries).
         viewBranchKeys.retainAll(plans.keySet());
@@ -1080,8 +1108,8 @@ public class ViewResolver {
      * Merges bare UnresolvedRelation entries that don't share index patterns into a single entry.
      * Those that cannot be merged are wrapped in NamedSubquery nodes to preserve data duplication
      * semantics. The full broader-scope compaction lives in {@link ViewCompaction}; this is the
-     * per-level merge that keeps the resolved tree small enough to pass {@link MergePlan#MAX_BRANCHES}
-     * at post-analysis verification.
+     * per-level merge that keeps the resolved tree small enough to pass {@link MergePlan} limit
+     * at logical verification.
      */
     private static void mergeCompatibleUnresolvedRelations(
         LinkedHashMap<String, LogicalPlan> plans,
@@ -1158,7 +1186,12 @@ public class ViewResolver {
         }
     }
 
-    private LogicalPlan resolve(View view, BiFunction<String, String, LogicalPlan> parser, Map<String, String> viewQueries) {
+    private LogicalPlan resolve(
+        View view,
+        BiFunction<String, String, LogicalPlan> parser,
+        Map<String, String> viewQueries,
+        boolean keepViewIdentity
+    ) {
         log.debug("Resolving view '{}'", view.name());
         // Store the view query so it can be used during Source deserialization
         viewQueries.put(view.name(), view.query());
@@ -1167,7 +1200,7 @@ public class ViewResolver {
         // to be tagged with the view name during parsing
         LogicalPlan parsed = parser.apply(view.query(), view.name());
         LogicalPlan subquery = parsed instanceof UnresolvedMetadata fs ? fs.child() : parsed;
-        if (subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
+        if (keepViewIdentity == false && subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
             // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them
             // together and avoid branched plans. But exclusion patterns must stay scoped to the
             // view body — a bare UnresolvedRelation with an exclusion that gets merged with sibling

@@ -79,9 +79,10 @@ public class ManifoldModelTests extends ESTestCase {
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(corpus), null, 2);
         int[] ordinals = { 0, 1, 2, 3, 4, 5 };
 
+        // Dot-like metrics are fit in distance units: r = 0.5 (||q||^2 + ||x||^2) - q.x = 0.5 ||q - x||^2, ascending.
         float[] expected = new float[corpus.length];
         for (int i = 0; i < corpus.length; i++) {
-            expected[i] = ESVectorUtil.dotProduct(query, corpus[i]);
+            expected[i] = 0.5f * ESVectorUtil.squareDistance(query, corpus[i]);
         }
         Arrays.sort(expected);
 
@@ -89,7 +90,7 @@ public class ManifoldModelTests extends ESTestCase {
         addTopKCorpusSlice(topK, query, fvv, ordinals, 0, corpus.length, true);
 
         for (int rank = 1; rank <= expected.length; rank++) {
-            assertEquals(expected[expected.length - rank], topK.ithDistance(rank), 1e-5f);
+            assertEquals(expected[rank - 1], topK.ithDistance(rank), 1e-5f);
         }
     }
 
@@ -263,13 +264,51 @@ public class ManifoldModelTests extends ESTestCase {
         assertThat(d100, greaterThan(d1));
     }
 
-    public void testExpectedRankDistanceDecreasesWithRankForDotProduct() {
+    /** Dot-like metrics are modelled in distance units too (r = 1 - cos for unit vectors), so the same convention holds. */
+    public void testExpectedRankDistanceIncreasesWithRankForDotProduct() {
         double alpha = -1.0;
         double invDim = 0.4;
         int n = 10_000;
         double d1 = ManifoldModel.expectedRankDistance(VectorSimilarityFunction.DOT_PRODUCT, alpha, invDim, n, 1);
         double d100 = ManifoldModel.expectedRankDistance(VectorSimilarityFunction.DOT_PRODUCT, alpha, invDim, n, 100);
-        assertThat(d100, lessThan(d1));
+        assertThat(d1, greaterThan(0.0));
+        assertThat(d100, greaterThan(d1));
+        assertEquals(ManifoldModel.expectedRankDistance(VectorSimilarityFunction.EUCLIDEAN, alpha, invDim, n, 100), d100, 0.0);
+    }
+
+    /**
+     * On unit vectors the dot-product fit must reproduce the Euclidean fit's exponent (r is half the squared
+     * distance, so only alpha moves by log 2). The similarity-space fit this replaces gave an exponent near zero
+     * on the same data, telling the recall model that neighbour gaps do not shrink with corpus size.
+     */
+    public void testDotLikeFitHasADistanceExponent() throws IOException {
+        int dim = 16;
+        Random rng = new Random(3L);
+        float[][] rows = new float[9000][dim];
+        for (float[] row : rows) {
+            for (int d = 0; d < dim; d++) {
+                row[d] = (float) rng.nextGaussian();
+            }
+            l2normalize(row);
+        }
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, dim);
+        int[] queryOrdinals = new int[12];
+        int[] corpusOrdinals = new int[rows.length - queryOrdinals.length];
+        for (int i = 0; i < queryOrdinals.length; i++) {
+            queryOrdinals[i] = i;
+        }
+        for (int i = 0; i < corpusOrdinals.length; i++) {
+            corpusOrdinals[i] = queryOrdinals.length + i;
+        }
+        ManifoldModel.ManifoldParams dot = ManifoldModel.estimateManifoldParameters(
+            unitSource(VectorSimilarityFunction.DOT_PRODUCT, dim, fvv, queryOrdinals, corpusOrdinals)
+        );
+        ManifoldModel.ManifoldParams euclid = ManifoldModel.estimateManifoldParameters(
+            unitSource(VectorSimilarityFunction.EUCLIDEAN, dim, fvv, queryOrdinals, corpusOrdinals)
+        );
+        assertEquals(euclid.invDim(), dot.invDim(), 1e-5);
+        assertEquals(euclid.alpha() - Math.log(2.0), dot.alpha(), 1e-4);
+        assertThat(dot.invDim(), greaterThan(0.02));
     }
 
     /**
@@ -474,6 +513,16 @@ public class ManifoldModelTests extends ESTestCase {
      * {@link ManifoldModel#estimateManifoldParameters}). Uses the same sign convention: negated dot for dot-like
      * metrics so the heap tracks the largest similarities.
      */
+    private static CalibrationSource unitSource(
+        VectorSimilarityFunction sim,
+        int dim,
+        FloatVectorValues fvv,
+        int[] queryOrdinals,
+        int[] corpusOrdinals
+    ) {
+        return new CalibrationSource(sim, dim, fvv, queryOrdinals, dim, false, false, null, corpusOrdinals, 5, fvv.size());
+    }
+
     private static void addTopKCorpusSlice(
         ManifoldModel.ManifoldTopK topK,
         float[] query,
@@ -483,10 +532,16 @@ public class ManifoldModelTests extends ESTestCase {
         int endDoc,
         boolean dotLike
     ) throws IOException {
+        if (dotLike) {
+            topK.setQueryNormSq(ESVectorUtil.dotProduct(query, query));
+        }
         for (int d = startDoc; d < endDoc; d++) {
             float[] doc = fvv.vectorValue(corpusOrdinals[d]);
-            float dist = dotLike ? -ESVectorUtil.dotProduct(query, doc) : ESVectorUtil.squareDistance(query, doc);
-            topK.considerCandidate(dist);
+            if (dotLike) {
+                topK.considerCandidate(-ESVectorUtil.dotProduct(query, doc), ESVectorUtil.dotProduct(doc, doc));
+            } else {
+                topK.considerCandidate(ESVectorUtil.squareDistance(query, doc));
+            }
         }
     }
 

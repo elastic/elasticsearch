@@ -25,6 +25,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -643,9 +644,14 @@ public final class DocumentParser {
             } else {
                 parseArrayElements(context, mapper, lastFieldName, lastFieldName);
             }
-        } else {
-            parseArrayDynamic(context, lastFieldName);
-        }
+        } else if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED
+            && context.parent().hasMappedFieldsWithPrefix(lastFieldName)) {
+                // With subobjects disabled there is no object mapper for the prefix, but the array elements may hold mapped dotted leaves.
+                // Parse each element so parseObject flattens it, instead of treating the array as unmapped.
+                parseArrayElements(context, null, lastFieldName, lastFieldName);
+            } else {
+                parseArrayDynamic(context, lastFieldName);
+            }
         // Reset previous immediate parent
         context.setImmediateXContentParent(prev);
     }
@@ -867,9 +873,7 @@ public final class DocumentParser {
             ensureNotStrict(dynamic, context, lastFieldName);
             if (dynamic == ObjectMapper.Dynamic.FLATTENED) {
                 // Absorb the null slot so columnar array order (e.g. [1, null, 3]) is preserved for the unmapped field.
-                FlattenedFieldMapper sink = (FlattenedFieldMapper) context.mappingLookup()
-                    .getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
-                sink.indexValueAtPath(context, context.path().pathAsText(lastFieldName));
+                UnmappedSinkFieldMapper.absorb(context, lastFieldName);
             }
         }
     }
@@ -1026,11 +1030,6 @@ public final class DocumentParser {
             }
 
             @Override
-            protected void checkIncomingMergeType(FieldMapper mergeWith) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
             public Builder getMergeBuilder() {
                 throw new UnsupportedOperationException();
             }
@@ -1142,7 +1141,13 @@ public final class DocumentParser {
 
         @Override
         public final Mapper getMapper(String name) {
-            return mappingLookup().getMapping().findMetadataOrRootMapper(name);
+            Mapper mapper = mappingLookup().getMapping().findMetadataOrRootMapper(name);
+            if (mapper == null && name.startsWith(FlattenedFieldMapper.UNMAPPED_SINK_NAME + ".")) {
+                // The sink reserves its name as a prefix: a root key like _unmapped.a resolves to the sink itself (null when there is
+                // none), so that every form of it is rejected by parseCreateField exactly like the key _unmapped.
+                return getMetadataMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+            }
+            return mapper;
         }
 
         @Override

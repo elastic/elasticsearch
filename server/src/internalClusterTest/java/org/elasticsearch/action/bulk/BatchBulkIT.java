@@ -30,6 +30,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
@@ -38,7 +39,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -234,6 +237,88 @@ public class BatchBulkIT extends ESIntegTestCase {
         // Spot-check a specific doc by id.
         var getResponse = client().get(new org.elasticsearch.action.get.GetRequest(index).id("doc-0")).actionGet();
         assertTrue(getResponse.isExists());
+    }
+
+    /**
+     * {@code columnar_stored} source used to push every batch back onto the sequential path, because the whole-document
+     * {@code _source} blob could only be built from a parsed document. The batch must now be indexed as a batch and the
+     * source rebuilt from the mapped columns must read back from a get.
+     */
+    public void testColumnarStoredSourceBatchMode() throws IOException {
+        String index = "test-columnar-stored-source";
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("host").field("type", "keyword").endObject();
+                    mapping.startObject("service").field("type", "keyword").endObject();
+                    mapping.startObject("count").field("type", "long").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+
+        int numDocs = randomIntBetween(20, 100);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .source(XContentType.JSON, "host", "host-" + (i % 5), "service", "svc-" + (i % 3), "count", i)
+                    .opType(DocWriteRequest.OpType.CREATE)
+            );
+        }
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+
+        for (int i = 0; i < numDocs; i++) {
+            var getResponse = client().get(new GetRequest(index).id("doc-" + i).realtime(false)).actionGet();
+            assertTrue(getResponse.isExists());
+            assertThat(getResponse.getSourceAsMap(), equalTo(Map.of("host", "host-" + (i % 5), "service", "svc-" + (i % 3), "count", i)));
+        }
     }
 
     public void testKeywordWithMultiField() throws IOException {
@@ -2062,6 +2147,114 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
         });
+    }
+
+    /**
+     * The implicit {@code _unmapped} sink absorbs the unmapped leaves of a batch through its column group, and what it writes must read
+     * back exactly as the same documents indexed one at a time.
+     */
+    public void testUnmappedSinkBatchMatchesRowPath() {
+        assumeTrue("flattened_unmapped_fields feature flag must be enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        final String batched = "test-unmapped-sink-batched";
+        final String sequential = "test-unmapped-sink-sequential";
+        createUnmappedSinkIndex(batched);
+        createUnmappedSinkIndex(sequential);
+
+        final int numDocs = randomIntBetween(20, 100);
+        final Map<String, Map<String, Object>> sources = new LinkedHashMap<>();
+        for (int i = 0; i < numDocs; i++) {
+            final Map<String, Object> source = new LinkedHashMap<>();
+            source.put("host", "srv-" + (i % 5));
+            source.put("env", randomFrom("prod", "staging", "dev"));
+            if (randomBoolean()) {
+                source.put("attrs", Map.of("region", randomAlphanumericOfLength(6), "zone", Map.of("id", randomAlphanumericOfLength(4))));
+            }
+            if (randomBoolean()) {
+                source.put("tags", List.of(randomAlphanumericOfLength(5), randomAlphanumericOfLength(5), randomAlphanumericOfLength(5)));
+            }
+            if (randomBoolean()) {
+                source.put("count", randomIntBetween(0, 1000));
+            }
+            sources.put("doc-" + i, source);
+        }
+        final String coordinatingNode = findCoordinatingNode();
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "sink batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            assertNoFailures(client(coordinatingNode).bulk(unmappedSinkBulk(batched, sources)).actionGet());
+            // Without this the test would pass just as well on the row path, proving nothing.
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        // The same documents again with batch indexing off, so this index is written a document at a time through
+        // UnmappedSinkFieldMapper.absorb.
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false));
+        try {
+            assertNoFailures(client(coordinatingNode).bulk(unmappedSinkBulk(sequential, sources)).actionGet());
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
+        }
+        refresh(batched, sequential);
+
+        // Synthetic source rebuilds every unmapped leaf from the sink's doc values, so this reads back what each path wrote into the sink.
+        final MultiGetRequest batchGets = new MultiGetRequest();
+        final MultiGetRequest rowGets = new MultiGetRequest();
+        for (String id : sources.keySet()) {
+            batchGets.add(batched, id);
+            rowGets.add(sequential, id);
+        }
+        final MultiGetItemResponse[] fromBatch = client().multiGet(batchGets).actionGet().getResponses();
+        final MultiGetItemResponse[] fromRow = client().multiGet(rowGets).actionGet().getResponses();
+        assertThat(fromBatch.length, equalTo(fromRow.length));
+        for (int i = 0; i < fromBatch.length; i++) {
+            final String id = fromBatch[i].getId();
+            assertNull("batch path failed to read [" + id + "]: " + fromBatch[i].getFailure(), fromBatch[i].getFailure());
+            assertNull("row path failed to read [" + id + "]: " + fromRow[i].getFailure(), fromRow[i].getFailure());
+            assertTrue("batch path lost document [" + id + "]", fromBatch[i].getResponse().isExists());
+            final Map<String, Object> batchSource = fromBatch[i].getResponse().getSourceAsMap();
+            assertThat("source of [" + id + "]", batchSource, equalTo(fromRow[i].getResponse().getSourceAsMap()));
+            // Synthetic source renders absorbed leaves under _unmapped. env is in every document, so two empty sinks cannot pass as equal.
+            assertThat(
+                "unmapped leaf of [" + id + "]",
+                XContentMapValues.extractValue(FlattenedFieldMapper.UNMAPPED_SINK_NAME + ".env", batchSource),
+                equalTo(sources.get(id).get("env"))
+            );
+        }
+    }
+
+    private void createUnmappedSinkIndex(String index) {
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                // No root dynamic, so it resolves to flattened and unmapped leaves are absorbed by the sink.
+                .setMapping("host", "type=keyword")
+        );
+        ensureGreen(index);
+    }
+
+    private static BulkRequest unmappedSinkBulk(String index, Map<String, Map<String, Object>> sources) {
+        final BulkRequest request = new BulkRequest();
+        sources.forEach((id, source) -> request.add(new IndexRequest(index).id(id).source(source).opType(DocWriteRequest.OpType.CREATE)));
+        return request;
     }
 
     /**

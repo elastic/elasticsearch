@@ -866,7 +866,8 @@ public class StatelessPlugin extends Plugin
         final var searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
             cacheService,
             threadPool,
-            clusterService.getClusterSettings()
+            clusterService.getClusterSettings(),
+            JvmInfo.jvmInfo().getMem().getHeapMax()
         );
         components.add(searchRecoveryTimeoutCalculationService);
         var cacheWarmingService = createSharedBlobCacheWarmingService(
@@ -932,7 +933,8 @@ public class StatelessPlugin extends Plugin
                 settings,
                 objectStoreService,
                 consistencyService,
-                projectResolver.get().supportsMultipleProjects()
+                projectResolver.get().supportsMultipleProjects(),
+                meterRegistry
             )
         );
         setAndGet(this.translogReplicatorMetrics, new TranslogRecoveryMetrics(meterRegistry));

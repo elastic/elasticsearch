@@ -379,12 +379,12 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
-     * The failure-store redirect pass re-enters {@code executeBulkRequestsByShard}, so
-     * {@code shardBatches()} can be called a second time. It must not re-scatter: the first call's
-     * batches are already attached to in-flight shard requests and their items already point at
-     * shard-local rows.
+     * The first {@code shardBatches()} call scatters the batch and re-points every item at a
+     * shard-local row, with the batches attached to in-flight shard requests. A second call would
+     * re-scatter, so it must fail loudly. The failure-store redirect pass is not supposed to call it
+     * (see {@code BulkOperationTests}).
      */
-    public void testSecondShardBatchesCallIsANoOp() throws IOException {
+    public void testSecondShardBatchesCallFails() throws IOException {
         int numDocs = 12;
         EscfBatch batch = buildBatch(numDocs);
         BulkRequest bulkRequest = buildBulkRequest("myindex", batch, numDocs);
@@ -396,10 +396,41 @@ public class BatchModeRouterTests extends ESTestCase {
         assertFalse(first.isEmpty());
 
         List<Integer> rowsAfterFirst = bulkRequest.requests.stream().map(r -> ((IndexRequest) r).indexSource().rowIndex()).toList();
-        assertThat(router.shardBatches(), equalTo(Map.of()));
+        var e = expectThrows(IllegalStateException.class, router::shardBatches);
+        assertThat(e.getMessage(), containsString("already built"));
         List<Integer> rowsAfterSecond = bulkRequest.requests.stream().map(r -> ((IndexRequest) r).indexSource().rowIndex()).toList();
         assertThat(rowsAfterSecond, equalTo(rowsAfterFirst));
         assertShardsAligned(requestsByShard, first);
+        router.close();
+    }
+
+    /**
+     * In inline-encoder mode the first {@code shardBatches()} call builds each partition and hands its
+     * buffers to the returned batch, so a second call cannot succeed. It must fail loudly rather than
+     * return nothing: the failure-store redirect pass is not supposed to ask for batches at all (see
+     * {@code BulkOperationTests}), and a silent empty result would hide a caller that does.
+     */
+    public void testSecondShardBatchesCallFailsForInlineEncoders() {
+        int numDocs = randomIntBetween(3, 20);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(new IndexRequest("myindex").source("{\"dim\":\"d" + i + "\",\"val\":" + i + "}", XContentType.JSON));
+        }
+        ProjectMetadata project = project(plainMetadata("myindex", randomIntBetween(1, 3)));
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        assertThat(router, notNullValue());
+        var requestsByShard = routeAll(router, bulkRequest, project);
+        Map<ShardId, SourceBatch> first = router.shardBatches();
+        assertFalse(first.isEmpty());
+        assertThat(first.values().stream().mapToInt(SourceBatch::docCount).sum(), equalTo(numDocs));
+        for (DocWriteRequest<?> request : bulkRequest.requests) {
+            assertTrue(((IndexRequest) request).indexSource().hasSourceRow());
+        }
+        assertShardsAligned(requestsByShard, first);
+
+        var e = expectThrows(IllegalStateException.class, router::shardBatches);
+        assertThat(e.getMessage(), containsString("already finalized"));
         router.close();
     }
 
@@ -736,7 +767,7 @@ public class BatchModeRouterTests extends ESTestCase {
         router.close();
     }
 
-    public void testSingleShardSecondShardBatchesCallIsANoOp() throws IOException {
+    public void testSingleShardSecondShardBatchesCallFails() throws IOException {
         int numDocs = randomIntBetween(1, 10);
         EscfBatch batch = buildBatch(numDocs);
         BulkRequest bulkRequest = buildBulkRequest("myindex", batch, numDocs);
@@ -748,8 +779,9 @@ public class BatchModeRouterTests extends ESTestCase {
         assertThat(first.size(), equalTo(1));
         assertSame(batch, first.values().iterator().next());
 
-        // Second call must not re-scatter the already-dispatched batch.
-        assertThat(router.shardBatches(), equalTo(Map.of()));
+        // Second call must not hand the already-dispatched batch out again.
+        var e = expectThrows(IllegalStateException.class, router::shardBatches);
+        assertThat(e.getMessage(), containsString("already built"));
         router.close();
     }
 
@@ -794,7 +826,7 @@ public class BatchModeRouterTests extends ESTestCase {
         for (Exception e : failures) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
         }
-        // shardBatches must also be empty: scattered flag was set to prevent a stale scatter.
+        // shardBatches must also be empty: no valid grouping exists to scatter.
         assertThat(router.shardBatches(), equalTo(Map.of()));
         router.close();
     }

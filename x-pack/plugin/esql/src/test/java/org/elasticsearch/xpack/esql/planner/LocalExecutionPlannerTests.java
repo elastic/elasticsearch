@@ -63,9 +63,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
@@ -158,6 +158,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -692,19 +693,28 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {
+        mappingKeepsUnmappedFields = true;
         var blockLoader = constructBlockLoader();
-        assertUnmappedFieldLoader(blockLoader.loader());
+        assertThat(blockLoader.loader().toString(), startsWith("UnmappedFields.Named["));
     }
 
-    public void testPlanUnmappedFieldExtractSyntheticSource() throws Exception {
+    /**
+     * A shard whose mapping maps every field, and that skipped none, holds no unmapped field to read.
+     */
+    public void testPlanUnmappedFieldExtractStoredSourceWithoutUnmappedFields() throws Exception {
+        var blockLoader = constructBlockLoader();
+        assertThat(blockLoader.loader(), sameInstance(ConstantNull.INSTANCE));
+    }
+
+    /**
+     * A synthetic {@code _source} keeps unmapped fields in {@code _ignored_source}, which no segment of these shards has.
+     */
+    public void testPlanUnmappedFieldExtractSyntheticSourceWithoutUnmappedFields() throws Exception {
         settings = Settings.builder().put(settings).put("index.mapping.source.mode", "synthetic").build();
+        mappingKeepsUnmappedFields = true;
 
         var blockLoader = constructBlockLoader();
-        assertUnmappedFieldLoader(blockLoader.loader());
-    }
-
-    private static void assertUnmappedFieldLoader(BlockLoader loader) {
-        assertThat(loader, instanceOf(UnmappedKeywordBlockLoader.class));
+        assertThat(blockLoader.loader(), sameInstance(ConstantNull.INSTANCE));
     }
 
     public void testTimeSeries() throws IOException {
@@ -1616,6 +1626,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
+    /** Whether the mapping of the shards is one under which documents keep the fields it does not declare. */
+    private boolean mappingKeepsUnmappedFields = false;
+
     private List<EsPhysicalOperationProviders.ShardContext> createShardContexts() throws IOException {
         int numShards = randomIntBetween(1, 1000);
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = new ArrayList<>(numShards);
@@ -1627,8 +1640,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             true
         );
         for (int i = 0; i < numShards; i++) {
-            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(createMapperService(mapping(b -> {
-                b.startObject("point").field("type", "geo_point").endObject();
+            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(createMapperService(topMapping(b -> {
+                if (mappingKeepsUnmappedFields) {
+                    b.field("dynamic", false);
+                }
+                b.startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject();
             })), searcher);
             shardContexts.add(
                 new EsPhysicalOperationProviders.DefaultShardContext(i, new NoOpReleasable(), searchExecutionContext, AliasFilter.EMPTY)

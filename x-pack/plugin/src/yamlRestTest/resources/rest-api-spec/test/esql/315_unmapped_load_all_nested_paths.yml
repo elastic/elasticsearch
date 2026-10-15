@@ -124,3 +124,14 @@ setup:
         body:
           query: 'SET unmapped_fields="LOAD"; FROM nst_mapped | KEEP id, items.qty, items.parts.color, items.parts.pn | SORT id | LIMIT 100'
   - match: { values.0: [ "m", [ "1", "2" ], [ "red", "blue" ], null ] }
+
+---
+'LOAD of a lone undeclared nested subfield reads it from _source':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM nst_mapped | KEEP items.qty'
+  - match: { columns.0.name: items.qty }
+  - match: { values.0: [ [ "1", "2" ] ] }

@@ -18,6 +18,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -266,23 +267,28 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * object larger than the footer prefetch: its data pages are never served from the cache, and the page
      * indexes in its tail are re-read by the preload's own coalesced GET when that entry is gone.
      *
-     * <p><strong>A read failure is logged and abandoned, and only an {@link IOException}.</strong> These bytes
-     * have no consumer of their own — the scan's own coalesced GETs fetch what they need — so a storage read
-     * that fails here must leave the query slow rather than break it, and {@code StorageObject.newStream}
-     * declares {@code IOException}, so that is the class a failed read arrives as. Everything unchecked
-     * propagates deliberately. A {@link org.elasticsearch.common.breaker.CircuitBreakingException} from this
-     * method's own window charge means the request breaker is already at its limit while the scan is about to
-     * ask for buffers far larger than this one; raising it at the first small charge is more legible to an
-     * operator than hiding it here and failing later from somewhere with less context. Anything else unchecked
-     * is a defect in this class, and swallowing those at {@code debug} is how they stay hidden.
+     * <p><strong>A read failure is logged and abandoned.</strong> These bytes have no consumer of their own —
+     * the scan's own coalesced GETs fetch what they need, on a different code path — so a storage read that
+     * fails here must leave the query slow rather than break it. Two classes are absorbed, and both are
+     * needed: {@code StorageObject.newStream} declares {@link IOException}, but a provider maps a retryable
+     * status to an unchecked {@link ExternalException} instead — {@code GcsStorageObject.mapReadFailure}
+     * turns 5xx and 429 into {@code ExternalUnavailableException} — so catching only the checked class would
+     * absorb a local read error and let an S3 or GCS throttle fail the query.
+     *
+     * <p>A {@link org.elasticsearch.common.breaker.CircuitBreakingException} is deliberately not absorbed. It
+     * is not an {@code ExternalException}; it means the request breaker is already at its limit while the scan
+     * is about to ask for buffers far larger than this one, and raising it at the first small charge is more
+     * legible to an operator than hiding it here and failing later from somewhere with less context.
      *
      * <p><strong>Why {@code debug} and not {@code warn}.</strong> The failure costs latency, never
-     * correctness: the scan still returns the right rows. It is also per object and per expiry, and a single
-     * dataset can resolve up to {@code ExternalSourceSettings.MAX_DISCOVERED_FILES} objects, so a storage
-     * blip at {@code warn} would emit one line per object and bury the signal it was meant to raise. The
-     * message therefore carries the object and the consequence, so a {@code debug} investigation is
-     * conclusive on its own. What an operator sees without logs at all is the query's own
-     * {@code request_count} and {@code bytes_read} climbing, which is how this failure mode was found.
+     * correctness: the scan still returns the right rows. This method keeps no memo of having failed and runs
+     * on every optimized open, so a transient failure costs one scan and a persistent one costs a read per
+     * scan while it lasts. A single dataset can resolve up to
+     * {@code ExternalSourceSettings.MAX_DISCOVERED_FILES} objects, so a storage blip at {@code warn} would
+     * emit a line per object per scan and bury the signal it was meant to raise. The message carries the
+     * object and the consequence instead, so a {@code debug} investigation is conclusive on its own. What an
+     * operator sees without logs at all is the query's own {@code request_count} and {@code bytes_read}
+     * climbing, which is how this failure mode was found.
      */
     void refillWholeFileFooter() {
         if (wholeFileIsFooter == false || footerBytes.get(cacheKey) != null) {
@@ -291,10 +297,10 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         try (SeekableInputStream stream = newStream()) {
             // The seek is the whole-file fill: an object that fits the window is fetched from offset 0.
             stream.seek(0);
-        } catch (IOException e) {
+        } catch (IOException | ExternalException e) {
             logger.debug(
                 () -> Strings.format(
-                    "footer byte cache refill failed for [%s]; its scans read ranged GETs until the parsed footer entry expires",
+                    "footer byte cache refill failed for [%s]; this scan and any later one read ranged GETs until a refill succeeds",
                     cacheKey.path()
                 ),
                 e

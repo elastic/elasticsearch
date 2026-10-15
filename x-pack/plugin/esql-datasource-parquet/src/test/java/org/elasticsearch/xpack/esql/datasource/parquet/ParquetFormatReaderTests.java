@@ -85,8 +85,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
@@ -1331,6 +1333,23 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * the column-chunk prefetch read asynchronously — which is why a failure on one need not condemn the other.
      */
     public void testQueryStillRunsWhenTheFooterRefillCannotRead() throws Exception {
+        assertRefillFailureLeavesTheQueryRunning(path -> new IOException("simulated stream failure"));
+    }
+
+    /**
+     * The same guarantee for the class a real provider actually raises. {@code GcsStorageObject.mapReadFailure}
+     * turns a retryable status (5xx, 429) into an {@link ExternalUnavailableException}, which is unchecked —
+     * it extends {@code ExternalException} through {@code QlException} — so a catch of {@code IOException}
+     * alone would absorb a local read error and let a store throttle fail the query. This is the cell that
+     * matters in production, and it is the one no test covered.
+     */
+    public void testQueryStillRunsWhenTheFooterRefillIsThrottled() throws Exception {
+        assertRefillFailureLeavesTheQueryRunning(
+            path -> new ExternalUnavailableException(ExternalException.Condition.STORE_THROTTLED, path, "HTTP 429", "", true, 100L)
+        );
+    }
+
+    private void assertRefillFailureLeavesTheQueryRunning(java.util.function.Function<StoragePath, Exception> failure) throws Exception {
         byte[] parquetData = createVpcFlowShapedParquet();
         assertThat(parquetData.length, lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
@@ -1353,13 +1372,13 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 @Override
                 public InputStream newStream() throws IOException {
                     streamAttempts.incrementAndGet();
-                    throw new IOException("simulated stream failure");
+                    throw rethrow(failure.apply(path()));
                 }
 
                 @Override
                 public InputStream newStream(long position, long length) throws IOException {
                     streamAttempts.incrementAndGet();
-                    throw new IOException("simulated stream failure");
+                    throw rethrow(failure.apply(path()));
                 }
 
                 @Override
@@ -1543,6 +1562,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
         } finally {
             probePool.shutdownNow();
         }
+    }
+
+    /** Throws the injected failure as its own class: unchecked ones directly, checked ones as the declared IOException. */
+    private static IOException rethrow(Exception e) throws IOException {
+        if (e instanceof RuntimeException re) {
+            throw re;
+        }
+        throw (IOException) e;
     }
 
     private static int drainAllRows(ParquetFormatReader reader, StorageObject object) throws Exception {

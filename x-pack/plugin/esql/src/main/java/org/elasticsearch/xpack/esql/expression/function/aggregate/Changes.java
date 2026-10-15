@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.ChangesExponentialHistogramAggregat
 import org.elasticsearch.compute.aggregation.ChangesIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ChangesLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -41,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * Implements the PromQL {@code changes()} range-vector function for per-series numeric and native histogram values.
  */
-public class Changes extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
+public class Changes extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Changes",

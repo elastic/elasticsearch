@@ -444,6 +444,15 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
         Releasables.close(reducedStates, rawBuffer, intervalBuffer);
     }
 
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(getClass().getSimpleName()).append("[");
+        sb.append("channels=").append(channels);
+        sb.append("]");
+        return sb.toString();
+    }
+
     private final class ReducedState {
         private static final int[] EMPTY_INTERVALS = new int[0];
         private long samples;

@@ -18,8 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
-import org.elasticsearch.xpack.core.security.audit.SecurityConfigChange;
-import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeData;
+import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,7 +42,7 @@ public class DeleteDatasetAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, SecurityConfigChange {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, SecurityConfigChangeRequest {
         private String[] names;
         private ResolvedIndexExpressions resolvedIndexExpressions;
 
@@ -109,13 +108,8 @@ public class DeleteDatasetAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        public SecurityConfigChangeData securityConfigChangeData() {
-            return new SecurityConfigChangeData(
-                SecurityConfigChangeData.Operation.DELETE,
-                "dataset",
-                null,
-                Map.of("names", List.of(names))
-            );
+        public Map<String, Object> auditFields() {
+            return Map.of("names", List.of(names));
         }
 
         @Override

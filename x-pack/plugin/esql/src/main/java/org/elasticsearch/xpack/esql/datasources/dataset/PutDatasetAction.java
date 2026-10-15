@@ -25,8 +25,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
-import org.elasticsearch.xpack.core.security.audit.SecurityConfigChange;
-import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeData;
+import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 
 import java.io.IOException;
@@ -59,7 +58,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         implements
             IndicesRequest,
             DataSourceRequestInfo,
-            SecurityConfigChange {
+        SecurityConfigChangeRequest {
         private static final ParseField DATA_SOURCE = new ParseField("data_source");
         private static final ParseField RESOURCE = new ParseField("resource");
         private static final ParseField DESCRIPTION = new ParseField("description");
@@ -265,9 +264,10 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        public SecurityConfigChangeData securityConfigChangeData() {
+        public Map<String, Object> auditFields() {
             var fields = new HashMap<String, Object>();
-            fields.put("dataSource", dataSource);
+            fields.put("name", name);
+            fields.put("data_source", dataSource);
             fields.put("resource", ExternalFailures.redactHttpUrl(resource));
             if (description != null) {
                 fields.put("description", description);
@@ -281,7 +281,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
                     }
                 }
             }
-            return new SecurityConfigChangeData(SecurityConfigChangeData.Operation.PUT, "dataset", name, fields);
+            return fields;
         }
 
         @Override

@@ -206,7 +206,7 @@ public class AuditIT extends ESRestTestCase {
                 datasetName,
                 "resource",
                 "s3://example-bucket/cloudtrail/*.parquet",
-                "dataSource",
+                "data_source",
                 dataSourceName,
                 "settings.region",
                 "us-east-1"
@@ -396,7 +396,7 @@ public class AuditIT extends ESRestTestCase {
                 datasetName,
                 "resource",
                 "s3://example-bucket/cloudtrail/*.parquet",
-                "dataSource",
+                "data_source",
                 dataSourceName,
                 "settings.secret_key",
                 "::es_redacted::"
@@ -437,7 +437,7 @@ public class AuditIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
         assertPutDataset(
             datasetName,
-            Map.of("name", datasetName, "resource", "https://" + hostAndPath, "dataSource", dataSourceName),
+            Map.of("name", datasetName, "resource", "https://" + hostAndPath, "data_source", dataSourceName),
             start
         );
     }
@@ -505,6 +505,7 @@ public class AuditIT extends ESRestTestCase {
                 assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
                 assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "transport"));
                 assertThat(event, hasEntry(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, "rest"));
+                assertThat(event, hasEntry("data_sources", List.of(dataSourceName)));
             }
         }, 5, TimeUnit.SECONDS);
     }

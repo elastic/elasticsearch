@@ -44,6 +44,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -108,8 +109,7 @@ import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
 import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.audit.AuditSubject;
-import org.elasticsearch.xpack.core.security.audit.SecurityConfigChange;
-import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeData;
+import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -140,7 +140,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -900,8 +899,45 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof final UpdateCrossClusterApiKeyRequest updateCrossClusterApiKeyRequest) {
                     assert UpdateCrossClusterApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(updateCrossClusterApiKeyRequest).build();
-                } else if (msg instanceof SecurityConfigChange change) {
-                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withData(change.securityConfigChangeData()).build();
+                } else if (msg instanceof SecurityConfigChangeRequest change) {
+                    switch (action) {
+                        case EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME ->
+                            securityChangeLogEntryBuilder(requestId, authentication, ctx).withSecurityConfigChange(
+                                "put_data_source",
+                                PUT_CONFIG_FIELD_NAME,
+                                "data_source",
+                                change.auditFields()
+                            ).build();
+                        case EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME ->
+                            securityChangeLogEntryBuilder(requestId, authentication, ctx).withSecurityConfigChange(
+                                "delete_data_source",
+                                DELETE_CONFIG_FIELD_NAME,
+                                "data_source",
+                                change.auditFields()
+                            ).build();
+                        case EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME ->
+                            securityChangeLogEntryBuilder(requestId, authentication, ctx).withSecurityConfigChange(
+                                "put_dataset",
+                                PUT_CONFIG_FIELD_NAME,
+                                "dataset",
+                                change.auditFields()
+                            ).build();
+                        case EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME ->
+                            securityChangeLogEntryBuilder(requestId, authentication, ctx).withSecurityConfigChange(
+                                "delete_dataset",
+                                DELETE_CONFIG_FIELD_NAME,
+                                "dataset",
+                                change.auditFields()
+                            ).build();
+                        default ->
+                            throw new IllegalStateException(
+                                "Unknown action type ["
+                                    + msg.getClass().getSimpleName()
+                                    + "] for the \"security change\" action ["
+                                    + action
+                                    + "]"
+                            );
+                    }
                 } else {
                     throw new IllegalStateException(
                         "Unknown message class type ["
@@ -980,6 +1016,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
+            var dataSources = transportRequest instanceof DataSourceRequestInfo info ? info.dataSourceNames() : null;
+
             String realm = ApiKeyService.getCreatorRealmName(authentication);
             final var ctx = new AuditEventContext(
                 indices.orElse(null),
@@ -1006,6 +1044,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
+                    .with("data_sources", dataSources)
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
                     .with(authorizationInfo.asMap())
@@ -1455,26 +1494,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withData(SecurityConfigChangeData changeData) throws IOException {
-            logEntry.with(
-                EVENT_ACTION_FIELD_NAME,
-                changeData.operation().toString().toLowerCase(Locale.ROOT) + "_" + changeData.objectType()
-            );
+        LogEntryBuilder withSecurityConfigChange(String action, String operation, String objectType, Map<String, Object> auditFields)
+            throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, action);
 
             var builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.startObject().startObject(changeData.objectType());
-            if (changeData.name() != null) {
-                builder.field("name", changeData.name());
-            }
-            for (var entry : changeData.safeFields().entrySet()) {
+            builder.startObject().startObject(objectType);
+            for (var entry : auditFields.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject().endObject();
 
-            switch (changeData.operation()) {
-                case PUT -> logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
-                case DELETE -> logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
-            }
+            logEntry.with(operation, Strings.toString(builder));
             return this;
         }
 

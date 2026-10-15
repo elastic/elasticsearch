@@ -41,11 +41,11 @@ public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
         AuthorizationEngine authorizationEngine,
         AuthorizationInfo authorizationInfo
     ) {
-        var auditTrail = auditTrailService.get();
-
         if (requestInfo.getRequest() instanceof DataSourceRequestInfo dsi
             && EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(requestInfo.getAction())
             && dsi.dataSourceClusterActionName().equals(requestInfo.getAction()) == false) {
+            var auditTrail = auditTrailService.get();
+
             Role role = maybeGetRBACEngineRole(authorizationInfo);
             // Custom AuthorizationEngine implementations do not use RBAC Role; datasource policy is enforced there instead.
             if (role == null) {

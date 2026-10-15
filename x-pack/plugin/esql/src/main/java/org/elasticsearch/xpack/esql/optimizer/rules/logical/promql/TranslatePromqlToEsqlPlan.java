@@ -1248,7 +1248,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      * this one can come from another operand's metric. For a metric field {@code absent} therefore never stays true.
      */
     private static Expression selectedBy(AbsentOverTime absent, Expression time) {
-        if (absent.field() instanceof Attribute field && field.isMetric()) {
+        if (absent.field() instanceof Attribute field && field.resolved() && field.isMetric()) {
             return new Not(absent.source(), absent);
         }
         return new PresentOverTime(absent.source(), time, Literal.TRUE, absent.window());

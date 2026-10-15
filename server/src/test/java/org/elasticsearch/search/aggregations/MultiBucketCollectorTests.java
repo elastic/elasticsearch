@@ -10,9 +10,13 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -148,6 +152,41 @@ public class MultiBucketCollectorTests extends ESTestCase {
         public void postCollection() {}
     }
 
+    /**
+     * Counts documents it is given as a stream of doc IDs, and separately those it is given one at a time. Like a
+     * collector that reads a column a page at a time, it does better with a stream.
+     */
+    private static class StreamCountingBucketCollector extends BucketCollector {
+        int docs;
+        int oneAtATime;
+
+        @Override
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) {
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long bucket) {
+                    oneAtATime++;
+                }
+
+                @Override
+                public void collect(DocIdStream stream) throws IOException {
+                    docs += stream.count();
+                }
+            };
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE_NO_SCORES;
+        }
+
+        @Override
+        public void preCollection() {}
+
+        @Override
+        public void postCollection() {}
+    }
+
     public void testCollectionTerminatedExceptionHandling() throws IOException {
         final int iters = atLeast(3);
         for (int iter = 0; iter < iters; ++iter) {
@@ -226,6 +265,78 @@ public class MultiBucketCollectorTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Lucene gives a run of matching documents to a collector as a range, from a segment of a couple of thousand
+     * documents, and the range has to reach each collector wrapped here as it would reach one on its own.
+     */
+    public void testARangeReachesEveryCollector() throws IOException {
+        final int numDocs = randomIntBetween(3000, 6000);
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+                for (int i = 0; i < numDocs; i++) {
+                    writer.addDocument(new Document());
+                }
+                writer.forceMerge(1);
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                final TotalHitCountBucketCollector counter = new TotalHitCountBucketCollector();
+                final StreamCountingBucketCollector streams = new StreamCountingBucketCollector();
+                final List<BucketCollector> collectors = Arrays.asList(counter, streams);
+                Collections.shuffle(collectors, random());
+                new IndexSearcher(reader).search(
+                    Queries.ALL_DOCS_INSTANCE,
+                    MultiBucketCollector.wrap(randomBoolean(), collectors).asCollector()
+                );
+                assertThat(counter.getTotalHits(), equalTo(numDocs));
+                assertThat("the documents reached the second as a stream", streams.docs, equalTo(numDocs));
+                assertThat(streams.oneAtATime, equalTo(0));
+            }
+        }
+    }
+
+    /** A collector that terminates part way through a range stops there, and the others still get all of it. */
+    public void testCollectionTerminatedOverRanges() throws IOException {
+        final int numDocs = randomIntBetween(3000, 6000);
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+                for (int i = 0; i < numDocs; i++) {
+                    writer.addDocument(new Document());
+                }
+                writer.forceMerge(1);
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                final Map<TotalHitCountBucketCollector, Integer> expectedCounts = new HashMap<>();
+                final List<BucketCollector> collectors = new ArrayList<>();
+                final int numCollectors = randomIntBetween(2, 5);
+                for (int i = 0; i < numCollectors; ++i) {
+                    final int terminateAfter = random().nextInt(numDocs + 10);
+                    final TotalHitCountBucketCollector collector = new TotalHitCountBucketCollector();
+                    expectedCounts.put(collector, Math.min(terminateAfter, numDocs));
+                    collectors.add(new TerminateAfterBucketCollector(collector, terminateAfter));
+                }
+                new IndexSearcher(reader).search(Queries.ALL_DOCS_INSTANCE, MultiBucketCollector.wrap(true, collectors).asCollector());
+                for (Map.Entry<TotalHitCountBucketCollector, Integer> expected : expectedCounts.entrySet()) {
+                    assertEquals(expected.getValue().intValue(), expected.getKey().getTotalHits());
+                }
+            }
+        }
+    }
+
+    /**
+     * Two collectors that need scores share one, kept for the document being collected. A range does not set the
+     * document, so it is collected a document at a time, and the score is still computed once for each.
+     */
+    public void testCachedScoresAreKeptWhenARangeIsCollected() throws IOException {
+        final DummyScorable scorable = new DummyScorable();
+        final LeafBucketCollector leafBucketCollector = MultiBucketCollector.wrap(
+            randomBoolean(),
+            Arrays.asList(new ScoringBucketCollector(), new ScoringBucketCollector())
+        ).getLeafCollector(null);
+        leafBucketCollector.setScorer(scorable);
+        leafBucketCollector.collectRange(0, 10);
+        assertEquals(10, scorable.numScoreCalls);
     }
 
     public void testSetScorerAfterCollectionTerminated() throws IOException {

@@ -225,6 +225,35 @@ public class MultiBucketCollector extends BucketCollector {
             collectors[numCollectors] = null;
         }
 
+        /**
+         * Gives a run of matching documents to every collector as it is, so that one that can count them without
+         * visiting each, as a columnar terms aggregation does, still can. Lucene's {@code MultiCollector} does the same
+         * for a range, and does not for a stream of doc IDs, which can be consumed only once.
+         */
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            if (scorable != null) {
+                // The cached score belongs to the document being collected, which only collecting one at a time sets.
+                super.collectRange(min, max);
+                return;
+            }
+            final LeafBucketCollector[] collectors = this.collectors;
+            int numCollectors = this.numCollectors;
+            for (int i = 0; i < numCollectors;) {
+                final LeafBucketCollector collector = collectors[i];
+                try {
+                    collector.collectRange(min, max);
+                    ++i;
+                } catch (CollectionTerminatedException e) {
+                    removeCollector(i);
+                    numCollectors = this.numCollectors;
+                    if (numCollectors == 0) {
+                        throw new CollectionTerminatedException();
+                    }
+                }
+            }
+        }
+
         @Override
         public void collect(int doc, long bucket) throws IOException {
             if (scorable != null) {

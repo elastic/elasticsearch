@@ -104,7 +104,6 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature GENERIC_VECTOR_FORMAT = new NodeFeature("mapper.vectors.generic_vector_format");
     public static final NodeFeature FIX_DENSE_VECTOR_WRONG_FIELDS = new NodeFeature("mapper.fix_dense_vector_wrong_fields");
     public static final NodeFeature BBQ_DISK_STATS_SUPPORT = new NodeFeature("mapper.bbq_disk_stats_support");
-    public static final NodeFeature BBQ_DISK_UPDATABLE_AUTO_CALIBRATE = new NodeFeature("mapper.vectors.bbq_disk_updatable_auto_calibrate");
     public static final NodeFeature SKIPPERS_ON_UNINDEXED_FIELDS = new NodeFeature("mapper.skippers_on_unindexed_fields");
     public static final NodeFeature STORED_FIELDS_SPEC_MERGE_BUG = new NodeFeature("mapper.stored_fields_spec_merge_bug");
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_TYPE = new NodeFeature("mapper.exponential_histogram_type");
@@ -186,6 +185,9 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature DENSE_VECTOR_UNIFIED_VALUE_FORMATS = new NodeFeature("mapper.dense_vector.unified_value_formats");
     public static final NodeFeature FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY = new NodeFeature(
         "mapper.fix_sorted_numeric_with_offsets_empty_array"
+    );
+    public static final NodeFeature BBQ_DISK_UPDATABLE_AUTO_CALIBRATE = new NodeFeature(
+        "mapper.dense_vector.bbq_disk.updatable_auto_calibrate"
     );
 
     @Override

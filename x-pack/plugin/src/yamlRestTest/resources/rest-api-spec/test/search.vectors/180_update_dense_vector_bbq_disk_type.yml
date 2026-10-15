@@ -105,7 +105,7 @@
 ---
 "Update auto_calibrate on bbq_disk with indexing in between":
   - requires:
-      cluster_features: "mapper.vectors.bbq_disk_updatable_auto_calibrate"
+      cluster_features: "mapper.dense_vector.bbq_disk.updatable_auto_calibrate"
       reason: 'auto_calibrate became an updatable index option'
 
   - do:

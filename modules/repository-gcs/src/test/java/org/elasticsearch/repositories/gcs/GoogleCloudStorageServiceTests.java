@@ -53,8 +53,8 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
     public void testClientInitializer() throws Exception {
         final String clientName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        final TimeValue connectTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
-        final TimeValue readTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
+        final TimeValue connectTimeValue = TimeValue.timeValueNanos(rarely() ? 0 : randomIntBetween(1, 2000000));
+        final TimeValue readTimeValue = TimeValue.timeValueNanos(rarely() ? 0 : randomIntBetween(1, 2000000));
         final String applicationName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final String endpoint = randomFrom("http://", "https://")
             + randomFrom("www.elastic.co", "www.googleapis.com", "localhost/api", "google.com/oauth")
@@ -108,11 +108,11 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         assertThat(storage.getOptions().getRetrySettings().getMaxAttempts(), equalTo(maxRetries + 1));
         assertThat(
             ((HttpTransportOptions) storage.getOptions().getTransportOptions()).getConnectTimeout(),
-            Matchers.is((int) connectTimeValue.millis())
+            Matchers.is(GoogleCloudStorageService.toTimeout(connectTimeValue))
         );
         assertThat(
             ((HttpTransportOptions) storage.getOptions().getTransportOptions()).getReadTimeout(),
-            Matchers.is((int) readTimeValue.millis())
+            Matchers.is(GoogleCloudStorageService.toTimeout(readTimeValue))
         );
         assertThat(proxy.get().toString(), equalTo("HTTP @ /192.168.52.15:8080"));
     }

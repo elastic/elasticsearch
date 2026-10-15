@@ -188,7 +188,7 @@ setup:
           path: /_query
           parameters: []
           capabilities: [ optional_fields_load_all_single_source_column ]
-      reason: "Naming a subfield of a flattened field must fail under unmapped_fields=load_all too"
+      reason: "unmapped_fields=\"load_all\" is only supported once this capability exists"
   - do:
       catch: bad_request
       esql.query:
@@ -209,7 +209,7 @@ setup:
           path: /_query
           parameters: []
           capabilities: [ optional_fields_load_all_single_source_column ]
-      reason: "Naming a deeper subfield of a flattened field must fail under unmapped_fields=load_all too"
+      reason: "unmapped_fields=\"load_all\" is only supported once this capability exists"
   - do:
       catch: bad_request
       esql.query:
@@ -230,7 +230,7 @@ setup:
           path: /_query
           parameters: []
           capabilities: [ optional_fields_load_all_single_source_column ]
-      reason: "Filtering on a subfield of a flattened field must fail under unmapped_fields=load_all too"
+      reason: "unmapped_fields=\"load_all\" is only supported once this capability exists"
   - do:
       catch: bad_request
       esql.query:
@@ -251,7 +251,7 @@ setup:
           path: /_query
           parameters: []
           capabilities: [ optional_fields_load_all_single_source_column ]
-      reason: "A flattened subfield is rejected even where another index maps the parent as keyword, under load_all"
+      reason: "unmapped_fields=\"load_all\" is only supported once this capability exists"
   - do:
       catch: bad_request
       esql.query:
@@ -274,7 +274,7 @@ setup:
           path: /_query
           parameters: []
           capabilities: [ optional_fields_load_all_single_source_column ]
-      reason: "A flattened subfield named in WHERE is rejected across indices under load_all"
+      reason: "unmapped_fields=\"load_all\" is only supported once this capability exists"
   - do:
       catch: bad_request
       esql.query:
@@ -295,7 +295,7 @@ setup:
           path: /_query
           parameters: []
           capabilities: [ optional_fields_load_all_single_source_column ]
-      reason: "Both the flattened field and its subfield are rejected across indices under load_all"
+      reason: "unmapped_fields=\"load_all\" is only supported once this capability exists"
   - do:
       catch: bad_request
       esql.query:
@@ -318,7 +318,7 @@ setup:
           path: /_query
           parameters: []
           capabilities: [ optional_fields_load_all_single_source_column ]
-      reason: "A quoted wildcard subfield of a flattened field is rejected under load_all"
+      reason: "unmapped_fields=\"load_all\" is only supported once this capability exists"
   - do:
       catch: bad_request
       esql.query:
@@ -338,7 +338,7 @@ setup:
           path: /_query
           parameters: []
           capabilities: [ optional_fields_load_all_single_source_column ]
-      reason: "Many-dotted and wildcard subfields of flattened fields are all rejected under load_all"
+      reason: "unmapped_fields=\"load_all\" is only supported once this capability exists"
   - do:
       catch: bad_request
       esql.query:

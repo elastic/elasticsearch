@@ -7,17 +7,9 @@ setup:
           path: /_query
           parameters: [ ]
           capabilities: [ optional_fields_load_all_single_source_column, flattened_datatype ]
-      reason: >
-        #158157 type-conflict case: a field is mapped as flattened in one index, as a different type in another, and
-        is unmapped in a third. Under LOAD_ALL the flattened and keyword legs disagree, so the field itself is an
-        unsupported type conflict that needs an explicit cast - consistent with LOAD. Its subfield, however, carries no
-        individual mapping anywhere (a flattened field's subkeys are values inside the flattened blob, not mapped
-        fields), so the shard-local walk treats bar.baz as a plain unmapped field and surfaces it from _source on every
-        shard whose document has it - including the shard that maps the parent as flattened. This is the actual
-        behaviour on main (#161644); #158157 originally envisioned a per-shard exclusion (hiding the subfield on the
-        flattened shard) that is not implemented. See https://github.com/elastic/elasticsearch/pull/162096 for the
-        open question of whether that exclusion should be added; if it is, the second test below must be updated.
+      reason: "unmapped_fields=\"load_all\" and the flattened type are only supported once these capabilities exist"
 
+  # #158157 type-conflict case: bar is flattened in tc_flat, keyword in tc_keyword and unmapped in tc_unmapped.
   # tc_flat maps bar as flattened, so bar.baz is a key of a flattened value there and is not an unmapped field.
   - do:
       indices.create:
@@ -106,13 +98,13 @@ teardown:
   - match: { values.2: [ "c", null ] }
 
 ---
-'a flattened subfield is surfaced from _source under load_all even where the parent is flattened':
+'a flattened subfield is not surfaced from _source under load_all on the shard where the parent is flattened':
   # The _unmapped_fields column is narrowed by the projection, so we project bar* (a wildcard - naming bar.baz
   # explicitly would be rejected on the shard that maps bar as flattened) alongside note* to request bar's subkeys.
-  # A flattened field's subkeys carry no individual mapping, so under LOAD_ALL bar.baz is treated as unmapped and
-  # surfaced from _source wherever the document has it: on tc_flat (even though bar is mapped as flattened there) and
-  # on tc_unmapped. It is absent on tc_keyword, whose document has no bar.baz. The parent bar is a flattened/keyword
-  # type conflict across the FROM, so it stays an unsupported column with null values.
+  # On the shard that maps bar as flattened, bar.baz is a key inside the flattened value rather than an unmapped
+  # field, so it is not surfaced there. It is surfaced from _source on tc_unmapped, where nothing maps bar. It is
+  # absent on tc_keyword, whose document has no bar.baz. The parent bar is a flattened/keyword type conflict across
+  # the FROM, so it stays an unsupported column with null values.
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -126,6 +118,6 @@ teardown:
   - match: { columns.1.original_types: [ "flattened", "keyword" ] }
   - match: { columns.2.name: "_unmapped_fields" }
   - match: { columns.2.type: "_source" }
-  - match: { values.0: [ "a", null, { note: "na", bar.baz: "fa" } ] }
+  - match: { values.0: [ "a", null, { note: "na" } ] }
   - match: { values.1: [ "b", null, { note: "nb" } ] }
   - match: { values.2: [ "c", null, { note: "nc", bar.baz: "uc" } ] }

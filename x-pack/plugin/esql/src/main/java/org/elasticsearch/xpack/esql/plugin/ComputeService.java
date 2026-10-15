@@ -212,6 +212,7 @@ public class ComputeService {
     private final ProjectResolver projectResolver;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
     private final DataNodeComputeHandler dataNodeComputeHandler;
+    private final StageScheduler stageScheduler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
     private final PlannerSettings.Holder plannerSettings;
@@ -271,6 +272,14 @@ public class ComputeService {
             exchangeService,
             searchExecutor,
             stageComputeHandler
+        );
+        this.stageScheduler = new StageScheduler(
+            this,
+            dataNodeComputeHandler,
+            exchangeService,
+            transportService,
+            clusterService,
+            searchExecutor
         );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
@@ -1450,6 +1459,31 @@ public class ComputeService {
             return;
         }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
+        if (StagedPlanner.hasShuffle(resolvedPlan)) {
+            if (exchangeSinkSupplier != null) {
+                throw new IllegalStateException("shuffle stages cannot run as a branch with an external exchange sink");
+            }
+            if (clusterService.state().getMinTransportVersion().supports(DataNodeRequest.ESQL_SHUFFLE_STAGE_WIRING) == false) {
+                throw new IllegalStateException(
+                    "shuffle stages require transport version [" + DataNodeRequest.ESQL_SHUFFLE_STAGE_WIRING + "]"
+                );
+            }
+            stageScheduler.execute(
+                sessionId,
+                rootTask,
+                flags,
+                resolvedPlan,
+                configuration,
+                foldContext,
+                execInfo,
+                profileQualifier,
+                exchangeSinkSupplier,
+                maxCollectedBytes,
+                planTimeProfile,
+                listener
+            );
+            return;
+        }
         final BoundedPageCollector pageCollector = new BoundedPageCollector(maxCollectedBytes);
         final List<Page> collectedPages = pageCollector.pages();
         listener = listener.delegateResponse((l, e) -> {
@@ -1796,7 +1830,7 @@ public class ComputeService {
     }
 
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
-    private static void updateShardCountForCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
+    static void updateShardCountForCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
         if (execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == ALWAYS) {
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(
@@ -1818,7 +1852,7 @@ public class ComputeService {
 
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries).
     // Merge leaves share one EsqlExecutionInfo; only the root (or a standalone plan) should stop query timers.
-    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo, boolean finalizeQuery) {
+    static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo, boolean finalizeQuery) {
         if (finalizeQuery) {
             execInfo.markEndQuery();
         }
@@ -2480,7 +2514,7 @@ public class ComputeService {
         }
     }
 
-    private static Map<String, OriginalIndices> getIndices(PhysicalPlan plan, Function<EsRelation, Map<String, List<String>>> getter) {
+    static Map<String, OriginalIndices> getIndices(PhysicalPlan plan, Function<EsRelation, Map<String, List<String>>> getter) {
         var holder = new Holder<Map<String, OriginalIndices>>();
         PlannerUtils.forEachRelation(plan, esRelation -> {
             holder.set(Maps.transformValues(getter.apply(esRelation), v -> {

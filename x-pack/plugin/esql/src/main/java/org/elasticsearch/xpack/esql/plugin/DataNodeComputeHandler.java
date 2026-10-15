@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -128,6 +129,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         this.threadPool = transportService.getThreadPool();
         this.federationAvailable = Federation.isAvailable(clusterService.getSettings());
         transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
+    }
+
+    record NodeShards(List<DataNodeRequest.Shard> shards, Map<Index, AliasFilter> aliasFilters) {
+        NodeShards {
+            shards = List.copyOf(shards);
+            aliasFilters = Map.copyOf(aliasFilters);
+        }
     }
 
     void startComputeOnDataNodes(
@@ -291,6 +299,74 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             runOnTaskFailure,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );
+    }
+
+    void resolveShardsStatically(
+        CancellableTask task,
+        EsqlFlags flags,
+        Configuration configuration,
+        PhysicalPlan fragmentPlan,
+        Set<String> concreteIndices,
+        OriginalIndices originalIndices,
+        boolean lookupScan,
+        ActionListener<Map<DiscoveryNode, NodeShards>> listener
+    ) {
+        DataNodeRequestSender sender = new DataNodeRequestSender(
+            clusterService,
+            projectResolver,
+            transportService,
+            searchExecutor,
+            task,
+            originalIndices,
+            lookupScan
+                ? null
+                : PlannerUtils.canMatchFilter(flags, configuration, clusterService.state().getMinTransportVersion(), fragmentPlan),
+            PlannerUtils.sliceSelection(fragmentPlan),
+            ComputeService.LOCAL_CLUSTER,
+            false,
+            -1,
+            configuration.pragmas().unavailableShardResolutionAttempts()
+        ) {
+            @Override
+            void sendRequest(
+                DiscoveryNode node,
+                List<DataNodeRequest.Shard> shards,
+                Map<Index, AliasFilter> aliasFilters,
+                NodeListener nodeListener
+            ) {
+                throw new UnsupportedOperationException("static shard resolution does not dispatch compute requests");
+            }
+        };
+        try {
+            sender.searchShards(concreteIndices, ActionListener.wrap(targetShards -> {
+                Map<DiscoveryNode, List<DataNodeRequest.Shard>> shardsByNode = new LinkedHashMap<>();
+                Map<DiscoveryNode, Map<Index, AliasFilter>> filtersByNode = new LinkedHashMap<>();
+                for (DataNodeRequestSender.TargetShard targetShard : targetShards.shards().values()) {
+                    if (targetShard.remainingNodes().isEmpty()) {
+                        listener.onFailure(new IllegalStateException("no allocated nodes for shard [" + targetShard.shardId() + "]"));
+                        return;
+                    }
+                    DiscoveryNode node = targetShard.remainingNodes().getFirst();
+                    if (node == null) {
+                        listener.onFailure(new IllegalStateException("no allocated node for shard [" + targetShard.shardId() + "]"));
+                        return;
+                    }
+                    shardsByNode.computeIfAbsent(node, ignored -> new ArrayList<>())
+                        .add(new DataNodeRequest.Shard(targetShard.shardId(), targetShard.splitShardCountSummary()));
+                    if (targetShard.aliasFilter() != null) {
+                        filtersByNode.computeIfAbsent(node, ignored -> new LinkedHashMap<>())
+                            .put(targetShard.shardId().getIndex(), targetShard.aliasFilter());
+                    }
+                }
+                Map<DiscoveryNode, NodeShards> result = new LinkedHashMap<>();
+                for (Map.Entry<DiscoveryNode, List<DataNodeRequest.Shard>> entry : shardsByNode.entrySet()) {
+                    result.put(entry.getKey(), new NodeShards(entry.getValue(), filtersByNode.getOrDefault(entry.getKey(), Map.of())));
+                }
+                listener.onResponse(Map.copyOf(result));
+            }, listener::onFailure));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     void startExternalComputeOnDataNodes(

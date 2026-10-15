@@ -80,7 +80,8 @@ public class DataNodeComputeHandlerTests extends ESTestCase {
             mock(SearchService.class),
             transportService,
             exchangeService,
-            directExecutor
+            directExecutor,
+            new StageComputeHandler(computeService, exchangeService, transportService, clusterService, directExecutor)
         );
 
         DataNodeRequest request = malformedRemoteFetchRequest("session-a");

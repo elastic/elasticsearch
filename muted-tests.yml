@@ -531,3 +531,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
   method: testMultilineFieldsTrueReadsPlainPrefixThenQuotedMultilineCsv
   issue: https://github.com/elastic/elasticsearch/issues/162221
+- class: org.elasticsearch.columnar.PayloadColumnMergeTests
+  method: testMergeCarriesRepeatsOverWithoutComparing
+  issue: https://github.com/elastic/elasticsearch/issues/162235

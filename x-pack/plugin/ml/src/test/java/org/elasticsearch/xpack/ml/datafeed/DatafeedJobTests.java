@@ -30,6 +30,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -50,7 +51,6 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
@@ -77,6 +77,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -85,7 +86,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -209,6 +209,77 @@ public class DatafeedJobTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(0L, 1500L);
         verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
+    }
+
+    public void testStopAfterExtractionShouldRetainCursorForNextWindow() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            DataExtractor.Result result = new DataExtractor.Result(new SearchInterval(0L, 1000L), Optional.empty(), List.of());
+            datafeedJob.stop();
+            return result;
+        }).when(dataExtractor).next();
+
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(dataExtractor).cancel();
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        assertNull(datafeedJob.lastEndTimeMs());
+
+        currentTime = 3000L;
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        ArgumentCaptor<Long> startTimeCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(dataExtractorFactory, times(2)).newExtractor(startTimeCaptor.capture(), anyLong());
+        assertThat(startTimeCaptor.getAllValues(), equalTo(List.of(0L, 0L)));
+    }
+
+    public void testIsolateDuringActiveExtractionCancelsExtractorExactlyOnce() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            datafeedJob.isolate();
+            return new DataExtractor.Result(new SearchInterval(0L, 1000L), Optional.empty(), List.of());
+        }).when(dataExtractor).next();
+
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        verify(dataExtractor, times(1)).cancel();
+        verify(dataExtractor, times(1)).next();
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
+    public void testTaskCancelledWhileRunningShouldRaiseExtractionProblem() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        when(dataExtractor.isCancelled()).thenReturn(false);
+        doThrow(new TaskCancelledException("cancelled")).when(dataExtractor).next();
+
+        expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        assertNull(datafeedJob.lastEndTimeMs());
+    }
+
+    public void testCancellationExceptionWhileRunningShouldRaiseExtractionProblem() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        when(dataExtractor.isCancelled()).thenReturn(false);
+        doThrow(new CancellationException()).when(dataExtractor).next();
+
+        expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        assertNull(datafeedJob.lastEndTimeMs());
+    }
+
+    public void testStopBeforeExtractorThrowsShouldReturnQuietly() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            datafeedJob.stop();
+            throw new TaskCancelledException("cancelled");
+        }).when(dataExtractor).next();
+
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        verify(dataExtractor).cancel();
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
     }
 
     public void testLookBackRunWithNoEndTime() throws Exception {
@@ -1103,6 +1174,17 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(warningCaptor.getValue(), containsString("flapping"));
     }
 
+    public void testRealtimeWhenEndEqualsStartShouldNotExtractOrFlush() throws Exception {
+        long hourMs = TimeValue.timeValueHours(1).millis();
+        currentTime = hourMs + TimeValue.timeValueMinutes(30).millis();
+        DatafeedJob datafeedJob = createDatafeedJob(hourMs, 0L, hourMs - 1, -1, true, DELAYED_DATA_FREQ);
+
+        datafeedJob.runRealtime();
+
+        verify(dataExtractorFactory, never()).newExtractor(anyLong(), anyLong());
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
     public void testBaselineCycleDoesNotTriggerAnnotation() throws Exception {
         CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
 
@@ -1187,127 +1269,6 @@ public class DatafeedJobTests extends ESTestCase {
         expectedRequest.setContent(new BytesArray(contentBytes), XContentType.JSON);
         when(client.execute(same(PostDataAction.INSTANCE), eq(expectedRequest))).thenReturn(postDataFuture);
         when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
-    }
-
-    public void testEsqlRealtimeAdvanceTimeShouldNotExceedGroupingAlignedExtractionEnd() throws Exception {
-        long groupingIntervalMs = TimeValue.timeValueHours(1).millis();
-        long frequencyMs = TimeValue.timeValueMinutes(1).millis();
-        long queryDelayMs = 0L;
-        currentTime = groupingIntervalMs + frequencyMs * 23;
-        when(dataExtractor.hasNext()).thenReturn(false);
-        when(dataExtractor.getEndTime()).thenReturn(Intervals.alignToFloor(currentTime, groupingIntervalMs));
-        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
-        when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
-
-        DatafeedJob datafeedJob = createEsqlDatafeedJob(frequencyMs, queryDelayMs, groupingIntervalMs, -1);
-        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
-
-        long frequencyAlignedEnd = (currentTime / frequencyMs) * frequencyMs;
-        long expectedAdvanceTime = Intervals.alignToFloor(frequencyAlignedEnd, groupingIntervalMs);
-        assertThat(flushJobRequests.getValue().getAdvanceTime(), equalTo(String.valueOf(expectedAdvanceTime)));
-        assertThat(expectedAdvanceTime, lessThan(frequencyAlignedEnd));
-    }
-
-    public void testEsqlLookbackFromUnalignedStartShouldSkipToBucketStartContainingIt() throws Exception {
-        long hour = TimeValue.timeValueHours(1).millis();
-        long unalignedStart = 9 * hour + 14 * 60_000L + 53_000L;
-        when(dataExtractor.hasNext()).thenReturn(false);
-        when(dataExtractor.getEndTime()).thenReturn(12 * hour);
-        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(9 * hour)));
-        when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
-
-        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, hour);
-        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(unalignedStart, 12 * hour));
-
-        assertThat(flushJobRequests.getAllValues().get(0).getSkipTime(), equalTo(String.valueOf(9 * hour)));
-        verify(dataExtractorFactory).newExtractor(9 * hour, 12 * hour);
-    }
-
-    public void testEsqlRealtimeWithFrequencyShorterThanGroupingIntervalShouldNotReportNoData() throws Exception {
-        long groupingIntervalMs = TimeValue.timeValueHours(2).millis();
-        long frequencyMs = TimeValue.timeValueMinutes(10).millis();
-        when(dataExtractor.hasNext()).thenReturn(false);
-        when(dataExtractor.getEndTime()).thenAnswer(invocation -> Intervals.alignToFloor(currentTime, groupingIntervalMs));
-
-        DatafeedJob datafeedJob = createEsqlDatafeedJob(frequencyMs, 0L, groupingIntervalMs, groupingIntervalMs);
-        ProblemTracker problemTracker = new ProblemTracker(auditor, jobId, datafeedJob.numberOfSearchesIn24Hours());
-
-        int skippedCycles = 0;
-        int emptyCycles = 0;
-        for (int cycle = 1; cycle <= 12; cycle++) {
-            currentTime = groupingIntervalMs + cycle * frequencyMs;
-            try {
-                datafeedJob.runRealtime();
-                problemTracker.reportNonEmptyDataCount();
-            } catch (DatafeedJob.EmptyDataCountException e) {
-                emptyCycles++;
-                problemTracker.reportEmptyDataCount();
-            } catch (DatafeedJob.NoCompleteBucketException e) {
-                skippedCycles++;
-            }
-        }
-
-        verify(auditor, never()).warning(eq(jobId), any());
-        assertThat(skippedCycles, equalTo(11));
-        assertThat(emptyCycles, equalTo(1));
-        verify(dataExtractorFactory, times(1)).newExtractor(anyLong(), anyLong());
-        verify(client, times(1)).execute(same(FlushJobAction.INSTANCE), any());
-    }
-
-    public void testEsqlRealtimeShouldExtractOnFirstCycleAfterGroupingIntervalCompletes() throws Exception {
-        long groupingIntervalMs = TimeValue.timeValueHours(2).millis();
-        long frequencyMs = TimeValue.timeValueMinutes(10).millis();
-        when(dataExtractor.getEndTime()).thenReturn(2 * groupingIntervalMs);
-
-        DatafeedJob datafeedJob = createEsqlDatafeedJob(frequencyMs, 0L, groupingIntervalMs, groupingIntervalMs);
-
-        currentTime = 2 * groupingIntervalMs - frequencyMs;
-        expectThrows(DatafeedJob.NoCompleteBucketException.class, datafeedJob::runRealtime);
-        verify(dataExtractorFactory, never()).newExtractor(anyLong(), anyLong());
-        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
-
-        currentTime = 2 * groupingIntervalMs;
-        datafeedJob.runRealtime();
-
-        verify(dataExtractorFactory).newExtractor(groupingIntervalMs, 2 * groupingIntervalMs);
-        assertThat(flushJobRequests.getValue().getAdvanceTime(), equalTo(String.valueOf(2 * groupingIntervalMs)));
-    }
-
-    public void testEsqlLookbackWithoutCompleteGroupingIntervalShouldStillReportEmptyData() throws Exception {
-        long groupingIntervalMs = TimeValue.timeValueHours(2).millis();
-        when(dataExtractor.hasNext()).thenReturn(false);
-        when(dataExtractor.getEndTime()).thenReturn(groupingIntervalMs);
-        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
-
-        DatafeedJob lookbackOnlyJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, -1);
-        expectThrows(
-            DatafeedJob.EmptyDataCountException.class,
-            () -> lookbackOnlyJob.runLookBack(groupingIntervalMs, groupingIntervalMs + 3_600_000L)
-        );
-
-        currentTime = groupingIntervalMs + 3_600_000L;
-        DatafeedJob continuousLookbackJob = createEsqlDatafeedJob(60_000L, 0L, groupingIntervalMs, -1);
-        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> continuousLookbackJob.runLookBack(groupingIntervalMs, null));
-
-        verify(client, times(2)).execute(same(FlushJobAction.INSTANCE), any());
-    }
-
-    private DatafeedJob createEsqlDatafeedJob(long frequencyMs, long queryDelayMs, long groupingIntervalMs, long latestRecordTimeMs) {
-        return createDatafeedJob(
-            frequencyMs,
-            queryDelayMs,
-            -1,
-            latestRecordTimeMs,
-            true,
-            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
-            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
-            "datafeed-" + jobId,
-            null,
-            null,
-            true,
-            groupingIntervalMs,
-            7_200_000L
-        );
     }
 
     private DatafeedJob createDatafeedJob(
@@ -1431,38 +1392,6 @@ public class DatafeedJobTests extends ESTestCase {
         String projectRouting,
         String cloudCredentialId
     ) {
-        return createDatafeedJob(
-            frequencyMs,
-            queryDelayMs,
-            latestFinalBucketEndTimeMs,
-            latestRecordTimeMs,
-            haveSeenDataPreviously,
-            delayedDataFreq,
-            crossClusterSearchStats,
-            datafeedId,
-            projectRouting,
-            cloudCredentialId,
-            false,
-            0L,
-            7_200_000L
-        );
-    }
-
-    private DatafeedJob createDatafeedJob(
-        long frequencyMs,
-        long queryDelayMs,
-        long latestFinalBucketEndTimeMs,
-        long latestRecordTimeMs,
-        boolean haveSeenDataPreviously,
-        long delayedDataFreq,
-        CrossClusterSearchStats crossClusterSearchStats,
-        String datafeedId,
-        String projectRouting,
-        String cloudCredentialId,
-        boolean isEsqlDatafeed,
-        long groupingIntervalMs,
-        long bucketSpanMs
-    ) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(
             datafeedId,
@@ -1484,10 +1413,7 @@ public class DatafeedJobTests extends ESTestCase {
             latestRecordTimeMs,
             haveSeenDataPreviously,
             delayedDataFreq,
-            bucketSpanMs,
-            isEsqlDatafeed,
-            crossClusterSearchStats,
-            groupingIntervalMs
+            crossClusterSearchStats
         );
     }
 

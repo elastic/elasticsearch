@@ -389,9 +389,6 @@ public class DatafeedRunner {
                             holder.stop("realtime_analysis_error", TimeValue.timeValueSeconds(20), e);
                             return;
                         }
-                    } catch (DatafeedJob.NoCompleteBucketException e) {
-                        doDatafeedRealtime(e.nextDelayInMsSinceEpoch, jobId, holder);
-                        return;
                     } catch (DatafeedJob.EmptyDataCountException e) {
                         int emptyDataCount = holder.problemTracker.reportEmptyDataCount();
                         if (e.haveEverSeenData == false && holder.shouldStopAfterEmptyData(emptyDataCount)) {

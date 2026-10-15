@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
@@ -86,9 +85,6 @@ class DatafeedJob {
     private final DelayedDataDetector delayedDataDetector;
     private final Integer maxEmptySearches;
     private final long delayedDataCheckFreq;
-    private final long bucketSpanMs;
-    private final boolean isEsqlDatafeed;
-    private final long groupingIntervalMs;
     private final CrossClusterSearchStats crossClusterSearchStats;
     private final DatafeedFieldConflictTracker fieldConflictTracker = new DatafeedFieldConflictTracker();
 
@@ -102,6 +98,8 @@ class DatafeedJob {
     private volatile boolean haveEverSeenData;
     private volatile long consecutiveDelayedDataBuckets;
     private volatile SearchInterval searchInterval;
+    @Nullable
+    private volatile DataExtractor activeDataExtractor;
 
     DatafeedJob(
         String datafeedId,
@@ -123,10 +121,7 @@ class DatafeedJob {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataCheckFreq,
-        long bucketSpanMs,
-        boolean isEsqlDatafeed,
-        CrossClusterSearchStats crossClusterSearchStats,
-        long groupingIntervalMs
+        CrossClusterSearchStats crossClusterSearchStats
     ) {
         this.datafeedId = datafeedId;
         this.projectRouting = projectRouting;
@@ -150,15 +145,13 @@ class DatafeedJob {
         }
         this.haveEverSeenData = haveSeenDataPreviously;
         this.delayedDataCheckFreq = delayedDataCheckFreq;
-        this.bucketSpanMs = bucketSpanMs;
-        this.isEsqlDatafeed = isEsqlDatafeed;
-        this.groupingIntervalMs = groupingIntervalMs;
         this.crossClusterSearchStats = Objects.requireNonNull(crossClusterSearchStats);
     }
 
     void isolate() {
         isIsolated = true;
         timingStatsReporter.disallowPersisting();
+        cancelActiveExtractor();
     }
 
     boolean isIsolated() {
@@ -241,7 +234,7 @@ class DatafeedJob {
             }
             // start time is after last checkpoint, thus we need to skip time
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
-            request.setSkipTime(String.valueOf(skipTimeFor(startTime)));
+            request.setSkipTime(String.valueOf(startTime));
             request.setRefreshRequired(false);
             FlushJobAction.Response flushResponse = flushJob(request);
             LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
@@ -250,40 +243,15 @@ class DatafeedJob {
         return startTime;
     }
 
-    private long skipTimeFor(long startTime) {
-        return isEsqlDatafeed && groupingIntervalMs > 0 ? Intervals.alignToFloor(startTime, groupingIntervalMs) : startTime;
-    }
-
-    private long realtimeAdvanceTime(long frequencyAlignedEnd) {
-        if (isEsqlDatafeed == false || groupingIntervalMs <= 0) {
-            return frequencyAlignedEnd;
-        }
-        return Intervals.alignToFloor(frequencyAlignedEnd, groupingIntervalMs);
-    }
-
-    private long realtimeWindowStart() {
-        if (lastEndTimeMs == null) {
-            return lookbackStartTimeMs;
-        }
-        long resumeFrom = lastEndTimeMs + 1;
-        if (isEsqlDatafeed && groupingIntervalMs > 0) {
-            resumeFrom = Intervals.alignToFloor(resumeFrom, groupingIntervalMs);
-        }
-        return Math.max(lookbackStartTimeMs, resumeFrom);
-    }
-
     long runRealtime() throws Exception {
-        long start = realtimeWindowStart();
+        long start = lastEndTimeMs == null ? lookbackStartTimeMs : Math.max(lookbackStartTimeMs, lastEndTimeMs + 1);
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
-        if (isEsqlDatafeed && groupingIntervalMs > 0 && realtimeAdvanceTime(end) <= start) {
-            throw new NoCompleteBucketException(nextRealtimeTimestamp());
-        }
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setWaitForNormalization(false);
         request.setRefreshRequired(false);
         request.setCalcInterim(true);
-        request.setAdvanceTime(String.valueOf(realtimeAdvanceTime(end)));
+        request.setAdvanceTime(String.valueOf(end));
         run(start, end, request);
         checkForMissingDataIfNecessary();
         return nextRealtimeTimestamp();
@@ -405,7 +373,11 @@ class DatafeedJob {
      *         otherwise <code>false</code> is returned
      */
     public boolean stop() {
-        return running.compareAndSet(true, false);
+        boolean stopped = running.compareAndSet(true, false);
+        if (stopped) {
+            cancelActiveExtractor();
+        }
+        return stopped;
     }
 
     public boolean isRunning() {
@@ -425,6 +397,7 @@ class DatafeedJob {
         long recordCount = 0;
         List<LinkedClusterState> linkedClusterStates = List.of();
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
+        activeDataExtractor = dataExtractor;
         try {
             while (dataExtractor.hasNext()) {
                 if ((isIsolated || isRunning() == false) && dataExtractor.isCancelled() == false) {
@@ -446,6 +419,20 @@ class DatafeedJob {
                         );
                     }
                 } catch (Exception e) {
+                    // stop() and isolate() flip state before cancel(); unrelated task cancellation is an extraction failure.
+                    if (dataExtractor.isCancelled() || isRunning() == false || isIsolated) {
+                        LOGGER.debug(
+                            () -> format(
+                                "[%s] extraction aborted (running=%s, isolated=%s, cancelled=%s)",
+                                jobId,
+                                isRunning(),
+                                isIsolated,
+                                dataExtractor.isCancelled()
+                            ),
+                            e
+                        );
+                        return;
+                    }
                     LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
                     // When extraction problems are encountered, we do not want to advance time.
                     // Instead, it is preferable to retry the given interval next time an extraction
@@ -530,7 +517,9 @@ class DatafeedJob {
                 }
             }
 
-            lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
+            if (isRunning() && isIsolated == false && dataExtractor.isCancelled() == false) {
+                lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
+            }
             LOGGER.debug(
                 "[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]",
                 jobId,
@@ -569,6 +558,15 @@ class DatafeedJob {
         } finally {
             // Ensure the extractor is always destroyed to clean up scroll contexts
             dataExtractor.destroy();
+            activeDataExtractor = null;
+        }
+    }
+
+    private void cancelActiveExtractor() {
+        // Single read: run()'s finally nulls this field from the datafeed thread while stop()/isolate() call in.
+        DataExtractor extractor = activeDataExtractor;
+        if (extractor != null) {
+            extractor.cancel();
         }
     }
 
@@ -859,15 +857,6 @@ class DatafeedJob {
         EmptyDataCountException(long nextDelayInMsSinceEpoch, boolean haveEverSeenData) {
             this.nextDelayInMsSinceEpoch = nextDelayInMsSinceEpoch;
             this.haveEverSeenData = haveEverSeenData;
-        }
-    }
-
-    static class NoCompleteBucketException extends RuntimeException {
-
-        final long nextDelayInMsSinceEpoch;
-
-        NoCompleteBucketException(long nextDelayInMsSinceEpoch) {
-            this.nextDelayInMsSinceEpoch = nextDelayInMsSinceEpoch;
         }
     }
 }

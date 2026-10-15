@@ -1504,7 +1504,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             return new ObservableSharedBlobCacheWarmingService(
@@ -1512,7 +1511,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider,
                 searchRecoveryTimeoutCalculationService
             );
         }
@@ -1629,17 +1627,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
-            super(
-                cacheService,
-                threadPool,
-                telemetryProvider,
-                clusterSettings,
-                warmingRatioProvider,
-                searchRecoveryTimeoutCalculationService
-            );
+            super(cacheService, threadPool, telemetryProvider, clusterSettings, searchRecoveryTimeoutCalculationService);
             this.threadPool = threadPool;
         }
 
@@ -1653,6 +1643,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         @Override
         public void warmCacheForSearchShardRecovery(
+            WarmingRatioProvider warmingRatioProvider,
             Supplier<ClusterState> clusterStateSupplier,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
@@ -1665,6 +1656,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 // warmingCompletedListeners before the original listener, so the object-store block callback
                 // registered via addWarmingCompletedListener fires before resumeRecoveryListener completes.
                 warmCache(
+                    warmingRatioProvider,
                     Type.SEARCH,
                     indexShard,
                     commit,
@@ -1682,6 +1674,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 );
             } else {
                 super.warmCacheForSearchShardRecovery(
+                    warmingRatioProvider,
                     clusterStateSupplier,
                     indexShard,
                     commit,
@@ -1762,6 +1755,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         @Override
         protected void warmCache(
+            WarmingRatioProvider warmingRatioProvider,
             Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
@@ -1779,7 +1773,16 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             for (Consumer<Type> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
                 beforeWarmingStartsListener.accept(type);
             }
-            super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, wrappedListener);
+            super.warmCache(
+                warmingRatioProvider,
+                type,
+                indexShard,
+                commit,
+                directory,
+                endTargetsToWarm,
+                preWarmForIdLookup,
+                wrappedListener
+            );
             var callback = warmCacheReturnedCallback;
             if (callback != null) {
                 callback.run();

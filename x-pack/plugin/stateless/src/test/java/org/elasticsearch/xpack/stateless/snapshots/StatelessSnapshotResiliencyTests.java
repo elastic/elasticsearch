@@ -112,6 +112,8 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSett
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
@@ -806,6 +808,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         private HollowShardsService hollowShardsService;
         private ReshardIndexService reshardIndexService;
         private SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
+        private WarmingRatioProviderFactory warmingRatioProviderFactory;
 
         public TestStatelessPlugin(Settings settings) {
             this.settings = settings;
@@ -858,7 +861,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 threadPool,
                 TelemetryProvider.NOOP,
                 clusterService.getClusterSettings(),
-                new DefaultWarmingRatioProviderFactory().create(clusterService.getClusterSettings()),
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
@@ -881,6 +883,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
                 @Override
                 protected void warmCache(
+                    WarmingRatioProvider warmingRatioProvider,
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
@@ -961,6 +964,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             if (hasMasterRole) {
                 return List.of(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
             }
+            warmingRatioProviderFactory = clusterSettings -> mock(WarmingRatioProvider.class);
             return List.of();
         }
 
@@ -1102,7 +1106,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         cacheWarmingService,
                         projectResolver,
                         bccHeaderReadExecutor,
-                        clusterService
+                        clusterService,
+                        warmingRatioProviderFactory
                     )
                 );
             }

@@ -164,12 +164,12 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             threadPool,
             telemetryProvider,
             clusterSettings,
-            new DefaultWarmingRatioProviderFactory().create(clusterSettings),
             new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, () -> Integer.MAX_VALUE)
         ) {
             @Override
             protected void warmCache(
-                SharedBlobCacheWarmingService.Type type,
+                WarmingRatioProvider warmingRatioProvider,
+                Type type,
                 IndexShard indexShard,
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
@@ -231,7 +231,15 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ClusterState state = clusterStateOneSearchReplica("idx", STARTED);
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().getFirst();
-            service.warmCacheForSearchShardRecovery(() -> state, mockIndexShard(self), null, null, null, resume);
+            service.warmCacheForSearchShardRecovery(
+                mock(WarmingRatioProvider.class),
+                () -> state,
+                mockIndexShard(self),
+                null,
+                null,
+                null,
+                resume
+            );
             // recovery is resumed
             assertTrue(resume.isDone());
             // make sure warming started running
@@ -289,6 +297,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = initializingSearchReplica(state, shardId);
             service.warmCacheForSearchShardRecovery(
+                mock(WarmingRatioProvider.class),
                 () -> state,
                 mockIndexShard(self),
                 null,
@@ -344,6 +353,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().getFirst();
             service.warmCacheForSearchShardRecovery(
+                mock(WarmingRatioProvider.class),
                 () -> state,
                 mockIndexShard(self),
                 null,
@@ -408,6 +418,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardRouting self = initializingSearchReplica(state, shardId);
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             service.warmCacheForSearchShardRecovery(
+                mock(WarmingRatioProvider.class),
                 () -> state,
                 mockIndexShard(self),
                 null,

@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
  * Default {@link WarmingRatioProviderFactory} when no SPI implementation is registered: uses
  * {@link DefaultWarmingRatioProviderFactory#SEARCH_RECOVERY_WARMING_RATIO_SETTING} (default 0 = no BCC warming by ratio).
  *
+ * The ratio is read once when the provider is created (once per search shard recovery), so it is stable for that recovery.
+ *
  * This is a temporary means until we define the warming ratio or search power properly for stateless
  */
 public class DefaultWarmingRatioProviderFactory implements WarmingRatioProviderFactory {
@@ -40,12 +42,10 @@ public class DefaultWarmingRatioProviderFactory implements WarmingRatioProviderF
 
     static final class DefaultWarmingRatioProvider implements WarmingRatioProvider {
 
-        private volatile double ratio;
+        private final double ratio;
 
         DefaultWarmingRatioProvider(ClusterSettings clusterSettings) {
-            if (clusterSettings.get(SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey()) != null) {
-                clusterSettings.initializeAndWatch(SEARCH_RECOVERY_WARMING_RATIO_SETTING, v -> this.ratio = v);
-            }
+            ratio = clusterSettings.get(SEARCH_RECOVERY_WARMING_RATIO_SETTING);
         }
 
         @Override

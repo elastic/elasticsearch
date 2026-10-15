@@ -46,7 +46,6 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
             threadPool,
             telemetryProvider,
             clusterSettings,
-            warmingRatioProvider,
             new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, () -> Integer.MAX_VALUE)
         ) {
             @Override
@@ -67,6 +66,7 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
      */
     public static void warmCache(
         SharedBlobCacheWarmingService warmingService,
+        WarmingRatioProvider warmingRatioProvider,
         SharedBlobCacheWarmingService.Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
@@ -75,6 +75,6 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
-        warmingService.warmCache(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, listener);
+        warmingService.warmCache(warmingRatioProvider, type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, listener);
     }
 }

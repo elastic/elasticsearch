@@ -252,21 +252,14 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
-            super(
-                cacheService,
-                threadPool,
-                TelemetryProvider.NOOP,
-                clusterSettings,
-                warmingRatioProvider,
-                searchRecoveryTimeoutCalculationService
-            );
+            super(cacheService, threadPool, TelemetryProvider.NOOP, clusterSettings, searchRecoveryTimeoutCalculationService);
         }
 
         @Override
         protected void warmCache(
+            WarmingRatioProvider warmingRatioProvider,
             Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,

@@ -507,6 +507,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             var indexShard = mockIndexShard(fakeNode);
             PlainActionFuture<Void> refillCacheCompletionListener = new PlainActionFuture<>();
             fakeNode.warmingService.warmCache(
+                mock(WarmingRatioProvider.class),
                 SEARCH,
                 indexShard,
                 lastCommit,
@@ -576,7 +577,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         threadPool,
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
-                        warmingRatioProvider,
                         searchRecoveryTimeoutCalculationService
                     );
                 }
@@ -1062,7 +1062,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 ) {
                     @Override
@@ -1185,7 +1184,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 ) {
                     @Override
@@ -1218,7 +1216,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             );
 
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            node.warmingService.warmCache(SEARCH, indexShard, commit, node.searchDirectory, null, false, future);
+            node.warmingService.warmCache(
+                mock(WarmingRatioProvider.class),
+                SEARCH,
+                indexShard,
+                commit,
+                node.searchDirectory,
+                null,
+                false,
+                future
+            );
 
             // All tasks are enqueued (captured) but none has run yet.
             assertThat("expect at least one warming task to be enqueued", capturedTasks.isEmpty(), is(false));
@@ -1399,6 +1406,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // re-populate cache and fill holes
             PlainActionFuture<Void> refillCacheCompletionListener = new PlainActionFuture<>();
             fakeNode.warmingService.warmCache(
+                mock(WarmingRatioProvider.class),
                 SEARCH,
                 indexShard,
                 frozenBcc.lastCompoundCommit(),
@@ -1475,6 +1483,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             node.warmingService.warmCache(
+                mock(WarmingRatioProvider.class),
                 INDEXING,
                 mockIndexShard(node),
                 commit,
@@ -1528,6 +1537,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 // Warm the cache and verify the range is fetched with minimization as expected
                 final PlainActionFuture<Void> future = new PlainActionFuture<>();
                 node.warmingService.warmCache(
+                    mock(WarmingRatioProvider.class),
                     randomFrom(Type.values()),
                     indexShard,
                     commit,
@@ -1592,6 +1602,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // Warm the cache and verify the range is fetched with minimization as expected
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             node.warmingService.warmCache(
+                mock(WarmingRatioProvider.class),
                 randomValueOtherThanMany(t -> t.skipsWarmingForRegion0Locations, () -> randomFrom(Type.values())),
                 indexShard,
                 commit,
@@ -1660,6 +1671,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // Warm the cache with INDEXING_EARLY or INDEXING type and preWarmForIdLookup=true
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             node.warmingService.warmCache(
+                mock(WarmingRatioProvider.class),
                 randomFrom(INDEXING_EARLY, INDEXING),
                 indexShard,
                 commit,
@@ -1907,6 +1919,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             PlainActionFuture<Void> warmFuture = new PlainActionFuture<>();
             // Force caching of entire BCC file to ensure we hit the memory limit of FillCacheMemoryPressure.
             fakeNode.warmingService.warmCache(
+                mock(WarmingRatioProvider.class),
                 SEARCH,
                 indexShard,
                 lastCommit,
@@ -2100,7 +2113,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         threadPool,
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
-                        warmingRatioProvider,
                         searchRecoveryTimeoutCalculationService
                     );
                 }
@@ -2296,7 +2308,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         threadPool,
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
-                        warmingRatioProvider,
                         searchRecoveryTimeoutCalculationService
                     ) {
                         // Capture tasks instead of submitting them so we control exactly when each starts.
@@ -2502,7 +2513,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
             // Offline warming is disabled in the node settings, so SEARCH warmCache runs only the ShardWarmer recovery prewarming, which
             // warms region 0 of every segment via maybeFetchRange (the call we capture).
-            fakeNode.warmingService.warmCache(SEARCH, indexShard, lastCommit, fakeNode.searchDirectory, null, false, warmListener);
+            fakeNode.warmingService.warmCache(
+                mock(WarmingRatioProvider.class),
+                SEARCH,
+                indexShard,
+                lastCommit,
+                fakeNode.searchDirectory,
+                null,
+                false,
+                warmListener
+            );
             safeGet(warmListener);
             assertWarmingDurationMetricRecorded(
                 recordingMeterRegistry,
@@ -2557,7 +2577,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider(recordingMeterRegistry),
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 );
             }
@@ -2642,7 +2661,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider(recordingMeterRegistry),
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 );
             }
@@ -2765,7 +2783,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         threadPool,
                         telemetryProvider(recordingMeterRegistry),
                         clusterSettings,
-                        warmingRatioProvider,
                         searchRecoveryTimeoutCalculationService
                     );
                 }
@@ -2963,6 +2980,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             IndexShard indexShard = mockIndexShard(fakeNode);
             var nonMergeWarmListener = SubscribableListener.<Void>newForked(
                 l -> warmingService.warmCache(
+                    mock(WarmingRatioProvider.class),
                     randomValueOtherThanMany(t -> t == Type.INDEXING_MERGE || t == SEARCH, () -> randomFrom(Type.values())),
                     indexShard,
                     lastCommit,
@@ -3103,7 +3121,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 ) {
                     @Override
@@ -3389,7 +3406,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 ) {
                     @Override
@@ -3506,7 +3522,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     threadPool,
                     telemetryProvider(recordingMeterRegistry),
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 );
             }

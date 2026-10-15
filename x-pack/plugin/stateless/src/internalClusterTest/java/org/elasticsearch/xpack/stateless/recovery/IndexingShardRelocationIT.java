@@ -1276,7 +1276,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             if (clusterSettings.get(ENABLED_WARMING)) {
@@ -1285,7 +1284,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     threadPool,
                     telemetryProvider,
                     clusterSettings,
-                    warmingRatioProvider,
                     searchRecoveryTimeoutCalculationService
                 );
             }
@@ -1294,11 +1292,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider,
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
                 protected void warmCache(
+                    WarmingRatioProvider warmingRatioProvider,
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
@@ -1311,7 +1309,16 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     // the number of written regions in cache after the shard is started we are sure no other regions are likely to be
                     // warmed afterward.
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, false, subscribableListener);
+                    super.warmCache(
+                        warmingRatioProvider,
+                        type,
+                        indexShard,
+                        commit,
+                        directory,
+                        endTargetsToWarm,
+                        false,
+                        subscribableListener
+                    );
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }

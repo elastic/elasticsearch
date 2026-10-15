@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,7 +32,10 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDataStreamOptionsAction extends BaseRestHandler {
 
-    private static final Set<String> CAPABILITIES = Set.of(RestGetDataStreamsAction.FAILURES_LIFECYCLE_API_CAPABILITY);
+    private static final Set<String> CAPABILITIES = Set.of(
+        RestGetDataStreamsAction.FAILURES_LIFECYCLE_API_CAPABILITY,
+        RestPutComponentTemplateAction.FAILURE_STORE_LIFECYCLE_REJECTS_FROZEN_AFTER
+    );
 
     @Override
     public String getName() {

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApi
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.Security;
 import org.junit.Assert;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
@@ -44,9 +45,8 @@ public class RestCreateCrossClusterApiKeyActionTests extends ESTestCase {
     private MockLicenseState licenseState;
     private RestCreateCrossClusterApiKeyAction action;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initAction() {
         licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE)).thenReturn(true);
         action = new RestCreateCrossClusterApiKeyAction(Settings.EMPTY, licenseState);

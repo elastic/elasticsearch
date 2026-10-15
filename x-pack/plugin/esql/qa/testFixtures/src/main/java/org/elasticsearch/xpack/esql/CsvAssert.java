@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Types;
@@ -201,6 +202,12 @@ public final class CsvAssert {
         }
     }
 
+    public static void assertApproximationApplied(String expected, Boolean actual) {
+        if (expected != null) {
+            assertEquals("Incorrect approximation_applied", expected, String.valueOf(actual));
+        }
+    }
+
     private record DataFailure(int row, int column, Object expected, Object actual) {}
 
     public static void assertData(
@@ -274,8 +281,9 @@ public final class CsvAssert {
                     }
                     return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
                 } else if (value instanceof String s) {
-                    if ("NaN".equals(s)) {
-                        return Double.NaN;
+                    Double nonFinite = nonFiniteDouble(s);
+                    if (nonFinite != null) {
+                        return nonFinite;
                     }
                     return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
                 }
@@ -286,8 +294,11 @@ public final class CsvAssert {
                 }
             }
             if (type == CsvTestUtils.Type.DOUBLE) {
-                if (value instanceof String s && "NaN".equals(s)) {
-                    return Double.NaN;
+                if (value instanceof String s) {
+                    Double nonFinite = nonFiniteDouble(s);
+                    if (nonFinite != null) {
+                        return nonFinite;
+                    }
                 }
                 return ((Number) value).doubleValue();
             }
@@ -298,6 +309,19 @@ public final class CsvAssert {
                 return ((Number) value).longValue();
             }
             return value.toString();
+        }
+
+        /**
+         * JSON has no representation for non-finite doubles, so REST responses serialize them as the
+         * strings {@code "NaN"}, {@code "Infinity"} and {@code "-Infinity"}; map those back to doubles.
+         */
+        private static Double nonFiniteDouble(String s) {
+            return switch (s) {
+                case "NaN" -> Double.NaN;
+                case "Infinity" -> Double.POSITIVE_INFINITY;
+                case "-Infinity" -> Double.NEGATIVE_INFINITY;
+                default -> null;
+            };
         }
 
         private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {
@@ -602,8 +626,13 @@ public final class CsvAssert {
                 LongRangeBlockBuilder.LongRange.class,
                 x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
             );
+            case DOUBLE_RANGE -> rebuildExpected(
+                expectedValue,
+                DoubleRangeBlockBuilder.DoubleRange.class,
+                x -> EsqlDataTypeConverter.doubleRangeToString((DoubleRangeBlockBuilder.DoubleRange) x)
+            );
             case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
-                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED -> expectedValue;
+                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED, SOURCE -> expectedValue;
         };
     }
 
@@ -624,7 +653,7 @@ public final class CsvAssert {
                 String.class,
                 x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
             );
-            case FLATTENED -> {
+            case FLATTENED, SOURCE -> {
                 if (actualValue instanceof List<?> list) {
                     // REST tests return List<Map> for multi-value flattened (e.g. from mv_append)
                     yield list.stream().map(CsvAssert::convertActualFlattenedValue).toList();
@@ -648,7 +677,8 @@ public final class CsvAssert {
                 throw new UncheckedIOException(e);
             }
         }
-        // CsvIT: value is already a JSON string from the block loader — compare directly
+        // A FLATTENED value under CsvIT is already a JSON string from the block loader, so compare it directly. A SOURCE value is always
+        // a Map and never reaches this point.
         return value;
     }
 

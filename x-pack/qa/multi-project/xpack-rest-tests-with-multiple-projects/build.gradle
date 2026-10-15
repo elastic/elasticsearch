@@ -25,6 +25,9 @@ tasks.named("yamlRestTest").configure {
   usesDefaultDistribution("to be triaged")
   ArrayList<String> blacklist = [
     /* These tests don't work on multi-project yet - we need to go through each of them and make them work */
+    // Writes to `.ai-index-*` reach ShardBulkInferenceActionFilter (semantic_text fields), which is not yet
+    // project-aware and throws MultiProjectPendingException before the mapper can reject the unmapped field.
+    '^ai-index/10_ai_index_templates/Elastic-managed AI index rejects unmapped fields',
     // These analytics tests work in MP mode, they just don't work with security enabled.
     '^analytics/boxplot/*',
     '^analytics/histogram/*',

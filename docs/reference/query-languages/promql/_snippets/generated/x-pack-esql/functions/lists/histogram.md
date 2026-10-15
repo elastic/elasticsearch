@@ -6,6 +6,9 @@
 :::{include} ../histogram_count.md
 :::
 
+:::{include} ../histogram_fraction.md
+:::
+
 :::{include} ../histogram_quantile.md
 :::
 

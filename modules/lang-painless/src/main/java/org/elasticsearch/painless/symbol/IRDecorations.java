@@ -347,6 +347,14 @@ public class IRDecorations {
         }
     }
 
+    /** marks a typed-capture reference ({@code def s = obj; s::method}, known target type) whose target should be charged */
+    public static class IRCChargeAllocation implements IRCondition {
+
+        private IRCChargeAllocation() {
+
+        }
+    }
+
     /** marks a def call that might resolve to a {@code @script_aware} augmentation so the script receiver is pushed */
     public static class IRCScriptAware implements IRCondition {
 
@@ -375,7 +383,19 @@ public class IRDecorations {
         }
     }
 
-    /** the resolved {@code @allocates_dynamic} estimator for a call or construction site; attached only when tracking is enabled */
+    /**
+     * describes a function whose return path records the execution's allocation total. Attached only when metrics are
+     * enabled; metrics also enable the counter on their own, so it joins {@link IRDMaxAllocationBytes} in the writer's
+     * "is tracking on" test.
+     */
+    public static class IRCRecordAllocationMetrics implements IRCondition {
+
+        private IRCRecordAllocationMetrics() {
+
+        }
+    }
+
+    /** the resolved {@code @allocates} estimator for a call/construction site; attached only when tracking is enabled */
     public static class IRDAllocationEstimator extends IRDecoration<Method> {
 
         public IRDAllocationEstimator(Method value) {
@@ -392,12 +412,13 @@ public class IRDecorations {
     }
 
     /**
-     * like {@link IRCInstanceCancellationCheck} but for static lambdas, which receive the script as a synthetic
-     * {@code #scriptThis} parameter
+     * marks a static lambda that receives the script as a synthetic leading {@code #scriptThis} parameter for allocation
+     * tracking. Cancellation never needs this: under cancellation every lambda is an instance lambda and polls through
+     * {@code this}.
      */
-    public static class IRCStaticCancellationCheck implements IRCondition {
+    public static class IRCStaticScriptCapture implements IRCondition {
 
-        private IRCStaticCancellationCheck() {
+        private IRCStaticScriptCapture() {
 
         }
     }

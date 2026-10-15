@@ -31,7 +31,7 @@ import org.elasticsearch.script.TemplateScript;
 
 import java.io.Reader;
 import java.io.StringReader;
-import java.io.StringWriter;
+import java.io.Writer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -143,7 +143,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
 
         @Override
         public String execute() {
-            StringWriter writer = new SizeLimitingStringWriter(sizeLimit);
+            Writer writer = new SizeLimitingStringWriter(sizeLimit);
             try {
                 template.execute(writer, params);
             } catch (Exception e) {

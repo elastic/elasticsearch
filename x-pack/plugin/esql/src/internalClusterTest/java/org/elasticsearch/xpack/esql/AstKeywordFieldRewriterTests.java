@@ -72,6 +72,16 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
         );
     }
 
+    /**
+     * Skips the calling test on release builds, where {@code FILLNULL} is unavailable.
+     */
+    private static void assumeFillNullSupported() {
+        assumeTrue(
+            "FILLNULL is a snapshot-only grammar feature (EsqlCapabilities.Cap.FILLNULL)",
+            EsqlCapabilities.Cap.FILLNULL.isEnabled()
+        );
+    }
+
     /** An empty resolved scope returns the original query with {@code modified == false}. */
     public void testEmptyInitialScopeReturnsUnmodifiedQuery() {
         String query = "FROM employees | KEEP first_name";
@@ -208,6 +218,49 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
         assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
     }
 
+    /**
+     * An in-scope {@code FILLNULL} target is hoisted into a preceding {@code EVAL} and then leaves scope.
+     */
+    public void testFillNullTargetHoistedBeforeCommand() {
+        assumeFillNullSupported();
+        RewriteResult result = rewrite("FROM employees | FILLNULL DEFAULT ON first_name | KEEP first_name", Set.of("first_name"));
+        assertTrue(result.modified());
+        // The hoist rebinds the field before the command; the FILLNULL target itself stays a bare attribute.
+        assertThat(
+            result.rewrittenQuery(),
+            containsString("EVAL first_name = field_extract(first_name, \"v\")\n| FILLNULL DEFAULT ON first_name")
+        );
+        assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
+    }
+
+    /**
+     * An in-scope field matched by a {@code FILLNULL} wildcard pattern target is hoisted into a preceding {@code EVAL}
+     * (the pattern itself is left untouched in the command), just like an explicit-name target.
+     */
+    public void testFillNullWildcardPatternTargetHoistedBeforeCommand() {
+        assumeFillNullSupported();
+        RewriteResult result = rewrite("FROM employees | FILLNULL DEFAULT ON first_* | KEEP first_name", Set.of("first_name"));
+        assertTrue(result.modified());
+        // The wildcard `first_*` matches the in-scope `first_name`, which is rebound before the command; the pattern stays.
+        assertThat(
+            result.rewrittenQuery(),
+            containsString("EVAL first_name = field_extract(first_name, \"v\")\n| FILLNULL DEFAULT ON first_*")
+        );
+        assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
+    }
+
+    /** The wildcard-target hoist behaves the same with an explicit fill value as with {@code DEFAULT}. */
+    public void testFillNullWildcardPatternTargetHoistedWithExplicitValue() {
+        assumeFillNullSupported();
+        RewriteResult result = rewrite("FROM employees | FILLNULL \"x\" ON first_* | KEEP first_name", Set.of("first_name"));
+        assertTrue(result.modified());
+        assertThat(
+            result.rewrittenQuery(),
+            containsString("EVAL first_name = field_extract(first_name, \"v\")\n| FILLNULL \"x\" ON first_*")
+        );
+        assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
+    }
+
     /** A bare in-scope {@code IN (subquery)} left-hand side is hoisted into an {@code EVAL} before the {@code WHERE}. */
     public void testInSubqueryLeftHandSideHoistedBeforeWhere() {
         assumeWhereInSubquerySupported();
@@ -218,8 +271,8 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
         assertTrue(result.modified());
         // The LHS is rebound to keyword by a hoisted EVAL, so the in-place IN reference stays a bare attribute.
         assertThat(result.rewrittenQuery(), containsString("EVAL first_name = field_extract(first_name, \"v\")\n| WHERE first_name IN ("));
-        // The subquery's projected column is recovered to keyword by a tail EVAL before its closing paren.
-        assertThat(result.rewrittenQuery(), containsString("KEEP first_name\n| EVAL first_name = field_extract(first_name, \"v\"))"));
+        // The subquery's projected column is recovered to keyword before KEEP so its column order is preserved.
+        assertThat(result.rewrittenQuery(), containsString("EVAL first_name = field_extract(first_name, \"v\")\n| KEEP first_name)"));
         assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
     }
 
@@ -237,7 +290,7 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
         );
         assertTrue(result.modified());
         // The subquery recovery uses "id" (its own scope), not the outer "first_name".
-        assertThat(result.rewrittenQuery(), containsString("KEEP id\n| EVAL id = field_extract(id, \"v\"))"));
+        assertThat(result.rewrittenQuery(), containsString("EVAL id = field_extract(id, \"v\")\n| KEEP id)"));
         assertThat(result.rewrittenFieldNames(), hasItem("id"));
         assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
     }
@@ -257,10 +310,15 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
         assertThat(result.skipEvents(), hasItem(new SkipEvent(SkipSite.LOOKUP_JOIN_ON, "language_code")));
     }
 
-    /** An in-scope left-hand side of the {@code :} match operator is recorded as a {@code MATCH_OPERATOR_LHS} skip. */
-    public void testMatchOperatorLeftHandSideRecordedAsSkipEvent() {
+    /**
+     * The left-hand side of the {@code :} match operator is a {@code primaryExpression}, so an in-scope
+     * reference there is wrapped in {@code field_extract(field, "v")} in place rather than skipped.
+     */
+    public void testMatchOperatorLeftHandSideIsWrapped() {
         RewriteResult result = rewrite("FROM employees | WHERE first_name : \"Georgi\" | STATS c = COUNT(*)", Set.of("first_name"));
-        assertThat(result.skipEvents(), hasItem(new SkipEvent(SkipSite.MATCH_OPERATOR_LHS, "first_name")));
+        assertTrue(result.modified());
+        assertThat(result.rewrittenQuery(), containsString("WHERE field_extract(first_name, \"v\") : \"Georgi\""));
+        assertThat(result.rewrittenFieldNames(), hasItem("first_name"));
     }
 
     /** A {@code FORK} field flattened in every branch survives into the post-fork scope (the intersection). */

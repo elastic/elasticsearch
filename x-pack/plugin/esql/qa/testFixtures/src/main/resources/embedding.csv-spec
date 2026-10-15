@@ -72,7 +72,12 @@ required_capability: knn_function_v5
 
 FROM dense_vector_text METADATA _score, _id
 | WHERE KNN(text_embedding_field, EMBEDDING("be excellent to each other", "test_embedding_inference")) OR KNN(text_embedding_field, EMBEDDING("live long and prosper", "test_embedding_inference"))
-| SORT _score DESC, _id
+// The two matching docs score near-identically (each is the exact match for one of the OR'd
+// KNN queries); their relative order is not bit-stable across score-math optimizations (e.g. FMA
+// contraction in native vs. Java scorers). Round the score to collapse that meaningless tie so the
+// _id tiebreaker deterministically decides it, while still asserting the matches outrank the unrelated doc.
+| EVAL rounded_score = ROUND(_score, 2)
+| SORT rounded_score DESC, _id
 | LIMIT 10
 | KEEP text_field
 ;

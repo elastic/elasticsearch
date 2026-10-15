@@ -39,7 +39,7 @@ public final class RestUpdateActionTests extends RestActionTestCase {
         action = new RestUpdateAction();
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(UpdateResponse.class));
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(UpdateResponse.class));
+        verifyingClient.setExecuteAndReturnTaskVerifier((actionType, request) -> Mockito.mock(UpdateResponse.class));
     }
 
     public void testUpdateDocVersion() {

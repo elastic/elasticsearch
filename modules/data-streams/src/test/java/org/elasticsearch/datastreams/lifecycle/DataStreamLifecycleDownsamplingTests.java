@@ -285,7 +285,7 @@ public class DataStreamLifecycleDownsamplingTests extends DataStreamLifecycleSer
         dataStreamLifecycleService.maybeExecuteDownsampling(projectState, dataStream, List.of(firstGenIndex), 0);
 
         assertThat(clientSeenRequests.size(), is(0));
-        ErrorEntry error = dataStreamLifecycleService.getErrorStore().getError(projectId, firstGenIndexName);
+        ErrorEntry error = dataStreamLifecycleService.getErrorStore().getError(projectId, firstGenIndex);
         assertThat(error, notNullValue());
         assertThat(error.error(), containsString("resource_already_exists_exception"));
     }

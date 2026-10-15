@@ -95,7 +95,7 @@ dependencies {
   api("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
     transitive = false
   }
-  compileOnly "junit:junit:${versions.junit}"
+  compileOnly "junit:junit:${versions.junit4}"
 
   def commonExcludes = [
     [group: "org.apache.commons", module: "commons-compress"],

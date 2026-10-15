@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.common.parser.DateParser;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInfe
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
@@ -124,19 +126,21 @@ public class ElasticInferenceServiceAuthorizationModel {
                 case SPARSE_EMBEDDING -> createSparseTextEmbeddingsModel(authorizedEndpoint, components, endpointMetadata);
                 case TEXT_EMBEDDING, EMBEDDING -> createDenseEmbeddingsModel(authorizedEndpoint, components, taskType, endpointMetadata);
                 case RERANK -> createRerankModel(authorizedEndpoint, components, endpointMetadata);
+                case DOCUMENT_EXTRACTION -> createDocumentExtractionModel(authorizedEndpoint, components, endpointMetadata);
                 default -> {
                     logger.info(UNSUPPORTED_TASK_TYPE_LOG_MESSAGE, authorizedEndpoint.id(), taskType);
                     yield null;
                 }
             };
         } catch (Exception e) {
-            logger.atWarn()
-                .withThrowable(e)
-                .log(
-                    "Failed to create model for authorized endpoint id [{}] with task type [{}], skipping",
+            logger.warn(
+                () -> Strings.format(
+                    "Failed to create model for authorized endpoint id [%s] with task type [%s], skipping",
                     authorizedEndpoint.id(),
                     authorizedEndpoint.taskType()
-                );
+                ),
+                e
+            );
             return null;
         }
     }
@@ -154,16 +158,22 @@ public class ElasticInferenceServiceAuthorizationModel {
     ) {
         try {
             return new EndpointMetadata(
+                Optional.ofNullable(authorizedEndpoint.modelIdentity()).orElse(EndpointMetadata.ModelIdentity.EMPTY_INSTANCE),
                 getHeuristics(authorizedEndpoint),
                 getInternalFields(authorizedEndpoint),
                 Optional.ofNullable(authorizedEndpoint.display()).orElse(EndpointMetadata.Display.EMPTY_INSTANCE),
                 authorizedEndpoint.regions(),
-                authorizedEndpoint.deniedByRegionPolicy()
+                authorizedEndpoint.deniedByRegionPolicy(),
+                Optional.ofNullable(authorizedEndpoint.capabilities()).orElse(EndpointMetadata.Capabilities.EMPTY_INSTANCE)
             );
         } catch (IllegalArgumentException e) {
-            logger.atWarn()
-                .withThrowable(e)
-                .log("Failed to parse endpoint metadata for authorized endpoint id [{}], skipping", authorizedEndpoint.id());
+            logger.warn(
+                () -> Strings.format(
+                    "Failed to parse endpoint metadata for authorized endpoint id [%s], skipping",
+                    authorizedEndpoint.id()
+                ),
+                e
+            );
             return null;
         }
     }
@@ -199,13 +209,12 @@ public class ElasticInferenceServiceAuthorizationModel {
         // This indicates that the cluster does not support reasoning yet (needs to finish upgrading). We'll skip this endpoint and let
         // a future poll retrieve it after upgrade is complete.
         if (taskSettings.isEmpty()) {
-            logger.atInfo()
-                .log(
-                    "Skipping authorized endpoint id [{}] with task type [{}] because reasoning is not supported by all nodes "
-                        + "in the cluster",
-                    authorizedEndpoint.id(),
-                    taskType
-                );
+            logger.info(
+                "Skipping authorized endpoint id [{}] with task type [{}] because reasoning is not supported by all nodes "
+                    + "in the cluster",
+                authorizedEndpoint.id(),
+                taskType
+            );
             return null;
         }
 
@@ -334,6 +343,20 @@ public class ElasticInferenceServiceAuthorizationModel {
             authorizedEndpoint.id(),
             TaskType.RERANK,
             new ElasticInferenceServiceRerankServiceSettings(authorizedEndpoint.modelName()),
+            components,
+            endpointMetadata
+        );
+    }
+
+    private static ElasticInferenceServiceDocumentExtractionModel createDocumentExtractionModel(
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
+        ElasticInferenceServiceComponents components,
+        EndpointMetadata endpointMetadata
+    ) {
+        return new ElasticInferenceServiceDocumentExtractionModel(
+            authorizedEndpoint.id(),
+            TaskType.DOCUMENT_EXTRACTION,
+            new ElasticInferenceServiceDocumentExtractionServiceSettings(authorizedEndpoint.modelName()),
             components,
             endpointMetadata
         );

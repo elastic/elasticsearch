@@ -16,7 +16,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.test.ESTestCase;
@@ -39,7 +39,7 @@ public class MissingValuesTests extends ESTestCase {
             }
             Arrays.sort(values[i]);
         }
-        SortedBinaryDocValues asBinaryValues = new SortedBinaryDocValues(null) {
+        SortableBinaryDocValues asBinaryValues = new SortableBinaryDocValues(null) {
 
             int doc = -1;
             int i;
@@ -62,7 +62,7 @@ public class MissingValuesTests extends ESTestCase {
             }
         };
         final BytesRef missing = new BytesRef(RandomStrings.randomAsciiOfLength(random(), 2));
-        SortedBinaryDocValues withMissingReplaced = MissingValues.replaceMissing(asBinaryValues, missing);
+        SortableBinaryDocValues withMissingReplaced = MissingValues.replaceMissing(asBinaryValues, missing);
         for (int i = 0; i < numDocs; ++i) {
             assertTrue(withMissingReplaced.advanceExact(i));
             if (values[i].length > 0) {

@@ -49,13 +49,13 @@ public class ExternalCsvMultiStripeFoldIT extends AbstractExternalDataSourceIT {
             // Smallest legal stripe grid (64kb floor): a ~12 MB file spans ~190 stripes AND multiple read
             // chunks -> the per-stripe fold across chunks is exercised instead of the whole-chunk shortcut.
             // NodeScope/restart-only, so it must be a static node setting, not a dynamic cluster update.
-            .put("esql.source.cache.stripe.size", "64kb")
+            .put("esql.external.cache.stripe.size", "64kb")
             .build();
     }
 
     @Override
     protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 1).build());
     }
 
     @Override

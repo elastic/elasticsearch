@@ -22,4 +22,8 @@ class MaxLongAggregator {
     public static long combine(long current, long v) {
         return Math.max(current, v);
     }
+
+    public static void combine(LongArrayState state, int groupId, long v) {
+        state.max(groupId, v);
+    }
 }

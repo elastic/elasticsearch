@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,9 +25,11 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
@@ -151,6 +154,35 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
         }));
         BlockLoader loader = mapper.fieldType("field").blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapper));
         assertSame(ConstantNull.INSTANCE, loader);
+    }
+
+    @Override
+    protected Tuple<Object, Object> randomInclusiveBounds() {
+        long from = randomLongBetween(0, DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
+        long to = randomLongBetween(from, DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
+        return Tuple.tuple(randomDateInput(from), randomDateInput(to));
+    }
+
+    private static Object randomDateInput(long millis) {
+        return randomBoolean() ? millis : DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss.SSS").format(Instant.ofEpochMilli(millis));
+    }
+
+    @Override
+    protected String randomFetchTestFormat() {
+        return randomBoolean() ? null : randomFrom("epoch_millis", "strict_date_optional_time");
+    }
+
+    public void testFetchFromDocValuesWithFormat() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        Map<String, Object> source = Map.of("gte", "2016-10-31", "lte", "2016-11-01 20:00:00.000");
+        assertThat(
+            docValueFields(mapperService, source, null),
+            equalTo(List.of(Map.of("gte", "2016-10-31 00:00:00.000", "lte", "2016-11-01 20:00:00.000")))
+        );
+        assertThat(
+            docValueFields(mapperService, source, "epoch_millis"),
+            equalTo(List.of(Map.of("gte", "1477872000000", "lte", "1478030400000")))
+        );
     }
 
     @Override

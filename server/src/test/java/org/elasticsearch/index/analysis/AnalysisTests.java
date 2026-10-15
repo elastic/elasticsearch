@@ -161,6 +161,20 @@ public class AnalysisTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString("[最終契約] in user dictionary at line [5]"));
     }
 
+    /**
+     * A {@link Analysis.StableCharArraySet} built from a {@code null} set and one built from an empty
+     * set both hash to 0, so they collide and {@code equals()} is invoked to disambiguate. They must
+     * compare unequal (and the {@code null}-set receiver must not throw), so the two never share a
+     * cache slot.
+     */
+    public void testStableCharArraySetEqualsNullVsEmptyDoesNotNpe() {
+        Analysis.StableCharArraySet withNull = new Analysis.StableCharArraySet(null, false);
+        Analysis.StableCharArraySet withEmpty = new Analysis.StableCharArraySet(new CharArraySet(List.of(), false), false);
+        assertEquals("null and empty sets both produce hash 0", withNull.hashCode(), withEmpty.hashCode());
+        assertFalse("null set must not equal empty set — and must not throw NPE", withNull.equals(withEmpty));
+        assertFalse("empty set must not equal null set — and must not throw NPE", withEmpty.equals(withNull));
+    }
+
     public void testParseDuplicatesWComments() throws IOException {
         Path tempDir = createTempDir();
         Path dict = tempDir.resolve("foo.dict");

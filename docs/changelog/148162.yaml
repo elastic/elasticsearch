@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 148162
-summary: Resilient CSV parsing, COUNT(*) fast path, and 400-status malformed-data errors
-type: enhancement

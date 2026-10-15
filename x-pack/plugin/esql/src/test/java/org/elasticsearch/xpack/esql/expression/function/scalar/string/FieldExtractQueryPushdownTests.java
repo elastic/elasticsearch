@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
-import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.Collections;
@@ -50,9 +49,11 @@ import static org.hamcrest.Matchers.equalTo;
  * {@code field_extract(<flattened root>, "<key>")} appears on the left of {@code ==}, {@code !=},
  * {@code IN}, the range comparators ({@code >}, {@code >=}, {@code <}, {@code <=}), or the
  * {@link Range} expression (combined {@code >=}/{@code <=} closed range), the predicate is
- * translated into a Lucene {@code TermQuery}, {@code TermsQuery}, or {@code RangeQuery} against
- * the synthetic keyed sub-field name ({@code <root>.<key>}) and wrapped in
- * {@code SingleValueQuery}.
+ * translated into a bare candidate Lucene {@code TermQuery}, {@code TermsQuery}, or {@code RangeQuery}
+ * against the synthetic keyed sub-field name ({@code <root>.<key>}). The comparison reports
+ * {@link TranslationAware.Translatable#RECHECK}, so the FilterOperator re-applies the predicate on the
+ * extracted keyword column to restore ES|QL single-value semantics instead of wrapping the query in a
+ * {@code SingleValueQuery}. Pushdown only fires when the flattened root is indexed.
  * <p>
  *     The {@link FieldExtract#tryAsKeyedSubfieldName(LucenePushdownPredicates)} helper drives the
  *     recognition. The translation lives inside {@code EsqlBinaryComparison.asQuery} (for
@@ -221,7 +222,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         assertThat(eq.translatable(mappedKeyPredicates()), equalTo(TranslationAware.Translatable.NO));
     }
 
-    public void testEqualsTranslatableYesForFieldExtractOnFlattened() {
+    public void testEqualsTranslatableRecheckForFieldExtractOnFlattened() {
         assumeQueryPushdownEnabled();
         Equals eq = new Equals(
             Source.EMPTY,
@@ -229,10 +230,11 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(eq.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
+        // field_extract pushes a candidate query and rechecks single-value equality in the compute engine.
+        assertThat(eq.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.RECHECK));
     }
 
-    public void testNotEqualsTranslatableYesForFieldExtractOnFlattened() {
+    public void testNotEqualsTranslatableRecheckForFieldExtractOnFlattened() {
         assumeQueryPushdownEnabled();
         NotEquals neq = new NotEquals(
             Source.EMPTY,
@@ -240,7 +242,22 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(neq.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
+        assertThat(neq.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.RECHECK));
+    }
+
+    /**
+     * A doc-values-only flattened root (not indexed) must not push: the keyed term query would degrade to a
+     * full doc-values scan. The predicate stays in the FilterExec instead.
+     */
+    public void testEqualsTranslatableNoWhenRootNotIndexed() {
+        assumeQueryPushdownEnabled();
+        Equals eq = new Equals(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+            Literal.keyword(Source.EMPTY, "node-a")
+        );
+
+        assertThat(eq.translatable(docValuesOnlyKeyPredicates()), equalTo(TranslationAware.Translatable.NO));
     }
 
     /**
@@ -257,7 +274,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(gt.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
+        assertThat(gt.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.RECHECK));
     }
 
     public void testGreaterThanOrEqualTranslatableYesForFieldExtractOnFlattened() {
@@ -268,7 +285,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(gte.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
+        assertThat(gte.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.RECHECK));
     }
 
     public void testLessThanTranslatableYesForFieldExtractOnFlattened() {
@@ -279,7 +296,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(lt.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
+        assertThat(lt.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.RECHECK));
     }
 
     public void testLessThanOrEqualTranslatableYesForFieldExtractOnFlattened() {
@@ -290,7 +307,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
-        assertThat(lte.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
+        assertThat(lte.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.RECHECK));
     }
 
     /**
@@ -346,7 +363,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             null
         );
 
-        assertThat(range.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
+        assertThat(range.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.RECHECK));
     }
 
     /**
@@ -401,11 +418,11 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
     }
 
     /**
-     * The translated query must be a {@code RangeQuery} on the synthetic {@code root.key} field
-     * name wrapped in {@code SingleValueQuery}, mirroring how {@code Equals}/{@code NotEquals}/
-     * {@code In} on the same LHS wrap their term queries.
+     * The translated query must be a bare {@code RangeQuery} on the synthetic {@code root.key} field
+     * name, mirroring how {@code Equals}/{@code NotEquals}/{@code In} on the same LHS push bare candidate
+     * queries. Exact single-value semantics come from the RECHECK filter, not a {@code SingleValueQuery}.
      */
-    public void testRangeAsQueryProducesSingleValueWrappedRangeQueryAgainstKeyedSubfield() {
+    public void testRangeAsQueryProducesBareRangeQueryAgainstKeyedSubfield() {
         assumeQueryPushdownEnabled();
         String keyedName = "resource.attributes.host.name";
         Range range = new Range(
@@ -420,15 +437,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
 
         Query query = range.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
-        // SingleValueQuery wrapping is mandatory for the same reason it is on Equals/NotEquals/In: a
-        // multi-valued sub-key would otherwise let any of its values satisfy the range,
-        // which contradicts ES|QL's "multi-value compares to null" rule.
-        assertThat(
-            query,
-            equalTo(
-                new SingleValueQuery(new RangeQuery(Source.EMPTY, keyedName, "node-a", true, "node-z", true, null, null), keyedName, false)
-            )
-        );
+        assertThat(query, equalTo(new RangeQuery(Source.EMPTY, keyedName, "node-a", true, "node-z", true, null, null)));
     }
 
     /**
@@ -458,13 +467,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
                 assertThat(
                     "for (includeLower=" + includeLower + ", includeUpper=" + includeUpper + ")",
                     query,
-                    equalTo(
-                        new SingleValueQuery(
-                            new RangeQuery(Source.EMPTY, keyedName, "node-a", includeLower, "node-z", includeUpper, null, null),
-                            keyedName,
-                            false
-                        )
-                    )
+                    equalTo(new RangeQuery(Source.EMPTY, keyedName, "node-a", includeLower, "node-z", includeUpper, null, null))
                 );
             }
         }
@@ -474,9 +477,8 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
      * The translated query for {@code field_extract(...) > "lo"} is a {@code RangeQuery} with the
      * literal on the lower side, exclusive, and a {@code null} upper side. The keyed flattened
      * mapper expands the open upper into the {@code key\1} sentinel on the data node so the
-     * resulting Lucene range stays inside this key's slice of the term namespace. The query is
-     * wrapped in {@code SingleValueQuery} for the same multi-value safety reason as the other
-     * comparators.
+     * resulting Lucene range stays inside this key's slice of the term namespace. The query is a bare
+     * candidate range; RECHECK restores exact single-value semantics in the FilterOperator.
      */
     public void testGreaterThanAsQueryProducesLowerOnlyExclusiveRangeQuery() {
         assumeQueryPushdownEnabled();
@@ -489,12 +491,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
 
         Query query = gt.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
-        assertThat(
-            query,
-            equalTo(
-                new SingleValueQuery(new RangeQuery(Source.EMPTY, keyedName, "node-a", false, null, false, null, null), keyedName, false)
-            )
-        );
+        assertThat(query, equalTo(new RangeQuery(Source.EMPTY, keyedName, "node-a", false, null, false, null, null)));
     }
 
     /**
@@ -513,12 +510,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
 
         Query query = gte.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
-        assertThat(
-            query,
-            equalTo(
-                new SingleValueQuery(new RangeQuery(Source.EMPTY, keyedName, "node-a", true, null, false, null, null), keyedName, false)
-            )
-        );
+        assertThat(query, equalTo(new RangeQuery(Source.EMPTY, keyedName, "node-a", true, null, false, null, null)));
     }
 
     /**
@@ -538,12 +530,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
 
         Query query = lt.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
-        assertThat(
-            query,
-            equalTo(
-                new SingleValueQuery(new RangeQuery(Source.EMPTY, keyedName, null, false, "node-z", false, null, null), keyedName, false)
-            )
-        );
+        assertThat(query, equalTo(new RangeQuery(Source.EMPTY, keyedName, null, false, "node-z", false, null, null)));
     }
 
     /**
@@ -562,12 +549,7 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
 
         Query query = lte.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
-        assertThat(
-            query,
-            equalTo(
-                new SingleValueQuery(new RangeQuery(Source.EMPTY, keyedName, null, false, "node-z", true, null, null), keyedName, false)
-            )
-        );
+        assertThat(query, equalTo(new RangeQuery(Source.EMPTY, keyedName, null, false, "node-z", true, null, null)));
     }
 
     /**
@@ -601,10 +583,10 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
             List.of(Literal.keyword(Source.EMPTY, "node-a"), Literal.keyword(Source.EMPTY, "node-b"))
         );
 
-        assertThat(in.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.YES));
+        assertThat(in.translatable(UNMAPPED_KEY_PREDICATES), equalTo(TranslationAware.Translatable.RECHECK));
     }
 
-    public void testEqualsAsQueryProducesSingleValueWrappedTermQueryAgainstKeyedSubfield() {
+    public void testEqualsAsQueryProducesBareTermQueryAgainstKeyedSubfield() {
         assumeQueryPushdownEnabled();
         String keyedName = "resource.attributes.host.name";
         Equals eq = new Equals(
@@ -615,12 +597,12 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
 
         Query query = eq.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
-        // SVQ wrapping is mandatory: a multi-valued sub-key would otherwise let any of its values
-        // satisfy the term match, which contradicts ES|QL's "multi-value compares to null" rule.
-        assertThat(query, equalTo(new SingleValueQuery(new TermQuery(Source.EMPTY, keyedName, "node-a"), keyedName, false)));
+        // Bare candidate term query: the comparison reports RECHECK, so single-value equality is restored by
+        // the FilterOperator rechecking the extracted keyword column, not by a SingleValueQuery wrapper.
+        assertThat(query, equalTo(new TermQuery(Source.EMPTY, keyedName, "node-a")));
     }
 
-    public void testNotEqualsAsQueryProducesSingleValueWrappedNotTermQuery() {
+    public void testNotEqualsAsQueryProducesBareNotTermQuery() {
         assumeQueryPushdownEnabled();
         String keyedName = "resource.attributes.host.name";
         NotEquals neq = new NotEquals(
@@ -631,13 +613,11 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
 
         Query query = neq.asQuery(UNMAPPED_KEY_PREDICATES, TranslatorHandler.TRANSLATOR_HANDLER);
 
-        assertThat(
-            query,
-            equalTo(new SingleValueQuery(new NotQuery(Source.EMPTY, new TermQuery(Source.EMPTY, keyedName, "node-a")), keyedName, false))
-        );
+        // Bare candidate NotQuery; RECHECK restores exact "!=" semantics in the FilterOperator.
+        assertThat(query, equalTo(new NotQuery(Source.EMPTY, new TermQuery(Source.EMPTY, keyedName, "node-a"))));
     }
 
-    public void testInAsQueryProducesSingleValueWrappedTermsQuery() {
+    public void testInAsQueryProducesBareTermsQuery() {
         assumeQueryPushdownEnabled();
         String keyedName = "resource.attributes.host.name";
         In in = new In(
@@ -653,7 +633,8 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         LinkedHashSet<Object> expectedTerms = new LinkedHashSet<>();
         expectedTerms.add("node-a");
         expectedTerms.add("node-b");
-        assertThat(query, equalTo(new SingleValueQuery(new TermsQuery(Source.EMPTY, keyedName, expectedTerms), keyedName, false)));
+        // Bare candidate terms query; RECHECK restores exact IN semantics in the FilterOperator.
+        assertThat(query, equalTo(new TermsQuery(Source.EMPTY, keyedName, expectedTerms)));
     }
 
     public void testInAsQueryThrowsForAllNullList() {
@@ -690,6 +671,20 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
      */
     private static LucenePushdownPredicates mappedKeyPredicates() {
         return LucenePushdownPredicates.from(new EsqlTestUtils.TestSearchStats(false), new EsqlFlags(true));
+    }
+
+    /**
+     * A predicate whose {@code SearchStats} reports the flattened root as having doc values but not being
+     * indexed, mirroring a columnar flattened field without a postings index. Query pushdown must decline
+     * so the predicate stays in the {@code FilterExec} rather than pushing a full doc-values scan.
+     */
+    private static LucenePushdownPredicates docValuesOnlyKeyPredicates() {
+        return LucenePushdownPredicates.from(new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean isIndexed(FieldAttribute.FieldName field) {
+                return false;
+            }
+        }, new EsqlFlags(true));
     }
 
     private static void assumeQueryPushdownEnabled() {

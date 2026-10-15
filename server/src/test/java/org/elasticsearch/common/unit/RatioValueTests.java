@@ -55,6 +55,40 @@ public class RatioValueTests extends ESTestCase {
         assertThat((new RatioValue(1.1234567890)).formatNoTrailingZerosPercent(), is("1.123456789%"));
     }
 
+    public void testParseRatioValueWithBoundsPercentFormatValidValues() {
+        RatioValue lower = new RatioValue(20);
+        RatioValue upper = new RatioValue(80);
+        assertThat(RatioValue.parseRatioValue("20%", lower, upper).getAsPercent(), is(20.0));
+        assertThat(RatioValue.parseRatioValue("50%", lower, upper).getAsPercent(), is(50.0));
+        assertThat(RatioValue.parseRatioValue("80%", lower, upper).getAsPercent(), is(80.0));
+    }
+
+    public void testParseRatioValueWithBoundsPercentFormatOutsideBounds() {
+        RatioValue lower = new RatioValue(20);
+        RatioValue upper = new RatioValue(80);
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("19%", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("81%", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("0%", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("100%", lower, upper));
+    }
+
+    public void testParseRatioValueWithBoundsRatioFormatValidValues() {
+        RatioValue lower = new RatioValue(20);
+        RatioValue upper = new RatioValue(80);
+        assertThat(RatioValue.parseRatioValue("0.2", lower, upper).getAsRatio(), is(0.2));
+        assertThat(RatioValue.parseRatioValue("0.5", lower, upper).getAsRatio(), is(0.5));
+        assertThat(RatioValue.parseRatioValue("0.8", lower, upper).getAsRatio(), is(0.8));
+    }
+
+    public void testParseRatioValueWithBoundsRatioFormatOutsideBounds() {
+        RatioValue lower = new RatioValue(20);
+        RatioValue upper = new RatioValue(80);
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("0.19", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("0.81", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("0.0", lower, upper));
+        expectThrows(ElasticsearchParseException.class, () -> RatioValue.parseRatioValue("1.0", lower, upper));
+    }
+
     public void testInvalidRatio(String r) {
         try {
             RatioValue.parseRatioValue(r);

@@ -852,6 +852,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             }, 30, TimeUnit.SECONDS);
             BlockingOnRewriteQueryBuilder.unblockOnRewrite();
             expectThrows(CancellationException.class, future::actionGet);
+            logger.info("--> waiting for cancelled field-caps tasks to be removed");
+            assertBusy(() -> {
+                List<TaskInfo> tasks = clusterAdmin().prepareListTasks()
+                    .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
+                    .get()
+                    .getTasks();
+                assertThat(tasks, empty());
+            }, 30, TimeUnit.SECONDS);
         }
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.junit.Before;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -26,10 +27,9 @@ public class CsvRecordSplitterTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+    @Before
+    public void initBlockFactory() throws Exception {
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     public void testTsvFindLastRecordBoundaryWithLiteralMidFieldQuotes() throws IOException {
@@ -98,7 +98,7 @@ public class CsvRecordSplitterTests extends ESTestCase {
             '"',
             '\\',
             "//",
-            "",
+            null,
             StandardCharsets.UTF_8,
             null,
             CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
@@ -115,7 +115,7 @@ public class CsvRecordSplitterTests extends ESTestCase {
             '"',
             '\\',
             "//",
-            "",
+            null,
             StandardCharsets.UTF_8,
             null,
             CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
@@ -135,7 +135,7 @@ public class CsvRecordSplitterTests extends ESTestCase {
             '"',
             '\\',
             "//",
-            "",
+            null,
             StandardCharsets.UTF_8,
             null,
             CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
@@ -205,7 +205,7 @@ public class CsvRecordSplitterTests extends ESTestCase {
             '"',
             '\\',
             "//",
-            "",
+            null,
             StandardCharsets.UTF_8,
             null,
             CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,

@@ -43,6 +43,10 @@ public class BlobStoreCacheDirectoryTestUtils {
         return target.getCacheService();
     }
 
+    public static long pendingObsoleteRegionsEvictionTasks(BlobStoreCacheDirectory target) {
+        return target.pendingObsoleteRegionsEvictionTasks();
+    }
+
     public static void updateLatestUploadedBcc(SearchDirectory target, PrimaryTermAndGeneration latestUploadedBccTermAndGen) {
         target.updateLatestUploadedBcc(latestUploadedBccTermAndGen);
     }

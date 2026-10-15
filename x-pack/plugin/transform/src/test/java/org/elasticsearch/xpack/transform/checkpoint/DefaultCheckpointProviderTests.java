@@ -13,12 +13,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockLog.LoggingExpectation;
@@ -256,8 +257,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             () -> client,
             transformConfigManager,
             transformAuditor,
-            transformConfig,
-            mock(CrossProjectModeDecider.class)
+            transformConfig
         );
 
         SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
@@ -304,8 +304,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             () -> client,
             transformConfigManager,
             transformAuditor,
-            transformConfig,
-            mock(CrossProjectModeDecider.class)
+            transformConfig
         );
 
         SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
@@ -409,6 +408,41 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         );
     }
 
+    public void testGetIndexCheckpointsScopesCrossProjectToCredential() throws InterruptedException {
+        // A CPS-enabled source only fans out cross-project when the transform holds a minted cloud
+        // credential; without one the checkpoint request must resolve origin-only to avoid failing
+        // closed in the cross-project authorization layer.
+        SourceConfig cpsSource = new SourceConfig(
+            new String[] { "source_index" },
+            QueryConfig.matchAll(),
+            Collections.emptyMap(),
+            IndicesOptions.CPS_LENIENT_EXPAND_OPEN,
+            "_alias:_origin"
+        );
+
+        assertThat(captureCheckpointRequest(cpsSource, "cloud-api-key-id").indicesOptions().resolveCrossProjectIndexExpression(), is(true));
+        assertThat(captureCheckpointRequest(cpsSource, null).indicesOptions().resolveCrossProjectIndexExpression(), is(false));
+    }
+
+    private GetCheckpointAction.Request captureCheckpointRequest(SourceConfig source, String credentialId) throws InterruptedException {
+        TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(randomAlphaOfLength(5)))
+            .setSource(source)
+            .setCredentialId(credentialId)
+            .build();
+
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("source_index", new long[] { 1L }), null);
+        ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
+
+        DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
+        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(null, new LatchedActionListener<>(ActionListener.wrap(r -> {}, exceptionHolder::set), latch));
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+        return requestCaptor.getValue();
+    }
+
     private DefaultCheckpointProvider newCheckpointProvider(TransformConfig transformConfig) {
         return new DefaultCheckpointProvider(
             clock,
@@ -416,9 +450,65 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             () -> client,
             transformConfigManager,
             transformAuditor,
-            transformConfig,
-            mock(CrossProjectModeDecider.class)
+            transformConfig
         );
+    }
+
+    public void testGetIndexCheckpointsTimeoutBacksOffFrom30sTo12h() {
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(0).millis(), equalTo(TimeValue.timeValueSeconds(30).millis()));
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(1).millis(), equalTo(TimeValue.timeValueSeconds(60).millis()));
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(2).millis(), equalTo(TimeValue.timeValueMinutes(2).millis()));
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(11).millis(), equalTo(TimeValue.timeValueHours(12).millis()));
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(100).millis(), equalTo(TimeValue.timeValueHours(12).millis()));
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(-1).millis(), equalTo(TimeValue.timeValueSeconds(30).millis()));
+    }
+
+    public void testGetIndexCheckpointsTimeoutUsesConfiguredMinimum() {
+        TimeValue fiveMinutes = TimeValue.timeValueMinutes(5);
+        assertThat(CheckpointProvider.getIndexCheckpointsTimeout(fiveMinutes, 0).millis(), equalTo(fiveMinutes.millis()));
+        assertThat(
+            CheckpointProvider.getIndexCheckpointsTimeout(fiveMinutes, 1).millis(),
+            equalTo(TimeValue.timeValueMinutes(10).millis())
+        );
+        assertThat(
+            CheckpointProvider.getIndexCheckpointsTimeout(TimeValue.timeValueHours(12), 0).millis(),
+            equalTo(TimeValue.timeValueHours(12).millis())
+        );
+        assertThat(
+            CheckpointProvider.getIndexCheckpointsTimeout(TimeValue.timeValueHours(12), 3).millis(),
+            equalTo(TimeValue.timeValueHours(12).millis())
+        );
+    }
+
+    public void testCreateNextCheckpointPassesTimeoutToGetCheckpointRequest() throws InterruptedException {
+        String transformId = getTestName();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("source_index", new long[] { 1L }), null);
+        ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
+
+        DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
+        TimeValue timeout = TimeValue.timeValueMinutes(2);
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(null, timeout, new LatchedActionListener<>(ActionListener.wrap(r -> {}, e -> {}), latch));
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(requestCaptor.getValue().getTimeout(), equalTo(timeout));
+    }
+
+    public void testCreateNextCheckpointWithoutTimeoutUses12h() throws InterruptedException {
+        String transformId = getTestName();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("source_index", new long[] { 1L }), null);
+        ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
+
+        DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(null, new LatchedActionListener<>(ActionListener.wrap(r -> {}, e -> {}), latch));
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(requestCaptor.getValue().getTimeout(), equalTo(TimeValue.timeValueHours(12)));
     }
 
     public void testClientSupplierIsConsultedPerCall() throws InterruptedException {
@@ -432,7 +522,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(clock, () -> client.threadPool().getThreadContext(), () -> {
             supplierCallCount.incrementAndGet();
             return client;
-        }, transformConfigManager, transformAuditor, transformConfig, mock(CrossProjectModeDecider.class));
+        }, transformConfigManager, transformAuditor, transformConfig);
 
         CountDownLatch latch = new CountDownLatch(1);
         provider.createNextCheckpoint(null, new LatchedActionListener<>(ActionListener.wrap(r -> {}, e -> {}), latch));

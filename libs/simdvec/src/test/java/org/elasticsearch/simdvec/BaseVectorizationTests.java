@@ -21,6 +21,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.util.function.IntFunction;
 
 public abstract class BaseVectorizationTests extends ESTestCase {
 
@@ -93,17 +94,26 @@ public abstract class BaseVectorizationTests extends ESTestCase {
         }
 
         @Override
-        public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action)
-            throws IOException {
+        public boolean withMemorySegmentSlice(
+            long offset,
+            long length,
+            IntFunction<MemorySegment> scratch,
+            CheckedConsumer<MemorySegment, IOException> action
+        ) throws IOException {
             assertEquals("unexpected slice length", expectedSliceLength, (int) length);
-            return delegate.withMemorySegmentSlice(offset, length, action);
+            return delegate.withMemorySegmentSlice(offset, length, scratch, action);
         }
 
         @Override
-        public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
-            throws IOException {
+        public boolean withSliceAddresses(
+            long[] offsets,
+            int length,
+            int count,
+            MemorySegment addressesScratch,
+            CheckedConsumer<MemorySegment, IOException> action
+        ) throws IOException {
             assertEquals("unexpected slice length", expectedSliceLength, length);
-            return delegate.withMemorySegmentSlices(offsets, length, count, action);
+            return delegate.withSliceAddresses(offsets, length, count, addressesScratch, action);
         }
 
         @Override

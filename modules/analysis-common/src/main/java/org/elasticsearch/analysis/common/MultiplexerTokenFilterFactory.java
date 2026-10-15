@@ -27,7 +27,9 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
@@ -59,12 +61,18 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         List<TokenFilterFactory> previousTokenFilters,
         Function<String, TokenFilterFactory> allFilters
     ) {
+        // Guard against a filter referring to itself (directly or via a cycle), which would otherwise
+        // recurse until the stack overflows and takes the node down.
+        allFilters = ReferringFilterResolver.enter(name(), allFilters);
         List<TokenFilterFactory> filters = new ArrayList<>();
         if (preserveOriginal) {
             filters.add(IDENTITY_FILTER);
         }
         // also merge and transfer token filter analysis modes with analyzer
         AnalysisMode mode = AnalysisMode.ALL;
+        // and collect the resource names of the contained filters, so that a reload request naming a
+        // synonyms set still selects analyzers that use that set from inside a multiplexer
+        Set<String> resourceNames = new HashSet<>();
         for (String filter : filterNames) {
             String[] parts = Strings.tokenizeToStringArray(filter, ",");
             if (parts.length == 1) {
@@ -72,6 +80,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                 factory = factory.getChainAwareTokenFilterFactory(context, tokenizer, charFilters, previousTokenFilters, allFilters);
                 filters.add(factory);
                 mode = mode.merge(factory.getAnalysisMode());
+                resourceNames.addAll(factory.getResourceNames());
             } else {
                 List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
                 List<TokenFilterFactory> chain = new ArrayList<>();
@@ -81,11 +90,13 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                     chain.add(factory);
                     existingChain.add(factory);
                     mode = mode.merge(factory.getAnalysisMode());
+                    resourceNames.addAll(factory.getResourceNames());
                 }
                 filters.add(chainFilters(filter, chain));
             }
         }
         final AnalysisMode analysisMode = mode;
+        final Set<String> analysisResourceNames = Set.copyOf(resourceNames);
 
         return new TokenFilterFactory() {
             @Override
@@ -110,6 +121,11 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
             @Override
             public AnalysisMode getAnalysisMode() {
                 return analysisMode;
+            }
+
+            @Override
+            public Set<String> getResourceNames() {
+                return analysisResourceNames;
             }
         };
     }

@@ -15,6 +15,7 @@
 
 #include "vec.h"
 #include "vec_common.h"
+#include "vec_bf16_1.h"
 #include "amd64/amd64_vec_common.h"
 
 static inline __m512 bf16_to_f32(__m256i bf16) {
@@ -209,14 +210,15 @@ static inline f32_t sqrDbf16Qbf16_inner_avx512(const bf16_t* a, const bf16_t* b,
     }
 
     // |a - b|^2 = a*a - 2*a*b + b*b
-    f32_t result = _mm512_reduce_add_ps(total_self) - 2.0f * _mm512_reduce_add_ps(total_cross);
+    const f32_t self = _mm512_reduce_add_ps(total_self);
+    f32_t result = self - 2.0f * _mm512_reduce_add_ps(total_cross);
 
     // Scalar tail for odd remaining element
     if ((maskRem & 1) != 0) {
         result += sqr_scalar(a[elementCount - 1], b[elementCount - 1]);
     }
 
-    return result;
+    return sqr_bf16_recompute_if_needed(self, result, a, b, elementCount);
 }
 
 EXPORT f32_t vec_sqrDbf16Qbf16_3(const bf16_t* a, const bf16_t* b, const int32_t elementCount) {
@@ -599,13 +601,13 @@ static inline void sqrDbf16Qbf16_bulk_avx512(
                 f32_t ab = _mm512_reduce_add_ps(sum_ab[I]);
                 aa += dot_scalar(current_vecs[I][dims - 1], current_vecs[I][dims - 1]);
                 ab += dot_scalar(current_vecs[I][dims - 1], b[dims - 1]);
-                results[c + I] = aa + bb - 2.0f * ab;
+                results[c + I] = sqr_bf16_recompute_if_needed(aa + bb, aa + bb - 2.0f * ab, current_vecs[I], b, dims);
             });
         } else {
             apply_indexed<batches>([&](auto I) {
                 f32_t aa = _mm512_reduce_add_ps(sum_aa[I]);
                 f32_t ab = _mm512_reduce_add_ps(sum_ab[I]);
-                results[c + I] = aa + bb - 2.0f * ab;
+                results[c + I] = sqr_bf16_recompute_if_needed(aa + bb, aa + bb - 2.0f * ab, current_vecs[I], b, dims);
             });
         }
 

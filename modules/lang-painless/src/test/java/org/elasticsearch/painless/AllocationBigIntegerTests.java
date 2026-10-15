@@ -15,7 +15,7 @@ import org.elasticsearch.script.ScriptException;
 import java.math.BigInteger;
 
 /**
- * End-to-end tests for the {@code BigInteger} {@code @allocates_dynamic} estimators: results are sized from the operands' bit
+ * End-to-end tests for the {@code BigInteger} {@code @allocates} estimators: results are sized from the operands' bit
  * lengths (object + backing {@code int[]}). Covers exact charges for small operations and confirms the exponential-growth
  * operations ({@code pow}, {@code shiftLeft}) trip a realistic limit before exhausting the heap.
  */

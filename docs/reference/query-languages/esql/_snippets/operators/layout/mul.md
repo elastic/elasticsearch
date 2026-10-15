@@ -1,4 +1,8 @@
 ### Multiply `*` [esql-mul]
+```{applies_to}
+stack: ga
+serverless: ga
+```
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/operators/mul.svg
 :alt: Embedded

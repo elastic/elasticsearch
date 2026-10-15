@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.metric;
 
 import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.ArrayList;
@@ -23,7 +22,7 @@ public final class SecurityCacheMetrics {
                 type.metricsPrefix + ".hit.total",
                 "Total number of cache hits.",
                 "count",
-                () -> new LongWithAttributes(cache.stats().getHits())
+                () -> cache.stats().getHits()
             )
         );
         metrics.add(
@@ -31,7 +30,7 @@ public final class SecurityCacheMetrics {
                 type.metricsPrefix + ".miss.total",
                 "Total number of cache misses.",
                 "count",
-                () -> new LongWithAttributes(cache.stats().getMisses())
+                () -> cache.stats().getMisses()
             )
         );
         metrics.add(
@@ -39,15 +38,15 @@ public final class SecurityCacheMetrics {
                 type.metricsPrefix + ".eviction.total",
                 "Total number of cache evictions.",
                 "count",
-                () -> new LongWithAttributes(cache.stats().getEvictions())
+                () -> cache.stats().getEvictions()
             )
         );
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 type.metricsPrefix + ".count.current",
                 "The current number of cache entries.",
                 "count",
-                () -> new LongWithAttributes(cache.count())
+                () -> cache.count()
             )
         );
         return metrics;

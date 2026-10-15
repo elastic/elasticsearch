@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.encryption.spi.AesGcm;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionKeyNotYetAvailableException;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;

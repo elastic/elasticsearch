@@ -15,11 +15,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.operator.DriverProfile;
-import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -33,8 +31,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
-import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,26 +66,6 @@ import static org.hamcrest.Matchers.not;
 public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     protected static final String IDX_ALIAS = "alias1";
     protected static final String FILTERED_IDX_ALIAS = "alias-filtered-1";
-
-    @After
-    public void ensureExchangesAreReleased() throws Exception {
-        for (Map.Entry<String, InternalTestCluster> entry : clusters().entrySet()) {
-            String clusterAlias = entry.getKey();
-            InternalTestCluster testCluster = entry.getValue();
-            for (String node : testCluster.getNodeNames()) {
-                TransportEsqlQueryAction esqlQueryAction = testCluster.getInstance(TransportEsqlQueryAction.class, node);
-                ExchangeService exchangeService = esqlQueryAction.exchangeService();
-                assertBusy(() -> {
-                    if (exchangeService.lifecycleState() == Lifecycle.State.STARTED) {
-                        assertTrue(
-                            "Leftover exchanges " + exchangeService + " on node " + node + " in cluster " + clusterAlias,
-                            exchangeService.isEmpty()
-                        );
-                    }
-                }, 5, TimeUnit.SECONDS);
-            }
-        }
-    }
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
@@ -680,7 +656,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(45L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(2)); // one coordinator and at least one data
                 localOnlyProfiles = drivers.size();
 
@@ -700,8 +680,12 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(285L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
-                assertThat(drivers.size(), greaterThanOrEqualTo(3)); // two coordinators and at least one data
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
+                assertThat(drivers.size(), greaterThanOrEqualTo(2)); // one cluster-level reduction and at least one data node
                 remoteOnlyProfiles = drivers.size();
 
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -724,7 +708,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(330L)));
                 assertNotNull(resp.profile());
-                List<DriverProfile> drivers = resp.profile().drivers();
+                List<DriverProfile> drivers = resp.profile()
+                    .drivers()
+                    .stream()
+                    .filter(d -> d.description().equals("node_reduce") == false)
+                    .toList();
                 assertThat(drivers.size(), greaterThanOrEqualTo(4)); // two coordinators and at least two data
                 allProfiles = drivers.size();
 

@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 156413
+summary: Fix T-Digest `percentile_rank` using different interpolation than quantiles
+type: bug

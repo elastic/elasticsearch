@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -56,7 +57,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 /**
  * Round down to one of a list of values.
  */
-public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression {
+public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RoundTo", RoundTo::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(RoundTo.class).unaryVariadic(RoundTo::new).name("round_to");
     public static final TransportVersion ESQL_ROUND_TO_CONVENTION = TransportVersion.fromName("esql_round_to_convention");
@@ -73,6 +74,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         description = """
             Rounds down to one of a list of fixed points.""",
         examples = @Example(file = "math", tag = "round_to"),
+        preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.1.0") }
     )
     public RoundTo(

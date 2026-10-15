@@ -101,14 +101,10 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
             (delegate, response) -> delegate.onResponse(translateToChunkedResults(inputs, response))
         );
 
+        var inputGroups = inputs.stream().map(ChunkInferenceInput::input).toList();
+
         // TODO chunking sparse embeddings not implemented
-        doInfer(
-            model,
-            new EmbeddingsInput(() -> inputs.stream().map(ChunkInferenceInput::input).toList(), inputType),
-            taskSettings,
-            timeout,
-            inferListener
-        );
+        doInfer(model, new EmbeddingsInput(inputGroups, inputType), taskSettings, timeout, inferListener);
     }
 
     private static List<ChunkedInference> translateToChunkedResults(

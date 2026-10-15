@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.TransportVersion;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -29,17 +31,27 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
- * Golden (characterization) snapshot of the optimized logical plan for the {@link PruneRedundantAggregateGroupings}
- * external-grouping path. See GoldenTestsReadme.md.
+ * Golden (characterization) snapshot of the optimized logical plan for a derived external grouping, which
+ * {@link PruneRedundantAggregateGroupings} leaves untouched (only scalar constants are pruned). See GoldenTestsReadme.md.
  */
 public class PruneRedundantAggregateGroupingsGoldenTests extends GoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION);
     private static final String DATASET_NAME = "ext_ds";
     private static final String DATA_RESOURCE = "s3://bucket/data.parquet";
 
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static Iterable<Object[]> parameters() {
+        return goldenModes();
+    }
+
+    public PruneRedundantAggregateGroupingsGoldenTests(@Name("mode") String mode) {
+        super(mode);
+    }
+
     /**
-     * Renaming an external column, deriving a value from it, then grouping by both: the derived grouping is pruned and
-     * rebuilt above the aggregate reading the rename alias, so the plan stays consistent.
+     * Renaming an external column, deriving a value from it, then grouping by both: the derived grouping is kept in the
+     * aggregate and evaluated on the row below it (it is {@code null} where the source column holds a list, which a
+     * per-group recomputation above the aggregate would not reproduce); only the rename alias is re-exposed.
      */
     public void testRenamedDerivedExternalGrouping() {
         assumeTrue("requires FROM <dataset> capability", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
@@ -49,11 +61,7 @@ public class PruneRedundantAggregateGroupingsGoldenTests extends GoldenTestCase 
             | EVAL c = cip - 1
             | STATS count = COUNT(*) BY cip, c
             """;
-        builder(query).stages(STAGES)
-            .transportVersion(TransportVersion.current())
-            .datasetMetadata(datasetMetadata())
-            .externalSourceResolution(externalSourceResolution())
-            .run();
+        builder(query).stages(STAGES).datasetMetadata(datasetMetadata()).externalSourceResolution(externalSourceResolution()).run();
     }
 
     /** Registers {@code ext_ds} as an external dataset so {@code FROM ext_ds} becomes an external relation. */

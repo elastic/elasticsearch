@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -213,6 +214,68 @@ public abstract class FuseOperatorTestCase extends OperatorTestCase {
     }
 
     /**
+     * A deterministic counterpart to {@link #simpleInput}: same page shape (group at
+     * {@link #discriminatorPosition}, score at {@link #scorePosition}), except the very first row's
+     * score column is <b>multivalued</b> ({@code [1.0, 2.0]}). FUSE cannot combine a multivalued
+     * score, so it assigns that row a null score and emits a warning. Being deterministic lets
+     * a test assert the exact warning, which the random {@link #simpleInput} can't (it only ever
+     * produces single-valued scores).
+     */
+    protected SourceOperator simpleInputWithMultivaluedScore(BlockFactory blockFactory, int size) {
+        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
+            @Override
+            protected int remaining() {
+                return size - currentPosition;
+            }
+
+            @Override
+            protected Page createPage(int positionOffset, int length) {
+                length = Integer.min(length, remaining());
+                Block[] blocks = new Block[blocksCount];
+                try {
+                    for (int b = 0; b < blocksCount; b++) {
+                        if (b == scorePosition) {
+                            try (var builder = blockFactory.newDoubleBlockBuilder(length)) {
+                                for (int i = 0; i < length; i++) {
+                                    if (positionOffset + i == 0) {
+                                        // the single multivalued score row that triggers the warning
+                                        builder.beginPositionEntry();
+                                        builder.appendDouble(1.0);
+                                        builder.appendDouble(2.0);
+                                        builder.endPositionEntry();
+                                    } else {
+                                        builder.appendDouble(positionOffset + i);
+                                    }
+                                }
+                                blocks[b] = builder.build();
+                            }
+                        } else if (b == discriminatorPosition) {
+                            try (var builder = blockFactory.newBytesRefBlockBuilder(length)) {
+                                for (int i = 0; i < length; i++) {
+                                    builder.appendBytesRef(new BytesRef("fork"));
+                                }
+                                blocks[b] = builder.build();
+                            }
+                        } else {
+                            try (var builder = blockFactory.newBytesRefBlockBuilder(length)) {
+                                for (int i = 0; i < length; i++) {
+                                    builder.appendBytesRef(new BytesRef("filler"));
+                                }
+                                blocks[b] = builder.build();
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    Releasables.closeExpectNoException(blocks);
+                    throw e;
+                }
+                currentPosition += length;
+                return new Page(blocks);
+            }
+        };
+    }
+
+    /**
      * A multivalued group column cannot be grouped, so FUSE assigns that row a null score and emits two
      * warnings. This mirrors the {@code fuse.fuseWithRowRRFAndMultiValueGroupColumn} and
      * {@code fuse.fuseWithRowLinearAndMultiValueGroupColumn} csv-spec cases asserted deterministically
@@ -237,9 +300,12 @@ public abstract class FuseOperatorTestCase extends OperatorTestCase {
             assertThat(scores.isNull(0), equalTo(true));   // multivalued group -> null score
             assertThat(scores.isNull(1), equalTo(false));  // ordinary rows keep a score
             assertThat(scores.isNull(2), equalTo(false));
-            assertWarnings(
-                "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores"
+            assertThat(
+                collectWarnings(ctx),
+                containsInAnyOrder(
+                    "Line 1:1: evaluation of [null] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.IllegalArgumentException: group column contains multivalued entries; assigning null scores"
+                )
             );
         } finally {
             output.forEach(Page::releaseBlocks);

@@ -219,7 +219,7 @@ public class InlineJoin extends Join implements SortPreserving {
     }
 
     public InlineJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
-        super(source, left, right, config, false);
+        super(source, left, right, config, ExecuteLocation.ANY);
     }
 
     public InlineJoin(
@@ -230,7 +230,7 @@ public class InlineJoin extends Join implements SortPreserving {
         List<Attribute> leftFields,
         List<Attribute> rightFields
     ) {
-        super(source, left, right, type, leftFields, rightFields, null, false);
+        super(source, left, right, type, leftFields, rightFields, null, ExecuteLocation.ANY);
     }
 
     private static InlineJoin readFrom(StreamInput in) throws IOException {

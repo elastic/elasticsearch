@@ -1,12 +1,15 @@
 import { execSync } from "child_process";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
-import { classifyChangedFiles } from "../detectors/changed-files.ts";
-import { findUnmutedTests, type UnmuteDetectionResult } from "../detectors/unmutes.ts";
-import { buildCommands, dedupeTests } from "../commands.ts";
-import { uploadBuildkitePipeline } from "../runners/buildkite.ts";
-import { DEFAULT_AGENT_CONFIG, DEFAULT_BATCHING_CONFIG } from "../domain.ts";
+import { findUnmutedRefs } from "../collectors/unmutes.ts";
+import { uploadResolvePipeline } from "../runners/buildkite.ts";
+import { DEFAULT_AGENT_CONFIG, type FlakinessRef, type FlakinessRefsFile } from "../domain.ts";
+
+// The refs file the Java resolver reads (contract 1). Uploaded as a build artifact by the bootstrap step
+// so the resolve step can download it onto its fresh agent. Keep in sync with FLAKINESS_REFS_ARTIFACT in
+// domain.ts, which is what the pipeline generator and orchestrate.sh both read.
+const REFS_FILE = "flakiness-refs.json";
 
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
@@ -39,7 +42,21 @@ export function resolveMergeBaseTarget(
 // timeout_in_minutes budget.
 const GIT_COMMAND_TIMEOUT_MS = 60_000;
 
-function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetectionResult {
+/**
+ * Whether a changed file is worth handing to the resolver at all.
+ *
+ * This is a **cost gate, not a classifier**. It never decides what a ref means - the resolver still does all
+ * of that against the real source-set model. It only decides whether starting the Gradle orchestration is
+ * worth it, because every changed file becomes a ref and the compile phase's own guard only fires after
+ * resolve has already run. Without this, a docs-only or build-script-only PR pays a whole resolve pass over
+ * ~450 projects, plus a scan, to produce an empty plan.
+ */
+export function mayBeTestSource(path: string): boolean {
+  return /(^|\/)src\//.test(path);
+}
+
+// Collect `unmute` refs from the muted-tests.yml diff.
+function collectUnmuteRefs(mergeBase: string, projectRoot: string): FlakinessRef[] {
   console.log(`  Reading muted-tests.yml at ${mergeBase}...`);
   let oldYaml = "";
   try {
@@ -63,21 +80,7 @@ function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetec
     // File was deleted in the PR; treat as empty.
   }
 
-  console.log("  Listing tracked files...");
-  const repoFilesOutput = execSync("git ls-files", {
-    cwd: projectRoot,
-    stdio: ["ignore", "pipe", "pipe"],
-    timeout: GIT_COMMAND_TIMEOUT_MS,
-    maxBuffer: 256 * 1024 * 1024,
-    encoding: "utf8",
-  });
-  const repoFiles = repoFilesOutput
-    .split("\n")
-    .map((f) => f.trim())
-    .filter((f) => f !== "");
-  console.log(`  Indexed ${repoFiles.length} tracked files`);
-
-  return findUnmutedTests(oldYaml, newYaml, repoFiles);
+  return findUnmutedRefs(oldYaml, newYaml);
 }
 
 export function run(): void {
@@ -91,28 +94,24 @@ export function run(): void {
   console.log(`Merge base: ${mergeBase}`);
 
   console.log("Getting changed files...");
-  const changedFilesOutput = execSync(`git diff --diff-filter=d --name-only ${mergeBase}`, { cwd: PROJECT_ROOT }).toString().trim();
+  const changedFilesOutput = execSync(`git diff --diff-filter=d --name-only ${mergeBase}`, { cwd: PROJECT_ROOT })
+    .toString()
+    .trim();
   const changedFiles = changedFilesOutput.split("\n").map((f) => f.trim()).filter((f) => f);
-  console.log(`Found ${changedFiles.length} changed files`);
+  const sourceFiles = changedFiles.filter(mayBeTestSource);
+  console.log(`Found ${changedFiles.length} changed files (${sourceFiles.length} under a source directory)`);
+  // Every changed source file becomes a ref; the resolver decides which are test files it can act on and
+  // silently ignores the rest. No path-shape classification lives here - see mayBeTestSource.
+  const changedRefs: FlakinessRef[] = sourceFiles.map((path) => ({ source: "changed-file", path }));
 
-  const changedTests = classifyChangedFiles(changedFiles);
-  console.log(`Found ${changedTests.length} changed test files`);
+  console.log("Collecting unmuted refs...");
+  const unmuteRefs = collectUnmuteRefs(mergeBase, PROJECT_ROOT);
+  console.log(`Found ${unmuteRefs.length} unmuted refs`);
 
-  console.log("Detecting unmuted tests...");
-  const unmuted = detectUnmutedTests(mergeBase, PROJECT_ROOT);
-  console.log(`Found ${unmuted.located.length} unmuted tests`);
-  if (unmuted.unlocated.length > 0) {
-    console.log(`Skipping ${unmuted.unlocated.length} unmuted tests whose class files no longer exist:`);
-    for (const e of unmuted.unlocated) {
-      console.log(`  - ${e.className}${e.method !== undefined ? "." + e.method : ""}`);
-    }
-  }
+  const refs: FlakinessRef[] = [...changedRefs, ...unmuteRefs];
 
-  const tests = dedupeTests([...changedTests, ...unmuted.located]);
-  console.log(`Total tests to run: ${tests.length} (${changedTests.length} changed, ${unmuted.located.length} unmuted)`);
-
-  if (tests.length === 0) {
-    console.log("No test changes or unmutes detected");
+  if (refs.length === 0) {
+    console.log("No changed source files or unmutes detected; not starting the resolver");
     if (process.env.CI) {
       try {
         execSync(
@@ -126,24 +125,12 @@ export function run(): void {
     process.exit(0);
   }
 
-  if (tests.length > 30) {
-    console.log(`Warning: ${tests.length} test files to re-run`);
-    if (process.env.CI) {
-      try {
-        execSync(
-          `buildkite-agent annotate "Warning: ${tests.length} test files to re-run (${changedTests.length} changed, ${unmuted.located.length} unmuted). This may take a while." --style "warning" --context "flakiness-detection"`,
-          { cwd: PROJECT_ROOT, stdio: "inherit" }
-        );
-      } catch {
-        // Ignore annotation failures
-      }
-    }
-  }
+  const refsFile: FlakinessRefsFile = { mergeBase, refs };
+  writeFileSync(resolve(PROJECT_ROOT, REFS_FILE), JSON.stringify(refsFile, null, 2));
+  console.log(`Wrote ${refs.length} refs (${changedRefs.length} changed, ${unmuteRefs.length} unmuted) to ${REFS_FILE}`);
 
-  uploadBuildkitePipeline(
-    buildCommands(tests, DEFAULT_BATCHING_CONFIG),
-    DEFAULT_AGENT_CONFIG
-  );
+  // Hand off to the Java resolver + generate steps.
+  uploadResolvePipeline(DEFAULT_AGENT_CONFIG);
 }
 
 if (import.meta.main) run();

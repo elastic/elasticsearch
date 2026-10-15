@@ -21,7 +21,3 @@
 ```
 sqrt(http_requests_total)
 ```
-
-**Differences from Prometheus**
-
-For a negative input, {{es}} returns `null` and emits a warning, rather than the `NaN` that Prometheus returns.

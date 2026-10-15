@@ -27,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,6 +53,7 @@ import org.mockito.ArgumentCaptor;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -169,10 +171,39 @@ public class DatafeedRunnerTests extends ESTestCase {
             () -> currentTime,
             auditor,
             autodetectProcessManager,
-            datafeedContextProvider
+            datafeedContextProvider,
+            MeterRegistry.NOOP
         );
 
         verify(clusterService).addListener(capturedClusterStateListener.capture());
+    }
+
+    public void testCountDatafeedsWithUnavailableProjectsReturnsZeroWhenNoneRunning() {
+        assertThat(datafeedRunner.countDatafeedsWithUnavailableProjects(), equalTo(0L));
+    }
+
+    public void testCountDatafeedsWithUnavailableProjectsCountsRunningDatafeedsWithSkips() throws Exception {
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(java.time.Instant::now);
+        stats.update(List.of(available("origin")));
+        stats.update(List.of(available("origin"), skipped("P1")));
+        when(datafeedJob.getCrossClusterSearchStats()).thenReturn(stats);
+        when(datafeedJob.runLookBack(anyLong(), nullable(Long.class))).thenReturn(1L);
+
+        Consumer<Exception> handler = mockConsumer();
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(DATAFEED_ID, 0L);
+        DatafeedTask task = TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null, params, datafeedRunner);
+        task = spyDatafeedTask(task);
+        datafeedRunner.run(task, false, handler);
+
+        assertThat(datafeedRunner.countDatafeedsWithUnavailableProjects(), equalTo(1L));
+    }
+
+    private static LinkedClusterState available(String alias) {
+        return new LinkedClusterState(alias, LinkedClusterState.Status.AVAILABLE, null, 10L);
+    }
+
+    private static LinkedClusterState skipped(String alias) {
+        return new LinkedClusterState(alias, LinkedClusterState.Status.SKIPPED, "unavailable", 0L);
     }
 
     public void testLookbackOnly_WarnsWhenNoDataIsRetrieved() throws Exception {

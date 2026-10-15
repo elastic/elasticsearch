@@ -45,6 +45,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 import static org.elasticsearch.action.search.SearchTransportService.FETCH_ID_ACTION_NAME;
@@ -112,19 +113,22 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
         // to count the bytes of the actual data-node round trip.
         private final LongConsumer requestBytesConsumer;
         private final LongConsumer resultBytesConsumer;
+        private final Consumer<Exception> onCoordinatorTrip;
 
         public Request(
             ShardFetchSearchRequest shardFetchRequest,
             DiscoveryNode dataNode,
             Map<String, String> headers,
             LongConsumer requestBytesConsumer,
-            LongConsumer resultBytesConsumer
+            LongConsumer resultBytesConsumer,
+            Consumer<Exception> onCoordinatorTrip
         ) {
             this.shardFetchRequest = shardFetchRequest;
             this.dataNode = dataNode;
             this.headers = headers;
             this.requestBytesConsumer = requestBytesConsumer;
             this.resultBytesConsumer = resultBytesConsumer;
+            this.onCoordinatorTrip = onCoordinatorTrip;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -134,6 +138,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
             this.headers = in.readMap(StreamInput::readString);
             this.requestBytesConsumer = l -> {};
             this.resultBytesConsumer = l -> {};
+            this.onCoordinatorTrip = e -> {};
         }
 
         @Override
@@ -215,6 +220,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
         CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         FetchPhaseResponseStream responseStream = new FetchPhaseResponseStream(shardId.getId(), expectedTotalDocs, circuitBreaker);
+        responseStream.setCoordinatorTripListener(request.onCoordinatorTrip);
         Releasable registration = activeFetchPhaseTasks.registerResponseBuilder(coordinatingTaskId, shardId, responseStream);
 
         // Listener that builds final result from accumulated chunks
@@ -232,18 +238,16 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                     );
                 }
 
-                // Track memory usage
-                int bytesSize = lastChunkBytes.length();
-                circuitBreaker.addEstimateBytesAndMaybeBreak(bytesSize, "fetch_chunk_accumulation");
-                responseStream.trackBreakerBytes(bytesSize);
-
+                long estimatedRetainedBytes = 0L;
                 try (StreamInput in = new NamedWriteableAwareStreamInput(lastChunkBytes.streamInput(), namedWriteableRegistry)) {
                     for (int i = 0; i < hitCount; i++) {
                         int position = in.readVInt();
                         SearchHit hit = SearchHit.readFrom(in);
+                        estimatedRetainedBytes += hit.ramBytesUsed();
                         responseStream.addHitWithSequence(hit, position);
                     }
                 }
+                responseStream.chargeRetainedBytes(estimatedRetainedBytes);
             }
 
             // Build final result from all accumulated hits
@@ -253,6 +257,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 dataNodeResult.profileResult()
             );
             finalResult.setDirectoryMetrics(dataNodeResult.getDirectoryMetrics());
+            responseStream.transferBreakerBytesTo(finalResult);
 
             // Release the birth ref after passing ownership to the listener via consumeResult's incRef.
             try {

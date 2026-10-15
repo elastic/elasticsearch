@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,7 @@ public class TransformScheduleNowIT extends TransformSingleNodeTestCase {
     private static final String SOURCE_INDEX = "schedule-now-source";
     private static final TimeValue SYNC_DELAY = TimeValue.timeValueSeconds(30);
     private static final TimeValue FREQUENCY = TimeValue.timeValueHours(1);
+    private static final long CLOCK_TOLERANCE_MS = 10L;
 
     @Override
     protected Settings nodeSettings() {
@@ -51,32 +53,32 @@ public class TransformScheduleNowIT extends TransformSingleNodeTestCase {
         String transformId = "test-schedule-now-defer";
         TransformScheduler scheduler = createStartAndRegisterTransform(transformId);
 
-        long beforeScheduleNow = System.currentTimeMillis();
+        long beforeScheduleNow = Clock.systemUTC().millis();
         scheduleNowTransform(transformId, true);
-        long afterScheduleNow = System.currentTimeMillis();
+        long afterScheduleNow = Clock.systemUTC().millis();
 
         Long nextScheduledTime = scheduler.getNextScheduledTimeMillis(transformId);
         assertThat(nextScheduledTime, notNullValue());
-        assertThat(nextScheduledTime, greaterThanOrEqualTo(beforeScheduleNow + SYNC_DELAY.millis()));
-        assertThat(nextScheduledTime, lessThanOrEqualTo(afterScheduleNow + SYNC_DELAY.millis()));
+        assertThat(nextScheduledTime, greaterThanOrEqualTo(beforeScheduleNow + SYNC_DELAY.millis() - CLOCK_TOLERANCE_MS));
+        assertThat(nextScheduledTime, lessThanOrEqualTo(afterScheduleNow + SYNC_DELAY.millis() + CLOCK_TOLERANCE_MS));
     }
 
     public void testScheduleNowWithoutDefer() throws Exception {
         String transformId = "test-schedule-now-no-defer";
         TransformScheduler scheduler = createStartAndRegisterTransform(transformId);
 
-        long beforeScheduleNow = System.currentTimeMillis();
+        long beforeScheduleNow = Clock.systemUTC().millis();
         scheduleNowTransform(transformId, false);
-        long afterScheduleNow = System.currentTimeMillis();
 
         // Without defer, scheduleNow triggers immediately so lastTriggeredTime ~ now, nextScheduledTime ~ now + frequency.
         // Wrap in assertBusy because if the scheduler background thread happens to be inside processScheduledTasks()
         // at the moment scheduleNow is called, the task won't be processed until the next scheduler cycle.
         assertBusy(() -> {
+            long now = Clock.systemUTC().millis();
             Long nextScheduledTime = scheduler.getNextScheduledTimeMillis(transformId);
             assertThat(nextScheduledTime, notNullValue());
-            assertThat(nextScheduledTime, greaterThanOrEqualTo(beforeScheduleNow + FREQUENCY.millis()));
-            assertThat(nextScheduledTime, lessThanOrEqualTo(afterScheduleNow + FREQUENCY.millis()));
+            assertThat(nextScheduledTime, greaterThanOrEqualTo(beforeScheduleNow + FREQUENCY.millis() - CLOCK_TOLERANCE_MS));
+            assertThat(nextScheduledTime, lessThanOrEqualTo(now + FREQUENCY.millis() + CLOCK_TOLERANCE_MS));
         }, 10, TimeUnit.SECONDS);
     }
 

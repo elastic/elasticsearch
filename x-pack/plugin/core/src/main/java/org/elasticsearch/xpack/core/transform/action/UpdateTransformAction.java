@@ -13,12 +13,16 @@ import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -30,6 +34,7 @@ import java.util.Collections;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST;
 
 public class UpdateTransformAction extends ActionType<UpdateTransformAction.Response> {
 
@@ -43,13 +48,18 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         super(NAME);
     }
 
-    public static final class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> implements Releasable {
 
         private final TransformConfigUpdate update;
         private final String id;
         private final boolean deferValidation;
         private TransformConfig config;
         private AuthorizationState authState;
+
+        // Caller's UIAM cloud credential carried on the request so it survives coordinator -> master
+        // transport, where the AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient is no longer present.
+        @Nullable
+        private CloudCredential cloudCredential;
 
         public Request(TransformConfigUpdate update, String id, boolean deferValidation, TimeValue timeout) {
             this.update = update;
@@ -68,6 +78,11 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             }
             if (in.readBoolean()) {
                 this.authState = new AuthorizationState(in);
+            }
+            if (in.getTransportVersion().supports(TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST)) {
+                this.cloudCredential = in.readOptionalWriteable(CloudCredential::new);
+            } else {
+                this.cloudCredential = null;
             }
         }
 
@@ -140,6 +155,23 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             this.authState = authState;
         }
 
+        @Nullable
+        public CloudCredential getCloudCredential() {
+            return cloudCredential;
+        }
+
+        /**
+         * Sets the credential this request carries and hands ownership of the previously-held
+         * credential back to the caller, which is responsible for closing it. Returns {@code null}
+         * when the credential is unchanged.
+         */
+        @Nullable
+        public CloudCredential setCloudCredential(@Nullable CloudCredential cloudCredential) {
+            var previous = this.cloudCredential == cloudCredential ? null : this.cloudCredential;
+            this.cloudCredential = cloudCredential;
+            return previous;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -158,11 +190,20 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 out.writeBoolean(true);
                 authState.writeTo(out);
             }
+            if (out.getTransportVersion().supports(TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST)) {
+                out.writeOptionalWriteable(cloudCredential);
+            }
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(cloudCredential);
         }
 
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
             return Objects.hash(getTimeout(), update, id, deferValidation, config, authState);
         }
 
@@ -177,6 +218,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             Request other = (Request) obj;
 
             // the base class does not implement equals, therefore we need to check timeout ourselves
+            // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
             return Objects.equals(update, other.update)
                 && this.deferValidation == other.deferValidation
                 && this.id.equals(other.id)

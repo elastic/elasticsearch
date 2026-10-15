@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158153
+summary: Fix parquet dict offset 0 prefetch
+type: bug

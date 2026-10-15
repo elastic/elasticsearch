@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.workload.identity.aws.AsyncWebIdentityCredentialsProvider;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
+import org.junit.After;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -36,10 +37,9 @@ public class S3WorkloadIdentityCredentialsProviderTests extends ESTestCase {
     private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/example";
     private static final String JWT_AUDIENCE = "arn:aws:iam::123456789012:role/example";
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void resetWorkloadIdentityRegistry() {
         WorkloadIdentityRegistry.reset();
-        super.tearDown();
     }
 
     public void testResolvesCredentialsViaWebIdentityExchange() throws Exception {

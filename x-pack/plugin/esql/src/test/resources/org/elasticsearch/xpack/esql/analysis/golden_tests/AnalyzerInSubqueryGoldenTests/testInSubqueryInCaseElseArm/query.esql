@@ -1,0 +1,2 @@
+FROM employees
+| WHERE CASE(salary > 50000, false, emp_no IN (FROM employees | KEEP emp_no))

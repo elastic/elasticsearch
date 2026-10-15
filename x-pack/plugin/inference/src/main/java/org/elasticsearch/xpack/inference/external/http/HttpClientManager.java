@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
+import org.apache.hc.core5.pool.PoolStats;
+import org.apache.http.HttpHost;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
@@ -17,23 +19,31 @@ import org.apache.http.nio.conn.SchemeIOSessionStrategy;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.nio.reactor.ConnectingIOReactor;
 import org.apache.http.nio.reactor.IOReactorException;
-import org.apache.http.pool.PoolStats;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.http.nio.reactor.IOSession;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ssl.AbstractSslBuilder;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLSession;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX;
@@ -103,9 +113,10 @@ public class HttpClientManager implements Closeable {
         Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ThrottlerManager throttlerManager
+        ThrottlerManager throttlerManager,
+        CircuitBreaker circuitBreaker
     ) {
-        return create(settings, threadPool, clusterService, throttlerManager, null);
+        return create(settings, threadPool, clusterService, throttlerManager, null, circuitBreaker);
     }
 
     public static HttpClientManager create(
@@ -113,10 +124,11 @@ public class HttpClientManager implements Closeable {
         ThreadPool threadPool,
         ClusterService clusterService,
         ThrottlerManager throttlerManager,
-        @Nullable TimeValue connectionTtl
+        @Nullable TimeValue connectionTtl,
+        CircuitBreaker circuitBreaker
     ) {
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(connectionTtl);
-        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
+        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager, circuitBreaker);
     }
 
     public static HttpClientManager create(
@@ -125,13 +137,24 @@ public class HttpClientManager implements Closeable {
         ClusterService clusterService,
         ThrottlerManager throttlerManager,
         SSLService sslService,
-        TimeValue connectionTtl
+        TimeValue connectionTtl,
+        CircuitBreaker circuitBreaker
     ) {
         // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
-        final SSLIOSessionStrategy sslioSessionStrategy = sslService.profile(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX)
-            .ioSessionStrategy();
+        final SslProfile sslProfile = sslService.profile(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX);
+        final SSLIOSessionStrategy sslioSessionStrategy = new AbstractSslBuilder<SSLIOSessionStrategy>() {
+            @Override
+            protected SSLIOSessionStrategy build(SSLContext sslContext, String[] protocols, String[] ciphers, HostnameVerifier verifier) {
+                return new SSLIOSessionStrategy(sslContext, protocols, ciphers, verifier) {
+                    @Override
+                    protected void verifySession(HttpHost host, IOSession iosession, SSLSession session) throws SSLException {
+                        verifyHostname(verifier, host.getHostName(), session);
+                    }
+                };
+            }
+        }.build(sslProfile.configuration(), sslProfile.sslContext());
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslioSessionStrategy, connectionTtl);
-        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
+        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager, circuitBreaker);
     }
 
     // Default for testing
@@ -140,7 +163,8 @@ public class HttpClientManager implements Closeable {
         PoolingNHttpClientConnectionManager connectionManager,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ThrottlerManager throttlerManager
+        ThrottlerManager throttlerManager,
+        CircuitBreaker circuitBreaker
     ) {
         this.threadPool = threadPool;
 
@@ -148,7 +172,13 @@ public class HttpClientManager implements Closeable {
         setMaxConnections(MAX_TOTAL_CONNECTIONS.get(settings));
         setMaxRouteConnections(MAX_ROUTE_CONNECTIONS.get(settings));
 
-        this.httpClient = HttpClient.create(new HttpSettings(settings, clusterService), threadPool, connectionManager, throttlerManager);
+        this.httpClient = HttpClient.create(
+            new HttpSettings(settings, clusterService),
+            threadPool,
+            connectionManager,
+            throttlerManager,
+            circuitBreaker
+        );
 
         this.evictionInterval = CONNECTION_EVICTION_THREAD_INTERVAL_SETTING.get(settings);
         this.connectionMaxIdle = CONNECTION_MAX_IDLE_TIME_SETTING.get(settings);
@@ -249,7 +279,8 @@ public class HttpClientManager implements Closeable {
     }
 
     public PoolStats getPoolStats() {
-        return connectionManager.getTotalStats();
+        var stats = connectionManager.getTotalStats();
+        return new PoolStats(stats.getLeased(), stats.getPending(), stats.getAvailable(), stats.getMax());
     }
 
     @Override

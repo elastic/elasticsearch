@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
@@ -226,6 +228,70 @@ public interface GroupingAggregatorFunction extends Releasable {
         return selected;
     }
 
+    /**
+     * Hints that the function is about to receive group IDs less than {@code size}. Implementations may resize upfront
+     * to avoid repeated growth, or ignore the hint entirely; callers must not rely on the capacity having changed.
+     */
+    default void maybeEnsureCapacity(int size) {
+
+    }
+
     /** The number of blocks used by intermediate state. */
     int intermediateBlockCount();
+
+    /**
+     * Whether this grouping aggregation function supports partitioning
+     */
+    default boolean supportPartitioning() {
+        return false;
+    }
+
+    interface PartitionedState {
+        /**
+         * Whether every group of the given partition has value.
+         */
+        boolean hasAllValues(int partition);
+
+        /**
+         * Releases the given partition without waiting for the remaining ones.
+         * One partition index must be released by one thread at a time,
+         * but different partitions can be released by different threads.
+         */
+        void releasePartition(CircuitBreaker breaker, int partition);
+
+        /**
+         * Releases all remaining partitions of this partitioned state.
+         * This must happen after all {@link #releasePartition} calls have completed.
+         */
+        void releaseAll(CircuitBreaker breaker);
+    }
+
+    /** Splits grouping aggregation state alongside partitioned hash keys. */
+    interface PartitionSplitter extends PartitionedHashTable.PartitionSplitter {
+        /** Finishes splitting and returns the partitioned aggregation state. */
+        PartitionedState finish();
+    }
+
+    /**
+     * Creates a splitter for this grouping aggregation state.
+     * Callers must check {@link #supportPartitioning()} first; otherwise this method throws {@link UnsupportedOperationException}.
+     */
+    default PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    /**
+     * Combines one partition into this grouping aggregation state.
+     * Callers must check {@link #supportPartitioning()} first; otherwise this method throws {@link UnsupportedOperationException}.
+     *
+     * @param source     the partitioned state
+     * @param partition  the partition to combine
+     * @param appendOnly whether all destination IDs are new, consecutive, and in source order
+     * @param dstIds     the destination group ID for each source value, with at least {@code length} entries
+     * @param length     the number of source values to combine
+     */
+    default void combinePartition(PartitionedState source, int partition, boolean appendOnly, int[] dstIds, int length) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
 }

@@ -269,17 +269,25 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         capturedSearchSlices.forEach(slice -> assertThat(slice.getField(), equalTo("num")));
     }
 
-    public void testNonSlicedRemoteReindexRelocation() throws Exception {
+    public void testNonSlicedRemoteReindexRelocationWithoutAuth() throws Exception {
+        testNonSlicedRemoteReindexRelocationWithBasicAuth(false);
+    }
+
+    public void testNonSlicedRemoteReindexRelocationWithBasicAuth() throws Exception {
+        testNonSlicedRemoteReindexRelocationWithBasicAuth(true);
+    }
+    // no test for remote sliced reindex since it's not allowed
+
+    private void testNonSlicedRemoteReindexRelocationWithBasicAuth(final boolean basicAuthEnabled) throws Exception {
         final int slices = 1;
         testReindexRelocation((nodeAName, nodeBName) -> {
             final InetSocketAddress nodeAAddress = internalCluster().getInstance(HttpServerTransport.class, nodeAName)
                 .boundAddress()
                 .publishAddress()
                 .address();
-            return List.of(startAsyncNonSlicedThrottledRemoteReindexOnNode(nodeBName, nodeAAddress));
+            return List.of(startAsyncNonSlicedThrottledRemoteReindexOnNodeWithBasicAuthEnabled(nodeBName, nodeAAddress, basicAuthEnabled));
         }, remoteReindexDescription(), slices, true, randomIntBetween(1, 4));
     }
-    // no test for remote sliced reindex since it's not allowed
 
     /// Performs a reindex task. The `startReindexGivenNodeAAndB` parameter must do one of:
     /// - start a single non-sliced reindex and return its task ID;
@@ -928,28 +936,45 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         return taskIds;
     }
 
-    private TaskId startAsyncNonSlicedThrottledRemoteReindexOnNode(final String nodeName, final InetSocketAddress remoteAddress)
-        throws Exception {
+    private TaskId startAsyncNonSlicedThrottledRemoteReindexOnNodeWithBasicAuthEnabled(
+        final String nodeName,
+        final InetSocketAddress remoteAddress,
+        final boolean basicAuthEnabled
+    ) throws Exception {
         try (RestClient restClient = createRestClient(nodeName)) {
             final Request request = new Request("POST", "/_reindex");
             request.addParameter("wait_for_completion", "false");
             request.addParameter("slices", Integer.toString(1));
             request.addParameter("requests_per_second", Integer.toString(requestsPerSecond));
-            request.setJsonEntity(Strings.format("""
-                {
-                  "source": {
-                    "remote": {
-                      "host": "http://%s:%d"
-                    },
-                    "index": "%s",
-                    "size": %d
-                  },
-                  "dest": {
-                    "index": "%s"
-                  }
-                }
-                """, InetAddresses.toUriString(remoteAddress.getAddress()), remoteAddress.getPort(), SOURCE_INDEX, bulkSize, DEST_INDEX));
-
+            final String credentials = basicAuthEnabled ? """
+                ,
+                      "username": "elastic",
+                      "password": "password"\
+                """ : "";
+            request.setJsonEntity(
+                Strings.format(
+                    """
+                        {
+                          "source": {
+                            "remote": {
+                              "host": "http://%s:%d"%s
+                            },
+                            "index": "%s",
+                            "size": %d
+                          },
+                          "dest": {
+                            "index": "%s"
+                          }
+                        }
+                        """,
+                    InetAddresses.toUriString(remoteAddress.getAddress()),
+                    remoteAddress.getPort(),
+                    credentials,
+                    SOURCE_INDEX,
+                    bulkSize,
+                    DEST_INDEX
+                )
+            );
             final Response response = restClient.performRequest(request);
             final String task = (String) ESRestTestCase.entityAsMap(response).get("task");
             assertNotNull("reindex did not return a task id", task);

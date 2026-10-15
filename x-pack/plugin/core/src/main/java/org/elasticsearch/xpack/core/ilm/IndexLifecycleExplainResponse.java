@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,6 +26,8 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle.EXPLAIN_INDEX_UNMANAGED_REASON;
 
 public class IndexLifecycleExplainResponse implements ToXContentObject, Writeable {
 
@@ -58,6 +61,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
     private static final ParseField SKIP_NAME = new ParseField("skip");
     private static final ParseField FORCE_MERGE_CLONE_INDEX_NAME = new ParseField("force_merge_clone_index_name");
+    private static final ParseField UNMANAGED_REASON_FIELD = new ParseField("unmanaged_reason");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
         "index_lifecycle_explain_response",
@@ -83,7 +87,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             (BytesReference) a[21],
             (PhaseExecutionInfo) a[12],
             Objects.requireNonNullElse((Boolean) a[22], false),
-            (String) a[24]
+            (String) a[24],
+            (String) a[25]
             // a[13] == "age"
             // a[20] == "time_since_index_creation"
             // a[23] = "age_in_millis"
@@ -127,6 +132,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SKIP_NAME);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), AGE_IN_MILLIS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_CLONE_INDEX_NAME);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), UNMANAGED_REASON_FIELD);
     }
 
     private static final TransportVersion ILM_ADD_SKIP_SETTING = TransportVersion.fromName("ilm_add_skip_setting");
@@ -153,6 +159,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private final String shrinkIndexName;
     private final boolean skip;
     private final String forceMergeCloneIndexName;
+    @Nullable
+    private final String unmanagedReason;
 
     Supplier<Long> nowSupplier = System::currentTimeMillis; // Can be changed for testing
 
@@ -201,11 +209,12 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             previousStepInfo,
             phaseExecutionInfo,
             skip,
-            forceMergeCloneIndexName
+            forceMergeCloneIndexName,
+            null
         );
     }
 
-    public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index) {
+    public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index, @Nullable String reason) {
         return new IndexLifecycleExplainResponse(
             index,
             null,
@@ -228,7 +237,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             null,
             null,
             false,
-            null
+            null,
+            reason
         );
     }
 
@@ -254,7 +264,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         BytesReference previousStepInfo,
         PhaseExecutionInfo phaseExecutionInfo,
         boolean skip,
-        String forceMergeCloneIndexName
+        String forceMergeCloneIndexName,
+        String unmanagedReason
     ) {
         if (managedByILM) {
             if (policyName == null) {
@@ -324,6 +335,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         this.shrinkIndexName = shrinkIndexName;
         this.skip = skip;
         this.forceMergeCloneIndexName = forceMergeCloneIndexName;
+        this.unmanagedReason = unmanagedReason;
     }
 
     public IndexLifecycleExplainResponse(StreamInput in) throws IOException {
@@ -355,6 +367,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             }
             // No need for deserialization from this point onwards as this action only runs on the local node.
             forceMergeCloneIndexName = null;
+            unmanagedReason = null;
         } else {
             policyName = null;
             lifecycleDate = null;
@@ -376,6 +389,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             indexCreationDate = null;
             skip = false;
             forceMergeCloneIndexName = null;
+            unmanagedReason = in.getTransportVersion().supports(EXPLAIN_INDEX_UNMANAGED_REASON) ? in.readOptionalString() : null;
         }
     }
 
@@ -406,6 +420,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 out.writeBoolean(skip);
             }
             // No need for serialization from this point onwards as this action only runs on the local node.
+        } else if (out.getTransportVersion().supports(EXPLAIN_INDEX_UNMANAGED_REASON)) {
+            out.writeOptionalString(unmanagedReason);
         }
     }
 
@@ -427,6 +443,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
 
     public boolean managedByILM() {
         return managedByILM;
+    }
+
+    @Nullable
+    public String getUnmanagedReason() {
+        return unmanagedReason;
     }
 
     public String getPolicyName() {
@@ -603,6 +624,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (forceMergeCloneIndexName != null) {
                 builder.field(FORCE_MERGE_CLONE_INDEX_NAME.getPreferredName(), forceMergeCloneIndexName);
             }
+        } else if (unmanagedReason != null) {
+            builder.field(UNMANAGED_REASON_FIELD.getPreferredName(), unmanagedReason);
         }
         builder.endObject();
         return builder;
@@ -632,7 +655,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             previousStepInfo,
             phaseExecutionInfo,
             skip,
-            forceMergeCloneIndexName
+            forceMergeCloneIndexName,
+            unmanagedReason
         );
     }
 
@@ -666,7 +690,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             && Objects.equals(previousStepInfo, other.previousStepInfo)
             && Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo)
             && Objects.equals(skip, other.skip)
-            && Objects.equals(forceMergeCloneIndexName, other.forceMergeCloneIndexName);
+            && Objects.equals(forceMergeCloneIndexName, other.forceMergeCloneIndexName)
+            && Objects.equals(unmanagedReason, other.unmanagedReason);
     }
 
     @Override

@@ -115,26 +115,12 @@ public final class OnHeapES91OSQVectorsScorer extends ES91OSQVectorsScorer {
             subRet3 += sum3.reduceLanes(VectorOperators.ADD);
         }
         // process scalar tail
-        for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+        for (; i < length; i += Long.BYTES) {
             final long value = (long) BitUtil.VH_LE_LONG.get(bytes, i);
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
             subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
             subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
             subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
-        }
-        for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-            final int value = (int) BitUtil.VH_LE_INT.get(bytes, i);
-            subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
-            subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
-            subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
-            subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
-        }
-        for (; i < length; i++) {
-            int dValue = bytes[i] & 0xFF;
-            subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
-            subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
-            subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
-            subRet3 += Integer.bitCount((q[i + 3 * length] & dValue) & 0xFF);
         }
         return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
     }
@@ -167,26 +153,12 @@ public final class OnHeapES91OSQVectorsScorer extends ES91OSQVectorsScorer {
         subRet2 += sum2.reduceLanes(VectorOperators.ADD);
         subRet3 += sum3.reduceLanes(VectorOperators.ADD);
         // process scalar tail
-        for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+        for (; i < length; i += Long.BYTES) {
             final long value = (long) BitUtil.VH_LE_LONG.get(bytes, i);
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
             subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
             subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
             subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
-        }
-        for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-            final int value = (int) BitUtil.VH_LE_INT.get(bytes, i);
-            subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
-            subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
-            subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
-            subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
-        }
-        for (; i < length; i++) {
-            int dValue = bytes[i] & 0xFF;
-            subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
-            subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
-            subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
-            subRet3 += Integer.bitCount((q[i + 3 * length] & dValue) & 0xFF);
         }
         return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
     }
@@ -238,26 +210,12 @@ public final class OnHeapES91OSQVectorsScorer extends ES91OSQVectorsScorer {
                 subRet2 += sum2.reduceLanes(VectorOperators.ADD);
                 subRet3 += sum3.reduceLanes(VectorOperators.ADD);
                 // process scalar tail
-                for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+                for (; i < length; i += Long.BYTES) {
                     final long value = (long) BitUtil.VH_LE_LONG.get(bytes, iter * length + i);
                     subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
                     subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
                     subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
                     subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
-                }
-                for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-                    final int value = (int) BitUtil.VH_LE_INT.get(bytes, iter * length + i);
-                    subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
-                    subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
-                    subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
-                    subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
-                }
-                for (; i < length; i++) {
-                    int dValue = bytes[iter * length + i] & 0xFF;
-                    subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
-                    subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
-                    subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
-                    subRet3 += Integer.bitCount((q[i + 3 * length] & dValue) & 0xFF);
                 }
                 scores[j + iter] = subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
             }
@@ -323,26 +281,12 @@ public final class OnHeapES91OSQVectorsScorer extends ES91OSQVectorsScorer {
                     subRet3 += sum3.reduceLanes(VectorOperators.ADD);
                 }
                 // process scalar tail
-                for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+                for (; i < length; i += Long.BYTES) {
                     final long value = (long) BitUtil.VH_LE_LONG.get(bytes, iter * length + i);
                     subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
                     subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
                     subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
                     subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
-                }
-                for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-                    final int value = (int) BitUtil.VH_LE_INT.get(bytes, i);
-                    subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, iter * length + i) & value);
-                    subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
-                    subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
-                    subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
-                }
-                for (; i < length; i++) {
-                    int dValue = bytes[iter * length + i] & 0xFF;
-                    subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
-                    subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
-                    subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
-                    subRet3 += Integer.bitCount((q[i + 3 * length] & dValue) & 0xFF);
                 }
                 scores[j + iter] = subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
             }

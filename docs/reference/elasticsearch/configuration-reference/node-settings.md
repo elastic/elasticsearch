@@ -1,6 +1,7 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html
+  - https://www.elastic.co/guide/en/elasticsearch/plugins/current/mandatory-plugins.html
 applies_to:
   deployment:
     self:
@@ -49,7 +50,7 @@ The following additional roles are available:
 
 * `voting_only`
 
-$$$coordinating-only-node$$$If If you set `node.roles` to an empty array (`node.roles: [ ]`), then the node is considered to be a [coordinating only node](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#coordinating-only-node-role).
+$$$coordinating-only-node$$$If you set `node.roles` to an empty array (`node.roles: [ ]`), then the node is considered to be a [coordinating only node](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#coordinating-only-node-role).
 
 ::::{important}
 If you set `node.roles`, ensure you specify every node role your cluster needs. Every cluster requires the following node roles:
@@ -136,6 +137,18 @@ stack: preview 9.3
 
     GPU indexing is supported for `hnsw` and `int8_hnsw` index types with `float` element type only.
     Requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+
+
+## Mandatory plugin settings [mandatory-plugins]
+
+`plugin.mandatory`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) A comma-separated list of plugins that must be installed for the node to start. If any plugin in the list is missing, the node fails to start rather than joining the cluster without functionality you depend on. Use this for plugins your cluster cannot operate correctly without.
+
+    ```yaml
+    plugin.mandatory: analysis-icu,lang-js
+    ```
+
+    To install the plugins themselves, refer to the [plugin installation instructions for your deployment type](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
 
 
 ## Other node settings [other-node-settings]

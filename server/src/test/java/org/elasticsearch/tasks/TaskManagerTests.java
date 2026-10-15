@@ -416,7 +416,7 @@ public class TaskManagerTests extends ESTestCase {
             "testType",
             new TransportAction<ActionRequest, ActionResponse>(
                 "actionName",
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 taskManager,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             ) {
@@ -460,7 +460,7 @@ public class TaskManagerTests extends ESTestCase {
             "testType",
             new TransportAction<ActionRequest, ActionResponse>(
                 "actionName",
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 taskManager,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             ) {
@@ -742,6 +742,79 @@ public class TaskManagerTests extends ESTestCase {
         } finally {
             taskManager.unregister(parentTask);
         }
+    }
+
+    public void testAddedTaskListenerFiredForCancellableTask() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        List<Task> received = new ArrayList<>();
+        taskManager.registerAddedTaskListener(received::add);
+
+        Task task = taskManager.register("transport", "action", new CancellableRequest("1"));
+        try {
+            assertThat(received.size(), equalTo(1));
+            assertThat(received.get(0), equalTo(task));
+        } finally {
+            taskManager.unregister(task);
+        }
+    }
+
+    public void testAddedTaskListenerFiredForPlainTask() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        List<Task> received = new ArrayList<>();
+        taskManager.registerAddedTaskListener(received::add);
+
+        Task task = taskManager.register("transport", "action", makeTaskRequest(false, 1));
+        try {
+            assertThat(received.size(), equalTo(1));
+            assertThat(received.get(0), equalTo(task));
+        } finally {
+            taskManager.unregister(task);
+        }
+    }
+
+    public void testAddedTaskListenerFiredBeforeHandlerRuns() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of("X-Test-Header"));
+        List<String> capturedHeaders = new ArrayList<>();
+        taskManager.registerAddedTaskListener(t -> {
+            String header = threadPool.getThreadContext().getHeader("X-Test-Header");
+            capturedHeaders.add(header);
+        });
+
+        threadPool.getThreadContext().putHeader("X-Test-Header", "test-value");
+        Task task = taskManager.register("transport", "action", makeTaskRequest(false, 1));
+        try {
+            assertThat(capturedHeaders.size(), equalTo(1));
+            assertThat(capturedHeaders.get(0), equalTo("test-value"));
+        } finally {
+            taskManager.unregister(task);
+        }
+    }
+
+    public void testUnregisterAddedTaskListenerStopsDelivery() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        List<Task> received = new ArrayList<>();
+        AddedTaskListener listener = received::add;
+        taskManager.registerAddedTaskListener(listener);
+        taskManager.unregisterAddedTaskListener(listener);
+
+        Task task = taskManager.register("transport", "action", makeTaskRequest(false, 1));
+        try {
+            assertThat(received, empty());
+        } finally {
+            taskManager.unregister(task);
+        }
+    }
+
+    public void testRemovedTaskListenerStillFiresOnceRegression() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        List<Task> removed = new ArrayList<>();
+        taskManager.registerRemovedTaskListener(removed::add);
+
+        Task task = taskManager.register("transport", "action", makeTaskRequest(false, 1));
+        taskManager.unregister(task);
+
+        assertThat(removed.size(), equalTo(1));
+        assertThat(removed.get(0), equalTo(task));
     }
 
 }

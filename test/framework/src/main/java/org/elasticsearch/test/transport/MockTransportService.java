@@ -308,7 +308,8 @@ public class MockTransportService extends TransportService {
             linkedProjectConfigService,
             telemetryProvider,
             crossProjectModeDecider,
-            projectResolver
+            projectResolver,
+            List.of()
         );
         this.original = transport.getDelegate();
         this.testExecutor = EsExecutors.newScaling(
@@ -807,9 +808,9 @@ public class MockTransportService extends TransportService {
     }
 
     @Override
-    public void onRequestReceived(long requestId, String action) {
-        super.onRequestReceived(requestId, action);
-        messageListener.onRequestReceived(requestId, action);
+    public void onRequestReceived(long requestId, String action, int networkMessageSize) {
+        super.onRequestReceived(requestId, action, networkMessageSize);
+        messageListener.onRequestReceived(requestId, action, networkMessageSize);
     }
 
     @Override
@@ -818,29 +819,30 @@ public class MockTransportService extends TransportService {
         long requestId,
         String action,
         TransportRequest request,
-        TransportRequestOptions options
+        TransportRequestOptions options,
+        int networkMessageSize
     ) {
-        super.onRequestSent(node, requestId, action, request, options);
-        messageListener.onRequestSent(node, requestId, action, request, options);
+        super.onRequestSent(node, requestId, action, request, options, networkMessageSize);
+        messageListener.onRequestSent(node, requestId, action, request, options, networkMessageSize);
     }
 
     @Override
     @SuppressWarnings("rawtypes")
-    public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
-        super.onResponseReceived(requestId, holder);
-        messageListener.onResponseReceived(requestId, holder);
+    public void onResponseReceived(long requestId, Transport.ResponseContext holder, int networkMessageSize) {
+        super.onResponseReceived(requestId, holder, networkMessageSize);
+        messageListener.onResponseReceived(requestId, holder, networkMessageSize);
     }
 
     @Override
-    public void onResponseSent(long requestId, String action) {
-        super.onResponseSent(requestId, action);
-        messageListener.onResponseSent(requestId, action);
+    public void onResponseSent(long requestId, String action, int networkMessageSize) {
+        super.onResponseSent(requestId, action, networkMessageSize);
+        messageListener.onResponseSent(requestId, action, networkMessageSize);
     }
 
     @Override
-    public void onResponseSent(long requestId, String action, Exception e) {
-        super.onResponseSent(requestId, action, e);
-        messageListener.onResponseSent(requestId, action, e);
+    public void onResponseSent(long requestId, String action, Exception e, int networkMessageSize) {
+        super.onResponseSent(requestId, action, e, networkMessageSize);
+        messageListener.onResponseSent(requestId, action, e, networkMessageSize);
     }
 
     public void addMessageListener(TransportMessageListener listener) {
@@ -856,23 +858,23 @@ public class MockTransportService extends TransportService {
         private final List<TransportMessageListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
-        public void onRequestReceived(long requestId, String action) {
+        public void onRequestReceived(long requestId, String action, int networkMessageSize) {
             for (TransportMessageListener listener : listeners) {
-                listener.onRequestReceived(requestId, action);
+                listener.onRequestReceived(requestId, action, networkMessageSize);
             }
         }
 
         @Override
-        public void onResponseSent(long requestId, String action) {
+        public void onResponseSent(long requestId, String action, int networkMessageSize) {
             for (TransportMessageListener listener : listeners) {
-                listener.onResponseSent(requestId, action);
+                listener.onResponseSent(requestId, action, networkMessageSize);
             }
         }
 
         @Override
-        public void onResponseSent(long requestId, String action, Exception error) {
+        public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
             for (TransportMessageListener listener : listeners) {
-                listener.onResponseSent(requestId, action, error);
+                listener.onResponseSent(requestId, action, error, networkMessageSize);
             }
         }
 
@@ -882,18 +884,19 @@ public class MockTransportService extends TransportService {
             long requestId,
             String action,
             TransportRequest request,
-            TransportRequestOptions finalOptions
+            TransportRequestOptions finalOptions,
+            int networkMessageSize
         ) {
             for (TransportMessageListener listener : listeners) {
-                listener.onRequestSent(node, requestId, action, request, finalOptions);
+                listener.onRequestSent(node, requestId, action, request, finalOptions, networkMessageSize);
             }
         }
 
         @Override
         @SuppressWarnings("rawtypes")
-        public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
+        public void onResponseReceived(long requestId, Transport.ResponseContext holder, int networkMessageSize) {
             for (TransportMessageListener listener : listeners) {
-                listener.onResponseReceived(requestId, holder);
+                listener.onResponseReceived(requestId, holder, networkMessageSize);
             }
         }
     }

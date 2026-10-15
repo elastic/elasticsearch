@@ -17,6 +17,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -65,6 +66,7 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         Model model,
         InferenceAction.Request request,
         InferenceService service,
+        TaskId taskId,
         ActionListener<InferenceServiceResults> listener
     ) {
         service.infer(
@@ -74,6 +76,7 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
             request.getTaskSettings(),
             request.getInputType(),
             request.getInferenceTimeout(),
+            taskId,
             listener
         );
     }

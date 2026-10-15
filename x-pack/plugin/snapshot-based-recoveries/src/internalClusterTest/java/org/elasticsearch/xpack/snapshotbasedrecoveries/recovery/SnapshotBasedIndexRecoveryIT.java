@@ -15,11 +15,13 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -56,6 +58,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySnapshotFileRequest;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.ShardRecoveryCancellation;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
@@ -719,7 +722,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         final CountDownLatch shardFailureReceived = new CountDownLatch(1);
         MockTransportService.getInstance(masterNode)
             .addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
-                if (request instanceof ShardStateAction.FailedShardEntry failedShard
+                if (request instanceof FailedShardEntry failedShard
                     && failedShard.getShardId().equals(shardId)
                     && ExceptionsHelper.unwrap(failedShard.getFailure(), RecoveryCancelledException.class) != null) {
                     shardFailureReceived.countDown();
@@ -728,8 +731,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             });
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(targetNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         proceedWithRestoreFile.countDown();
@@ -1744,7 +1748,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     private RecoveryState getLatestPeerRecoveryStateForShard(String indexName, int shardId) {
         RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).get();
         assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
-        List<RecoveryState> indexRecoveries = recoveryResponse.shardRecoveryStates().get(indexName);
+        List<RecoveryState> indexRecoveries = recoveryResponse.shardRecoveryInfos()
+            .get(indexName)
+            .stream()
+            .map(ShardRecoveryInfo::recoveryState)
+            .toList();
         assertThat(indexRecoveries, notNullValue());
 
         List<RecoveryState> peerRecoveries = indexRecoveries.stream()

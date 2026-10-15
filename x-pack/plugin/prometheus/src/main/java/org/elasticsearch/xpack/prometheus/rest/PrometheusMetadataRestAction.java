@@ -64,7 +64,17 @@ public class PrometheusMetadataRestAction extends BaseRestHandler {
 
         LogicalPlan plan = PrometheusMetadataPlanBuilder.buildPlan(index, metric, limit, limitPerMetric);
         EsqlStatement statement = new EsqlStatement(plan, PrometheusPlanBuilderUtils.QUERY_SETTINGS);
-        PreparedEsqlQueryRequest esqlRequest = PreparedEsqlQueryRequest.sync(statement, "prometheus_metadata");
+        PreparedEsqlQueryRequest esqlRequest = new PromqlQueryRequest(
+            index,
+            statement,
+            "prometheus_metadata",
+            LIMIT_PARAM,
+            limit == DEFAULT_LIMIT ? null : limit,
+            LIMIT_PER_METRIC_PARAM,
+            limitPerMetric == DEFAULT_LIMIT ? null : limitPerMetric,
+            METRIC_PARAM,
+            metric
+        );
 
         return channel -> client.execute(
             EsqlQueryAction.INSTANCE,

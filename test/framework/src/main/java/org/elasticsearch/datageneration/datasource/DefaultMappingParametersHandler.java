@@ -22,7 +22,9 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -343,14 +345,22 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             return ESTestCase.randomBoolean();
         }
 
-        // doc_values can't be disabled here; multi_value:false is exercised separately by SingleValueDocValuesDataSourceHandler.
-        return switch (ESTestCase.randomInt(3)) {
-            case 0 -> true;
-            case 1 -> Map.of("multi_value", true);
-            case 2 -> Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore"));
-            case 3 -> Map.of("multi_value", true, "on_failure", ESTestCase.randomFrom("fail", "ignore"));
-            default -> throw new IllegalStateException();
-        };
+        // doc_values can't be disabled here; multi_value:false is in SingleValueDocValuesDataSourceHandler.
+        var choices = new ArrayList<Object>(List.of(true, Map.of("multi_value", true)));
+        if (supportsOnFailure()) {
+            choices.add(Map.of("on_failure", ESTestCase.randomFrom("fail", "ignore")));
+            choices.add(Map.of("multi_value", true, "on_failure", ESTestCase.randomFrom("fail", "ignore")));
+            choices.add(Map.of("nullability", false, "on_failure", "ignore"));
+        }
+        return ESTestCase.randomFrom(choices);
+    }
+
+    /**
+     * Returns {@code true} if the target cluster supports the {@code doc_values.on_failure} sub-parameter.
+     * Override in mixed-version tests to gate on the old cluster's capabilities.
+     */
+    protected boolean supportsOnFailure() {
+        return true;
     }
 
     @Override

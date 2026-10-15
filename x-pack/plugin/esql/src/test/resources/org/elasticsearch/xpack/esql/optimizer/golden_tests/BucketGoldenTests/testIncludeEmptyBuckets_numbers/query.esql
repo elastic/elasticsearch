@@ -1,0 +1,1 @@
+FROM employees | STATS c = AVG(salary) by gender, b = BUCKET(salary, 10, 0, 100000, {"include_empty_buckets": true})

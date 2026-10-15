@@ -49,7 +49,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PAT
  * index.time_series.end_time and index.routing_path index settings to backing indices of
  * data streams in time series index mode.
  */
-public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
+public class TimeSeriesIndexSettingsProvider implements IndexSettingProvider {
 
     static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
@@ -77,11 +77,11 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     private final boolean supportSeqNoDisabled;
     private final boolean supportSyntheticId;
 
-    DataStreamIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
+    TimeSeriesIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
         this(mapperServiceFactory, Settings.EMPTY);
     }
 
-    DataStreamIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory, Settings settings) {
+    TimeSeriesIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory, Settings settings) {
         this.mapperServiceFactory = mapperServiceFactory;
         this.supportSeqNoDisabled = SUPPORT_SEQ_NO_DISABLED.get(settings);
         this.supportSyntheticId = SUPPORT_SYNTHETIC_ID.get(settings);
@@ -105,99 +105,89 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         IndexVersion indexVersion,
         Settings.Builder additionalSettings
     ) {
-        if (dataStreamName != null) {
-            DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
-            // First backing index is created and then data stream is rolled over (in a single cluster state update).
-            // So at this point we can't check index_mode==time_series,
-            // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
-            boolean isMigratingToTimeSeries = IndexMode.isTsdb(templateIndexMode);
-            boolean migrating = dataStream != null
-                && (dataStream.getIndexMode() == null || dataStream.getIndexMode() == IndexMode.STANDARD)
-                && isMigratingToTimeSeries;
-            IndexMode indexMode;
-            if (migrating) {
-                indexMode = IndexMode.TIME_SERIES;
-            } else if (dataStream != null) {
-                indexMode = isMigratingToTimeSeries ? dataStream.getIndexMode() : null;
-            } else if (isMigratingToTimeSeries) {
-                indexMode = IndexMode.TIME_SERIES;
-            } else {
-                indexMode = null;
+        // If this is not a data stream or the index mode is not going to be time_series, we skip
+        if (dataStreamName == null || IndexMode.isTsdb(templateIndexMode) == false) {
+            return;
+        }
+        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
+        IndexMode dataStreamIndexMode = dataStream == null ? null : dataStream.getIndexMode();
+        // If this is the first time series index for this data stream, either because the data stream was
+        // just created or because the data stream was not a time series data stream before.
+        boolean validFirstTimeSeriesIndex = dataStreamIndexMode == null || dataStreamIndexMode == IndexMode.STANDARD;
+        TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(indexTemplateAndCreateRequestSettings);
+        TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(indexTemplateAndCreateRequestSettings);
+        final Instant start;
+        final Instant end;
+        if (validFirstTimeSeriesIndex == false && dataStreamIndexMode.isTsdb() == false) {
+            // This is an invalid migration to TSDB, we do not fail here, but we rely on the rollover to reject this.
+            return;
+        }
+        // Determine the start and end time either based on resolvedAt or the previous time series backing index.
+        if (validFirstTimeSeriesIndex) {
+            start = DataStream.getCanonicalTimestampBound(resolvedAt.minusMillis(lookBackTime.getMillis()));
+            end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
+        } else {
+            IndexMetadata currentLatestBackingIndex = projectMetadata.index(dataStream.getWriteIndex());
+            if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
+                throw new IllegalStateException(
+                    String.format(
+                        Locale.ROOT,
+                        "backing index [%s] in tsdb mode doesn't have the [%s] index setting",
+                        currentLatestBackingIndex.getIndex().getName(),
+                        IndexSettings.TIME_SERIES_END_TIME.getKey()
+                    )
+                );
             }
-            if (indexMode != null) {
-                if (indexMode.isTsdb()) {
-                    TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(indexTemplateAndCreateRequestSettings);
-                    TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(indexTemplateAndCreateRequestSettings);
-                    final Instant start;
-                    final Instant end;
-                    if (dataStream == null || migrating) {
-                        start = DataStream.getCanonicalTimestampBound(resolvedAt.minusMillis(lookBackTime.getMillis()));
-                        end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
-                    } else {
-                        IndexMetadata currentLatestBackingIndex = projectMetadata.index(dataStream.getWriteIndex());
-                        if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
-                            throw new IllegalStateException(
-                                String.format(
-                                    Locale.ROOT,
-                                    "backing index [%s] in tsdb mode doesn't have the [%s] index setting",
-                                    currentLatestBackingIndex.getIndex().getName(),
-                                    IndexSettings.TIME_SERIES_END_TIME.getKey()
-                                )
-                            );
-                        }
-                        start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
-                        if (start.isAfter(resolvedAt)) {
-                            end = DataStream.getCanonicalTimestampBound(start.plusMillis(lookAheadTime.getMillis()));
-                        } else {
-                            end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
-                        }
-                    }
-                    assert start.isBefore(end) : "data stream backing index's start time is not before end time";
-                    additionalSettings.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
-                    additionalSettings.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
-                    if (supportSeqNoDisabled
-                        && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT)
-                        && indexTemplateAndCreateRequestSettings.hasValue(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()) == false) {
-                        additionalSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
-                    }
+            start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
+            if (start.isAfter(resolvedAt)) {
+                end = DataStream.getCanonicalTimestampBound(start.plusMillis(lookAheadTime.getMillis()));
+            } else {
+                end = DataStream.getCanonicalTimestampBound(resolvedAt.plusMillis(lookAheadTime.getMillis()));
+            }
+        }
+        assert start.isBefore(end) : "data stream backing index's start time is not before end time";
+        additionalSettings.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
+        additionalSettings.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
+        if (supportSeqNoDisabled
+            && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT)
+            && indexTemplateAndCreateRequestSettings.hasValue(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()) == false) {
+            additionalSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        }
 
-                    if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD)
-                        && indexTemplateAndCreateRequestSettings.hasValue(IndexSettings.SYNTHETIC_ID.getKey()) == false) {
-                        additionalSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), supportSyntheticId);
-                    }
+        if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD)
+            && indexTemplateAndCreateRequestSettings.hasValue(IndexSettings.SYNTHETIC_ID.getKey()) == false) {
+            additionalSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), supportSyntheticId);
+        }
 
-                    if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_COMBINE_DYNAMIC_UPDATES_DEFAULT)
-                        && indexTemplateAndCreateRequestSettings.hasValue(
-                            MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey()
-                        ) == false) {
-                        additionalSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true);
-                    }
+        if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_COMBINE_DYNAMIC_UPDATES_DEFAULT)
+            && indexTemplateAndCreateRequestSettings.hasValue(
+                MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey()
+            ) == false) {
+            additionalSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), true);
+        }
 
-                    if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
-                        && combinedTemplateMappings.isEmpty() == false) {
-                        List<String> dimensions = new ArrayList<>();
-                        boolean matchesAllDimensions = findDimensionFields(
-                            indexName,
-                            indexTemplateAndCreateRequestSettings,
-                            combinedTemplateMappings,
-                            dimensions
-                        );
-                        if (dimensions.isEmpty() == false) {
-                            if (matchesAllDimensions
-                                && IndexMetadata.INDEX_DIMENSIONS_TSID_STRATEGY_ENABLED.get(indexTemplateAndCreateRequestSettings)
-                                && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
-                                // Only set index.dimensions if the paths in the dimensions list match all potential dimension fields.
-                                // This is not the case e.g. if a dynamic template matches by match_mapping_type instead of path_match
-                                additionalSettings.putList(INDEX_DIMENSIONS.getKey(), dimensions);
-                            } else {
-                                // For older index versions, or when not all dimension fields can be matched via the dimensions list,
-                                // we fall back to use index.routing_path.
-                                // This is less efficient, because the dimensions need to be hashed twice:
-                                // once to determine the shard during routing, and once to create the tsid during document parsing.
-                                additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
-                            }
-                        }
-                    }
+        if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
+            && combinedTemplateMappings.isEmpty() == false) {
+            List<String> dimensions = new ArrayList<>();
+            boolean matchesAllDimensions = findDimensionFields(
+                indexName,
+                indexTemplateAndCreateRequestSettings,
+                combinedTemplateMappings,
+                dimensions
+            );
+            if (dimensions.isEmpty() == false) {
+                if (matchesAllDimensions
+                    && IndexMetadata.INDEX_DIMENSIONS_TSID_STRATEGY_ENABLED.get(indexTemplateAndCreateRequestSettings)
+                    && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {
+                    // Only set index.dimensions if the paths in the dimensions list match all potential dimension fields.
+                    // This is not the case e.g. if a dynamic template matches by match_mapping_type instead of path_match
+                    additionalSettings.putList(INDEX_DIMENSIONS.getKey(), dimensions);
+                } else {
+                    // For older index versions, or when not all dimension fields can be matched via the dimensions list,
+                    // we fall back to use index.routing_path.
+                    // This is less efficient, because the dimensions need to be hashed twice:
+                    // once to determine the shard during routing, and once to create the tsid during document parsing.
+                    additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
                 }
             }
         }

@@ -1309,6 +1309,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
             gate.countDown();
             List<String> rows = done.actionGet(TimeValue.timeValueSeconds(30));
+            assertTrue("drain finished so the iterator must be exhausted", iter.isExhausted());
             assertEquals("every row across the gated gap must be delivered", linesPerFile, rows.size());
             for (int i = 0; i < linesPerFile; i++) {
                 assertEquals("row order preserved across the gap", "line-" + String.format(Locale.ROOT, "%04d", i), rows.get(i));
@@ -1321,6 +1322,66 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 } catch (IOException ignored) {}
             }
             pool.shutdownNow();
+        }
+    }
+
+    /**
+     * {@code putPoisonAndSignal} must not re-set the interrupt flag inside {@code queue.put}.
+     * After one interrupt that loop would throw immediately and the parser would spin until
+     * suite leak. Close drains the full slot, so the parser must exit and join promptly.
+     * Parallelism 2 is required: 1 falls back to a sequential read.
+     */
+    public void testPoisonPutInterruptExitsOnClose() throws Exception {
+        int pageQueueCapacity = StreamingParallelParsingCoordinator.StreamingParallelIterator.PAGE_QUEUE_CAPACITY;
+        List<Thread> poolThreads = new CopyOnWriteArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(6, runnable -> {
+            Thread thread = new Thread(runnable);
+            poolThreads.add(thread);
+            return thread;
+        });
+        try (
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(1024),
+                new ByteArrayInputStream(buildContent(pageQueueCapacity).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                1,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            )
+        ) {
+            AtomicReference<Thread> parser = new AtomicReference<>();
+            assertBusy(() -> {
+                Thread found = findParkedPoisonPutThread(poolThreads);
+                assertNotNull("parser never blocked in putPoisonAndSignal", found);
+                parser.set(found);
+            }, 10, TimeUnit.SECONDS);
+
+            parser.get().interrupt();
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closer = new Thread(() -> {
+                try {
+                    iterator.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            }, "poison-put-closer");
+            try {
+                closer.start();
+                assertTrue("close() must return after poison-put interrupt", closed.await(10, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(10));
+            }
+            assertFalse("closer must exit after close", closer.isAlive());
+            assertNull(closeFailure.get());
+            executor.shutdown();
+            assertTrue("parser spun after poison-put interrupt; pool did not terminate", executor.awaitTermination(10, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 
@@ -2855,6 +2916,22 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         if (ready.isDone() == false) {
             awaitListener(ready);
         }
+    }
+
+    private static Thread findParkedPoisonPutThread(List<Thread> threads) {
+        String iteratorClass = StreamingParallelParsingCoordinator.StreamingParallelIterator.class.getName();
+        for (Thread thread : threads) {
+            Thread.State state = thread.getState();
+            if (state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) {
+                continue;
+            }
+            for (StackTraceElement frame : thread.getStackTrace()) {
+                if (iteratorClass.equals(frame.getClassName()) && "putPoisonAndSignal".equals(frame.getMethodName())) {
+                    return thread;
+                }
+            }
+        }
+        return null;
     }
 
     private static void awaitListener(SubscribableListener<Void> ready) throws Exception {

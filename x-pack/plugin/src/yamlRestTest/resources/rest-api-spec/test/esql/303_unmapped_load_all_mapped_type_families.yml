@@ -138,9 +138,16 @@ teardown:
 
 ---
 'the keyword family survives partial mapping but the text family does not':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ optional_fields_warn_non_loadable_punk_combined ]
+      reason: "single, shorter warning for non-loadable partially unmapped fields"
   - do:
       allowed_warnings:
-        - "Field [mot] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
+        - "Field [mot] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM la_family_mapped, la_family_unmapped | KEEP id, wc, ck, mot | SORT id | LIMIT 5'

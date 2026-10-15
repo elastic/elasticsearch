@@ -68,6 +68,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -108,6 +109,33 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     @After
     public void stop() throws Exception {
         terminate(asyncIo);
+    }
+
+    /**
+     * Guard: a forgotten {@code isExhausted} on a {@code waitForReady} override is silent drain EOF.
+     */
+    public void testWaitForReadyOverridesAlsoDeclareIsExhausted() throws Exception {
+        assertWaitForReadyOverrideDeclaresIsExhausted(OptimizedParquetColumnIterator.class);
+        assertWaitForReadyOverrideDeclaresIsExhausted(
+            Class.forName("org.elasticsearch.xpack.esql.datasource.parquet.ParquetFormatReader$DeferredWarnProducer")
+        );
+    }
+
+    private static void assertWaitForReadyOverrideDeclaresIsExhausted(Class<?> clazz) {
+        boolean waitForReady = false;
+        boolean isExhausted = false;
+        for (Method method : clazz.getMethods()) {
+            if (method.getDeclaringClass() != clazz || method.getParameterCount() != 0) {
+                continue;
+            }
+            if ("waitForReady".equals(method.getName())) {
+                waitForReady = true;
+            } else if ("isExhausted".equals(method.getName())) {
+                isExhausted = true;
+            }
+        }
+        assertTrue(clazz.getName() + " must override waitForReady", waitForReady);
+        assertTrue(clazz.getName() + " overrides waitForReady without isExhausted", isExhausted);
     }
 
     public void testWaitForReadyParksUntilFirstGroupIoCompletes() throws Exception {

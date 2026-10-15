@@ -866,7 +866,10 @@ public class StatelessPlugin extends Plugin
         final var searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
             cacheService,
             threadPool,
-            clusterService.getClusterSettings()
+            clusterService.getClusterSettings(),
+            // TODO: wire in this node's effective max concurrent relocation recoveries once its computation is centralized.
+            // Until then, an unbounded cap keeps the pre-DNRT timeout behaviour.
+            () -> Integer.MAX_VALUE
         );
         components.add(searchRecoveryTimeoutCalculationService);
         var cacheWarmingService = createSharedBlobCacheWarmingService(

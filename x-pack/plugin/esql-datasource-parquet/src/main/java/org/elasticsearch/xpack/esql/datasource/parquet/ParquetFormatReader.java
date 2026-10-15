@@ -3144,6 +3144,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         @Override
+        public boolean isExhausted() {
+            return delegate.isExhausted();
+        }
+
+        @Override
         public void revokeOvershootOnPark() {
             delegate.revokeOvershootOnPark();
         }

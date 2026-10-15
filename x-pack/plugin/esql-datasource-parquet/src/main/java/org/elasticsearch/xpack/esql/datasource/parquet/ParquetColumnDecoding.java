@@ -163,6 +163,8 @@ final class ParquetColumnDecoding {
             return true; // conservative for shapes this method does not model
         }
         LogicalTypeAnnotation logical = primitiveType.getLogicalTypeAnnotation();
+        boolean millisAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts
+            && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS;
         boolean nanosAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts2
             && ts2.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS;
         // A TIME value is a time of day, so a well-formed one is at most 86_400_000_000 microseconds -- which is
@@ -173,12 +175,14 @@ final class ParquetColumnDecoding {
         boolean timeAnnotated = logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time2
             && time2.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS;
         return switch (declaredType) {
-            // Every route an INT64 takes to a datetime block is total. The sub-millisecond units reach it through
-            // convertTimestampToMillis, which floorDivs -- total over the whole long domain -- since the pair became
-            // fused; before that they decoded to nanoseconds first and the MICROS arm nulled anything the nanosecond
-            // domain could not hold. An unannotated INT64 and a MILLIS one are the identity, and a declared format
-            // is handled above. So a no-format INT64 declared `date` keeps its IS NULL pushdown.
-            case DATETIME -> false;
+            // An identity read never nulls, and neither does a narrowing: floorDiv is total over the whole long
+            // domain. MICROS declines here, which is now CONSERVATIVE rather than necessary: since `date` over a
+            // sub-millisecond column became a fused pair, its decode scales straight to millis with floorDiv and
+            // cannot null, so IS NULL could be pushed over such a column. It is left declining because this
+            // predicate gates row-group pruning -- a wrong `false` drops rows, while a wrong `true` only costs a
+            // scan -- and relaxing it needs the totality of every INT64 route to `date` established rather than
+            // argued. The MICROS arm of the TIME units is here for the same reason.
+            case DATETIME -> (logical == null || millisAnnotated || nanosAnnotated || timeAnnotated) == false;
             // A bare INT64 widens millis->nanos via castBlock and nulls pre-epoch/post-2262 values; NANOS is the
             // identity; MICROS/MILLIS scale and can overflow.
             case DATE_NANOS -> (nanosAnnotated || timeAnnotated) == false;

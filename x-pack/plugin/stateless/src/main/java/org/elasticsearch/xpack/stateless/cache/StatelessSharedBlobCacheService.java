@@ -131,7 +131,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /// [#STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING] so each tier can be rolled out and disabled on its own.
     public static final Setting<Boolean> STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache.evict_obsolete_regions.indexing.enabled",
-        true,
+        false,
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );

@@ -122,7 +122,7 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
 
     /** The declared read-instructions ride the wire on a node supporting {@code dataset_declared_schema}. */
     public void testDeclaredReadSpecSurvivesRoundTripWhenSupported() throws IOException {
-        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("id", "emp_no"), "id");
+        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("id", "emp_no"));
         List<Attribute> output = randomFieldAttributes(1, 3, false);
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "csv", "s3://bucket/x.csv", null, null, Map.of(), Map.of());
         ExternalRelation original = new ExternalRelation(
@@ -142,10 +142,10 @@ public class ExternalRelationSerializationTests extends AbstractLogicalPlanSeria
 
     /**
      * Serializing a NON-empty spec toward a node predating {@code dataset_declared_schema} is rejected loudly rather
-     * than silently dropped — dropping it would return wrong rows (physical names, synthetic _id) on the old node.
+     * than silently dropped — dropping it would return wrong rows (physical names) on the old node.
      */
     public void testDeclaredReadSpecRejectedForOlderTransportVersion() throws IOException {
-        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("id", "emp_no"), "id");
+        DeclaredReadSpec spec = DeclaredReadSpec.of(Map.of("id", "emp_no"));
         TransportVersion before = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("dataset_declared_schema"));
         List<Attribute> output = randomFieldAttributes(1, 3, false, before);
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "csv", "s3://bucket/x.csv", null, null, Map.of(), Map.of());

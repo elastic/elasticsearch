@@ -2,7 +2,7 @@
 navigation_title: "Quickstart"
 description: "Step-by-step tutorial for setting up ES|QL Data Federation with a public S3 bucket, creating a dataset, and running your first federated query."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -289,7 +289,7 @@ The `type`, `year`, and `quarter` columns come from Hive-style partition paths i
 :::
 
 :::{tip}
-If a column has an unexpected type, you can override it with a [dataset mapping](esql-data-federation-datasets.md#declare-a-dataset-mapping).
+If a column has an unexpected type, you can [declare its type explicitly](esql-data-federation-schema.md#declare-a-schema-explicitly).
 :::
 ::::::
 
@@ -592,7 +592,10 @@ curl -X POST "${ELASTICSEARCH_URL}/_bulk" \
 
 ::::
 
-Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. Use `METADATA _index` to see where each row came from:
+Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. To see where each row came from, request a metadata column:
+
+- {applies_to}`stack: experimental 9.6+` Use `METADATA _name`, which returns the dataset name for dataset rows and the index name for index rows.
+- {applies_to}`stack: experimental =9.5` Use `METADATA _index`, which returns the dataset name for dataset rows.
 
 ::::{tab-set}
 :group: surface
@@ -603,9 +606,9 @@ Now query both sources together. `FROM` resolves each name independently, whethe
 POST /_query
 {
   "query": """
-    FROM speedtest_fixed, network_incidents METADATA _index
-    | KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms
-    | SORT _index ASC, duration_min DESC NULLS LAST
+    FROM speedtest_fixed, network_incidents METADATA _name
+    | KEEP _name, category, severity, duration_min, avg_d_kbps, avg_lat_ms
+    | SORT _name ASC, duration_min DESC NULLS LAST
     | LIMIT 5
   """
 }
@@ -619,7 +622,7 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
   -H "Authorization: ApiKey ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-  "query": "FROM speedtest_fixed, network_incidents METADATA _index | KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms | SORT _index ASC, duration_min DESC NULLS LAST | LIMIT 5"
+  "query": "FROM speedtest_fixed, network_incidents METADATA _name | KEEP _name, category, severity, duration_min, avg_d_kbps, avg_lat_ms | SORT _name ASC, duration_min DESC NULLS LAST | LIMIT 5"
 }'
 ```
 :::
@@ -627,21 +630,21 @@ curl -X POST "${ELASTICSEARCH_URL}/_query" \
 :::{tab-item} {{esql}}
 :sync: esql
 ```esql
-FROM speedtest_fixed, network_incidents METADATA _index
-| KEEP _index, category, severity, duration_min, avg_d_kbps, avg_lat_ms
-| SORT _index ASC, duration_min DESC NULLS LAST
+FROM speedtest_fixed, network_incidents METADATA _name
+| KEEP _name, category, severity, duration_min, avg_d_kbps, avg_lat_ms
+| SORT _name ASC, duration_min DESC NULLS LAST
 | LIMIT 5
 ```
 :::
 
 ::::
 
-The `_index` column shows where each row came from. Columns that do not exist in a given source return `null`. The speedtest values in your results will differ. Execution metadata is omitted here:
+The `_name` column shows where each row came from. Columns that do not exist in a given source return `null`. The speedtest values in your results will differ. Execution metadata is omitted here:
 
 ```json
 {
   "columns": [
-    { "name": "_index", "type": "keyword" },
+    { "name": "_name", "type": "keyword" },
     { "name": "category", "type": "keyword" },
     { "name": "severity", "type": "keyword" },
     { "name": "duration_min", "type": "integer" },
@@ -723,5 +726,5 @@ Now that you have a working data source and dataset, you can:
 - **Learn about querying external datasets.** To learn how the query engine reads external data, refer to [query external datasets](esql-data-federation-querying.md).
   - For general {{esql}} query tuning, refer to [optimize {{esql}} query performance](esql-query-performance.md).
 - **Connect your own bucket.** To connect a private bucket with credentials or federated identity, refer to [connect external data sources](esql-data-federation-sources.md).
-- **Tune dataset settings.** To override file formats, customize schema inference, or declare explicit column mappings, refer to [select external datasets](esql-data-federation-datasets.md).
+- **Tune dataset behavior.** To configure parsing and file discovery, refer to [dataset settings](esql-data-federation-dataset-settings.md). To control inferred schemas or declare column mappings, refer to [schema inference](esql-data-federation-schema.md).
 - **Query your dataset in {{kib}}.** Datasets work like indices in **Discover**, **Dashboards**, and other apps that use the {{esql}} editor. To find your datasets while writing a query, refer to [browse indices and fields from the editor](docs-content://explore-analyze/discover/try-esql.md#discover-esql-resource-browsers).

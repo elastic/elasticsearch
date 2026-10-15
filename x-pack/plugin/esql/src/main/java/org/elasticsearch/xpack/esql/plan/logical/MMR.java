@@ -43,7 +43,8 @@ public class MMR extends UnaryPlan
         TelemetryAware,
         ExecutesOn.Coordinator,
         PostAnalysisVerificationAware,
-        PostOptimizationPlanVerificationAware {
+        PostOptimizationPlanVerificationAware,
+        DocPreserving {
 
     public static final String LAMBDA_OPTION_NAME = "lambda";
     public static final float DEFAULT_LAMBDA = 0.5f;

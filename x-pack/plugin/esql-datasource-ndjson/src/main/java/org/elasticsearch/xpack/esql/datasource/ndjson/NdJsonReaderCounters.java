@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
+
 import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Thread-safe counter struct for {@link NdJsonFormatReader}; {@link #snapshot()} yields the
  * immutable typed {@link NdJsonReaderStatus}.
  */
-public final class NdJsonReaderCounters {
+public final class NdJsonReaderCounters implements FormatReadCounters {
 
     private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder parseErrors = new LongAdder();
@@ -30,6 +32,7 @@ public final class NdJsonReaderCounters {
         }
     }
 
+    @Override
     public NdJsonReaderStatus snapshot() {
         return new NdJsonReaderStatus(rowsEmitted.sum(), parseErrors.sum());
     }

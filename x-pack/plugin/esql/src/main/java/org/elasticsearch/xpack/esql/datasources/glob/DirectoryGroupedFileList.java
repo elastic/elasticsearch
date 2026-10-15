@@ -49,6 +49,7 @@ final class DirectoryGroupedFileList implements FileList {
     @Nullable
     private final FileSetFingerprint fileSetFingerprint;
     private final List<String> listingWarnings;
+    private final long estimatedBytes;
 
     DirectoryGroupedFileList(
         String basePath,
@@ -65,6 +66,8 @@ final class DirectoryGroupedFileList implements FileList {
         @Nullable FileSetFingerprint fileSetFingerprint,
         List<String> listingWarnings
     ) {
+        assert partitionMetadata == null || partitionMetadata.coversFileCount(fileCount)
+            : "partition metadata covers [" + partitionMetadata.fileCount() + "] files but the listing has [" + fileCount + "]";
         this.basePath = basePath;
         this.groupDirs = groupDirs;
         this.fileGroups = fileGroups;
@@ -78,6 +81,7 @@ final class DirectoryGroupedFileList implements FileList {
         this.fileCount = fileCount;
         this.fileSetFingerprint = fileSetFingerprint;
         this.listingWarnings = listingWarnings == null || listingWarnings.isEmpty() ? List.of() : List.copyOf(listingWarnings);
+        this.estimatedBytes = computeEstimatedBytes();
     }
 
     @Override
@@ -137,8 +141,19 @@ final class DirectoryGroupedFileList implements FileList {
         return fileCount == 0;
     }
 
+    /**
+     * Computed once at construction. The shared {@code Cache} runs its weigher twice on every hit that is not
+     * already at the LRU head - {@code Cache.promote} sends an existing entry through {@code relinkAtHead}, whose
+     * {@code unlink} subtracts {@code weigher.applyAsLong} and whose {@code linkAtHead} adds it back - and this
+     * weight is not a constant: it walks the group directories and the leaf names. A listing is immutable, so
+     * one computation is exact.
+     */
     @Override
     public long estimatedBytes() {
+        return estimatedBytes;
+    }
+
+    private long computeEstimatedBytes() {
         // object header + reference fields
         long bytes = 64;
         // basePath String

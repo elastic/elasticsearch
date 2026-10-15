@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 159734
+summary: Warn on snapshot when PEK-encrypted data source credentials are present
+type: enhancement

@@ -51,7 +51,7 @@ public class SumSerializationTests extends AbstractExpressionSerializationTests<
         return new Sum(instance.source(), field, filter, window, summationMode, longOverflowMode);
     }
 
-    public static class OldSum extends AggregateFunction {
+    public static class OldSum extends UnaryAggregateFunction {
         public OldSum(Source source, Expression field, Expression filter, Expression window) {
             super(source, field, filter, window, List.of());
         }

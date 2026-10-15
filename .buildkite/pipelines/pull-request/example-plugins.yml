@@ -1,5 +1,5 @@
 config:
-  included-regions:
+  any-included-regions:
     - build-conventions/.*
     - build-tools/.*
     - build-tools-internal/.*

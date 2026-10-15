@@ -30,13 +30,13 @@ public interface LeafFieldData extends Accountable {
     /**
      * Return a String representation of the values.
      */
-    SortedBinaryDocValues getBytesValues();
+    SortableBinaryDocValues getBytesValues();
 
     /**
      * Return a formatted representation of the values
      */
     default FormattedDocValues getFormattedValues(DocValueFormat format) {
-        SortedBinaryDocValues values = getBytesValues();
+        SortableBinaryDocValues values = getBytesValues();
         return new FormattedDocValues() {
             @Override
             public boolean advanceExact(int docId) throws IOException {

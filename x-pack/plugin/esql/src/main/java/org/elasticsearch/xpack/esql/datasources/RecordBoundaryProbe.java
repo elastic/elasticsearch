@@ -471,7 +471,11 @@ final class RecordBoundaryProbe {
      * a list. Only a walk that stopped means the file is cut into fewer pieces than the stride asked for, which
      * is the case worth telling the user about.
      */
-    record ProvenWalk(List<Long> boundaries, boolean stoppedBeforeEndOfFile) {}
+    record ProvenWalk(List<Long> boundaries, boolean stoppedBeforeEndOfFile, int getsIssued) {
+        ProvenWalk(List<Long> boundaries, boolean stoppedBeforeEndOfFile) {
+            this(boundaries, stoppedBeforeEndOfFile, 0);
+        }
+    }
 
     /**
      * Boundaries for a splitter that cannot be probed at a fixed offset (quoted or escaped CSV/TSV) but can prove
@@ -487,13 +491,32 @@ final class RecordBoundaryProbe {
         long minSegment,
         BooleanSupplier isCancelled
     ) throws IOException {
+        return provenBoundaries(splitter, storageObject, fileLength, strideBytes, minSegment, isCancelled, Integer.MAX_VALUE);
+    }
+
+    /**
+     * As {@link #provenBoundaries(RecordSplitter, StorageObject, long, long, long, BooleanSupplier)}, stopping
+     * once {@code maxBoundaries} starts (including the file start at 0) have been collected. A walk that
+     * stops because of this cap is not {@link ProvenWalk#stoppedBeforeEndOfFile()}: the rest of the file is
+     * left on the last split on purpose, not because a record could not be cut.
+     */
+    static ProvenWalk provenBoundaries(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long fileLength,
+        long strideBytes,
+        long minSegment,
+        BooleanSupplier isCancelled,
+        int maxBoundaries
+    ) throws IOException {
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
         // The last proven record start, i.e., the base offset the exact walk streams from when the probe is
         // AMBIGUOUS. The file start is always a record start, so it seeds at 0.
         long exactCursor = 0L;
         long pos = strideBytes;
-        while (pos < fileLength) {
+        int getsIssued = 0;
+        while (pos < fileLength && boundaries.size() < maxBoundaries) {
             long remaining = fileLength - pos;
             if (remaining < minSegment) {
                 break;
@@ -501,6 +524,7 @@ final class RecordBoundaryProbe {
             long boundary;
             long probed;
             InputStream probeStream = storageObject.newStream(pos, remaining);
+            getsIssued++;
             try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
                 probed = splitter.findProvenRecordBoundary(probeStream);
             }
@@ -511,6 +535,7 @@ final class RecordBoundaryProbe {
                 // proven record start. minSkip is stream-relative (pos - exactCursor) and always > 0.
                 long walkRemaining = fileLength - exactCursor;
                 InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
+                getsIssued++;
                 long start;
                 try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
                     start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, isCancelled);
@@ -518,7 +543,7 @@ final class RecordBoundaryProbe {
                 if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {
                     // Either a record longer than the splitter will read, or no record start left before
                     // end-of-file. The rest of the file cannot be cut, so it rides on the span open here.
-                    return new ProvenWalk(boundaries, true);
+                    return new ProvenWalk(boundaries, true, getsIssued);
                 }
                 boundary = exactCursor + start;
             } else {
@@ -526,7 +551,7 @@ final class RecordBoundaryProbe {
                 // off, a splitter that breaks that contract leaves the rest of the file uncut, which is the
                 // same shortfall as a record the walk cannot get past and is reported as one.
                 assert false : "findProvenRecordBoundary returned an unexpected sentinel: " + probed;
-                return new ProvenWalk(boundaries, true);
+                return new ProvenWalk(boundaries, true, getsIssued);
             }
             if (boundary >= fileLength) {
                 break;
@@ -543,6 +568,6 @@ final class RecordBoundaryProbe {
                 throw new TaskCancelledException(CANCELLED_MESSAGE);
             }
         }
-        return new ProvenWalk(boundaries, false);
+        return new ProvenWalk(boundaries, false, getsIssued);
     }
 }

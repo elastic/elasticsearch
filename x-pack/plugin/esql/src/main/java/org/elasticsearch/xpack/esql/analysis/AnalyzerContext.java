@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 
@@ -46,8 +48,11 @@ public class AnalyzerContext {
     private final ProjectMetadata projectMetadata;
     private final UnmappedResolution unmappedResolution;
     private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
+    private final Set<String> subqueryNonLoadableNullFills = new LinkedHashSet<>();
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
+    private final boolean preserveViewBoundaries;
+    private final EsqlFlags flags;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -64,7 +69,9 @@ public class AnalyzerContext {
         TransportVersion minimumVersion,
         UnmappedResolution unmappedResolution,
         @Nullable TimestampBounds timestampBounds,
-        IpLocationResolution ipLocationResolution
+        IpLocationResolution ipLocationResolution,
+        boolean preserveViewBoundaries,
+        EsqlFlags flags
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
@@ -81,8 +88,11 @@ public class AnalyzerContext {
         this.unmappedResolution = unmappedResolution;
         this.timestampBounds = timestampBounds;
         this.ipLocationResolution = ipLocationResolution;
+        this.preserveViewBoundaries = preserveViewBoundaries;
+        this.flags = flags;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
+        assert flags != null : "AnalyzerContext must have flags";
         assert TransportVersion.current().supports(minimumVersion)
             : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
     }
@@ -115,7 +125,9 @@ public class AnalyzerContext {
             minimumVersion,
             unmappedResolution,
             null,
-            IpLocationResolution.SERVICE_UNAVAILABLE
+            IpLocationResolution.SERVICE_UNAVAILABLE,
+            false,
+            EsqlFlags.DEFAULTS
         );
     }
 
@@ -186,6 +198,14 @@ public class AnalyzerContext {
     }
 
     /**
+     * LOAD_ALL subquery fields null-filled because the sibling type has no implicit KEYWORD cast.
+     * Warnings are emitted later, and only if the field is observed.
+     */
+    public Set<String> subqueryNonLoadableNullFills() {
+        return subqueryNonLoadableNullFills;
+    }
+
+    /**
      * Returns the {@code @timestamp} bounds extracted from the query DSL filter, or {@code null} if not available.
      */
     @Nullable
@@ -221,6 +241,44 @@ public class AnalyzerContext {
         return Collections.unmodifiableSet(result);
     }
 
+    /**
+     * Whether the current request carries a DSL filter that must be applied at view-output
+     * boundaries. When {@code true}, {@link org.elasticsearch.xpack.esql.view.ViewCompaction}
+     * preserves {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll} wrappers around
+     * view branches so that
+     * {@link org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter} can apply the
+     * filter to the view's output rather than pushing it to the Lucene scan layer.
+     */
+    public boolean preserveViewBoundaries() {
+        return preserveViewBoundaries;
+    }
+
+    /** Cluster flags for this request. Tests that omit them get {@link EsqlFlags#DEFAULTS}. */
+    public EsqlFlags flags() {
+        return flags;
+    }
+
+    /** Resolved {@code max_branch_count_per_merge}: a set query pragma overrides {@link EsqlFlags#maxBranchCountPerMerge()}. */
+    public int maxBranchCountPerMerge() {
+        QueryPragmas pragmas = configuration == null ? QueryPragmas.EMPTY : configuration.pragmas();
+        return pragmas.maxBranchCountPerMerge(flags.maxBranchCountPerMerge());
+    }
+
+    /** Label for whichever knob supplied {@link #maxBranchCountPerMerge()}. */
+    public String maxBranchCountPerMergeLimitSource() {
+        QueryPragmas pragmas = configuration == null ? QueryPragmas.EMPTY : configuration.pragmas();
+        return pragmas.maxBranchCountPerMergeLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey());
+    }
+
+    /**
+     * Resolved {@code max_branch_count}: a set query pragma overrides {@link EsqlFlags#maxBranchCount()}.
+     * View compaction uses this as the flatten budget for nested view unions.
+     */
+    public int maxBranchCount() {
+        QueryPragmas pragmas = configuration == null ? QueryPragmas.EMPTY : configuration.pragmas();
+        return pragmas.maxBranchCount(flags.maxBranchCount());
+    }
+
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
@@ -230,7 +288,9 @@ public class AnalyzerContext {
         ProjectMetadata projectMetadata,
         EsqlSession.PreAnalysisResult result,
         @Nullable TimestampBounds timestampBounds,
-        IpLocationResolution ipLocationResolution
+        IpLocationResolution ipLocationResolution,
+        boolean preserveViewBoundaries,
+        EsqlFlags flags
     ) {
         this(
             configuration,
@@ -247,7 +307,9 @@ public class AnalyzerContext {
             result.minimumTransportVersion(),
             unmappedResolution,
             timestampBounds,
-            ipLocationResolution
+            ipLocationResolution,
+            preserveViewBoundaries,
+            flags
         );
     }
 }

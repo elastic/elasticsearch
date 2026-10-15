@@ -240,8 +240,7 @@ public class VectorDataTests extends ESTestCase {
                 false
             );
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> fieldType.resolveQueryVector(parsed));
-            assertThat(ex.getMessage(), containsString("query_vector"));
-            assertThat(ex.getMessage(), containsString("base64"));
+            assertThat(ex.getMessage(), containsString("must be a valid base64 or hex string"));
         }
     }
 

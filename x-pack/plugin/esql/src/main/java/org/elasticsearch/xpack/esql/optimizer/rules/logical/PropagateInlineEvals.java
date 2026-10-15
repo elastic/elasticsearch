@@ -100,7 +100,6 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
             return plan.replaceChildren(left, right);
         }
 
-
         /*
          * Handle DATE_FORMAT optimization pattern matching:
          *

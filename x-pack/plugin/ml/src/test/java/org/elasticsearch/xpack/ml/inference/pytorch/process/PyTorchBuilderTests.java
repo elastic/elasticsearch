@@ -20,10 +20,12 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class PyTorchBuilderTests extends ESTestCase {
 
@@ -52,7 +54,9 @@ public class PyTorchBuilderTests extends ESTestCase {
             nativeController,
             processPipes,
             new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
-            true
+            true,
+            true,
+            false
         ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
@@ -75,7 +79,9 @@ public class PyTorchBuilderTests extends ESTestCase {
             nativeController,
             processPipes,
             new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ZERO, Priority.NORMAL, 0L, 0L),
-            true
+            true,
+            true,
+            false
         ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
@@ -97,7 +103,9 @@ public class PyTorchBuilderTests extends ESTestCase {
             nativeController,
             processPipes,
             new TaskParams("my_model", "my_deployment", 42L, 1, 1, 1024, ByteSizeValue.ofBytes(42), Priority.LOW, 0L, 0L),
-            true
+            true,
+            true,
+            false
         ).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
@@ -121,6 +129,8 @@ public class PyTorchBuilderTests extends ESTestCase {
             nativeController,
             processPipes,
             new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
+            false,
+            true,
             false
         ).build();
 
@@ -138,5 +148,125 @@ public class PyTorchBuilderTests extends ESTestCase {
                 PROCESS_PIPES_ARG
             )
         );
+    }
+
+    public void testBuildWithSandboxDisabled() throws IOException, InterruptedException {
+        when(processPipes.usesIsolatedChildIpcDir()).thenReturn(false);
+        new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
+            true,
+            false,
+            true
+        ).build();
+
+        verify(nativeController).startProcess(commandCaptor.capture());
+
+        assertThat(
+            commandCaptor.getValue(),
+            contains(
+                "./pytorch_inference",
+                "--validElasticLicenseKeyConfirmed=true",
+                "--numThreadsPerAllocation=2",
+                "--numAllocations=4",
+                "--cacheMemorylimitBytes=12",
+                "--disableSandbox",
+                PROCESS_PIPES_ARG
+            )
+        );
+    }
+
+    public void testBuildWithSandboxDisabledOnNonLinuxDoesNotEmitFlag() throws IOException, InterruptedException {
+        new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
+            true,
+            false,
+            false
+        ).build();
+
+        verify(nativeController).startProcess(commandCaptor.capture());
+
+        assertThat(
+            commandCaptor.getValue(),
+            contains(
+                "./pytorch_inference",
+                "--validElasticLicenseKeyConfirmed=true",
+                "--numThreadsPerAllocation=2",
+                "--numAllocations=4",
+                "--cacheMemorylimitBytes=12",
+                PROCESS_PIPES_ARG
+            )
+        );
+    }
+
+    public void testBuildWithSandboxEnabled() throws IOException, InterruptedException {
+        when(processPipes.usesIsolatedChildIpcDir()).thenReturn(true);
+        new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
+            true,
+            true,
+            true
+        ).build();
+
+        verify(nativeController).startProcess(commandCaptor.capture());
+
+        assertThat(
+            commandCaptor.getValue(),
+            contains(
+                "./pytorch_inference",
+                "--validElasticLicenseKeyConfirmed=true",
+                "--numThreadsPerAllocation=2",
+                "--numAllocations=4",
+                "--cacheMemorylimitBytes=12",
+                "--requireSandbox",
+                PROCESS_PIPES_ARG
+            )
+        );
+    }
+
+    public void testBuildWithSandboxEnabledOnNonLinuxDoesNotEmitFlag() throws IOException, InterruptedException {
+        new PyTorchBuilder(
+            nativeController,
+            processPipes,
+            new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
+            true,
+            true,
+            false
+        ).build();
+
+        verify(nativeController).startProcess(commandCaptor.capture());
+
+        assertThat(
+            commandCaptor.getValue(),
+            contains(
+                "./pytorch_inference",
+                "--validElasticLicenseKeyConfirmed=true",
+                "--numThreadsPerAllocation=2",
+                "--numAllocations=4",
+                "--cacheMemorylimitBytes=12",
+                PROCESS_PIPES_ARG
+            )
+        );
+    }
+
+    public void testBuildWithSandboxEnabledGivenIsolatedIpcDirMismatchShouldThrow() {
+        when(processPipes.usesIsolatedChildIpcDir()).thenReturn(false);
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> new PyTorchBuilder(
+                nativeController,
+                processPipes,
+                new TaskParams("my_model", "my_deployment", 42L, 4, 2, 1024, ByteSizeValue.ofBytes(12), Priority.NORMAL, 0L, 0L),
+                true,
+                true,
+                true
+            ).build()
+        );
+        assertThat(e.getMessage(), containsString("sandbox token decision and isolated child IPC layout must agree"));
     }
 }

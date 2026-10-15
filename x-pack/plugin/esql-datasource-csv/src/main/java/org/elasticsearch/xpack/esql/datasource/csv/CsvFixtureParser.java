@@ -279,23 +279,28 @@ public final class CsvFixtureParser {
             return null;
         }
         if (value.isEmpty()) {
-            // Mirror CsvFormatReader on the arm that matters here: a blank cell is null. The generated
-            // fixtures stand in for these CSVs in the shared cross-format csv-spec suites, where the dataset
-            // is registered WITHOUT mappings -- so the CSV read of the same file infers its schema and reads
-            // a blank cell as null. Writing "" instead would make e.g. a Parquet twin of this file answer a
-            // grouping query differently from the CSV it was generated from.
+            // Mirror CsvFormatReader: a blank cell is "" on a string (keyword/text) column, null on every
+            // other type. The generated fixtures stand in for these CSVs in the shared cross-format csv-spec
+            // suites, where the dataset is registered WITHOUT mappings -- so the CSV read of the same file
+            // infers its schema; writing "" for string columns keeps the CSV and its Parquet/ORC/NDJSON twins
+            // in agreement on grouping queries (e.g. a blank gender bucket counts identically across formats).
             //
             // This covers a blank in a LIST column too (one whose other rows hold [a,b]): the generators
             // write it absent rather than as a one-element [""], which again is what the reader produces --
             // a blank cell is never bracketed, so it takes the scalar path there as well. A blank ELEMENT
             // inside brackets is a different question, decided by parseScalar; that one still diverges from
             // the reader (it drops the element where the reader keeps ""), which predates this method's rule.
-            return null;
+            return isStringType(type) ? "" : null;
         }
         if (value.startsWith("[") && value.endsWith("]")) {
             return parseMultiValue(value, type, quote, esc);
         }
         return parseScalar(value, type, quote);
+    }
+
+    /** Mirrors {@code DataType.isString}: true for keyword, text, and semantic_text (which maps to text). */
+    static boolean isStringType(String type) {
+        return "keyword".equals(type) || "text".equals(type) || "semantic_text".equals(type);
     }
 
     private static Object parseMultiValue(String value, String type, char quote, char esc) {

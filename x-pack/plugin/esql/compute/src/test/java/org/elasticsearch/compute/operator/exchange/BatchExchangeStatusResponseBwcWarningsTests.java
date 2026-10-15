@@ -23,6 +23,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -81,6 +82,39 @@ public class BatchExchangeStatusResponseBwcWarningsTests extends ESTestCase {
 
         assertThat(deserialized.warnings(), empty());
         assertThat(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()), empty());
+    }
+
+    /**
+     * Nodes that still had the profiling of the server driver could send a profile. This node leaves the slot of the
+     * profile empty, and reads past a profile it receives so the response still reads in full.
+     */
+    public void testReadsPastAProfile() throws IOException {
+        TransportVersion version = randomFrom(
+            BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_PROFILE,
+            BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE
+        );
+        BytesReference withoutProfile = serialize(new BatchExchangeStatusResponse(123L, List.of("warn1")), version);
+        assertThat("the response ends with an empty profile slot", withoutProfile.get(withoutProfile.length() - 1), equalTo((byte) 0));
+
+        BytesReference withProfile;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            withoutProfile.slice(0, withoutProfile.length() - 1).writeTo(out);
+            out.writeBoolean(true);
+            int fields = version.supports(BatchExchangeStatusResponse.ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? 11 : 7;
+            for (int i = 0; i < fields; i++) {
+                out.writeVLong(randomNonNegativeLong());
+            }
+            withProfile = out.bytes();
+        }
+
+        try (StreamInput in = withProfile.streamInput()) {
+            in.setTransportVersion(version);
+            BatchExchangeStatusResponse response = new BatchExchangeStatusResponse(in, new ThreadContext(Settings.EMPTY));
+            assertThat(response.bytesRead(), equalTo(123L));
+            assertThat(response.warnings(), contains("warn1"));
+            assertThat("the profile is read in full", in.available(), equalTo(0));
+        }
     }
 
     private static BytesReference serialize(BatchExchangeStatusResponse response, TransportVersion version) throws IOException {

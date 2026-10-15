@@ -1,5 +1,5 @@
 LimitExec[10000[INTEGER],null]
-\_MergeExec[[author{r}#0, author.keyword{r}#1, book_no{r}#2, collection{r}#3, description{r}#4, publisher{r}#5, ratings{r}#6, title{r}#7, year{r}#8, _score{r}#9, _fork{r}#10, total{r}#11]]
+\_MergeExec[[author{r}#0, author.keyword{r}#1, book_no{r}#2, collection{r}#3, description{r}#4, publisher{r}#5, ratings{r}#6, title{r}#7, year{r}#8, _score{r}#9, _fork{r}#10, total{r}#11],FORK]
   |_ProjectExec[[author{f}#12, author.keyword{f}#13, book_no{f}#14, collection{f}#15, description{f}#16, publisher{f}#17, ratings{f}#18, title{f}#19, year{f}#20, _score{m}#21, _fork{r}#22, total{r}#23]]
   | \_EvalExec[[fork1[KEYWORD] AS _fork#22, null[LONG] AS total#23]]
   |   \_TopNExec[[Order[_score{m}#21,DESC,FIRST]],3[INTEGER],null]

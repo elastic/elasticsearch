@@ -24,18 +24,18 @@ import java.util.Set;
  * Helpers for reader-synthesized internal channels — columns with no backing source field, filled
  * by the format reader from a per-format value source. Today the only synthetic kind is
  * {@link Kind#ROW_POSITION} (column name {@link ColumnExtractor#ROW_POSITION_COLUMN}), which the
- * optimizer ({@code InjectRowPositionForExternalId}) injects whenever {@code _id} or
- * {@code _file.record_ref} is requested; format readers fill the slot from their own per-format
+ * optimizer ({@code InjectRowPositionForRecordRef}) injects whenever {@code _file.record_ref} is
+ * requested; format readers fill the slot from their own per-format
  * source (CSV counter, ORC {@code RecordReader#getRowNumber}, NDJSON byte offset, parquet-mr
  * packed extractor id) and {@code VirtualColumnIterator} consumes it before the data reaches the
  * user.
  *
  * <p>Distinct from <em>virtual</em> columns: virtual columns are user-visible names you can write
  * in a {@code METADATA} clause (the {@code MetadataAttribute.ATTRIBUTES_MAP} names — {@code _index},
- * {@code _id}, {@code _version}, … — plus the {@code _file.*} family); they implement the
+ * {@code _score}, {@code _ignored}, … — plus the {@code _file.*} family); they implement the
  * {@link org.elasticsearch.xpack.esql.core.expression.VirtualAttribute} marker. Synthetic columns
  * are internal-only: the user cannot name {@code _rowPosition} in a query, but its value reaches
- * the user via the virtual {@code _file.record_ref} and through {@code _id}'s composition.
+ * the user via the virtual {@code _file.record_ref}.
  *
  * <p>The {@link Kind} registry is the single source of truth for the set of synthetic columns,
  * their canonical names, and their attribute shapes — consumers derive a kind's behavior from its
@@ -51,8 +51,7 @@ public final class SyntheticColumns {
      */
     public enum Kind {
         /**
-         * Per-record token. The substrate for {@code _id} composition (hashed with the file identity by {@code ExternalRowIdentity}) and
-         * surfaced directly as the virtual {@code _file.record_ref} column. Format-defined
+         * Per-record token, surfaced as the virtual {@code _file.record_ref} column. Format-defined
          * opaque value (file-global row index on columnar formats, file-global byte offset on
          * text formats). Nullability is UNKNOWN, not FALSE: readers without a row-position
          * channel null-splice this slot, so a never-null declaration would license
@@ -93,11 +92,11 @@ public final class SyntheticColumns {
     }
 
     /**
-     * Names of every reader-synthesized internal channel. The producer pipeline injects these,
-     * and rendering code (e.g. {@code SynthesizeExternalSource}) excludes them from the rendered
-     * {@code _source} object. User data columns whose names happen to start with {@code _}
-     * (e.g. Spark's {@code _corrupt_record}, a user-supplied {@code _status}) are real data — a
-     * leading underscore on its own is not the filter; membership in this set is.
+     * Names of every reader-synthesized internal channel. The producer pipeline injects these and
+     * projects them away again; nothing user-visible carries one. User data columns whose names
+     * happen to start with {@code _} (e.g. Spark's {@code _corrupt_record}, a user-supplied
+     * {@code _status}) are real data — a leading underscore on its own is not the filter;
+     * membership in this set is.
      */
     public static final Set<String> NAMES = BY_NAME.keySet();
 

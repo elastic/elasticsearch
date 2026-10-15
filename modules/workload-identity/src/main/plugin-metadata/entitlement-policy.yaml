@@ -1,17 +1,16 @@
 org.elasticsearch.workloadidentity:
   - outbound_network
   - manage_threads
-# Apache HttpComponents 4.x async transport. The NIO reactor opens sockets from its own
-# event-loop threads (org.apache.httpcomponents.httpcore.nio), while DNS / SSL handshake
-# calls originate from org.apache.httpcomponents.httpclient, and the async future plumbing
-# spins worker threads inside org.apache.httpcomponents.httpasyncclient. Without these
-# entitlements TLS handshake and connection establishment fail at runtime with
+# Apache HttpComponents 5.x async transport. The NIO reactor opens sockets from its own
+# event-loop threads (org.apache.httpcomponents.core5.httpcore5), while SSL/TLS handshake
+# and connection establishment originate from org.apache.httpcomponents.client5.httpclient5.
+# Without these entitlements TLS handshake and connection establishment fail at runtime with
 # NotEntitledException. Mirrors the grants x-pack/plugin/core makes for the same modules.
-org.apache.httpcomponents.httpclient:
+org.apache.httpcomponents.client5.httpclient5:
   - outbound_network
   - manage_threads
-org.apache.httpcomponents.httpcore.nio:
+org.apache.httpcomponents.core5.httpcore5:
   - outbound_network
   - manage_threads
-org.apache.httpcomponents.httpasyncclient:
+org.apache.httpcomponents.core5.httpcore5.h2:
   - manage_threads

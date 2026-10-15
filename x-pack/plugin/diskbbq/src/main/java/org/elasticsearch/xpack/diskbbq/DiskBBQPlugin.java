@@ -24,7 +24,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFor
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.license.License;
@@ -72,7 +71,8 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                 DenseVectorFieldMapper.VectorSimilarity similarity,
                 DenseVectorFieldMapper.ElementType elementType,
                 ExecutorService mergingExecutorService,
-                int maxMergingWorkers
+                int maxMergingWorkers,
+                ExecutorService quantizerExecutorService
             ) {
                 if (options instanceof DenseVectorFieldMapper.BBQIVFIndexOptions diskbbq) {
                     if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)
@@ -81,10 +81,11 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                     }
                     int clusterSize = diskbbq.getClusterSize();
                     boolean onDiskRescore = diskbbq.isOnDiskRescore();
+                    boolean onDiskMerge = diskbbq.isOnDiskMerge();
                     boolean doPrecondition = diskbbq.doPrecondition();
                     int flatIndexThreshold = diskbbq.getFlatIndexThreshold();
                     final String sliceField = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings.isSliceEnabled()
-                        ? RoutingFieldMapper.NAME
+                        ? SliceIndexing.SLICE_KEY_FIELD_NAME
                         : null;
                     IndexVersion indexVersionCreated = indexSettings.getIndexVersionCreated();
                     boolean experimentalFeaturesEnabled = IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(
@@ -105,14 +106,16 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                                 onDiskRescore,
                                 mergingExecutorService,
                                 maxMergingWorkers,
+                                quantizerExecutorService,
                                 flatIndexThreshold,
                                 sliceField,
                                 IvfFlushConfigSource.empty(),
-                                IvfMergeConfigResolver.useCodecDefault()
+                                IvfMergeConfigResolver.useCodecDefault(),
+                                onDiskMerge
                             );
                         }
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
-                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize, diskbbq.autoCalibrationProfile())
                             : IvfMergeConfigResolver.useCodecDefault();
                         return new ESNextDiskBBQVectorsFormat(
                             QuantEncoding.fromBits((byte) diskbbq.getBits()),
@@ -127,11 +130,12 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             flatIndexThreshold,
                             sliceField,
                             IvfFlushConfigSource.empty(),
-                            mergeConfigResolver
+                            mergeConfigResolver,
+                            onDiskMerge
                         );
                     } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE)) {
                         IvfMergeConfigResolver mergeConfigResolver = diskbbq.autoCalibrate()
-                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                            ? IvfAutoCalibration.mergeConfigResolver(clusterSize, diskbbq.autoCalibrationProfile())
                             : IvfMergeConfigResolver.useCodecDefault();
                         return new ES950DiskBBQVectorsFormat(
                             QuantEncoding.fromBits((byte) diskbbq.getBits()),
@@ -145,7 +149,8 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                             flatIndexThreshold,
                             IvfFlushConfigSource.empty(),
-                            mergeConfigResolver
+                            mergeConfigResolver,
+                            onDiskMerge
                         );
                     }
                     return new ES940DiskBBQVectorsFormat(
@@ -158,7 +163,9 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         maxMergingWorkers,
                         doPrecondition,
                         ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                        flatIndexThreshold
+                        flatIndexThreshold,
+                        ES940DiskBBQVectorsFormat.VERSION_CURRENT,
+                        onDiskMerge
                     );
                 }
                 return null;

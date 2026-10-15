@@ -24,8 +24,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.WarningSourceLocation;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -34,12 +32,6 @@ import java.util.List;
 
 /** {@link AggregatorFunctionSupplier} implementation for PromQL changes over exponential histogram values. */
 public final class ChangesExponentialHistogramAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-    private final WarningSourceLocation source;
-
-    public ChangesExponentialHistogramAggregatorFunctionSupplier(WarningSourceLocation source) {
-        this.source = source;
-    }
-
     @Override
     public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
         throw new UnsupportedOperationException("non-grouping aggregator is not supported");
@@ -57,7 +49,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
 
     @Override
     public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-        return new ChangesExponentialHistogramGroupingAggregatorFunction(channels, driverContext, driverContext.createWarnings(source));
+        return new ChangesExponentialHistogramGroupingAggregatorFunction(channels, driverContext);
     }
 
     @Override
@@ -68,7 +60,6 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
     static final class ChangesExponentialHistogramGroupingAggregatorFunction extends AbstractRateGroupingFunction
         implements
             GroupingAggregatorFunction {
-        private static final String MULTIVALUED_SAMPLE_WARNING = "Multivalued samples are not supported by changes and were ignored.";
         private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
             new IntermediateStateDesc("timestamps", ElementType.LONG),
             new IntermediateStateDesc("values", ElementType.EXPONENTIAL_HISTOGRAM),
@@ -79,17 +70,15 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
         private final List<Integer> channels;
         private final DriverContext driverContext;
         private final BigArrays bigArrays;
-        private final Warnings warnings;
         private final ExponentialHistogramRawBuffer rawBuffer;
         private final IncreaseExponentialHistogramGroupingAggregatorFunction.IntervalBuffer intervalBuffer;
         private ObjectArray<ReducedState> reducedStates;
         private int lastSliceIndex = -1;
 
-        ChangesExponentialHistogramGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, Warnings warnings) {
+        ChangesExponentialHistogramGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
             this.channels = channels;
             this.driverContext = driverContext;
             this.bigArrays = driverContext.bigArrays();
-            this.warnings = warnings;
             ExponentialHistogramRawBuffer rawBuffer = null;
             IncreaseExponentialHistogramGroupingAggregatorFunction.IntervalBuffer intervalBuffer = null;
             try {
@@ -165,11 +154,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                 if (groups.isNull(p) || values.isNull(valuePosition)) {
                     continue;
                 }
-                int valueCount = values.getValueCount(valuePosition);
-                if (valueCount > 1) {
-                    warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
-                    continue;
-                }
+                assert values.getValueCount(valuePosition) == 1 : "expected single-valued block " + values;
                 long timestamp = timestamps.getLong(valuePosition);
                 ExponentialHistogram value = values.getExponentialHistogram(values.getFirstValueIndex(valuePosition), scratch);
                 int groupStart = groups.getFirstValueIndex(p);
@@ -187,11 +172,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                 if (values.isNull(valuePosition)) {
                     continue;
                 }
-                int valueCount = values.getValueCount(valuePosition);
-                if (valueCount > 1) {
-                    warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
-                    continue;
-                }
+                assert values.getValueCount(valuePosition) == 1 : "expected single-valued block " + values;
                 rawBuffer.append(
                     groups.getInt(p),
                     timestamps.getLong(valuePosition),

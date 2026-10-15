@@ -25,8 +25,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.WarningSourceLocation;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -37,12 +35,6 @@ import java.util.List;
  * This class is generated. Edit {@code X-ChangesAggregatorFunctionSupplier.java.st} instead.
  */
 public final class Changes$Type$AggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-    private final WarningSourceLocation source;
-
-    public Changes$Type$AggregatorFunctionSupplier(WarningSourceLocation source) {
-        this.source = source;
-    }
-
     @Override
     public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
         throw new UnsupportedOperationException("non-grouping aggregator is not supported");
@@ -60,7 +52,7 @@ public final class Changes$Type$AggregatorFunctionSupplier implements Aggregator
 
     @Override
     public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-        return new Changes$Type$GroupingAggregatorFunction(channels, driverContext, driverContext.createWarnings(source));
+        return new Changes$Type$GroupingAggregatorFunction(channels, driverContext);
     }
 
     @Override
@@ -70,7 +62,6 @@ public final class Changes$Type$AggregatorFunctionSupplier implements Aggregator
 }
 
 final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGroupingFunction implements GroupingAggregatorFunction {
-    private static final String MULTIVALUED_SAMPLE_WARNING = "Multivalued samples are not supported by changes and were ignored.";
     private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
         new IntermediateStateDesc("timestamps", ElementType.LONG),
         new IntermediateStateDesc("values", ElementType.$TYPE$),
@@ -81,17 +72,15 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
     private final List<Integer> channels;
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
-    private final Warnings warnings;
     private final Rate$Type$GroupingAggregatorFunction.$Type$RawBuffer rawBuffer;
     private final Rate$Type$GroupingAggregatorFunction.IntervalBuffer intervalBuffer;
     private ObjectArray<ReducedState> reducedStates;
     private int lastSliceIndex = -1;
 
-    Changes$Type$GroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, Warnings warnings) {
+    Changes$Type$GroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
-        this.warnings = warnings;
         Rate$Type$GroupingAggregatorFunction.$Type$RawBuffer rawBuffer = null;
         Rate$Type$GroupingAggregatorFunction.IntervalBuffer intervalBuffer = null;
         try {
@@ -188,11 +177,7 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
             if (groups.isNull(p) || values.isNull(valuePosition)) {
                 continue;
             }
-            int valueCount = values.getValueCount(valuePosition);
-            if (valueCount > 1) {
-                warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
-                continue;
-            }
+            assert values.getValueCount(valuePosition) == 1 : "expected single-valued block " + values;
             $type$ value = values.get$Type$(values.getFirstValueIndex(valuePosition));
             long timestamp = timestamps.getLong(valuePosition);
             int groupStart = groups.getFirstValueIndex(p);
@@ -209,11 +194,7 @@ final class Changes$Type$GroupingAggregatorFunction extends AbstractRateGrouping
             if (values.isNull(valuePosition)) {
                 continue;
             }
-            int valueCount = values.getValueCount(valuePosition);
-            if (valueCount > 1) {
-                warnings.registerWarning(MULTIVALUED_SAMPLE_WARNING);
-                continue;
-            }
+            assert values.getValueCount(valuePosition) == 1 : "expected single-valued block " + values;
             $type$ value = values.get$Type$(values.getFirstValueIndex(valuePosition));
             rawBuffer.append(groups.getInt(p), timestamps.getLong(valuePosition), value);
         }

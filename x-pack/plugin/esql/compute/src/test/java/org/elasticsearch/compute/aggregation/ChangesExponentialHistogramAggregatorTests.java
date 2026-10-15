@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
@@ -23,8 +22,6 @@ import org.elasticsearch.exponentialhistogram.ZeroBucket;
 
 import java.util.List;
 import java.util.function.Consumer;
-
-import static org.hamcrest.Matchers.contains;
 
 public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
 
@@ -150,52 +147,6 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
         }
     }
 
-    public void testMultivaluedSamplesAreSkippedWithWarning() {
-        DriverContext driverContext = driverContext();
-        try (
-            var selected = driverContext.blockFactory().newConstantIntVector(0, 1);
-            var state = newAggregator(driverContext);
-            var evalContext = new GroupingAggregatorEvaluationContext(driverContext);
-            var valueBuilder = driverContext.blockFactory().newExponentialHistogramBlockBuilder(3)
-        ) {
-            valueBuilder.beginPositionEntry();
-            try (
-                var first = ExponentialHistogram.create(16, ExponentialHistogramCircuitBreaker.noop(), new double[] { 1 });
-                var second = ExponentialHistogram.create(16, ExponentialHistogramCircuitBreaker.noop(), new double[] { 2 })
-            ) {
-                valueBuilder.append(first);
-                valueBuilder.append(second);
-            }
-            valueBuilder.endPositionEntry();
-            try (
-                var first = ExponentialHistogram.create(16, ExponentialHistogramCircuitBreaker.noop(), new double[] { 1 });
-                var second = ExponentialHistogram.create(16, ExponentialHistogramCircuitBreaker.noop(), new double[] { 2 })
-            ) {
-                valueBuilder.append(first);
-                valueBuilder.append(second);
-            }
-            ExponentialHistogramBlock values = valueBuilder.build();
-            LongBlock timestamps = driverContext.blockFactory().newLongArrayVector(new long[] { 30, 20, 10 }, 3).asBlock();
-            IntBlock sliceIndices = driverContext.blockFactory().newConstantIntBlockWith(0, 3);
-            try (
-                Page page = new Page(values, timestamps, sliceIndices);
-                var groups = driverContext.blockFactory().newConstantIntVector(0, 3);
-                var addInput = state.prepareProcessRawInputPage(new SeenGroupIds.Empty(), page)
-            ) {
-                addInput.add(0, groups);
-            }
-
-            assertChanges(state, selected, evalContext, 1L);
-        } finally {
-            driverContext.finish();
-            assertThat(
-                driverContext.warnings(),
-                contains("Line 1:1 [changes(field)]: Multivalued samples are not supported by changes and were ignored.")
-            );
-            assertDriverContext(driverContext);
-        }
-    }
-
     public void testDuplicateTimestampsHaveDeterministicOrdering() {
         DriverContext driverContext = driverContext();
         try (
@@ -245,17 +196,11 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
     }
 
     private static GroupingAggregatorFunction newAggregator(DriverContext driverContext) {
-        return new ChangesExponentialHistogramAggregatorFunctionSupplier(new TestWarningsSource("changes(field)")).groupingAggregator(
-            driverContext,
-            List.of(0, 1, 2)
-        );
+        return new ChangesExponentialHistogramAggregatorFunctionSupplier().groupingAggregator(driverContext, List.of(0, 1, 2));
     }
 
     private static GroupingAggregatorFunction newIntermediateAggregator(DriverContext driverContext) {
-        return new ChangesExponentialHistogramAggregatorFunctionSupplier(new TestWarningsSource("changes(field)")).groupingAggregator(
-            driverContext,
-            List.of(0, 1, 2, 3)
-        );
+        return new ChangesExponentialHistogramAggregatorFunctionSupplier().groupingAggregator(driverContext, List.of(0, 1, 2, 3));
     }
 
     private static void addRaw(GroupingAggregatorFunction aggregator, DriverContext driverContext, double[][] samples, long[] timestamps) {

@@ -11,15 +11,11 @@ import org.elasticsearch.compute.OperatorTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.TestWarningsSource;
 
 import java.util.List;
-
-import static org.hamcrest.Matchers.contains;
 
 public class ChangesDoubleAggregatorTests extends OperatorTests {
 
@@ -130,51 +126,6 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
         }
     }
 
-    public void testMultivaluedMetricSamplesAreSkippedWithWarning() {
-        DriverContext driverContext = driverContext();
-        try (
-            var selected = driverContext.blockFactory().newConstantIntVector(0, 1);
-            var groups = driverContext.blockFactory().newConstantIntVector(0, 3);
-            var state = newAggregator(driverContext);
-            var evalContext = new GroupingAggregatorEvaluationContext(driverContext);
-            var valueBuilder = driverContext.blockFactory().newDoubleBlockBuilder(3)
-        ) {
-            valueBuilder.beginPositionEntry().appendDouble(2).appendDouble(1).endPositionEntry();
-            valueBuilder.appendDouble(1).appendDouble(1);
-            DoubleBlock values = valueBuilder.build();
-            assertEquals(2, values.getValueCount(0));
-            LongBlock timestamps = driverContext.blockFactory().newLongArrayVector(new long[] { 30, 20, 10 }, 3).asBlock();
-            addRaw(state, driverContext, values, timestamps, groups);
-
-            Block[] intermediate = new Block[state.intermediateBlockCount()];
-            state.prepareEvaluateIntermediate(selected, evalContext).evaluate(intermediate, 0, selected);
-            try (
-                LongBlock intermediateTimestamps = (LongBlock) intermediate[0];
-                DoubleBlock intermediateValues = (DoubleBlock) intermediate[1];
-                LongBlock sampleCounts = (LongBlock) intermediate[2];
-                LongBlock changes = (LongBlock) intermediate[3]
-            ) {
-                assertEquals(2, intermediateTimestamps.getValueCount(0));
-                assertEquals(2, intermediateValues.getValueCount(0));
-                assertEquals(2, sampleCounts.getLong(0));
-                assertEquals(0, changes.getLong(0));
-            }
-
-            Block[] resultBlocks = new Block[1];
-            state.prepareEvaluateFinal(selected, evalContext).evaluate(resultBlocks, 0, selected);
-            try (LongBlock result = (LongBlock) resultBlocks[0]) {
-                assertEquals(0L, result.getLong(0));
-            }
-        } finally {
-            driverContext.finish();
-            assertThat(
-                driverContext.warnings(),
-                contains("Line 1:1 [changes(field)]: Multivalued samples are not supported by changes and were ignored.")
-            );
-            assertDriverContext(driverContext);
-        }
-    }
-
     public void testRepeatedNaNIsNotAChange() {
         DriverContext driverContext = driverContext();
         try (
@@ -195,17 +146,11 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
     }
 
     private static GroupingAggregatorFunction newAggregator(DriverContext driverContext) {
-        return new ChangesDoubleAggregatorFunctionSupplier(new TestWarningsSource("changes(field)")).groupingAggregator(
-            driverContext,
-            List.of(0, 1, 2)
-        );
+        return new ChangesDoubleAggregatorFunctionSupplier().groupingAggregator(driverContext, List.of(0, 1, 2));
     }
 
     private static GroupingAggregatorFunction newIntermediateAggregator(DriverContext driverContext) {
-        return new ChangesDoubleAggregatorFunctionSupplier(new TestWarningsSource("changes(field)")).groupingAggregator(
-            driverContext,
-            List.of(0, 1, 2, 3)
-        );
+        return new ChangesDoubleAggregatorFunctionSupplier().groupingAggregator(driverContext, List.of(0, 1, 2, 3));
     }
 
     private static void addRaw(GroupingAggregatorFunction aggregator, DriverContext driverContext, double[] values, long[] timestamps) {
@@ -231,35 +176,4 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
         }
     }
 
-    private static void addRaw(
-        GroupingAggregatorFunction aggregator,
-        DriverContext driverContext,
-        DoubleBlock values,
-        LongBlock timestamps,
-        IntBlock groups
-    ) {
-        IntBlock sliceIndices = driverContext.blockFactory().newConstantIntBlockWith(0, values.getPositionCount());
-        try (
-            Page page = new Page(values, timestamps, sliceIndices);
-            var addInput = aggregator.prepareProcessRawInputPage(new SeenGroupIds.Empty(), page)
-        ) {
-            addInput.add(0, groups);
-        }
-    }
-
-    private static void addRaw(
-        GroupingAggregatorFunction aggregator,
-        DriverContext driverContext,
-        DoubleBlock values,
-        LongBlock timestamps,
-        IntVector groups
-    ) {
-        IntBlock sliceIndices = driverContext.blockFactory().newConstantIntBlockWith(0, values.getPositionCount());
-        try (
-            Page page = new Page(values, timestamps, sliceIndices);
-            var addInput = aggregator.prepareProcessRawInputPage(new SeenGroupIds.Empty(), page)
-        ) {
-            addInput.add(0, groups);
-        }
-    }
 }

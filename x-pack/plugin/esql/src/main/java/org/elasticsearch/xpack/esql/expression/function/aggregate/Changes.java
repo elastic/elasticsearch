@@ -145,10 +145,10 @@ public class Changes extends TimeSeriesAggregateFunction implements OptionalArgu
     @Override
     public AggregatorFunctionSupplier supplier() {
         return switch (field().dataType()) {
-            case LONG, COUNTER_LONG -> new ChangesLongAggregatorFunctionSupplier(source());
-            case INTEGER, COUNTER_INTEGER -> new ChangesIntAggregatorFunctionSupplier(source());
-            case DOUBLE, COUNTER_DOUBLE -> new ChangesDoubleAggregatorFunctionSupplier(source());
-            case EXPONENTIAL_HISTOGRAM -> new ChangesExponentialHistogramAggregatorFunctionSupplier(source());
+            case LONG, COUNTER_LONG -> new ChangesLongAggregatorFunctionSupplier();
+            case INTEGER, COUNTER_INTEGER -> new ChangesIntAggregatorFunctionSupplier();
+            case DOUBLE, COUNTER_DOUBLE -> new ChangesDoubleAggregatorFunctionSupplier();
+            case EXPONENTIAL_HISTOGRAM -> new ChangesExponentialHistogramAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(field().dataType());
         };
     }

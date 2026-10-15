@@ -14,15 +14,22 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     public VectorSearchIT(@Name("upgradedNodes") int upgradedNodes) {
@@ -39,6 +46,9 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String FLAT_BBQ_INDEX_NAME = "flat_bbq_vector_index";
     private static final String HNSW_BIT_INDEX_NAME = "hnsw_bit_vector_index";
     private static final String FLAT_BIT_INDEX_NAME = "flat_bit_vector_index";
+    private static final String POST_FILTER_INDEX_NAME = "post_filter_vector_index";
+    private static final String POST_FILTER_THRESHOLD_SETTING = "index.dense_vector.post_filter_selectivity_threshold";
+    private static final int POST_FILTER_DOC_COUNT = 200;
 
     // TODO: replace these with proper test features
     private static final String FLOAT_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.4.0";
@@ -731,6 +741,114 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
             (double) hits.get(0).get("_score"),
             closeTo(0.9934857, 0.005)
         );
+    }
+
+    /**
+     * Filtered kNN search on an index created before the upgrade. Every tenth document is tagged {@code rare}, so a filter on
+     * {@code common} matches 90% of the vectors. In the old and mixed clusters the search only has to keep returning the right
+     * documents, whichever node serves it. Once every node is upgraded, the index uses the post-filtering default without any
+     * change to it, and a dynamic update of the threshold takes effect on the next search. The kNN profile shows which path
+     * served a search: only a post-filtered search rewrites to {@code KnnScoreDocQuery}.
+     */
+    public void testFilteredKnnPostFiltering() throws Exception {
+        assumeTrue("Float vector search is not supported on this version", oldClusterHasFeature(FLOAT_VECTOR_SEARCH_TEST_FEATURE));
+        if (isOldCluster()) {
+            String mapping = """
+                {
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector",
+                      "dims": 3,
+                      "index": true,
+                      "similarity": "l2_norm",
+                      "index_options": {
+                        "type": "hnsw",
+                        "ef_construction": 100,
+                        "m": 16
+                      }
+                    },
+                    "tag": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+                """;
+            // a single shard keeps the filter's selectivity exactly 0.9
+            createIndex(POST_FILTER_INDEX_NAME, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build(), mapping);
+            StringBuilder bulk = new StringBuilder();
+            for (int i = 0; i < POST_FILTER_DOC_COUNT; i++) {
+                bulk.append(Strings.format("{\"index\":{\"_id\":\"%d\"}}\n", i));
+                bulk.append(Strings.format("{\"vector\":[%d, %d, %d], \"tag\":\"%s\"}\n", i, i, i, i % 10 == 0 ? "rare" : "common"));
+            }
+            Request bulkRequest = new Request("POST", "/" + POST_FILTER_INDEX_NAME + "/_bulk");
+            bulkRequest.addParameter("refresh", "true");
+            bulkRequest.setJsonEntity(bulk.toString());
+            assertOK(client().performRequest(bulkRequest));
+            client().performRequest(new Request("POST", "/" + POST_FILTER_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
+        }
+
+        filteredKnnSearch(false);
+
+        if (isUpgradedCluster()) {
+            // the index was created before post-filtering was on by default, and still picks the default up
+            assertThat(filteredKnnProfileTypes(), hasItem("KnnScoreDocQuery"));
+
+            updateIndexSettings(POST_FILTER_INDEX_NAME, Settings.builder().put(POST_FILTER_THRESHOLD_SETTING, 1.0f));
+            assertThat(filteredKnnProfileTypes(), allOf(hasItem("DocAndScoreQuery"), not(hasItem("KnnScoreDocQuery"))));
+
+            Request resetRequest = new Request("PUT", "/" + POST_FILTER_INDEX_NAME + "/_settings");
+            resetRequest.setJsonEntity(Strings.format("{\"%s\": null}", POST_FILTER_THRESHOLD_SETTING));
+            assertOK(client().performRequest(resetRequest));
+            assertThat(filteredKnnProfileTypes(), hasItem("KnnScoreDocQuery"));
+        }
+    }
+
+    /**
+     * Searches for the four vectors nearest to {@code [100, 100, 100]} among the {@code common} documents. Document 100 is the
+     * nearest overall but is {@code rare}, so the filter must leave it out on either path.
+     */
+    private static Map<String, Object> filteredKnnSearch(boolean profile) throws IOException {
+        Request searchRequest = new Request("POST", "/" + POST_FILTER_INDEX_NAME + "/_search");
+        searchRequest.setJsonEntity(Strings.format("""
+            {
+              "profile": %s,
+              "knn": {
+                "field": "vector",
+                "query_vector": [100, 100, 100],
+                "k": 4,
+                "num_candidates": 100,
+                "filter": {
+                  "term": {
+                    "tag": "common"
+                  }
+                }
+              }
+            }
+            """, profile));
+        Map<String, Object> response = search(searchRequest);
+        List<Map<String, Object>> hits = extractValue(response, "hits.hits");
+        assertThat(hits.stream().map(hit -> hit.get("_id")).toList(), containsInAnyOrder("98", "99", "101", "102"));
+        return response;
+    }
+
+    /** The query types anywhere in the kNN profile tree of a filtered search, which also checks the search's hits. */
+    private static List<String> filteredKnnProfileTypes() throws IOException {
+        Map<String, Object> response = filteredKnnSearch(true);
+        List<Map<String, Object>> queries = ObjectPath.evaluate(response, "profile.shards.0.dfs.knn.0.query");
+        List<String> types = new ArrayList<>();
+        collectProfileTypes(queries, types);
+        return types;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void collectProfileTypes(List<Map<String, Object>> queries, List<String> types) {
+        for (Map<String, Object> query : queries) {
+            types.add((String) query.get("type"));
+            List<Map<String, Object>> children = (List<Map<String, Object>>) query.get("children");
+            if (children != null) {
+                collectProfileTypes(children, types);
+            }
+        }
     }
 
     private void index64DimVectors(String indexName) throws Exception {

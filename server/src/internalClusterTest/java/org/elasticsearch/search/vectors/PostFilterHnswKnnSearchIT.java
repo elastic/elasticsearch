@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -24,10 +25,15 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Integration tests for kNN search with post-filtering across different
@@ -114,6 +120,75 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
             assertNotEquals(0, response.getHits().getHits().length);
             assertProfileReportsVectorOps(response);
         });
+    }
+
+    /**
+     * The threshold is a dynamic setting read on every search, so updating it on an open index changes the path the next
+     * filtered search takes, with no reopen. For HNSW the kNN profile tells the two paths apart: only a post-filtered search
+     * rewrites to {@link KnnScoreDocQuery}, while a regular filtered search rewrites to Lucene's {@code DocAndScoreQuery}.
+     */
+    public void testDynamicThresholdUpdateTakesEffect() throws IOException {
+        String indexName = "dynamic_threshold_test";
+        createHnswIndex(indexName, "float");
+        indexFlatDocs(indexName);
+        float[] queryVector = { 1, 1, 1, 20 };
+        String key = DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey();
+
+        // Created with POST_FILTER_THRESHOLD, which the ~0.8-selectivity "common" filter reaches.
+        assertFilteredKnnPath(indexName, queryVector, true);
+
+        updateIndexSettings(Settings.builder().put(key, 1.0f), indexName);
+        assertFilteredKnnPath(indexName, queryVector, false);
+
+        // Resetting the setting restores the default, which the ~0.8-selectivity filter also reaches.
+        updateIndexSettings(Settings.builder().putNull(key), indexName);
+        assertFilteredKnnPath(indexName, queryVector, true);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(key, 1.5f))
+        );
+        assertThat(e.getMessage(), containsString(key));
+        assertFilteredKnnPath(indexName, queryVector, true);
+    }
+
+    /**
+     * Runs a k=5 filtered search for "common" docs and asserts both that it returns k matching hits and which path served it.
+     */
+    private void assertFilteredKnnPath(String indexName, float[] queryVector, boolean expectPostFiltered) {
+        int k = 5;
+        var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, queryVector, k, 20, null, null, null).addFilterQuery(
+            QueryBuilders.termQuery(TAG_FIELD, "common")
+        );
+        // A post-filtered profile also holds a DocAndScoreQuery, from the unfiltered search it runs first, so only the
+        // KnnScoreDocQuery it rewrites to tells the paths apart.
+        String postFiltered = KnnScoreDocQuery.class.getSimpleName();
+        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k).setProfile(true), response -> {
+            assertEquals(k, response.getHits().getHits().length);
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertEquals("common", hit.getSourceAsMap().get(TAG_FIELD));
+            }
+            List<String> types = knnProfileQueryTypes(response);
+            assertThat(types, expectPostFiltered ? hasItem(postFiltered) : allOf(hasItem("DocAndScoreQuery"), not(hasItem(postFiltered))));
+        });
+    }
+
+    /** The query types anywhere in the kNN profile tree; the rewritten kNN query sits below wrappers such as the boost. */
+    private static List<String> knnProfileQueryTypes(SearchResponse response) {
+        List<String> types = response.getSearchProfileShardResults()
+            .values()
+            .stream()
+            .flatMap(pr -> pr.getQueryPhase().getSearchProfileDfsPhaseResult().getQueryProfileShardResult().stream())
+            .flatMap(qpr -> qpr.getQueryResults().stream())
+            .flatMap(PostFilterHnswKnnSearchIT::profileTree)
+            .map(ProfileResult::getQueryName)
+            .toList();
+        assertFalse("Expected the kNN search to be profiled", types.isEmpty());
+        return types;
+    }
+
+    private static Stream<ProfileResult> profileTree(ProfileResult result) {
+        return Stream.concat(Stream.of(result), result.getProfiledChildren().stream().flatMap(PostFilterHnswKnnSearchIT::profileTree));
     }
 
     /**

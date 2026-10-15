@@ -186,6 +186,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY = new NodeFeature(
         "mapper.fix_sorted_numeric_with_offsets_empty_array"
     );
+    public static final NodeFeature NUMERIC_FETCH_EMPTY_STRING_AS_NULL = new NodeFeature("mapper.numeric.fetch_empty_string_as_null");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -296,7 +297,8 @@ public class MapperFeatures implements FeatureSpecification {
             DENSE_VECTOR_UNIFIED_VALUE_FORMATS,
             FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY,
             RANGE_DOCVALUE_FIELDS_FIX,
-            TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG
+            TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG,
+            NUMERIC_FETCH_EMPTY_STRING_AS_NULL
         );
     }
 }

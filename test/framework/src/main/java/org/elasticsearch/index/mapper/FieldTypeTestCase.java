@@ -70,6 +70,15 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     }
 
     public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
+        return fetchSourceValue(fieldType, sourceValue, format, new ArrayList<>());
+    }
+
+    /**
+     * Fetches the values of a field from a source that holds {@code sourceValue} for it, and adds the source
+     * values that the fetcher reports as ignored to {@code ignoredValues} so tests can assert on them.
+     */
+    public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format, List<Object> ignoredValues)
+        throws IOException {
         String field = fieldType.name();
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
@@ -78,7 +87,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
         Source source = Source.fromMap(Collections.singletonMap(field, sourceValue), randomFrom(XContentType.values()));
-        return fetcher.fetchValues(source, -1, new ArrayList<>());
+        return fetcher.fetchValues(source, -1, ignoredValues);
     }
 
     public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {

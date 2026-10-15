@@ -25,6 +25,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 /**
  * HTTP handler wrapper that injects configurable faults into S3 requests.
@@ -38,6 +39,16 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
 
     /** Default number of body bytes served before a {@link FaultType#CONNECTION_RESET_MID_BODY} drops the connection. */
     public static final int DEFAULT_MID_BODY_RESET_AFTER_BYTES = 1024 * 1024;
+
+    /**
+     * Cap on a single {@code write} to the JDK {@code HttpServer} body. {@code WriteStream.write} allocates
+     * {@code 2*len}, so an unsplit tens-of-MB blob write OOMs a 512m fixture JVM. 64 KiB keeps the extra
+     * allocation bounded on both pass-through and truncated mid-body responses.
+     */
+    static final int RESPONSE_WRITE_CHUNK_SIZE = 64 * 1024;
+
+    /** Closed {@code Range: bytes=<start>-<end>}. Not missing, not {@code bytes=N-}, not suffix {@code bytes=-N}. */
+    private static final Pattern CLOSED_BYTE_RANGE = Pattern.compile("bytes=\\d+-\\d+");
 
     private final HttpHandler delegate;
     private volatile FaultConfig activeFault;
@@ -54,7 +65,7 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
     }
 
     public void setFault(FaultType type, int count, Predicate<String> pathFilter) {
-        this.activeFault = new FaultConfig(type, new AtomicInteger(count), pathFilter, DEFAULT_MID_BODY_RESET_AFTER_BYTES);
+        this.activeFault = new FaultConfig(type, new AtomicInteger(count), pathFilter, DEFAULT_MID_BODY_RESET_AFTER_BYTES, false);
     }
 
     /**
@@ -65,7 +76,24 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
      * stream-consumer that has already opened the object, exercising mid-read recovery rather than open-retry.
      */
     public void setMidBodyResetFault(int count, int resetAfterBytes, Predicate<String> pathFilter) {
-        this.activeFault = new FaultConfig(FaultType.CONNECTION_RESET_MID_BODY, new AtomicInteger(count), pathFilter, resetAfterBytes);
+        setMidBodyResetFault(count, resetAfterBytes, pathFilter, false);
+    }
+
+    /**
+     * Like {@link #setMidBodyResetFault(int, int, Predicate)} but, when {@code closedRangesOnly} is true, only
+     * closed {@code Range: bytes=<start>-<end>} requests are truncated. Missing Range (metadata / schema-sample
+     * full GETs), open-ended {@code bytes=N-} resumes, and suffix {@code bytes=-N} ranges pass through and do
+     * not consume the budget. {@code newStream(pos, len)} — segment body reads and finite-window probes — is
+     * the closed-range form.
+     */
+    public void setMidBodyResetFault(int count, int resetAfterBytes, Predicate<String> pathFilter, boolean closedRangesOnly) {
+        this.activeFault = new FaultConfig(
+            FaultType.CONNECTION_RESET_MID_BODY,
+            new AtomicInteger(count),
+            pathFilter,
+            resetAfterBytes,
+            closedRangesOnly
+        );
     }
 
     public void clearFault() {
@@ -87,12 +115,19 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
+        // Always chunk the JDK HttpServer body so a tens-of-MB blob.writeTo cannot allocate 2*len.
+        exchange = new ChunkingHttpExchange(exchange);
         FaultConfig fault = this.activeFault;
         if (fault != null && fault.remaining.get() > 0 && fault.pathFilter.test(exchange.getRequestURI().getPath())) {
             if (fault.type == FaultType.CONNECTION_RESET_MID_BODY) {
+                if (fault.closedRangesOnly && isClosedByteRange(exchange) == false) {
+                    delegate.handle(exchange);
+                    return;
+                }
                 // Serve the real response but truncate once the body crosses the threshold; the wrapper
                 // decrements the budget only if/when it actually truncates, so sub-threshold probe reads
-                // leave the fault armed for the next (larger) segment read.
+                // leave the fault armed for the next (larger) segment read. Truncating wraps the already-
+                // chunked exchange so a 1 MiB cutoff still hits 64 KiB JDK buffers.
                 delegate.handle(new TruncatingHttpExchange(exchange, fault.resetAfterBytes, fault.remaining));
                 return;
             }
@@ -109,6 +144,11 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
             }
         }
         delegate.handle(exchange);
+    }
+
+    private static boolean isClosedByteRange(HttpExchange exchange) {
+        String range = exchange.getRequestHeaders().getFirst("Range");
+        return range != null && CLOSED_BYTE_RANGE.matcher(range).matches();
     }
 
     private static void injectFault(HttpExchange exchange, FaultType type) throws IOException {
@@ -145,31 +185,26 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
         CONNECTION_RESET_MID_BODY
     }
 
-    private record FaultConfig(FaultType type, AtomicInteger remaining, Predicate<String> pathFilter, int resetAfterBytes) {}
+    private record FaultConfig(
+        FaultType type,
+        AtomicInteger remaining,
+        Predicate<String> pathFilter,
+        int resetAfterBytes,
+        boolean closedRangesOnly
+    ) {}
 
     /**
-     * Wraps an {@link HttpExchange} so the response body is cut off after {@code resetAfterBytes} bytes and the
-     * connection is dropped, simulating a server-side idle/connection reset on an already-open object stream.
-     * All other exchange operations delegate to the wrapped exchange.
+     * Forwards every {@link HttpExchange} operation to {@code delegate}. Subclasses override the one
+     * method they need (response body wrapping).
      */
-    @SuppressForbidden(reason = "wraps HttpExchange to truncate the response body for fault injection")
-    private static final class TruncatingHttpExchange extends HttpExchange {
-        private final HttpExchange delegate;
-        private final int resetAfterBytes;
-        private final AtomicInteger remaining;
+    @SuppressForbidden(reason = "wraps HttpExchange for S3 fixture fault injection")
+    private abstract static class DelegatingHttpExchange extends HttpExchange {
+        protected final HttpExchange delegate;
 
-        TruncatingHttpExchange(HttpExchange delegate, int resetAfterBytes, AtomicInteger remaining) {
+        DelegatingHttpExchange(HttpExchange delegate) {
             this.delegate = delegate;
-            this.resetAfterBytes = resetAfterBytes;
-            this.remaining = remaining;
         }
 
-        @Override
-        public OutputStream getResponseBody() {
-            return new TruncatingOutputStream(delegate.getResponseBody(), delegate, resetAfterBytes, remaining);
-        }
-
-        // --- everything else delegates ---
         @Override
         public Headers getRequestHeaders() {
             return delegate.getRequestHeaders();
@@ -203,6 +238,11 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
         @Override
         public InputStream getRequestBody() {
             return delegate.getRequestBody();
+        }
+
+        @Override
+        public OutputStream getResponseBody() {
+            return delegate.getResponseBody();
         }
 
         @Override
@@ -248,6 +288,77 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
         @Override
         public HttpPrincipal getPrincipal() {
             return delegate.getPrincipal();
+        }
+    }
+
+    /**
+     * Splits response-body writes to {@link #RESPONSE_WRITE_CHUNK_SIZE} so the JDK {@code HttpServer}
+     * never allocates {@code 2*len} for a whole-blob write.
+     */
+    @SuppressForbidden(reason = "wraps HttpExchange to chunk the response body for the JDK HttpServer")
+    private static final class ChunkingHttpExchange extends DelegatingHttpExchange {
+        ChunkingHttpExchange(HttpExchange delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public OutputStream getResponseBody() {
+            return new ChunkingOutputStream(delegate.getResponseBody());
+        }
+    }
+
+    private static final class ChunkingOutputStream extends OutputStream {
+        private final OutputStream delegate;
+
+        ChunkingOutputStream(OutputStream delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            delegate.write(b);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            while (len > 0) {
+                int n = Math.min(len, RESPONSE_WRITE_CHUNK_SIZE);
+                delegate.write(b, off, n);
+                off += n;
+                len -= n;
+            }
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+    }
+
+    /**
+     * Wraps an {@link HttpExchange} so the response body is cut off after {@code resetAfterBytes} bytes and the
+     * connection is dropped, simulating a server-side idle/connection reset on an already-open object stream.
+     * All other exchange operations delegate to the wrapped exchange.
+     */
+    @SuppressForbidden(reason = "wraps HttpExchange to truncate the response body for fault injection")
+    private static final class TruncatingHttpExchange extends DelegatingHttpExchange {
+        private final int resetAfterBytes;
+        private final AtomicInteger remaining;
+
+        TruncatingHttpExchange(HttpExchange delegate, int resetAfterBytes, AtomicInteger remaining) {
+            super(delegate);
+            this.resetAfterBytes = resetAfterBytes;
+            this.remaining = remaining;
+        }
+
+        @Override
+        public OutputStream getResponseBody() {
+            return new TruncatingOutputStream(delegate.getResponseBody(), delegate, resetAfterBytes, remaining);
         }
     }
 

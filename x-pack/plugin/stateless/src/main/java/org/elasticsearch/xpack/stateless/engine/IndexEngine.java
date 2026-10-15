@@ -523,7 +523,7 @@ public class IndexEngine extends InternalEngine {
         // Lucene at this point, it is safe to start with the next file. The flush thread synchronously kicks of the commit upload
         // process, so for now we just store the start file as a thread local.
         translogStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
-        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO && getProcessedLocalCheckpoint() == hollowMaxSeqNo) {
             // If the commit we'll write is hollow, getCommitExtraUserData() will calculate DOC_STATS and SHARD_FIELD_STATS when Lucene
             // visits the live commit data. Those stats are read from the internal searcher inside IndexWriter#commit. Refresh before the
             // commit so documents indexed since the last internal refresh are included in the stats. Note that the refresh may grab

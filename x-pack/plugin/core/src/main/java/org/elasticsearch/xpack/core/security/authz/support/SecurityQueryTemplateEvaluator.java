@@ -28,6 +28,9 @@ import java.util.Map;
  */
 public final class SecurityQueryTemplateEvaluator {
 
+    /** The template variable that exposes the user's profile uid; see {@link #evaluateTemplate(String, ScriptService, User, String)}. */
+    public static final String PROFILE_UID_TEMPLATE_VARIABLE = "_user.profile_uid";
+
     private SecurityQueryTemplateEvaluator() {}
 
     /**

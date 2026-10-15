@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.support.CacheKey;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -53,19 +54,22 @@ public final class DocumentPermissions implements CacheKey {
     private final List<Set<BytesReference>> listOfQueries;
     @Nullable
     private List<List<String>> listOfEvaluatedQueries;
+    private final boolean requiresProfileUid;
 
     private static final DocumentPermissions ALLOW_ALL = new DocumentPermissions();
 
     private DocumentPermissions() {
         this.listOfQueries = null;
+        this.requiresProfileUid = false;
     }
 
-    private DocumentPermissions(Set<BytesReference> queries) {
+    private DocumentPermissions(Set<BytesReference> queries, boolean requiresProfileUid) {
         assert queries != null && false == queries.isEmpty() : "null or empty queries not permitted";
         this.listOfQueries = List.of(new TreeSet<>(queries));
+        this.requiresProfileUid = requiresProfileUid;
     }
 
-    private DocumentPermissions(List<Set<BytesReference>> listOfQueries) {
+    private DocumentPermissions(List<Set<BytesReference>> listOfQueries, boolean requiresProfileUid) {
         assert listOfQueries != null && false == listOfQueries.isEmpty() : "null or empty list of queries not permitted";
         assert listOfQueries.stream().allMatch(queries -> queries != null && false == queries.isEmpty())
             : "null or empty queries not permitted";
@@ -73,6 +77,7 @@ public final class DocumentPermissions implements CacheKey {
         this.listOfQueries = listOfQueries.stream()
             .map(queries -> queries instanceof SortedSet<BytesReference> ? queries : new TreeSet<>(queries))
             .toList();
+        this.requiresProfileUid = requiresProfileUid;
     }
 
     public List<Set<BytesReference>> getListOfQueries() {
@@ -89,6 +94,24 @@ public final class DocumentPermissions implements CacheKey {
      */
     public boolean hasDocumentLevelPermissions() {
         return listOfQueries != null;
+    }
+
+    /**
+     * Whether any query is a template over {@code _user.profile_uid}, in which case the uid must be resolved before the
+     * queries are evaluated. Known when the permissions are built so authorization does not rescan the queries.
+     */
+    public boolean requiresProfileUid() {
+        return requiresProfileUid;
+    }
+
+    /** Whether any of {@code queries} refers to {@link SecurityQueryTemplateEvaluator#PROFILE_UID_TEMPLATE_VARIABLE}. */
+    public static boolean anyRequiresProfileUid(Collection<BytesReference> queries) {
+        for (BytesReference query : queries) {
+            if (query.utf8ToString().contains(SecurityQueryTemplateEvaluator.PROFILE_UID_TEMPLATE_VARIABLE)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean hasStoredScript() throws IOException {
@@ -222,7 +245,16 @@ public final class DocumentPermissions implements CacheKey {
      * @return {@link DocumentPermissions}
      */
     public static DocumentPermissions filteredBy(Set<BytesReference> queries) {
-        return new DocumentPermissions(queries);
+        return filteredBy(queries, anyRequiresProfileUid(queries));
+    }
+
+    /**
+     * As {@link #filteredBy(Set)}, for callers that already know whether the queries need the profile uid
+     * (see {@link #requiresProfileUid()}) and want to avoid scanning them again.
+     */
+    public static DocumentPermissions filteredBy(Set<BytesReference> queries, boolean requiresProfileUid) {
+        assert requiresProfileUid == anyRequiresProfileUid(queries) : "requiresProfileUid flag disagrees with the queries";
+        return new DocumentPermissions(queries, requiresProfileUid);
     }
 
     public static DocumentPermissions allowAll() {
@@ -239,12 +271,16 @@ public final class DocumentPermissions implements CacheKey {
     public DocumentPermissions limitDocumentPermissions(DocumentPermissions limitedByDocumentPermissions) {
         if (hasDocumentLevelPermissions() && limitedByDocumentPermissions.hasDocumentLevelPermissions()) {
             return new DocumentPermissions(
-                Stream.concat(getListOfQueries().stream(), limitedByDocumentPermissions.getListOfQueries().stream()).toList()
+                Stream.concat(getListOfQueries().stream(), limitedByDocumentPermissions.getListOfQueries().stream()).toList(),
+                requiresProfileUid || limitedByDocumentPermissions.requiresProfileUid
             );
         } else if (hasDocumentLevelPermissions()) {
-            return new DocumentPermissions(getListOfQueries());
+            return new DocumentPermissions(getListOfQueries(), requiresProfileUid);
         } else if (limitedByDocumentPermissions.hasDocumentLevelPermissions()) {
-            return new DocumentPermissions(limitedByDocumentPermissions.getListOfQueries());
+            return new DocumentPermissions(
+                limitedByDocumentPermissions.getListOfQueries(),
+                limitedByDocumentPermissions.requiresProfileUid
+            );
         } else {
             return DocumentPermissions.allowAll();
         }

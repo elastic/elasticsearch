@@ -45,7 +45,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -172,7 +171,6 @@ public class AuthorizationService {
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
     private final ProfileUidResolver profileUidResolver;
-    private static final String PROFILE_UID_TEMPLATE_VARIABLE = "_user.profile_uid";
     private final AuthorizedProjectsResolver authorizedProjectsResolver;
     private final ProjectRoutingResolver projectRoutingResolver;
     private final UsageService usageService;
@@ -774,7 +772,9 @@ public class AuthorizationService {
         final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
         securityContext.putIndicesAccessControl(indicesAccessControl);
 
-        if (requiresProfileUid(indicesAccessControl)) {
+        // Inspect the engine's own access control, not the wrapped one: the wrapper tracks DLS feature usage and checks the
+        // license on every access, which belongs to the action's execution, not to deciding whether to resolve the uid.
+        if (requiresProfileUid(result.getIndicesAccessControl())) {
             // Resolved lazily, only for actions whose DLS refers to the profile uid, and only once the role is known. The
             // transient is action-scoped like the indices access control it accompanies, so each node resolves it (from
             // cache) for the actions it authorizes itself.
@@ -825,14 +825,8 @@ public class AuthorizationService {
             return false;
         }
         for (String index : indicesAccessControl.getIndicesWithDocumentLevelSecurity()) {
-            for (Set<BytesReference> queries : indicesAccessControl.getIndexPermissions(index)
-                .getDocumentPermissions()
-                .getListOfQueries()) {
-                for (BytesReference query : queries) {
-                    if (query.utf8ToString().contains(PROFILE_UID_TEMPLATE_VARIABLE)) {
-                        return true;
-                    }
-                }
+            if (indicesAccessControl.getIndexPermissions(index).getDocumentPermissions().requiresProfileUid()) {
+                return true;
             }
         }
         return false;

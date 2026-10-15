@@ -772,8 +772,43 @@ public class ExternalSourceResolver {
      * As {@link #resolve(List, Map, Map, Map, Set, Set, ActionListener)} plus per-path folder-range
      * predicates built from the TEMPORAL extract before {@code projectListingHints} drops
      * {@code @timestamp}. Absent path means grain INs only.
+     * <p>
+     * An object rewritten after its listing was cached fails its conditional read with the object-changed condition. When
+     * that happens here, during resolution, nothing has run yet and the query's task is still live, so resolution drops
+     * the cache entries it used and runs once more: the second pass lists the object again and reads its new version. A
+     * second failure is returned as it is. A rewrite caught later, by a read during execution, is not retried here.
      */
     public void resolve(
+        List<String> paths,
+        Map<String, Map<String, Object>> pathConfigs,
+        @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        @Nullable Map<String, DatasetMapping> declaredMappings,
+        @Nullable Set<String> pathsRequiringStats,
+        @Nullable Set<String> pathsReadingNoRows,
+        @Nullable Map<String, FolderRangePredicate> folderRanges,
+        ActionListener<ExternalSourceResolution> listener
+    ) {
+        resolveOnce(
+            paths,
+            pathConfigs,
+            filterHints,
+            declaredMappings,
+            pathsRequiringStats,
+            pathsReadingNoRows,
+            folderRanges,
+            listener.delegateResponse((l, e) -> {
+                if (ExternalException.hasCondition(e, ExternalException.Condition.OBJECT_CHANGED) == false || isCancelled()) {
+                    l.onFailure(e);
+                    return;
+                }
+                LOGGER.debug("an external object changed during resolution; resolving {} again", paths);
+                invalidateUsedCacheEntries();
+                resolveOnce(paths, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, folderRanges, l);
+            })
+        );
+    }
+
+    private void resolveOnce(
         List<String> paths,
         Map<String, Map<String, Object>> pathConfigs,
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -16,7 +15,6 @@ import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheTestAccess;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 
 import java.nio.file.Files;
@@ -165,25 +163,14 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
             assertThat("the grown set must warm again after one scan", response.documentsFound(), equalTo(0L));
         }
 
-        // A moved mtime is a new version of a local file, even with the same bytes: the listing still names the old one, so the
-        // first read fails with the retriable object-changed error. The failure drops the listing, so the retry re-scans.
+        // A moved mtime is a new version of a local file, even with the same bytes: the listing still names the old one, so
+        // resolution's read of the touched file fails with the object-changed condition. That failure is caught during
+        // resolution, before anything has run, so resolution drops the listing and lists again: the query re-scans.
         Path touched = dir.resolve("part-0.ndjson");
         Files.setLastModifiedTime(touched, FileTime.fromMillis(Files.getLastModifiedTime(touched).toMillis() + 2_000));
-        Exception changed = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5)).close()
-        );
-        assertNotNull(
-            "a touched file must fail the read under the stale listing",
-            ExceptionsHelper.unwrap(changed, ExternalObjectChangedException.class)
-        );
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, newTotal);
-            assertThat(
-                "the failure dropped the listing, so the retry must re-scan the touched set",
-                response.documentsFound(),
-                equalTo(newTotal)
-            );
+            assertThat("resolution re-lists the touched set, so the query re-scans it", response.documentsFound(), equalTo(newTotal));
         }
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, newTotal);

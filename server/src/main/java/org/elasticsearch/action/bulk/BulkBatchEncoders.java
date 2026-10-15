@@ -25,7 +25,6 @@ import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +79,7 @@ final class BulkBatchEncoders implements Releasable {
 
     private final Map<Index, IndexState> indexStates = new HashMap<>();
     private boolean disabled;
+    private boolean finalized;
     private boolean closed;
 
     /**
@@ -177,10 +177,20 @@ final class BulkBatchEncoders implements Releasable {
      * Build the batch for every shard that received committed rows, set the batch row reference
      * on each item routed there (replacing inline source bytes with a row reference), and return
      * the resulting batches keyed by ShardId. Returns an empty map when {@link #disabled()} is true.
+     *
+     * <p>Building a partition hands its buffers to the returned batch, so this may be called at most
+     * once per bulk. The failure-store redirect pass must not call it: redirected items are new
+     * requests that were never batch-encoded.
+     *
+     * @throws IllegalStateException if called more than once
      */
     Map<ShardId, SourceBatch> finalizeBatches() {
+        if (finalized) {
+            throw new IllegalStateException("batches were already finalized for this bulk");
+        }
+        finalized = true;
         if (disabled) {
-            return Collections.emptyMap();
+            return Map.of();
         }
         Map<ShardId, SourceBatch> batchesByShard = new HashMap<>();
         for (IndexState state : indexStates.values()) {

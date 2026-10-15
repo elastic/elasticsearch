@@ -44,7 +44,6 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
@@ -61,7 +60,6 @@ import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
@@ -78,7 +76,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
 import static org.hamcrest.Matchers.instanceOf;
@@ -140,11 +137,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             false
         );
 
-        Function<BytesRef, BytesRef> docValuesEncoding = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-            ? b -> new StringBinaryPayload.Builder().encode(List.of(b))
-            : Function.identity();
-
-        assertTermQueryWithBinaryDocValues(ft, docValuesEncoding);
+        assertTermQueryWithBinaryDocValues(ft);
     }
 
     public void testTermQueryHighCardinality() {

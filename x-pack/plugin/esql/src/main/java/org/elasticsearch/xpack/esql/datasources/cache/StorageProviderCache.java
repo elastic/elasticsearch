@@ -13,16 +13,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.DelegatingStorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
-import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -338,7 +333,7 @@ public class StorageProviderCache implements Closeable {
     /**
      * Per-borrow wrapper. {@link #close()} returns the lease; the inner client stays pooled.
      */
-    private final class PooledStorageProvider implements StorageProvider {
+    private final class PooledStorageProvider extends DelegatingStorageProvider {
         private final StorageProvider delegate;
         private final Releasable lease;
 
@@ -354,50 +349,11 @@ public class StorageProviderCache implements Closeable {
         }
 
         @Override
-        public StorageObject newObject(StoragePath path) {
-            return delegate.newObject(path);
+        protected StorageProvider delegate() {
+            return delegate;
         }
 
-        @Override
-        public StorageObject newObject(StoragePath path, long length) {
-            return delegate.newObject(path, length);
-        }
-
-        @Override
-        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
-            return delegate.newObject(path, length, lastModified);
-        }
-
-        @Override
-        public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
-            return delegate.listObjects(prefix, recursive);
-        }
-
-        @Override
-        public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
-            return delegate.listChildren(prefix, limit);
-        }
-
-        @Override
-        public boolean exists(StoragePath path) throws IOException {
-            return delegate.exists(path);
-        }
-
-        @Override
-        public List<String> supportedSchemes() {
-            return delegate.supportedSchemes();
-        }
-
-        @Override
-        public boolean supportsStableMetadata() {
-            return delegate.supportsStableMetadata();
-        }
-
-        @Override
-        public boolean listsInKeyOrder() {
-            return delegate.listsInKeyOrder();
-        }
-
+        /** Returns the pooled provider to the cache rather than closing it: other queries may still hold it. */
         @Override
         public void close() {
             lease.close();

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Compares PromQL compliance with Prometheus between the PR and its merge base, using promcheck
+# Compares PromQL compliance with Prometheus between the PR and its merge base, using the promcheck Go binary
 # (https://github.com/elastic/promcheck), and reports the queries whose result changed on the build and the PR.
 # The elasticsearch-pull-request-validate-prometheus-compliance pipeline (catalog-info.yaml) runs it with the PR's
 # GITHUB_PR_* variables, so that the build bot also posts the report as a PR comment.
@@ -9,17 +9,17 @@
 # soft_fail (see flakiness-detection/runners/never-fail.sh), so a regression, or a comparison that could not
 # run, is annotated and the step exits 0. Only a misconfigured pipeline fails it.
 #
-# Usage:
-#   validate-prometheus-compliance.sh <dataset>
+# The testcase bundle is fixed: grafanalabs-top100.tar.gz from the promcheck release carries the seeded
+# dataset plus the queries, piped whole into the binary. No Python, no Docker: Prometheus runs in-process.
 
 set -euo pipefail
 
-readonly DATASET="${1:?Usage: validate-prometheus-compliance.sh <dataset>}"
+readonly CORPUS=grafanalabs-top100
 
 for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH; do
   [[ -n "${!var:-}" ]] || { echo "$var must be set" >&2; exit 1; }
 done
-for cmd in awk curl find git jq tar tee uv; do
+for cmd in awk curl git jq tee; do
   command -v "$cmd" >/dev/null 2>&1 || { echo "$cmd must be on the PATH" >&2; exit 1; }
 done
 if [[ ! "$PROMCHECK_TEST_INSTANCE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
@@ -33,7 +33,6 @@ if [[ -z "$GITHUB_API_TOKEN" ]]; then
   exit 1
 fi
 
-readonly PYTHON_VERSION=3.14
 readonly RELEASE_URL="https://github.com/elastic/promcheck/releases/tag/v$PROMCHECK_VER"
 readonly ANNOTATION_CONTEXT="ctx-validate-prometheus-compliance"
 readonly PR_COMMENT_KEY="pr_comment:validate-prometheus-compliance:body"
@@ -44,16 +43,12 @@ readonly MAX_ROWS=50
 readonly TMP_ROOT="${PROMETHEUS_COMPLIANCE_TMPDIR:-/tmp}"
 readonly WORK_DIR="$TMP_ROOT/validate-prometheus-compliance"
 readonly OUTPUT_DIR="$TMP_ROOT/validate-prometheus-compliance-output"
-readonly CACHE_DIR="$WORK_DIR/.cache"
-readonly DATA_DIR="$WORK_DIR/data"
-readonly INPUT_DIR="$WORK_DIR/input"
-readonly DATA_ARCHIVE="$WORK_DIR/promcheck-data.tar.gz"
-readonly PACKAGE="$WORK_DIR/promcheck.tar.gz"
-readonly FIXTURE="$INPUT_DIR/$DATASET.jsonl"
-readonly CONTROL_LOG="$OUTPUT_DIR/@$DATASET-control.log"
-readonly TEST_LOG="$OUTPUT_DIR/@$DATASET-test.log"
-readonly CHANGES_FILE="$OUTPUT_DIR/@$DATASET-changes.tsv"
-readonly REPORT_FILE="$OUTPUT_DIR/@$DATASET-report.md"
+readonly PROMCHECK_BIN="$WORK_DIR/promcheck"
+readonly BUNDLE="$WORK_DIR/$CORPUS.tar.gz"
+readonly CONTROL_LOG="$OUTPUT_DIR/@$CORPUS-control.log"
+readonly TEST_LOG="$OUTPUT_DIR/@$CORPUS-test.log"
+readonly CHANGES_FILE="$OUTPUT_DIR/@$CORPUS-changes.tsv"
+readonly REPORT_FILE="$OUTPUT_DIR/@$CORPUS-report.md"
 # Artifacts keep their absolute path without the leading slash.
 readonly CHANGES_LINK="<a href=\"artifact://${CHANGES_FILE#/}\">${CHANGES_FILE##*/}</a>"
 
@@ -127,29 +122,42 @@ run_promcheck() {
   local log="$2"
   local rc
   set +e
-  NO_COLOR=1 uv run --cache-dir "$CACHE_DIR" --python "$PYTHON_VERSION" --with "$PACKAGE" promcheck \
-    --granularity 15s \
-    --test-instance-timeout "$PROMCHECK_TEST_INSTANCE_TIMEOUT" \
-    --workspace "$workspace" \
-    "$FIXTURE" 2>&1 | tee "$log"
+  NO_COLOR=1 "$PROMCHECK_BIN" \
+    --elasticsearch "$workspace" \
+    --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
+    --verbose < "$BUNDLE" 2>&1 | tee "$log"
   rc=${PIPESTATUS[0]}
   set -e
   (( rc == 0 || rc == 1 ))
 }
 
-# The promcheck summary of a run, or a failure when the run did not get as far as printing it.
+# The promcheck summary of a run, or a failure when the run did not get as far as printing it. The verdict line
+# reads "<total> inspected: <ok> match, <fail> mismatch, <4xx> 4xx, <5xx> 5xx" with optional memos for errors,
+# filters, and flaky skips; the counts must add up to the total.
 summary() {
-  awk -F'|' '
-    function trim(s) { gsub(/[[:space:]]/, "", s); return s }
-    /^\|[[:space:]]*executed\.success[[:space:]]*\|/ { ok = trim($3) }
-    /^\|[[:space:]]*executed\.failure[[:space:]]*\|/ { fail = trim($3) }
-    /^\|[[:space:]]*executed\.error[[:space:]]*\|/   { err = trim($3) }
-    /^\|[[:space:]]*executed\.total[[:space:]]*\|/   { total = trim($3) }
+  awk '
+    /^[0-9]+ inspected/ {
+      line = $0
+      gsub(/,/, "", line)
+      n = split(line, f, /[ \t]+/)
+      total = f[1]
+      ok = fail = ""
+      err4 = err5 = err = skip = 0
+      for (i = 2; i <= n; i++) {
+        if (f[i] == "match") ok = f[i - 1]
+        else if (f[i] == "mismatch") fail = f[i - 1]
+        else if (f[i] == "4xx") err4 = f[i - 1]
+        else if (f[i] == "5xx") err5 = f[i - 1]
+        else if (f[i] == "error") err = f[i - 1]
+        else if (f[i] == "flaky") skip = f[i - 1]
+        else if (f[i] == "response-filtered") skip += f[i - 1]
+      }
+    }
     END {
-      if (ok !~ /^[0-9]+$/ || fail !~ /^[0-9]+$/ || err !~ /^[0-9]+$/ || total !~ /^[0-9]+$/)
+      if (total !~ /^[0-9]+$/ || ok !~ /^[0-9]+$/ || fail !~ /^[0-9]+$/)
         exit 1
-      skip = total - ok - fail - err
-      if (skip < 0)
+      err = err4 + err5 + err
+      if (total != ok + fail + err + skip)
         exit 2
       printf "ok=%d fail=%d err=%d skip=%d total=%d\n", ok, fail, err, skip, total
     }
@@ -220,7 +228,12 @@ render_changes() {
 }
 
 rm -rf "$WORK_DIR" "$OUTPUT_DIR"
-mkdir -p "$DATA_DIR" "$INPUT_DIR" "$OUTPUT_DIR"
+mkdir -p "$WORK_DIR" "$OUTPUT_DIR"
+
+# Show up on the build as soon as the comparison starts. The final
+# report reuses the same annotation context and comment key, so it
+# replaces this note instead of adding a second one.
+annotate info "$(printf '**Promcheck running**\n\nComparing PromQL coverage between the merge base and this PR with promcheck v%s. The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" | report)"
 
 echo "--- Downloading promcheck v$PROMCHECK_VER"
 release=$(
@@ -229,18 +242,14 @@ release=$(
     -H "Authorization: Bearer $GITHUB_API_TOKEN" \
     "https://api.github.com/repos/elastic/promcheck/releases/tags/v$PROMCHECK_VER"
 ) || not_compared "Could not fetch the promcheck v$PROMCHECK_VER release"
-download_asset "$release" "promcheck-data-$PROMCHECK_VER.tar.gz" "$DATA_ARCHIVE"
-download_asset "$release" "promcheck-$PROMCHECK_VER.tar.gz" "$PACKAGE"
-
-tar -xzf "$DATA_ARCHIVE" -C "$DATA_DIR" || not_compared "Could not extract promcheck-data-$PROMCHECK_VER.tar.gz"
-corpus_files=0
-while IFS= read -r -d '' file; do
-  [[ ! -e "$INPUT_DIR/${file##*/}" ]] || not_compared "promcheck-data-$PROMCHECK_VER.tar.gz has two ${file##*/} query corpora"
-  cp "$file" "$INPUT_DIR/"
-  corpus_files=$((corpus_files + 1))
-done < <(find "$DATA_DIR" -type f -path '*/data/results/*' -name '*.jsonl' -print0)
-(( corpus_files > 0 )) || not_compared "promcheck-data-$PROMCHECK_VER.tar.gz has no query corpus under data/results"
-[[ -f "$FIXTURE" ]] || not_compared "promcheck-data-$PROMCHECK_VER.tar.gz has no $DATASET query corpus"
+case "$(uname -m)" in
+  x86_64) arch=amd64 ;;
+  aarch64 | arm64) arch=arm64 ;;
+  *) not_compared "Unsupported architecture $(uname -m)" ;;
+esac
+download_asset "$release" "promcheck-linux-$arch" "$PROMCHECK_BIN"
+download_asset "$release" "$CORPUS.tar.gz" "$BUNDLE"
+chmod +x "$PROMCHECK_BIN"
 
 echo "--- Checking out the merge base with $GITHUB_PR_TARGET_BRANCH"
 git fetch --no-tags origin "$GITHUB_PR_TARGET_BRANCH" \
@@ -253,8 +262,6 @@ revision=$(git rev-parse HEAD)
 control_dir=$(mktemp -d "$TMP_ROOT/validate-prometheus-compliance-control-XXXXXX")
 trap cleanup EXIT
 git worktree add --detach "$control_dir" "$base" || not_compared "Could not check out the merge base $base"
-
-uv python install "$PYTHON_VERSION" || not_compared "Could not install Python $PYTHON_VERSION"
 
 echo "--- Running promcheck on the merge base $base"
 run_promcheck "$control_dir" "$CONTROL_LOG" || not_compared "The control run failed"

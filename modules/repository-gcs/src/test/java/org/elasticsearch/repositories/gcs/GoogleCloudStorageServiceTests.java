@@ -53,8 +53,8 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
     public void testClientInitializer() throws Exception {
         final String clientName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        final TimeValue connectTimeValue = TimeValue.timeValueNanos(rarely() ? 0 : randomIntBetween(1, 2000000));
-        final TimeValue readTimeValue = TimeValue.timeValueNanos(rarely() ? 0 : randomIntBetween(1, 2000000));
+        final TimeValue connectTimeValue = randomTimeout();
+        final TimeValue readTimeValue = randomTimeout();
         final String applicationName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final String endpoint = randomFrom("http://", "https://")
             + randomFrom("www.elastic.co", "www.googleapis.com", "localhost/api", "google.com/oauth")
@@ -115,6 +115,10 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             Matchers.is(GoogleCloudStorageService.toTimeout(readTimeValue))
         );
         assertThat(proxy.get().toString(), equalTo("HTTP @ /192.168.52.15:8080"));
+    }
+
+    private static TimeValue randomTimeout() {
+        return rarely() ? randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.ZERO : TimeValue.timeValueNanos(randomIntBetween(1, 2000000));
     }
 
     public void testRetryStrategyRetriesTlsHandshakeFailures() {

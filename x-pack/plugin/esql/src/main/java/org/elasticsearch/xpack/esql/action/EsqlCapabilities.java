@@ -3693,6 +3693,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_MV_EXPAND(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Support for {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}. Sampling only drops rows, so the {@code _unmapped_fields}
+         * column is carried through unchanged on the surviving rows. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is
+         * available. See https://github.com/elastic/elasticsearch/issues/157189.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SAMPLE(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},
          * {@code []}, {@code {}} and any nesting of those, e.g. {@code [null]} or {@code {"baz":[null],"inga":{}}} - is dropped where
          * the data node extracts unmapped fields. So a field written that way by every document no longer expands into a column that

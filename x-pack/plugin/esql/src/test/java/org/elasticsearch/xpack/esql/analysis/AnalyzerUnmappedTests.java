@@ -1539,12 +1539,12 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
-        for (var commandAndLabel : List.of(Tuple.tuple("| SAMPLE 0.5", "SAMPLE"))) {
+        for (var commandAndLabel : List.of(Tuple.tuple("| CHANGE_POINT salary ON emp_no", "ChangePoint"))) {
             test().statementError(
                 setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
+                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
                         + commandAndLabel.v2()
                         + "] is not supported yet"
                 )
@@ -1591,6 +1591,19 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             | KEEP first_name, languages
             """));
         assertThat(Expressions.names(plan.output()), equalTo(List.of("first_name", "languages")));
+    }
+
+    /**
+     * {@code SAMPLE} is supported under LOAD_ALL. Sampling only drops rows and does not change the output columns, so the allow-list of
+     * {@link Verifier#checkLoadAllModeSupportedCommands} permits it.
+     */
+    public void testLoadAllModeAllowsSample() {
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
+            FROM test
+            | SAMPLE 0.5
+            | KEEP first_name, salary
+            """));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("first_name", "salary")));
     }
 
     public void testLoadAllModeAllowsInlineStats() {
@@ -1870,8 +1883,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is "
-                        + "not supported yet"
+                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
+                        + "[TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
@@ -1879,8 +1892,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
                     "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is "
-                        + "not supported yet"
+                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
+                        + "[TS] is not supported yet"
                 )
             );
     }

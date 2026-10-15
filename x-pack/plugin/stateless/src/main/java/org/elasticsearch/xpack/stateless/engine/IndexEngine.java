@@ -518,10 +518,18 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+        assert isFlushLockIsHeldByCurrentThread();
         // We must fetch the max uploaded translog file BEFORE performing the commit. Since all of those operations were written to
         // Lucene at this point, it is safe to start with the next file. The flush thread synchronously kicks of the commit upload
         // process, so for now we just store the start file as a thread local.
         translogStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
+        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            // If the commit we'll write is hollow, getCommitExtraUserData() will calculate DOC_STATS and SHARD_FIELD_STATS when Lucene
+            // visits the live commit data. Those stats are read from the internal searcher inside IndexWriter#commit. Refresh before the
+            // commit so documents indexed since the last internal refresh are included in the stats. Note that the refresh may grab
+            // Lucene's full-flush lock, but that should not be held by anyone else since we already hold the flushLock here.
+            refreshInternalSearcher(HOLLOW_FLUSH_REFRESH_SOURCE, true);
+        }
         super.commitIndexWriter(writer, translog);
     }
 
@@ -608,9 +616,6 @@ public class IndexEngine extends InternalEngine {
         if (isLastCommitHollow()) {
             listener.onResponse(FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
         } else {
-            // DOC_STATS and SHARD_FIELD_STATS are read from the internal searcher when the hollow commit is
-            // written. Refresh first so documents indexed since the last internal refresh are included.
-            refreshInternalSearcher(HOLLOW_FLUSH_REFRESH_SOURCE, true);
             long maxSeqNo = getMaxSeqNo();
             assert hollowMaxSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || hollowMaxSeqNo == maxSeqNo
                 : "engine hollowed with max seq no [" + hollowMaxSeqNo + "] cannot be hollowed again with max seq no [" + maxSeqNo + "]";
@@ -664,8 +669,9 @@ public class IndexEngine extends InternalEngine {
                 Long.toString(HOLLOW_TRANSLOG_RECOVERY_START_FILE)
             );
             commitExtraUserData.put(TRANSLOG_RELEASE_END_FILE, Long.toString(translogStartFileForNextCommit));
-            // Calculating the stats for hollow commits holds up the IndexWriter commit path, but it should not matter much because anyway
-            // ingestion is blocked at a higher level (e.g., by blocking the primary permits), and the calculations should be fast.
+            // The internal searcher was refreshed in commitIndexWriter just before this commit. Calculating the stats holds
+            // up the IndexWriter commit path, but it should not matter much because anyway ingestion is blocked at a higher
+            // level (e.g., by blocking the primary permits), and the calculations should be fast.
             commitExtraUserData.put(DOC_STATS, org.elasticsearch.common.Strings.toString(docStats()));
             commitExtraUserData.put(SHARD_FIELD_STATS, org.elasticsearch.common.Strings.toString(shardFieldStats()));
         } else {

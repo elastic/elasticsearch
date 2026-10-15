@@ -61,6 +61,28 @@ public final class ShardSearchStats implements SearchOperationListener {
         return new SearchStats(total, openContexts.count(), groupsSt);
     }
 
+    /**
+     * Records time a search task for this shard spent waiting in a thread pool queue. Not part of {@link SearchOperationListener} because
+     * it is reported by the executor, outside of any {@link SearchContext}.
+     */
+    public void onQueueTime(long queueTimeNanos) {
+        totalStats.queueTimeMetric.inc(queueTimeNanos);
+    }
+
+    /**
+     * Number of tasks whose queue time was recorded by {@link #onQueueTime}.
+     */
+    public long queueTimeCount() {
+        return totalStats.queueTimeMetric.count();
+    }
+
+    /**
+     * Total time, in nanoseconds, tasks for this shard spent queued, as recorded by {@link #onQueueTime}.
+     */
+    public long totalQueueTimeInNanos() {
+        return totalStats.queueTimeMetric.sum();
+    }
+
     @Override
     public void onPreQueryPhase(SearchContext searchContext) {
         computeStats(
@@ -190,6 +212,7 @@ public final class ShardSearchStats implements SearchOperationListener {
          */
         final MeanMetric scrollMetric = new MeanMetric();
         final MeanMetric suggestMetric = new MeanMetric();
+        final MeanMetric queueTimeMetric = new MeanMetric();
         final CounterMetric queryCurrent = new CounterMetric();
         final CounterMetric fetchCurrent = new CounterMetric();
         final CounterMetric scrollCurrent = new CounterMetric();

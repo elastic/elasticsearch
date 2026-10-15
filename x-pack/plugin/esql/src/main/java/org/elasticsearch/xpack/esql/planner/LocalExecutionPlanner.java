@@ -233,6 +233,7 @@ import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
@@ -254,6 +255,7 @@ import java.util.SequencedMap;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -3011,6 +3013,10 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.maxOverReservedBytes()
             );
             var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
+            // Only data drivers: node_reduce is built with the same shard contexts but does not read them.
+            if (description.equals(ComputeService.DATA_DESCRIPTION) && shardContexts.isEmpty() == false) {
+                driverContext.setQueueTimeSink(splitQueueTimeAcrossShards(shardContexts));
+            }
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);
@@ -3036,6 +3042,24 @@ public class LocalExecutionPlanner {
                     Releasables.close(source, () -> Releasables.close(operators), sink, localBreaker);
                 }
             }
+        }
+
+        /**
+         * A data driver is not tied to one shard: it pulls slices from a queue shared by all the shards of its batch, and the
+         * driver does not know which shard it will read next. So the time it waits for an {@code esql_worker} thread is split
+         * evenly across the batch's shards. That is exact for a single-shard batch and, summed over an index's shards, an
+         * approximation for a batch that spans several shards or indices. Each shard's queue time count therefore advances once per
+         * re-queue of every driver in its batch, not once per task.
+         * <p>
+         * Shard stats are resolved on each call rather than up front so building a driver never touches them.
+         */
+        private static LongConsumer splitQueueTimeAcrossShards(IndexedByShardId<? extends ShardContext> shardContexts) {
+            return queueTimeNanos -> {
+                final long share = queueTimeNanos / shardContexts.size();
+                for (ShardContext shardContext : shardContexts.iterable()) {
+                    shardContext.stats().onQueueTime(share);
+                }
+            };
         }
 
         @Override

@@ -280,6 +280,10 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         if (trackMaxQueueLatency) {
             maxQueueLatencyMillisSinceLastPoll.accumulate(queueLatencyMillis);
         }
+
+        if (timedRunnable.unwrap() instanceof QueueTimeAware queueTimeAware) {
+            queueTimeAware.onQueueTime(taskQueueLatency);
+        }
     }
 
     @Override

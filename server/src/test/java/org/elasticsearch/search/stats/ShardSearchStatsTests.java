@@ -56,6 +56,17 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
         this.shardSearchStatsListener = new ShardSearchStats(searchStatsSettings);
     }
 
+    public void testQueueTime() {
+        assertEquals(0L, shardSearchStatsListener.queueTimeCount());
+        assertEquals(0L, shardSearchStatsListener.totalQueueTimeInNanos());
+
+        shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+        shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toNanos(2 * TEN_MILLIS));
+
+        assertEquals(2L, shardSearchStatsListener.queueTimeCount());
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(3 * TEN_MILLIS), shardSearchStatsListener.totalQueueTimeInNanos());
+    }
+
     public void testDfsPhase() {
         try (SearchContext sc = createSearchContext(false)) {
             shardSearchStatsListener.onPreDfsPhase(sc);

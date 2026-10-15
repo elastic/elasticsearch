@@ -605,7 +605,7 @@ public class Driver implements Releasable, Describable {
             }
         };
         task = (AbstractRunnable) threadContext.preserveContext(task); // Preserve warnings and such
-        driver.scheduler.scheduleOrRunTask(executor, task);
+        driver.scheduler.scheduleOrRunTask(executor, task, driver.driverContext::onQueueTime);
     }
 
     private static IsBlockedResult oneOf(List<IsBlockedResult> results) {

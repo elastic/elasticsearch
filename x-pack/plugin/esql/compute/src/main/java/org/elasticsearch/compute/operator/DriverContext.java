@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.LongConsumer;
 
 /**
  * A driver-local context that is shared across operators.
@@ -87,6 +88,8 @@ public class DriverContext {
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
 
     private Runnable earlyTerminationChecker = () -> {};
+
+    private volatile LongConsumer queueTimeSink = queueTimeNanos -> {};
 
     /**
      * Hooks fired when the controlling task asks this driver to wind down cleanly while keeping
@@ -291,6 +294,22 @@ public class DriverContext {
      */
     public void initializeEarlyTerminationChecker(Runnable checker) {
         this.earlyTerminationChecker = checker;
+    }
+
+    /**
+     * Sets where the time this driver spends queued in its thread pool is reported. The driver is re-queued once per time slice and
+     * each time it is unblocked, and every wait is reported separately. Set once while the driver is built, before it is started.
+     */
+    public void setQueueTimeSink(LongConsumer queueTimeSink) {
+        this.queueTimeSink = Objects.requireNonNull(queueTimeSink);
+    }
+
+    /**
+     * Reports one wait of this driver in the thread pool queue to the sink set by {@link #setQueueTimeSink}. Called by the executor
+     * thread that is about to run the driver, so it must be cheap and must not throw.
+     */
+    void onQueueTime(long queueTimeNanos) {
+        queueTimeSink.accept(queueTimeNanos);
     }
 
     /**

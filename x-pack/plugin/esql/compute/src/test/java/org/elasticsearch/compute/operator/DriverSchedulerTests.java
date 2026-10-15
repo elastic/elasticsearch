@@ -17,11 +17,64 @@ import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class DriverSchedulerTests extends ESTestCase {
+
+    /**
+     * A task that really waits behind a busy thread has that wait reported to the queue time sink, exactly once.
+     */
+    public void testReportsQueueTime() throws Exception {
+        DriverScheduler scheduler = new DriverScheduler();
+        var threadPool = new TestThreadPool(
+            "test",
+            new FixedExecutorBuilder(Settings.EMPTY, "test", 1, 2, "test", EsExecutors.TaskTrackingConfig.DEFAULT)
+        );
+        Executor executor = threadPool.executor("test");
+        CountDownLatch blockerStarted = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch ran = new CountDownLatch(1);
+        AtomicInteger reports = new AtomicInteger();
+        AtomicLong reportedNanos = new AtomicLong();
+        try {
+            executor.execute(() -> {
+                blockerStarted.countDown();
+                safeAwait(release);
+            });
+            safeAwait(blockerStarted);
+            scheduler.scheduleOrRunTask(executor, new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    ran.countDown();
+                }
+            }, queueTimeNanos -> {
+                reports.incrementAndGet();
+                reportedNanos.set(queueTimeNanos);
+            });
+            long queuedAtLeastNanos = TimeUnit.MILLISECONDS.toNanos(20);
+            long start = System.nanoTime();
+            while (System.nanoTime() - start < queuedAtLeastNanos) {
+                Thread.sleep(1);
+            }
+            release.countDown();
+            safeAwait(ran);
+            assertThat(reports.get(), equalTo(1));
+            assertThat(reportedNanos.get(), greaterThanOrEqualTo(queuedAtLeastNanos));
+        } finally {
+            release.countDown();
+            terminate(threadPool);
+        }
+    }
 
     public void testClearPendingTaskOnRejection() {
         DriverScheduler scheduler = new DriverScheduler();
@@ -50,7 +103,7 @@ public class DriverSchedulerTests extends ESTestCase {
                 protected void doRun() {
                     counter.incrementAndGet();
                 }
-            });
+            }, queueTimeNanos -> {});
             scheduler.runPendingTasks();
             assertThat(counter.get(), equalTo(1));
         } finally {

@@ -1193,6 +1193,55 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * A shard whose mapping maps every field, and that skipped none, holds no field outside of its mapping. The keys of an
+     * object-valued field are part of its value and not fields either.
+     */
+    public void testMayHoldUnmappedFields() throws IOException {
+        MapperService mapsEverything = createMapperService("""
+            { "_doc": { "properties": { "field": { "type": "keyword" }, "range": { "type": "integer_range" } } } }""");
+        MapperService keepsUnmappedFields = createMapperService("""
+            { "_doc": { "dynamic": false, "properties": { "field": { "type": "keyword" }, "span": { "type": "integer_range" } } } }""");
+        try {
+            withLuceneIndex(
+                mapsEverything,
+                writer -> writer.addDocuments(
+                    mapsEverything.documentMapper().parse(source("{\"field\":\"a\",\"range\":{\"gte\":1,\"lt\":5}}")).docs()
+                ),
+                mappedReader -> withLuceneIndex(
+                    keepsUnmappedFields,
+                    writer -> writer.addDocuments(
+                        keepsUnmappedFields.documentMapper().parse(source("{\"field\":\"a\",\"unmapped\":\"b\"}")).docs()
+                    ),
+                    unmappedReader -> {
+                        SearchExecutionContext closed = createSearchExecutionContext(mapsEverything, newSearcher(mappedReader));
+                        SearchExecutionContext open = createSearchExecutionContext(keepsUnmappedFields, newSearcher(unmappedReader));
+
+                        SearchStats closedOnly = SearchContextStats.from(List.of(closed));
+                        assertFalse(closedOnly.mayHoldUnmappedFields());
+                        assertFalse(closedOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("unmapped")));
+                        assertFalse(closedOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("unmapped.below")));
+                        assertFalse(closedOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("range.gte")));
+
+                        // One shard that may hold unmapped fields is enough for the whole node.
+                        SearchStats both = SearchContextStats.from(List.of(closed, open));
+                        assertTrue(both.mayHoldUnmappedFields());
+                        assertTrue(both.mayHoldUnmappedField(new FieldAttribute.FieldName("unmapped")));
+
+                        // A key of the value of a mapped field is not read, even where unmapped fields are kept.
+                        SearchStats openOnly = SearchContextStats.from(List.of(open));
+                        assertTrue(openOnly.mayHoldUnmappedFields());
+                        assertTrue(openOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("unmapped")));
+                        assertFalse(openOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("span.gte")));
+                        assertTrue(openOnly.mayHoldUnmappedField(new FieldAttribute.FieldName("field.below")));
+                    }
+                )
+            );
+        } finally {
+            IOUtils.close(mapsEverything, keepsUnmappedFields);
+        }
+    }
+
     @After
     public void cleanup() throws IOException {
         IOUtils.close(readers);

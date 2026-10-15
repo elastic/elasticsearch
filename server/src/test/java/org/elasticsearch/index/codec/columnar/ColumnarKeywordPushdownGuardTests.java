@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -34,11 +35,13 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
@@ -47,7 +50,6 @@ import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.SingleValuedColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
@@ -81,7 +83,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
 
     private static final String FIELD = "kw";
-    private static final CircuitBreaker NOOP = NoopCircuitBreaker.INSTANCE;
 
     /** How a keyword's documents are written, and the readers the mapper picks for that framing. */
     private enum Framing {
@@ -107,7 +108,7 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         SINGLE_VALUED(BinaryDocValuesFormat.PLAIN) {
             @Override
             Field field(String value) {
-                return new SingleValuedColumnarBinaryDocValuesField(FIELD, new BytesRef(value));
+                return new BinaryDocValuesField(FIELD, new BytesRef(value));
             }
 
             @Override
@@ -260,7 +261,7 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         type.freeze();
         final int docs = between(50, 400);
         try (Directory dir = newDirectory()) {
-            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(Framing.PAYLOAD)))) {
                 for (int d = 0; d < docs; d++) {
                     final List<BytesRef> refs = new ArrayList<>();
                     for (String slot : slots.apply(d)) {
@@ -290,9 +291,9 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
             shapes.put("prefix, case insensitive", queries.prefix(FIELD, "TERM-", true));
             shapes.put("fuzzy", queries.fuzzy(FIELD, "term-9", 1, 0, true));
             shapes.put("case insensitive term", queries.caseInsensitiveTerm(FIELD, "TERM-3"));
-            shapes.put("wildcard", queries.wildcard(FIELD, "*erm-3", false));
-            shapes.put("wildcard, contained", queries.wildcard(FIELD, "*rm-*", false));
-            shapes.put("wildcard, case insensitive", queries.wildcard(FIELD, "TERM-?", true));
+            shapes.put("wildcard", queries.wildcard(FIELD, "*erm-3", false, NoopCircuitBreaker.INSTANCE));
+            shapes.put("wildcard, contained", queries.wildcard(FIELD, "*rm-*", false, NoopCircuitBreaker.INSTANCE));
+            shapes.put("wildcard, case insensitive", queries.wildcard(FIELD, "TERM-?", true, NoopCircuitBreaker.INSTANCE));
             shapes.put("automaton", queries.automaton(FIELD, Automata.makeString("term-2"), "term-2"));
             shapes.put("regexp", queries.regexp(FIELD, "term-[0-3]", RegExp.ALL, 0, 10_000, null));
             shapes.put("range, open above", queries.range(FIELD, new BytesRef("term-4"), null, true, false));
@@ -325,7 +326,8 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         final String[] values = values(true);
         withSegment(values, Framing.PAYLOAD, leaf -> {
             final var loader = new BytesRefsFromBinaryBlockLoader(FIELD);
-            final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), docs(0, values.length), 0, false);
+            final TestBlock block = (TestBlock) loader.reader(NoopCircuitBreaker.INSTANCE, leaf)
+                .read(TestBlock.factory(), docs(0, values.length), 0, false);
             for (int d = 0; d < values.length; d++) {
                 assertEquals("document " + d, values[d] == null ? null : payload(values[d]), block.get(d));
             }
@@ -401,7 +403,7 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         String[] values,
         Function<String, Object> expected
     ) throws IOException {
-        try (BlockLoader.ColumnAtATimeReader reader = loader.reader(NOOP, leaf)) {
+        try (BlockLoader.ColumnAtATimeReader reader = loader.reader(NoopCircuitBreaker.INSTANCE, leaf)) {
             assertRead(label, reader, wanted, values, expected);
         }
     }
@@ -451,7 +453,7 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
             // document at once, and a small page after the largest.
             final int[][] pages = { { 0, 5 }, { 5, 40 }, { 44, 30 }, { 20, 60 }, { 0, n }, { n - 3, 3 }, { between(0, n - 2), 2 } };
             withSegment(values, framing, leaf -> {
-                try (BlockLoader.ColumnAtATimeReader reader = loader.reader(NOOP, guarded(leaf, lengthsOnly))) {
+                try (BlockLoader.ColumnAtATimeReader reader = loader.reader(NoopCircuitBreaker.INSTANCE, guarded(leaf, lengthsOnly))) {
                     for (int[] page : pages) {
                         final int[] wanted = new int[page[1]];
                         for (int i = 0; i < wanted.length; i++) {
@@ -490,7 +492,7 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
     /** Indexes {@code values} as one columnar segment in {@code framing} and hands over its leaf. */
     private void withSegment(String[] values, Framing framing, CheckedConsumer<LeafReaderContext, IOException> check) throws IOException {
         try (Directory dir = newDirectory()) {
-            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(framing)))) {
                 for (String value : values) {
                     final Document doc = new Document();
                     if (value != null) {
@@ -676,9 +678,14 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
     }
 
     /** Every doc-values field through the columnar format, which is what makes the field a column. */
-    private static Codec columnarCodec() {
+    private static Codec columnarCodec(Framing framing) {
         final Codec base = TestUtil.getDefaultCodec();
-        final DocValuesFormat columnar = new ColumNARDocValuesFormat(field -> ColumnarFieldType.STRING);
+        final DocValuesFormat columnar = new ColumNARDocValuesFormat(
+            (fieldName, type) -> NumericPipeline::defaultPipeline,
+            field -> ColumnarFieldType.STRING,
+            ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
+            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(framing == Framing.SINGLE_VALUED))
+        );
         return new FilterCodec(base.getName(), base) {
             private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
                 @Override

@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -306,6 +307,45 @@ public class FileSplitProviderTests extends ESTestCase {
             ),
             hints
         );
+    }
+
+    public void testFolderRangePredicateForQueryOneSidedAndBoundedKeepsTimestampOutOfHints() {
+        FieldAttribute ts = new FieldAttribute(
+            SRC,
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Instant start = Instant.parse("2024-06-15T00:00:00Z");
+        Instant end = Instant.parse("2024-06-16T00:00:00Z");
+        PartitionSpec spec = PartitionSpec.parse("year(@timestamp), month(@timestamp), day(@timestamp)");
+        Set<String> hive = Set.of("year", "month", "day");
+
+        Expression oneSided = new GreaterThanOrEqual(SRC, ts, new Literal(SRC, start.toEpochMilli(), DataType.DATETIME));
+        List<PartitionFilterHintExtractor.PartitionFilterHint> oneSidedHints = FileSplitProvider.listingHintsForQuery(
+            List.of(oneSided),
+            Set.of(),
+            hive,
+            spec
+        );
+        assertTrue(oneSidedHints.stream().noneMatch(h -> h.columnName().equals("@timestamp")));
+        assertNotNull(FileSplitProvider.folderRangePredicateForQuery(List.of(oneSided), spec));
+
+        Expression bounded = new And(
+            SRC,
+            new GreaterThanOrEqual(SRC, ts, new Literal(SRC, start.toEpochMilli(), DataType.DATETIME)),
+            new LessThan(SRC, ts, new Literal(SRC, end.toEpochMilli(), DataType.DATETIME))
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> boundedHints = FileSplitProvider.listingHintsForQuery(
+            List.of(bounded),
+            Set.of(),
+            hive,
+            spec
+        );
+        assertTrue(boundedHints.stream().noneMatch(h -> h.columnName().equals("@timestamp")));
+        assertNotNull(FileSplitProvider.folderRangePredicateForQuery(List.of(bounded), spec));
+
+        Expression yearEq = new Equals(SRC, fieldAttr("year"), intLiteral(2024));
+        assertNull("hive-key equality is not a temporal bound", FileSplitProvider.folderRangePredicateForQuery(List.of(yearEq), spec));
     }
 
     public void testListingHintsForQueryEmptySpecEqualsListingExtract() {
@@ -4804,6 +4844,9 @@ public class FileSplitProviderTests extends ESTestCase {
                 }
                 return new StorageObject() {
                     @Override
+                    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                    @Override
                     public StorageIdentity storageIdentity() {
                         return AbstractTestStorageObject.NOOP;
                     }
@@ -5480,6 +5523,9 @@ public class FileSplitProviderTests extends ESTestCase {
         AtomicInteger abortCalls = new AtomicInteger();
         StorageObject failing = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -5638,6 +5684,9 @@ public class FileSplitProviderTests extends ESTestCase {
         AtomicInteger streamsOpened = new AtomicInteger();
         byte[] payload = "aaaa\nbbbb\ncccc\n".getBytes(StandardCharsets.UTF_8);
         StorageObject counting = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -5827,6 +5876,9 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static StorageObject createInMemoryStorageObject(byte[] data, StoragePath path) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -8649,6 +8701,9 @@ public class FileSplitProviderTests extends ESTestCase {
             public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
                 return new StorageObject() {
                     @Override
+                    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                    @Override
                     public StorageIdentity storageIdentity() {
                         return AbstractTestStorageObject.NOOP;
                     }
@@ -8755,6 +8810,9 @@ public class FileSplitProviderTests extends ESTestCase {
             public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
                 assertEquals(payload.length, length);
                 return new StorageObject() {
+                    @Override
+                    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
                     @Override
                     public StorageIdentity storageIdentity() {
                         return AbstractTestStorageObject.NOOP;

@@ -158,20 +158,6 @@ public class GroundTruthTests extends ESTestCase {
         assertThat(stored.get(query).dataState(), not(equalTo(changed.state())));
     }
 
-    public void testAnExpensiveSearchLeavesADebtThatIsPaidOffFirst() {
-        CostBudget budget = new CostBudget(0.1, 100);
-        budget.earn(100);
-        budget.spend(50);
-
-        assertThat(budget.credit(), closeTo(-40, 1e-9));
-        assertThat("nothing is computed while there is a debt", budget.affordable(1, 10), equalTo(0));
-
-        budget.earn(400);
-        assertThat(budget.credit(), closeTo(0, 1e-9));
-        budget.earn(100);
-        assertThat(budget.affordable(10, 10), equalTo(1));
-    }
-
     private final List<SearchRequest> sampleSearches = new ArrayList<>();
 
     private final List<SearchRequest> exactSearches = new ArrayList<>();

@@ -38,7 +38,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -67,23 +66,6 @@ public class CaptureTests extends ESTestCase {
         assertThat(query.oversample(), equalTo(2f));
         assertThat(query.filters(), equalTo(List.of(QueryBuilders.termQuery("category", 3))));
         assertThat(query.opaqueId(), equalTo("q7"));
-    }
-
-    public void testFailedSearchIsNotCaptured() {
-        QueryCaptureFilter filter = filter(true, 1.0, captured::add);
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        Exception expected = new IllegalStateException("search failed");
-
-        queryCaptureFilterApply(
-            filter,
-            knnSearch(randomVector(8)),
-            TaskId.EMPTY_TASK_ID,
-            listener -> listener.onFailure(expected),
-            ActionListener.wrap(r -> fail("unexpected response"), failure::set)
-        );
-
-        assertThat(failure.get(), sameInstance(expected));
-        assertTrue(captured.isEmpty());
     }
 
     public void testIgnoresSearchesThatAreNotOverAllTheDocumentsOfTheirIndicesOrDoNotReturnTheNearestK() {

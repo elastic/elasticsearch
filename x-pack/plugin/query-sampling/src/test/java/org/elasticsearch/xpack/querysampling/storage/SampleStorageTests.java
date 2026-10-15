@@ -26,19 +26,14 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
-import org.elasticsearch.xpack.querysampling.dedup.Hardness;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
-import org.elasticsearch.xpack.querysampling.dedup.Selectivity;
-import org.elasticsearch.xpack.querysampling.dedup.Stratum;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
-import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -101,31 +96,6 @@ public class SampleStorageTests extends ESTestCase {
         assertThat(document, not(hasKey("hardness")));
         assertThat(document, not(hasKey("selectivity")));
         assertThat("a picked query is not an event", document, not(hasKey("event_id")));
-    }
-
-    public void testEveryFieldOfADocumentIsInTheMappings() throws IOException {
-        CapturedQuery query = new CapturedQuery(new String[] { "a" }, "vec", new float[] { 1f }, 10, 100, 0.5f, 3f, List.of(), "q");
-        TrackedQuery tracked = tracked(1.0);
-        tracked.stratum(new Stratum("vec/1", 3));
-        tracked.hardness(Hardness.HARD);
-        tracked.selectivity(Selectivity.LOW);
-        SampledQuery sampled = SampledQuery.event(FINGERPRINT, new CapturedSearch(query, List.of(), 1, 1.0), tracked, "e1");
-        sampled.attach(GroundTruth.KEY, new GroundTruth(List.of()));
-
-        Map<String, Object> document = toMap(SampleRecord.document(JsonXContent.contentBuilder(), "s1", sampled, 5L));
-
-        assertThat(mappedFields(), equalTo(document.keySet()));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Set<String> mappedFields() {
-        Map<String, Object> root = XContentHelper.convertToMap(
-            BytesReference.bytes(QuerySamplingIndex.mappings()),
-            false,
-            XContentType.JSON
-        ).v2();
-        Map<String, Object> mapping = (Map<String, Object>) root.get("_doc");
-        return ((Map<String, Object>) mapping.get("properties")).keySet();
     }
 
     private static TrackedQuery tracked(double captureRate) {

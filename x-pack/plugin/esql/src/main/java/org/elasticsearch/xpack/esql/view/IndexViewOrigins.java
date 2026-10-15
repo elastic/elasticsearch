@@ -24,6 +24,8 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 
 /**
  * Tracks which views lead to each index pattern.
+ *
+ * @param chainsByPattern index pattern read by a view, mapped to the view chains leading to it
  */
 public record IndexViewOrigins(Map<String, Set<List<String>>> chainsByPattern) {
 

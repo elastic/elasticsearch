@@ -19,7 +19,9 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
 
@@ -188,6 +190,52 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 VerificationException.class,
                 containsString("Unknown index [test-view::failures]"),
                 () -> run(syncEsqlQueryRequest("FROM test-view::failures")).close()
+            );
+        }
+    }
+
+    public void testUnknownIndexErrorDescribesViews() {
+        assertAcked(client().admin().indices().prepareCreate("index1").setMapping("f1", "type=integer"));
+        indexRandom(true, false, prepareIndex("index1").setSource(Map.of("f1", 42)));
+        try (
+            var unresolvable = createView("unresolvable", randomFrom("FROM missing", "FROM missing | KEEP f1"));
+            var outer = createView("outer", "FROM unresolvable | KEEP f1");
+            var resolvable = createView("resolvable", "FROM index1 | KEEP f1")
+        ) {
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing] referenced by view [unresolvable]"),
+                () -> run(syncEsqlQueryRequest("FROM unresolvable")).close()
+            );
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing] referenced by view [outer -> unresolvable]"),
+                () -> run(syncEsqlQueryRequest("FROM index1, outer")).close()
+            );
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing] referenced by view [unresolvable]"),
+                () -> run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM unresolv*")).close()
+            );
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing] referenced by view [unresolvable]"),
+                () -> run(syncEsqlQueryRequest("FROM index1 | WHERE f1 IN (FROM unresolvable | KEEP f1)")).close()
+            );
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing] referenced by view [unresolvable]"),
+                () -> run(syncEsqlQueryRequest("FROM missing, unresolvable")).close()
+            );
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [other-missing,missing] ([missing] referenced by view [unresolvable])"),
+                () -> run(syncEsqlQueryRequest("FROM other-missing, unresolvable")).close()
+            );
+            expectThrows(
+                VerificationException.class,
+                allOf(containsString("Unknown index [missing]"), not(containsString("referenced by view"))),
+                () -> run(syncEsqlQueryRequest("FROM missing, resolvable")).close()
             );
         }
     }

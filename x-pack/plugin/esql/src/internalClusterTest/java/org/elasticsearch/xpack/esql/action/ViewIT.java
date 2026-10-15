@@ -35,7 +35,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.ViewService;
@@ -54,7 +53,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 
 public class ViewIT extends AbstractEsqlIntegTestCase {
 
@@ -202,59 +200,6 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = run("FROM ds-view")) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(42))));
         }
-    }
-
-    /**
-     * A view may read an index the query never names, so an error about that index missing names the views leading to it.
-     */
-    public void testUnknownIndexErrorDescribesViews() {
-        assertAcked(indicesAdmin().prepareCreate("index1").setMapping("f1", "type=integer"));
-        prepareIndex("index1").setSource("f1", 42).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertAcked(createView("piped-ok", "FROM index1 | KEEP f1"));
-        assertAcked(createView("piped-missing", "FROM missing | KEEP f1"));
-        assertAcked(createView("bare-missing", "FROM missing"));
-        assertAcked(createView("outer", "FROM inner | KEEP f1"));
-        assertAcked(createView("inner", "FROM missing"));
-
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [missing] referenced by view [piped-missing]"),
-            () -> run("FROM piped-missing").close()
-        );
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [missing] referenced by view [piped-missing]"),
-            () -> run("FROM index1, piped-missing").close()
-        );
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [missing] referenced by view [bare-missing]"),
-            () -> run("FROM bare-missing").close()
-        );
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [missing] referenced by view [outer -> inner]"),
-            () -> run("FROM index1, outer").close()
-        );
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [missing] referenced by view [piped-missing]"),
-            () -> run("SET wildcards_match_views=true; FROM piped-miss*").close()
-        );
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [missing] referenced by view [piped-missing]"),
-            () -> run("FROM index1 | WHERE f1 IN (FROM piped-missing | KEEP f1)").close()
-        );
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [missing] referenced by view [piped-missing]"),
-            () -> run("FROM missing, piped-missing").close()
-        );
-
-        VerificationException e = expectThrows(VerificationException.class, () -> run("FROM missing, piped-ok").close());
-        assertThat(e.getMessage(), containsString("Unknown index [missing]"));
-        assertThat(e.getMessage(), not(containsString("referenced by view")));
     }
 
     public void testViewCannotBeReindexSource() {

@@ -442,12 +442,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
   method: testShardPrewarming
   issue: https://github.com/elastic/elasticsearch/issues/161487
-- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
-  method: test {yaml=/37_columnar_collapse/collapse on a single valued columnar keyword field with the columnar codec disabled}
-  issue: https://github.com/elastic/elasticsearch/issues/161603
-- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
-  method: test {yaml=/37_columnar_collapse/collapse on a columnar keyword field with the columnar codec disabled}
-  issue: https://github.com/elastic/elasticsearch/issues/161604
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/161633

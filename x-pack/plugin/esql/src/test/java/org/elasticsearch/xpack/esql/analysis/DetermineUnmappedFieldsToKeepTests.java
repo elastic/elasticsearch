@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
@@ -15,8 +16,11 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -236,7 +240,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertKeptAnyOtherName(pattern, excl("salary"));
     }
 
-    public void testDropWildcardDoesNotRemoveSyntheticColumn() {
+    public void testDropWildcardDoesNotRemoveUnmappedFieldsColumn() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | DROP *unmapped_fields");
         assertKept(pattern, "unmapped_extra");
         assertNotKept(pattern, "source_unmapped_fields");
@@ -289,8 +293,8 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     public void testKeepThenDropRemovesAllMappedColumns() {
         // KEEP first* leaves only the mapped field "first_name"; DROP first_name* then removes it, so NO mapped
         // column survives. This is still valid under LOAD_ALL — analysis must not fail: the DROP wildcard still
-        // leaves unmapped source fields matching "first*" but not "first_name*" (e.g. "first_pet"), so the
-        // synthetic _unmapped_fields column remains. We cannot know at planning time whether such fields exist
+        // leaves unmapped source fields matching "first*" but not "first_name*" (e.g. "first_pet"), so
+        // the _unmapped_fields column remains. We cannot know at planning time whether such fields exist
         // in _source, so erroring would be wrong.
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first* | DROP first_name*");
         assertKept(pattern, "first_pet", "first_grade");
@@ -562,6 +566,62 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNoUnmappedFieldsAttribute("FROM test | WHERE _unmapped_fields == \"x\" | KEEP emp_no");
         assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no, _unmapped_fields");
         assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = \"mine\" | STATS c = COUNT(*) BY _unmapped_fields");
+    }
+
+    /** A field of the lookup index named like the column of unmapped fields is a column of the query, and wins. */
+    public void testLookupJoinFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
+        var plan = test().addLookupIndex("colliding_lookup", lookupIndexWithUnmappedFieldsField())
+            .statement(setUnmappedLoadAll("FROM test | EVAL language_code = first_name | LOOKUP JOIN colliding_lookup ON language_code"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
+        assertThat(plan.collect(EsRelation.class).stream().flatMap(r -> unmappedFieldsAttributes(r).stream()).toList(), empty());
+        assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+    }
+
+    /** A field added by ENRICH named like the column of unmapped fields is a column of the query, and wins. */
+    public void testEnrichFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
+        var plan = test().addEnrichPolicy(
+            Enrich.Mode.ANY,
+            "colliding_policy",
+            new ResolvedEnrichPolicy(
+                "language_code",
+                EnrichPolicy.MATCH_TYPE,
+                List.of("_unmapped_fields"),
+                Map.of("", "colliding_idx"),
+                Map.of("language_code", keywordField("language_code"), "_unmapped_fields", keywordField("_unmapped_fields"))
+            )
+        ).statement(setUnmappedLoadAll("FROM test | EVAL language_code = first_name | ENRICH colliding_policy ON language_code"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
+        assertThat(plan.collect(EsRelation.class).stream().flatMap(r -> unmappedFieldsAttributes(r).stream()).toList(), empty());
+        assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+    }
+
+    public void testSubqueryBranchNamingUnmappedFieldsOmitsUnmappedFieldsAttribute() {
+        assertUnmappedFieldsNameTaken("FROM test, (FROM test | EVAL _unmapped_fields = \"mine\")");
+    }
+
+    /**
+     * The collision does not have to reach the output of the query: the {@code EVAL} shadows the attribute by name where it sits,
+     * so the attribute could not survive it, and it is not added.
+     */
+    public void testNameTakenOnlyInTheMiddleOfThePlanOmitsUnmappedFieldsAttribute() {
+        assertUnmappedFieldsNameTaken("FROM test | EVAL _unmapped_fields = \"mine\" | DROP _unmapped_fields");
+    }
+
+    /**
+     * Conservative: the collision is local to a branch that keeps only {@code emp_no}, so the other branch could still return its
+     * unmapped fields. The check looks at every node of the plan, so none is returned and the query warns.
+     */
+    public void testNameTakenInsideASubqueryBranchOmitsUnmappedFieldsAttribute() {
+        assertUnmappedFieldsNameTaken("FROM test, (FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no)");
+    }
+
+    /**
+     * Conservative, like {@link #testNameTakenInsideASubqueryBranchOmitsUnmappedFieldsAttribute}: the right side of an {@code IN} is
+     * planned on its own and never returns unmapped fields, yet a collision in it also takes the column of unmapped fields from the
+     * main query.
+     */
+    public void testNameTakenInTheRightSideOfInOmitsUnmappedFieldsAttribute() {
+        assertUnmappedFieldsNameTaken("FROM test | WHERE emp_no IN (FROM test | EVAL _unmapped_fields = \"mine\" | KEEP emp_no)");
     }
 
     public void testEvalNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
@@ -877,6 +937,19 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     private void assertUnmappedFieldsNameTaken(String query) {
         assertNoUnmappedFieldsAttribute(query);
         assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+    }
+
+    /** A lookup index with a join key and a field named like the column of unmapped fields. */
+    private static IndexResolution lookupIndexWithUnmappedFieldsField() {
+        return IndexResolution.valid(
+            new EsIndex(
+                "colliding_lookup",
+                Map.of("language_code", keywordField("language_code"), "_unmapped_fields", keywordField("_unmapped_fields")),
+                Map.of("colliding_lookup", new IndexProperties(IndexMode.LOOKUP, 0)),
+                Map.of(),
+                Map.of()
+            )
+        );
     }
 
     private static void assertNotKept(UnmappedFieldsPattern pattern, String... names) {

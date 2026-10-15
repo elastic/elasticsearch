@@ -195,7 +195,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             final NodeHeapMetrics nodeHeapMetrics = new NodeHeapMetrics(
                 randomAlphaOfLength(4),
                 maxHeapSize,
-                new NodeHeapEstimates(totalHeapUsage, randomLongBetween(0, totalHeapUsage))
+                new NodeHeapEstimates(totalHeapUsage, randomLongBetween(0, totalHeapUsage), randomNonNegativeLong())
             );
             nodeHeapUsage.put(key, nodeHeapMetrics);
         }

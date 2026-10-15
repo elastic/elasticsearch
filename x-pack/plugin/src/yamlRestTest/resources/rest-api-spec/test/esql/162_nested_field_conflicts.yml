@@ -150,7 +150,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ fix_nested_subfield_extraction, optional_fields_load_all_single_source_column ]
+          capabilities: [ fix_nested_subfield_extraction, optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard ]
       reason: "SET unmapped_fields=load_all KEEP * must still nullify mapped nested subfields"
   - do:
       esql.query:

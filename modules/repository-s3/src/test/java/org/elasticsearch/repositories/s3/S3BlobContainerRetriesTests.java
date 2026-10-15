@@ -135,10 +135,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private S3Service service;
     private volatile boolean shouldErrorOnDns;
     private RecordingMeterRegistry recordingMeterRegistry;
+    private boolean legacyContentMd5;
 
     @Before
     public void initializeS3Service() throws Exception {
         shouldErrorOnDns = false;
+        legacyContentMd5 = false;
         service = new S3Service(
             Mockito.mock(Environment.class),
             ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
@@ -252,6 +254,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final var repositorySettings = Settings.builder()
             .put(S3Repository.CLIENT_NAME.getKey(), clientName)
             .put(S3Repository.GET_REGISTER_RETRY_DELAY.getKey(), TimeValue.ZERO);
+        if (legacyContentMd5) {
+            repositorySettings.put("legacy_content_md5", true);
+        }
         if (maxBulkDeletes != null) {
             repositorySettings.put(S3Repository.DELETION_BATCH_SIZE_SETTING.getKey(), maxBulkDeletes);
         }
@@ -949,6 +954,32 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         int expectedNumberOfBatches = expectedNumberOfBatches(numBlobsToDelete);
         assertThat(handler.numberOfDeleteAttempts.get(), equalTo(throttleTimesBeforeSuccess + expectedNumberOfBatches));
         assertThat(handler.numberOfSuccessfulDeletes.get(), equalTo(expectedNumberOfBatches));
+    }
+
+    public void testDeleteObjectsOmitsContentMd5ByDefault() throws IOException {
+        assertNull(getContentMd5HeaderOfDeleteRequest(false));
+    }
+
+    public void testDeleteObjectsSendsContentMd5WithLegacyContentMd5() throws IOException {
+        assertNotNull(getContentMd5HeaderOfDeleteRequest(true));
+    }
+
+    private String getContentMd5HeaderOfDeleteRequest(boolean enableLegacyContentMd5) throws IOException {
+        legacyContentMd5 = enableLegacyContentMd5;
+        final var md5Headers = new ArrayList<String>();
+        httpServer.createContext("/", new S3HttpHandler("bucket", S3ConsistencyModel.randomConsistencyModel()) {
+            @Override
+            public void handle(HttpExchange exchange) throws IOException {
+                if (isMultiDeleteRequest(exchange)) {
+                    md5Headers.add(exchange.getRequestHeaders().getFirst("Content-MD5"));
+                }
+                super.handle(exchange);
+            }
+        });
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(0).disableChunkedEncoding(true).build();
+        blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), List.of(randomIdentifier()).iterator());
+        assertThat(md5Headers, hasSize(1));
+        return md5Headers.get(0);
     }
 
     public void testSnapshotDeletesAbortRetriesWhenThreadIsInterrupted() {

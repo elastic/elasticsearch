@@ -1,35 +1,18 @@
 area: Columnar
 highlight:
   body: |-
-    Removes the `columnar_codec` feature flag. The ColumNAR codec is now
-    used by default for `keyword`, `text` and `match_only_text` fields in
-    strict columnar indices created at or after the new
-    `COLUMNAR_CODEC_NO_FEATURE_FLAG` index version. Indices created before
-    it keep the doc values format they were written with, so no existing
-    index changes format on upgrade.
+    Indices in the `columnar` and `logsdb_columnar` index modes now store the doc values of
+    `keyword`, `text` and `match_only_text` fields in a new columnar doc values format, which
+    further reduces their storage footprint. The format is used by default for indices created
+    on this version. Existing indices keep the format they were written with.
 
-    `index.columnar_codec.enabled` and `cluster.columnar_codec.enabled` are
-    kept as kill switches and are now always registered. The per-index
-    setting defaults to `true` from the new index version and `false` before
-    it.
-
-    The format baseline stays at `FormatVersion` 0.
-
-    Snapshot builds of `main` wrote the codec under older index versions,
-    which this build reads as not using it. Upgrade tests that create
-    columnar indices on such a build (`bcUpgradeTest`) therefore set
-    `index.columnar_codec.enabled: false` on those indices. A new
-    `index.columnar_codec_no_feature_flag` test feature identifies builds
-    that no longer have the flag. Upgrades from released versions are
-    unaffected, since no release ever wrote the codec. This replaces the
-    temporary upgrade-test guard from #160431.
-
-    Relates to #161814
-
-    🤖 Generated with [Claude Code](https://claude.com/claude-code)
+    To create an index without the new format, set the `index.columnar_codec.enabled` index
+    setting to `false` when you create the index. To stop all new columnar indices in a cluster
+    from using it, set the dynamic `cluster.columnar_codec.enabled` cluster setting to `false`.
+    Neither setting changes indices that already exist.
   notable: true
-  title: Remove the `columnar_codec` feature flag
+  title: New doc values format for string fields in columnar indices
 issues: []
 pr: 161944
-summary: Remove the `columnar_codec` feature flag
+summary: Use the columnar doc values format by default in columnar index modes
 type: feature

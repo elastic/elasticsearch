@@ -103,7 +103,7 @@ public class TestCompoundOutputEvaluatorTests extends AbstractCompoundOutputEval
                 valueB = valueB == null ? -1 : ((Number) valueB).intValue();
                 fieldB((Integer) valueB);
                 fieldC((String) evaluationFunctionOutput.get("field_c"));
-            } catch (Exception e) {
+            } catch (ClassCastException e) {
                 throw new IllegalArgumentException("Invalid input: " + input, e);
             }
         }

@@ -109,7 +109,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperator.NO_LIMIT;
@@ -308,18 +307,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
             shardContext = wrapWithUnmappedFieldContext(shardContext, getFieldName(fa));
         }
-        if (attr instanceof UnmappedFieldsAttribute ufa) {
-            // The pattern's excludes cover what field caps reported to the coordinator, not this shard's mapping, so a field mapped
-            // here but missing there - a dynamic mapping update that landed after resolution - is read out of _source and reported
-            // as unmapped. LOAD has the same race, where it instead loads the field with its new type into a column the coordinator
-            // already declared keyword, so both modes are consistent in planning against the schema as of resolution time.
-            // Leaves this shard declares under a nested parent must not ship: mapped nested subfields stay null, and only
-            // this shard knows its mapping - see the loader's javadoc.
-            MappingLookup mappingLookup = shardContext.ctx.getMappingLookup();
-            Predicate<String> mappedNestedSubfield = path -> mappingLookup.getFullNameToFieldType().containsKey(path)
-                && mappingLookup.nestedLookup().hasNestedParent(path);
+        if (attr instanceof UnmappedFieldsAttribute unmapped) {
             return ValuesSourceReaderOperator.load(
-                new UnmappedFieldsBlockLoader(ufa.pattern(), plannerSettings.sourceReservationFactor(), mappedNestedSubfield)
+                shardContext.ctx.unmappedFields().allFieldsBlockLoader(plannerSettings.sourceReservationFactor(), unmapped.pattern())
             );
         }
 
@@ -488,16 +478,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {
-            // Both of KeywordFieldType#blockLoader's paths mangle an object value from _source, so read _source directly via
-            // UnmappedKeywordBlockLoader - see that class for the two broken paths and the issues (#156381, #156433).
-            // TODO: consider fixing FallbackSyntheticSourceBlockLoader instead of working around it here. Rejected for now because it
-            // only covers the synthetic-source half, and its constructor rejects the NO_IGNORED_SOURCE format stored source reports.
+            // An unmapped field has no field type to ask for a loader, so the mapping is asked for one that reads it as such.
             if (asUnsupportedSource == false && name.equals(fullFieldName) && super.fieldType(name) == null) {
-                // Neither LOAD nor LOAD_ALL fuses a function into loading an unmapped field, and unmappedKeywordBlockLoader has
-                // nowhere to put one - so catch it here rather than let it be dropped and surface as a wrong value much later.
+                // Neither LOAD nor LOAD_ALL fuses a function into loading an unmapped field, and its loader has nowhere to put
+                // one - so catch it here rather than let it be dropped and surface as a wrong value much later.
                 assert blockLoaderFunctionConfig == null
                     : "cannot fuse [" + blockLoaderFunctionConfig + "] into loading unmapped field [" + name + "]";
-                return unmappedKeywordBlockLoader(name, this);
+                return ((DefaultShardContext) this).ctx.unmappedFields().blockLoader(name);
             }
             return super.blockLoader(
                 name,
@@ -508,17 +495,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 blockLoaderSizeOrdinals,
                 blockLoaderSizeScript
             );
-        }
-
-        /**
-         * Restrict the _source read to this field's own paths so a single unmapped reference does not force a full _source load
-         */
-        static BlockLoader unmappedKeywordBlockLoader(String name, DefaultShardContext context) {
-            Set<String> sourcePaths = context.ctx.isSourceEnabled() ? context.ctx.sourcePath(name) : Set.of();
-            // sourcePaths here is needed in this form to signal that _source should be loaded for individual fields, not the entire
-            // _source. It's a contract that FallbackSyntheticSourceBlockLoader has. An empty sourcePaths means
-            // StoredFieldsSpec.NEEDS_SOURCE is in effect, which triggers the entire _source loading.
-            return new UnmappedKeywordBlockLoader(name, sourcePaths, context.ctx.getIndexSettings().getIgnoredSourceFormat());
         }
     }
 

@@ -508,7 +508,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 querySource,
                 scriptService,
                 queryShardContext.getParserConfig().registry(),
-                securityContext.getUser()
+                securityContext.getAuthentication()
             );
             QueryBuilder rewrittenQueryBuilder;
             try {

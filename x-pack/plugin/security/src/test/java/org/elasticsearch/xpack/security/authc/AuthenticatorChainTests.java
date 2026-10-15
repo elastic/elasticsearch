@@ -48,6 +48,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -72,6 +74,7 @@ public class AuthenticatorChainTests extends ESTestCase {
     private RealmsAuthenticator realmsAuthenticator;
     private Authentication authentication;
     private User fallbackUser;
+    private String profileUid;
     private AuthenticatorChain authenticatorChain;
 
     @Before
@@ -109,8 +112,34 @@ public class AuthenticatorChainTests extends ESTestCase {
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
             apiKeyAuthenticator,
-            realmsAuthenticator
+            realmsAuthenticator,
+            (authentication, listener) -> listener.onResponse(profileUid)
         );
+    }
+
+    public void testFinishAuthenticationAttachesResolvedProfileUid() throws Exception {
+        profileUid = "u_" + randomAlphaOfLength(20) + "_0";
+        final Authenticator.Context context = createAuthenticatorContext();
+
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        authenticatorChain.finishAuthentication(context, authentication, future);
+        final Authentication result = future.actionGet();
+
+        assertThat(result.getProfileUid(), equalTo(profileUid));
+        assertThat(result.getEffectiveSubject().getUser(), equalTo(authentication.getEffectiveSubject().getUser()));
+        verify(authenticationContextSerializer).writeToContext(eq(result), any());
+    }
+
+    public void testFinishAuthenticationWithoutProfileUidLeavesAuthenticationUntouched() throws Exception {
+        profileUid = null;
+        final Authenticator.Context context = createAuthenticatorContext();
+
+        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
+        authenticatorChain.finishAuthentication(context, authentication, future);
+
+        assertThat(future.actionGet(), sameInstance(authentication));
+        assertThat(authentication.getProfileUid(), nullValue());
+        verify(authenticationContextSerializer).writeToContext(eq(authentication), any());
     }
 
     public void testAuthenticateWillLookForExistingAuthenticationFirst() throws IOException {

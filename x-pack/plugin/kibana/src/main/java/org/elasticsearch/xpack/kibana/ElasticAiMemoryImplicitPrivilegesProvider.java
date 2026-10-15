@@ -33,8 +33,9 @@ import java.util.Set;
  * <p>
  * The provider runs during role building and does not know who the user is, so the scope clause is emitted as a
  * mustache template over {@code _user.profile_uid}, which {@code SecurityQueryTemplateEvaluator} fills in per
- * request. Kibana stamps the same uid on write, so a user's memories and Agent Builder conversations share one
- * identity. The grant is read-only: DLS does not constrain writes, so a user holding it could otherwise stamp any
+ * request from the profile uid resolved at authentication time. A user without an activated profile renders an
+ * empty uid and sees only unscoped memories. Kibana stamps the same uid on write, so a user's memories and Agent
+ * Builder conversations share one identity. The grant is read-only: DLS does not constrain writes, so a user holding it could otherwise stamp any
  * {@code scope_id}. Kibana writes memory as {@code kibana_system}.
  */
 public class ElasticAiMemoryImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {

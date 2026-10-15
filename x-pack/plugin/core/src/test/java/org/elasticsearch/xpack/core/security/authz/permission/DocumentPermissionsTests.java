@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,7 +40,7 @@ public class DocumentPermissionsTests extends ESTestCase {
         final DocumentPermissions documentPermissions1 = DocumentPermissions.allowAll();
         assertThat(documentPermissions1, is(notNullValue()));
         assertThat(documentPermissions1.hasDocumentLevelPermissions(), is(false));
-        assertThat(documentPermissions1.filter(null, null, null, null), is(nullValue()));
+        assertThat(documentPermissions1.filter((User) null, null, null, null), is(nullValue()));
 
         final Set<BytesReference> queries = Collections.singleton(new BytesArray("{\"match_all\" : {}}"));
         final DocumentPermissions documentPermissions2 = DocumentPermissions.filteredBy(queries);

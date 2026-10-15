@@ -38,6 +38,8 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -74,6 +76,7 @@ import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -125,6 +128,8 @@ public class ProfileService {
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
     private static final int DIFFERENTIATOR_UPPER_LIMIT = 9;
     private static final long ACTIVATE_INTERVAL_IN_MS = TimeValue.timeValueSeconds(30).millis();
+    private static final TimeValue PROFILE_UID_CACHE_TTL = TimeValue.timeValueMinutes(5);
+    private static final String NO_PROFILE_UID = "";
 
     private final Settings settings;
     private final Clock clock;
@@ -133,6 +138,7 @@ public class ProfileService {
     private final Function<String, DomainConfig> domainConfigLookup;
     private final Function<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefLookup;
     private final ByteSizeValue maxProfileSize;
+    private final Cache<String, String> profileUidCache;
 
     public ProfileService(Settings settings, Clock clock, Client client, SecurityIndexManager profileIndex, Realms realms) {
         this.settings = settings;
@@ -142,6 +148,48 @@ public class ProfileService {
         this.domainConfigLookup = realms::getDomainConfig;
         this.realmRefLookup = realms::getRealmRef;
         this.maxProfileSize = MAX_SIZE_SETTING.get(settings);
+        this.profileUidCache = CacheBuilder.<String, String>builder()
+            .setExpireAfterWrite(PROFILE_UID_CACHE_TTL)
+            .setMaximumWeight(100_000)
+            .build();
+    }
+
+    /**
+     * Resolves the profile uid of the authenticated user so that {@code AuthenticatorChain} can attach it to the
+     * {@link Authentication} (see {@link Authentication#copyWithProfileUid}) and DLS role query templates can read
+     * it as {@code _user.profile_uid}. Only realm users have profiles, so API keys, service accounts, internal and
+     * anonymous users and run-as targets resolve to {@code null} without a lookup, as does a user whose profile has
+     * not been activated. Results, including the absence of a profile, are cached per subject for
+     * {@link #PROFILE_UID_CACHE_TTL} and dropped when that subject activates its profile through this node. A lookup
+     * failure resolves to {@code null} rather than failing authentication.
+     */
+    public void resolveProfileUid(Authentication authentication, ActionListener<String> listener) {
+        final Subject subject = authentication.getEffectiveSubject();
+        if (authentication.isRunAs()
+            || Subject.Type.USER != subject.getType()
+            || subject.getUser() instanceof InternalUser
+            || subject.getUser() instanceof AnonymousUser) {
+            listener.onResponse(null);
+            return;
+        }
+        final String cacheKey = profileUidCacheKey(subject);
+        final String cached = profileUidCache.get(cacheKey);
+        if (cached != null) {
+            listener.onResponse(cached.isEmpty() ? null : cached);
+            return;
+        }
+        searchVersionedDocumentForSubject(subject, ActionListener.wrap(versionedDocument -> {
+            final String uid = versionedDocument == null ? null : versionedDocument.doc.uid();
+            profileUidCache.put(cacheKey, uid == null ? NO_PROFILE_UID : uid);
+            listener.onResponse(uid);
+        }, e -> {
+            logger.debug(() -> format("failed to resolve profile uid for user [%s]", subject.getUser().principal()), e);
+            listener.onResponse(null);
+        }));
+    }
+
+    private static String profileUidCacheKey(Subject subject) {
+        return subject.getRealm().getType() + "/" + subject.getRealm().getName() + "/" + subject.getUser().principal();
     }
 
     public void getProfiles(List<String> uids, Set<String> dataKeys, ActionListener<ResultsAndErrors<Profile>> listener) {
@@ -197,6 +245,14 @@ public class ProfileService {
      */
     public void activateProfile(Authentication authentication, ActionListener<Profile> listener) {
         final Subject subject = authentication.getEffectiveSubject();
+        if (Subject.Type.USER == subject.getType()) {
+            // Whether the activation succeeds or not, the cached answer for this subject is no longer trustworthy.
+            listener = ActionListener.runBefore(listener, () -> profileUidCache.invalidate(profileUidCacheKey(subject)));
+        }
+        doActivateProfile(subject, listener);
+    }
+
+    private void doActivateProfile(Subject subject, ActionListener<Profile> listener) {
         if (Subject.Type.USER != subject.getType()) {
             listener.onFailure(
                 new IllegalArgumentException(

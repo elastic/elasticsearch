@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.core.security.authz.support;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.support.MustacheTemplateEvaluator;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -41,15 +42,36 @@ public final class SecurityQueryTemplateEvaluator {
      * @param querySource query string template to be evaluated.
      * @param scriptService {@link ScriptService}
      * @param user {@link User} details for user defined parameters in the
-     * script. Exposed as {@code _user.username}, {@code _user.full_name}, {@code _user.email}, {@code _user.roles},
-     * {@code _user.metadata} and {@code _user.profile_uid}. The last is computed from the username with
-     * {@link Profile#computeDefaultUid}, not read from the profile index, so it is available without a lookup but
-     * only matches a profile whose uid carries the default differentiator.
+     * script.
      * @return resultant query string after compiling and executing the script.
      * If the source does not contain template then it will return the query
      * source without any modifications.
      */
     public static String evaluateTemplate(final String querySource, final ScriptService scriptService, final User user) {
+        return evaluateTemplate(querySource, scriptService, user, null);
+    }
+
+    /**
+     * As {@link #evaluateTemplate(String, ScriptService, User)} for the effective user of {@code authentication}, additionally
+     * exposing {@link Authentication#getProfileUid()} as {@code _user.profile_uid}. The variable is absent, and so renders
+     * empty, when no profile uid was resolved for the authentication.
+     */
+    public static String evaluateTemplate(
+        final String querySource,
+        final ScriptService scriptService,
+        final Authentication authentication
+    ) {
+        return authentication == null
+            ? evaluateTemplate(querySource, scriptService, null, null)
+            : evaluateTemplate(querySource, scriptService, authentication.getEffectiveSubject().getUser(), authentication.getProfileUid());
+    }
+
+    private static String evaluateTemplate(
+        final String querySource,
+        final ScriptService scriptService,
+        final User user,
+        @Nullable final String profileUid
+    ) {
         // EMPTY is safe here because we never use namedObject
         try (XContentParser parser = XContentFactory.xContent(querySource).createParser(XContentParserConfiguration.EMPTY, querySource)) {
             XContentParser.Token token = parser.nextToken();
@@ -71,7 +93,9 @@ public final class SecurityQueryTemplateEvaluator {
                 userModel.put("email", user.email());
                 userModel.put("roles", Arrays.asList(user.roles()));
                 userModel.put("metadata", Collections.unmodifiableMap(user.metadata()));
-                userModel.put("profile_uid", Profile.computeDefaultUid(user.principal()));
+                if (profileUid != null) {
+                    userModel.put("profile_uid", profileUid);
+                }
                 Map<String, Object> extraParams = Collections.singletonMap("_user", userModel);
 
                 return MustacheTemplateEvaluator.evaluate(scriptService, parser, extraParams);
@@ -85,6 +109,10 @@ public final class SecurityQueryTemplateEvaluator {
 
     public static DlsQueryEvaluationContext wrap(User user, ScriptService scriptService) {
         return q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user);
+    }
+
+    public static DlsQueryEvaluationContext wrap(Authentication authentication, ScriptService scriptService) {
+        return q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, authentication);
     }
 
     @FunctionalInterface

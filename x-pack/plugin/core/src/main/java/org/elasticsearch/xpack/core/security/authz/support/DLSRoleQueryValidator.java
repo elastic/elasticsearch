@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -139,6 +140,28 @@ public final class DLSRoleQueryValidator {
     ) {
         if (query != null) {
             String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(query.utf8ToString(), scriptService, user);
+            try {
+                return evaluateAndVerifyRoleQuery(templateResult, xContentRegistry);
+            } catch (ElasticsearchParseException | ParsingException | XContentParseException | IOException e) {
+                throw new ElasticsearchParseException("failed to parse field 'query' from the role descriptor", e);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * As {@link #evaluateAndVerifyRoleQuery(BytesReference, ScriptService, NamedXContentRegistry, User)}, evaluating the
+     * template against the whole {@link Authentication} so it can also refer to the user's profile uid.
+     */
+    @Nullable
+    public static QueryBuilder evaluateAndVerifyRoleQuery(
+        BytesReference query,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Authentication authentication
+    ) {
+        if (query != null) {
+            String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(query.utf8ToString(), scriptService, authentication);
             try {
                 return evaluateAndVerifyRoleQuery(templateResult, xContentRegistry);
             } catch (ElasticsearchParseException | ParsingException | XContentParseException | IOException e) {

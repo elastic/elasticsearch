@@ -49,6 +49,7 @@ public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
 
     private static final String ALICE = "alice";
     private static final String BOB = "bob";
+    private static final String CAROL = "carol";
     private static final String USER_PASSWORD = "kibana-memory-password";
     private static final String MEMORY_READER_ROLE = "ai_memory_marketing_reader";
 
@@ -72,6 +73,12 @@ public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
         "bob-marketing",
         "empty-scope-marketing",
         "shared-marketing",
+        "unscoped-marketing",
+        "unscoped-no-perms"
+    );
+    // A user with no activated profile has no uid to match, so only unscoped memories remain.
+    private static final List<String> NO_PROFILE_VISIBLE_DOC_IDS = List.of(
+        "empty-scope-marketing",
         "unscoped-marketing",
         "unscoped-no-perms"
     );
@@ -112,6 +119,20 @@ public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
 
         assertUserSeesOnlyAuthorizedDocs(ALICE, ALICE_VISIBLE_DOC_IDS);
         assertUserSeesOnlyAuthorizedDocs(BOB, BOB_VISIBLE_DOC_IDS);
+    }
+
+    /** The uid comes from the user's activated profile, so a user who never activated one fails closed to unscoped memories. */
+    public void testUserWithoutActivatedProfileSeesOnlyUnscopedMemories() throws Exception {
+        putKibanaPrivileges();
+        putMemoryReaderRole();
+        putUser(ALICE);
+        putUser(BOB);
+        putUser(CAROL);
+        final String aliceUid = activateProfile(ALICE);
+        final String bobUid = activateProfile(BOB);
+        createMemoryIndexWithDocs(aliceUid, bobUid);
+
+        assertUserSeesOnlyAuthorizedDocs(CAROL, NO_PROFILE_VISIBLE_DOC_IDS);
     }
 
     /** The grant is read-only: a user cannot write (and so cannot forge a scope_id) through it. */

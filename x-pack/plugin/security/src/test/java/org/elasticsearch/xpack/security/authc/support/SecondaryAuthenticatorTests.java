@@ -181,6 +181,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             serviceAccountService,
             OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE,
             mock(),
+            AuthenticationService.ProfileUidResolver.NONE,
             MeterRegistry.NOOP
         );
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService, auditTrailService);

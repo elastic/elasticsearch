@@ -444,6 +444,67 @@ public class ProfileServiceTests extends ESTestCase {
         assertThat(e1.getMessage(), containsString("profile is supported for user only"));
     }
 
+    public void testResolveProfileUidSkipsLookupForSubjectsWithoutProfiles() {
+        final List<Authentication> authentications = List.of(
+            AuthenticationTestHelper.builder().apiKey().build(),
+            AuthenticationTestHelper.builder().serviceAccount().build(),
+            AuthenticationTestHelper.builder().internal().build(),
+            AuthenticationTestHelper.builder().anonymous().build(),
+            AuthenticationTestHelper.builder().realm().runAs().build()
+        );
+        for (Authentication authentication : authentications) {
+            final PlainActionFuture<String> future = new PlainActionFuture<>();
+            profileService.resolveProfileUid(authentication, future);
+            assertThat(authentication.toString(), future.actionGet(), nullValue());
+        }
+        verify(client, never()).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+    }
+
+    public void testResolveProfileUidCachesLookupUntilActivation() {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
+            var resp = new MultiSearchResponse(
+                new MultiSearchResponse.Item[] {
+                    new MultiSearchResponse.Item(SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(), null) },
+                1L
+            );
+            try {
+                listener.onResponse(resp);
+            } finally {
+                resp.decRef();
+            }
+            return null;
+        }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+
+        final Authentication authentication = AuthenticationTestHelper.builder().realm().build(false);
+
+        // No profile document: resolves to null and the absence is cached.
+        for (int i = 0; i < 3; i++) {
+            final PlainActionFuture<String> future = new PlainActionFuture<>();
+            profileService.resolveProfileUid(authentication, future);
+            assertThat(future.actionGet(), nullValue());
+        }
+        verify(client, times(1)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+
+        // Activation drops the cached answer, whatever its outcome.
+        when(client.prepareIndex(SECURITY_PROFILE_ALIAS)).thenReturn(new IndexRequestBuilder(client, SECURITY_PROFILE_ALIAS));
+        doAnswer(invocation -> {
+            final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
+            listener.onFailure(new RuntimeException("expected"));
+            return null;
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), anyActionListener());
+        final PlainActionFuture<Profile> activateFuture = new PlainActionFuture<>();
+        profileService.activateProfile(authentication, activateFuture);
+        expectThrows(RuntimeException.class, activateFuture::actionGet);
+
+        final PlainActionFuture<String> future = new PlainActionFuture<>();
+        profileService.resolveProfileUid(authentication, future);
+        assertThat(future.actionGet(), nullValue());
+        // One search for activation plus one for the fresh resolution.
+        verify(client, times(3)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+    }
+
     public void testActivateProfileShouldFailForInternalUser() {
         final Authentication authentication = AuthenticationTestHelper.builder().internal().build();
 

@@ -1218,6 +1218,7 @@ public class Security extends Plugin
                 serviceAccountService,
                 operatorPrivilegesService.get(),
                 pluggableAuthenticatorChain,
+                profileService::resolveProfileUid,
                 telemetryProvider.getMeterRegistry()
             )
         );

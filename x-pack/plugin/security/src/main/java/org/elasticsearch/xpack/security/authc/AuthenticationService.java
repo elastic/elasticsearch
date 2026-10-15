@@ -93,6 +93,7 @@ public class AuthenticationService {
         ServiceAccountService serviceAccountService,
         OperatorPrivilegesService operatorPrivilegesService,
         PluggableAuthenticatorChain pluggableAuthenticatorChain,
+        ProfileUidResolver profileUidResolver,
         MeterRegistry meterRegistry
     ) {
         this.realms = realms;
@@ -119,8 +120,20 @@ public class AuthenticationService {
             new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
             new OAuth2TokenAuthenticator(tokenService, meterRegistry),
             new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),
-            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache, meterRegistry)
+            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache, meterRegistry),
+            profileUidResolver
         );
+    }
+
+    /**
+     * Resolves the profile uid to attach to a freshly established {@link Authentication}, answering {@code null} when
+     * the subject has none. See {@code ProfileService#resolveProfileUid}.
+     */
+    @FunctionalInterface
+    public interface ProfileUidResolver {
+        ProfileUidResolver NONE = (authentication, listener) -> listener.onResponse(null);
+
+        void resolve(Authentication authentication, ActionListener<String> listener);
     }
 
     /**

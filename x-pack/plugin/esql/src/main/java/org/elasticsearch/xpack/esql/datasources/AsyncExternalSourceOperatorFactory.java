@@ -270,6 +270,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * then {@link #onClose} (or {@link #releaseDeferredCloseRef()} when deferred extraction is on).
      * Dual refs keep the storage lease alive until every operator built during pipeline construction
      * has closed, even if an earlier producer fails while later {@code get()} calls are still pending.
+     * While the count is zero {@link #dynamicThreshold()} builds nothing, so a late probe cannot
+     * acquire a side-channel reference that no {@link #releaseOperator} would release.
      */
     private final AtomicInteger operatorRefCount = new AtomicInteger(0);
     /**
@@ -1444,7 +1446,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // Do NOT clear the filter entirely: YES-pushed conjuncts (LIKE-family) were
                     // removed from FilterExec and must still be enforced by the reader. Re-push only
                     // the YES conjuncts from the original list so they reach the evaluator, while the
-                    // RECHECK conjuncts remain in FilterExec. See elastic/esql-planning#2052.
+                    // RECHECK conjuncts remain in FilterExec.
                     List<Expression> yesConjuncts = pushedExpressions.stream()
                         .filter(e -> pushdownSupport.canPush(e) == FilterPushdownSupport.Pushability.YES)
                         .toList();
@@ -1523,15 +1525,43 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return objectPath == null ? null : objectPath.objectName();
     }
 
+    /** Whether planning installed a numeric or {@code BYTES_REF} TopN threshold supplier for this factory. */
+    private boolean thresholdInstalled() {
+        return thresholdSupplier != null || minCompetitiveSupplier != null;
+    }
+
+    /**
+     * The shared TopN threshold for this factory's readers, built on first use and torn down by
+     * {@link #closeDynamicThreshold()} once the last operator hold is released. Returns {@code null}
+     * when no threshold supplier is installed, and also once {@link #operatorRefCount} has reached
+     * zero: building the threshold acquires a reference on the TopN side channel, and after the
+     * final {@link #releaseOperator} nothing runs {@link #closeDynamicThreshold()} again, so a
+     * threshold built by a late {@link #noFurtherCandidates()} probe would hold that reference (and
+     * the channel's request-breaker bytes) for the life of the node. The check is made under the
+     * monitor {@link #closeDynamicThreshold()} takes, after the decrement that precedes it, so a
+     * caller either observes zero and builds nothing, or builds before the decrement and is torn
+     * down by the closer.
+     */
     @Nullable
     private DynamicThreshold dynamicThreshold() {
         DynamicThreshold threshold = cachedThreshold;
-        if (threshold != null || (thresholdSupplier == null && minCompetitiveSupplier == null)) {
+        if (threshold != null || thresholdInstalled() == false) {
             return threshold;
         }
         synchronized (this) {
             threshold = cachedThreshold;
             if (threshold == null) {
+                int holds = operatorRefCount.get();
+                assert holds >= 0 : "operator hold released more often than acquired: " + holds;
+                if (holds <= 0) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug(
+                            () -> "threshold probe after the last operator hold was released; not building a threshold for [" + path + "]",
+                            new IllegalStateException("late threshold probe")
+                        );
+                    }
+                    return null;
+                }
                 if (thresholdColumnName == null) {
                     throw new IllegalStateException("threshold descriptor is incomplete");
                 }
@@ -1560,10 +1590,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
     }
 
-    private boolean noFurtherCandidates() {
-        DynamicThreshold threshold = dynamicThreshold();
-        if (threshold != null && threshold.noFurtherCandidates()) {
-            return true;
+    /**
+     * Whether the readers can stop opening units: the TopN threshold reports no further
+     * candidates, the pushed/observed LIMIT is exhausted, or a threshold is installed but can no
+     * longer be built because the last operator hold is gone. In that last case the threshold and
+     * the storage lease have been closed and no consumer is left, so a probe that outlived its
+     * operator must stop rather than fall through to a limiter that may still report "keep going".
+     * Package-private so tests can issue a probe after the last operator hold was released (see
+     * {@link #dynamicThreshold()}).
+     */
+    boolean noFurtherCandidates() {
+        if (thresholdInstalled()) {
+            DynamicThreshold threshold = dynamicThreshold();
+            // With a supplier installed, dynamicThreshold() only yields null once the holds are gone (and it has
+            // logged the late caller).
+            if (threshold == null || threshold.noFurtherCandidates()) {
+                return true;
+            }
         }
         Limiter limiter = sourceLimiter != null ? sourceLimiter : observedLimiter;
         return limiter != null && limiter.remaining() == 0;
@@ -2105,6 +2148,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * <p>
      * Collapses three structurally identical {@code addListener} blocks (page-ready, page-ready
      * recheck, buffer-space) into one site, removing copy-paste drift risk between branches.
+     * <p>
+     * The park is registered through {@link AsyncExternalSourceBuffer#waitForReadyOrFinished}, so a
+     * finished buffer (cancel / DELETE / LIMIT teardown, STOP, producer failure) ends it even when
+     * {@code signal} is the iterator's own readiness (a byte-budget ticket, an in-flight GET) that
+     * nothing on the cancel path completes. The woken loop returns {@link DrainResult#DONE} on
+     * {@code noMoreInputs} and closes the iterator from its own run, which is what cancels the
+     * iterator's pending ticket / GET.
      *
      * @param signal a not-done listener from {@code waitForReady()} or {@code waitForSpace()};
      *               callers must verify {@code signal.isDone() == false} before invoking this
@@ -2116,9 +2166,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // Unlock before addListener. SubscribableListener completes an already-done signal inline
         // (DIRECT) even when an executor is passed, and addListener(producerExecutor) is not
         // force-execution (T8). Release so an inline resume can claim the run; this task must not
-        // mutate producer state after this point.
+        // mutate producer state after this point. An already-finished buffer completes the park
+        // inline too, so the same ordering covers a cancel that raced this park.
         releaseProducerRun(state);
-        signal.addListener(ActionListener.wrap(v -> {
+        state.buffer.waitForReadyOrFinished(signal).addListener(ActionListener.wrap(v -> {
             try {
                 executeProducer(state, completionListener, () -> runProducerLoop(state, completionListener));
             } catch (Exception e) {
@@ -2135,7 +2186,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Like {@link #parkUntilReady} but holds an already-consumed page across the park. On resume
      * the page is delivered to the buffer (or released if the buffer was finished); then the
-     * producer loop continues.
+     * producer loop continues. {@code signal} is {@code waitForSpace()}, which the buffer already
+     * completes on finish; it goes through {@code waitForReadyOrFinished} anyway so every producer
+     * park follows the one rule.
      */
     private DrainResult parkUntilReadyWithPage(
         SubscribableListener<Void> signal,
@@ -2145,7 +2198,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     ) {
         snapshotFormatReaderStatus(state);
         releaseProducerRun(state);
-        signal.addListener(ActionListener.wrap(v -> {
+        state.buffer.waitForReadyOrFinished(signal).addListener(ActionListener.wrap(v -> {
             boolean consumed = false;
             try {
                 if (state.buffer.noMoreInputs() || noFurtherCandidates()) {

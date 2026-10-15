@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -79,6 +80,11 @@ final class FieldTypeLookup {
         Map<String, MappedFieldType> ptAliasTypes = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
+            if (fieldMapper instanceof FlattenedFieldMapper flattened && flattened.isUnmappedSink()) {
+                // Internal storage rather than a mapped field, so it is kept out of the name maps entirely: nothing that resolves or
+                // enumerates field names (queries, field caps, wildcards in fields/stored_fields) reaches it or the names it absorbed.
+                continue;
+            }
             String fieldName = fieldMapper.fullPath();
             MappedFieldType fieldType = fieldMapper.fieldType();
             fullNameToFieldType.put(fieldType.name(), fieldType);

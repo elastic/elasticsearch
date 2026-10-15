@@ -3951,7 +3951,7 @@ public class GlobExpanderTests extends ESTestCase {
             ),
             new LinkedHashSet<>(paths(result))
         );
-        // k=1, a handful of hour survivors: page count prefers flatten after measuring the first hour.
+        // k=1, three hour survivors: remaining 2 pages vs 1 prefix page, so flatten after measuring.
     }
 
     /** {@code **} on the same AWS tree still withdraws at unhinted {@code aws-account-id}. */
@@ -4105,7 +4105,7 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/data/year=2024/b.parquet", "s3://bucket/data/year=2025/c.parquet"), paths(result));
-        // k=1, 2 of 3: flatten after measuring 2024, so 2023 is listed by the prefix pass.
+        // k=1, 2 of 3: remaining 1 page == 1 prefix page, so finish. 2023 is not listed.
     }
 
     public void testGlobstarInHintPrunesTheListing() throws IOException {
@@ -4256,7 +4256,7 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(List.of("s3://bucket/data/year=2025/"), provider.listedPrefixes);
     }
 
-    /** IN: two of three years, k=1, so flatten after measuring the first survivor (2 pages > 1 prefix page). */
+    /** IN: two of three years, k=1: remaining 1 page == 1 prefix page, so finish both survivors. */
     public void testGlobstarInHintListRequestCount() throws IOException {
         TreeStubProvider provider = new TreeStubProvider(
             List.of(
@@ -4270,10 +4270,10 @@ public class GlobExpanderTests extends ESTestCase {
         GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
-        assertEquals(List.of("s3://bucket/data/year=2023/", "s3://bucket/data/"), provider.listedPrefixes);
+        assertEquals(List.of("s3://bucket/data/year=2023/", "s3://bucket/data/year=2025/"), provider.listedPrefixes);
     }
 
-    /** Range: two of three years, k=1, so flatten after measuring the first survivor. */
+    /** Range: two of three years, k=1: remaining 1 page == 1 prefix page, so finish both survivors. */
     public void testGlobstarRangeHintListRequestCount() throws IOException {
         TreeStubProvider provider = new TreeStubProvider(
             List.of(
@@ -4287,11 +4287,11 @@ public class GlobExpanderTests extends ESTestCase {
         GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
-        assertEquals(List.of("s3://bucket/data/year=2024/", "s3://bucket/data/"), provider.listedPrefixes);
+        assertEquals(List.of("s3://bucket/data/year=2024/", "s3://bucket/data/year=2025/"), provider.listedPrefixes);
     }
 
     /**
-     * 6 of 10 year dirs, k=1: finishing is 6 pages vs 1 prefix page, so flatten. The first survivor is listed
+     * 6 of 10 year dirs, k=1: remaining 5 pages vs 1 prefix page, so flatten. The first survivor is listed
      * to measure k (one wasted LIST), then the prefix. Result still keeps the six; the flat pass enumerates
      * the pruned years too.
      */
@@ -4312,7 +4312,7 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * 5 of 100 {@code customer_id} folders, k=1: finishing is 5 pages vs 1 prefix page, so flatten after
+     * 5 of 100 {@code customer_id} folders, k=1: remaining 4 pages vs 1 prefix page, so flatten after
      * measuring the first survivor. The old 4/0.2 fraction rule finished these; page count does not.
      */
     public void testGlobstarWideLevelSmallFractionFlattensWhenEachDirIsOneObject() throws IOException {
@@ -4328,6 +4328,32 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("only the 5 matching customer files", 5, result.fileCount());
         assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
         assertEquals(List.of("s3://bucket/data/customer_id=10/", "s3://bucket/data/"), provider.listedPrefixes);
+    }
+
+    /**
+     * {@code _temporary} sorts before {@code customer_id=} and is prepended to survivors. Measuring it would
+     * set k=1 and flatten five dense folders; measuring the first hive-shaped dir keeps k=50 and finishes.
+     */
+    public void testGlobstarJunkFirstDenseSurvivorsFinish() throws IOException {
+        List<StorageEntry> entries = new ArrayList<>();
+        entries.add(entry("s3://bucket/data/_temporary/x.parquet", 100));
+        Set<Integer> kept = Set.of(10, 20, 30, 40, 50);
+        for (int id = 1; id <= 100; id++) {
+            int files = kept.contains(id) ? 50 : 1;
+            for (int f = 0; f < files; f++) {
+                entries.add(entry("s3://bucket/data/customer_id=" + id + "/p" + f + ".parquet", 100));
+            }
+        }
+        TreeStubProvider provider = new TreeStubProvider(entries);
+        var hints = List.of(hint("customer_id", PartitionFilterHintExtractor.Operator.IN, 10, 20, 30, 40, 50));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(5 * 50, result.fileCount());
+        assertEquals("measured the first shaped dir, not _temporary", "s3://bucket/data/customer_id=10/", provider.listedPrefixes.get(0));
+        assertThat(provider.listedPrefixes, hasItem("s3://bucket/data/_temporary/"));
+        assertThat(provider.listedPrefixes, not(hasItem("s3://bucket/data/")));
+        assertFalse(provider.enumeratedFiles.stream().anyMatch(p -> p.contains("customer_id=1/")));
     }
 
     /**
@@ -4610,7 +4636,9 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/data/year=2025/b.parquet"), paths(result));
-        // S=2 (year=2025 + _temporary), k=1: flatten after measuring, so year=2024 is listed by the prefix pass.
+        // S=2 (year=2025 + _temporary), k=1: remaining 1 page == 1 prefix page, so finish. year=2024 is not listed.
+        assertEquals(List.of("s3://bucket/data/year=2025/", "s3://bucket/data/_temporary/"), provider.listedPrefixes);
+        assertFalse(provider.enumeratedFiles.stream().anyMatch(p -> p.contains("year=2024")));
         assertEquals("the exclusion is logged, not carried on a listing with files", List.of(), result.listingWarnings());
     }
 
@@ -4795,8 +4823,8 @@ public class GlobExpanderTests extends ESTestCase {
             List.of("s3://bucket/data/", "s3://bucket/data/year=2025/", "s3://bucket/data/year=2026/", "s3://bucket/data/year=2024/"),
             provider.childListedPrefixes
         );
-        // Two month survivors, k=1: flatten after measuring the first (2 pages > 1 prefix page).
-        assertEquals(List.of("s3://bucket/data/year=2025/month=abc/", "s3://bucket/data/"), provider.listedPrefixes);
+        // Two month survivors, k=1: remaining 1 page == 1 prefix page, so finish both.
+        assertEquals(List.of("s3://bucket/data/year=2025/month=abc/", "s3://bucket/data/year=2026/month=06/"), provider.listedPrefixes);
     }
 
     /**
@@ -5897,10 +5925,9 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * Two of 100 cities, k=1: 2 pages > 1 prefix page, so flatten after measuring c0. The prefix list
-     * enumerates pruned cities.
+     * Two of 100 cities, k=1: remaining 1 page == 1 prefix page, so finish both. Pruned cities are not listed.
      */
-    public void testKeyedInTwoOfOneHundredFlattensWhenEachCityIsOneObject() throws IOException {
+    public void testKeyedInTwoOfOneHundredFinishesWhenRemainingEqualsPrefixPage() throws IOException {
         TreeStubProvider provider = cityTree(100);
         var hints = List.of(hint("city", PartitionFilterHintExtractor.Operator.IN, "c0", "c1"));
 
@@ -5908,14 +5935,13 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(List.of("s3://bucket/data/city=c0/a.parquet", "s3://bucket/data/city=c1/a.parquet"), paths(result));
         assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
-        assertEquals(List.of("s3://bucket/data/city=c0/", "s3://bucket/data/"), provider.listedPrefixes);
-        assertTrue(provider.enumeratedFiles.stream().anyMatch(p -> p.contains("city=c0/")));
-        assertTrue("prefix list enumerates pruned cities", provider.enumeratedFiles.stream().anyMatch(p -> p.contains("city=c5/")));
+        assertEquals(List.of("s3://bucket/data/city=c0/", "s3://bucket/data/city=c1/"), provider.listedPrefixes);
+        assertFalse(provider.enumeratedFiles.stream().anyMatch(p -> p.contains("city=c5/")));
     }
 
     /**
-     * Five of 100, k=1: flatten after measuring the first survivor. Page count beats the old 20% fraction
-     * that finished these five.
+     * Five of 100, k=1: remaining 4 pages vs 1 prefix page, so flatten after measuring the first survivor.
+     * Page count beats the old 20% fraction that finished these five.
      */
     public void testKeyedInFiveOfOneHundredFlattensWhenEachCityIsOneObject() throws IOException {
         TreeStubProvider provider = cityTree(100);
@@ -6156,7 +6182,10 @@ public class GlobExpanderTests extends ESTestCase {
             List.of("s3://bucket/data/year=2024/city=New%20York/a.parquet", "s3://bucket/data/year=2025/city=Paris/c.parquet"),
             paths(result)
         );
-        // Two city survivors, k=1: flatten after measuring is cheaper than two recursive listings.
+        // Two city survivors, k=1: remaining 1 page == 1 prefix page, so finish both. No parent flat list.
+        assertThat(provider.listedPrefixes, not(hasItem("s3://bucket/data/")));
+        assertThat(provider.listedPrefixes, hasItem(containsString("city=New%20York")));
+        assertThat(provider.listedPrefixes, hasItem(containsString("city=Paris")));
         assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/"));
         assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/year=2024/"));
         assertThat(provider.childListedPrefixes, hasItem("s3://bucket/data/year=2025/"));

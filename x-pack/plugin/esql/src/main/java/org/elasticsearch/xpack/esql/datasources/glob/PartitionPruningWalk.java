@@ -46,8 +46,9 @@ import java.util.Set;
      * on a {@code **} glob. A keyed glob ({@code key=*} / {@code key=literal} segments) may descend an
      * unhinted leading identity key when a hinted key of that glob is still pending.
  * Survivors are finished with one recursive listing each, but only when something was pruned and
- * {@link #cheaperToFinish} says those listings cost no more LIST pages than one flat listing of the prefix;
- * otherwise the walk returns {@code null} and the caller flat-lists.
+ * {@link #cheaperToFinish} says the remaining listings cost no more LIST pages than one flat listing of the
+ * prefix (the first survivor is already listed); otherwise the walk returns {@code null} and the caller
+ * flat-lists.
  *
  * <p><b>Trust boundary.</b> Pruning on {@code year} is sound only if {@code year} really is a partition column, and
  * the walk cannot see inside pruned folders. The caller must therefore verify that every {@link
@@ -124,10 +125,11 @@ final class PartitionPruningWalk {
     }
 
     /**
-     * True when finishing {@code survivors} directories of {@code objectsUnderFirst} objects each costs no more
-     * LIST pages than flattening {@code estimatedPrefixWidth} directories of the same size:
-     * {@code S * ceil(k / P) <= ceil(L * k / P)}. {@code estimatedPrefixWidth} is the product, over walked
-     * levels, of average partition-shaped children per listed directory.
+     * True when finishing the remaining {@code survivors - 1} directories costs no more LIST pages than
+     * flattening {@code estimatedPrefixWidth} directories of the same size, given the first survivor is
+     * already listed: {@code (S - 1) * ceil(k / P) <= ceil(L * k / P)}. Flatten still pays the prefix
+     * listing on top of that probe; finish reuses it. {@code estimatedPrefixWidth} is the product, over
+     * walked levels, of average partition-shaped children per listed directory.
      */
     static boolean cheaperToFinish(int survivors, long objectsUnderFirst, double estimatedPrefixWidth) {
         return cheaperToFinish(survivors, objectsUnderFirst, estimatedPrefixWidth, LIST_PAGE_SIZE);
@@ -143,9 +145,10 @@ final class PartitionPruningWalk {
         // An empty LIST still costs one page. Billing k=0 as 1 keeps an empty first survivor from
         // making every remaining listing look free.
         long k = Math.max(1L, objectsUnderFirst);
-        double finishPages = (double) survivors * ceilDiv(k, pageSize);
+        long pagesPerDir = ceilDiv(k, pageSize);
+        double remainingFinishPages = (double) (survivors - 1) * pagesPerDir;
         double flatPages = Math.ceil(estimatedPrefixWidth * k / pageSize);
-        return finishPages <= flatPages;
+        return remainingFinishPages <= flatPages;
     }
 
     /** Ceiling of {@code n / d} for non-negative {@code n}; 0 when {@code n} is 0. */
@@ -264,8 +267,8 @@ final class PartitionPruningWalk {
         List<StoragePath> dirs = List.of(prefix);
         int listings = 0;
         // Product over walked levels of (shaped children / listed directories). Estimates how many dirs
-        // of the current grain sit under the prefix, so finishSurvivors can compare S * ceil(k/P) against
-        // a flat listing of L * k objects.
+        // of the current grain sit under the prefix, so finishSurvivors can compare remaining finish pages
+        // (S-1)*ceil(k/P) against a flat listing of L * k objects.
         double estimatedPrefixWidth = 1.0;
         // All raw values seen for each partition key, used to infer the "full" column type. Populated from normal
         // walk listings AND from retroactive peeks into pruned dirs (see below).
@@ -531,10 +534,11 @@ final class PartitionPruningWalk {
 
     /**
      * Ends a walk whose remaining subtrees no hint can narrow: one recursive listing per survivor, but only when
-     * something was pruned and {@link #cheaperToFinish} says those listings cost no more LIST pages than one
-     * flat listing of the prefix — otherwise {@code null} to signal a flat fallback.
+     * something was pruned and {@link #cheaperToFinish} says the remaining listings cost no more LIST pages than
+     * one flat listing of the prefix — otherwise {@code null} to signal a flat fallback.
      *
-     * <p>The first survivor is listed before the decision so {@code k} is measured rather than guessed. If the
+     * <p>The first partition-shaped survivor is listed before the decision so {@code k} is measured rather than
+     * guessed. Junk dirs ({@code _temporary}) sort first in {@code dirs} and would understate {@code k}. If the
      * rule then flattens, that one LIST is wasted; the collector is discarded with the {@code null} return.
      */
     @Nullable
@@ -557,17 +561,33 @@ final class PartitionPruningWalk {
         if (dirs.isEmpty()) {
             return collector.result(prunedColumns, columnFullTypes, prunedDirs);
         }
-        List<StorageEntry> firstBatch = listDir(provider, dirs.get(0));
+        int measure = indexOfFirstShapedDir(dirs);
+        List<StorageEntry> firstBatch = listDir(provider, dirs.get(measure));
         if (mode == FinishMode.RULE && cheaperToFinish(dirs.size(), firstBatch.size(), estimatedPrefixWidth) == false) {
             return null;
         }
         for (StorageEntry entry : firstBatch) {
             collector.add(entry);
         }
-        for (int i = 1; i < dirs.size(); i++) {
-            collector.addRecursively(provider, dirs.get(i));
+        for (int i = 0; i < dirs.size(); i++) {
+            if (i != measure) {
+                collector.addRecursively(provider, dirs.get(i));
+            }
         }
         return collector.result(prunedColumns, columnFullTypes, prunedDirs);
+    }
+
+    /**
+     * Index of the first {@code key=value} folder in {@code dirs}, else {@code 0}. Junk dirs are prepended
+     * during the walk, so {@code dirs.get(0)} is often {@code _temporary} and must not set {@code k}.
+     */
+    private static int indexOfFirstShapedDir(List<StoragePath> dirs) {
+        for (int i = 0; i < dirs.size(); i++) {
+            if (PartitionValueMatcher.folderKey(dirs.get(i).objectName()) != null) {
+                return i;
+            }
+        }
+        return 0;
     }
 
     private static List<StorageEntry> listDir(StorageProvider provider, StoragePath dir) throws IOException {

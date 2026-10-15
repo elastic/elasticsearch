@@ -265,7 +265,7 @@ public class ListingWalkHarnessTests extends ESTestCase {
     }
 
     public void testListPinThreeDays() throws IOException {
-        // k=8: 3 pages > 1 prefix page, so flatten after measuring the first day (was 7 under 4/0.2).
+        // k=8: remaining 2 pages > 1 prefix page, so flatten after measuring the first day.
         assertListPin(window(DAYS_3, NOW), 6, 3 * FILES_PER_DAY, true);
     }
 

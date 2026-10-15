@@ -13,7 +13,8 @@ import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk
 import static org.elasticsearch.xpack.esql.datasources.glob.PartitionPruningWalk.cheaperToFinish;
 
 /**
- * Worked checks for the finish-vs-flat page-count rule. No provider: {@code S * ceil(k / P) <= ceil(L * k / P)}.
+ * Worked checks for the finish-vs-flat page-count rule. The first survivor is already listed, so remaining
+ * cost is {@code (S - 1) * ceil(k / P) <= ceil(L * k / P)}.
  */
 public class PartitionPruningWalkTests extends ESTestCase {
 
@@ -30,18 +31,19 @@ public class PartitionPruningWalkTests extends ESTestCase {
     }
 
     public void testFiveOfOneHundredIdsFinishWhenObjectsFillPages() {
-        assertTrue("k=50: 5 pages == ceil(100*50/1000)", cheaperToFinish(5, 50, 100));
-        assertTrue("k=1000: 5 pages vs 100 prefix pages", cheaperToFinish(5, 1000, 100));
+        assertTrue("k=50: 4 remaining pages <= ceil(100*50/1000)", cheaperToFinish(5, 50, 100));
+        assertTrue("k=1000: 4 pages vs 100 prefix pages", cheaperToFinish(5, 1000, 100));
     }
 
     public void testFiveOfOneHundredIdsFlattenWhenEachDirIsOneObject() {
-        assertFalse("k=1: 5 pages > ceil(100/1000)=1 prefix page", cheaperToFinish(5, 1, 100));
+        assertFalse("k=1: 4 remaining pages > ceil(100/1000)=1 prefix page", cheaperToFinish(5, 1, 100));
     }
 
     public void testSingleSurvivorAlwaysFinishes() {
         assertTrue(cheaperToFinish(1, 1, 10));
         assertTrue(cheaperToFinish(1, 576, 124));
         assertTrue(cheaperToFinish(1, LIST_PAGE_SIZE + 1, 2));
+        assertTrue("probe already paid; remaining cost is 0", cheaperToFinish(1, LIST_PAGE_SIZE + 1, 0.5));
     }
 
     public void testEmptySurvivorsFinish() {
@@ -56,17 +58,27 @@ public class PartitionPruningWalkTests extends ESTestCase {
     }
 
     public void testEqualCostFinishes() {
-        // 7 of 62 days, k=100, P=1000: 7 * 1 == ceil(6.2) == 7
+        // 7 of 62 days, k=100, P=1000: 6 remaining == ceil(6.2) == 7? 6 <= 7
         assertTrue(cheaperToFinish(7, 100, 62));
     }
 
     public void testJustOverEqualFlattens() {
-        assertFalse(cheaperToFinish(8, 100, 62));
+        // 8 remaining pages vs ceil(62*100/1000)=7
+        assertFalse(cheaperToFinish(9, 100, 62));
+    }
+
+    public void testProbeAlreadyPaidFinishesWhenExAnteWouldFlatten() {
+        // S=3, k=1001, L=4.5: ex-ante 6 vs 5 flattens; remaining 4 vs 5 finishes (totals 6 vs 7).
+        assertTrue(cheaperToFinish(3, LIST_PAGE_SIZE + 1, 4.5));
+    }
+
+    public void testTwoSparseSurvivorsFinishAtEqualRemainingCost() {
+        assertTrue("1 remaining page == ceil(100/1000)=1", cheaperToFinish(2, 1, 100));
     }
 
     public void testMultiSurvivorPagesWhenObjectsExceedPageSize() {
-        assertTrue("3*2=6 <= ceil(10*1001/1000)=11", cheaperToFinish(3, LIST_PAGE_SIZE + 1, 10));
-        assertFalse("3*2=6 > ceil(3*1001/1000)=4", cheaperToFinish(3, LIST_PAGE_SIZE + 1, 3));
+        assertTrue("remaining 4 <= ceil(10*1001/1000)=11", cheaperToFinish(3, LIST_PAGE_SIZE + 1, 10));
+        assertFalse("remaining 4 > ceil(2*1001/1000)=3", cheaperToFinish(3, LIST_PAGE_SIZE + 1, 2));
     }
 
     public void testEmptyFirstListingStillCostsOnePage() {
@@ -75,7 +87,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
     }
 
     public void testFractionalPrefixWidth() {
-        assertFalse("S=1, two pages vs ceil(0.5*1001/1000)=1", cheaperToFinish(1, LIST_PAGE_SIZE + 1, 0.5));
+        assertFalse("S=2, remaining two pages vs ceil(0.5*1001/1000)=1", cheaperToFinish(2, LIST_PAGE_SIZE + 1, 0.5));
         assertTrue(cheaperToFinish(1, 1, 1.5));
     }
 }

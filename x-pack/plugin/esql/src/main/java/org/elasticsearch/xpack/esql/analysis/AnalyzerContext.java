@@ -92,6 +92,7 @@ public class AnalyzerContext {
         this.flags = flags;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
+        assert flags != null : "AnalyzerContext must have flags";
         assert TransportVersion.current().supports(minimumVersion)
             : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
     }

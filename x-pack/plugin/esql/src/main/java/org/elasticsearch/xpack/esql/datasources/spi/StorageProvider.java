@@ -41,6 +41,24 @@ public interface StorageProvider extends Closeable {
     StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException;
 
     /**
+     * As {@link #listObjects(StoragePath, boolean)}, but may return only objects whose name under {@code directory}
+     * begins with {@code namePrefix}.
+     * <p>
+     * A separate method rather than a wider contract on the two-argument form, because that form is also handed real
+     * directories by the partition walk and the prefix fan-out, and every shipped provider treats its argument as
+     * one: the blob stores append a separator when it lacks one, and the local provider refuses a path that is not a
+     * directory. So a caller cannot narrow a listing by lengthening the path it passes — hence this.
+     * <p>
+     * The default is correct and merely wide: it lists the directory and leaves the caller's own matcher to drop what
+     * the name prefix would have. A provider over a flat namespace should override it, because there the narrowing is
+     * free — the prefix is what the store indexes on — and the caller filters either way, so an override changes how
+     * many keys cross the wire and never which files a query sees.
+     */
+    default StorageIterator listObjects(StoragePath directory, String namePrefix, boolean recursive) throws IOException {
+        return listObjects(directory, recursive);
+    }
+
+    /**
      * Lists the immediate children of a directory-like prefix, distinguishing subdirectories from
      * objects — for blob storage, a delimiter listing whose common prefixes are the subdirectories.
      * This lets a partition-aware caller skip whole subtrees; see {@link StorageChildren}.

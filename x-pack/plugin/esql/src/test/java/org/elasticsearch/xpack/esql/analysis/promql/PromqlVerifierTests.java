@@ -16,7 +16,6 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
@@ -447,7 +446,6 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testVectorMatchingRequiresInstantVectors() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         // Mirrors Prometheus: on/ignoring describe how two labelsets match, and a scalar operand has no labelset.
         tsdb.error("PROMQL index=test step=5m foo / on(bar) 1", containsString("vector matching only allowed between instant vectors"));
     }
@@ -525,9 +523,7 @@ public class PromqlVerifierTests extends ESTestCase {
                 "sum by (host) (network.bytes_in) / topk(2, network.connections)"
             )) {
                 String query = "PROMQL index=test step=5m " + expression;
-                if (EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled() == false) {
-                    tsdb.error(query, containsString("binary operations between vectors with mismatched grouping keys"));
-                } else if (version.supports(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA)) {
+                if (version.supports(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA)) {
                     tsdb.query(query);
                 } else {
                     tsdb.error(query, containsString("Multiple time-series metadata projections require a newer version"));
@@ -538,7 +534,6 @@ public class PromqlVerifierTests extends ESTestCase {
 
     /** A vector-matched operator computes each operand on its own, so a reduction in one operand is accepted. */
     public void testMatchedOperandsMayUseReduction() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         assertNotNull(
             tsdb.query("PROMQL index=test step=5m sum by (host) (network.bytes_in) / on(host) topk(1, sum by (host) (network.connections))")
         );

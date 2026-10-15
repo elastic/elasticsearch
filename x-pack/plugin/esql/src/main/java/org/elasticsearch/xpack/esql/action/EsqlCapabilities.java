@@ -2638,12 +2638,9 @@ public class EsqlCapabilities {
         PROMQL_BINARY_COMPARISON_V0,
 
         /**
-         * Support for PromQL group modifiers.
+         * Support for PromQL vector matching and group modifiers, including raw series and simultaneous metadata projections.
          */
-        PROMQL_VECTOR_MATCHING_V0(Build.current().isSnapshot()),
-
-        /** Vector matching between opaque metadata and explicit labels, including simultaneous metadata projections. */
-        PROMQL_VECTOR_MATCHING_METADATA(PROMQL_VECTOR_MATCHING_V0.isEnabled()),
+        PROMQL_VECTOR_MATCHING_V1,
 
         /**
          * Support for PromQL time() function.

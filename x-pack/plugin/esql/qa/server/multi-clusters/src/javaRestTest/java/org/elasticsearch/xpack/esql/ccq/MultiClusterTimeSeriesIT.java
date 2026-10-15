@@ -273,7 +273,7 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
                 "POST",
                 "/_query",
                 List.of(),
-                List.of(EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_METADATA.capabilityName())
+                List.of(EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.capabilityName())
             ).orElse(false);
         }
         for (String expression : List.of(
@@ -300,12 +300,8 @@ public class MultiClusterTimeSeriesIT extends ESRestTestCase {
     private void requirePromqlMetadataCoordinator() throws IOException {
         assumeTrue(
             "requires the new coordinator",
-            clusterHasCapability(
-                "POST",
-                "/_query",
-                List.of(),
-                List.of(EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_METADATA.capabilityName())
-            ).orElse(false)
+            clusterHasCapability("POST", "/_query", List.of(), List.of(EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.capabilityName()))
+                .orElse(false)
         );
         assumeTrue(
             "requires PromQL WITHOUT on the remote",

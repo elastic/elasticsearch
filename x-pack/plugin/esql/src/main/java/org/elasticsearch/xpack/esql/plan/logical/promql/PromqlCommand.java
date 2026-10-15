@@ -50,7 +50,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan.returnsScalar;
 
@@ -546,23 +545,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             failures.add(
                                 fail(child, "binary expression must contain only scalar and instant vector types", child.sourceText())
                             );
-                        }
-                    }
-
-                    if (binaryOperator instanceof VectorBinarySet == false && PROMQL_VECTOR_MATCHING_V0.isEnabled() == false) {
-                        if (match != VectorMatch.NONE) {
-                            failures.add(fail(lp, "PromQL vector matching is not enabled in this build [{}]", lp.sourceText()));
-                            return;
-                        }
-                        if (binaryOperator.hasMismatchedLabelSets()) {
-                            failures.add(
-                                fail(
-                                    lp,
-                                    "binary operations between vectors with mismatched grouping keys are not yet supported [{}]",
-                                    lp.sourceText()
-                                )
-                            );
-                            return;
                         }
                     }
 

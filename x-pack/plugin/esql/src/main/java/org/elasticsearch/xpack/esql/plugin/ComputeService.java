@@ -2077,7 +2077,8 @@ public class ComputeService {
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
-                clusterService.state().getMinTransportVersion()
+                clusterService.state().getMinTransportVersion(),
+                context.exchangeWiring()
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

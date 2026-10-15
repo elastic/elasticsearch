@@ -53,6 +53,12 @@ import org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.StreamingPageOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeSink;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.compute.operator.exchange.PartitionedExchangeSink;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -129,6 +135,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -137,6 +144,8 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
@@ -1711,6 +1720,59 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(embedding.inputType(), equalTo(InputType.INTERNAL_INGEST));
     }
 
+    public void testStageHashSinkOverStageSourceUsesPartitionedExchange() throws IOException {
+        FieldAttribute key = new FieldAttribute(
+            Source.EMPTY,
+            "key",
+            new EsField("key", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        StageSourceExec source = new StageSourceExec(Source.EMPTY, List.of(key), false, "input");
+        StageSinkExec sink = new StageSinkExec(
+            Source.EMPTY,
+            List.of(key),
+            false,
+            "output",
+            ExchangeDistribution.HASH,
+            List.of(key),
+            source
+        );
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner(null, true, null, exchangeWiring(2)).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            sink,
+            EmptyIndexedByShardId.instance(),
+            false
+        );
+        assertThat(plan.driverFactories.size(), equalTo(1));
+        LocalExecutionPlanner.PhysicalOperation operation = plan.driverFactories.get(0).driverSupplier().physicalOperation();
+        assertThat(operation.sourceOperatorFactory, instanceOf(ExchangeSourceOperatorFactory.class));
+        assertThat(operation.sinkOperatorFactory, instanceOf(ExchangeSinkOperatorFactory.class));
+
+        ExchangeSink exchangeSink = ((ExchangeSinkOperatorFactory) operation.sinkOperatorFactory).exchangeSinks().get();
+        try {
+            assertThat(exchangeSink, instanceOf(PartitionedExchangeSink.class));
+        } finally {
+            exchangeSink.finish();
+        }
+    }
+
+    public void testStageGatherSinkRequiresExactlyOneHandler() throws IOException {
+        FieldAttribute key = new FieldAttribute(
+            Source.EMPTY,
+            "key",
+            new EsField("key", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        StageSourceExec source = new StageSourceExec(Source.EMPTY, List.of(key), false, "input");
+        StageSinkExec sink = new StageSinkExec(Source.EMPTY, List.of(key), false, "output", ExchangeDistribution.GATHER, List.of(), source);
+        LocalExecutionPlanner planner = planner(null, true, null, exchangeWiring(2));
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> planner.plan("test", FoldContext.small(), PlannerSettings.DEFAULTS, sink, EmptyIndexedByShardId.instance(), false)
+        );
+        assertThat(exception.getMessage(), equalTo("gather edge with [2] sinks"));
+    }
+
     /**
      * Plans a DENSE_VECTOR over a single keyword column and asserts the batch size the embedding operator is built with, reading
      * it off the operator rather than recomputing it here. A null {@code configuredBatchSize} leaves the setting unset.
@@ -1805,6 +1867,15 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         boolean federationEnabled,
         InferenceService inferenceService
     ) throws IOException {
+        return planner(operatorFactoryRegistry, federationEnabled, inferenceService, null);
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService,
+        ExchangeWiring exchangeWiring
+    ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -1834,8 +1905,17 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            exchangeWiring
         );
+    }
+
+    private ExchangeWiring exchangeWiring(int sinkCount) {
+        List<ExchangeSinkHandler> sinks = new ArrayList<>();
+        for (int i = 0; i < sinkCount; i++) {
+            sinks.add(new ExchangeSinkHandler(TestBlockFactory.getNonBreakingInstance(), 10, () -> 10));
+        }
+        return new ExchangeWiring(Map.of("input", new ExchangeSourceHandler(10, null)::createExchangeSource), Map.of("output", sinks));
     }
 
     private Configuration config() {

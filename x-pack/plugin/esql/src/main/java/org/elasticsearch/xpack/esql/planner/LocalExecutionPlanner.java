@@ -73,9 +73,12 @@ import org.elasticsearch.compute.operator.TimeSeriesCollapseOperator;
 import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.compute.operator.UnpackDimsOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.compute.operator.exchange.HashPartitioner;
+import org.elasticsearch.compute.operator.exchange.PartitionedExchangeSink;
 import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
@@ -217,6 +220,8 @@ import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.StageSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
@@ -297,6 +302,8 @@ public class LocalExecutionPlanner {
     private final Configuration configuration;
     private final Supplier<ExchangeSource> exchangeSourceSupplier;
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
+    @Nullable
+    private final ExchangeWiring exchangeWiring;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
@@ -340,6 +347,61 @@ public class LocalExecutionPlanner {
         MatcherWatchdog grokMatcherWatchdog,
         TransportVersion minTransportVersion
     ) {
+        this(
+            sessionId,
+            clusterAlias,
+            parentTask,
+            bigArrays,
+            blockFactory,
+            settings,
+            configuration,
+            exchangeSourceSupplier,
+            exchangeSinkSupplier,
+            enrichLookupService,
+            lookupFromIndexService,
+            inferenceService,
+            userAgentParserRegistry,
+            ipLocationService,
+            projectResolver,
+            projectMetadata,
+            physicalOperationProviders,
+            operatorFactoryRegistry,
+            remoteFetchService,
+            parallelWorkerExecutor,
+            esqlWorkerPoolSize,
+            grokMatcherWatchdog,
+            minTransportVersion,
+            null
+        );
+    }
+
+    /** Creates a planner that can wire stage exchange nodes to their edge handlers. */
+    public LocalExecutionPlanner(
+        String sessionId,
+        String clusterAlias,
+        CancellableTask parentTask,
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        Settings settings,
+        Configuration configuration,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupFromIndexService,
+        InferenceService inferenceService,
+        UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
+        ProjectResolver projectResolver,
+        ProjectMetadata projectMetadata,
+        AbstractPhysicalOperationProviders physicalOperationProviders,
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        @Nullable RemoteFetchService remoteFetchService,
+        @Nullable Executor parallelWorkerExecutor,
+        int esqlWorkerPoolSize,
+        MatcherWatchdog grokMatcherWatchdog,
+        TransportVersion minTransportVersion,
+        @Nullable ExchangeWiring exchangeWiring
+    ) {
 
         this.sessionId = sessionId;
         this.clusterAlias = clusterAlias;
@@ -350,6 +412,7 @@ public class LocalExecutionPlanner {
         this.configuration = configuration;
         this.exchangeSourceSupplier = exchangeSourceSupplier;
         this.exchangeSinkSupplier = exchangeSinkSupplier;
+        this.exchangeWiring = exchangeWiring;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = inferenceService;
@@ -509,6 +572,8 @@ public class LocalExecutionPlanner {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
+        } else if (node instanceof StageSourceExec stageSource) {
+            return planStageSource(stageSource);
         } else if (node instanceof ExternalSourceExec externalSource) {
             return planExternalSource(externalSource, context);
         }
@@ -529,6 +594,8 @@ public class LocalExecutionPlanner {
             return planOutput(outputExec, context);
         } else if (node instanceof ExchangeSinkExec exchangeSink) {
             return planExchangeSink(exchangeSink, context);
+        } else if (node instanceof StageSinkExec stageSink) {
+            return planStageSink(stageSink, context);
         } else if (node instanceof FuseScoreEvalExec fuse) {
             return planFuseScoreEvalExec(fuse, context);
         } else if (node instanceof MMRExec mmr) {
@@ -1008,15 +1075,64 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planExchangeSource(ExchangeSourceExec exchangeSource, Supplier<ExchangeSource> exchangeSourceSupplier) {
-        Objects.requireNonNull(exchangeSourceSupplier, "ExchangeSourceHandler wasn't provided");
+        return planExchangeSource(exchangeSource.output(), exchangeSource.isIntermediateAgg(), exchangeSourceSupplier);
+    }
 
+    private PhysicalOperation planStageSource(StageSourceExec stageSource) {
+        ExchangeWiring wiring = Objects.requireNonNull(exchangeWiring, "ExchangeWiring wasn't provided");
+        return planExchangeSource(stageSource.output(), stageSource.isIntermediateAgg(), wiring.source(stageSource.edgeKey()));
+    }
+
+    private PhysicalOperation planExchangeSource(
+        List<Attribute> output,
+        boolean intermediateAgg,
+        Supplier<ExchangeSource> exchangeSourceSupplier
+    ) {
+        Objects.requireNonNull(exchangeSourceSupplier, "ExchangeSourceHandler wasn't provided");
         var builder = new Layout.Builder();
-        builder.append(exchangeSource.output());
+        builder.append(output);
         // decorate the layout
         var l = builder.build();
-        var layout = exchangeSource.isIntermediateAgg() ? new ExchangeLayout(l) : l;
+        var layout = intermediateAgg ? new ExchangeLayout(l) : l;
 
         return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchangeSourceSupplier), layout);
+    }
+
+    private PhysicalOperation planStageSink(StageSinkExec stageSink, LocalExecutionPlannerContext context) {
+        ExchangeWiring wiring = Objects.requireNonNull(exchangeWiring, "ExchangeWiring wasn't provided");
+        PhysicalOperation planned = plan(stageSink.child(), context);
+        final PhysicalOperation op;
+        final int[] keyChannels;
+        if (stageSink.isIntermediateAgg()) {
+            op = planned;
+            keyChannels = IntStream.range(0, stageSink.keys().size()).toArray();
+        } else {
+            List<Integer> projection = stageSink.output().stream().map(attribute -> planned.layout.get(attribute.id()).channel()).toList();
+            Layout layout = new Layout.Builder().append(stageSink.output()).build();
+            op = planned.with(new ProjectOperatorFactory(projection), layout);
+            keyChannels = stageSink.keys().stream().mapToInt(key -> layout.get(key.id()).channel()).toArray();
+        }
+
+        List<ExchangeSinkHandler> handlers = wiring.sinks(stageSink.edgeKey());
+        Supplier<ExchangeSink> sink = switch (stageSink.distribution()) {
+            case GATHER -> {
+                if (handlers.size() != 1) {
+                    throw new IllegalStateException("gather edge with [" + handlers.size() + "] sinks");
+                }
+                yield () -> handlers.get(0).createExchangeSink(() -> {});
+            }
+            case HASH -> {
+                ElementType[] types = stageSink.keys()
+                    .stream()
+                    .map(key -> PlannerUtils.toElementType(key.dataType()))
+                    .toArray(ElementType[]::new);
+                yield () -> new PartitionedExchangeSink(
+                    handlers.stream().map(handler -> handler.createExchangeSink(() -> {})).toList(),
+                    new HashPartitioner(keyChannels, types, handlers.size())
+                );
+            }
+        };
+        return op.withSink(new ExchangeSinkOperatorFactory(sink), op.layout);
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {

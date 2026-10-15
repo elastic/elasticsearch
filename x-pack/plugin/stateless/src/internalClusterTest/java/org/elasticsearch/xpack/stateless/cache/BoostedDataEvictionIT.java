@@ -600,7 +600,6 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             // through `real` so the tests below see a dynamic update.
             Mockito.doAnswer(invocation -> real.isDemoteClosedShardRegionsEnabled()).when(spy).isDemoteClosedShardRegionsEnabled();
             Mockito.doAnswer(invocation -> real.isEvictObsoleteRegionsEnabled()).when(spy).isEvictObsoleteRegionsEnabled();
-            Mockito.doAnswer(invocation -> real.isEvictObsoleteRegionsIndexingEnabled()).when(spy).isEvictObsoleteRegionsIndexingEnabled();
             Mockito.doAnswer(invocation -> real.isEvictDeletedIndexRegionsEnabled()).when(spy).isEvictDeletedIndexRegionsEnabled();
             return spy;
         }

@@ -515,7 +515,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                 }
             });
         }
-        if (cacheDirectory.getCacheService().isEvictObsoleteRegionsIndexingEnabled()) {
+        if (cacheDirectory.getCacheService().isEvictObsoleteRegionsEnabled()) {
             cacheDirectory.maybeScheduleObsoleteRegionsEviction();
         }
     }

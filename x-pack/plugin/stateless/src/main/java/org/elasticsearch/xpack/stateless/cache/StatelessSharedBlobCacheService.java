@@ -179,7 +179,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final boolean objectStorePrefetchEnabled;
     private final boolean cacheBoostPreferenceEnabled;
     private volatile boolean evictObsoleteRegionsEnabled;
-    private volatile boolean evictObsoleteRegionsIndexingEnabled;
     private volatile boolean demoteClosedShardRegionsEnabled;
     private volatile boolean evictDeletedIndexRegionsEnabled;
 
@@ -257,12 +256,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             : evictionDegradationThreshold + " not in [0," + numRegions + "]";
         assert evictionDegradationDurationMillis >= 0 : evictionDegradationDurationMillis + " < 0";
         clusterSettings.initializeAndWatch(
-            STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+            hasSearchRole
+                ? STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING
+                : STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING,
             enabled -> this.evictObsoleteRegionsEnabled = enabled
-        );
-        clusterSettings.initializeAndWatch(
-            STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING,
-            enabled -> this.evictObsoleteRegionsIndexingEnabled = enabled
         );
         clusterSettings.initializeAndWatch(
             STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
@@ -457,16 +454,9 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         return getEvictionPolicy().hasRegionTimestampProtection();
     }
 
-    /// Whether to asynchronously force-evict cache regions on search nodes corresponding to obsolete segments that are not referenced
-    /// anymore.
+    /// Whether to asynchronously force-evict cache regions corresponding to obsolete segments that are not referenced anymore.
     public boolean isEvictObsoleteRegionsEnabled() {
         return evictObsoleteRegionsEnabled;
-    }
-
-    /// Whether to asynchronously force-evict cache regions on indexing nodes corresponding to files that are no longer present in the
-    /// index directory.
-    public boolean isEvictObsoleteRegionsIndexingEnabled() {
-        return evictObsoleteRegionsIndexingEnabled;
     }
 
     /// Whether to asynchronously demote the cache regions of a shard whose store was closed, making them the first eviction candidates.

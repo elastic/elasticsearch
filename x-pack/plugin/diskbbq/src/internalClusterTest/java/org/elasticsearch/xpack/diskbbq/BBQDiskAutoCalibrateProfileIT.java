@@ -8,20 +8,25 @@
 package org.elasticsearch.xpack.diskbbq;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.index.mapper.vectors.DenseVectorMappingBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.license.DiskBBQLicensingIT.enableLicensing;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -34,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
  * with every profile name, so a node that applies the mapping by asking the question again fails here.
  */
 @LuceneTestCase.SuppressCodecs("*")
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class BBQDiskAutoCalibrateProfileIT extends ESIntegTestCase {
 
     private static final String INDEX = "bbq-disk-auto-calibrate-profile";
@@ -52,69 +57,52 @@ public class BBQDiskAutoCalibrateProfileIT extends ESIntegTestCase {
         return List.of(LocalStateDiskBBQ.class);
     }
 
-    public void testIndexWithEveryAutoCalibrateProfileIsAppliedAndSearchable() {
+    public void testIndexWithEveryAutoCalibrateProfileIsAppliedAndSearchable() throws IOException {
         for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
             String index = INDEX + "-" + profile;
-            createIndex(index, "\"" + profile + "\"");
+            createIndex(index, profile.toString());
             assertAutoCalibrateInMapping(index, profile.toString());
             indexAndSearch(index);
         }
     }
 
     /** Booleans never need the feature check, so they were never affected; they must keep working next to the profile names. */
-    public void testIndexWithBooleanAutoCalibrateIsAppliedAndSearchable() {
+    public void testIndexWithBooleanAutoCalibrateIsAppliedAndSearchable() throws IOException {
         for (boolean autoCalibrate : new boolean[] { false, true }) {
             String index = INDEX + "-" + autoCalibrate;
-            createIndex(index, Boolean.toString(autoCalibrate));
+            createIndex(index, autoCalibrate);
             assertAutoCalibrateInMapping(index, autoCalibrate);
             indexAndSearch(index);
         }
     }
 
-    private void createIndex(String index, String autoCalibrateJson) {
-        assertAcked(
-            prepareCreate(index).setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-                .setMapping(Strings.format("""
-                    {
-                      "properties": {
-                        "%s": {
-                          "type": "dense_vector",
-                          "dims": %d,
-                          "index": true,
-                          "similarity": "l2_norm",
-                          "index_options": { "type": "bbq_disk", "auto_calibrate": %s }
-                        }
-                      }
-                    }""", FIELD, DIMS, autoCalibrateJson))
-        );
+    private void createIndex(String index, Object autoCalibrate) throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject(FIELD);
+        new DenseVectorMappingBuilder().dims(DIMS)
+            .index(true)
+            .similarity(VectorSimilarity.L2_NORM)
+            .indexOptions(Map.of("type", "bbq_disk", "auto_calibrate", autoCalibrate))
+            .build(mapping);
+        mapping.endObject().endObject().endObject();
+        assertAcked(prepareCreate(index).setSettings(indexSettings(1, 0)).setMapping(mapping));
         ensureGreen(index);
     }
 
-    @SuppressWarnings("unchecked")
     private void assertAutoCalibrateInMapping(String index, Object expected) {
         Map<String, Object> mapping = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index)
             .get()
             .mappings()
             .get(index)
             .sourceAsMap();
-        Map<String, Object> properties = (Map<String, Object>) mapping.get("properties");
-        Map<String, Object> field = (Map<String, Object>) properties.get(FIELD);
-        Map<String, Object> indexOptions = (Map<String, Object>) field.get("index_options");
-        assertThat(indexOptions.get("auto_calibrate"), equalTo(expected));
+        assertThat(XContentMapValues.extractValue("properties." + FIELD + ".index_options.auto_calibrate", mapping), equalTo(expected));
     }
 
     private void indexAndSearch(String index) {
-        BulkRequestBuilder bulk = client().prepareBulk();
+        List<IndexRequestBuilder> docs = new ArrayList<>(DOCS);
         for (int i = 0; i < DOCS; i++) {
-            float[] vector = new float[DIMS];
-            for (int d = 0; d < DIMS; d++) {
-                vector[d] = randomFloat();
-            }
-            bulk.add(client().prepareIndex(index).setId(String.valueOf(i)).setSource(FIELD, vector));
+            docs.add(prepareIndex(index).setId(String.valueOf(i)).setSource(FIELD, randomFloatVector(DIMS)));
         }
-        BulkResponse response = bulk.get();
-        assertFalse(response.buildFailureMessage(), response.hasFailures());
-        flushAndRefresh(index);
+        indexRandom(true, docs);
 
         assertResponse(
             prepareSearch(index).setKnnSearch(List.of(new KnnSearchBuilder(FIELD, new float[DIMS], 5, DOCS, null, null, null))).setSize(5),

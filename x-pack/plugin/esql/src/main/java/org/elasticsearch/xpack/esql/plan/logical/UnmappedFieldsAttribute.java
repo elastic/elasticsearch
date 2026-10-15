@@ -29,9 +29,9 @@ import java.util.Objects;
  * The {@code _unmapped_fields} column produced when {@code SET unmapped_fields="LOAD_ALL"} is in effect.
  *
  * <p>Added to {@link EsRelation#output()} by {@code DetermineUnmappedFieldsToKeep} in the
- * Finish Analysis batch. The carried {@link UnmappedFieldsPattern} describes which additional
- * (currently unmapped) source fields are loaded into the JSON object value of the column. That value is
- * {@code _source}-shaped, so the column is typed {@link DataType#SOURCE}.
+ * Finish Analysis batch, when the carried {@link UnmappedFieldsPattern} can match an unmapped field. The value of the
+ * column is a JSON object of the unmapped fields of a document that the pattern includes, which the shard reads. That value
+ * is {@code _source}-shaped, so the column is typed {@link DataType#SOURCE}.
  *
  * <p>The column is named like the output column it becomes, but a query cannot refer to it: it is added after every
  * reference has been resolved, and {@code ResolvingProject} keeps it out of the {@code KEEP}/{@code DROP}/{@code RENAME}
@@ -41,10 +41,9 @@ import java.util.Objects;
  *
  * <p>{@link #synthetic()} stays {@code false}: {@code Analyzer.planWithoutSyntheticAttributes} projects away every attribute
  * for which it returns {@code true}, and it runs after {@code DetermineUnmappedFieldsToKeep}, so the column would be gone
- * before the coordinator ever got to flatten it.
+ * before it is returned.
  *
- * <p>The column carries only the pattern, which is the one thing a data node reads. The coordinator flattens its value in
- * place, so no ordering state rides along to the data nodes.
+ * <p>The column is returned as {@code _unmapped_fields}, with the values the data nodes loaded.
  */
 public final class UnmappedFieldsAttribute extends TypedAttribute {
     public static final String ATTRIBUTE_NAME = "_unmapped_fields";

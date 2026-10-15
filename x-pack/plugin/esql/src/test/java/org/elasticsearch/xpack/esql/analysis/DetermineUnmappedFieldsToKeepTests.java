@@ -402,10 +402,9 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     /**
-     * {@code _unmapped_fields} is not a reserved name: the synthetic column is called
-     * {@link UnmappedFieldsAttribute#ATTRIBUTE_NAME}, which no query can spell. So a query referencing
-     * {@code _unmapped_fields} gets an ordinary source field demand-loaded as a keyword — which is an explicit
-     * column of the relation. A pattern-less KEEP of that name therefore yields no synthetic column at all.
+     * {@code _unmapped_fields} is not a reserved name. A query referencing it gets an ordinary source field demand-loaded as a
+     * keyword, which is an explicit column of the relation, and a column of that name wins over the {@link UnmappedFieldsAttribute},
+     * which is only named like the column it becomes. A pattern-less KEEP of that name therefore yields no such attribute at all.
      */
     public void testKeepUnmappedFieldsIsAnOrdinarySourceField() {
         assertNoUnmappedFieldsAttribute("FROM test | KEEP _unmapped_fields");
@@ -541,6 +540,19 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     public void testScalarFunctionOnSourceFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
         assertNoUnmappedFieldsAttribute("FROM test | EVAL len = LENGTH(_unmapped_fields)");
+    }
+
+    public void testWhereOnSourceFieldNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | WHERE _unmapped_fields == \"x\"");
+    }
+
+    /** The referenced field is demand-loaded as a column of the relation even though no later command outputs it. */
+    public void testWhereOnSourceFieldNamedUnmappedFieldsThenKeepOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | WHERE _unmapped_fields == \"x\" | KEEP first_name*");
+    }
+
+    public void testEvalNamedUnmappedFieldsFromUnmappedFieldOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | EVAL _unmapped_fields = unmapped_extra::keyword");
     }
 
     public void testEvalNamedUnmappedFieldsOmitsUnmappedFieldsAttribute() {

@@ -62,9 +62,13 @@ import java.util.function.ToLongFunction;
  *       {@code FormatReaderRegistry} builds from node {@code Settings}) and shared by every
  *       derived reader via the reader copy constructors, exactly like the paired
  *       {@link FooterByteCache} (see its class Javadoc for why not per-query).</li>
- *   <li>Write-based TTL: the same value as the paired {@link FooterByteCache}. Unlike the byte cache, a store
- *       here does NOT imply a storage read — an entry can be evicted while its bytes survive and the reparse
- *       refills it from those bytes, so a footer can stand up to two TTLs past the read behind it.</li>
+ *   <li>Two-clock expiry: same policy as the paired {@link FooterByteCache}. An access clock releases
+ *       an entry a TTL after the last read of it (working set stays hot); a write cap
+ *       ({@link FooterByteCache#WRITE_CAP_MULTIPLIER} × TTL) force-expires every entry at most
+ *       {@code WRITE_CAP_MULTIPLIER × TTL} after it was written, bounding staleness. Unlike the byte cache,
+ *       a store here does NOT imply a storage read — an entry can be evicted while its bytes survive
+ *       and a reparse refills it from those bytes, which can extend the total staleness window for
+ *       parsed footers beyond what the raw-bytes cap alone would allow.</li>
  *   <li>Byte-weighted LRU eviction: parsed metadata structures do not expose an exact byte
  *       size, so each format supplies a structural estimator (row groups × columns for Parquet,
  *       the analogous stripe shape for ORC) against a heap-relative budget
@@ -107,6 +111,8 @@ public final class ParsedFooterCache<T> {
     private record Weighted<T>(T value, long weight) {}
 
     private final Cache<FooterByteCache.Key, Weighted<T>> cache;
+    private final TimeValue expireAfterAccess;
+    private final TimeValue expireAfterWrite;
     private final ConcurrentMap<FooterByteCache.Key, CompletableFuture<Weighted<T>>> inFlightLoads = new ConcurrentHashMap<>();
     /**
      * Pending async loads. An entry exists only while that key's GET/parse is in flight; success and
@@ -145,8 +151,8 @@ public final class ParsedFooterCache<T> {
      *
      * @throws IllegalArgumentException if {@code maxWeightBytes <= 0}
      */
-    public ParsedFooterCache(long maxWeightBytes, TimeValue expireAfterWrite, ToLongFunction<T> weigher) {
-        this(maxWeightBytes, expireAfterWrite, weigher, true);
+    public ParsedFooterCache(long maxWeightBytes, TimeValue expireAfterAccess, ToLongFunction<T> weigher) {
+        this(maxWeightBytes, expireAfterAccess, weigher, true);
     }
 
     /**
@@ -156,18 +162,35 @@ public final class ParsedFooterCache<T> {
      *
      * @throws IllegalArgumentException if {@code maxWeightBytes <= 0}
      */
-    public ParsedFooterCache(long maxWeightBytes, TimeValue expireAfterWrite, ToLongFunction<T> weigher, boolean coalesceAsyncLoads) {
+    public ParsedFooterCache(long maxWeightBytes, TimeValue expireAfterAccess, ToLongFunction<T> weigher, boolean coalesceAsyncLoads) {
         if (maxWeightBytes <= 0) {
             throw new IllegalArgumentException("maxWeightBytes must be positive, got [" + maxWeightBytes + "]");
         }
         this.weigher = weigher;
         this.maxWeightBytes = maxWeightBytes;
         this.coalesceAsyncLoads = coalesceAsyncLoads;
+        this.expireAfterAccess = expireAfterAccess;
+        long accessNanos = expireAfterAccess.nanos();
+        long capNanos = accessNanos <= Long.MAX_VALUE / FooterByteCache.WRITE_CAP_MULTIPLIER
+            ? accessNanos * FooterByteCache.WRITE_CAP_MULTIPLIER
+            : Long.MAX_VALUE;
+        this.expireAfterWrite = TimeValue.timeValueNanos(capNanos);
         this.cache = CacheBuilder.<FooterByteCache.Key, Weighted<T>>builder()
             .setMaximumWeight(maxWeightBytes)
+            .setExpireAfterAccess(expireAfterAccess)
             .setExpireAfterWrite(expireAfterWrite)
             .weigher((key, value) -> value.weight())
             .build();
+    }
+
+    /** The expire-after-access TTL this cache was built with. */
+    public TimeValue expireAfterAccess() {
+        return expireAfterAccess;
+    }
+
+    /** The write cap this cache was built with: six times the access TTL. */
+    public TimeValue expireAfterWrite() {
+        return expireAfterWrite;
     }
 
     /**

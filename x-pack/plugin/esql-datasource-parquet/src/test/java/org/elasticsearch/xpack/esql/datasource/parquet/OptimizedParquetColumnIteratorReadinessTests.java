@@ -25,6 +25,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -68,6 +69,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -108,6 +110,33 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     @After
     public void stop() throws Exception {
         terminate(asyncIo);
+    }
+
+    /**
+     * Guard: a forgotten {@code isExhausted} on a {@code waitForReady} override is silent drain EOF.
+     */
+    public void testWaitForReadyOverridesAlsoDeclareIsExhausted() throws Exception {
+        assertWaitForReadyOverrideDeclaresIsExhausted(OptimizedParquetColumnIterator.class);
+        assertWaitForReadyOverrideDeclaresIsExhausted(
+            Class.forName("org.elasticsearch.xpack.esql.datasource.parquet.ParquetFormatReader$DeferredWarnProducer")
+        );
+    }
+
+    private static void assertWaitForReadyOverrideDeclaresIsExhausted(Class<?> clazz) {
+        boolean waitForReady = false;
+        boolean isExhausted = false;
+        for (Method method : clazz.getMethods()) {
+            if (method.getDeclaringClass() != clazz || method.getParameterCount() != 0) {
+                continue;
+            }
+            if ("waitForReady".equals(method.getName())) {
+                waitForReady = true;
+            } else if ("isExhausted".equals(method.getName())) {
+                isExhausted = true;
+            }
+        }
+        assertTrue(clazz.getName() + " must override waitForReady", waitForReady);
+        assertTrue(clazz.getName() + " overrides waitForReady without isExhausted", isExhausted);
     }
 
     public void testWaitForReadyParksUntilFirstGroupIoCompletes() throws Exception {
@@ -488,6 +517,121 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
                 if (blocker != null) {
                     releaseOvershoot(watermark, blocker);
                 }
+            }
+        }
+        assertLedgerClear(watermark);
+    }
+
+    /**
+     * Inline re-ticket grant: the bind hook dominates the waiting group after
+     * {@code fillPrefetchQueue} has already decided to ticket it. Discarding that grant must
+     * skip the group, not throw "async storage I/O failed for required row group".
+     */
+    public void testDominatedInlineReticketGrantDoesNotFailQuery() throws Exception {
+        byte[] parquet = multiRowGroupFile();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        SharedNumericThreshold channel = new SharedNumericThreshold.Supplier(false, false).get();
+        channel.offer(0L);
+        DynamicThreshold threshold = descIntThreshold(channel);
+        ImmediateAsyncStorage storage = new ImmediateAsyncStorage(parquet, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        AtomicInteger maxSeen = new AtomicInteger(-1);
+        List<Integer> emitted = new ArrayList<>();
+        DeterministicTaskQueue queue = new DeterministicTaskQueue();
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1 << 20);
+        PlainActionFuture<Void> drained = new PlainActionFuture<>();
+        long charged = watermark.limit();
+        try (threshold; CloseableIterator<Page> iter = openThreshold(storage, watermark, threshold)) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertTrue(iter.waitForReady().isDone());
+            watermark.nodeByteBudget().add(charged, null);
+            storage.onBind.set(() -> channel.offer(maxSeen.get() + 2L));
+            try {
+                for (int i = 0; i < 8; i++) {
+                    Page page;
+                    try {
+                        page = iter.tryAdvance();
+                    } catch (ElasticsearchException e) {
+                        throw new AssertionError(
+                            "inline re-ticket grant for a group dominated mid-ticket must not fail the query: " + e.getMessage(),
+                            e
+                        );
+                    }
+                    if (page == null) {
+                        break;
+                    }
+                    try {
+                        IntBlock block = page.getBlock(0);
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            int id = block.getInt(p);
+                            emitted.add(id);
+                            maxSeen.set(Math.max(maxSeen.get(), id));
+                        }
+                    } finally {
+                        page.releaseBlocks();
+                    }
+                }
+                assertFalse("constructor-queued group must emit before the re-ticket", emitted.isEmpty());
+                int k = maxSeen.get() + 1;
+                assertEquals("tiny INT32 groups are prefetch depth 1", 1, opci.prefetchDepth());
+                assertTrue("re-ticket must leave a live group to skip", k < 8);
+                ExternalSourceDrainUtils.drainPagesAsync(iter, buffer, queue.getThreadPool().generic(), buffer::readCancelled, drained);
+                assertDrainCompletes(queue, drained, () -> drainState(opci, watermark));
+                List<Integer> all = new ArrayList<>(emitted);
+                all.addAll(collectIds(buffer));
+                List<Integer> expected = new ArrayList<>(emitted);
+                for (int id = k + 1; id < 8; id++) {
+                    expected.add(id);
+                }
+                assertEquals(expected, all);
+                assertEquals(7, all.size());
+                assertEquals(ReadinessPhase.DONE, opci.readinessPhase());
+            } finally {
+                buffer.finish(true);
+                queue.runAllRunnableTasks();
+                watermark.nodeByteBudget().release(charged, null);
+            }
+        }
+        assertLedgerClear(watermark);
+    }
+
+    /**
+     * No sort-column statistics: {@code rowGroupDominatedByThreshold} cannot skip. Marking
+     * {@code noFurtherCandidates} before the empty-queue re-ticket must be EOF, not a GET-miss
+     * error — {@code fillPrefetchQueue} breaks before issuing I/O.
+     */
+    public void testNoStatsNoFurtherCandidatesReticketIsEof() throws Exception {
+        byte[] parquet = multiRowGroupFileNoStats();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        SharedNumericThreshold channel = new SharedNumericThreshold.Supplier(false, false).get();
+        channel.offer(0L);
+        DynamicThreshold threshold = descIntThreshold(channel);
+        ImmediateAsyncStorage storage = new ImmediateAsyncStorage(parquet, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DeterministicTaskQueue queue = new DeterministicTaskQueue();
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1 << 20);
+        PlainActionFuture<Void> drained = new PlainActionFuture<>();
+        long charged = watermark.limit();
+        try (threshold; CloseableIterator<Page> iter = openThreshold(storage, watermark, threshold)) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertTrue(iter.waitForReady().isDone());
+            watermark.nodeByteBudget().add(charged, null);
+            try {
+                Page first = iter.tryAdvance();
+                assertNotNull(first);
+                first.releaseBlocks();
+                channel.markNoFurtherCandidates();
+                try {
+                    assertNull(iter.tryAdvance());
+                } catch (ElasticsearchException e) {
+                    fail("no-statistics re-ticket after markNoFurtherCandidates must not fail the query: " + e.getMessage());
+                }
+                ExternalSourceDrainUtils.drainPagesAsync(iter, buffer, queue.getThreadPool().generic(), buffer::readCancelled, drained);
+                assertDrainCompletes(queue, drained, () -> drainState(opci, watermark));
+                assertTrue(collectIds(buffer).isEmpty());
+                assertEquals(ReadinessPhase.DONE, opci.readinessPhase());
+            } finally {
+                buffer.finish(true);
+                queue.runAllRunnableTasks();
+                watermark.nodeByteBudget().release(charged, null);
             }
         }
         assertLedgerClear(watermark);
@@ -1199,20 +1343,29 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     }
 
     private static byte[] multiRowGroupFile() throws IOException {
+        return multiRowGroupFile(true);
+    }
+
+    private static byte[] multiRowGroupFileNoStats() throws IOException {
+        return multiRowGroupFile(false);
+    }
+
+    private static byte[] multiRowGroupFile(boolean statistics) throws IOException {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("id").named("ready");
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
-                .withConf(new PlainParquetConfiguration())
-                .withCodecFactory(new PlainCompressionCodecFactory())
-                .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
-                .withRowGroupSize(1)
-                .withRowGroupRowCountLimit(1)
-                .withPageSize(128)
-                .build()
-        ) {
+        ExampleParquetWriter.Builder builder = ExampleParquetWriter.builder(outputFile(out))
+            .withConf(new PlainParquetConfiguration())
+            .withCodecFactory(new PlainCompressionCodecFactory())
+            .withType(schema)
+            .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+            .withRowGroupSize(1)
+            .withRowGroupRowCountLimit(1)
+            .withPageSize(128);
+        if (statistics == false) {
+            builder = builder.withStatisticsEnabled("id", false);
+        }
+        try (ParquetWriter<Group> writer = builder.build()) {
             for (int i = 0; i < 8; i++) {
                 writer.write(factory.newGroup().append("id", i));
             }
@@ -1425,6 +1578,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         final byte[] data;
         final ExecutorService asyncIo;
         volatile RowGroupIo boundLease;
+        final AtomicReference<Runnable> onBind = new AtomicReference<>();
 
         private ImmediateAsyncStorage(byte[] data, ExecutorService asyncIo) {
             this.data = data;
@@ -1434,6 +1588,10 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         @Override
         public void bindRowGroup(RowGroupIo io) {
             boundLease = io;
+            Runnable hook = onBind.getAndSet(null);
+            if (hook != null) {
+                hook.run();
+            }
         }
 
         @Override

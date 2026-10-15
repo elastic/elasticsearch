@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -113,6 +114,7 @@ public class TestAnalyzer {
     private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
     private boolean stripErrorPrefix;
     private Map<String, String> views = new LinkedHashMap<>();
+    private EsqlFlags flags = EsqlFlags.DEFAULTS;
 
     TestAnalyzer() {}
 
@@ -126,6 +128,14 @@ public class TestAnalyzer {
 
     protected Configuration configuration() {
         return configuration;
+    }
+
+    /**
+     * Set the cluster-level {@link EsqlFlags}, for example to lower a query-wide limit the analyzer enforces.
+     */
+    public TestAnalyzer flags(EsqlFlags flags) {
+        this.flags = flags;
+        return this;
     }
 
     /**
@@ -698,10 +708,11 @@ public class TestAnalyzer {
                 ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
                 : new NamedSubquery(view.source(), view, indexPattern);
         }).toList();
+        boolean keepViewWrapper = MetadataAttribute.requestsRelationColumn(ur.metadataFields());
         if (resolved.size() == 1) {
             var subplan = resolved.get(0);
             if (subplan instanceof NamedSubquery n) {
-                return n.child();
+                return keepViewWrapper ? n : n.child();
             }
             return subplan;
         }
@@ -725,7 +736,7 @@ public class TestAnalyzer {
         }
         Set<String> viewBranchKeys = new HashSet<>();
         for (NamedSubquery namedSubquery : namedSubqueries) {
-            subplans.put(namedSubquery.name(), namedSubquery.child());
+            subplans.put(namedSubquery.name(), keepViewWrapper ? namedSubquery : namedSubquery.child());
             viewBranchKeys.add(namedSubquery.name());
         }
         if (subplans.size() == 1) {
@@ -1002,7 +1013,7 @@ public class TestAnalyzer {
             timestampBounds,
             TEST_IP_LOCATION_RESOLUTION,
             false,
-            EsqlFlags.DEFAULTS
+            flags
         );
     }
 

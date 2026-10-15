@@ -260,6 +260,11 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
     }
 
     @Override
+    public boolean isExhausted() {
+        return delegate.isExhausted();
+    }
+
+    @Override
     public void revokeOvershootOnPark() {
         delegate.revokeOvershootOnPark();
     }

@@ -19,7 +19,7 @@ Dataset settings control how the files in a dataset are discovered, parsed, and 
 
 The following settings apply to every file-based data source, unless an entry lists specific formats.
 
-% hive_partitioning intentionally omitted. It is being deprecated to a warn-only no-op in https://github.com/elastic/esql-planning/issues/1881
+% hive_partitioning intentionally omitted. It is being deprecated to a warn-only no-op.
 
 ### Format and discovery
 

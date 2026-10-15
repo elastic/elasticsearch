@@ -13,6 +13,7 @@ import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
@@ -33,13 +34,15 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
     private final InferenceString query;
     private final List<InferenceString> documents;
     private final Integer topN;
+    private final Boolean returnDocuments;
     private final TraceContextHandler traceContextHandler;
     private final ElasticInferenceServiceRerankModel model;
 
     public ElasticInferenceServiceRerankRequest(
         InferenceString query,
         List<InferenceString> documents,
-        Integer topN,
+        @Nullable Integer topN,
+        @Nullable Boolean returnDocuments,
         ElasticInferenceServiceRerankModel model,
         TraceContext traceContext,
         ElasticInferenceServiceRequestMetadata metadata,
@@ -50,6 +53,7 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
         this.query = query;
         this.documents = documents;
         this.topN = topN;
+        this.returnDocuments = returnDocuments;
         this.model = Objects.requireNonNull(model);
         this.traceContextHandler = new TraceContextHandler(traceContext);
     }
@@ -58,7 +62,7 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
     public HttpRequestBase createHttpRequestBase() {
         var httpPost = new HttpPost(getURI());
         var requestEntity = Strings.toString(
-            new ElasticInferenceServiceRerankRequestEntity(query, documents, model.getServiceSettings().modelId(), topN)
+            new ElasticInferenceServiceRerankRequestEntity(query, documents, model.getServiceSettings().modelId(), topN, returnDocuments)
         );
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));

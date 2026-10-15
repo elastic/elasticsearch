@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -102,6 +103,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -136,6 +138,7 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1329,7 +1332,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         );
 
         // The prewarm's readIndexingShardState reads the BCC through the cache directory, populating the cache. Wait for those cache writes
-        // to appear before letting recovery proceed. The warming service itself is not invoked for hollow commits.
+        // to appear before letting recovery proceed. The files of a hollow commit are not warmed, only region 0 of its root blob is
+        // prewarmed (see below).
         assertBusy(() -> {
             plugin.collect();
             long warmingBytes = plugin.getLongCounterMeasurement("es.blob_cache.population.bytes.total")
@@ -1343,6 +1347,22 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         ensureGreen(indexName);
         assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeC)));
+
+        // The hollow target prewarms region 0 of the root blob, the latest BCC blob of the shard, before reading the BCC header.
+        final var bccHeaderReadWarmedBlobs = getSharedBlobCacheWarmingService(indexNodeC).bccHeaderReadWarmedBlobs();
+        assertThat(bccHeaderReadWarmedBlobs, hasSize(1));
+        assertThat(bccHeaderReadWarmedBlobs.getFirst(), hasSize(1));
+        final BlobFile warmedBlob = bccHeaderReadWarmedBlobs.getFirst().iterator().next();
+        final var shardBlobs = getObjectStoreService(indexNodeC).getProjectBlobContainer(
+            findIndexShard(resolveIndex(indexName), 0).shardId(),
+            warmedBlob.primaryTerm()
+        ).listBlobs(OperationPurpose.INDICES).keySet();
+        final long latestBccGeneration = shardBlobs.stream()
+            .filter(BatchedCompoundCommit::startsWithBlobPrefix)
+            .mapToLong(BatchedCompoundCommit::parseGenerationFromBlobName)
+            .max()
+            .orElseThrow();
+        assertThat(warmedBlob.blobName(), equalTo(BatchedCompoundCommit.blobNameFromGeneration(latestBccGeneration)));
     }
 
     public void testRelocateIndexingShardWithMultipleBlobsPrewarmsRegionZero() throws Exception {
@@ -1388,10 +1408,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     .stream()
                     .filter(m -> Type.INDEXING_BCC_HEADER_PREWARM.name().equals(m.attributes().get("prewarming_type")))
                     .count(),
-                // When hollow shards are enabled and the shard is hollowed during relocations,
-                // the target shard won't prewarm the BCC header regions since they're not read
-                // when the shard is hollow.
-                equalTo(hollowShardEnabled ? 0L : 1L)
+                // When hollow shards are enabled and the shard is hollowed during relocations, only the root blob is prewarmed.
+                equalTo(1L)
             )
         );
     }
@@ -1607,6 +1625,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             new CopyOnWriteArrayList<>();
         private final CopyOnWriteArrayList<Consumer<Type>> beforeWarmingStartsListeners = new CopyOnWriteArrayList<>();
 
+        private final CopyOnWriteArrayList<Set<BlobFile>> bccHeaderReadWarmedBlobs = new CopyOnWriteArrayList<>();
+
         private volatile boolean awaitWarmingForSearchRecovery = false;
         private volatile boolean awaitWarmingForIndexingRecovery = false;
 
@@ -1641,6 +1661,22 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 searchRecoveryTimeoutCalculationService
             );
             this.threadPool = threadPool;
+        }
+
+        /** The blobs whose region 0 was prewarmed before reading BCC headers, one entry per prewarm. */
+        List<Set<BlobFile>> bccHeaderReadWarmedBlobs() {
+            return List.copyOf(bccHeaderReadWarmedBlobs);
+        }
+
+        @Override
+        public void warmCacheForBCCHeadersRead(
+            IndexShard indexShard,
+            BlobStoreCacheDirectory directory,
+            Set<BlobFile> lastCommitBlobs,
+            ActionListener<Void> listener
+        ) {
+            bccHeaderReadWarmedBlobs.add(lastCommitBlobs);
+            super.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobs, listener);
         }
 
         void setAwaitWarmingForSearchRecovery(boolean await) {

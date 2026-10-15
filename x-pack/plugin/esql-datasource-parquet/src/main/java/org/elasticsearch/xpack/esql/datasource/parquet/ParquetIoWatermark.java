@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -251,18 +252,25 @@ final class ParquetIoWatermark implements AdmissionGate {
     }
 
     private DirectReadBuffer account(DirectReadBuffer inner, long footprint) {
+        RowGroupIo lease = affinityLease();
         AtomicBoolean released = new AtomicBoolean();
         DirectReadBuffer wrapped = new DirectReadBuffer(inner.buffer(), () -> {
             try {
                 inner.close();
             } finally {
                 if (released.compareAndSet(false, true)) {
-                    release(footprint);
+                    release(footprint, lease);
                 }
             }
         });
-        forceAdd(footprint);
+        forceAdd(footprint, lease);
         return wrapped;
+    }
+
+    @Nullable
+    private static RowGroupIo affinityLease() {
+        StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+        return scope == null ? null : scope.lease();
     }
 
     static DirectBufferFactory bufferFactory(CircuitBreaker breaker, @Nullable ParquetIoWatermark watermark) {

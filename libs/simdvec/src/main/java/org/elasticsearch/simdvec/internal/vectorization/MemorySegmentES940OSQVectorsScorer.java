@@ -20,9 +20,9 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
-import org.elasticsearch.simdvec.internal.BufferScratch;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -284,7 +284,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             return ES940OSQVectorsScorer.bitScale(bits);
         }
 
-        protected final BufferScratch scratch = new BufferScratch();
+        protected final SegmentBufferScratch scratch = new SegmentBufferScratch();
 
         /**
          * Creates a new MemorySegmentScorer. The index input must be a

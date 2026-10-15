@@ -79,6 +79,20 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         );
     }
 
+    /**
+     * Prometheus does not distinguish sample types: a presence or count function over a counter field returns one value per
+     * series like any other range function. Their ES|QL aggregates take gauges, so the counter converts on the way in.
+     */
+    public void testPresenceAndCountFunctionsAcceptCounters() {
+        for (String function : List.of("present_over_time", "absent_over_time", "count_over_time")) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(" + function + "(network.total_bytes_in[5m]))", false);
+            List<ToGauge> conversions = new ArrayList<>();
+            plan.forEachExpressionDown(ToGauge.class, conversions::add);
+            assertThat(function, conversions, hasSize(1));
+            assertTrue(function, conversions.getFirst().field().dataType().isCounter());
+        }
+    }
+
     public void testConstantResults() {
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
         assertConstantResult("pi()", equalTo(Math.PI));

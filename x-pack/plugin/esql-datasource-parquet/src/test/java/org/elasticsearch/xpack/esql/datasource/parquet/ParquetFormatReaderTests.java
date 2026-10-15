@@ -1047,6 +1047,85 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * An object overwritten in place with a file of the same length keeps its {@code (path, length)} footer key. The
+     * second read must report the new file's statistics, not the footer cached for the first file. See
+     * elastic/esql-planning#2094.
+     */
+    public void testSameLengthOverwriteReadsNewFooterStatistics() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("overwritten");
+        byte[] before = createParquetFile(schema, factory -> valueGroups(factory, 0, 100));
+        byte[] after = createParquetFile(schema, factory -> valueGroups(factory, 1_000_000, 100));
+        assertEquals("the overwrite must keep the file length", before.length, after.length);
+
+        String location = "memory://overwrite/same-length.parquet";
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        assertEquals(Optional.of(0L), valueColumn(readMetadata(reader, createStorageObject(before, location))).minValue());
+        assertEquals(
+            "the second read must report the new file's statistics",
+            Optional.of(1_000_000L),
+            valueColumn(readMetadata(reader, createStorageObject(after, location, "v2"))).minValue()
+        );
+    }
+
+    /** An overwrite that changes the length has its own footer key, so the new statistics are read. */
+    public void testDifferentLengthOverwriteReadsNewFooterStatistics() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("overwritten");
+        byte[] before = createParquetFile(schema, factory -> valueGroups(factory, 0, 100));
+        byte[] after = createParquetFile(schema, factory -> valueGroups(factory, 1_000_000, 101));
+        assertNotEquals(before.length, after.length);
+
+        String location = "memory://overwrite/different-length.parquet";
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        assertEquals(Optional.of(0L), valueColumn(readMetadata(reader, createStorageObject(before, location))).minValue());
+        assertEquals(Optional.of(1_000_000L), valueColumn(readMetadata(reader, createStorageObject(after, location, "v2"))).minValue());
+    }
+
+    /**
+     * An object with no version has no footer-cache key, so its footer is read from storage on every read and never
+     * cached. A versioned object's second read is served from the cache; see the footer cache hit tests.
+     */
+    public void testUnversionedObjectReadsFooterFromStorageEveryTime() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        try {
+            AtomicInteger asyncReadCount = new AtomicInteger();
+            StorageObject unversioned = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null, null, null);
+            metadataAsyncDirect(reader, unversioned);
+            int firstRead = asyncReadCount.get();
+            assertTrue("the first read must reach storage", firstRead > 0);
+            metadataAsyncDirect(reader, unversioned);
+            assertEquals(
+                "the second read must reach storage again: nothing is cached without a version",
+                2 * firstRead,
+                asyncReadCount.get()
+            );
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    private static List<Group> valueGroups(SimpleGroupFactory factory, long firstValue, int rows) {
+        List<Group> groups = new ArrayList<>();
+        for (int i = 0; i < rows; i++) {
+            Group group = factory.newGroup();
+            group.add("v", firstValue + i);
+            groups.add(group);
+        }
+        return groups;
+    }
+
+    private SourceMetadata readMetadata(ParquetFormatReader reader, StorageObject object) throws Exception {
+        PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+        reader.metadataAsync(object, Runnable::run, future);
+        return future.actionGet(30, TimeUnit.SECONDS);
+    }
+
+    private static SourceStatistics.ColumnStatistics valueColumn(SourceMetadata metadata) {
+        return metadata.statistics().get().columnStatistics().get().get("v");
+    }
+
+    /**
      * Fourteen concurrent metadata callers per file share one tail GET. Distinct
      * {@link StorageObject} instances per caller still coalesce on {@code (path, length)}.
      */
@@ -2775,6 +2854,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             StorageObject asyncObject = new StorageObject() {
                 @Override
                 public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                @Override
+                public String version() {
+                    return "v1";
+                }
 
                 @Override
                 public StorageIdentity storageIdentity() {
@@ -8074,6 +8158,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -8171,9 +8260,26 @@ public class ParquetFormatReaderTests extends ESTestCase {
         List<long[]> reads,
         AtomicInteger streamCount
     ) {
+        return createAsyncStorageObject(data, pool, asyncReadCount, reads, streamCount, "v1");
+    }
+
+    /** As {@link #createAsyncStorageObject(byte[], ExecutorService, AtomicInteger, List, AtomicInteger)}, with the given version. */
+    private static StorageObject createAsyncStorageObject(
+        byte[] data,
+        ExecutorService pool,
+        AtomicInteger asyncReadCount,
+        List<long[]> reads,
+        AtomicInteger streamCount,
+        String version
+    ) {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return version;
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -8265,6 +8371,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
 
             @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -8344,9 +8455,22 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     private StorageObject createStorageObject(byte[] data, String locationUri) {
+        return createStorageObject(data, locationUri, "v1");
+    }
+
+    /**
+     * An in-memory object of a given version. Footers are cached under the version, so a test that rewrites an object
+     * in place gives the new bytes a different version, as a store with an ETag or generation would.
+     */
+    private StorageObject createStorageObject(byte[] data, String locationUri, String version) {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return version;
+            }
 
             @Override
             public StorageIdentity storageIdentity() {
@@ -10598,6 +10722,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
         @Override
         public long length() {
             return span;
+        }
+
+        @Override
+        public String version() {
+            return file.version();
         }
 
         @Override

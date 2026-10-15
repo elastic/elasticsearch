@@ -971,7 +971,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Opens a Parquet reader using the shared {@link #parsedFooters} cache so that the Thrift
-     * footer deserialization runs at most once per {@code (path, length)} key. On a cache miss the
+     * footer deserialization runs at most once per {@code (path, length, version)} key. On a cache miss the
      * loader parses the full footer (no range filter) so the cached {@link ParquetMetadata} remains
      * usable for any subsequent split of the same file; the per-call read options are then applied
      * when opening the reader against the cached metadata.
@@ -1021,34 +1021,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // The loader runs only on a cache miss, so the flag distinguishes hit from miss.
         boolean[] missed = { false };
         try {
-            ParquetMetadata footer = parsedFooters.getOrLoad(adapter.cacheKey(), key -> {
+            ParquetMetadata footer;
+            if (adapter.cacheKey() == null) {
+                // An unversioned object has no key to cache under, so its footer is always read from storage.
                 missed[0] = true;
-                // Always parse the full footer (no range filter) so the cached entry is reusable
-                // by any split. ParquetFileReader.open with a range only retains blocks whose
-                // midpoint falls in the range, which would make getFooter() unusable for other
-                // splits. The adapter stores the tail it reads here in the FooterByteCache when that
-                // read is admitted — a suffix read of an object larger than the adapter window, or the
-                // whole of an object that fits FOOTER_TAIL_PREFETCH_BYTES — and a later parse of this
-                // key then reads no bytes while the entry lives. Between those two sizes the fill is
-                // whole-file but not admitted, so nothing is stored and the next parse reads again. A
-                // parsed hit reads nothing either way, so it never renews the entry; for a small object
-                // the optimized scan re-seeds it (ParquetStorageObjectAdapter.refillWholeFileFooter).
-                //
-                // Note: this variant of readFooter doesn't close the stream.
-                try (SeekableInputStream stream = adapter.newStream()) {
-                    // The async path's read cap, before anything is charged or parsed, so an oversized footer is
-                    // the same 400 on both. A missing or corrupt trailer is left to readFooter, whose message names
-                    // the file and what it found there.
-                    int footerLength = declaredFooterLength(adapter, stream);
-                    long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
-                    if (footerLength > 0 && footerRegion <= adapter.getLength() && footerRegion > maxFooterReadBytes) {
-                        throw new InvalidFooterException(footerOverReadCap(footerLength));
-                    }
-                    try (Releasable parseCharge = chargeFooterParse(footerLength, adapter.getLength())) {
-                        return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
-                    }
-                }
-            });
+                footer = readUncachedFooter(adapter);
+            } else {
+                footer = parsedFooters.getOrLoad(adapter.cacheKey(), key -> {
+                    missed[0] = true;
+                    return readFooterFromStorage(adapter);
+                });
+            }
             if (counters != null) {
                 counters.recordFooterCache(missed[0] == false);
             }
@@ -1066,6 +1049,49 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 throw invalid.invalid;
             }
             throw newInvalidParquetFileException((Exception) cause);
+        }
+    }
+
+    /**
+     * Reads and parses the footer of {@code adapter} from storage, for a cache miss or an unversioned object. Always
+     * parses the full footer (no range filter) so the cached entry is reusable by any split. ParquetFileReader.open with
+     * a range only retains blocks whose midpoint falls in the range, which would make getFooter() unusable for other
+     * splits.
+     *
+     * <p>The adapter stores the tail it reads here in the {@code FooterByteCache} when that read is admitted — a
+     * suffix read of an object larger than the adapter window, or the whole of an object that fits
+     * {@link #FOOTER_TAIL_PREFETCH_BYTES} — and a later parse of this key then reads no bytes while the entry
+     * lives. Between those two sizes the fill is whole-file but not admitted, so nothing is stored and the next
+     * parse reads again. A parsed hit reads nothing either way, so it never renews the byte entry; for a small
+     * object the optimized scan re-seeds it
+     * ({@link ParquetStorageObjectAdapter#refillWholeFileFooter}).
+     */
+    private ParquetMetadata readFooterFromStorage(ParquetStorageObjectAdapter adapter) throws IOException {
+        // Note: this variant of readFooter doesn't close the stream.
+        try (SeekableInputStream stream = adapter.newStream()) {
+            // The async path's read cap, before anything is charged or parsed, so an oversized footer is
+            // the same 400 on both. A missing or corrupt trailer is left to readFooter, whose message names
+            // the file and what it found there.
+            int footerLength = declaredFooterLength(adapter, stream);
+            long footerRegion = (long) footerLength + PARQUET_TRAILER_BYTES;
+            if (footerLength > 0 && footerRegion <= adapter.getLength() && footerRegion > maxFooterReadBytes) {
+                throw new InvalidFooterException(footerOverReadCap(footerLength));
+            }
+            try (Releasable parseCharge = chargeFooterParse(footerLength, adapter.getLength())) {
+                return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
+            }
+        }
+    }
+
+    /**
+     * The uncached counterpart of {@link ParsedFooterCache#getOrLoad}. Failures are wrapped in an
+     * {@link ExecutionException} so the caller maps them exactly as it maps a failed cache load.
+     */
+    private ParquetMetadata readUncachedFooter(ParquetStorageObjectAdapter adapter) throws ExecutionException {
+        try {
+            return readFooterFromStorage(adapter);
+        } catch (IOException | RuntimeException e) {
+            throw new ExecutionException(e);
         }
     }
 
@@ -1237,7 +1263,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         final long length;
         try {
             cacheKey = FooterByteCache.Key.keyFor(object);
-            length = cacheKey.fileLength();
+            length = cacheKey != null ? cacheKey.fileLength() : object.lengthForFooterCacheKey();
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -1245,6 +1271,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
         if (length < PARQUET_TRAILER_BYTES) {
             listener.onFailure(invalidParquet("is not a Parquet file (length is too low: " + length + ")"));
+            return;
+        }
+
+        if (cacheKey == null) {
+            // An unversioned object has no key to cache under, so its footer is read from storage every time.
+            prefetchAndParseFooterAsync(object, length, null, executor, listener);
             return;
         }
 
@@ -1539,7 +1571,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             executor.execute(() -> {
                 try {
                     ParquetMetadata footer = parseParsedFooterFromTail(object, length, tailBytes);
-                    if (tailSource == TailSource.STORAGE_READ) {
+                    if (tailSource == TailSource.STORAGE_READ && cacheKey != null) {
                         footerBytes.put(cacheKey, tailBytes);
                     }
                     released.onResponse(footer);
@@ -2161,7 +2193,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         } catch (Exception e) {
             return null;
         }
-        if (cacheKey.fileLength() < PARQUET_TRAILER_BYTES) {
+        if (cacheKey == null || cacheKey.fileLength() < PARQUET_TRAILER_BYTES) {
             return null;
         }
         ParquetMetadata parsed = parsedFooters.get(cacheKey);
@@ -2446,12 +2478,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // Footer resolution order:
         // 1. context.fileContext() — per-producer fast path, single-writer/single-reader, no map
         // lookup; carries the footer across successive splits of the same file on one thread.
-        // 2. parsedFooters ({@link ParsedFooterCache}): node-wide LRU keyed by (path, length);
+        // 2. parsedFooters ({@link ParsedFooterCache}): node-wide LRU keyed by (path, length, version);
         // shared across producer threads and across queries within the access TTL. The loader
         // explicitly uses unranged read options so the cached value is the full file footer (all
         // row groups) and is reusable by any split. On a miss the adapter stores the tail it reads in
-        // the FooterByteCache when that read is admitted — see the loader comment on loadFooter for
-        // which object sizes those are — and a later parse of this key then reads no bytes.
+        // the FooterByteCache when that read is admitted — see readFooterFromStorage for which object
+        // sizes those are — and a later parse of this key then reads no bytes.
         // ParquetFileReader.open with a range only retains blocks whose midpoint falls in the
         // range, making getFooter() unusable for other splits — so we must always derive the
         // range-filtered metadata from the unranged full footer via filterBlocksByRange.

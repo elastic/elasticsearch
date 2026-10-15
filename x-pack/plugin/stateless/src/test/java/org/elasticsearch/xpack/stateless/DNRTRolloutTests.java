@@ -13,12 +13,10 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
-import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -46,31 +44,31 @@ public class DNRTRolloutTests extends ESTestCase {
         assertThat(effectiveValue(clusterSettings, RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING), is(false));
         assertThat(effectiveValue(clusterSettings, RecoveryGateMonitor.RECHECK_INTERVAL_SETTING), equalTo(TimeValue.timeValueSeconds(1)));
         assertThat(
-            effectiveValue(clusterSettings, ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING),
+            effectiveValue(clusterSettings, DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING),
             equalTo(Integer.MAX_VALUE)
         );
         assertThat(
             effectiveValue(
                 clusterSettings,
-                ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING
             ),
             equalTo(Double.MAX_VALUE)
         );
         assertThat(
             effectiveValue(
                 clusterSettings,
-                ThrottlingRecoveryService.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
             ).getAsPercent(),
             equalTo(100.0)
         );
         assertThat(
-            effectiveValue(clusterSettings, PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING),
+            effectiveValue(clusterSettings, DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING),
             equalTo(Integer.MAX_VALUE)
         );
         assertThat(
             effectiveValue(
                 clusterSettings,
-                StatelessPrimaryRelocationSourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING
             ),
             equalTo(Double.MAX_VALUE)
         );

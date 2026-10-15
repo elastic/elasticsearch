@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.hasItem;
  * every external distribution mode.
  *
  * <p>An ES|QL multivalue cannot hold null, so a list element that is null is dropped on read and the reader announces
- * the loss with one {@code Warning} per affected column (elastic/esql-planning#1799). The notice must travel through
+ * the loss with one {@code Warning} per affected column. The notice must travel through
  * the driver's warning channel: a scan node's own response headers do not reach the client when the scan was shipped
  * away from the coordinator. The existing coverage — {@code ListColumnParityTests} at the decoder and the parquet
  * csv-spec suites on a single-node cluster — exercises neither placement, because on one node the coordinator

@@ -346,12 +346,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         if (requestIsAsync(request)) {
+            assert task instanceof CancellableTask : "EsqlQueryRequest.createTask always returns CancellableTask";
             asyncTaskManagementService.asyncExecute(
                 request,
                 request.waitForCompletionTimeout(),
                 request.keepAlive(),
                 request.keepOnCompletion(),
-                listener
+                listener,
+                (CancellableTask) task
             );
         } else {
             innerExecuteWithLogging(task, request, listener);
@@ -426,7 +428,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
-                releaseExternalPlanningBytes(executionInfo);
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 collectMetrics(result.inner());
@@ -445,7 +446,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
                 listener.onResponse(response);
             }, ex -> {
-                releaseExternalPlanningBytes(executionInfo);
                 recordCCSTelemetry(task, executionInfo, request, ex);
                 listener.onFailure(ex);
             })
@@ -453,45 +453,32 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     }
 
-    /**
-     * Closes the query's external-planning reservation. Both the success and failure listeners of
-     * {@link #innerExecute} call this; {@link org.elasticsearch.xpack.esql.action.ExternalPlanningReservation#close()}
-     * is idempotent. Timeout callbacks must not call it — the query is still running.
-     */
-    static void releaseExternalPlanningBytes(EsqlExecutionInfo executionInfo) {
-        if (executionInfo == null || executionInfo.externalPlanning() == null) {
-            return;
-        }
-        executionInfo.externalPlanning().close();
-    }
-
-    // Note: this gate differs from the by_outcome.success gate (PlanTelemetry.externalSource()). A
-    // query that prunes all splits (splitsScanned=0, externalWarmAggregates=0) counts as a success
-    // in by_outcome but does not trigger CPU recording — it consumed no external CPU.
+    // Gated on an external relation having been resolved in the analyzed plan (the same fact PlanExecutor uses for the
+    // by_outcome metrics), not on the scan counters: a query that scans nothing (LIMIT 0, every split pruned) still spent coordinator CPU
+    // on
+    // planning and split discovery, and must be metered.
     private boolean hasExternalSources(Result result) {
-        if (result.executionInfo() == null) {
-            return false;
-        }
-        var qp = result.executionInfo().queryProfile();
-        return qp != null && (qp.splitsScanned() > 0 || qp.externalWarmAggregates() > 0);
+        return result.executionInfo() != null && result.executionInfo().externalSource();
     }
 
     void collectMetrics(Result result) {
         if (hasExternalSources(result) == false) {
             return;
         }
-        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null,
-        // and completionInfo() / queryProfile() are plain getters.
+        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null, and a successful
+        // query always goes through attachAdditionalData (which defaults completionInfo) and
+        // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning (which stops the planning span).
         var ci = result.completionInfo();
         var qp = result.executionInfo().queryProfile();
+        // Read once and shared by the APM/phone-home and billing paths so the two cannot report different CPU values.
+        long executionCpu = ci.cpuNanos();
+        long readCpu = ci.readCpuNanos();
+        long planningCpu = qp.planningCpuNanos();
+        long splitDiscoveryCpu = qp.splitDiscoveryCpuNanos();
         // APM and phone-home CPU recording — independent of the billing listener so that a failure
         // here never silently suppresses the billing call below.
         try {
-            // planning().timeSpan() is non-null by the time we reach the success path:
-            // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning calls planning().stop() before execution starts.
-            planExecutor.dataSourceModule()
-                .externalSourceMetrics()
-                .recordQueryCpu(ci.cpuNanos(), ci.readCpuNanos(), qp.planning().timeSpan().durationInNanos(), qp.splitDiscoveryCpuNanos());
+            planExecutor.dataSourceModule().externalSourceMetrics().recordQueryCpu(executionCpu, readCpu, planningCpu, splitDiscoveryCpu);
         } catch (Exception ex) {
             logger.warn("failed to record query CPU metrics", ex);
         }
@@ -503,16 +490,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     Map.of(
                         QueryMetricsListener.PLANNING_NANOS,
                         qp.planning().timeSpan().durationInNanos(),
+                        QueryMetricsListener.PLANNING_CPU_NANOS,
+                        planningCpu,
                         QueryMetricsListener.CPU_NANOS,
-                        ci.cpuNanos(),
+                        executionCpu,
                         QueryMetricsListener.READ_NANOS,
                         ci.readNanos(),
                         QueryMetricsListener.READ_CPU_NANOS,
-                        ci.readCpuNanos(),
+                        readCpu,
                         QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
                         qp.splitDiscoveryNanos(),
                         QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
-                        qp.splitDiscoveryCpuNanos(),
+                        splitDiscoveryCpu,
                         QueryMetricsListener.BYTES_READ,
                         ci.bytesRead()
                     )
@@ -584,7 +573,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         }
     }
 
-    private EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
+    EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
         if (request.includeCCSMetadata() != null && request.includeExecutionMetadata() != null) {
             throw new VerificationException(
                 "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. Use only one"
@@ -607,10 +596,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
-        // Already expanded in EsqlSession, where the unmapped-fields ordering captured during analysis is in scope.
+        // Already named _unmapped_fields by EsqlSession.
         var result = versionedResult.inner();
         assert result.schema().stream().noneMatch(a -> a instanceof UnmappedFieldsAttribute)
-            : UnmappedFieldsAttribute.ATTRIBUTE_NAME + " reached the response unexpanded: " + Expressions.names(result.schema());
+            : UnmappedFieldsAttribute.ATTRIBUTE_NAME + " reached the response unnamed: " + Expressions.names(result.schema());
         // A lenient external read (e.g. a external_max_record_size truncation under a non-strict error_mode) returns fewer
         // records than the source held. Surface that as is_partial on the response — the structured counterpart of
         // the client Warning header — here at the single Result->response chokepoint, so every execution path

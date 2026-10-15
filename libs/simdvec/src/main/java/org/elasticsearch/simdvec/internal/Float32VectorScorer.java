@@ -32,7 +32,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
     final int vectorByteSize;
     final IndexInput input;
     final MemorySegment query;
-    final FixedSizeScratch scratch;
+    final FixedSizeSegmentScratch scratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
@@ -60,7 +60,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
         this.dimensions = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
         this.query = MemorySegment.ofArray(queryVector);
-        this.scratch = new FixedSizeScratch(vectorByteSize);
+        this.scratch = new FixedSizeSegmentScratch(vectorByteSize);
     }
 
     static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {

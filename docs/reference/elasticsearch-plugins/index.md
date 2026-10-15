@@ -6,15 +6,42 @@ mapped_pages:
 
 # {{es}} plugins [intro]
 
-This section contains reference information for {{es}} plugins.
-
-Refer to [Add plugins and extensions](docs-content://deploy-manage/deploy/elastic-cloud/add-plugins-extensions.md) for an overview, setup instructions, and conceptual details.
+This section contains reference information for {{es}} plugins: what each plugin does and how to configure it. The plugins available to you and the way you install them depend on where {{es}} runs. For the installation and management steps that apply to your deployment type, refer to [Plugins and custom configuration files](docs-content://deploy-manage/plugins-and-custom-configuration-files.md).
 
 Plugins are a way to enhance the core {{es}} functionality in a custom manner. They range from adding custom mapping types, custom analyzers, native scripts, custom discovery and more.
 
 Plugins contain JAR files, but may also contain scripts and config files, and must be installed on every node in the cluster. After installation, each node must be restarted before the plugin becomes visible.
 
-There are two categories of plugins:
+## Plugin categories [plugin-categories]
+
+Plugins are grouped by the functionality they add to {{es}}:
+
+[](/reference/elasticsearch-plugins/api-extension-plugins.md)
+:   Add new APIs or features, usually to do with search or mapping.
+
+[](/reference/elasticsearch-plugins/analysis-plugins.md)
+:   Add new analyzers, tokenizers, token filters, or character filters.
+
+[](/reference/elasticsearch-plugins/discovery-plugins.md)
+:   Add new seed hosts providers that extend the [cluster formation module](docs-content://deploy-manage/distributed-architecture/discovery-cluster-formation.md).
+
+[](/reference/elasticsearch-plugins/mapper-plugins.md)
+:   Add new field data types.
+
+[](/reference/elasticsearch-plugins/snapshotrestore-repository-plugins.md)
+:   Add [snapshot repositories](docs-content://deploy-manage/tools/snapshot-and-restore.md) backed by the cloud or by distributed file systems.
+
+[](/reference/elasticsearch-plugins/store-plugins.md)
+:   Offer alternatives to the default Lucene stores.
+
+[](/reference/elasticsearch-plugins/authentication-plugins.md)
+:   Extend the built-in [authentication realms](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/authentication-realms.md).
+
+[](/reference/elasticsearch-plugins/integrations.md) are not plugins, but external tools or modules that make it easier to work with {{es}}.
+
+## Who maintains a plugin [plugin-maintainers]
+
+Plugins come from two sources:
 
 Core Plugins
 :   This category identifies plugins that are part of {{es}} project. Delivered at the same time as Elasticsearch, their version number always matches the version number of Elasticsearch itself. These plugins are maintained by the Elastic team with the appreciated help of amazing community members (for open source plugins). Issues and bug reports can be reported on the [Github project page](https://github.com/elastic/elasticsearch).

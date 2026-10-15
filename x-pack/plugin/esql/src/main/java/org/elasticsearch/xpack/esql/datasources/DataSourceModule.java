@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -80,6 +81,7 @@ public final class DataSourceModule implements Closeable {
     private final DecompressionCodecRegistry codecRegistry;
     @Nullable
     private final AdmissionStallWatchdog admissionWatchdog;
+    private final NodeByteBudget nodeByteBudget;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -262,7 +264,8 @@ public final class DataSourceModule implements Closeable {
                 this.codecRegistry.register(codec);
             }
         }
-        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry);
+        this.nodeByteBudget = NodeByteBudgetService.forHeap();
+        this.formatReaderRegistry = new FormatReaderRegistry(this.codecRegistry, this.nodeByteBudget);
         this.formatReaderRegistry.setAdmissionTracker(admissionTracker);
 
         Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
@@ -501,10 +504,38 @@ public final class DataSourceModule implements Closeable {
         return externalSourceMetrics;
     }
 
+    /** Shared I/O byte tickets for this node. */
+    public NodeByteBudget nodeByteBudget() {
+        return nodeByteBudget;
+    }
+
     /** Null when this module was built without a {@link ThreadPool} (unit-test constructors). */
     @Nullable
-    AdmissionStallWatchdog admissionWatchdog() {
+    public AdmissionStallWatchdog admissionWatchdog() {
         return admissionWatchdog;
+    }
+
+    /**
+     * Writes live admission gauges (used, limit, untracked, waiters, rescues, permits) into
+     * {@code counters} under {@code datasources.admission.*}.
+     */
+    public void populateAdmissionStats(org.elasticsearch.xpack.core.watcher.common.stats.Counters counters) {
+        DataSourceCounters.populateAdmission(counters, nodeByteBudget, admissionWatchdog, permitSnapshots());
+    }
+
+    /** Live {@code [available, max]} per scheme that has a permit limiter. */
+    public Map<String, int[]> permitSnapshots() {
+        return storageProviderRegistry == null ? Map.of() : storageProviderRegistry.permitSnapshots();
+    }
+
+    /**
+     * Toggles byte-budget rescue. Production wires this to
+     * {@link ExternalSourceSettings#ADMISSION_RESCUE_ENABLED}.
+     */
+    public void setAdmissionRescueEnabled(boolean enabled) {
+        if (admissionWatchdog != null) {
+            admissionWatchdog.setRescueEnabled(enabled);
+        }
     }
 
     public DecompressionCodecRegistry codecRegistry() {

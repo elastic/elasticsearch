@@ -41,9 +41,9 @@ public final class DeclaredSchemaValidator {
      * ES|QL types the external readers (CSV/NDJSON/Parquet/ORC) can currently produce, hence the declarable set.
      * {@code ip} is produced by parsing a string column (the mapper-style coercion in
      * {@code DeclaredTypeCoercions}: CSV parses it directly, Parquet/ORC coerce a physical string column);
-     * {@code date_nanos} reads a whole-number source as epoch-nanoseconds — the declared type names the numeric
-     * unit ({@code datetime} = millis, {@code date_nanos} = nanos; see {@code DeclaredTypeCoercions}) — and a
-     * string source parses with the column's declared {@code format} (else ISO nanos);
+     * {@code date_nanos} reads a whole-number source as epoch milliseconds unless a declared {@code format} names
+     * another unit — the same rule as {@code datetime} (see {@code DeclaredTypeCoercions}) — and a string source
+     * parses with the column's declared {@code format} (else ISO nanos);
      * per-format narrowing stays deferred to read time like the rest of the set (see the class Javadoc).
      *
      * <p>{@code text} is absent for a different reason: a reader can produce it, but it is indistinguishable from

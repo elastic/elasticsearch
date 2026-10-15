@@ -232,6 +232,13 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             "index analyzer requires transport version " + FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER,
             hasIndexAnalyzer == false || version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
         );
+        final boolean hasPassthrough = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(fc -> fc.isPassthrough() != null);
+        assumeTrue(
+            "passthrough flag requires transport version " + FieldCapabilities.FIELD_CAPS_PASSTHROUGH,
+            hasPassthrough == false || version.supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
+        );
 
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
         assertThat(

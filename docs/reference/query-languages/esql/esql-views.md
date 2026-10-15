@@ -224,7 +224,7 @@ If the `FROM` combines several sources, you might get `null` values. This is a s
 Do not rely on either result. To get metadata values, declare the field inside the view body.
 :::
 
-{applies_to}`stack: preview 9.6+` `_class` and `_name` are the only metadata fields that work on a view without the view body declaring them. The outer query answers them for each view. `_class` is `view`. `_name` is the view name. You do not need the directive inside the view. If the view body also declares `_class` or `_name`, the outer values replace them.
+{applies_to}`stack: ga 9.6+` `_class` and `_name` are the only metadata fields that work on a view without the view body declaring them. The outer query answers them for each view. `_class` is `view`. `_name` is the view name. You do not need the directive inside the view. If the view body also declares `_class` or `_name`, the outer values replace them.
 
 :::{include} _snippets/generated/x-pack-esql/commands/examples/views.csv-spec/views_class_and_name.md
 :::

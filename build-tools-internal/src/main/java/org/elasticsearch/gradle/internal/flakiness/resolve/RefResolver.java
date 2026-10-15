@@ -259,7 +259,7 @@ public final class RefResolver {
             suitePath,
             yamlTest,
             selection.taskPaths(),
-            selection.candidateCount(),
+            selection.candidateTaskPaths(),
             selection.skipReason()
         );
     }

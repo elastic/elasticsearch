@@ -104,34 +104,18 @@ public final class FlakinessTargets {
         if (left.equals(right)) {
             return left;
         }
+        List<String> candidateTaskPaths = unionTasks(left.candidateTaskPaths(), right.candidateTaskPaths());
         if (left.runnable() == false) {
-            return right.runnable()
-                ? right
-                : targetWith(left, List.of(), Math.max(left.candidateTasks(), right.candidateTasks()), left.skipReason());
+            return right.runnable() ? targetWith(right, right.runnableTasks(), candidateTaskPaths, null) : targetWith(left, List.of(), candidateTaskPaths, left.skipReason());
         }
         if (right.runnable() == false) {
-            return left;
+            return targetWith(left, left.runnableTasks(), candidateTaskPaths, null);
         }
         List<String> runnableTasks = unionTasks(left.runnableTasks(), right.runnableTasks());
-        int candidateTasks = left.runnableTasks().equals(right.runnableTasks())
-            ? Math.max(left.candidateTasks(), right.candidateTasks())
-            : left.candidateTasks() + right.candidateTasks() - overlapCount(left.runnableTasks(), right.runnableTasks());
-        return targetWith(left, runnableTasks, candidateTasks, null);
+        return targetWith(left, runnableTasks, candidateTaskPaths, null);
     }
 
-    private static int overlapCount(List<String> left, List<String> right) {
-        TreeSet<String> overlap = new TreeSet<>();
-        if (left != null) {
-            overlap.addAll(left);
-        }
-        if (right == null) {
-            return 0;
-        }
-        overlap.retainAll(right);
-        return overlap.size();
-    }
-
-    private static BaseTarget targetWith(BaseTarget target, List<String> runnableTasks, int candidateTasks, String skipReason) {
+    private static BaseTarget targetWith(BaseTarget target, List<String> runnableTasks, List<String> candidateTaskPaths, String skipReason) {
         return new BaseTarget(
             target.gradleProject(),
             target.sourceSet(),
@@ -140,7 +124,7 @@ public final class FlakinessTargets {
             target.suitePath(),
             target.yamlTest(),
             runnableTasks,
-            candidateTasks,
+            candidateTaskPaths,
             skipReason
         );
     }

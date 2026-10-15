@@ -242,6 +242,7 @@ public class RefResolverTests {
 
         assertThat(unit.runnable(), is(true));
         assertThat(unit.runnableTasks(), contains(":server:test"));
+        assertThat(unit.candidateTaskPaths(), contains(":server:test"));
         assertThat(unit.candidateTasks(), equalTo(1));
         assertThat(unit.skipReason(), is(nullValue()));
     }
@@ -261,6 +262,10 @@ public class RefResolverTests {
         assertThat(target.gradleProject(), equalTo(":qa:rolling"));
         assertThat(target.runnable(), is(true));
         assertThat(target.runnableTasks(), contains(":qa:rolling:v9.6.0#bwcTest", ":qa:rolling:v9.5.1#bwcTest"));
+        assertThat(
+            target.candidateTaskPaths(),
+            contains(":qa:rolling:v9.6.0#bwcTest", ":qa:rolling:v9.5.1#bwcTest", ":qa:rolling:bcUpgradeTest")
+        );
         assertThat(target.candidateTasks(), equalTo(3));
     }
 
@@ -276,6 +281,7 @@ public class RefResolverTests {
 
         assertThat(target.runnable(), is(true));
         assertThat(target.runnableTasks(), contains(":qa:rolling:v9.5.1#bwcTest"));
+        assertThat(target.candidateTaskPaths(), contains(":qa:rolling:v9.5.1#bwcTest"));
         assertThat(target.candidateTasks(), equalTo(1));
     }
 
@@ -291,6 +297,7 @@ public class RefResolverTests {
 
         assertThat(target.runnable(), is(true));
         assertThat(target.runnableTasks(), contains(":qa:rolling:v9.5.1#bwcTest", ":qa:rolling:bcUpgradeTest"));
+        assertThat(target.candidateTaskPaths(), contains(":qa:rolling:v9.5.1#bwcTest", ":qa:rolling:bcUpgradeTest"));
         assertThat(target.candidateTasks(), equalTo(2));
     }
 

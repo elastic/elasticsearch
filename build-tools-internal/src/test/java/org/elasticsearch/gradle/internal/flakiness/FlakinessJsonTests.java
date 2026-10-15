@@ -104,7 +104,7 @@ public class FlakinessJsonTests {
             null,
             null,
             List.of(":libs:dissect:test"),
-            1,
+            List.of(":libs:dissect:test"),
             null
         );
         FlakinessJson.ProjectTargetsFile file = new FlakinessJson.ProjectTargetsFile(

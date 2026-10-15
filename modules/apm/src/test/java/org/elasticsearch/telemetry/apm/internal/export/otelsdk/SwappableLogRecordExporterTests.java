@@ -287,6 +287,24 @@ public class SwappableLogRecordExporterTests extends ESTestCase {
         assertThat(rejected.shutdowns.get(), equalTo(1));
     }
 
+    public void testSwapDuringShutdownClosesRejectedDelegate() {
+        RecordingExporter current = new RecordingExporter();
+        current.shutdownResult = new CompletableResultCode();
+        RecordingExporter rejected = new RecordingExporter();
+        SwappableLogRecordExporter exporter = new SwappableLogRecordExporter(current);
+
+        CompletableResultCode shutdown = exporter.shutdown();
+        assertFalse(shutdown.isDone());
+        IllegalStateException failure = expectThrows(IllegalStateException.class, () -> exporter.swap(rejected));
+        assertThat(failure.getMessage(), equalTo("log exporter is shut down"));
+        assertThat(current.shutdowns.get(), equalTo(1));
+        assertThat(rejected.shutdowns.get(), equalTo(1));
+        assertFalse(shutdown.isDone());
+
+        current.shutdownResult.succeed();
+        assertTrue(shutdown.isSuccess());
+    }
+
     public void testSwapConcurrentWithShutdownDoesNotLeakDelegate() {
         RecordingExporter current = new RecordingExporter();
         RecordingExporter replacement = new RecordingExporter();

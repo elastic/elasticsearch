@@ -125,8 +125,10 @@ public class DatasetResolver {
         List<UnresolvedRelation> relations = new ArrayList<>();
         parsed.forEachUp(UnresolvedRelation.class, r -> {
             List<String> patterns = DatasetRewriter.patternsOf(r);
+            // Per relation: a wildcard inside a view body never matches datasets (DatasetRewriter.wildcardsMatchDatasetsFor).
+            boolean relationWildcards = DatasetRewriter.wildcardsMatchDatasetsFor(r, wildcardsMatchDatasets);
             if (DatasetRewriter.hasRemotePattern(patterns)
-                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, wildcardsMatchDatasets) == false) {
+                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, relationWildcards) == false) {
                 return;
             }
             relations.add(r);
@@ -159,7 +161,7 @@ public class DatasetResolver {
                 var request = new EsqlResolveDatasetAction.Request(
                     REST_MASTER_TIMEOUT_DEFAULT,
                     DatasetRewriter.patternsOf(relation).toArray(String[]::new),
-                    wildcardsMatchDatasets
+                    DatasetRewriter.wildcardsMatchDatasetsFor(relation, wildcardsMatchDatasets)
                 );
                 client.execute(
                     EsqlResolveDatasetAction.TYPE,

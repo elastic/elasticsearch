@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -760,7 +762,12 @@ public class TestAnalyzer {
     private static Map<String, LogicalPlan> resolveViews(Map<String, String> views) {
         var parsedViews = new HashMap<String, LogicalPlan>();
         for (Map.Entry<String, String> entry : views.entrySet()) {
-            parsedViews.put(entry.getKey(), TEST_PARSER.parseQuery(entry.getValue()));
+            // parseView, not parseQuery: production stamps the view name on every Source in a view body, and rules
+            // gate on that tag (e.g. ResolveUnmapped stops unmapped-field resolution at view boundaries).
+            parsedViews.put(
+                entry.getKey(),
+                TEST_PARSER.parseView(entry.getValue(), new QueryParams(), new InferenceSettings(Settings.EMPTY), entry.getKey()).plan()
+            );
         }
         return parsedViews;
     }

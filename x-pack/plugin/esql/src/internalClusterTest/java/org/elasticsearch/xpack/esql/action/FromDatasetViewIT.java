@@ -667,7 +667,7 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testWildcardInViewBodyHonorsOuterWildcardsMatchDatasets() {
+    public void testWildcardInViewBodyDoesNotMatchDatasets() {
         registerEmployees();
         registerEmployeesAlt();
         createView("emp_star_view", "FROM employees*");
@@ -675,21 +675,12 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("FROM emp_star_view | STATS c = COUNT(*)"))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
         }
-        // The outer SET is applied to the inlined view body, same as wildcards_match_views on nested views.
-        try (
-            var response = run(
-                syncEsqlQueryRequest(
-                    "SET wildcards_match_datasets = true; FROM emp_star_view | KEEP emp_no, first_name | SORT emp_no, first_name"
-                )
-            )
-        ) {
-            assertColumnNames(response.columns(), List.of("emp_no", "first_name"));
-            assertThat(
-                getValuesList(response),
-                equalTo(List.of(List.of(1, "Alice"), List.of(2, "Bob"), List.of(3, "Carol"), List.of(10, "Diana"), List.of(11, "Eve")))
-            );
+        // The caller's SET stops at the view boundary (SETTINGS_SCOPED_AT_VIEW_BOUNDARIES): the view produces the
+        // same rows whatever the caller's settings say, so the body's wildcard still reaches no dataset.
+        try (var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM emp_star_view | STATS c = COUNT(*)"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
         }
-        // The same SET on an outer wildcard still reaches both datasets.
+        // The same SET on an outer wildcard reaches both datasets.
         try (
             var response = run(
                 syncEsqlQueryRequest(

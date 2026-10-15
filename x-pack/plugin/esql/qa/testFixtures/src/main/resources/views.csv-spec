@@ -3074,6 +3074,7 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message == "Disconnection error" OR unmapped_message == "43"),
@@ -3084,9 +3085,6 @@ FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message == "Disconn
 ;
 
 _fork:keyword | unmapped_message:keyword | emp_no:integer
-fork1         | Disconnection error      | null
-fork1         | Disconnection error      | null
-fork1         | Disconnection error      | null
 fork2         | null                     | 10001
 fork2         | null                     | null
 ;

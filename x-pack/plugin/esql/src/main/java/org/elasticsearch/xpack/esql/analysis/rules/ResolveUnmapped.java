@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -74,13 +75,23 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  * the analyzer itself; vs. the KEEP/RENAME/DROP-introduced projections). Note that this doesn't "boost" the visibility of such an
  * attribute: if, for instance, referencing a mapping-missing attribute occurs after a STATS that doesn't group by it, that attribute will
  * remain unresolved and fail the verification. The language remains semantically consistent.
+ * <p>
+ * None of this reaches inside a view body. A view is a virtual index, and SET unmapped_fields is an ES-index concept
+ * (loading from {@code _source}) that callers should not see through the view boundary — the same principle that keeps
+ * the raw request-filter DSL out of a view's source scans. The gate is the view tag parsing stamps on the
+ * {@link Source} of every node of a view body ({@link #insideViewBody}): tagged references are never load/nullify
+ * candidates, tagged relations receive no synthetic fields, and an outer reference is answered at a view branch's
+ * output with null ({@link #nullFillViewBoundaries}) — the virtual index has no {@code _source} to load from.
+ * Re-enabled inside a body only by a future SET unmapped_fields in the view definition itself.
  */
 public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
 
     private static final Literal NULLIFIED = Literal.NULL;
 
     private static EsRelation withAdditionalAttributesUnlessLookup(EsRelation esr, List<? extends Attribute> fields) {
-        if (esr.indexMode() == IndexMode.LOOKUP || fields.isEmpty()) {
+        // A relation inside a view body gets no synthetic unmapped fields: the caller's setting ends at the view
+        // boundary, and an outer reference is answered at the view's output instead (nullFillViewBranches).
+        if (esr.indexMode() == IndexMode.LOOKUP || insideViewBody(esr.source()) || fields.isEmpty()) {
             return esr;
         }
         // Once real fields are added to an empty-mapping relation, the no-fields marker must not remain in the output.
@@ -92,12 +103,6 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-        // TODO: unmapped-field resolution must not reach inside view branches. A view is a virtual
-        // index, and SET unmapped_fields is an ES-index concept (loading from _source) that its callers should not see
-        // through the view boundary — the same principle that keeps the raw request-filter DSL out of a view's source
-        // scans. BranchPlan.branchIdentity() now says which branches are views; once the design discussion settles,
-        // skip resolution in subtrees under VIEW-kind branches (re-enabled later only by SET unmapped_fields inside
-        // the view definition itself).
         return switch (context.unmappedResolution()) {
             case UnmappedResolution.DEFAULT -> plan;
             case UnmappedResolution.NULLIFY -> resolve(plan, false);
@@ -125,7 +130,17 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         }
 
         var transformed = load ? load(plan, unresolved) : nullify(plan, unresolved);
-        return transformed == plan ? plan : refreshPlan(transformed, allUnresolved);
+        if (transformed == plan) {
+            // Nothing newly loaded or filled, but an earlier fill can still be pending: a view-boundary fill
+            // (nullFillViewBoundaries) below a nested merge only widens that merge's output once ResolveRefs
+            // realigns it, which happens after this rule's refreshPlan already ran its patch pass. The outer
+            // merge's alignment Projects then still hide the new column and resolution is stuck. Re-run the
+            // patch pass so the column surfaces, and refresh the waiting references (ResolveRefs marked them
+            // unresolvable in the meantime and skips marked attributes); once they resolve, this rule no-ops.
+            var patched = plan.transformUp(MergePlan.class, ResolveUnmapped::patchMergePlan);
+            return patched == plan ? plan : refreshPlan(patched, allUnresolved);
+        }
+        return refreshPlan(transformed, allUnresolved);
     }
 
     /**
@@ -143,6 +158,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
             return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify);
         });
+        transformed = nullFillViewBoundaries(transformed, unresolved, false);
         return nullifyNonEsRelationSources(transformed, unresolved);
     }
 
@@ -152,8 +168,12 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * like {@code ROW x = 1 | EVAL y = unmapped_field}.
      */
     private static LogicalPlan nullifyNonEsRelationSources(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
+        // Sources inside view bodies are excluded like EsRelations are: the setting ends at the view boundary.
         var transformed = plan.transformUp(
-            n -> n instanceof UnaryPlan unary && unary.child() instanceof LeafPlan leaf && leaf instanceof EsRelation == false,
+            n -> n instanceof UnaryPlan unary
+                && unary.child() instanceof LeafPlan leaf
+                && leaf instanceof EsRelation == false
+                && insideViewBody(leaf.source()) == false,
             p -> evalUnresolvedAtopUnary((UnaryPlan) p, nullAliases(unresolved))
         );
         return transformed.transformUp(
@@ -188,9 +208,57 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
                     outerReferences.add(ua);
                 }
             }
-            return outerReferences.isEmpty() ? plan : loadIntoSources(plan, outerReferences);
+            return outerReferences.isEmpty() ? plan : nullFillViewBoundaries(loadIntoSources(plan, outerReferences), outerReferences, true);
         }
-        return loadIntoSources(plan, unresolved);
+        return nullFillViewBoundaries(loadIntoSources(plan, unresolved), unresolved, true);
+    }
+
+    /**
+     * Answers references at every view <em>output</em> boundary with {@code EVAL <name> = NULL}: a view contributes
+     * null for a column it does not surface — under LOAD a KEYWORD-typed null, exactly like an index whose
+     * {@code _source} lacks the field; under NULLIFY the same untyped null every other nullified source produces.
+     * The boundary is the top of each maximal view-tagged subtree, found by descending untagged nodes until a tagged
+     * one; the Eval sits above the whole body, making the null a column of the view's output rather than an input to
+     * the body's own processing. A {@link Join}'s right side is an independent scope whose output must keep its arity
+     * (lookup index or IN-subquery RHS), so only the left side is walked.
+     */
+    private static LogicalPlan nullFillViewBoundaries(LogicalPlan plan, Set<UnresolvedAttribute> unresolved, boolean load) {
+        if (insideViewBody(plan.source())) {
+            List<Alias> aliases = new ArrayList<>();
+            var outputNames = plan.outputSet().names();
+            for (UnresolvedAttribute ua : unresolved) {
+                if (outputNames.contains(ua.name()) == false) {
+                    aliases.add(load ? new Alias(ua.source(), ua.name(), new Literal(ua.source(), null, DataType.KEYWORD)) : nullAlias(ua));
+                }
+            }
+            if (aliases.isEmpty()) {
+                return plan;
+            }
+            // Append to the boundary's own Eval — the body's top one, or a fill from an earlier discovery round —
+            // rather than stacking a new Eval per round. The aliases carry fresh names, so appending cannot shadow.
+            if (plan instanceof Eval eval && eval.resolved()) {
+                return new Eval(eval.source(), eval.child(), combine(eval.fields(), aliases));
+            }
+            return new Eval(plan.source(), plan, aliases);
+        }
+        List<LogicalPlan> children = plan instanceof Join join ? List.of(join.left()) : plan.children();
+        boolean changed = false;
+        List<LogicalPlan> newChildren = new ArrayList<>(plan.children().size());
+        for (LogicalPlan child : children) {
+            LogicalPlan newChild = nullFillViewBoundaries(child, unresolved, load);
+            changed |= newChild != child;
+            newChildren.add(newChild);
+        }
+        if (changed == false) {
+            return plan;
+        }
+        if (plan instanceof Join join) {
+            newChildren.add(join.right());
+        }
+        // No output surgery is needed on a merge above a fill: the fill Eval widens its branch's output, which
+        // makes the merge report unresolved (MergePlan.expressionsResolved requires every branch to match the
+        // stored output), so ResolveRefs realigns it — null-filling siblings and preserving existing output ids.
+        return plan.replaceChildren(newChildren);
     }
 
     /**
@@ -326,7 +394,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         List<LogicalPlan> newChildren = new ArrayList<>(nAry.children().size());
         boolean changed = false;
         for (var child : nAry.children()) {
-            if (child instanceof LeafPlan source && source instanceof EsRelation == false) {
+            if (child instanceof LeafPlan source && source instanceof EsRelation == false && insideViewBody(source.source()) == false) {
                 assertSourceType(source);
                 child = new Eval(source.source(), source, nullAliases);
                 changed = true;
@@ -483,7 +551,20 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     private static boolean leaveUnresolved(UnresolvedAttribute attribute) {
         return attribute instanceof UnresolvedPattern || attribute instanceof UnresolvedTimestamp
         // Exclude metadata fields so they fail with a proper verification error instead of being silently nullified/loaded.
-            || MetadataAttribute.isSupported(attribute.name());
+            || MetadataAttribute.isSupported(attribute.name())
+            // A reference written inside a view body is not a candidate: the caller's unmapped_fields setting does not
+            // reach through the view boundary, so it fails resolution exactly as it would without the setting.
+            || insideViewBody(attribute.source());
+    }
+
+    /**
+     * Whether this source was parsed from a view body — parsing stamps the view name on every {@link Source} in one.
+     * The tag is used rather than {@code BranchPlan.branchIdentity()} because this rule fires per node and sees no
+     * enclosing union when applied inside a branch, and because a collapsed wrapper would lose the identity while the
+     * tag survives.
+     */
+    private static boolean insideViewBody(Source source) {
+        return source.viewName() != null;
     }
 
     /**

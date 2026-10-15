@@ -223,16 +223,27 @@ public final class DatasetRewriter {
                 return;
             }
             List<String> patterns = patternsOf(r);
-            if (hasRemotePattern(patterns) || anyPatternCouldMatchDataset(patterns, datasetNames, wildcardsMatchDatasets) == false) {
+            boolean relationWildcards = wildcardsMatchDatasetsFor(r, wildcardsMatchDatasets);
+            if (hasRemotePattern(patterns) || anyPatternCouldMatchDataset(patterns, datasetNames, relationWildcards) == false) {
                 return;
             }
             // Unsecured: the (un-narrowed) raw patterns are the authorized indices — every registered dataset matched
             // by the pattern is authorized, so resolve() returns it.
             String[] raw = patterns.toArray(String[]::new);
-            resolutions.put(r, resolve(raw, raw, projectMetadata, iner, wildcardsMatchDatasets));
+            resolutions.put(r, resolve(raw, raw, projectMetadata, iner, relationWildcards));
         });
         // Unsecured/test path runs without CPS (single local project): never preserve a wildcard for remote resolution.
         return rewrite(parsed, projectMetadata, resolutions, false, maxBranchCountPerMerge, maxBranchCountPerMergeSource);
+    }
+
+    /**
+     * The effective {@code wildcards_match_datasets} for one relation. A relation parsed from a view body (its
+     * {@link org.elasticsearch.xpack.esql.core.tree.Source} carries the view name) never wildcard-matches datasets:
+     * the caller's SET must not change which sources a stored view definition resolves to (esql-planning#2273).
+     * A dataset named exactly inside a view body is unaffected — exact reachability is not what the setting controls.
+     */
+    static boolean wildcardsMatchDatasetsFor(UnresolvedRelation relation, boolean wildcardsMatchDatasets) {
+        return wildcardsMatchDatasets && relation.source().viewName() == null;
     }
 
     static boolean hasRemotePattern(List<String> patterns) {

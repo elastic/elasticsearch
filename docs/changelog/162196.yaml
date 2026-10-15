@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162196
+summary: Scope query settings at view boundaries
+type: enhancement

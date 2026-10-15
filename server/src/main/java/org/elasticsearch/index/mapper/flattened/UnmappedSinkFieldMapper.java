@@ -9,22 +9,18 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.IndexType;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.mapper.UnsearchableFieldType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,9 +33,9 @@ import java.util.Map;
  * check and a document key {@code _unmapped} is rejected by {@link MetadataFieldMapper#parseCreateField}. All flattened behavior comes
  * from a wrapped {@link FlattenedFieldMapper} built with no user parameters; the sink itself is never serialized.
  * <p>
- * The wrapped mapper's flattened field type is deliberately not the delegate's field type. A flattened type resolves
+ * The sink's field type is deliberately not the delegate's flattened field type. A flattened type resolves
  * {@code _unmapped.<key>} to an absorbed value in every field lookup, which would make absorbed values queryable in {@code _search} and
- * readable past field-level security, since every {@code _}-prefixed name is granted. The sink exposes {@link UnmappedSinkFieldType}
+ * readable past field-level security, since every {@code _}-prefixed name is granted. The sink exposes an {@link UnsearchableFieldType}
  * instead, so {@code _unmapped} resolves like {@code _ignored_source}: listed as a metadata field, neither searchable nor aggregatable,
  * and nothing resolves under it.
  */
@@ -52,35 +48,15 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
     private final FlattenedFieldMapper delegate;
 
     private UnmappedSinkFieldMapper(FlattenedFieldMapper delegate) {
-        super(new UnmappedSinkFieldType());
+        super(
+            new UnsearchableFieldType(
+                FlattenedFieldMapper.UNMAPPED_SINK_NAME,
+                FlattenedFieldMapper.UNMAPPED_SINK_NAME,
+                "unmapped fields are read only through ES|QL under [SET unmapped_fields] and through [_source]",
+                Map.of()
+            )
+        );
         this.delegate = delegate;
-    }
-
-    /**
-     * The field type of {@code _unmapped} itself: not indexed, without doc values and not a dynamic field type, so queries on it fail
-     * and no {@code _unmapped.<key>} name resolves. Absorbed values are read only through ES|QL under {@code SET unmapped_fields} and
-     * through {@code _source}.
-     */
-    static final class UnmappedSinkFieldType extends MappedFieldType {
-
-        private UnmappedSinkFieldType() {
-            super(FlattenedFieldMapper.UNMAPPED_SINK_NAME, IndexType.NONE, false, Map.of());
-        }
-
-        @Override
-        public String typeName() {
-            return FlattenedFieldMapper.UNMAPPED_SINK_NAME;
-        }
-
-        @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new IllegalArgumentException("Cannot fetch values for internal field [" + name() + "].");
-        }
-
-        @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
-        }
     }
 
     private static FlattenedFieldMapper buildDelegate(MappingParserContext context) {

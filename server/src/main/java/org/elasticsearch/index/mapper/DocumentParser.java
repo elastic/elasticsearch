@@ -1145,7 +1145,7 @@ public final class DocumentParser {
             if (mapper == null && name.startsWith(FlattenedFieldMapper.UNMAPPED_SINK_NAME + ".")) {
                 // The sink reserves its name as a prefix: a root key like _unmapped.a resolves to the sink itself (null when there is
                 // none), so that every form of it is rejected by parseCreateField exactly like the key _unmapped.
-                return mappingLookup().getMapping().getMetadataMapperByName(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+                return getMetadataMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
             }
             return mapper;
         }

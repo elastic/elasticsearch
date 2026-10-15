@@ -313,9 +313,9 @@ public final class ShardBatchMapper {
             logger.debug("batch indexing disabled: dynamic templates may pre-empt the [{}] sink", FlattenedFieldMapper.UNMAPPED_SINK_NAME);
             return null;
         }
-        // getRootDynamic only reports FLATTENED when the sink exists, so this cast is safe. The sink's columnar support was already
-        // checked with every other metadata mapper above, so a sink that cannot batch never reaches this point.
-        return (FieldMapper) lookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+        // The sink's columnar support was already checked with every other metadata mapper above, so a sink that cannot batch never
+        // reaches this point.
+        return lookup.getMapping().getMetadataMapperByName(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
     }
 
     /**

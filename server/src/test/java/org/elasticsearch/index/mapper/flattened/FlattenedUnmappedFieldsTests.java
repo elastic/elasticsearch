@@ -35,8 +35,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Write-path coverage for the implicit flattened {@code _unmapped} sink that absorbs unmapped fields on strict columnar indices.
@@ -124,9 +124,9 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         assertFalse(sinkType.isAggregatable());
         SearchExecutionContext context = createSearchExecutionContext(mapperService);
         var termError = expectThrows(IllegalArgumentException.class, () -> sinkType.termQuery(value, context));
-        assertThat(termError.getMessage(), equalTo("Cannot search on field [_unmapped] since it is not indexed."));
+        assertThat(termError.getMessage(), startsWith("Cannot query field [_unmapped]: "));
         var fetchError = expectThrows(IllegalArgumentException.class, () -> sinkType.valueFetcher(context, null));
-        assertThat(fetchError.getMessage(), equalTo("Cannot fetch values for internal field [_unmapped]."));
+        assertThat(fetchError.getMessage(), startsWith("Cannot fetch values for field [_unmapped]: "));
 
         String absorbedName = FlattenedFieldMapper.UNMAPPED_SINK_NAME + "." + key;
         assertNull(mapperService.fieldType(absorbedName));
@@ -144,24 +144,15 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     /**
-     * A user object named {@code _unmapped}: a {@code nested} mapper keeps the name and collides with the sink; a plain {@code object} is
-     * flattened by {@code subobjects: false} into dotted leaves, which then hit the prefix reservation.
+     * A user {@code nested} object named {@code _unmapped} keeps the name and collides with the sink. A plain {@code object} is flattened
+     * by {@code subobjects: false} into dotted leaves, which {@link #testUserFieldUnderSinkPrefixRejected} covers.
      */
     public void testUserObjectWithSameNameAsSinkRejected() throws IOException {
-        String sink = FlattenedFieldMapper.UNMAPPED_SINK_NAME;
-        var nested = expectThrows(
+        var e = expectThrows(
             MapperParsingException.class,
-            () -> columnarService(b -> b.startObject(sink).field("type", "nested").endObject())
+            () -> columnarService(b -> b.startObject(FlattenedFieldMapper.UNMAPPED_SINK_NAME).field("type", "nested").endObject())
         );
-        assertThat(nested.getMessage(), containsString("Field [_unmapped] is defined both as an object and a field"));
-
-        String leaf = randomAlphaOfLength(5);
-        var object = expectThrows(MapperParsingException.class, () -> columnarService(b -> {
-            b.startObject(sink).field("type", "object");
-            b.startObject("properties").startObject(leaf).field("type", "keyword").endObject().endObject();
-            b.endObject();
-        }));
-        assertThat(object.getMessage(), containsString("Field [_unmapped." + leaf + "] is reserved by the metadata field [_unmapped]"));
+        assertThat(e.getMessage(), containsString("Field [_unmapped] is defined both as an object and a field"));
     }
 
     /**

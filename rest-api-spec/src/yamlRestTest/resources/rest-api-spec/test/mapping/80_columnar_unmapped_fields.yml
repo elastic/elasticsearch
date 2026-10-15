@@ -108,13 +108,13 @@ setup:
 
   # Requesting the sink explicitly fails, as for every internal metadata field that is not stored.
   - do:
-      catch: /Cannot fetch values for internal field \[_unmapped\]/
+      catch: /Cannot fetch values for field \[_unmapped\]/
       search:
         index: test_mapped
         body: { query: { match_all: {} }, fields: [ "_unmapped" ] }
 
   - do:
-      catch: /Cannot search on field \[_unmapped\] since it is not indexed/
+      catch: /Cannot query field \[_unmapped\]/
       search:
         index: test_mapped
         body: { query: { term: { _unmapped: "bare-value" } } }

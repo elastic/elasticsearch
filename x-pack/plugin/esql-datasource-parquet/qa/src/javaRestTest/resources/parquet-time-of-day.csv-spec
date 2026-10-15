@@ -54,7 +54,8 @@ id:integer | us_nanos:long   | ns_nanos:long
 
 // Declaring the conventional dashboard type over the microsecond unit narrows the nanosecond of day to the
 // millisecond of day -- the ordinary date_nanos -> date narrowing, flooring the digits date cannot hold. This is the
-// case that used to answer with an instant in year 3149, because the number was read as epoch milliseconds.
+// case that used to answer with a wrong instant, because the stored number was read as epoch milliseconds: 1971 on
+// the eager readers and year 3149 on the deferred route, which scaled to nanoseconds before reading.
 declaredDateOverTimeOfDayMicrosNarrowsToTheMillisecondOfDay
 required_capability: dataset_in_from_command
 required_capability: parquet_time_of_day_is_a_temporal_column

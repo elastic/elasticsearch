@@ -3879,7 +3879,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * day the block holds -- the same unit arithmetic {@code TIMESTAMP(MICROS)} takes to reach the same type. The
      * value is unchanged from before this column became temporal; what changed is that 37_230_123_456_000 is now
      * labelled as the nanoseconds it is, rather than as a bare {@code long} a declared {@code date} would then read
-     * as epoch milliseconds, landing it in year 3149.
+     * as epoch milliseconds. Which wrong instant that produced depended on the route -- the eager readers read the
+     * raw microsecond of day and answered in 1971, the deferred route scaled it first and answered in year 3149.
      */
     public void testTimeMicrosReadsAsDateNanosOnTheEpochDay() throws Exception {
         MessageType schema = Types.buildMessage()
@@ -3918,9 +3919,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
     /**
      * A declared {@code date} over a {@code TIME(MICROS)} column narrows the nanosecond of day to the millisecond
      * of day, the ordinary {@code date_nanos -> date} narrowing, and lands on the instant both reference engines
-     * show. Before this column became temporal the same declaration reinterpreted the nanosecond of day as epoch
-     * millis and answered with a year-3149 instant, while the {@code TIME(MILLIS)} column beside it answered
-     * correctly -- two units of one annotation disagreeing.
+     * show. Before this column became temporal the same declaration reinterpreted the stored number as epoch millis
+     * and answered with a wrong instant -- 1971 on the eager readers, which read the microsecond of day as it stood,
+     * and year 3149 on the deferred route, which scaled it to nanoseconds first -- while the {@code TIME(MILLIS)}
+     * column beside it answered correctly. Two units of one annotation disagreeing, and two routes disagreeing
+     * within one of them.
      */
     public void testTimeMicrosDeclaredDatetimeNarrowsToTheMillisecondOfDay() throws Exception {
         MessageType schema = Types.buildMessage()

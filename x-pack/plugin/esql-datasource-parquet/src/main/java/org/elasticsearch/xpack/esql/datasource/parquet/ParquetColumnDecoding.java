@@ -539,8 +539,9 @@ final class ParquetColumnDecoding {
 
     /**
      * Returns the multiplier needed to convert a Parquet TIME_* value to nanoseconds.
-     * TIME_MICROS values are stored as microseconds and must be multiplied by 1_000;
-     * TIME_MILLIS and TIME_NANOS are stored in their final unit (ms handled as INTEGER, ns as-is).
+     * TIME_MICROS values are stored as microseconds and must be multiplied by 1_000; TIME_NANOS is already in its
+     * final unit. TIME_MILLIS does not reach this method: it is physically an INT32 and renders {@code datetime},
+     * whose millisecond-of-day is the value itself.
      */
     static long timeNanoMultiplier(LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
         return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
@@ -553,10 +554,11 @@ final class ParquetColumnDecoding {
      *
      * <p>A {@code datetime} column reaches a decode loop either at the file's own type or through a coercion that
      * {@link DeclaredTypeCoercions#fusedInDecode} folded into the loop, and the second case is why the arm cannot be
-     * read off the physical primitive name: the licensed pair is stated in ESQL types ({@code long -> datetime},
-     * {@code keyword -> datetime}) and several Parquet shapes reach the same pair through different physical types.
-     * An {@code INT32} is a day count only when the file says {@code DATE}; it renders ESQL {@code long} when it
-     * carries {@code UINT_32} or {@code TIME(MILLIS)}. A text column is {@code BINARY} or
+     * read off the physical primitive name: the pair being coerced is stated in ESQL types
+     * ({@code long -> datetime}, {@code keyword -> datetime}) and several Parquet shapes reach the same pair through
+     * different physical types. An {@code INT32} is a day count only when the file says {@code DATE}; carrying
+     * {@code UINT_32} it renders ESQL {@code long}, and carrying {@code TIME(MILLIS)} it renders {@code datetime},
+     * whose millisecond-of-day needs no scaling. A text column is {@code BINARY} or
      * {@code FIXED_LEN_BYTE_ARRAY}, both of which render ESQL {@code keyword}.
      *
      * <p>Both decode engines classify here, so neither can key the choice on a different thing, and the resulting

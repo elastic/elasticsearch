@@ -1,6 +1,5 @@
 area: ES|QL
-issues:
- - 160049
+issues: []
 pr: 162147
 summary: Release empty percentile digest when the breaker trips
 type: bug

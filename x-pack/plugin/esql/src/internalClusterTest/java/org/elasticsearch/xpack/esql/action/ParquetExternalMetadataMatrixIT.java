@@ -17,12 +17,10 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Parquet binding of the standard-metadata matrix. Parquet is the only {@code ColumnExtractorAware}
- * reader, which means its {@code _rowPosition} channel is the deferred-extraction-encoded form
- * ({@code (extractorId << LOCAL_POSITION_BITS) | physicalPosition}); {@code ExternalRowIdentity}
- * masks the high bits off before composing {@code _id}. This subclass exercises that masked-compose
- * path; the shared base assertion is the opaque-token contract (distinct, non-negative, increasing
- * in file order, common location prefix) since each reader's token form is format-defined.
+ * Parquet binding of the standard-metadata matrix — every standard metadata name answered over a real
+ * Parquet file. Parquet is the only {@code ColumnExtractorAware} reader, so it is the one lane whose
+ * {@code _rowPosition} channel carries the encoded form; nothing user-visible exposes that, and
+ * {@code VirtualColumnIteratorTests} pins the decode directly.
  *
  * <p>The existing {@code iceberg-fixtures/standalone/employees.parquet} is 100 rows with a complex
  * schema and no keyword {@code host_ip} column, so it cannot back the 3-row matrix fixture; this

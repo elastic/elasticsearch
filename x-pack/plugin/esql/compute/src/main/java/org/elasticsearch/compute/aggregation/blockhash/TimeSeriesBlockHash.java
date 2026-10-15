@@ -36,7 +36,6 @@ import org.elasticsearch.core.Releasables;
  * An optimized block hash that receives two blocks: tsid and timestamp, which are sorted.
  * Since the incoming data is sorted, this block hash checks tsid ordinals to avoid redundant
  * hash lookups for consecutive positions with the same tsid and timestamp.
- * Delegates to a {@link BytesRefLongBlockHash} for the actual hashing.
  */
 public final class TimeSeriesBlockHash extends BlockHash {
 
@@ -398,6 +397,14 @@ public final class TimeSeriesBlockHash extends BlockHash {
 
     public long numGroups() {
         return finalHash.size();
+    }
+
+    /**
+     * The number of distinct tsids seen by this hash. The tsid ordinals returned by {@link #tsidForGroup(long)}
+     * are dense in {@code [0, numTsids())}, so they can be used directly as array indices.
+     */
+    public int numTsids() {
+        return Math.toIntExact(tsidHash.size());
     }
 
     private void maybeScanTimestampsFromFinalHash() {

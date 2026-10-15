@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 159442
+summary: "[Native] Index the i8 bulk dims tail from the block end"
+type: enhancement

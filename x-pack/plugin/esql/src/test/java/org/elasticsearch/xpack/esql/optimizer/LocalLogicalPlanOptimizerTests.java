@@ -56,9 +56,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -1767,8 +1764,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             relation,
             List.of(),
             List.of(
-                new Alias(EMPTY, "r", new Rate(EMPTY, fieldAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, timestampAttr, null)),
-                new Alias(EMPTY, "i", new Increase(EMPTY, fieldAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, timestampAttr, null))
+                new Alias(EMPTY, "r", new Rate(EMPTY, fieldAttr, timestampAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, null)),
+                new Alias(EMPTY, "i", new Increase(EMPTY, fieldAttr, timestampAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, null))
             ),
             null,
             timestampAttr,

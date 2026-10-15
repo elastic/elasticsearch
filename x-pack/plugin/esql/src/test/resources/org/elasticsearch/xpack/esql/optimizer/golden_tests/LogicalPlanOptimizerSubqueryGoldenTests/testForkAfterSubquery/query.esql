@@ -1,0 +1,6 @@
+FROM employees, (FROM employees_incompatible
+                     | WHERE languages > 0
+                     | EVAL emp_no = emp_no::int
+                     | KEEP emp_no)
+| FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+| KEEP emp_no

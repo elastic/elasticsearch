@@ -58,6 +58,7 @@ public class TsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
             "/csv-basic.csv-spec",
             "/csv-declared-schema.csv-spec",
             "/datasources/external-declared-schema.csv-spec",
+            "/datasources/external-metadata-collision.csv-spec",
             "/csv-declared-schema-multifile.csv-spec",
             "/datasources/external-multifile.csv-spec",
             "/datasources/external-multifile-resolution.csv-spec",

@@ -70,6 +70,7 @@ public class SimdJsonParser implements AutoCloseable {
     private int savedSentinelPos = -1;
     private int savedSentinelValue;
     private int nextSearchFrom;
+    private int currentDocOffset;
 
     private byte[] batchBuffer;
     private int batchTotalLen;
@@ -204,6 +205,7 @@ public class SimdJsonParser implements AutoCloseable {
             throw new IllegalStateException("stage1() must be called before prepareDocumentWindow()");
         }
 
+        currentDocOffset = docOffset;
         restoreSentinel();
 
         int totalIndices = bitIndexes.writeCount();
@@ -232,6 +234,11 @@ public class SimdJsonParser implements AutoCloseable {
      */
     BitIndexes bitIndexes() {
         return bitIndexes;
+    }
+
+    /** Byte offset of the document prepared by the most recent {@link #prepareDocumentWindow}. */
+    int currentDocumentOffset() {
+        return currentDocOffset;
     }
 
     /** Restores any sentinel that was written by a previous {@link #prepareDocumentWindow} call. */

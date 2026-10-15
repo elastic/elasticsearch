@@ -101,7 +101,7 @@ public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
         return switch (histogramObj) {
             case ExponentialHistogram expHisto -> ExponentialHistogramQuantile.getQuantile(expHisto, percVal / 100.0);
             case TDigestHolder tdigest -> {
-                NoopCircuitBreaker noopBreaker = new NoopCircuitBreaker("noop-breaker");
+                NoopCircuitBreaker noopBreaker = NoopCircuitBreaker.INSTANCE;
                 try (
                     TDigest scratch = TDigest.createMergingDigest(new MemoryTrackingTDigestArrays(noopBreaker), TDigestStates.COMPRESSION)
                 ) {

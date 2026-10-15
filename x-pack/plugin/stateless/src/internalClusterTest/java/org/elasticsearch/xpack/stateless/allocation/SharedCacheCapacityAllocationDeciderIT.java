@@ -248,10 +248,16 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
     }
 
     public void testCanUpdateAccountingModeDynamically() {
-        startMasterOnlyNode();
-        startIndexNode();
-        final var divergentNode = startSearchNode();
-        final var healthyNode = startSearchNode();
+        final var settings = Settings.builder()
+            .put(
+                SharedCacheCapacityAllocationDecider.ACCOUNTING_MODE_SETTING.getKey(),
+                SharedCacheCapacityAllocationDecider.CacheAccountingMode.BOOSTED
+            )
+            .build();
+        startMasterOnlyNode(settings);
+        startIndexNode(settings);
+        final var divergentNode = startSearchNode(settings);
+        final var healthyNode = startSearchNode(settings);
         ensureStableCluster(4);
 
         final String divergentNodeId = getNodeId(divergentNode);
@@ -317,7 +323,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
         );
     }
 
-    @TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor:DEBUG", reason = "debug log for test")
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor:TRACE", reason = "trace log for test")
     public void testCanRemainDisabledThenEnabledDynamically() {
         startMasterOnlyNode();
         startIndexNode();
@@ -353,7 +359,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                 new MockLog.SeenEventExpectation(
                     "monitor skipped because canRemain is disabled",
                     SharedCacheCapacityMonitor.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.TRACE,
                     MONITOR_SKIPPED_WHILE_DISABLED_LOG_MESSAGE
                 )
             );
@@ -361,7 +367,7 @@ public class SharedCacheCapacityAllocationDeciderIT extends AbstractStatelessPlu
                 new MockLog.UnseenEventExpectation(
                     "no reroute while canRemain is disabled",
                     SharedCacheCapacityMonitor.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.TRACE,
                     MONITOR_TRIGGERING_REROUTE_LOG_MESSAGE
                 )
             );

@@ -17,6 +17,7 @@ import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.VocabularyImpl;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -189,6 +190,7 @@ public class EsqlParser {
         return new ParserPipeline(tokenStream, parser);
     }
 
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private <T> T invokeParser(
         String query,
         QueryParams params,
@@ -239,7 +241,7 @@ public class EsqlParser {
             }
 
             return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName)), tree);
-        } catch (StackOverflowError e) {
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
             // likely thrown by an invalid popMode (such as extra closing parenthesis)
         } catch (EmptyStackException ese) {

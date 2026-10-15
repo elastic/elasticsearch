@@ -32,7 +32,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
@@ -60,7 +59,7 @@ public class MetadataDataStreamsService {
     private static final Logger LOGGER = LogManager.getLogger(MetadataDataStreamsService.class);
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final DataStreamLifecycleSettings dataStreamLifecycleSettings;
     private final MasterServiceTaskQueue<UpdateLifecycleTask> updateLifecycleTaskQueue;
     private final MasterServiceTaskQueue<SetRolloverOnWriteTask> setRolloverOnWriteTaskQueue;
     private final MasterServiceTaskQueue<UpdateOptionsTask> updateOptionsTaskQueue;
@@ -71,12 +70,12 @@ public class MetadataDataStreamsService {
     public MetadataDataStreamsService(
         ClusterService clusterService,
         IndicesService indicesService,
-        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        DataStreamLifecycleSettings dataStreamLifecycleSettings,
         IndexSettingProviders indexSettingProviders
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.globalRetentionSettings = globalRetentionSettings;
+        this.dataStreamLifecycleSettings = dataStreamLifecycleSettings;
         this.indexSettingProviders = indexSettingProviders;
         ClusterStateTaskExecutor<UpdateLifecycleTask> updateLifecycleExecutor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
@@ -380,7 +379,10 @@ public class MetadataDataStreamsService {
         }
         if (lifecycle != null) {
             // We don't issue any warnings if all data streams are internal data streams
-            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(false), onlyInternalDataStreams);
+            lifecycle.addWarningHeaderIfDataRetentionNotEffective(
+                dataStreamLifecycleSettings.getGlobalRetention(false),
+                onlyInternalDataStreams
+            );
         }
         return builder.build();
     }
@@ -405,7 +407,7 @@ public class MetadataDataStreamsService {
             // We don't issue any warnings if all data streams are internal data streams
             dataStreamOptions.failureStore()
                 .lifecycle()
-                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(true), onlyInternalDataStreams);
+                .addWarningHeaderIfDataRetentionNotEffective(dataStreamLifecycleSettings.getGlobalRetention(true), onlyInternalDataStreams);
         }
         return builder.build();
     }
@@ -533,39 +535,18 @@ public class MetadataDataStreamsService {
         ProjectMetadata projectMetadata,
         Settings settings
     ) {
-        Settings.Builder additionalSettings = Settings.builder();
-        IndexMode indexMode = projectMetadata.dataStreams().get(dataStreamName).getIndexMode();
-        Set<String> overrulingSettings = new HashSet<>();
-        indexSettingProviders.getIndexSettingProviders().forEach(indexSettingProvider -> {
-            Settings.Builder providerSettingsBuilder = Settings.builder();
-            indexSettingProvider.provideAdditionalSettings(
-                dataStreamName,
-                dataStreamName,
-                indexMode,
-                registryInstalledTemplate,
-                projectMetadata,
-                Instant.now(),
-                settings,
-                List.of(effectiveMappings),
-                IndexVersion.current(),
-                providerSettingsBuilder
-            );
-            Settings providerSettings = providerSettingsBuilder.build();
-            if (indexSettingProvider.overrulesTemplateAndRequestSettings()) {
-                overrulingSettings.addAll(providerSettings.keySet());
-            }
-            additionalSettings.put(providerSettings);
-        });
-        Settings filteredmergedEffectiveSettings = settings;
-        if (overrulingSettings.isEmpty() == false) {
-            // Filter any conflicting settings from overruling providers, to avoid overwriting their values from templates.
-            final Settings.Builder filtered = Settings.builder().put(settings);
-            for (String setting : overrulingSettings) {
-                filtered.remove(setting);
-            }
-            filteredmergedEffectiveSettings = filtered.build();
-        }
-        return additionalSettings.put(filteredmergedEffectiveSettings).build();
+        return IndexSettingProviders.collectAdditionalSettings(
+            indexSettingProviders.getIndexSettingProviders(),
+            dataStreamName,
+            dataStreamName,
+            projectMetadata.dataStreams().get(dataStreamName).getIndexMode(),
+            registryInstalledTemplate,
+            projectMetadata,
+            Instant.now(),
+            settings,
+            effectiveMappings == null ? List.of() : List.of(effectiveMappings),
+            IndexVersion.current()
+        ).applyTo(settings);
     }
 
     private DataStream createDataStreamForUpdatedDataStreamMappings(

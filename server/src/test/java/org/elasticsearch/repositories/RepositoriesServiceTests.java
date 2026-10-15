@@ -156,8 +156,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             typesRegistry,
             threadPool,
             client,
-            List.of(),
-            SnapshotMetrics.NOOP
+            List.of()
         );
 
         clusterService.start();
@@ -692,7 +691,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void deleteSnapshots(
-            Collection<SnapshotId> snapshotIds,
+            Set<SnapshotId> snapshotIds,
             long repositoryDataGeneration,
             IndexVersion minimumNodeVersion,
             ActionListener<RepositoryData> repositoryDataUpdateListener,

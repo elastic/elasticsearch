@@ -98,8 +98,9 @@ public class BufferingMetricExporter implements MetricExporter {
             .setMaxFolderSize((int) maxDiskBytes)
             .setMaxFileAgeForReadMillis(ttlMillis)
             .setMaxFileAgeForWriteMillis(writeWindowMillis)
-            // drainFiles() removes items only after a successful replay.
+            // drainFiles() removes items itself, after attempting their replay.
             .setDeleteItemsOnIteration(false)
+            .setDiscardedFileListener((file, reason) -> bufferingMetrics.fullDrops().add(1))
             .build();
         this.storage = createStorage(diskDir, config);
         this.diskWriter = MetricToDiskExporter.builder(storage).build();
@@ -109,6 +110,9 @@ public class BufferingMetricExporter implements MetricExporter {
             EsExecutors.daemonThreadFactory(settings, "metrics_buffer_disk"),
             new EsAbortPolicy()
         );
+
+        // calculate cachedFileCount so files present at startup are accounted for
+        refreshDiskStats();
     }
 
     @Override
@@ -210,11 +214,12 @@ public class BufferingMetricExporter implements MetricExporter {
             while (it.hasNext()) {
                 Collection<MetricData> batch = it.next();
                 CompletableResultCode result = delegate.export(batch).join(sendTimeout.millis(), TimeUnit.MILLISECONDS);
+                it.remove();
                 if (result.isSuccess()) {
-                    it.remove();
                     bufferingMetrics.replays().add(1);
                 } else {
-                    logger.warn("delegate failed replay of disk-buffered metrics; deferring drain");
+                    doWrite(batch, new CompletableResultCode());
+                    logger.debug("delegate failed replay of disk-buffered metrics; deferring drain");
                     return;
                 }
             }
@@ -301,7 +306,7 @@ public class BufferingMetricExporter implements MetricExporter {
             if (counter == null) {
                 counter = longCounter(
                     "drops_full",
-                    "Failed batches dropped because the disk buffer is at its size cap or disk write failed"
+                    "Metric batches lost from the disk buffer: write failed, size or age limit reached, or corrupted file"
                 );
                 this.fullDrops = counter;
             }

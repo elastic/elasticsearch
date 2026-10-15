@@ -21,7 +21,8 @@ public record ExternalDistributionContext(
     PhysicalPlan plan,
     List<ExternalSplit> splits,
     DiscoveryNodes availableNodes,
-    QueryPragmas pragmas
+    QueryPragmas pragmas,
+    SiblingPlacement placement
 ) {
     public ExternalDistributionContext {
         if (plan == null) {
@@ -36,5 +37,13 @@ public record ExternalDistributionContext(
         if (pragmas == null) {
             throw new IllegalArgumentException("pragmas must not be null");
         }
+        if (placement == null) {
+            throw new IllegalArgumentException("placement must not be null");
+        }
+    }
+
+    /** A context for a query with a single external source. */
+    public ExternalDistributionContext(PhysicalPlan plan, List<ExternalSplit> splits, DiscoveryNodes availableNodes, QueryPragmas pragmas) {
+        this(plan, splits, availableNodes, pragmas, SiblingPlacement.SINGLE);
     }
 }

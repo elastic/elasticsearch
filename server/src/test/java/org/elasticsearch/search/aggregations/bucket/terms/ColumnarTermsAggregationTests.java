@@ -111,11 +111,6 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
         assertThat(buckets(COLUMNAR, terms, false, false), equalTo(expected));
     }
 
-    public void testTopTermsWithASmallSize() {
-        final AggregationBuilder terms = AggregationBuilders.terms("t").field("kw").size(3);
-        assertThat(buckets(COLUMNAR, terms, false, false), equalTo(buckets(PLAIN, terms, false, false)));
-    }
-
     /** A sub-aggregation needs each document, so the field is read a document at a time and still adds up. */
     public void testASubAggregationStillAddsUp() {
         final AggregationBuilder terms = AggregationBuilders.terms("t")

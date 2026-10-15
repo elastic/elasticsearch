@@ -648,6 +648,26 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * Review-found leak shapes: any processing inside the subquery (a KEEP here), or the frozen {@code _class} Eval
+     * from METADATA, keeps compaction from lifting the inner view union into the outer one. The rewriter must still
+     * reach the nested view's output — {@code cnt > 3} matches none of the view's buckets (every {@code cnt} is 3),
+     * and on the bare-index branch {@code cnt} does not exist, so both queries must return no rows at all.
+     */
+    public void testFilterReachesViewNestedUnderSubqueryProcessingAndMetadata() {
+        assertThat(
+            rows(
+                "FROM " + INDEX + ", (FROM " + STATS_VIEW + " | KEEP region, cnt) | KEEP region, cnt",
+                QueryBuilders.rangeQuery("cnt").gt(3)
+            ),
+            equalTo(List.of())
+        );
+        assertThat(
+            rows("FROM " + INDEX + ", (FROM " + STATS_VIEW + ") METADATA _class | KEEP region, cnt", QueryBuilders.rangeQuery("cnt").gt(3)),
+            equalTo(List.of())
+        );
+    }
+
+    /**
      * A view nested inside a user-written subquery branch is a view the query names, so the request filter applies to its
      * output just as it does to a view at the top level. {@code cnt} exists only in the stats view's output, so it can
      * only be filtered there; its fragments are marked as view-branch fragments and skipped by the Lucene push-in path,

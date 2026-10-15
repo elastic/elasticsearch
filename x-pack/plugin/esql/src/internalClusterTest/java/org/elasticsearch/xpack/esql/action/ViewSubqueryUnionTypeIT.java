@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Pins that union types (same field name, conflicting types across sources) behave <em>identically</em> no matter how
  * the sources are composed: a multi-pattern relation ({@code FROM a,b}), a literal subquery, a pass-through view, a
  * view whose body is not collapsible, and the shapes where a request filter or {@code METADATA} keeps a view branch
- * apart that compaction would otherwise merge. Investigated in esql-planning#2235.
+ * apart that compaction would otherwise merge.
  *
  * <p>The common contract, established empirically here:
  * <ul>
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
  *   is the only place a caller can put one when the conflict sits inside a view body they do not own.</li>
  * </ul>
  *
- * <p>These tests are the acceptance suite for the esql-planning#472 compaction refactor: moving view/subquery
+ * <p>These tests are the acceptance suite for the compaction refactor: moving view/subquery
  * compaction later must not change any outcome pinned here. In particular the request-filter and METADATA variants
  * pin that features which keep a view branch apart do not change type-resolution semantics.
  */
@@ -122,6 +122,11 @@ public class ViewSubqueryUnionTypeIT extends AbstractEsqlIntegTestCase {
         assertSoftFail("FROM " + INDEX_A + ", " + PASSTHROUGH_VIEW, QueryBuilders.existsQuery("id"));
     }
 
+    /** As above, but with a view branch the filter genuinely preserves (an opaque body cannot collapse). */
+    public void testRequestFilterOnPreservedViewBoundaryDoesNotChangeConflictSemantics() {
+        assertSoftFail("FROM " + INDEX_A + ", " + OPAQUE_VIEW, QueryBuilders.existsQuery("id"));
+    }
+
     /** {@code METADATA _name} keeps view identity — and must not change type-resolution semantics while doing so. */
     public void testMetadataNameDoesNotChangeConflictSemantics() {
         assumeTrue("requires OUTER_METADATA_NULL_INJECTION", Cap.OUTER_METADATA_NULL_INJECTION.isEnabled());
@@ -153,6 +158,17 @@ public class ViewSubqueryUnionTypeIT extends AbstractEsqlIntegTestCase {
 
     public void testOuterCastResolvesConflictAcrossViewBranches() {
         assertCastResolves("FROM " + INDEX_A + ", " + OPAQUE_VIEW);
+    }
+
+    /**
+     * The branch's top {@code Project} is user-written and itself mints the conflicting column (a trailing RENAME), so
+     * the pushed-down conversion cannot be inserted below it. It must go <em>above</em> the user's projection instead,
+     * under the alignment projection. Found in review: this shape used to skip the branch's conversion and fail
+     * verification with {@code Column [f] has conflicting data types in subqueries}.
+     */
+    public void testOuterCastResolvesConflictWhenBranchEndsInRename() {
+        assertCastResolves("FROM " + INDEX_A + ", (FROM " + INDEX_B + " | RENAME f AS x | RENAME x AS f)");
+        assertCastResolves("FROM " + INDEX_A + ", (FROM " + INDEX_B + " | EVAL x = f | KEEP id, x | RENAME x AS f)");
     }
 
     // ─── A neighbouring case the compositions also agree on ───

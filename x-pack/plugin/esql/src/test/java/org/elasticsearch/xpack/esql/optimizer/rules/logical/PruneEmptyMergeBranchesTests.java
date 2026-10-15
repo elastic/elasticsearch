@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.equalTo;
@@ -223,7 +224,7 @@ public class PruneEmptyMergeBranchesTests extends AbstractLogicalPlanOptimizerTe
     }
 
     /** Every key is a view branch named after itself, matching how these tests used to pass {@code children.keySet()}. */
-    private static Map<String, BranchIdentity> allViewIdentities(java.util.Set<String> keys) {
+    private static Map<String, BranchIdentity> allViewIdentities(Set<String> keys) {
         Map<String, BranchIdentity> identities = new LinkedHashMap<>();
         for (String key : keys) {
             identities.put(key, BranchIdentity.view(key));

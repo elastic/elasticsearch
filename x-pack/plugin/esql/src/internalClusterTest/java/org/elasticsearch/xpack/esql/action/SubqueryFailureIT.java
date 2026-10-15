@@ -612,7 +612,10 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
             """;
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build());
         try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
-            assertThat(resp.values().hasNext(), equalTo(true));
+            // The flattened union must also be equivalent: each branch contributes its rows exactly once.
+            // The ok index holds ids 1-3, so the id == 4 branch is a legitimately empty branch in the flat union.
+            List<Integer> ids = EsqlTestUtils.getValuesList(resp).stream().map(row -> (Integer) row.get(0)).sorted().toList();
+            assertThat(ids, equalTo(List.of(1, 2, 3)));
         }
     }
 

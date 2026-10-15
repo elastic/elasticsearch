@@ -5231,16 +5231,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // If the pattern doesn't match, something unexpected happened, just return the child as is
             if ((aliases.isEmpty() == false || resolvedUnionFields.isEmpty() == false) && child instanceof Project project) {
                 LogicalPlan childOfProject = project.child();
-                // The conversion Evals are inserted below the Project, so their inputs must be produced below it too. The top
-                // Project is not always the purely structural alignment projection added by resolveMergePlan: when a branch
-                // already ends in a Project with the merge's column names (e.g. a trailing RENAME, now that subquery branches
-                // are no longer wrapped in a Subquery node), that Project is the merge child itself and can mint the converted
-                // column via one of its own aliases. Referencing such a column from below would dangle, so leave the branch
-                // unchanged and let rebuildUnionAll fall back to keeping the conversion above the union.
+                // The conversion Evals are normally inserted below the Project, so their inputs must be produced below it
+                // too. The top Project is not always the purely structural alignment projection added by resolveMergePlan:
+                // when a branch already ends in a Project with the merge's column names (e.g. a trailing RENAME, now that
+                // subquery branches are no longer wrapped in a Subquery node), that Project is the merge child itself and
+                // can mint the converted column via one of its own aliases. Referencing such a column from below would
+                // dangle, so the conversion goes *above* the user's Project instead — every conversion input is drawn from
+                // the branch's output, so it is always available there — with the alignment Project added on top.
                 AttributeSet availableBelowProject = childOfProject.outputSet();
                 for (Alias alias : aliases) {
                     if (alias.child().references().subsetOf(availableBelowProject) == false) {
-                        return child;
+                        return convertAboveUserProject(project, aliases, resolvedUnionFields, output);
                     }
                 }
                 if (aliases.isEmpty() == false) {
@@ -5264,6 +5265,33 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new Project(project.source(), childOfProject, newProjections);
             }
             return child;
+        }
+
+        /**
+         * Places the pushed-down conversions <em>above</em> a user-written top {@code Project} that mints one of their
+         * inputs (e.g. a trailing RENAME), where every input is available by construction, and re-aligns with a plain
+         * {@code Project} over {@code output} on top. Synthetic multi-typed union fields still have to live in the
+         * branch's {@link EsRelation}s, so they are injected below the user Project, which is widened to pass them
+         * through.
+         */
+        private static LogicalPlan convertAboveUserProject(
+            Project project,
+            List<Alias> aliases,
+            List<FieldAttribute> resolvedUnionFields,
+            List<Attribute> output
+        ) {
+            LogicalPlan branch = project;
+            if (resolvedUnionFields.isEmpty() == false) {
+                LogicalPlan injected = ResolveUnionTypes.addGeneratedFieldsToEsRelations(project.child(), resolvedUnionFields);
+                List<NamedExpression> widened = new ArrayList<>(project.projections());
+                widened.addAll(resolvedUnionFields);
+                branch = new Project(project.source(), injected, widened);
+            }
+            if (aliases.isEmpty() == false) {
+                branch = new Eval(branch.source(), branch, aliases);
+            }
+            // The user's Project stays intact below, so every output column has a producer and can be projected bare.
+            return new Project(project.source(), branch, new ArrayList<>(output));
         }
 
         /**

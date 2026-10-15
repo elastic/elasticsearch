@@ -1,0 +1,126 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_single_source_column, fix_nested_subfield_extraction ]
+      reason: "Nested subfields are only read shard-locally under unmapped_fields once this capability exists"
+
+  # #159902: LOAD_ALL must not load the mapped subfields of a nested field from the shard that maps it as nested, and
+  # the decision is shard-local. A leaf declared under a nested parent is a field of that shard and stays null there;
+  # the same path is a plain unmapped field on a shard that does not map it, and loads like any other. We deliberately
+  # do NOT hide a path across the whole FROM just because another index maps it as nested (the rejected "point 2" of
+  # #159902): an unmapped field is an unmapped field everywhere. This file pins multiple levels of nesting
+  # (items -> parts), which 303 does not exercise end to end. The single _unmapped_fields column is narrowed by the
+  # projection pattern, so a root-level leaf like "tag" that KEEP items.* does not select is absent.
+
+  # nst_mapped declares items as nested with a mapped leaf (name) and a deeper nested leaf (parts.pn). qty, color and
+  # tag are not in the mapping, so they are unmapped even though they sit under a nested parent.
+  - do:
+      indices.create:
+        index: nst_mapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  name:
+                    type: keyword
+                  parts:
+                    type: nested
+                    properties:
+                      pn:
+                        type: keyword
+  # nst_unmapped maps nothing but id, so every path below items is a plain unmapped field there.
+  - do:
+      indices.create:
+        index: nst_unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              id:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "nst_mapped", "_id": "1" } }
+          - {
+              "id": "m",
+              "items": [
+                { "name": "a", "qty": "1", "parts": [ { "pn": "p1", "color": "red" } ] },
+                { "name": "b", "qty": "2", "parts": [ { "pn": "p2", "color": "blue" } ] }
+              ],
+              "tag": "x"
+            }
+          - { "index": { "_index": "nst_unmapped", "_id": "1" } }
+          - {
+              "id": "u",
+              "items": [
+                { "name": "a", "qty": "1", "parts": [ { "pn": "p1", "color": "red" } ] },
+                { "name": "b", "qty": "2", "parts": [ { "pn": "p2", "color": "blue" } ] }
+              ],
+              "tag": "x"
+            }
+
+---
+'mapped nested leaves stay null on the nested shard but load where unmapped':
+  # On nst_mapped, items.name and items.parts.pn are declared, so the walk excludes them and only the unmapped
+  # items.* leaves (qty, parts.color) are discovered. On nst_unmapped nothing is declared, so every leaf below
+  # items is discovered - including items.name and items.parts.pn, which nst_mapped hides. Nothing is hidden across
+  # the FROM. The root-level tag is excluded by the KEEP items.* projection, which narrows the _unmapped_fields column.
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM nst_mapped, nst_unmapped | KEEP id, items.* | SORT id | LIMIT 100'
+  - length: { columns: 2 }
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "m", { items.qty: [ "1", "2" ], items.parts.color: [ "red", "blue" ] } ] }
+  - match: { values.1: [ "u", { items.name: [ "a", "b" ], items.qty: [ "1", "2" ], items.parts.pn: [ "p1", "p2" ], items.parts.color: [ "red", "blue" ] } ] }
+
+---
+'from the nested index alone the mapped leaves are hidden and the unmapped ones discovered':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM nst_mapped | KEEP id, items.* | SORT id | LIMIT 100'
+  - length: { columns: 2 }
+  - match: { columns.1.name: _unmapped_fields }
+  - match: { columns.1.type: _source }
+  - match: { values.0: [ "m", { items.qty: [ "1", "2" ], items.parts.color: [ "red", "blue" ] } ] }
+
+---
+'LOAD reads an undeclared nested subfield from _source and leaves the declared one null':
+  # Named fields under LOAD follow the same shard-local rule as LOAD_ALL: items.qty is not in nst_mapped's mapping, so
+  # it is loaded from _source even though its parent is nested, while the declared items.name stays null there.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM nst_mapped, nst_unmapped | KEEP id, items.name, items.qty | SORT id | LIMIT 100'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: items.name }
+  - match: { columns.2.name: items.qty }
+  - match: { values.0: [ "m", null, [ "1", "2" ] ] }
+  - match: { values.1: [ "u", [ "a", "b" ], [ "1", "2" ] ] }
+
+---
+'LOAD from the nested index alone reads the undeclared nested leaves':
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD"; FROM nst_mapped | KEEP id, items.qty, items.parts.color, items.parts.pn | SORT id | LIMIT 100'
+  - match: { values.0: [ "m", [ "1", "2" ], [ "red", "blue" ], null ] }

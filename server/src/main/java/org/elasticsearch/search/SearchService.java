@@ -55,7 +55,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.QueueTimeAware;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -1097,54 +1096,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        executor.execute(
-            new ShardQueueTimeRecordingRunnable(shard.shardSearchStats(), ActionRunnable.supplyAndDecRef(listener, executable))
-        );
-    }
+        final ShardSearchStats shardSearchStats = shard.shardSearchStats();
+        final long submittedNanos = System.nanoTime();
+        executor.execute(ActionRunnable.supplyAndDecRef(listener, new CheckedSupplier<>() {
+            @Override
+            public T get() throws Exception {
+                // Time spent waiting for a search thread, attributed to the shard this task is for.
+                shardSearchStats.onQueueTime(System.nanoTime() - submittedNanos);
+                return executable.get();
+            }
 
-    /**
-     * Records how long a shard's search task waited in the thread pool queue into that shard's {@link ShardSearchStats}. It must be the
-     * runnable passed to {@code execute} itself so the executor can see it, so it delegates every {@link AbstractRunnable} hook to the
-     * wrapped task, including force execution and rejection handling.
-     */
-    private static final class ShardQueueTimeRecordingRunnable extends AbstractRunnable implements QueueTimeAware {
-        private final ShardSearchStats shardSearchStats;
-        private final AbstractRunnable delegate;
-
-        ShardQueueTimeRecordingRunnable(ShardSearchStats shardSearchStats, AbstractRunnable delegate) {
-            this.shardSearchStats = shardSearchStats;
-            this.delegate = delegate;
-        }
-
-        @Override
-        public void onQueueTime(long queueTimeNanos) {
-            shardSearchStats.onQueueTime(queueTimeNanos);
-        }
-
-        @Override
-        protected void doRun() {
-            delegate.run();
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            delegate.onFailure(e);
-        }
-
-        @Override
-        public void onRejection(Exception e) {
-            delegate.onRejection(e);
-        }
-
-        @Override
-        public boolean isForceExecution() {
-            return delegate.isForceExecution();
-        }
-
-        @Override
-        public String toString() {
-            return delegate.toString();
-        }
+            @Override
+            public String toString() {
+                return executable.toString();
+            }
+        }));
     }
 
     /**

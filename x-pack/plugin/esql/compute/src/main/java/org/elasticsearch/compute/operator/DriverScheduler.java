@@ -40,10 +40,10 @@ final class DriverScheduler {
     }
 
     /**
-     * @param queueTimeSink told how long the submitted runnable waited in the executor's queue. Only called for executors that track
-     *                      execution time, and never when {@link #completing} sends the task to the direct executor.
+     * @param queueTimeListener told how long the submitted runnable waited in the executor's queue. Only called for executors that track
+     *                          execution time, and never when {@link #completing} sends the task to the direct executor.
      */
-    void scheduleOrRunTask(Executor executor, AbstractRunnable task, LongConsumer queueTimeSink) {
+    void scheduleOrRunTask(Executor executor, AbstractRunnable task, LongConsumer queueTimeListener) {
         final AbstractRunnable existing = scheduledTask.getAndSet(task);
         assert existing == null : existing;
         final Executor executorToUse = completing.get() ? EsExecutors.DIRECT_EXECUTOR_SERVICE : executor;
@@ -51,7 +51,7 @@ final class DriverScheduler {
         class QueueTimeReportingRunnable extends AbstractRunnable implements QueueTimeAware {
             @Override
             public void onQueueTime(long queueTimeNanos) {
-                queueTimeSink.accept(queueTimeNanos);
+                queueTimeListener.accept(queueTimeNanos);
             }
 
             @Override

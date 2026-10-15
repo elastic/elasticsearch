@@ -3015,7 +3015,7 @@ public class LocalExecutionPlanner {
             var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
             // Only data drivers: node_reduce is built with the same shard contexts but does not read them.
             if (description.equals(ComputeService.DATA_DESCRIPTION) && shardContexts.isEmpty() == false) {
-                driverContext.setQueueTimeSink(splitQueueTimeAcrossShards(shardContexts));
+                driverContext.setQueueTimeListener(splitQueueTimeAcrossShards(shardContexts));
             }
             try {
                 source = physicalOperation.source(driverContext);

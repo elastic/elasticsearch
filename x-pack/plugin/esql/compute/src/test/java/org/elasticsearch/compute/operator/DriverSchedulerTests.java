@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class DriverSchedulerTests extends ESTestCase {
 
     /**
-     * A task that really waits behind a busy thread has that wait reported to the queue time sink, exactly once.
+     * A task that really waits behind a busy thread has that wait reported to the queue time listener, exactly once.
      */
     public void testReportsQueueTime() throws Exception {
         DriverScheduler scheduler = new DriverScheduler();

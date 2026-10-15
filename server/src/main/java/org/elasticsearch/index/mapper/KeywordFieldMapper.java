@@ -1391,7 +1391,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 if (usesBinaryDocValues()) {
-                    return binaryQueries().wildcard(name(), value, caseInsensitive);
+                    return binaryQueries().wildcard(name(), value, caseInsensitive, context.getCircuitBreaker());
                 }
 
                 if (caseInsensitive == false) {
@@ -1403,7 +1403,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 StringFieldScript.LeafFactory leafFactory = ctx -> new SortedSetDocValuesStringFieldScript(name(), context.lookup(), ctx);
-                return new StringScriptFieldWildcardQuery(new Script(""), leafFactory, name(), value, caseInsensitive);
+                return new StringScriptFieldWildcardQuery(
+                    new Script(""),
+                    leafFactory,
+                    name(),
+                    value,
+                    caseInsensitive,
+                    context.getCircuitBreaker()
+                );
             }
         }
 
@@ -1420,7 +1427,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 if (usesBinaryDocValues()) {
-                    return binaryQueries().wildcard(name(), value, false);
+                    return binaryQueries().wildcard(name(), value, false, context.getCircuitBreaker());
                 } else {
                     Term term = new Term(name(), value);
                     if (context.getCircuitBreaker() != null) {
@@ -1642,7 +1649,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         // A keyword column is where a dictionary pays: its values repeat, and the terms are short enough that
         // a bounded dictionary covers much of the column.
         return switch (fieldType().diskFormat()) {
-            case BINARY_COLUMNAR_PAYLOAD, BINARY_COLUMNAR_SINGLE_VALUE -> StringColumnOptions.DEFAULT;
+            case BINARY_COLUMNAR_PAYLOAD -> StringColumnOptions.DEFAULT;
+            case BINARY_COLUMNAR_SINGLE_VALUE -> StringColumnOptions.DEFAULT.withSingleValued(true);
             case NONE, SORTED_SET, BINARY_SEPARATE_COUNT, BINARY_ARRAY_ORDER_INLINE_NULL -> null;
         };
     }
@@ -2028,7 +2036,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         // column's serialization; they get a column of their own. BINARY_COLUMNAR_SINGLE_VALUE writes raw
         // bytes, which are the same bytes as the terms column, so it shares emitSharedColumn below.
         final boolean columnarPayload = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD;
-        final boolean columnarSingleValue = fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_SINGLE_VALUE;
         // SORTED_SET doc values share the fieldType column with terms (the frozen fieldType carries both features).
         final boolean sortedSetDvs = emitDvs && fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.SORTED_SET;
         final boolean multiValue = docValuesParameters().multiValue();
@@ -2159,13 +2166,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
                     }
                     if (emitDvs && columnarPayload == false && sortedSetDvs == false) {
-                        ctx.addColumn(
-                            LuceneBinaryColumn.of(
-                                data,
-                                fieldType().name(),
-                                columnarSingleValue ? SingleValuedColumnarBinaryDocValuesField.TYPE : BinaryDocValuesField.TYPE
-                            )
-                        );
+                        ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), BinaryDocValuesField.TYPE));
                     }
                 }
                 // A columnar field's doc values are framed, so they are a column of their own rather than a second wrapper
@@ -2356,10 +2357,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     binaryValue,
                     MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
                 );
-                case BINARY_COLUMNAR_SINGLE_VALUE ->
-                    // Single-valued columnar field: raw bytes, no payload framing. The FieldType attribute
-                    // flows into FieldInfo so the codec producer returns the value directly.
-                    context.doc().add(new SingleValuedColumnarBinaryDocValuesField(fieldType().name(), binaryValue));
+                case BINARY_COLUMNAR_SINGLE_VALUE -> context.doc().add(new BinaryDocValuesField(fieldType().name(), binaryValue));
                 case NONE, SORTED_SET -> throw new AssertionError(
                     "field [" + fieldType().name() + "] uses binary doc values but resolved to layout [" + fieldType().diskFormat() + "]"
                 );

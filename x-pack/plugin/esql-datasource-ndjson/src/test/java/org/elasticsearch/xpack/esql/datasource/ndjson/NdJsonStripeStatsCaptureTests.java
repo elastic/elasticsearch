@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -644,6 +645,9 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         Instant fixedMtime = Instant.ofEpochMilli(1000L);
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -684,6 +688,9 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         String uniquePath = "memory://" + UUID.randomUUID() + ".ndjson";
         Instant fixedMtime = Instant.ofEpochMilli(1000L);
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

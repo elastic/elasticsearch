@@ -812,7 +812,14 @@ public class StatelessPlugin extends Plugin
         final Collection<Object> components = new ArrayList<>();
         var objectStoreService = setAndGet(
             this.objectStoreService,
-            createObjectStoreService(settings, services.repositoriesService(), threadPool, clusterService, projectResolver.get())
+            createObjectStoreService(
+                settings,
+                services.repositoriesService(),
+                threadPool,
+                clusterService,
+                projectResolver.get(),
+                meterRegistry
+            )
         );
         if (projectResolver.get().supportsMultipleProjects()) {
             clusterService.addStateApplier(objectStoreService);
@@ -859,7 +866,8 @@ public class StatelessPlugin extends Plugin
         final var searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
             cacheService,
             threadPool,
-            clusterService.getClusterSettings()
+            clusterService.getClusterSettings(),
+            JvmInfo.jvmInfo().getMem().getHeapMax()
         );
         components.add(searchRecoveryTimeoutCalculationService);
         var cacheWarmingService = createSharedBlobCacheWarmingService(
@@ -925,7 +933,8 @@ public class StatelessPlugin extends Plugin
                 settings,
                 objectStoreService,
                 consistencyService,
-                projectResolver.get().supportsMultipleProjects()
+                projectResolver.get().supportsMultipleProjects(),
+                meterRegistry
             )
         );
         setAndGet(this.translogReplicatorMetrics, new TranslogRecoveryMetrics(meterRegistry));
@@ -1194,9 +1203,10 @@ public class StatelessPlugin extends Plugin
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        MeterRegistry meterRegistry
     ) {
-        return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver);
+        return new ObjectStoreService(settings, repositoriesService, threadPool, clusterService, projectResolver, meterRegistry);
     }
 
     protected StatelessSharedBlobCacheService createSharedBlobCacheService(
@@ -1536,6 +1546,7 @@ public class StatelessPlugin extends Plugin
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
             StatelessReaderHeapBreaker.LIMIT_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICTION_POLICY_DEGRADATION_THRESHOLD_SETTING,

@@ -12,7 +12,6 @@ package org.elasticsearch.columnar;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
@@ -29,11 +28,12 @@ import java.io.IOException;
  * {@link ColumnarFieldType} is resolved by the injected {@link ColumnarFieldTypeSelector}, served through
  * this library's own range-query and block-loader APIs. The typed doc-values shapes are rejected.
  *
- * <p>Pipeline selection is delegated to the injected {@link NumericPipelineSelector}, and the column type to
- * the injected {@link ColumnarFieldTypeSelector}. Both are supplied by the caller rather than read from a
+ * <p>Pipeline selection is delegated to the injected {@link NumericPipelineSelector}, the column type to
+ * the injected {@link ColumnarFieldTypeSelector}, and the string options, framing included, to the injected
+ * {@link StringColumnOptionsSelector}. All are supplied by the caller rather than read from a
  * {@link org.apache.lucene.index.FieldInfo} attribute, so the codec decision stays in the integration's
  * wiring and never leaks into the mapping layer. The no-arg SPI constructor is read-only (the producer reads
- * the type from column metadata); its selector fails fast if a write path ever reaches it.
+ * the type and the framing from column metadata); its selector fails fast if a write path ever reaches it.
  */
 public class ColumNARDocValuesFormat extends DocValuesFormat {
 
@@ -76,17 +76,8 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     static final String NAVIGATION_CODEC = "ColumNARNavigation";
     static final String NAVIGATION_EXTENSION = "cnn";
 
-    /**
-     * FieldInfo attribute key recording that a string column was written with {@code BinaryDocValuesFormat.PLAIN}
-     * framing — one raw value per document, no count prefix. Set on the Lucene {@code FieldType} by the mapper
-     * so it flows into {@code FieldInfo} at index time; read back by the producer to return raw bytes directly.
-     */
-    public static final String SINGLE_VALUED_ATTRIBUTE = "columnar.string.singleValued";
-
-    /** Whether {@code field} carries {@link #SINGLE_VALUED_ATTRIBUTE}, so each document's blob is its one value's own bytes. */
-    public static boolean isSingleValued(FieldInfo field) {
-        return Boolean.parseBoolean(field.getAttribute(SINGLE_VALUED_ATTRIBUTE));
-    }
+    static final byte COLUMNAR_PAYLOAD = 0;
+    static final byte PLAIN = 1;
 
     private final NumericPipelineSelector pipelineSelector;
     private final ColumnarFieldTypeSelector typeSelector;

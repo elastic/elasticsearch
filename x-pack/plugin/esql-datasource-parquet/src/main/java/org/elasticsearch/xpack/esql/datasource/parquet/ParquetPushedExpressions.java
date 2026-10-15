@@ -517,7 +517,7 @@ final class ParquetPushedExpressions {
         // IS NULL / IS NOT NULL (null-valued EQ/NOT_EQ) over a list must decline: a 3-level LIST
         // attribute is a group (resolver returns null); a 2-level repeated leaf is a primitive that
         // parquet-mr still rejects (maxRepLevel > 0). resolveNestedPrimitive covers both.
-        // FilterExec's MV-safe evaluator answers instead. esql-planning#1056.
+        // FilterExec's MV-safe evaluator answers instead of a false footer null_count.
         if (value == null && resolveNestedPrimitive(schema, columnName) == null) {
             return null;
         }
@@ -613,8 +613,7 @@ final class ParquetPushedExpressions {
      * physical primitive is {@code INT32}: an unsigned 32-bit integer (values can exceed signed
      * {@code int} range) and {@code TIME_MILLIS} (signed, but ESQL has no distinct "time of day" type).
      * A {@link FilterApi#longColumn} pushed against either would describe a column the file doesn't
-     * have — {@code INT64} — and parquet-mr rejects it as a declared-type mismatch
-     * (github.com/elastic/esql-planning/issues/1030).
+     * have — {@code INT64} — and parquet-mr rejects it as a declared-type mismatch.
      *
      * <p>When the physical primitive is {@code INT32}, the literal is narrowed via
      * {@link #narrowLongToPhysicalInt32}; when narrowing fails (the literal cannot possibly match any
@@ -742,8 +741,7 @@ final class ParquetPushedExpressions {
 
     /**
      * Resolves a (possibly dotted) {@code name} to the leaf {@link PrimitiveType} in {@code schema}.
-     * Applies the same D2 precedence as the prior PR's projection-time flattener: a literal
-     * top-level field named exactly {@code "a.b.c"} wins over the dotted-path traversal
+     * A literal top-level field named exactly {@code "a.b.c"} wins over the dotted-path traversal
      * {@code a -> b -> c}. Returns {@code null} when the path is missing, lands on a group
      * (e.g. an intermediate STRUCT, MAP, or LIST) rather than a primitive, or any type on the
      * resolved path is {@link Type.Repetition#REPEATED}. parquet-mr FilterPredicates cannot
@@ -1904,7 +1902,7 @@ final class ParquetPushedExpressions {
      * should never reach YES (see {@link ParquetFilterPushdownSupport#isLikeFamily}), so this path
      * is unreachable for them today. The guard is kept as defence in depth: if that invariant were
      * ever violated, returning the conservative {@code null} here is over-inclusive (wrong-high
-     * count), but not over-exclusive (wrong-zero-count). See elastic/esql-planning#2052.
+    * count), but not over-exclusive (wrong-zero-count).
      *
      * <p>Callers mutate returned masks in place ({@code left.and(right)}, etc.), so the mask must
      * be freshly allocated per call — no shared constant.

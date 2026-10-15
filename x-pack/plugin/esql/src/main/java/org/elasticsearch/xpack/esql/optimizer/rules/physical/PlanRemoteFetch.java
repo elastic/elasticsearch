@@ -72,6 +72,7 @@ public final class PlanRemoteFetch extends ParameterizedRule<PhysicalPlan, Physi
     public PhysicalPlan apply(PhysicalPlan plan, PhysicalOptimizerContext context) {
         if (context.flags().remoteFetchTopN() == false
             || context.configuration().pragmas().nodeLevelReduction() == false
+            || context.configuration().pragmas().shuffleEnabled()
             || context.configuration().pragmas().fieldExtractPreference() != MappedFieldType.FieldExtractPreference.NONE
             || context.minimumVersion().supports(RemoteFetchBoundaryExec.ESQL_REMOTE_FETCH_TOPN_REDUCTION) == false) {
             return plan;

@@ -114,6 +114,16 @@ public class PlanRemoteFetchTests extends ESTestCase {
         assertThat(optimized.toString(), optimized.collect(RemoteFetchBoundaryExec.class), hasSize(0));
     }
 
+    public void testShuffleEnabledDisablesRemoteFetch() {
+        Configuration configuration = EsqlTestUtils.configuration(
+            new QueryPragmas(Settings.builder().put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), 2).build())
+        );
+        PhysicalPlan optimized = distributedPlan(configuration, TransportVersion.current());
+
+        assertThat(optimized.collect(RemoteFetchExec.class), hasSize(0));
+        assertThat(optimized.collect(RemoteFetchBoundaryExec.class), hasSize(0));
+    }
+
     public void testDisabledNodeLevelReductionDisablesRemoteFetch() {
         PhysicalPlan optimized = distributedPlan(
             configuration(false, MappedFieldType.FieldExtractPreference.NONE),

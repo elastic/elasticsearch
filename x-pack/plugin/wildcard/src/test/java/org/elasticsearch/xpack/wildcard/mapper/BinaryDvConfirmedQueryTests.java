@@ -26,6 +26,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -33,26 +34,36 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TrackingCircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryDvConfirmedQueryTests extends ESTestCase {
 
     public void testIsAccountedForAsABinaryDocValuesScanCost() {
-        Query query = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", "*", false, false);
+        Query query = BinaryDvConfirmedQuery.fromWildcardQuery(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            "*",
+            false,
+            false,
+            NoopCircuitBreaker.INSTANCE
+        );
 
         assertThat(
             "every matches() call opens a decoder over the field's full binary doc values, same as the Scanning* queries",
@@ -70,7 +81,14 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
                 writer.addDocument(document);
                 try (DirectoryReader reader = forbidBinaryDvOpenReader(writer.getReader())) {
                     final IndexSearcher searcher = new IndexSearcher(reader);
-                    final Query query = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", "*", false, false);
+                    final Query query = BinaryDvConfirmedQuery.fromWildcardQuery(
+                        Queries.ALL_DOCS_INSTANCE,
+                        "field",
+                        "*",
+                        false,
+                        false,
+                        NoopCircuitBreaker.INSTANCE
+                    );
                     final Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
                     for (LeafReaderContext ctx : reader.leaves()) {
                         weight.scorerSupplier(ctx);
@@ -96,7 +114,14 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
                 try (DirectoryReader reader = writer.getReader()) {
                     final IndexSearcher searcher = new IndexSearcher(reader);
                     final FuzzyQuery fuzzy = new FuzzyQuery(new Term("field", "héllo"), 1, 0, 50, true);
-                    final Query query = BinaryDvConfirmedQuery.fromFuzzyQuery(Queries.ALL_DOCS_INSTANCE, "field", "héllo", fuzzy, false);
+                    final Query query = BinaryDvConfirmedQuery.fromFuzzyQuery(
+                        Queries.ALL_DOCS_INSTANCE,
+                        "field",
+                        "héllo",
+                        fuzzy,
+                        false,
+                        NoopCircuitBreaker.INSTANCE
+                    );
                     // "world" is more than one edit away; the other three are within one edit of the search term
                     assertThat(searcher.count(query), equalTo(3));
                 }
@@ -108,88 +133,53 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
 
     private static final String TOO_COMPLEX_REGEXP = "[ac]*a[ac]{200,500}";
 
-    public void testTooComplexWildcardPatternThrowsBadRequest() throws IOException {
+    public void testTooComplexWildcardPatternThrowsBadRequest() {
         for (boolean caseInsensitive : new boolean[] { false, true }) {
-            Query query = BinaryDvConfirmedQuery.fromWildcardQuery(
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> BinaryDvConfirmedQuery.fromWildcardQuery(
+                    Queries.ALL_DOCS_INSTANCE,
+                    "field",
+                    TOO_COMPLEX_WILDCARD,
+                    caseInsensitive,
+                    false,
+                    NoopCircuitBreaker.INSTANCE
+                )
+            );
+            assertTooComplex(e);
+        }
+    }
+
+    public void testTooComplexRegexpPatternThrowsBadRequest() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> BinaryDvConfirmedQuery.fromRegexpQuery(
                 Queries.ALL_DOCS_INSTANCE,
                 "field",
-                TOO_COMPLEX_WILDCARD,
-                caseInsensitive,
-                false
-            );
-            IllegalArgumentException e = expectTooComplex(query);
-            assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
-        }
-    }
-
-    public void testTooComplexRegexpPatternThrowsBadRequest() throws IOException {
-        Query query = BinaryDvConfirmedQuery.fromRegexpQuery(
-            Queries.ALL_DOCS_INSTANCE,
-            "field",
-            TOO_COMPLEX_REGEXP,
-            RegExp.ALL,
-            0,
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-            false
+                TOO_COMPLEX_REGEXP,
+                RegExp.ALL,
+                0,
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                false,
+                NoopCircuitBreaker.INSTANCE
+            )
         );
-        IllegalArgumentException e = expectTooComplex(query);
-        assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
+        assertTooComplex(e);
     }
 
-    private IllegalArgumentException expectTooComplex(Query query) throws IOException {
-        try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
-                final Document document = new Document();
-                document.add(new BinaryDocValuesField("field", new BytesRef("hello")));
-                writer.addDocument(document);
-                try (DirectoryReader reader = writer.getReader()) {
-                    final IndexSearcher searcher = new IndexSearcher(reader);
-                    IllegalArgumentException e = expectThrows(
-                        IllegalArgumentException.class,
-                        () -> query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f)
-                    );
-                    assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
-                    assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
-                    return e;
-                }
-            }
-        }
+    private static void assertTooComplex(IllegalArgumentException e) {
+        assertThat(e.getMessage(), equalTo("Pattern was too complex to determinize"));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getCause(), instanceOf(TooComplexToDeterminizeException.class));
     }
 
     // '*' + 65 'a's: subset construction creates 66 DFA states, CB fires at state 64.
     private static final String COMPLEX_WILDCARD = "*" + "a".repeat(65);
 
-    public void testCircuitBreakerConsultedForWildcardDuringCreateWeight() throws IOException {
-        try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
-                Document doc = new Document();
-                doc.add(new BinaryDocValuesField("field", new BytesRef("hello")));
-                writer.addDocument(doc);
-                try (IndexReader reader = writer.getReader()) {
-                    TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
-                    ContextIndexSearcher searcher = new ContextIndexSearcher(
-                        reader,
-                        IndexSearcher.getDefaultSimilarity(),
-                        IndexSearcher.getDefaultQueryCache(),
-                        IndexSearcher.getDefaultQueryCachingPolicy(),
-                        true
-                    );
-                    searcher.setCircuitBreaker(breaker);
-                    Query query = BinaryDvConfirmedQuery.fromWildcardQuery(
-                        Queries.ALL_DOCS_INSTANCE,
-                        "field",
-                        COMPLEX_WILDCARD,
-                        randomBoolean(),
-                        false
-                    );
-                    query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
-                    assertTrue(
-                        "circuit breaker should be consulted during wildcard automaton construction in createWeight",
-                        breaker.wasCalled()
-                    );
-                }
-            }
-        }
+    public void testCircuitBreakerConsultedForWildcardDuringQueryConstruction() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", COMPLEX_WILDCARD, randomBoolean(), false, breaker);
+        assertTrue("circuit breaker should be consulted during wildcard automaton construction", breaker.wasCalled());
     }
 
     public void testWildcardChargesBreakerForByteRunAutomatonBuild() throws IOException {
@@ -200,7 +190,14 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
             ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term)
             : WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         assertChargesTwiceAutomatonRam(
-            BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, caseInsensitive, false),
+            breaker -> BinaryDvConfirmedQuery.fromWildcardQuery(
+                Queries.ALL_DOCS_INSTANCE,
+                "field",
+                pattern,
+                caseInsensitive,
+                false,
+                breaker
+            ),
             dfa
         );
     }
@@ -212,14 +209,15 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
         assertChargesTwiceAutomatonRam(
-            BinaryDvConfirmedQuery.fromRegexpQuery(
+            breaker -> BinaryDvConfirmedQuery.fromRegexpQuery(
                 Queries.ALL_DOCS_INSTANCE,
                 "field",
                 pattern,
                 RegExp.ALL,
                 0,
                 Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                false
+                false,
+                breaker
             ),
             dfa
         );
@@ -230,7 +228,7 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
         final BytesRef upper = new BytesRef("z" + randomAlphaOfLength(5));
         final Automaton dfa = TermRangeQuery.toAutomaton(lower, upper, true, true);
         assertChargesTwiceAutomatonRam(
-            BinaryDvConfirmedQuery.fromRangeQuery(Queries.ALL_DOCS_INSTANCE, "field", lower, upper, true, true, false),
+            breaker -> BinaryDvConfirmedQuery.fromRangeQuery(Queries.ALL_DOCS_INSTANCE, "field", lower, upper, true, true, false, breaker),
             dfa
         );
     }
@@ -241,37 +239,23 @@ public class BinaryDvConfirmedQueryTests extends ESTestCase {
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
         assertChargesTwiceAutomatonRam(
-            BinaryDvConfirmedQuery.fromAutomaton(Queries.ALL_DOCS_INSTANCE, "field", () -> dfa, "hello|world", false),
+            breaker -> BinaryDvConfirmedQuery.fromAutomaton(Queries.ALL_DOCS_INSTANCE, "field", () -> dfa, "hello|world", false, breaker),
             dfa
         );
     }
 
     /**
-     * Planning the query must have charged the breaker, at some point, for at least twice the RAM of the automaton it converts to a
-     * {@code ByteRunAutomaton}, and must have released everything afterwards.
+     * Building the query must have charged the breaker, at some point, for at least twice the RAM of the automaton it converts to a
+     * {@code ByteRunAutomaton}, and must have released everything afterwards. The automaton it retains is not charged by the query
+     * itself but reported through {@link Accountable}, for {@code MaxClauseCountQueryVisitor} to charge.
      */
-    private void assertChargesTwiceAutomatonRam(Query query, Automaton automaton) throws IOException {
-        try (Directory dir = newDirectory()) {
-            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
-                final Document doc = new Document();
-                doc.add(new BinaryDocValuesField("field", new BytesRef("hello")));
-                writer.addDocument(doc);
-                try (IndexReader reader = writer.getReader()) {
-                    final TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
-                    final ContextIndexSearcher searcher = new ContextIndexSearcher(
-                        reader,
-                        IndexSearcher.getDefaultSimilarity(),
-                        IndexSearcher.getDefaultQueryCache(),
-                        IndexSearcher.getDefaultQueryCachingPolicy(),
-                        true
-                    );
-                    searcher.setCircuitBreaker(breaker);
-                    query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
-                    assertThat(breaker.peak(), greaterThanOrEqualTo(2 * automaton.ramBytesUsed()));
-                    assertThat(breaker.getUsed(), equalTo(0L));
-                }
-            }
-        }
+    private void assertChargesTwiceAutomatonRam(Function<CircuitBreaker, Query> queryBuilder, Automaton automaton) {
+        final TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        final Query query = queryBuilder.apply(breaker);
+        assertThat(breaker.peak(), greaterThanOrEqualTo(2 * automaton.ramBytesUsed()));
+        assertThat(breaker.getUsed(), equalTo(0L));
+        assertThat(query, instanceOf(Accountable.class));
+        assertThat(((Accountable) query).ramBytesUsed(), greaterThan(0L));
     }
 
     private static DirectoryReader forbidBinaryDvOpenReader(DirectoryReader reader) throws IOException {

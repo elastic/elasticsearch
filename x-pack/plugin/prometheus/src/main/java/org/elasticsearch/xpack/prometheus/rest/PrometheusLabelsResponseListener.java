@@ -50,10 +50,7 @@ public class PrometheusLabelsResponseListener {
         return ActionListener.wrap(response -> {
             List<String> labelNames = collectLabelNames(response.rows());
             channel.sendResponse(buildSuccessResponse(labelNames, limit));
-        }, e -> {
-            logger.debug("Labels request failed", e);
-            PrometheusErrorResponse.send(channel, e, logger);
-        });
+        }, e -> { PrometheusErrorResponse.send(channel, e, logger); });
     }
 
     /**

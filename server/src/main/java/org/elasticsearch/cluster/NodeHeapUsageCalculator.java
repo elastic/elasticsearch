@@ -114,6 +114,12 @@ public final class NodeHeapUsageCalculator {
         return discoveryNode.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE);
     }
 
+    /**
+     *
+     * Produces a {@link NodeHeapEstimates} object for a given node.
+     * If an indexing node, shard and index heap, non-shard heap, and {@code postingsHeapUsageForTotal} are included.
+     * If a search node, shard heap only is returned,
+     */
     private static NodeHeapEstimates nodeHeapEstimate(
         DiscoveryNode discoveryNode,
         NodeHeapUsageComponents nodeHeapUsageComponents,
@@ -135,6 +141,7 @@ public final class NodeHeapUsageCalculator {
         return new NodeHeapEstimates(totalHeapUsage, hostedShardsHeapUsage, nonShardHeapUsage);
     }
 
+    /** Shard and index heap for the active shards on one routing node. Index overhead is counted once per index. */
     private static NodeHeapUsageComponents computeNodeHeapUsageComponents(
         RoutingNode routingNode,
         ShardHeapUsageEstimates shardHeapUsageEstimates
@@ -151,6 +158,7 @@ public final class NodeHeapUsageCalculator {
         return accumulator.result();
     }
 
+    /** Shard and index heap for exactly these shards, including ones that are still initializing. */
     private static NodeHeapUsageComponents computeNodeHeapUsageComponents(
         Set<ShardId> shardIds,
         ShardHeapUsageEstimates shardHeapUsageEstimates

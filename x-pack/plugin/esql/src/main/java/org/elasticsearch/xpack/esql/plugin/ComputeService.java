@@ -255,6 +255,13 @@ public class ComputeService {
                 GROK_WATCHDOG_MAX_EXECUTION_TIME,
                 timeValue -> grokMatcherWatchdog.set(MatcherWatchdog.newInstance(timeValue.millis()))
             );
+        StageComputeHandler stageComputeHandler = new StageComputeHandler(
+            this,
+            exchangeService,
+            transportService,
+            clusterService,
+            searchExecutor
+        );
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
             this,
             clusterService,
@@ -262,7 +269,8 @@ public class ComputeService {
             searchService,
             transportService,
             exchangeService,
-            searchExecutor
+            searchExecutor,
+            stageComputeHandler
         );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,

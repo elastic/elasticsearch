@@ -98,6 +98,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private final TransportService transportService;
     private final ExchangeService exchangeService;
     private final Executor searchExecutor;
+    private final StageComputeHandler stageComputeHandler;
     private final ThreadPool threadPool;
     /**
      * Resolved once: {@link Federation#FEDERATION_ENABLED} is node scoped and takes effect only after a restart, so
@@ -112,7 +113,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         SearchService searchService,
         TransportService transportService,
         ExchangeService exchangeService,
-        Executor searchExecutor
+        Executor searchExecutor,
+        StageComputeHandler stageComputeHandler
     ) {
         this.computeService = computeService;
         this.clusterService = clusterService;
@@ -121,6 +123,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         this.transportService = transportService;
         this.exchangeService = exchangeService;
         this.searchExecutor = searchExecutor;
+        this.stageComputeHandler = stageComputeHandler;
         this.threadPool = transportService.getThreadPool();
         this.federationAvailable = Federation.isAvailable(clusterService.getSettings());
         transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
@@ -988,6 +991,22 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
         if (request.externalSplits().isEmpty() == false && request.shards().isEmpty()) {
             handleExternalSourceRequest(request, (CancellableTask) task, listener, planTimeProfile);
+            return;
+        }
+
+        if (request.stageWiring() != null) {
+            if (request.stageWiring().placement() == StagedPlanner.StagePlacement.SHARDS) {
+                listener.onFailure(new UnsupportedOperationException("SHARDS stage execution is not yet supported"));
+            } else {
+                stageComputeHandler.runStage(
+                    (CancellableTask) task,
+                    request,
+                    request.plan(),
+                    null,
+                    EmptyIndexedByShardId.instance(),
+                    listener.map(info -> new DataNodeComputeResponse(info, Map.of()))
+                );
+            }
             return;
         }
 

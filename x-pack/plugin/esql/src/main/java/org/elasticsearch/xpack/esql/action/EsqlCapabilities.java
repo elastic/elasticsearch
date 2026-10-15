@@ -4427,6 +4427,12 @@ public class EsqlCapabilities {
          */
         ML_ANOMALIES,
 
+        /**
+         * Casts retain metric identity through aliases and transport without changing their result types or counter conversions.
+         * Converted metrics receive the same TS null filtering as mapped metric fields.
+         */
+        METRIC_IDENTITY_THROUGH_CASTS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

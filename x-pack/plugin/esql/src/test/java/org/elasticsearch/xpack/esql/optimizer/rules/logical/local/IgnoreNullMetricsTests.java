@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -136,6 +137,68 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         IsNotNull condition = as(filter.condition(), IsNotNull.class);
         FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
         assertEquals("metric_1", attribute.fieldName().string());
+    }
+
+    /**
+     * Casts retain metric identity for null filtering, independently of their output data types.
+     */
+    public void testFilterConvertedMetrics() {
+        LogicalPlan actual = metrics().localPlan("""
+            TS test
+            | STATS max(max_over_time(metric_1)), max(max_over_time(metric_2::double))
+            | LIMIT 10
+            """);
+        Limit limit = as(actual, Limit.class);
+        Aggregate agg = as(limit.child(), Aggregate.class);
+        // The optimizer expands the STATS out into two STATS steps
+        Aggregate tsAgg = as(agg.child(), Aggregate.class);
+        assertTrue(actual.toString(), tsAgg.anyMatch(Filter.class::isInstance));
+    }
+
+    public void testFilterOnlyConvertedMetric() {
+        LogicalPlan actual = metrics().localPlan("""
+            TS test | STATS max(max_over_time(metric_1::double)) BY BUCKET(@timestamp, 1 min) | LIMIT 10
+            """);
+        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
+    }
+
+    public void testFilterChainedCastsAndAliases() {
+        LogicalPlan actual = metrics().localPlan("""
+            TS test
+            | EVAL converted = metric_2::double, chained = converted::long
+            | STATS max(max_over_time(metric_1)), max(max_over_time(chained))
+            | LIMIT 10
+            """);
+        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
+    }
+
+    public void testFilterOverwrittenMetric() {
+        LogicalPlan actual = metrics().localPlan("""
+            TS test
+            | EVAL metric_2 = metric_2::double
+            | STATS max(max_over_time(metric_1)), max(max_over_time(metric_2))
+            | LIMIT 10
+            """);
+        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
+    }
+
+    public void testFilterGaugeAndCounterCasts() {
+        LogicalPlan actual = ts().localPlan("""
+            TS k8s
+            | STATS average = avg(avg_over_time(network.total_bytes_in::gauge)), rate = max(rate(network.total_bytes_out::gauge::counter))
+            | LIMIT 10
+            """);
+        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
+    }
+
+    public void testCastStillStripsCounterSemantics() {
+        LogicalPlan actual = ts().localPlan("""
+            TS k8s
+            | STATS average = avg(avg_over_time(network.total_bytes_in::long)) BY BUCKET(@timestamp, 1 min)
+            | LIMIT 10
+            """);
+        assertEquals(DataType.DOUBLE, actual.output().getFirst().dataType());
+        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
     }
 
     /**

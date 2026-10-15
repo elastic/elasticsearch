@@ -831,7 +831,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
      * using a key:value pair above the Lucene term length limit would throw an error on indexing
      * that we pre-empt with a nices exception
      */
-    public void testImmenseKeyedTermException() throws IOException {
+    public void testOverLimitSizeKeyedValueException() throws IOException {
         DocumentMapper newMapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "flattened"); }));
 
         String longKey = "x".repeat(32800);
@@ -843,7 +843,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endArray();
         })));
         assertEquals(
-            "Flattened field [field] contains one immense field whose keyed encoding is longer "
+            "Flattened field [field] contains a field whose keyed encoding is longer "
                 + "than the allowed max length of 32766 bytes. Key length: "
                 + longKey.length()
                 + ", value length: 5 for key starting with [xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]",
@@ -859,7 +859,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endArray();
         })));
         assertEquals(
-            "Flattened field [field] contains one immense field whose keyed encoding is longer "
+            "Flattened field [field] contains a field whose keyed encoding is longer "
                 + "than the allowed max length of 32766 bytes. Key length: 3, value length: "
                 + value.length()
                 + " for key starting with [key]",

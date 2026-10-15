@@ -443,7 +443,7 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
                 batch("immense keyed value", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"" + immenseValue + "\"}}"))
             )
         );
-        assertThat(e.getMessage(), containsString("immense field"));
+        assertThat(e.getMessage(), containsString("whose keyed encoding is longer than the allowed max length"));
         assertThat(e.getMessage(), containsString("allowed max length of 65536 bytes"));
         assertThat(e.getMessage(), containsString(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey()));
     }

@@ -9,20 +9,14 @@
 package org.elasticsearch.common.util.concurrent;
 
 /**
- * Implemented by a task submitted to a {@link TaskExecutionTimeTrackingEsThreadPoolExecutor} that wants to be told how long it waited in
- * the queue. This lets queue time be attributed to something the executor cannot see (for example an index) while keeping the executor
- * itself generic.
- * <p>
- * The executor only inspects the runnable that was passed to {@code execute}, so the implementation must be on that outermost runnable,
- * not on something it wraps. Executors that do not track execution time never call it.
+ * Lets a task submitted to a {@link TaskExecutionTimeTrackingEsThreadPoolExecutor} be told how long it waited in the queue. It must be
+ * implemented by the runnable passed to {@code execute}, since the executor does not look inside wrappers. Only pools that track
+ * execution time call it, and an exception it throws is logged and ignored.
  */
 public interface QueueTimeAware {
 
     /**
-     * Called once on the executing thread, just before the task runs. Must be cheap and must not throw. It is not called if the task is
-     * rejected or otherwise never dequeued.
-     *
-     * @param queueTimeNanos time the task spent between creation and being handed to a thread
+     * Called once on the executing thread just before the task runs, never for a rejected task.
      */
     void onQueueTime(long queueTimeNanos);
 }

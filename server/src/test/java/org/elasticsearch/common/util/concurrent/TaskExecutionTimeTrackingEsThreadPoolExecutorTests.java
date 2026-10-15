@@ -384,10 +384,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         }
     }
 
-    /**
-     * A {@link QueueTimeAware} task that really waits in the queue behind a blocked task is told how long it waited, even though the
-     * executor wraps it in a {@link ThreadContext} wrapper and a {@link TimedRunnable}.
-     */
+    /** A task queued behind a blocked one is told its wait once, through the executor's wrappers. */
     public void testQueueTimeAwareTaskIsToldQueueTime() throws Exception {
         var executor = buildExecutor(
             "queue-time-aware",
@@ -426,9 +423,34 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         }
     }
 
-    /**
-     * Tasks that do not implement {@link QueueTimeAware} are unaffected, and the pool-wide queue latency tracking keeps working.
-     */
+    /** A throwing callback must not stop the task running or leak its ongoing task entry. */
+    public void testThrowingQueueTimeCallbackStillRunsTask() throws Exception {
+        var executor = buildExecutor(
+            "throwing-callback",
+            1,
+            TimedRunnable::new,
+            EsExecutors.TaskTrackingConfig.builder()
+                .trackOngoingTasks()
+                .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                .build()
+        );
+        try {
+            final var ran = new CountDownLatch(1);
+            executor.execute(
+                new QueueTimeAwareRunnable(queueTimeNanos -> { throw new IllegalStateException("callback failure"); }, ran::countDown)
+            );
+            safeAwait(ran);
+            assertBusy(() -> assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0)));
+
+            final var ranAgain = new CountDownLatch(1);
+            executor.execute(ranAgain::countDown);
+            safeAwait(ranAgain);
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /** Tasks that are not {@link QueueTimeAware} are unaffected. */
     public void testPlainTaskUnaffectedByQueueTimeAwareSupport() throws Exception {
         var executor = buildExecutor(
             "plain-task",

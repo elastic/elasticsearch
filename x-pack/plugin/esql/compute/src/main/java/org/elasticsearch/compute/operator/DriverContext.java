@@ -89,7 +89,7 @@ public class DriverContext {
 
     private Runnable earlyTerminationChecker = () -> {};
 
-    private volatile LongConsumer queueTimeListener = queueTimeNanos -> {};
+    private LongConsumer queueTimeListener = queueTimeNanos -> {};
 
     /**
      * Hooks fired when the controlling task asks this driver to wind down cleanly while keeping
@@ -297,17 +297,12 @@ public class DriverContext {
     }
 
     /**
-     * Sets where the time this driver spends queued in its thread pool is reported. The driver is re-queued once per time slice and
-     * each time it is unblocked, and every wait is reported separately. Set once while the driver is built, before it is started.
+     * Sets who is told each time this driver waits in its thread pool queue. Set while the driver is built, before it starts.
      */
     public void setQueueTimeListener(LongConsumer queueTimeListener) {
         this.queueTimeListener = Objects.requireNonNull(queueTimeListener);
     }
 
-    /**
-     * Reports one wait of this driver in the thread pool queue to the listener set by {@link #setQueueTimeListener}. Called by the executor
-     * thread that is about to run the driver, so it must be cheap and must not throw.
-     */
     void onQueueTime(long queueTimeNanos) {
         queueTimeListener.accept(queueTimeNanos);
     }

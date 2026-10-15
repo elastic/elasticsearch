@@ -101,6 +101,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.IpDataLookup;
@@ -254,6 +255,7 @@ import java.util.Optional;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
@@ -3013,7 +3015,7 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.maxOverReservedBytes()
             );
             var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
-            // Only data drivers: node_reduce is built with the same shard contexts but does not read them.
+            // node_reduce shares the shard contexts but does not read them
             if (description.equals(ComputeService.DATA_DESCRIPTION) && shardContexts.isEmpty() == false) {
                 driverContext.setQueueTimeListener(splitQueueTimeAcrossShards(shardContexts));
             }
@@ -3045,19 +3047,24 @@ public class LocalExecutionPlanner {
         }
 
         /**
-         * A data driver is not tied to one shard: it pulls slices from a queue shared by all the shards of its batch, and the
-         * driver does not know which shard it will read next. So the time it waits for an {@code esql_worker} thread is split
-         * evenly across the batch's shards. That is exact for a single-shard batch and, summed over an index's shards, an
-         * approximation for a batch that spans several shards or indices. Each shard's queue time count therefore advances once per
-         * re-queue of every driver in its batch, not once per task.
-         * <p>
-         * Shard stats are resolved on each call rather than up front so building a driver never touches them.
+         * A data driver reads slices from a queue shared by all the shards of its batch, so its queue wait is split evenly across them.
+         * Exact for a single shard, approximate otherwise. Stats are resolved on the first wait so building a driver never touches them.
          */
         private static LongConsumer splitQueueTimeAcrossShards(IndexedByShardId<? extends ShardContext> shardContexts) {
+            final AtomicReference<ShardSearchStats[]> resolvedStats = new AtomicReference<>();
             return queueTimeNanos -> {
-                final long share = queueTimeNanos / shardContexts.size();
-                for (ShardContext shardContext : shardContexts.iterable()) {
-                    shardContext.stats().onQueueTime(share);
+                ShardSearchStats[] stats = resolvedStats.get();
+                if (stats == null) {
+                    stats = new ShardSearchStats[shardContexts.size()];
+                    int i = 0;
+                    for (ShardContext shardContext : shardContexts.iterable()) {
+                        stats[i++] = shardContext.stats();
+                    }
+                    resolvedStats.compareAndSet(null, stats);
+                }
+                final long share = queueTimeNanos / stats.length;
+                for (ShardSearchStats shardStats : stats) {
+                    shardStats.onQueueTime(share);
                 }
             };
         }

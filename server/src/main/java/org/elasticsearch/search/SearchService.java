@@ -1101,7 +1101,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         executor.execute(ActionRunnable.supplyAndDecRef(listener, new CheckedSupplier<>() {
             @Override
             public T get() throws Exception {
-                // Time spent waiting for a search thread, attributed to the shard this task is for.
                 shardSearchStats.onQueueTime(System.nanoTime() - submittedNanos);
                 return executable.get();
             }
@@ -1321,6 +1320,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<FetchSearchResult> listener
     ) {
         final Executor searchExecutor = getExecutor(readerContext.indexShard());
+        final ShardSearchStats shardSearchStats = readerContext.indexShard().shardSearchStats();
+        final long submittedNanos = System.nanoTime();
         searchExecutor.execute(new AbstractRunnable() {
             private volatile SearchContext searchContext;
 
@@ -1330,6 +1331,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             @Override
             protected void doRun() throws Exception {
+                shardSearchStats.onQueueTime(System.nanoTime() - submittedNanos);
                 final long startTime;
                 final SearchOperationListener opsListener;
                 this.searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false);

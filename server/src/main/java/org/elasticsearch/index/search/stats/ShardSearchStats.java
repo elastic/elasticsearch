@@ -62,25 +62,34 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     /**
-     * Records time a search task for this shard spent waiting in a thread pool queue. Not part of {@link SearchOperationListener} because
-     * it is reported by the executor, outside of any {@link SearchContext}.
+     * Adds time work for this shard spent waiting in a thread pool queue. A query can wait many times, so this is a sum only: average
+     * per query with {@link #totalQueueTimeInNanos()} over {@link #queueTimeQueryCount()}.
      */
     public void onQueueTime(long queueTimeNanos) {
-        totalStats.queueTimeMetric.inc(queueTimeNanos);
+        totalStats.queueTimeNanos.inc(queueTimeNanos);
     }
 
     /**
-     * Number of tasks whose queue time was recorded by {@link #onQueueTime}.
+     * Counts one ES|QL query reading this shard, once per data compute batch. Search queries are counted by the query phase stats.
      */
-    public long queueTimeCount() {
-        return totalStats.queueTimeMetric.count();
+    public void onEsqlQuery() {
+        totalStats.esqlQueries.inc();
     }
 
     /**
-     * Total time, in nanoseconds, tasks for this shard spent queued, as recorded by {@link #onQueueTime}.
+     * Total queue wait in nanoseconds summed over all of a query's tasks. For ES|QL this can exceed wall clock time because its
+     * drivers wait in parallel.
      */
     public long totalQueueTimeInNanos() {
-        return totalStats.queueTimeMetric.sum();
+        return totalStats.queueTimeNanos.count();
+    }
+
+    /**
+     * Completed search query phases plus ES|QL queries: the divisor for an average queue wait per query. Approximate, since the sum
+     * also holds other search phases and failed queries, and ES|QL waits are split evenly across a batch's shards.
+     */
+    public long queueTimeQueryCount() {
+        return totalStats.queryMetric.count() + totalStats.esqlQueries.count();
     }
 
     @Override
@@ -212,7 +221,8 @@ public final class ShardSearchStats implements SearchOperationListener {
          */
         final MeanMetric scrollMetric = new MeanMetric();
         final MeanMetric suggestMetric = new MeanMetric();
-        final MeanMetric queueTimeMetric = new MeanMetric();
+        final CounterMetric queueTimeNanos = new CounterMetric();
+        final CounterMetric esqlQueries = new CounterMetric();
         final CounterMetric queryCurrent = new CounterMetric();
         final CounterMetric fetchCurrent = new CounterMetric();
         final CounterMetric scrollCurrent = new CounterMetric();

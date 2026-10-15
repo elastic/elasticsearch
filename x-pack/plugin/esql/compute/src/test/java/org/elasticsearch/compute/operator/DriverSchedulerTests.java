@@ -26,9 +26,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class DriverSchedulerTests extends ESTestCase {
 
-    /**
-     * A task that really waits behind a busy thread has that wait reported to the queue time listener, exactly once.
-     */
+    /** A task queued behind a busy thread reports its wait once. */
     public void testReportsQueueTime() throws Exception {
         DriverScheduler scheduler = new DriverScheduler();
         var threadPool = new TestThreadPool(
@@ -70,6 +68,50 @@ public class DriverSchedulerTests extends ESTestCase {
             safeAwait(ran);
             assertThat(reports.get(), equalTo(1));
             assertThat(reportedNanos.get(), greaterThanOrEqualTo(queuedAtLeastNanos));
+        } finally {
+            release.countDown();
+            terminate(threadPool);
+        }
+    }
+
+    /** A runnable superseded by {@link DriverScheduler#runPendingTasks()} reports no wait when it is finally dequeued. */
+    public void testNoQueueTimeReportedForSupersededTask() throws Exception {
+        DriverScheduler scheduler = new DriverScheduler();
+        var threadPool = new TestThreadPool(
+            "test",
+            new FixedExecutorBuilder(Settings.EMPTY, "test", 1, 3, "test", EsExecutors.TaskTrackingConfig.DEFAULT)
+        );
+        Executor executor = threadPool.executor("test");
+        CountDownLatch blockerStarted = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch ranDirectly = new CountDownLatch(1);
+        AtomicInteger reports = new AtomicInteger();
+        try {
+            executor.execute(() -> {
+                blockerStarted.countDown();
+                safeAwait(release);
+            });
+            safeAwait(blockerStarted);
+            scheduler.scheduleOrRunTask(executor, new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    ranDirectly.countDown();
+                }
+            }, queueTimeNanos -> reports.incrementAndGet());
+            scheduler.runPendingTasks();
+            safeAwait(ranDirectly);
+
+            // single thread, FIFO queue: the superseded runnable is dequeued before this runs
+            CountDownLatch sentinelRan = new CountDownLatch(1);
+            executor.execute(sentinelRan::countDown);
+            release.countDown();
+            safeAwait(sentinelRan);
+            assertThat(reports.get(), equalTo(0));
         } finally {
             release.countDown();
             terminate(threadPool);

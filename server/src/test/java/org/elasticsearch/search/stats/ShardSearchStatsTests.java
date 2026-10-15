@@ -57,14 +57,31 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
     }
 
     public void testQueueTime() {
-        assertEquals(0L, shardSearchStatsListener.queueTimeCount());
         assertEquals(0L, shardSearchStatsListener.totalQueueTimeInNanos());
+        assertEquals(0L, shardSearchStatsListener.queueTimeQueryCount());
 
         shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
         shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toNanos(2 * TEN_MILLIS));
 
-        assertEquals(2L, shardSearchStatsListener.queueTimeCount());
         assertEquals(TimeUnit.MILLISECONDS.toNanos(3 * TEN_MILLIS), shardSearchStatsListener.totalQueueTimeInNanos());
+        assertEquals("waits are summed, they do not count as queries", 0L, shardSearchStatsListener.queueTimeQueryCount());
+    }
+
+    /** The query count covers search query phases and ES|QL queries, and extra waits do not change it. */
+    public void testQueueTimeQueryCountCoversSearchAndEsql() {
+        try (SearchContext sc = createSearchContext(false)) {
+            shardSearchStatsListener.onPreQueryPhase(sc);
+            shardSearchStatsListener.onQueryPhase(sc, TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+        }
+        shardSearchStatsListener.onEsqlQuery();
+        shardSearchStatsListener.onEsqlQuery();
+        assertEquals(3L, shardSearchStatsListener.queueTimeQueryCount());
+
+        for (int i = 0; i < 5; i++) {
+            shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+        }
+        assertEquals(3L, shardSearchStatsListener.queueTimeQueryCount());
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(5 * TEN_MILLIS), shardSearchStatsListener.totalQueueTimeInNanos());
     }
 
     public void testDfsPhase() {

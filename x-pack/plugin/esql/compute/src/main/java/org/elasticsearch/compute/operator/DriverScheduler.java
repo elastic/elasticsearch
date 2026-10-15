@@ -40,18 +40,19 @@ final class DriverScheduler {
     }
 
     /**
-     * @param queueTimeListener told how long the submitted runnable waited in the executor's queue. Only called for executors that track
-     *                          execution time, and never when {@link #completing} sends the task to the direct executor.
+     * @param queueTimeListener told how long the submitted runnable waited in the queue, unless {@link #runPendingTasks()} already
+     *                          ran or replaced the task in the meantime
      */
     void scheduleOrRunTask(Executor executor, AbstractRunnable task, LongConsumer queueTimeListener) {
         final AbstractRunnable existing = scheduledTask.getAndSet(task);
         assert existing == null : existing;
         final Executor executorToUse = completing.get() ? EsExecutors.DIRECT_EXECUTOR_SERVICE : executor;
-        // The executor only looks at the runnable passed to execute, so QueueTimeAware has to be on this outermost one.
         class QueueTimeReportingRunnable extends AbstractRunnable implements QueueTimeAware {
             @Override
             public void onQueueTime(long queueTimeNanos) {
-                queueTimeListener.accept(queueTimeNanos);
+                if (scheduledTask.get() == task) {
+                    queueTimeListener.accept(queueTimeNanos);
+                }
             }
 
             @Override

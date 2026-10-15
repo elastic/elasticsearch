@@ -426,17 +426,20 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
 
         RandomBlocksResult randomBlocksResult = generateRandomSingleValueBlocks(rows, blocksCount, driverContext);
 
-        // Range and geo columns are not valid sort keys, so a random page can have fewer valid columns than the
-        // sort and group keys need. Pick from the valid columns directly, otherwise the selection never ends.
+        // A random page can have fewer valid columns than the sort and group keys need.
+        // Pick from the valid columns directly, otherwise the selection never ends.
         List<Integer> validColumns = new ArrayList<>();
         for (int c = 0; c < blocksCount; c++) {
             if (randomBlocksResult.validSortKeys[c]) {
                 validColumns.add(c);
             }
         }
+        if (validColumns.size() < sortingByColumns + groupKeysCount) {
+            // The blocks must be released before skipping, otherwise the leak check after the test fails.
+            Releasables.close(randomBlocksResult.blocks);
+            assumeTrue("not enough valid sort key columns in the random page", false);
+        }
         Collections.shuffle(validColumns, random());
-        sortingByColumns = Math.min(sortingByColumns, validColumns.size() - 1);
-        groupKeysCount = Math.min(groupKeysCount, validColumns.size() - sortingByColumns);
         List<Integer> sortColumns = new ArrayList<>(validColumns.subList(0, sortingByColumns));
         List<Integer> groupKeys = new ArrayList<>(validColumns.subList(sortingByColumns, sortingByColumns + groupKeysCount));
 

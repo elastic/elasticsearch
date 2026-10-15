@@ -336,6 +336,19 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(rangeSelectors.getFirst().range().fold(null), equalTo(Duration.ofMinutes(10)));
     }
 
+    public void testDurationParameterSubtraction() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m rate(foo[?_long - ?_short])",
+                new QueryParams(List.of(paramAsConstant("_long", "10m"), paramAsConstant("_short", "5m")))
+            ),
+            PromqlCommand.class
+        );
+        List<RangeSelector> rangeSelectors = promql.promqlPlan().collect(RangeSelector.class);
+        assertThat(rangeSelectors, hasSize(1));
+        assertThat(rangeSelectors.getFirst().range().fold(null), equalTo(Duration.ofMinutes(5)));
+    }
+
     public void testPositionalParameterInDuration() {
         PromqlCommand promql = as(
             TEST_PARSER.parseQuery("PROMQL index=test step=15m rate(http_requests_total[?1])", paramsAsConstant(null, "15m")),
@@ -400,6 +413,8 @@ public class PromqlParserTests extends ESTestCase {
             "(?_tend - ?_tstart)",
             Duration.ofMinutes(90),
             "(?_tend) - (?_tstart)",
+            Duration.ofMinutes(90),
+            "((?_tend)) - ((?_tstart))",
             Duration.ofMinutes(90),
             "(?_tend - ?_tstart) / 2",
             Duration.ofMinutes(45),
@@ -473,7 +488,8 @@ public class PromqlParserTests extends ESTestCase {
             "foo offset ?_tstart",
             "foo @ ?_tstart",
             "foo[?_tend + ?_tstart]",
-            "foo[?_tend - ?_tstart * 2]",
+            "foo[?_tend * ?_tstart]",
+            "foo[?_tend == ?_tstart]",
             "vector(?_tstart)",
             "-?_tstart",
             "max_over_time(foo[5m:?_tstart])"
@@ -487,7 +503,14 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void testTimeRangeParameterSubtractedFromDurationError() {
-        for (String range : List.of("?_tend - 5m", "5m - ?_tstart", "?_tend - ?_tstart - ?_tstart")) {
+        for (String range : List.of(
+            "?_tend - 5m",
+            "5m - ?_tstart",
+            "?_tend - ?_tstart - ?_tstart",
+            "?_tend - ?_tstart * 2",
+            "?_tend * 2 - ?_tstart",
+            "?_tend - on(job) ?_tstart"
+        )) {
             ParsingException e = assertThrows(
                 ParsingException.class,
                 () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m foo[" + range + "]", timeRangeParams())

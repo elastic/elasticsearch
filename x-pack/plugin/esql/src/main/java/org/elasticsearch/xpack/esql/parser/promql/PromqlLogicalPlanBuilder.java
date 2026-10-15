@@ -201,10 +201,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         if (ctx == null) {
             return null;
         }
-        return wrapLiteral(source(ctx), visit(ctx));
-    }
-
-    private static LogicalPlan wrapLiteral(Source source, Object result) {
+        Source source = source(ctx);
+        Object result = visit(ctx);
         return switch (result) {
             case LogicalPlan plan -> plan;
             case Literal literal -> new LiteralSelector(source, literal);
@@ -417,13 +415,15 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
     @Override
     public LogicalPlan visitArithmeticBinary(PromqlBaseParser.ArithmeticBinaryContext ctx) {
         Source source = source(ctx);
-        Object left = visit(ctx.left);
-        Object right = visit(ctx.right);
-        if (left instanceof Instant || right instanceof Instant) {
-            return timeRange(ctx, left, right);
+        if (ctx.op.getType() == MINUS) {
+            Instant end = visitTemporalInstant(ctx.left);
+            Instant start = visitTemporalInstant(ctx.right);
+            if (end != null || start != null) {
+                return timeRange(ctx, end, start);
+            }
         }
-        LogicalPlan le = wrapLiteral(source(ctx.left), left);
-        LogicalPlan re = wrapLiteral(source(ctx.right), right);
+        LogicalPlan le = wrapLiteral(ctx.left);
+        LogicalPlan re = wrapLiteral(ctx.right);
 
         boolean bool = ctx.BOOL() != null;
         int opType = ctx.op.getType();
@@ -523,11 +523,11 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
     /**
      * The duration between two timestamp parameters, such as the start and end of a dashboard's time range in
-     * {@code [?_tend - ?_tstart]}. A timestamp is only ever an operand of a subtraction (see {@code visitTimeValue}).
+     * {@code [?_tend - ?_tstart]}. Both operands must be timestamp parameters, without vector matching modifiers.
      */
-    private LiteralSelector timeRange(PromqlBaseParser.ArithmeticBinaryContext ctx, Object left, Object right) {
+    private LiteralSelector timeRange(PromqlBaseParser.ArithmeticBinaryContext ctx, Instant end, Instant start) {
         Source source = source(ctx);
-        if (left instanceof Instant end && right instanceof Instant start && ctx.modifier() == null) {
+        if (end != null && start != null && ctx.modifier() == null) {
             if (end.isAfter(start) == false) {
                 throw new ParsingException(
                     source,

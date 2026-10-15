@@ -42,17 +42,14 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ArithmeticBinaryContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.AtContext;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ConstantContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.DecimalLiteralContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.DurationContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.EvaluationContext;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.MINUS;
+import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ExpressionContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.OffsetContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ParenthesizedContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.TimeValueContext;
-import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ValueContext;
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.ValueExpressionContext;
 
 class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
@@ -174,8 +171,7 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
                 }
                 at = end;
             } else {
-                // a timestamp parameter is only returned as an operand of a subtraction, so this is always a duration
-                Duration timeValue = (Duration) visitTimeValue(atCtx.timeValue());
+                Duration timeValue = visitTimeValue(atCtx.timeValue());
                 // the value can have a floating point
                 long seconds = timeValue.getSeconds();
                 int nanos = timeValue.getNano();
@@ -272,50 +268,22 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
         return Literal.timeDuration(source(ctx), d);
     }
 
-    /**
-     * A duration, or - for a string parameter holding an RFC 3339 timestamp - an {@link Instant}. The time range a
-     * dashboard passes as its start and end timestamps is turned into a range by subtracting them
-     * ({@code [?_tend - ?_tstart]}), so a timestamp is only valid as an operand of a subtraction.
-     */
     @Override
-    public Object visitTimeValue(TimeValueContext ctx) {
+    public Duration visitTimeValue(TimeValueContext ctx) {
         if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
-            TerminalNode node = ctx.NAMED_OR_POSITIONAL_PARAM();
-            QueryParam param = ExpressionBuilder.paramByNameOrPosition(node, source(node), params);
-            if (param == null) {
-                throw new ParsingException(
-                    source(ctx.NAMED_OR_POSITIONAL_PARAM()),
-                    "No value found for parameter [{}]",
-                    ctx.NAMED_OR_POSITIONAL_PARAM().getText()
-                );
-            }
-            if (param.type() != DataType.KEYWORD && param.type() != DataType.TEXT) {
-                throw new ParsingException(
-                    source(ctx.NAMED_OR_POSITIONAL_PARAM()),
-                    "Expected parameter [{}] to be of type string, but found [{}]",
-                    ctx.NAMED_OR_POSITIONAL_PARAM().getText(),
-                    param.type()
-                );
-            }
+            String value = timeParameter(ctx);
             Source source = source(ctx.NAMED_OR_POSITIONAL_PARAM());
-            String value = param.value().toString();
             try {
                 return parseTimeValue(source, value);
             } catch (ParsingException e) {
-                Instant timestamp;
-                try {
-                    timestamp = Instant.parse(value);
-                } catch (DateTimeParseException notATimestamp) {
-                    throw e;
-                }
-                if (isSubtractionOperand(ctx) == false) {
+                if (parseTemporalInstant(value) != null) {
                     throw new ParsingException(
                         source,
                         "Timestamp parameter [{}] can only be subtracted from another timestamp, as in [?_tend - ?_tstart]",
-                        node.getText()
+                        ctx.NAMED_OR_POSITIONAL_PARAM().getText()
                     );
                 }
-                return timestamp;
+                throw e;
             }
         }
 
@@ -444,19 +412,46 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     }
 
     /**
-     * Whether the time value is, possibly in parentheses, an operand of a subtraction. Walks up the
-     * {@code timeValue -> constant -> value -> expression} rules of {@code PromqlBaseParser.g4}; if the grammar adds
-     * rules in between, timestamps are rejected rather than accepted elsewhere.
+     * Recognizes a timestamp parameter used as a subtraction operand, allowing parentheses around the parameter.
+     * Other expressions return {@code null} and are parsed normally; timestamps never enter duration parsing as values.
      */
-    private static boolean isSubtractionOperand(TimeValueContext ctx) {
-        ParserRuleContext parent = ctx.getParent();
-        while (parent instanceof ConstantContext
-            || parent instanceof ValueContext
-            || parent instanceof ValueExpressionContext
-            || parent instanceof ParenthesizedContext) {
-            parent = parent.getParent();
+    protected Instant visitTemporalInstant(ExpressionContext ctx) {
+        while (ctx instanceof ParenthesizedContext parenthesized) {
+            ctx = parenthesized.expression();
         }
-        return parent instanceof ArithmeticBinaryContext binary && binary.op.getType() == MINUS;
+        if (ctx instanceof ValueExpressionContext value && value.value().constant() != null) {
+            TimeValueContext timeValue = value.value().constant().timeValue();
+            if (timeValue != null && timeValue.NAMED_OR_POSITIONAL_PARAM() != null) {
+                return parseTemporalInstant(timeParameter(timeValue));
+            }
+        }
+        return null;
+    }
+
+    private static Instant parseTemporalInstant(String value) {
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    private String timeParameter(TimeValueContext ctx) {
+        TerminalNode node = ctx.NAMED_OR_POSITIONAL_PARAM();
+        Source source = source(node);
+        QueryParam param = ExpressionBuilder.paramByNameOrPosition(node, source, params);
+        if (param == null) {
+            throw new ParsingException(source, "No value found for parameter [{}]", node.getText());
+        }
+        if (param.type() != DataType.KEYWORD && param.type() != DataType.TEXT) {
+            throw new ParsingException(
+                source,
+                "Expected parameter [{}] to be of type string, but found [{}]",
+                node.getText(),
+                param.type()
+            );
+        }
+        return param.value().toString();
     }
 
     private static Duration parseTimeValue(Source source, String text) {

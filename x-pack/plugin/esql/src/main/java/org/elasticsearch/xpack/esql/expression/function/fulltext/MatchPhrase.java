@@ -88,7 +88,8 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             "runtime_score",
             "runtime_anywhere",
             "to_text_on_indexed_field_fix",
-            "to_string_on_indexed_field_fix"
+            "to_string_on_indexed_field_fix",
+            "stats_where_analyzer_fix"
         )
         .name("match_phrase");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);

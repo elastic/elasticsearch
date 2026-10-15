@@ -3725,6 +3725,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_COLUMN_FROM_SHARD(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a query that has a column named {@code _unmapped_fields} of its own is not given
+         * the column of unmapped fields, and a warning says so.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_NAME_COLLISION_WARNING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -4193,7 +4199,7 @@ public class EsqlCapabilities {
         /**
          * KNN function support for runtime expressions, not just ES mapped fields.
          */
-        KNN_RUNTIME_FIELD(Build.current().isSnapshot()),
+        KNN_RUNTIME_FIELD,
 
         /**
          * Support for {@code MATCH}, {@code MATCH_PHRASE}, and the match operator in a {@code WHERE}
@@ -4400,6 +4406,13 @@ public class EsqlCapabilities {
         FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
 
         /**
+         * PromQL durations can be the difference of two timestamp parameters, such as {@code [?_tend - ?_tstart]}, so an
+         * instant query can cover a dashboard's whole time range:
+         * <a href="https://github.com/elastic/elasticsearch/issues/161115">#161115</a>
+         */
+        PROMQL_TIME_RANGE_PARAMS,
+
+        /**
          * A whole number in an external dataset column declared or inferred as {@code date_nanos}, without a
          * {@code format}, is read as epoch milliseconds widened to nanoseconds, matching {@code date} columns. Parquet
          * filter pushdown and TopN pruning scale their bounds the same way. Older nodes read such a number as epoch
@@ -4421,6 +4434,11 @@ public class EsqlCapabilities {
          * output. Older nodes returned {@code keyword} (see {@link #TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON}).
          */
         TS_KEEP_TEXT_TYPE_WHEN_GROUPED_ON,
+
+        /**
+         * Reserved view on ML anomaly detection results.
+         */
+        ML_ANOMALIES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

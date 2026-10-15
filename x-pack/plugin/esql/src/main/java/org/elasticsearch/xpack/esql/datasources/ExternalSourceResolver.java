@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
@@ -748,6 +749,24 @@ public class ExternalSourceResolver {
         @Nullable Set<String> pathsReadingNoRows,
         ActionListener<ExternalSourceResolution> listener
     ) {
+        resolve(paths, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, null, listener);
+    }
+
+    /**
+     * As {@link #resolve(List, Map, Map, Map, Set, Set, ActionListener)} plus per-path folder-range
+     * predicates built from the TEMPORAL extract before {@code projectListingHints} drops
+     * {@code @timestamp}. Absent path means grain INs only.
+     */
+    public void resolve(
+        List<String> paths,
+        Map<String, Map<String, Object>> pathConfigs,
+        @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        @Nullable Map<String, DatasetMapping> declaredMappings,
+        @Nullable Set<String> pathsRequiringStats,
+        @Nullable Set<String> pathsReadingNoRows,
+        @Nullable Map<String, FolderRangePredicate> folderRanges,
+        ActionListener<ExternalSourceResolution> listener
+    ) {
         if (paths == null || paths.isEmpty()) {
             listener.onResponse(ExternalSourceResolution.EMPTY);
             return;
@@ -801,6 +820,7 @@ public class ExternalSourceResolver {
                 declaredMappings,
                 pathsRequiringStats,
                 pathsReadingNoRows,
+                folderRanges,
                 resolved,
                 resolveListener
             )
@@ -819,6 +839,7 @@ public class ExternalSourceResolver {
         @Nullable Map<String, DatasetMapping> declaredMappings,
         @Nullable Set<String> pathsRequiringStats,
         @Nullable Set<String> pathsReadingNoRows,
+        @Nullable Map<String, FolderRangePredicate> folderRanges,
         Map<String, ExternalSourceResolution.ResolvedSource> resolved,
         ActionListener<ExternalSourceResolution> listener
     ) {
@@ -829,6 +850,7 @@ public class ExternalSourceResolver {
         String path = paths.get(index);
         Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
         List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
+        FolderRangePredicate folderRange = folderRanges != null ? folderRanges.get(path) : null;
         // How much of this path the query actually needs. The two sets are exclusive by construction, so they
         // collapse into one value here rather than travelling down the resolution rails side by side.
         ResolutionDemand demand = ResolutionDemand.of(path, pathsRequiringStats, pathsReadingNoRows);
@@ -843,7 +865,7 @@ public class ExternalSourceResolver {
         // through it. First-file-wins already shares one schema and does not use it.
         SchemaInterner schemaInterner = new SchemaInterner(planningReservation, 0L);
 
-        resolveSource(path, config, hints, declaredMapping, demand, schemaInterner, ActionListener.wrap(resolvedSource -> {
+        resolveSource(path, config, hints, folderRange, declaredMapping, demand, schemaInterner, ActionListener.wrap(resolvedSource -> {
             // Strict is built directly from the declaration inside resolveSource; non-strict infers first and then
             // overlays the declaration onto the resolved result (works the same for single- and multi-file).
             ExternalSourceResolution.ResolvedSource finalSource;
@@ -885,6 +907,7 @@ public class ExternalSourceResolver {
                     declaredMappings,
                     pathsRequiringStats,
                     pathsReadingNoRows,
+                    folderRanges,
                     resolved,
                     listener
                 )
@@ -1197,6 +1220,7 @@ public class ExternalSourceResolver {
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        @Nullable FolderRangePredicate folderRange,
         @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
         SchemaInterner schemaInterner,
@@ -1205,7 +1229,7 @@ public class ExternalSourceResolver {
         LOGGER.debug("Resolving external source: path=[{}]", path);
         try {
             bufferConfigWarnings(path, config);
-            resolveSourceInner(path, config, hints, declaredMapping, demand, schemaInterner, listener);
+            resolveSourceInner(path, config, hints, folderRange, declaredMapping, demand, schemaInterner, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -1215,6 +1239,7 @@ public class ExternalSourceResolver {
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        @Nullable FolderRangePredicate folderRange,
         @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
         SchemaInterner schemaInterner,
@@ -1225,7 +1250,7 @@ public class ExternalSourceResolver {
         throwIfCancelled();
 
         if (GlobExpander.isMultiFile(path)) {
-            resolveMultiFileSource(path, config, hints, declaredMapping, demand, schemaInterner, listener);
+            resolveMultiFileSource(path, config, hints, folderRange, declaredMapping, demand, schemaInterner, listener);
         } else {
             resolveSingleFileSource(path, config, declaredMapping, listener);
         }
@@ -1399,6 +1424,7 @@ public class ExternalSourceResolver {
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        @Nullable FolderRangePredicate folderRange,
         @Nullable DatasetMapping declaredMapping,
         ResolutionDemand demand,
         SchemaInterner schemaInterner,
@@ -1432,6 +1458,7 @@ public class ExternalSourceResolver {
                 storageIdentity,
                 secretIdentity,
                 hints,
+                folderRange,
                 fileConfig,
                 declaredMapping,
                 demand,
@@ -1446,6 +1473,7 @@ public class ExternalSourceResolver {
             storageIdentity,
             secretIdentity,
             hints,
+            folderRange,
             fileConfig,
             schemaResolution,
             cacheable,
@@ -1989,6 +2017,7 @@ public class ExternalSourceResolver {
         String storageIdentity,
         String secretIdentity,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        @Nullable FolderRangePredicate folderRange,
         Map<String, Object> config,
         FormatReader.SchemaResolution schemaResolution,
         boolean cacheable,
@@ -2014,9 +2043,20 @@ public class ExternalSourceResolver {
             listener.onResponse(listing);
         }, listener::onFailure);
         if (cacheable) {
-            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, extents, recordingListener);
+            cachedListingAsync(
+                path,
+                storagePath,
+                provider,
+                storageIdentity,
+                secretIdentity,
+                hints,
+                config,
+                extents,
+                folderRange,
+                recordingListener
+            );
         } else {
-            expandAndCompactAsync(path, provider, hints, config, storagePath, extents, recordingListener);
+            expandAndCompactAsync(path, provider, hints, config, storagePath, extents, folderRange, recordingListener);
         }
     }
 
@@ -2154,6 +2194,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         StoragePath storagePath,
         ListingExtents extents,
+        @Nullable FolderRangePredicate folderRange,
         ActionListener<FileList> listener
     ) {
         // Fan-out drains run on metadataReadExecutor (esql_external_io wrapped with the query cancellation
@@ -2169,7 +2210,8 @@ public class ExternalSourceResolver {
             listingCancellation(),
             listingConcurrency(),
             metadataReadExecutor,
-            listener
+            listener,
+            folderRange
         );
     }
 
@@ -2194,6 +2236,7 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         Map<String, Object> config,
         ListingExtents extents,
+        @Nullable FolderRangePredicate folderRange,
         ActionListener<FileList> listener
     ) {
         listingService.cachedListingAsync(
@@ -2209,7 +2252,8 @@ public class ExternalSourceResolver {
             listingConcurrency(),
             metadataReadExecutor,
             extents,
-            listener
+            listener,
+            folderRange
         );
     }
 
@@ -5089,6 +5133,7 @@ public class ExternalSourceResolver {
         String storageIdentity,
         String secretIdentity,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        @Nullable FolderRangePredicate folderRange,
         Map<String, Object> config,
         DatasetMapping declaredMapping,
         ResolutionDemand demand,
@@ -5151,7 +5196,8 @@ public class ExternalSourceResolver {
                     listingService.maxListedObjects(),
                     extents,
                     planningMemory(),
-                    listingCancellation()
+                    listingCancellation(),
+                    folderRange
                 );
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -5159,9 +5205,20 @@ public class ExternalSourceResolver {
             }
             listingListener.onResponse(listing);
         } else if (isCacheable(provider)) {
-            cachedListingAsync(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, extents, listingListener);
+            cachedListingAsync(
+                path,
+                storagePath,
+                provider,
+                storageIdentity,
+                secretIdentity,
+                hints,
+                config,
+                extents,
+                folderRange,
+                listingListener
+            );
         } else {
-            expandAndCompactAsync(path, provider, hints, config, storagePath, extents, listingListener);
+            expandAndCompactAsync(path, provider, hints, config, storagePath, extents, folderRange, listingListener);
         }
     }
 

@@ -370,6 +370,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
 
         /**
+         * Emit a single, shorter warning for all partially unmapped fields from {@link #OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK},
+         * listing a bounded number of field names, instead of one warning per field.
+         * See https://github.com/elastic/elasticsearch/issues/161968.
+         */
+        OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK_COMBINED,
+
+        /**
          * With {@code unmapped_fields="nullify"} or {@code "load"}, a {@code DROP} wildcard that matches no field is a no-op
          * instead of failing with "No matches found for pattern".
          * See https://github.com/elastic/elasticsearch/issues/143226
@@ -1548,6 +1555,12 @@ public class EsqlCapabilities {
         NESTED_SUBQUERY_IN_FROM_COMMAND_WITH_VIEW_FORK_DATASET,
 
         /**
+         * Fix for FORK alignment null-fillers that kept {@code datetime} after {@code ResolveUnionTypesInUnionAll} widened a sibling
+         * subquery column to {@code date_nanos}. FORK-only queries are unchanged.
+         */
+        SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          */
         WHERE_IN_SUBQUERY,
@@ -1774,8 +1787,6 @@ public class EsqlCapabilities {
          * Does the usage information for ESQL contain per-component CPU counters for successful
          * external-source queries ({@code datasources.queries.cpu_nanos.execution},
          * {@code .read}, {@code .planning}, {@code .split_discovery}, {@code .total})?
-         * Note: the {@code planning} component is currently wall time pending a real planning-CPU
-         * measurement in {@code EsqlQueryProfile}.
          */
         USAGE_CONTAINS_DATASOURCES_QUERY_CPU,
 
@@ -3688,12 +3699,30 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the keys of a mapped field whose type takes an object as its value are
+         * not discovered on the shard that maps it: they are part of its value.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_BELOW_MAPPED_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD"} and {@code "LOAD_ALL"}, a shard returns null for a key of a mapped field whose
+         * type takes an object as its value, named or discovered: the key is part of that value.
+         */
+        OPTIONAL_FIELDS_NOTHING_BELOW_MAPPED_FIELDS,
+
+        /**
          * Under {@code unmapped_fields="LOAD_ALL"}, the unmapped fields discovered in {@code _source} are returned as a single
          * {@code _unmapped_fields} column of type {@code source} holding a flattened JSON object per row, instead of one column
          * per field. Supersedes the per-field column layout and the cap on the number of expanded fields.
          * See https://github.com/elastic/elasticsearch/issues/161717.
          */
         OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, the shard writes the {@code _unmapped_fields} column: one key per unmapped field
+         * that would reach the output of the query if it were mapped, in the order the fields are first found in {@code _source}.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_COLUMN_FROM_SHARD(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
@@ -4179,6 +4208,11 @@ public class EsqlCapabilities {
         PARTITIONING_AGGREGATIONS(),
 
         /**
+         * Support for the FILLNULL command that replaces null values with defaults or with user-specified value.
+         */
+        FILLNULL(Build.current().isSnapshot()),
+
+        /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
          * field-caps request, so the coordinator never plans nested subfields. Shard extraction
          * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of
@@ -4387,6 +4421,11 @@ public class EsqlCapabilities {
          * output. Older nodes returned {@code keyword} (see {@link #TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON}).
          */
         TS_KEEP_TEXT_TYPE_WHEN_GROUPED_ON,
+
+        /**
+         * Reserved view on ML anomaly detection results.
+         */
+        ML_ANOMALIES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

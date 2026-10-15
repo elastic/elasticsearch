@@ -18,6 +18,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.columnar.numeric.NumericColumnReader;
+import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
@@ -262,6 +263,17 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * {@link #isNullSlot} remains for a caller that wants the question without the bytes.
      */
     public abstract BytesRef valueAt(long valueAddress) throws IOException;
+
+    /** Whether the slot at {@code valueAddress} is stored as a repeat of the value before it. */
+    public boolean repeatsPreviousSlot(long valueAddress) throws IOException {
+        return false;
+    }
+
+    /** Hands the value at {@code valueAddress}, which must not be null, to {@code sink}, a piece at a time where the layout can. */
+    public void transferValueAt(long valueAddress, BytesSink sink) throws IOException {
+        final BytesRef value = valueAt(valueAddress);
+        sink.append(value.bytes, value.offset, value.length);
+    }
 
     /** Whether this column recorded what it surveyed, so a merge need not read its values again. */
     public boolean hasSummary() {

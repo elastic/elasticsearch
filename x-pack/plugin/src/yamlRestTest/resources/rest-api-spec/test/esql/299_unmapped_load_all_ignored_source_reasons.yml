@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
       reason: >
         LOAD_ALL reads _source, so under synthetic source it can only see a field the mapping does not
         declare if the document parser stashed that field in _ignored_source. FallbackPostMapper.Reason

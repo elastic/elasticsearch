@@ -594,4 +594,3 @@ spec:
         build_pull_requests: false
         publish_commit_status: false
         trigger_mode: none
-

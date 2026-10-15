@@ -1691,7 +1691,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
                 stream.seek(0);
             }
         });
-        assertTrue("reports the early end of stream: " + failure.getMessage(), failure.getMessage().contains("Unexpected end of stream"));
+        assertThat(failure.getMessage(), Matchers.containsString("Unexpected end of stream"));
         assertNull("still nothing stored", footerByteCache.get(adapter.cacheKey()));
     }
 

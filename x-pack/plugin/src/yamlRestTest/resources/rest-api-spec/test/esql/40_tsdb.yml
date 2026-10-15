@@ -786,8 +786,8 @@ TS Command grouping on text field:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ ts_permit_text_becoming_keyword_when_grouped_on, ts_command_v0 ]
-      reason: "fix grouping on text fields with TS command"
+          capabilities: [ ts_keep_text_type_when_grouped_on, ts_command_v0 ]
+      reason: "TS command keeps the text type when grouping on text fields"
 
   - do:
       indices.create:
@@ -862,7 +862,7 @@ TS Command grouping on text field:
   - match: {columns.0.name: "max"}
   - match: {columns.0.type: "integer"}
   - match: {columns.1.name: "text_field"}
-  - match: {columns.1.type: "keyword"}
+  - match: {columns.1.type: "text"}
   - match: {columns.2.name: "bucket"}
   - match: {columns.2.type: "date"}
   - match: {values.0.0: 530575198}

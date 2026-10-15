@@ -1702,6 +1702,25 @@ public class MetadataCreateIndexService {
             .build();
     }
 
+    /**
+     * Whether a new index starts with {@link IndexSettings#RETAINS_UNMAPPED_FIELDS_SETTING} set: its mapping can keep a field it
+     * does not declare, or the index it is a copy of has that setting.
+     */
+    private static boolean retainsUnmappedFields(
+        Settings indexSettings,
+        @Nullable IndexMetadata sourceMetadata,
+        @Nullable DocumentMapper docMapper
+    ) {
+        if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings).before(IndexVersions.TRACKS_UNMAPPED_FIELD_RETENTION)) {
+            return false;
+        }
+        if (sourceMetadata != null
+            && IndexSettings.retainsUnmappedFields(sourceMetadata.getCreationVersion(), sourceMetadata.getSettings())) {
+            return true;
+        }
+        return docMapper != null && docMapper.mapping().getRoot().canRetainUnmappedFields();
+    }
+
     static IndexMetadata buildIndexMetadata(
         String indexName,
         List<AliasMetadata> aliases,
@@ -1713,12 +1732,15 @@ public class MetadataCreateIndexService {
         Map<String, DiffableStringMap> customData,
         TransportVersion minClusterTransportVersion
     ) {
+        DocumentMapper docMapper = documentMapperSupplier.get();
+        if (retainsUnmappedFields(indexSettings, sourceMetadata, docMapper)) {
+            indexSettings = Settings.builder().put(indexSettings).put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), true).build();
+        }
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
         indexMetadataBuilder.transportVersion(minClusterTransportVersion);
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
-        DocumentMapper docMapper = documentMapperSupplier.get();
         if (docMapper != null) {
             MappingMetadata mappingMd = new MappingMetadata(docMapper);
             mappingsMetadata.put(docMapper.type(), mappingMd);

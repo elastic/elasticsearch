@@ -1,4 +1,4 @@
-area: "Mapping, ES|QL"
+area: ES|QL
 issues: []
 pr: 162154
 summary: Read unmapped fields in one walk of `_source`

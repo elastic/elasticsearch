@@ -173,10 +173,6 @@ public final class UnmappedFields {
             this.sourceReservationFactor = sourceReservationFactor;
         }
 
-        private boolean includes(String path) {
-            return names.contains(path) || (filter != null && filter.includes(path));
-        }
-
         private boolean mayIncludeBelow(String path) {
             return aboveNames.contains(path) || (filter != null && filter.mayIncludeBelow(path));
         }

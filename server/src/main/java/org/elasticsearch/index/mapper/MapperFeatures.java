@@ -190,7 +190,12 @@ public class MapperFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT, DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES, COMBINE_DYNAMIC_MAPPING_UPDATES);
+        return Set.of(
+            TSDB_METRIC_TEMPORALITY_SUPPORT,
+            DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES,
+            COMBINE_DYNAMIC_MAPPING_UPDATES,
+            BBQ_DISK_UPDATABLE_AUTO_CALIBRATE
+        );
     }
 
     @Override
@@ -240,7 +245,6 @@ public class MapperFeatures implements FeatureSpecification {
             BASE64_DENSE_VECTORS,
             FIX_DENSE_VECTOR_WRONG_FIELDS,
             BBQ_DISK_STATS_SUPPORT,
-            BBQ_DISK_UPDATABLE_AUTO_CALIBRATE,
             SKIPPERS_ON_UNINDEXED_FIELDS,
             STORED_FIELDS_SPEC_MERGE_BUG,
             GENERIC_VECTOR_FORMAT,

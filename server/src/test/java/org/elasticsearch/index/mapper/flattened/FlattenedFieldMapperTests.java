@@ -906,12 +906,17 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     /**
      * Logsdb uses binary doc values for flattened fields, so a non-indexed flattened field gets the binary doc values limit
-     * outside columnar modes too.
+     * outside columnar modes too. Logsdb defaults {@code ignore_above} to 8191, which would drop the value before the limit is
+     * checked, so it is raised here.
      */
     public void testKeyedValueLongerThan32766NotIndexedInLogsdbModeIsAccepted() throws IOException {
-        DocumentMapper mapper = createLogsModeDocumentMapper(fieldMapping(b -> b.field("type", "flattened").field("index", false)));
+        DocumentMapper mapper = createLogsModeDocumentMapper(
+            fieldMapping(b -> b.field("type", "flattened").field("index", false).field("ignore_above", Integer.MAX_VALUE))
+        );
         String value = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
-        mapper.parse(source(b -> b.field("@timestamp", "2026-01-01T00:00:00Z").field("field", Map.of("key", value))));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("@timestamp", "2026-01-01T00:00:00Z").field("field", Map.of("key", value))));
+        assertNotNull("the keyed doc values were written", doc.rootDoc().getField("field" + FlattenedFieldMapper.KEYED_FIELD_SUFFIX));
+        assertNull("the value was not ignored", doc.rootDoc().getField("field" + FlattenedFieldMapper.KEYED_IGNORED_VALUES_FIELD_SUFFIX));
     }
 
     public void testKeyedValueLongerThanBinaryDocValueLimitIsRejected() throws IOException {

@@ -77,6 +77,38 @@ public class ColumnarNegatedQueryTests extends ESTestCase {
         );
     }
 
+    public void testAsFilterAcceptsADisjunctionContainingAScan() {
+        // A disjunction reaches every document any of its clauses reaches, so one scan makes the whole of it a scan.
+        final Query scan = ColumnarStringTermQuery.contains("f", new BytesRef("x"), NO_BUDGET);
+        assertNotNull(
+            ColumnarNegatedQuery.asFilter(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("f", "y")), Occur.SHOULD).add(scan, Occur.SHOULD).build()
+            )
+        );
+    }
+
+    public void testAsFilterIgnoresAScanThatIsItselfAnExclusion() {
+        // The scan inside a nested MUST_NOT is not what makes this exclusion read the column.
+        final Query scan = ColumnarStringTermQuery.contains("f", new BytesRef("x"), NO_BUDGET);
+        assertNull(
+            ColumnarNegatedQuery.asFilter(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("f", "y")), Occur.MUST).add(scan, Occur.MUST_NOT).build()
+            )
+        );
+        assertNull(ColumnarNegatedQuery.asFilter(new ColumnarNegatedQuery(scan)));
+    }
+
+    public void testAsFilterAcceptsAConjunctionContainingAScan() {
+        // Left as a known, cheap over-approximation: another clause may lead the conjunction, but the negation is only
+        // ever confirmed on the documents the other clauses of the enclosing query kept.
+        final Query scan = ColumnarStringTermQuery.contains("f", new BytesRef("x"), NO_BUDGET);
+        assertNotNull(
+            ColumnarNegatedQuery.asFilter(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("f", "y")), Occur.MUST).add(scan, Occur.MUST).build()
+            )
+        );
+    }
+
     public void testAsFilterLeavesOtherExclusionsToLucene() {
         assertNull(ColumnarNegatedQuery.asFilter(new TermQuery(new Term("f", "x"))));
         assertNull(ColumnarNegatedQuery.asFilter(new MatchAllDocsQuery()));

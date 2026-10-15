@@ -32,18 +32,24 @@ import java.util.Objects;
  * Matches every document the wrapped query does not, as a clause that can be required rather than prohibited.
  *
  * <p>Lucene runs a {@code MUST_NOT} clause with {@code ReqExclBulkScorer}, which walks the exclusion's own
- * approximation and confirms it on every document it reaches, wanted by the other clauses or not. That is the right
- * way round for an exclusion backed by an inverted index, whose approximation is a short list of candidates. A
- * {@link ColumnarScanQuery} has no such list: it can reach every document, and confirming one decodes column data.
- * Excluding with it that way decodes most of the column however few documents the other clauses leave.
+ * approximation and confirms it on the documents it reaches. That is the right way round for an exclusion backed by an
+ * inverted index, whose approximation is a short list of candidates. A {@link ColumnarScanQuery} does not always have
+ * such a list. On a column in term order a term, prefix or range is answered by bisection, and on a dictionary column
+ * by ordinals, so nothing is decoded. A plain column, and any test on the inside of a value, has no way past reading
+ * values: its approximation is every document with a value, and confirming one decodes column data. Lucene has no skip
+ * index for these columns to narrow that. When the clauses that require documents cannot skip ahead either, such as
+ * another column scan, the exclusion is confirmed on nearly every document and most of the column is decoded, however
+ * few documents the other clauses leave.
  *
- * <p>Required, the same exclusion is a two-phase clause that matches everywhere and confirms by asking whether the
- * wrapped query does <em>not</em> match. Lucene's conjunction orders such clauses by {@link TwoPhaseIterator#matchCost}
- * and confirms the later ones only on documents the earlier ones kept, so a cheap, selective clause decides which
- * chunks of the wrapped query's column are ever read.
+ * <p>{@code ColumnarNegatedQuery} is an alternative: the same exclusion written as a required clause. It accepts
+ * every document as a candidate and checks each one by asking whether the wrapped query does <em>not</em> match.
+ * Lucene runs required clauses in order of {@link TwoPhaseIterator#matchCost}, and checks the more expensive ones
+ * only on documents the cheaper ones kept. So a cheap, selective clause narrows the documents this check runs on, and
+ * only the chunks of the wrapped query's column holding those documents are read.
  *
- * <p>The answer is the one {@code MUST_NOT} gives: a document the wrapped query has no opinion on, such as one without
- * the field, is not excluded, so it matches here. The clause is constant-scoring, as a prohibited clause is.
+ * <p>{@code ColumnarNegatedQuery} matches the same documents as {@code MUST_NOT} would. A document the wrapped query
+ * cannot match, such as one without the field, is not excluded, so it matches here. The clause is constant-scoring, as
+ * a prohibited clause is.
  *
  * <p>Use {@link #asFilter} to choose between the two forms; wrapping a query that Lucene already excludes well only
  * adds a confirmation per document.
@@ -63,7 +69,7 @@ public final class ColumnarNegatedQuery extends Query {
     }
 
     /**
-     * The clause to require in place of prohibiting {@code exclusion}, or null when it should stay prohibited.
+     * Returns the clause to require in place of prohibiting {@code exclusion}, or null when it should stay prohibited.
      *
      * <p>Only an exclusion that reads a column qualifies. That is decided from the query's own tree, through
      * {@link Query#visit}, because by the time a boolean query is built the exclusion is usually wrapped in the
@@ -73,10 +79,19 @@ public final class ColumnarNegatedQuery extends Query {
         return scansColumn(exclusion) ? new ColumnarNegatedQuery(exclusion) : null;
     }
 
-    /** Whether {@code query}, or something it contains, is a {@link ColumnarScanQuery}. */
+    /**
+     * Whether {@code query}, or something it contains, is a {@link ColumnarScanQuery} that adds to the documents the
+     * query must look at. A scan inside a nested {@code MUST_NOT} does not count: it is itself an exclusion, so it is
+     * not what makes this query read the column.
+     */
     static boolean scansColumn(Query query) {
         final boolean[] found = new boolean[1];
         query.visit(new QueryVisitor() {
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                return occur == BooleanClause.Occur.MUST_NOT ? QueryVisitor.EMPTY_VISITOR : this;
+            }
+
             @Override
             public void visitLeaf(Query leaf) {
                 if (leaf instanceof ColumnarScanQuery) {

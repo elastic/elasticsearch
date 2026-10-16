@@ -489,7 +489,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore) {
         return ctx -> {
             try {
-                Sort sort = PerShardCollectorProvider.getShardContextSort(ctx, sorts);
+                Sort sort = PerShardCollectorProvider.buildShardSort(ctx, sorts);
                 return PerShardCollectorProvider.scoreModeForSort(sort, needsScore);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -502,24 +502,25 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     /**
      * Provides collector instances for TopN operations, shared across all operators created by the same {@link Factory}.
      * <p>
-     *     The shard to collector factory mapping is resolved up front, in the constructor, so creating a collector never
-     *     needs to rebuild the sort.
+     *     The sort for each shard is built once, in the constructor, so creating a collector doesn't build it again.
      * </p>
      * <p>
-     *     Collectors created by the same Lucene collector manager share a minimum competitive score, which lets them skip
-     *     documents that can't make the top N found by another driver. Lucene only uses that shared score when the primary
-     *     sort is {@code _score} descending: {@link TopScoreDocCollectorManager} for {@code SORT _score DESC}, and
-     *     {@code TopFieldCollector} when its first comparator is the relevance comparator in its natural order (see
-     *     {@link #sharesMinCompetitiveScore}). So those sorts get one manager per distinct {@link Sort}, shared across drivers.
-     *     Any other sort gets a fresh manager per collector: sharing wouldn't prune anything, and it would cost a lock on
-     *     every collector creation and keep every collector reachable from the manager until the query finishes.
+     *     Collectors created by the same Lucene collector manager share a minimum competitive score, so a driver can skip
+     *     documents that can't beat the top N another driver has already found. Lucene only does this when the primary sort
+     *     is {@code _score} descending: {@link TopScoreDocCollectorManager} for {@code SORT _score DESC}, and
+     *     {@code TopFieldCollector} when its first comparator is the relevance one in its natural order (see
+     *     {@link #sharesMinCompetitiveScore}). Those sorts get one manager per distinct {@link Sort}, shared across drivers.
+     *     Every other sort gets a new manager per collector, since sharing wouldn't prune anything and would cost a lock
+     *     per collector and keep every collector reachable until the query finishes.
      * </p>
      * <p>
-     *     Sort fields backed by an {@code IndexFieldData.XFieldComparatorSource} don't override {@code equals()}, so shared
-     *     sorts containing them compare by identity and each shard gets its own manager. That is also the correct
-     *     behaviour: those comparator sources are resolved against each shard's mappings (field data, missing value, sort mode,
-     *     nested), so a manager must not span shards of different indices. In practice only a bare {@code SORT _score DESC}
-     *     shares one manager across shards.
+     *     A shared manager can span shards, which is fine because {@code limit} is the global limit and only the score is
+     *     shared, so a document below another shard's minimum score can't make the final top N either. Whether two shards
+     *     end up with the same manager depends on how their sorts compare. Sort fields backed by an
+     *     {@code IndexFieldData.XFieldComparatorSource} (e.g. numeric, date and geo distance sorts) don't override
+     *     {@code equals()}, so each shard gets its own manager for those. Keyword sorts usually resolve to a plain
+     *     {@code SortedSetSortField}, which compares by value, so {@code SORT _score DESC, keyword_field} shares one
+     *     manager across shards, like a bare {@code SORT _score DESC} does.
      * </p>
      */
     static class PerShardCollectorProvider {
@@ -545,7 +546,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 }
                 Sort sort;
                 try {
-                    sort = getShardContextSort(shardContext, sorts);
+                    sort = buildShardSort(shardContext, sorts);
                 } catch (IOException e) {
                     throw new UncheckedIOException("failed to build sort for shard [" + shardContext.shardIdentifier() + "]", e);
                 }
@@ -577,8 +578,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 factories.put(shardContext.index(), factory);
             }
             this.topScoreDocCollectorManager = scoreManager;
-            this.topFieldCollectorManagers = fieldManagers;
-            this.collectorFactoriesByShard = factories;
+            this.topFieldCollectorManagers = Map.copyOf(fieldManagers);
+            this.collectorFactoriesByShard = Map.copyOf(factories);
         }
 
         PerShardCollector newPerShardCollector(ShardContext context) {
@@ -617,7 +618,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             }
         }
 
-        static Sort getShardContextSort(ShardContext context, List<SortBuilder<?>> sorts) throws IOException {
+        static Sort buildShardSort(ShardContext context, List<SortBuilder<?>> sorts) throws IOException {
             Optional<SortAndFormats> sortAndFormats = context.buildSort(sorts);
             if (sortAndFormats.isEmpty()) {
                 throw new IllegalStateException("sorts must not be disabled in TopN");

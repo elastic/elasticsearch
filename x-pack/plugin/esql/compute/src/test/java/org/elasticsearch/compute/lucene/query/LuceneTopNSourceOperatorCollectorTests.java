@@ -69,8 +69,8 @@ import static org.hamcrest.Matchers.sameInstance;
 public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
     /**
-     * What {@link #resolveSort} turns every {@link FieldSortBuilder} into. Value-equal, unlike the identity-equal sort fields a real
-     * shard produces; see {@link #resolveSort}.
+     * What {@link #resolveSort} turns every {@link FieldSortBuilder} into. Compares by value, like a keyword sort on a real
+     * shard; see {@link #resolveSort}.
      */
     private static final SortField FIELD_SORT = new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN);
 
@@ -334,6 +334,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * Value-equal sorts, like {@code SORT _score DESC, keyword_field} usually resolves to, share one manager across shards.
+     */
     public void testShardsWithEqualSortsShareManager() throws IOException {
         setupIndex(100);
         int numShards = randomIntBetween(2, 5);
@@ -356,9 +359,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * Sorts backed by an {@code IndexFieldData.XFieldComparatorSource} compare by identity, because the comparator source
-     * doesn't override {@code equals()}. When such a sort shares a manager, each shard must get its own, and creating
-     * collectors must not add more.
+     * Sorts backed by an {@code IndexFieldData.XFieldComparatorSource} (numeric, date, geo distance) compare by identity,
+     * because the comparator source doesn't override {@code equals()}. So for {@code SORT _score DESC, x} each shard gets
+     * its own manager, and creating collectors doesn't add more.
      */
     public void testIdentityEqualSortsGetOneManagerPerShard() throws IOException {
         setupIndex(100);
@@ -477,10 +480,10 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     /**
      * Resolves sorts against the test index. Score sorts match what {@link ScoreSortBuilder} builds exactly: a descending one
      * becomes {@link SortField#FIELD_SCORE} (so a lone one is {@link Sort#RELEVANCE}), an ascending one a reversed score field.
-     * Field sorts become {@link #FIELD_SORT}, a value-equal {@link SortedNumericSortField}, which is a stand-in: a real shard
-     * builds a {@link SortField} with an {@code IndexFieldData.XFieldComparatorSource}, which compares by identity, so equal
-     * field sorts on different shards never share a manager in production. {@link #testIdentityEqualSortsGetOneManagerPerShard}
-     * covers that case.
+     * Field sorts become {@link #FIELD_SORT}, a value-equal {@link SortedNumericSortField}. That is what a keyword sort looks
+     * like on a real shard (a value-equal {@code SortedSetSortField}). Numeric, date and geo distance sorts build a
+     * {@link SortField} with an {@code IndexFieldData.XFieldComparatorSource} instead, which compares by identity, and
+     * {@link #testIdentityEqualSortsGetOneManagerPerShard} covers those.
      */
     private static Sort resolveSort(List<SortBuilder<?>> sorts) {
         SortField[] fields = new SortField[sorts.size()];

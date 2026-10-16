@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -56,7 +55,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,26 +80,25 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityMetric.DOT_PRODUCT;
 
-public class Knn extends SingleFieldFullTextFunction
-    implements
-        OptionalArgument,
-        VectorFunction,
-        PostOptimizationVerificationAware,
-        ConfigurationFunction {
+public class Knn extends SingleFieldFullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
+
+    /**
+     * Marks nodes that support KNN over a non-index-mapped field or expression.
+     * The {@code LogicalVerifier} uses this to fail fast with a 4xx when any
+     * participating node (including a CCS remote) predates the release.
+     */
+    public static final TransportVersion ESQL_KNN_RUNTIME_FIELD = TransportVersion.fromName("esql_knn_runtime_field");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
-        .ternaryConfig(Knn::new)
-        // Fix a ClassCastException when the query vector has a single dimension and is folded to a scalar.
+        .ternary(Knn::new)
+        .capabilities("runtime_anywhere", "runtime_similarity_function")
         .capabilities("single_dimension_query_vector")
-        // Snapshot-only, matching the pragma that enables KNN's runtime search in the first place.
-        .snapshotCapabilities("runtime_anywhere", "runtime_similarity_function")
         .name("knn");
 
     private final Integer implicitK;
     // Expressions to be used as prefilters in knn query
     private final List<Expression> filterExpressions;
-    private final Configuration configuration;
     private float[] cachedQuery;
 
     public static final String MIN_CANDIDATES_OPTION = "min_candidates";
@@ -205,10 +202,9 @@ public class Knn extends SingleFieldFullTextFunction
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
                 + " See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.",
             optional = true
-        ) Expression options,
-        Configuration configuration
+        ) Expression options
     ) {
-        this(source, field, query, options, null, null, List.of(), configuration);
+        this(source, field, query, options, null, null, List.of());
     }
 
     public Knn(
@@ -218,13 +214,11 @@ public class Knn extends SingleFieldFullTextFunction
         Expression options,
         Integer implicitK,
         QueryBuilder queryBuilder,
-        List<Expression> filterExpressions,
-        Configuration configuration
+        List<Expression> filterExpressions
     ) {
         super(source, field, query, options, expressionList(field, query, options), queryBuilder);
         this.implicitK = implicitK;
         this.filterExpressions = filterExpressions;
-        this.configuration = configuration;
     }
 
     private static List<Expression> expressionList(Expression field, Expression query, Expression options) {
@@ -245,13 +239,9 @@ public class Knn extends SingleFieldFullTextFunction
         return filterExpressions;
     }
 
-    public Configuration configuration() {
-        return configuration;
-    }
-
     public Knn withImplicitK(Integer k) {
         Check.notNull(k, "k must not be null");
-        return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions(), configuration());
+        return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions());
     }
 
     public List<Number> queryAsObject() {
@@ -271,20 +261,11 @@ public class Knn extends SingleFieldFullTextFunction
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder, filterExpressions(), configuration);
-    }
-
-    /** Unlike the lexical search functions, KNN's runtime search is still gated behind a pragma. */
-    @Override
-    public boolean supportsRuntimeSearch() {
-        return Build.current().isSnapshot() && configuration.pragmas().knnRuntimeField();
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder, filterExpressions());
     }
 
     @Override
     public boolean isRuntimeSearch() {
-        if (supportsRuntimeSearch() == false) {
-            return false;
-        }
         FieldAttribute fieldAttribute = fieldAsFieldAttribute();
         if (fieldAttribute == null) {
             // This isn't a field in the index OR a pushed block loader
@@ -566,7 +547,7 @@ public class Knn extends SingleFieldFullTextFunction
     }
 
     public Expression withFilters(List<Expression> filterExpressions) {
-        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder(), filterExpressions, configuration());
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder(), filterExpressions);
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {
@@ -607,32 +588,21 @@ public class Knn extends SingleFieldFullTextFunction
             newChildren.size() > 2 ? newChildren.get(2) : null,
             implicitK(),
             queryBuilder(),
-            filterExpressions(),
-            configuration()
+            filterExpressions()
         );
     }
 
     public Knn replaceOptions(Expression newOptions) {
-        return new Knn(source(), field(), query(), newOptions, implicitK(), queryBuilder(), filterExpressions(), configuration());
+        return new Knn(source(), field(), query(), newOptions, implicitK(), queryBuilder(), filterExpressions());
     }
 
     public Knn replaceQuery(Expression newQuery) {
-        return new Knn(source(), field(), newQuery, options(), implicitK(), queryBuilder(), filterExpressions(), configuration());
+        return new Knn(source(), field(), newQuery, options(), implicitK(), queryBuilder(), filterExpressions());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(
-            this,
-            Knn::new,
-            field(),
-            query(),
-            options(),
-            implicitK(),
-            queryBuilder(),
-            filterExpressions(),
-            configuration()
-        );
+        return NodeInfo.create(this, Knn::new, field(), query(), options(), implicitK(), queryBuilder(), filterExpressions());
     }
 
     @Override
@@ -650,8 +620,7 @@ public class Knn extends SingleFieldFullTextFunction
             ? in.readOptionalNamedWriteable(Expression.class)
             : null;
         Integer implicitK = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS) ? in.readOptionalInt() : null;
-        Configuration configuration = ((PlanStreamInput) in).configuration();
-        return new Knn(source, field, query, options, implicitK, queryBuilder, filterExpressions, configuration);
+        return new Knn(source, field, query, options, implicitK, queryBuilder, filterExpressions);
     }
 
     @Override

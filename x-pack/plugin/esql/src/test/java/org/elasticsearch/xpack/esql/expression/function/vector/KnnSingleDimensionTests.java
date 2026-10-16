@@ -32,8 +32,7 @@ public class KnnSingleDimensionTests extends ESTestCase {
             null,
             null,
             null,
-            List.of(),
-            EsqlTestUtils.TEST_CFG
+            List.of()
         );
     }
 

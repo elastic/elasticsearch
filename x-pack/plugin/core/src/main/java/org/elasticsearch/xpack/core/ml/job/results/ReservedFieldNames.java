@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.job.results;
 
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -215,6 +216,10 @@ public final class ReservedFieldNames {
         DatafeedTimingStats.BUCKET_COUNT.getPreferredName(),
         DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(),
         DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
+
+        EsqlDatafeedSourceCheckpoint.DATAFEED_ID.getPreferredName(),
+        EsqlDatafeedSourceCheckpoint.FINGERPRINT.getPreferredName(),
+        EsqlDatafeedSourceCheckpoint.SOURCE_END_MS.getPreferredName(),
 
         ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(),
         ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(),

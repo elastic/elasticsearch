@@ -16,18 +16,23 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -206,6 +211,239 @@ public class PackedValuesBlockHashVariableWidthTests extends ESTestCase {
         }
         // Hash is closed; everything it adjusted on the breaker must be released.
         assertThat("breaker must be zero after close", hashBreaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A single-valued page holding nulls, which the bulk path also takes. A null adds no bytes to the key, only
+     * its bit in the null-tracking prefix, so both the group ids and the keys {@code getKeys} reads back from
+     * those bytes must match the slow path.
+     */
+    public void testNullsAgreeWithSlowPath() {
+        BlockFactory factory = TestBlockFactory.getNonBreakingInstance();
+        // Every present/null combination across the three columns, with values repeating under differing null
+        // patterns, so a row differing only in which column is null takes its own group.
+        Integer[] userIds = { 0, null, 0, null, 1, null, 1, 0, null, 0, null, 1, null };
+        Long[] sessions = { 100L, 100L, null, null, 200L, 200L, null, 100L, 100L, null, null, 200L, null };
+        String[] phrases = { "cat", "cat", "cat", null, null, "dog", "dog", "cat", "cat", null, null, "dog", null };
+        final int positions = userIds.length;
+
+        List<BlockHash.GroupSpec> specs = List.of(
+            new BlockHash.GroupSpec(0, ElementType.INT),
+            new BlockHash.GroupSpec(1, ElementType.LONG),
+            new BlockHash.GroupSpec(2, ElementType.BYTES_REF)
+        );
+
+        try (
+            IntBlock.Builder ib = factory.newIntBlockBuilder(positions);
+            LongBlock.Builder lb = factory.newLongBlockBuilder(positions);
+            BytesRefBlock.Builder bb = factory.newBytesRefBlockBuilder(positions)
+        ) {
+            for (int i = 0; i < positions; i++) {
+                if (userIds[i] == null) {
+                    ib.appendNull();
+                } else {
+                    ib.appendInt(userIds[i]);
+                }
+                if (sessions[i] == null) {
+                    lb.appendNull();
+                } else {
+                    lb.appendLong(sessions[i]);
+                }
+                if (phrases[i] == null) {
+                    bb.appendNull();
+                } else {
+                    bb.appendBytesRef(new BytesRef(phrases[i]));
+                }
+            }
+            try (IntBlock iv = ib.build(); LongBlock lv = lb.build(); BytesRefBlock brv = bb.build()) {
+                Page page = new Page(iv, lv, brv);
+                assertNull("the page must have no vectors, or the bulk path would not be exercising nulls", iv.asVector());
+
+                int[] bulkOrds;
+                List<String> bulkKeys;
+                try (PackedValuesBlockHash bulk = new PackedValuesBlockHash(specs, factory, 64)) {
+                    bulkOrds = collectOrds(positions, ai -> bulk.add(page, ai));
+                    bulkKeys = renderKeys(bulk);
+                }
+                int[] slowOrds;
+                List<String> slowKeys;
+                try (PackedValuesBlockHash slow = new PackedValuesBlockHash(specs, factory, 64)) {
+                    slowOrds = collectOrds(positions, ai -> slow.add(page, ai, 1024));
+                    slowKeys = renderKeys(slow);
+                }
+                assertArrayEquals("bulk path and slow path must assign identical group ids", slowOrds, bulkOrds);
+                assertThat("bulk path and slow path must read back identical keys", bulkKeys, equalTo(slowKeys));
+                // Each group's key must be the row that made it, nulls included.
+                for (int p = 0; p < positions; p++) {
+                    assertThat(
+                        "group " + bulkOrds[p] + " must hold the key of position " + p,
+                        bulkKeys.get(bulkOrds[p]),
+                        equalTo(renderRow(userIds[p], sessions[p], phrases[p]))
+                    );
+                }
+            }
+        }
+    }
+
+    /** Every group's key as text, group id order, so two hashes can be compared whatever blocks they build. */
+    private static List<String> renderKeys(BlockHash hash) {
+        IntVector selected = hash.nonEmpty();
+        Block[] keys = hash.getKeys(selected);
+        try {
+            List<String> out = new ArrayList<>(keys[0].getPositionCount());
+            for (int p = 0; p < keys[0].getPositionCount(); p++) {
+                StringBuilder row = new StringBuilder();
+                for (int g = 0; g < keys.length; g++) {
+                    if (g > 0) {
+                        row.append('|');
+                    }
+                    row.append(renderValue(keys[g], p));
+                }
+                out.add(row.toString());
+            }
+            return out;
+        } finally {
+            Releasables.close(selected);
+            Releasables.close(keys);
+        }
+    }
+
+    private static String renderValue(Block block, int position) {
+        if (block.isNull(position)) {
+            return "null";
+        }
+        final int i = block.getFirstValueIndex(position);
+        return switch (block.elementType()) {
+            case INT -> Integer.toString(((IntBlock) block).getInt(i));
+            case LONG -> Long.toString(((LongBlock) block).getLong(i));
+            case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i, new BytesRef()).utf8ToString();
+            default -> throw new IllegalStateException("unsupported type: " + block.elementType());
+        };
+    }
+
+    private static String renderRow(Integer userId, Long session, String phrase) {
+        return userId + "|" + session + "|" + phrase;
+    }
+
+    /**
+     * A page holding nulls whose encoded payload runs past {@code CHUNK_SOFT_CAP}, so the bulk path packs it in
+     * several chunks. A row's nulls are tracked by its index within the chunk while its values are read at its
+     * position in the page, so the two must stay aligned once a chunk starts at a non-zero offset.
+     */
+    public void testNullsAcrossChunkBoundaries() {
+        final int positions = 200;
+        final byte[] base = new byte[4096];
+        Arrays.fill(base, (byte) 'x');
+
+        CircuitBreaker breaker = new LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(10));
+        BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+
+        List<BlockHash.GroupSpec> specs = List.of(
+            new BlockHash.GroupSpec(0, ElementType.BYTES_REF),
+            new BlockHash.GroupSpec(1, ElementType.LONG)
+        );
+
+        BytesRef scratch = new BytesRef();
+        scratch.bytes = base;
+        scratch.offset = 0;
+        try (
+            BytesRefBlock.Builder bb = factory.newBytesRefBlockBuilder(positions);
+            LongBlock.Builder lb = factory.newLongBlockBuilder(positions)
+        ) {
+            for (int i = 0; i < positions; i++) {
+                // Both columns hold no value at some positions, on cycles that do not divide the chunk size.
+                if (i % 7 == 0) {
+                    bb.appendNull();
+                } else {
+                    scratch.length = base.length - (i % 3);
+                    bb.appendBytesRef(scratch);
+                }
+                if (i % 5 == 0) {
+                    lb.appendNull();
+                } else {
+                    lb.appendLong(i % 11);
+                }
+            }
+            try (BytesRefBlock brb = bb.build(); LongBlock lgb = lb.build()) {
+                Page page = new Page(brb, lgb);
+                // emitBatchSize > positions, so chunking inside bulkAdd breaks on the soft cap rather than on the
+                // emit boundary.
+                int[] bulkOrds;
+                List<String> bulkKeys;
+                try (PackedValuesBlockHash bulk = new PackedValuesBlockHash(specs, factory, 256)) {
+                    bulkOrds = collectOrds(positions, ai -> bulk.add(page, ai));
+                    bulkKeys = renderKeys(bulk);
+                }
+                int[] slowOrds;
+                List<String> slowKeys;
+                try (PackedValuesBlockHash slow = new PackedValuesBlockHash(specs, factory, 256)) {
+                    slowOrds = collectOrds(positions, ai -> slow.add(page, ai, 1024));
+                    slowKeys = renderKeys(slow);
+                }
+                assertArrayEquals("multi-chunk bulk path with nulls must agree with the slow path", slowOrds, bulkOrds);
+                assertThat("multi-chunk keys must agree with the slow path", bulkKeys, equalTo(slowKeys));
+            }
+        }
+        assertThat("breaker must return to zero after both hashes close", breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * More key columns than a long has bits, with nulls in two columns exactly 64 apart. The bulk path tracks a
+     * row's nulls in one long, so it declines a page this wide and the encoders pack it instead.
+     */
+    public void testMoreColumnsThanNullMaskBits() {
+        final int columns = Long.SIZE + 6;
+        final int positions = 8;
+        BlockFactory factory = TestBlockFactory.getNonBreakingInstance();
+
+        List<BlockHash.GroupSpec> specs = new ArrayList<>(columns);
+        for (int g = 0; g < columns - 1; g++) {
+            specs.add(new BlockHash.GroupSpec(g, ElementType.INT));
+        }
+        specs.add(new BlockHash.GroupSpec(columns - 1, ElementType.BYTES_REF));
+
+        Block[] blocks = new Block[columns];
+        for (int g = 0; g < columns - 1; g++) {
+            try (IntBlock.Builder b = factory.newIntBlockBuilder(positions)) {
+                for (int p = 0; p < positions; p++) {
+                    // Column 1 holds no value on even positions, column 65 on odd ones.
+                    if ((g == 1 && p % 2 == 0) || (g == Long.SIZE + 1 && p % 2 == 1)) {
+                        b.appendNull();
+                    } else {
+                        b.appendInt(g * 100);
+                    }
+                }
+                blocks[g] = b.build();
+            }
+        }
+        try (BytesRefBlock.Builder b = factory.newBytesRefBlockBuilder(positions)) {
+            for (int p = 0; p < positions; p++) {
+                b.appendBytesRef(new BytesRef("same"));
+            }
+            blocks[columns - 1] = b.build();
+        }
+
+        Page page = new Page(blocks);
+        try {
+            int[] bulkOrds;
+            List<String> bulkKeys;
+            try (PackedValuesBlockHash bulk = new PackedValuesBlockHash(specs, factory, 64)) {
+                bulkOrds = collectOrds(positions, ai -> bulk.add(page, ai));
+                bulkKeys = renderKeys(bulk);
+            }
+            int[] slowOrds;
+            List<String> slowKeys;
+            try (PackedValuesBlockHash slow = new PackedValuesBlockHash(specs, factory, 64)) {
+                slowOrds = collectOrds(positions, ai -> slow.add(page, ai, 1024));
+                slowKeys = renderKeys(slow);
+            }
+            assertArrayEquals("group ids must agree beyond the null mask width", slowOrds, bulkOrds);
+            assertThat("keys must agree beyond the null mask width", bulkKeys, equalTo(slowKeys));
+            // The two null patterns are different keys, so the positions must not all collapse together.
+            assertThat(bulkKeys.size(), equalTo(2));
+        } finally {
+            Releasables.close(blocks);
+        }
     }
 
     private static int[] collectOrds(int positions, java.util.function.Consumer<GroupingAggregatorFunction.AddInput> driver) {

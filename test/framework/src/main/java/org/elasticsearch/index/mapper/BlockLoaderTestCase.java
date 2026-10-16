@@ -351,7 +351,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public static Map<String, Object> decorateWithRequiredFields(Map<String, Object> document, IndexMode indexMode) {
         if (indexMode == IndexMode.LOGSDB) {
-            document.put("@timestamp", randomMillisUpToYear9999());
+            document.putIfAbsent("@timestamp", randomMillisUpToYear9999());
         }
         return document;
     }
@@ -366,7 +366,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         if (indexMode == IndexMode.LOGSDB) {
             var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
             var mappingProperties = (Map<String, Object>) docMapping.get("properties");
-            mappingProperties.put("@timestamp", Map.of("type", "date"));
+            mappingProperties.putIfAbsent("@timestamp", Map.of("type", "date"));
         }
     }
 

@@ -39,6 +39,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -105,6 +106,7 @@ public class HttpClientManager implements Closeable {
     private final PoolingNHttpClientConnectionManager connectionManager;
     private IdleConnectionEvictor connectionEvictor;
     private final HttpClient httpClient;
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     private volatile TimeValue evictionInterval;
     private volatile TimeValue connectionMaxIdle;
@@ -270,6 +272,10 @@ public class HttpClientManager implements Closeable {
     }
 
     public void start() {
+        // Never start, if the client manager was closed
+        if (isClosed.get()) {
+            return;
+        }
         httpClient.start();
         connectionEvictor.start();
     }
@@ -285,8 +291,11 @@ public class HttpClientManager implements Closeable {
 
     @Override
     public void close() throws IOException {
-        httpClient.close();
-        connectionEvictor.close();
+        // Make sure closing the client manager is idempotent
+        if (isClosed.compareAndSet(false, true)) {
+            httpClient.close();
+            connectionEvictor.close();
+        }
     }
 
     private void setMaxConnections(int maxConnections) {

@@ -9,62 +9,63 @@
 
 package org.elasticsearch.benchmark.stateless;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.codecs.FilterCodec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.index.mapper.MapperServiceFactory;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.codec.Elasticsearch96Codec;
-import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.codec.DocValuesBatchPrefetcher;
+import org.elasticsearch.index.codec.ElasticsearchStoredFieldsFormat;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.xcontent.XContentType;
 import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
-import org.openjdk.jmh.annotations.Setup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 
 /**
- * Benchmark for {@link SourceLoader.SyntheticFieldLoader.DocValuesLoader} against a
- * stateless-simulated Directory, exercising the prefetch path in TSDB doc values codecs.
- *
- * <p>Always uses the ES95TSDB doc values format (index-sorted on {@code @timestamp}). The
- * {@code prefetch} parameter controls whether {@link AbstractTSDBDocValuesProducer#prefetchEnabled}
- * is set, so the two rows differ only in prefetch behavior — not in codec or compression.
- *
- * <p>Sweeps via {@link Param}:
+ * Loads the synthetic {@code _source} of a batch, as the fetch phase does, from a stateless-simulated directory, with and
+ * without doc-values prefetch. Documents are parsed by the mapper and written with the codec of their index mode:
  * <ul>
- *   <li>{@code numericFields} — number of long fields</li>
- *   <li>{@code keywordFields} — number of keyword fields</li>
- *   <li>{@code binaryFields} — number of binary fields (exercises the compressed binary prefetch path)</li>
- *   <li>{@code numDocs} — index size</li>
- *   <li>{@code batchSize} — doc IDs loaded per query invocation</li>
- *   <li>{@code sparsity} — fraction of docs with a value for numeric fields (1.0 = dense)</li>
- *   <li>{@code prefetch} — whether doc-values prefetch is active</li>
+ *   <li>{@code es819}: a {@code logsdb} index;</li>
+ *   <li>{@code es95}: the same documents in the ES95 format;</li>
+ *   <li>{@code columnar}: a {@code columnar} index, ColumNAR strings and ES819 numbers.</li>
  * </ul>
+ * {@code prefetchBudget} is the document and column pairs a window holds, {@code 0} disabling prefetch.
  *
  * <h2>Usage</h2>
  * <pre>{@code
  * ./gradlew -p benchmarks run --args '
  *   DocValuesLoaderBenchmark
- *   -p cacheState=COLD -p firstByteLatencyMs=100
- *   -p binaryFields=20
+ *   -p cacheState=COLD -p firstByteLatencyMs=100 -p rangeSize=1mb
  * '
  * }</pre>
  */
@@ -72,193 +73,210 @@ import java.util.Random;
 public class DocValuesLoaderBenchmark extends AbstractStatelessQueryBenchmark {
 
     private static final long SEED = 0xDEADBEEFL;
-    private static final String TIMESTAMP_FIELD = "@timestamp";
+
+    @Param({ "es819", "es95", "columnar" })
+    public String format;
 
     @Param({ "10" })
     public int numericFields;
 
-    @Param({ "7" })
+    @Param({ "10" })
     public int keywordFields;
 
-    /** Length of each randomly-generated keyword value. Longer values reduce prefix compression and increase DV file size. */
-    @Param({ "20" })
-    public int keywordValueLen;
+    /** How many distinct values a keyword field takes; {@code 0} makes every value unique. */
+    @Param({ "1000" })
+    public int keywordCardinality;
 
-    @Param({ "5" })
-    public int binaryFields;
-
-    /**
-     * Length of each randomly-generated binary value.
-     * Binary values are stored as {@code binary} doc-values fields, exercising the
-     * {@link org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer} binary prefetch path.
-     */
-    @Param({ "20" })
-    public int binaryValueLen;
-
-    @Param({ "100000" })
+    @Param({ "200000" })
     public int numDocs;
 
-    @Param({ "64" })
+    /** Segments the index is left with. */
+    @Param({ "1" })
+    public int segments;
+
+    @Param({ "16", "256" })
     public int batchSize;
 
-    @Param({ "1.0", "0.5" })
-    public double sparsity;
+    /** Fraction of documents that hold each field; {@code 1.0} is dense. */
+    @Param({ "1.0", "0.3" })
+    public double density;
 
-    /** Whether to enable doc-values prefetch in the ES95TSDB codec. */
-    @Param({ "true", "false" })
-    public boolean prefetch;
+    @Param({ "0", "1024" })
+    public int prefetchBudget;
 
+    /** The read unit passed to prefetch: {@link #rangeSize} when set. */
+    public int prefetchReadUnit = 4096;
+
+    /** Cache range and region size; empty keeps the default. */
+    @Param({ "1mb" })
+    public String rangeSize;
+
+    private MapperService mapperService;
     private SourceLoader sourceLoader;
-    private int[] docIdBatch;
-
-    @Setup(Level.Trial)
-    public void setupPrefetch() {
-        AbstractTSDBDocValuesProducer.prefetchEnabled = prefetch;
-    }
+    private int[] batch;
 
     @Override
     protected Settings extraNodeSettings() {
-        return Settings.builder().putList("node.roles", "search").build();
+        Settings.Builder settings = Settings.builder().putList("node.roles", "search");
+        if (rangeSize.isEmpty() == false) {
+            settings.put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize);
+            settings.put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), rangeSize);
+        }
+        return settings.build();
+    }
+
+    private MapperService mapperService() {
+        if (mapperService == null) {
+            Settings settings = Settings.builder().put("index.mode", format.equals("columnar") ? "columnar" : "logsdb").build();
+            mapperService = MapperServiceFactory.create(mappings(), Collections.emptyList(), settings);
+        }
+        return mapperService;
     }
 
     @Override
     protected IndexWriterConfig indexWriterConfig() {
-        IndexWriterConfig iwc = new IndexWriterConfig();
-        iwc.setCodec(new Elasticsearch96Codec() {
-            @Override
-            public DocValuesFormat getDocValuesFormatForField(String field) {
-                return DocValuesFormat.forName("ES95TSDB");
-            }
-        });
-        iwc.setUseCompoundFile(false);
-        iwc.setIndexSort(new Sort(new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)));
-        return iwc;
-    }
+        MapperService mapperService = mapperService();
+        Codec codec = new PerFieldMapperCodec(
+            Lucene104Codec.Mode.BEST_SPEED,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+            ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+            mapperService,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null
+        );
+        if (format.equals("es95")) {
+            Codec perField = codec;
+            DocValuesFormat es95 = new ES95TSDBDocValuesFormat();
+            codec = new FilterCodec(perField.getName(), perField) {
+                private final DocValuesFormat docValues = new PerFieldDocValuesFormat() {
+                    @Override
+                    public DocValuesFormat getDocValuesFormatForField(String field) {
+                        DocValuesFormat chosen = ((PerFieldMapperCodec) perField).getDocValuesFormatForField(field);
+                        // ES95 where the mapping chose a TSDB format.
+                        return chosen.getName().startsWith("ES819") ? es95 : chosen;
+                    }
+                };
 
-    private static final char[] KW_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789".toCharArray();
+                @Override
+                public DocValuesFormat docValuesFormat() {
+                    return docValues;
+                }
+            };
+        }
+        IndexWriterConfig config = new IndexWriterConfig().setCodec(codec).setUseCompoundFile(false);
+        config.setMergePolicy(segments > 1 ? NoMergePolicy.INSTANCE : config.getMergePolicy());
+        Sort sort = new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
+            mapperService::fieldType,
+            (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
+        );
+        if (sort != null) {
+            config.setIndexSort(sort);
+        }
+        return config;
+    }
 
     @Override
     protected String indexCacheKey() {
-        return "dvloader-n"
+        return "dvprefetch-"
+            + format
+            + "-n"
             + numericFields
             + "-k"
             + keywordFields
-            + "-kl"
-            + keywordValueLen
-            + "-b"
-            + binaryFields
-            + "-bl"
-            + binaryValueLen
+            + "-c"
+            + keywordCardinality
             + "-d"
             + numDocs
             + "-s"
-            + sparsity;
+            + segments
+            + "-p"
+            + density;
     }
 
     @Override
     protected void buildIndex(IndexWriter writer) throws IOException {
-        Random rng = new Random(SEED);
-        char[] kwBuf = new char[keywordValueLen];
-        // Binary fields are written in the IntegratedCount format: VInt(count=1) + VInt(len) + bytes.
-        // The header is written once and then preserved; only the payload bytes are randomized per document.
-        int binHeaderLen = vIntLen(1) + vIntLen(binaryValueLen);
-        byte[] binBuf = new byte[binHeaderLen + binaryValueLen];
-        byte[] binPayload = new byte[binaryValueLen];
-        int pos = writeVInt(binBuf, 0, 1);
-        writeVInt(binBuf, pos, binaryValueLen);
+        Random random = new Random(SEED);
         for (int i = 0; i < numDocs; i++) {
-            Document doc = new Document();
-            long timestamp = 1_700_000_000_000L + i * 1000L;
-            doc.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, timestamp));
-
+            StringBuilder source = new StringBuilder("{\"@timestamp\":").append(1_700_000_000_000L + i * 1000L);
+            source.append(",\"host\":{\"name\":\"host-").append(random.nextInt(50)).append("\"}");
             for (int f = 0; f < numericFields; f++) {
-                if (rng.nextDouble() < sparsity) {
-                    doc.add(new SortedNumericDocValuesField("metric_" + f, rng.nextLong()));
+                if (random.nextDouble() < density) {
+                    source.append(",\"metric_").append(f).append("\":").append(random.nextInt(1_000_000));
                 }
             }
-
             for (int f = 0; f < keywordFields; f++) {
-                for (int c = 0; c < keywordValueLen; c++) {
-                    kwBuf[c] = KW_ALPHABET[rng.nextInt(KW_ALPHABET.length)];
+                if (random.nextDouble() < density) {
+                    long value = keywordCardinality == 0 ? random.nextLong() : random.nextInt(keywordCardinality);
+                    source.append(",\"dim_").append(f).append("\":\"value-").append(f).append('-').append(value).append('"');
                 }
-                doc.add(new SortedSetDocValuesField("dim_" + f, new BytesRef(new String(kwBuf))));
             }
-
-            for (int f = 0; f < binaryFields; f++) {
-                rng.nextBytes(binPayload);
-                System.arraycopy(binPayload, 0, binBuf, binHeaderLen, binaryValueLen);
-                doc.add(new BinaryDocValuesField("bin_" + f, new BytesRef(binBuf)));
+            source.append('}');
+            List<LuceneDocument> docs = mapperService().documentMapper()
+                .parse(new SourceToParse(Integer.toString(i), new BytesArray(source.toString()), XContentType.JSON))
+                .docs();
+            writer.addDocuments(docs);
+            if (segments > 1 && (i + 1) % (numDocs / segments) == 0) {
+                writer.flush();
             }
-
-            writer.addDocument(doc);
         }
-        writer.forceMerge(1);
+        if (segments == 1) {
+            writer.forceMerge(1);
+        }
     }
 
     @Override
     protected void prepareQuery() throws IOException {
-        String mappings = buildMappings();
-        Settings indexSettings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
-        MapperService mapperService = MapperServiceFactory.create(mappings, Collections.emptyList(), indexSettings);
-        sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
-
-        Random rng = new Random(SEED ^ 0xCAFE);
-        docIdBatch = new int[batchSize];
-        for (int i = 0; i < batchSize; i++) {
-            docIdBatch[i] = rng.nextInt(numDocs);
+        if (rangeSize.isEmpty() == false) {
+            prefetchReadUnit = Math.toIntExact(ByteSizeValue.parseBytesSizeValue(rangeSize, "rangeSize").getBytes());
         }
-        Arrays.sort(docIdBatch);
+        sourceLoader = mapperService().mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+        Random random = new Random(SEED ^ 0xCAFE);
+        batch = random.ints(0, numDocs).distinct().limit(batchSize).sorted().toArray();
     }
 
     @Override
     protected Object runQuery(IndexSearcher searcher) throws IOException {
-        LeafReaderContext ctx = searcher.getIndexReader().leaves().get(0);
-        SourceLoader.Leaf leaf = sourceLoader.leaf(ctx, docIdBatch);
-        var storedFieldLoader = StoredFieldLoader.empty().getLoader(ctx, null);
-
+        List<LeafReaderContext> leaves = new ArrayList<>();
+        List<int[]> docsInLeaves = new ArrayList<>();
+        List<LeafReaderContext> all = searcher.getIndexReader().leaves();
+        for (int i = 0; i < batch.length;) {
+            LeafReaderContext leaf = all.get(ReaderUtil.subIndex(batch[i], all));
+            int end = i;
+            while (end < batch.length && batch[end] < leaf.docBase + leaf.reader().maxDoc()) {
+                end++;
+            }
+            leaves.add(leaf);
+            docsInLeaves.add(Arrays.stream(batch, i, end).map(doc -> doc - leaf.docBase).toArray());
+            i = end;
+        }
+        // A fresh loader each time, as each fetch gets one.
+        SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+        if (prefetchBudget > 0) {
+            loader.announce(new DocValuesBatchPrefetcher(prefetchBudget, prefetchReadUnit), leaves, docsInLeaves);
+        }
         int loaded = 0;
-        for (int docId : docIdBatch) {
-            storedFieldLoader.advanceTo(docId);
-            leaf.source(storedFieldLoader, docId);
-            loaded++;
+        for (int l = 0; l < leaves.size(); l++) {
+            LeafReaderContext leaf = leaves.get(l);
+            int[] docs = docsInLeaves.get(l);
+            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docs);
+            LeafStoredFieldLoader storedFields = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docs);
+            for (int doc : docs) {
+                storedFields.advanceTo(doc);
+                loaded += sourceLeaf.source(storedFields, doc).internalSourceRef().length();
+            }
         }
         return loaded;
     }
 
-    private String buildMappings() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("{\"_doc\":{\"properties\":{");
-        sb.append("\"").append(TIMESTAMP_FIELD).append("\":{\"type\":\"date\"}");
-
+    private String mappings() {
+        StringBuilder mappings = new StringBuilder("{\"_doc\":{\"properties\":{");
+        mappings.append("\"@timestamp\":{\"type\":\"date\"},\"host\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}");
         for (int f = 0; f < numericFields; f++) {
-            sb.append(",\"metric_").append(f).append("\":{\"type\":\"long\"}");
+            mappings.append(",\"metric_").append(f).append("\":{\"type\":\"long\"}");
         }
         for (int f = 0; f < keywordFields; f++) {
-            sb.append(",\"dim_").append(f).append("\":{\"type\":\"keyword\"}");
+            mappings.append(",\"dim_").append(f).append("\":{\"type\":\"keyword\"}");
         }
-        for (int f = 0; f < binaryFields; f++) {
-            sb.append(",\"bin_").append(f).append("\":{\"type\":\"binary\"}");
-        }
-
-        sb.append("}}}");
-        return sb.toString();
-    }
-
-    private static int vIntLen(int value) {
-        int len = 1;
-        while ((value & ~0x7F) != 0) {
-            value >>>= 7;
-            len++;
-        }
-        return len;
-    }
-
-    private static int writeVInt(byte[] buf, int pos, int value) {
-        while ((value & ~0x7F) != 0) {
-            buf[pos++] = (byte) ((value & 0x7F) | 0x80);
-            value >>>= 7;
-        }
-        buf[pos++] = (byte) value;
-        return pos;
+        return mappings.append("}}}").toString();
     }
 }

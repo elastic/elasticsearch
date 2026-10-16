@@ -160,7 +160,11 @@ public abstract class AbstractStatelessQueryBenchmark {
     @Benchmark
     public final Object runBenchmark(CacheCounters counters) throws IOException {
         SharedBlobCacheService.Stats before = StatelessDirectoryFactory.statsFor(directory);
+        int downloadsBefore = StatelessDirectoryFactory.downloads();
+        int roundsBefore = StatelessDirectoryFactory.downloadRounds();
         Object result = runQuery(searcher);
+        counters.downloads = StatelessDirectoryFactory.downloads() - downloadsBefore;
+        counters.downloadRounds = StatelessDirectoryFactory.downloadRounds() - roundsBefore;
         SharedBlobCacheService.Stats after = StatelessDirectoryFactory.statsFor(directory);
         if (before != null && after != null) {
             counters.bytesRead = after.readBytes() - before.readBytes();
@@ -255,6 +259,10 @@ public abstract class AbstractStatelessQueryBenchmark {
         public long bytesDownloaded;
         public long cacheMisses;
         public long regionWrites;
+        /** Blob-store requests that paid the first-byte latency. */
+        public long downloads;
+        /** Bursts of requests starting while none is in flight. */
+        public long downloadRounds;
 
         @Setup(Level.Invocation)
         public void reset() {
@@ -262,6 +270,8 @@ public abstract class AbstractStatelessQueryBenchmark {
             bytesDownloaded = 0;
             cacheMisses = 0;
             regionWrites = 0;
+            downloads = 0;
+            downloadRounds = 0;
         }
     }
 }

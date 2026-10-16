@@ -227,7 +227,7 @@ field sharing the command still fails. (e.g. if `content` was an indexed field i
 [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
 supports targeting `text` and `keyword` expressions in the same way, with the same limitations.
 
-{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md)
 supports targeting a `dense_vector` expression (such as a column produced by `EVAL` or the `DENSE_VECTOR`
 command) instead of an indexed field. It performs an exact search by comparing the query vector against
@@ -310,8 +310,8 @@ FROM books
 
 ### KNN on expressions during rolling upgrades and CCS [esql-limitations-knn-expression-upgrade]
 
-{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
-`KNN` on a `dense_vector` expression requires all nodes in the cluster to be on version 9.6 or later.
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+`KNN` on a `dense_vector` expression requires all nodes in the cluster to be on version 9.6+.
 During a rolling upgrade, or when using cross-cluster search (CCS) with a remote cluster on a version earlier than 9.6,
 the coordinator rejects the query before it runs with the error: KNN over a non-index-mapped field or expression
 is not supported on every participating node. To avoid this, ensure all participating nodes and remote clusters are

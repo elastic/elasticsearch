@@ -235,7 +235,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
                         + "This option is rejected when used with an indexed `dense_vector` field, where the field's mapping determines the metric. "
                         + "Accepted values: `cosine`, `dot_product`, `l2_norm`, `max_inner_product`.",
                     applies_to = """
-                        {"stack": "preview 9.6.0", "serverless": "preview"}"""
+                        {"stack": "preview 9.6+", "serverless": "preview"}"""
                 ), },
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
                 + " See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.",

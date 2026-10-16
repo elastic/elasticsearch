@@ -215,7 +215,7 @@ help, because the result is still not an index-mapped field. To filter on an ext
 `MATCH`, `MATCH_PHRASE`, and the `:` operator accept a `FIELD_EXTRACT` expression. There is no indexed field
 behind the extracted value, so the match is evaluated at runtime, row by row, rather than pushed to the index.
 
-{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 `KNN` can also be used on values extracted from a `FIELD_EXTRACT` expression, by using a valid conversion from keyword
 to dense_vector, such as the TO_DENSE_VECTOR function to cast a hex-encoded byte vector, or the DENSE_VECTOR command
 to generate embeddings from the extracted keyword field.

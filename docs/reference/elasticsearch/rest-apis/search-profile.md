@@ -894,7 +894,7 @@ A `learning_to_rank` rescorer reports the steps of the model in its `breakdown`:
 ```
 % NOTCONSOLE
 
-1. The time spent turning the feature queries of the model into queries that can score documents. This step runs once per rescore.
+1. The time spent turning the feature queries of the model into queries that can score documents. This step runs once per rescore. It includes rewriting the feature queries and creating their weights, which are also reported in `searches`.
 2. The time spent extracting the features of the top documents. The count is the number of documents rescored. It includes scoring the top documents with the feature queries, which are listed with their own timings in `searches`, and reading the field values used as features.
 3. The time spent running the model on the extracted features. The count is the number of documents rescored.
 

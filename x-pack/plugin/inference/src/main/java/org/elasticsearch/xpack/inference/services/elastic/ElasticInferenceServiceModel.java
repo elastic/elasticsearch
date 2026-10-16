@@ -11,6 +11,7 @@ import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -37,6 +38,13 @@ public class ElasticInferenceServiceModel extends RateLimitGroupingModel {
 
     public ElasticInferenceServiceModel(ElasticInferenceServiceModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
+
+        this.rateLimitServiceSettings = model.rateLimitServiceSettings;
+        this.elasticInferenceServiceComponents = model.elasticInferenceServiceComponents();
+    }
+
+    public ElasticInferenceServiceModel(ElasticInferenceServiceModel model, TaskSettings taskSettings) {
+        super(model, taskSettings);
 
         this.rateLimitServiceSettings = model.rateLimitServiceSettings;
         this.elasticInferenceServiceComponents = model.elasticInferenceServiceComponents();

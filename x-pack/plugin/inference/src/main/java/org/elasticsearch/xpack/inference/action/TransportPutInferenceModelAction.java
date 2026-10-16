@@ -62,6 +62,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.resolveTimeoutForTaskType;
+import static org.elasticsearch.xpack.inference.InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.common.SemanticTextInfoExtractor.getModelSettingsForIndicesReferencingInferenceEndpoints;
@@ -139,6 +140,20 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                 new ElasticsearchStatusException(
                     "task_type ["
                         + TaskType.EMBEDDING
+                        + "] is not supported by all nodes in the cluster; "
+                        + "please complete upgrades before creating an endpoint with this task_type",
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
+
+        if (resolvedTaskType == TaskType.DOCUMENT_EXTRACTION
+            && featureService.clusterHasFeature(state, DOCUMENT_EXTRACTION_TASK_TYPE) == false) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "task_type ["
+                        + TaskType.DOCUMENT_EXTRACTION
                         + "] is not supported by all nodes in the cluster; "
                         + "please complete upgrades before creating an endpoint with this task_type",
                     RestStatus.BAD_REQUEST

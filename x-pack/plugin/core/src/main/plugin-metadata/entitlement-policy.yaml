@@ -8,14 +8,6 @@ org.elasticsearch.sslconfig:
     - relative_path: ""
       relative_to: config
       mode: read
-org.apache.httpcomponents.httpclient:
-  - outbound_network # For watcher and other HC4 consumers
-  - manage_threads
-org.apache.httpcomponents.httpcore.nio:
-  - outbound_network
-  - manage_threads
-org.apache.httpcomponents.httpasyncclient:
-  - manage_threads
 org.apache.httpcomponents.core5.httpcore5:
   - manage_threads
   - outbound_network

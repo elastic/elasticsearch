@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160679
+summary: Improve performance of ES|QL CASE function with multiple conditions
+type: enhancement

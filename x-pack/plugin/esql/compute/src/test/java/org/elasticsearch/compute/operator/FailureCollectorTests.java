@@ -14,6 +14,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -131,5 +132,47 @@ public class FailureCollectorTests extends ESTestCase {
         assertThat(failure.getSuppressed(), arrayWithSize(1));
         assertThat(failure.getSuppressed()[0], instanceOf(NoShardAvailableActionException.class));
         assertThat(failure.getSuppressed()[0].getMessage(), equalTo("not ready"));
+    }
+
+    /**
+     * Two collectors receive the same two breaker failures in opposite orders, as happens when both instances are
+     * shared between splits. Each collector keeps the first one it saw; the second must not suppress the first back
+     * onto the second, or the two would suppress each other.
+     */
+    public void testTwoCollectorsInOppositeOrderDoNotFormACycle() {
+        CircuitBreakingException a = new CircuitBreakingException(
+            "[parent] data for [parquet reader]",
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        CircuitBreakingException b = new CircuitBreakingException(
+            "[parent] data for [parquet sliding window]",
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        FailureCollector first = new FailureCollector();
+        first.unwrapAndCollect(a);
+        first.unwrapAndCollect(b);
+        FailureCollector second = new FailureCollector();
+        second.unwrapAndCollect(b);
+        second.unwrapAndCollect(a);
+
+        Exception firstFailure = first.getFailure();
+        Exception secondFailure = second.getFailure();
+        SuppressedFailuresTests.assertNoRepeats(firstFailure);
+        SuppressedFailuresTests.assertNoRepeats(secondFailure);
+        assertThat(ExceptionsHelper.status(firstFailure), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(ExceptionsHelper.status(secondFailure), equalTo(RestStatus.TOO_MANY_REQUESTS));
+    }
+
+    public void testSameFailureCollectedTwiceIsAttachedOnce() {
+        Exception carrier = new IOException("carrier");
+        Exception repeated = new IOException("repeated");
+        FailureCollector collector = new FailureCollector();
+        collector.unwrapAndCollect(carrier);
+        collector.unwrapAndCollect(repeated);
+        collector.unwrapAndCollect(new RemoteTransportException("wrapped", repeated));
+        Exception failure = collector.getFailure();
+        assertSame(carrier, failure);
+        assertThat(failure.getSuppressed(), arrayWithSize(1));
+        assertSame(repeated, failure.getSuppressed()[0]);
     }
 }

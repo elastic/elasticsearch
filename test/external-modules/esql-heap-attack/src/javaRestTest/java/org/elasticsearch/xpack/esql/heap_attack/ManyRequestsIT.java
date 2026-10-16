@@ -14,7 +14,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
@@ -33,7 +32,7 @@ public class ManyRequestsIT extends HeapAttackTestCase {
         createPausableIndex();
         blockPauseField();
         int queueSize = getSearchQueueSize();
-        long queryLength = ByteSizeValue.ofMb(Clusters.HEAP_SIZE_IN_MB).getBytes() / queueSize;
+        long queryLength = smallestNodeHeapBytes() / queueSize;
         List<String> asyncIds = new ArrayList<>();
         logger.info("queue size {}", queueSize);
         try {

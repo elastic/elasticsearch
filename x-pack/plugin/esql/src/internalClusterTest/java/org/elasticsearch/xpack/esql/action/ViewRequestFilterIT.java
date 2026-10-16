@@ -546,6 +546,62 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    /**
+     * A request filter keeps the view boundary, so the view branch is not inlined. {@code _class} and {@code _name} must
+     * still name the view, on the view branch only, while the bare-index branch answers for its index.
+     */
+    public void testRequestFilterKeepsClassAndNameOnViewBranch() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", EsqlCapabilities.Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        assertThat(
+            rows(
+                "FROM " + PASSTHROUGH_VIEW + " METADATA _class, _name | KEEP id, _class, _name | SORT id ASC",
+                QueryBuilders.termQuery("status", 300)
+            ),
+            equalTo(List.of(List.of(1, "view", PASSTHROUGH_VIEW), List.of(4, "view", PASSTHROUGH_VIEW)))
+        );
+        assertThat(
+            rows(
+                "FROM " + PASSTHROUGH_VIEW + ", " + INDEX + " METADATA _class, _name | KEEP id, _class, _name | SORT id ASC, _class ASC",
+                QueryBuilders.termQuery("status", 300)
+            ),
+            equalTo(
+                List.of(
+                    List.of(1, "index", INDEX),
+                    List.of(1, "view", PASSTHROUGH_VIEW),
+                    List.of(4, "index", INDEX),
+                    List.of(4, "view", PASSTHROUGH_VIEW)
+                )
+            )
+        );
+    }
+
+    /**
+     * A view whose body is a bare union is lifted into one branch per body piece. Each piece must still answer the
+     * view for {@code _class} and {@code _name}, not the index or subquery it came from.
+     */
+    public void testRequestFilterKeepsClassAndNameOnLiftedViewPieces() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", EsqlCapabilities.Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        createBranchIndexes("vrf_rc_a", "vrf_rc_b");
+        String view = "vrf_rc_union";
+        createView(view, "FROM vrf_rc_a, (FROM vrf_rc_b)");
+
+        assertThat(
+            rows(
+                "FROM " + view + ", " + INDEX + " METADATA _class, _name | KEEP id, _class, _name | SORT id ASC",
+                QueryBuilders.termQuery("region", "eu")
+            ),
+            equalTo(
+                List.of(
+                    List.of(0, "index", INDEX),
+                    List.of(1, "view", view),
+                    List.of(2, "index", INDEX),
+                    List.of(3, "view", view),
+                    List.of(4, "index", INDEX)
+                )
+            )
+        );
+    }
+
     // ─── Views vs user-written subqueries ────────────────────────────────────────
 
     /**
@@ -567,6 +623,29 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
                 QueryBuilders.termQuery("region", "eu")
             ),
             equalTo(List.of(List.of("eu", 3L), List.of("eu", 3L)))
+        );
+    }
+
+    /**
+     * A view nested inside a user-written subquery branch is a view the query names, so the request filter applies to its
+     * output just as it does to a view at the top level. {@code cnt} exists only in the stats view's output, so it can
+     * only be filtered there; its fragments are marked as view-branch fragments and skipped by the Lucene push-in path,
+     * so without an output filter the nested view would leak every bucket.
+     */
+    public void testRequestFilterOnViewNestedInLiteralSubqueryBranch() {
+        assertThat(
+            rows(
+                "FROM " + STATS_VIEW + ", (FROM " + STATS_VIEW + " | WHERE cnt > 0) | KEEP region, cnt",
+                QueryBuilders.termQuery("region", "eu")
+            ),
+            equalTo(List.of(List.of("eu", 3L), List.of("eu", 3L)))
+        );
+        assertThat(
+            rows(
+                "FROM " + PASSTHROUGH_VIEW + ", (FROM " + STATS_VIEW + " | WHERE cnt > 0) | KEEP region, cnt | SORT region",
+                QueryBuilders.rangeQuery("cnt").gte(3)
+            ),
+            equalTo(List.of(List.of("eu", 3L), List.of("us", 3L)))
         );
     }
 

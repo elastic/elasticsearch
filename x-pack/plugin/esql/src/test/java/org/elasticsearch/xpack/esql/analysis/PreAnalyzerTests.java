@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PreAnalyzerTests extends ESTestCase {
@@ -194,6 +195,28 @@ public class PreAnalyzerTests extends ESTestCase {
 
     public void testFromDoesNotRequireAllDimensionFields() {
         assertRequiresAllDimensionFields("FROM k8s | STATS count(*) BY cluster", false);
+    }
+
+    /** Only a HIGHLIGHT that analyzes with the mapping analyzers reads which indices use which one. */
+    public void testNeedsAnalyzerGroupsOnlyForHighlightWithoutAnalyzer() {
+        assertNeedsAnalyzerGroups("FROM books | HIGHLIGHT \"ring\" ON title", true);
+        assertNeedsAnalyzerGroups("FROM books | WHERE MATCH(title, \"ring\") | HIGHLIGHT", true);
+        assertNeedsAnalyzerGroups("FROM books | HIGHLIGHT \"ring\" ON title WITH {\"analyzer\": \"keyword\"}", false);
+        assertNeedsAnalyzerGroups("FROM books | WHERE MATCH(title, \"ring\")", false);
+    }
+
+    /** One index pattern cannot be resolved as both a standard and a time-series index, whichever source comes first. */
+    public void testSameIndexPatternWithDifferentIndexModesFails() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        expectThrows(
+            IllegalStateException.class,
+            containsString("index pattern 'p' found with different index mode"),
+            () -> new PreAnalyzer().preAnalyze(TEST_PARSER.parseQuery(randomFrom("FROM (FROM p), (TS p)", "FROM (TS p), (FROM p)")))
+        );
+    }
+
+    private static void assertNeedsAnalyzerGroups(String query, boolean expected) {
+        assertThat(new PreAnalyzer().preAnalyze(TEST_PARSER.parseQuery(query)).needsAnalyzerGroups(), equalTo(expected));
     }
 
     private static void assertRequiresAllDimensionFields(String query, boolean expected) {

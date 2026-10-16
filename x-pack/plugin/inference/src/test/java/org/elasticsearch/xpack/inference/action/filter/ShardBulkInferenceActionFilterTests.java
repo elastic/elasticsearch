@@ -112,7 +112,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
-import static org.elasticsearch.inference.DataFormat.URL_INPUT_FORMAT_FEATURE_FLAG;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -1512,7 +1511,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
      */
     public void testUrlInputIsAcceptedWithoutBase64SizeValidation() throws Exception {
         assumeFalse("Multimodal inputs are only supported in the non-legacy format", useLegacyFormat);
-        assumeTrue("URL input format feature flag is not enabled", URL_INPUT_FORMAT_FEATURE_FLAG.isEnabled());
         // A URL string is far smaller than any base64 payload, but we set an absurdly low limit to prove the validation is skipped.
         ByteSizeValue maxSize = ByteSizeValue.ofBytes(2);
         InferenceString input = new InferenceString(DataType.IMAGE, DataFormat.URL, "https://example.com/image.png");

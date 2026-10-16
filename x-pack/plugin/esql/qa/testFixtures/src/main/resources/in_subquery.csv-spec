@@ -6042,3 +6042,26 @@ emp_no:integer | c:long
 10002          | 5
 10003          | 5
 ;
+
+inSubqueryWithMultiValuedLeftField
+required_capability: where_in_subquery_without_view
+
+// left key has multi-valued rows, which are treated as null and emit a warning
+FROM employees
+| WHERE job_positions IN (FROM employees | KEEP job_positions)
+| KEEP emp_no, job_positions
+| SORT emp_no
+| LIMIT 5
+;
+
+warning:Line 2:9: evaluation of [job_positions IN (FROM employees | KEEP job_positions)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 2:9: evaluation of [job_positions IN (FROM employees | KEEP job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword
+10002          | Senior Team Lead
+10013          | Reporting Analyst
+10018          | Junior Developer
+10019          | Purchase Manager
+10020          | Tech Lead
+;

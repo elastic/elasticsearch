@@ -727,8 +727,8 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 3:9: evaluation of [(emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10002          | Senior Team Lead
@@ -752,8 +752,8 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:9: evaluation of [(emp_no, job_positions) IN (FROM employees%0D%0A| MV_EXPAND job_positions%0D%0A| KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10002          | Senior Team Lead
@@ -775,8 +775,9 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:9: evaluation of [(emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 2:9: evaluation of [(emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10002          | Senior Team Lead
@@ -796,8 +797,9 @@ FROM employees
 | STATS cnt = COUNT(*)
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:9: evaluation of [(emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 2:9: evaluation of [(emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 cnt:long
 27     
@@ -841,8 +843,8 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 4:9: evaluation of [(emp_no, job_positions, is_rehired) IN (FROM employees | KEEP emp_no, job_positions, is_rehired)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 4:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword      | is_rehired:boolean
 10021          | Support Engineer           | true
@@ -867,8 +869,8 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:9: evaluation of [(emp_no, job_positions, is_rehired) IN (FROM employees%0D%0A| MV_EXPAND job_positions%0D%0A| MV_EXPAND is_rehired%0D%0A| KEEP emp_no, job_positions, is_rehired)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword      | is_rehired:boolean
 10021          | Support Engineer           | true
@@ -889,8 +891,9 @@ FROM employees
 | LIMIT 5
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions, is_rehired\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions, is_rehired.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:9: evaluation of [(emp_no, job_positions, is_rehired) IN (FROM employees | KEEP emp_no, job_positions, is_rehired)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 2:9: evaluation of [(emp_no, job_positions, is_rehired) IN (FROM employees | KEEP emp_no, job_positions, is_rehired)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword      | is_rehired:boolean
 10021          | Support Engineer           | true
@@ -942,8 +945,8 @@ FROM employees
 | LIMIT 10
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 3:9: evaluation of [(emp_no, job_positions) NOT IN (FROM employees%0D%0A| WHERE salary > 27000%0D%0A| KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword      | salary:integer
 10015          | Head Human Resources       | 25324
@@ -971,8 +974,8 @@ FROM employees
 | SORT emp_no, job_positions
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:9: evaluation of [(emp_no, job_positions) NOT IN (FROM employees%0D%0A| WHERE salary > 27000%0D%0A| MV_EXPAND job_positions%0D%0A| KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword                                                                  | salary:integer
 10015          | [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer] | 25324
@@ -993,8 +996,9 @@ FROM employees
 | STATS cnt = COUNT(*)
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) NOT IN \(FROM .*employees.*\|.*WHERE salary > 27000.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:9: evaluation of [(emp_no, job_positions) NOT IN (FROM employees%0D%0A| WHERE salary > 27000%0D%0A| KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 2:9: evaluation of [(emp_no, job_positions) NOT IN (FROM employees%0D%0A| WHERE salary > 27000%0D%0A| KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 cnt:long
 4
@@ -1017,8 +1021,9 @@ FROM employees
 | LIMIT 2
 ;
 
-warningRegex:.*evaluation of .*failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:9: evaluation of [(emp_no, job_positions) IN (FROM employees%0D%0A| WHERE salary > 27000%0D%0A| SORT emp_no%0D%0A| LIMIT 2%0D%0A| KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 2:9: evaluation of [(emp_no, job_positions) IN (FROM employees%0D%0A| WHERE salary > 27000%0D%0A| SORT emp_no%0D%0A| LIMIT 2%0D%0A| KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10001          | [Accountant, Senior Python Developer]
@@ -1042,8 +1047,9 @@ FROM employees
 | LIMIT 3
 ;
 
-warningRegex:.*evaluation of .*failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:9: evaluation of [(emp_no, job_positions) NOT IN (FROM employees%0D%0A| WHERE salary > 27000%0D%0A| SORT emp_no%0D%0A| LIMIT 2%0D%0A| KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 2:9: evaluation of [(emp_no, job_positions) NOT IN (FROM employees%0D%0A| WHERE salary > 27000%0D%0A| SORT emp_no%0D%0A| LIMIT 2%0D%0A| KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10001          | [Accountant, Senior Python Developer]
@@ -1068,8 +1074,8 @@ FROM employees
 | LIMIT 3
 ;
 
-warningRegex:.*evaluation of .*failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:9: evaluation of [(emp_no, job_positions) NOT IN (FROM employees%0D%0A| WHERE emp_no == 10001%0D%0A| KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10002          | Senior Team Lead
@@ -1094,8 +1100,8 @@ FROM employees
 | LIMIT 3
 ;
 
-warningRegex:.*evaluation of .*failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:9: evaluation of [(emp_no, job_positions) NOT IN (FROM employees%0D%0A| WHERE emp_no == 10001%0D%0A| KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10002          | Senior Team Lead
@@ -1485,8 +1491,9 @@ FROM employees
 | LIMIT 3
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:14: evaluation of [(emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 2:14: evaluation of [(emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:14: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10002          | Senior Team Lead
@@ -1506,8 +1513,9 @@ FROM employees
 | LIMIT 3
 ;
 
-warningRegex:.*evaluation of \[\(emp_no, job_positions\) IN \(FROM .*employees.*\|.*KEEP emp_no, job_positions.*\)\] failed.*
-warningRegex:.*java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:10: evaluation of [(emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded
+warning:Line 2:10: evaluation of [(emp_no, job_positions) IN (FROM employees | KEEP emp_no, job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:10: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | job_positions:keyword
 10001          | [Accountant, Senior Python Developer]

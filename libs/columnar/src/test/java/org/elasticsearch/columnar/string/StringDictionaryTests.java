@@ -417,7 +417,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             SummaryPolicy.sized(200),
             ChunkCodec.ZSTD,
             StringColumnOptions.DEFAULT_SIZES,
-            StringColumnOptions.DEFAULT_SINGLE_VALUED
+            StringColumnOptions.DEFAULT_SINGLE_VALUED,
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
         );
         withColumn(singleValued(docValues), options, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
@@ -845,7 +846,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                 StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                 ColumNARDocValuesFormat.MAX_BLOCK_SIZE
             ),
-            StringColumnOptions.DEFAULT_SINGLE_VALUED
+            StringColumnOptions.DEFAULT_SINGLE_VALUED,
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
         );
     }
 
@@ -900,12 +902,14 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                             StringColumnOptions.DEFAULT_SLOT_COUNTS_BLOCK_SIZE,
                             ColumNARDocValuesFormat.MAX_BLOCK_SIZE
                         ),
-                        StringColumnOptions.DEFAULT_SINGLE_VALUED
+                        StringColumnOptions.DEFAULT_SINGLE_VALUED,
+                        StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
                     ),
                     known,
                     dir,
                     IOContext.DEFAULT,
-                    out.outputs()
+                    out.outputs(),
+                    out.skipIndex()
                 );
             }
             assertEquals("a vocabulary in hand does not make a dictionary", StringColumnLayout.PLAIN, metadata.layout());

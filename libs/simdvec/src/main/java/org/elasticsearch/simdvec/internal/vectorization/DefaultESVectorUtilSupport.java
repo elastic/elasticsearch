@@ -687,6 +687,35 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public boolean mayContainIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        return ByteArrayUtils.mayContainIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    @Override
+    public int indexOfCandidateIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        return ByteArrayUtils.indexOfCandidateIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    @Override
+    public boolean anyNonAscii(byte[] value, int offset, int length) {
+        return ByteArrayUtils.anyNonAscii(value, offset, length);
+    }
+
+    @Override
     public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
         assert values.length % 8 == 0 && matches.length == values.length / 64;
         for (int i = 0; i < values.length; i++) {

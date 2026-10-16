@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Tests which fields {@link IndexResolver#mergedMappings} reports in {@link EsField#isSingleValued()}: a field qualifies only
+ * Tests which fields {@link IndexResolver#mergedMappings} reports in {@link EsField#isStaticallySingleValued()}: a field qualifies only
  * if every index that has it guarantees one value per document and the field is a plain mapped field.
  */
 public class IndexResolverSingleValuedTests extends ESTestCase {
@@ -93,7 +93,7 @@ public class IndexResolverSingleValuedTests extends ESTestCase {
     private static void collectSingleValued(String prefix, Map<String, EsField> fields, Set<String> names) {
         fields.forEach((name, field) -> {
             String fullName = prefix + name;
-            if (field.isSingleValued()) {
+            if (field.isStaticallySingleValued()) {
                 names.add(fullName);
             }
             collectSingleValued(fullName + ".", field.getProperties(), names);
@@ -101,7 +101,7 @@ public class IndexResolverSingleValuedTests extends ESTestCase {
     }
 
     private static IndexFieldCapabilities field(String name, String type, boolean singleValued) {
-        return new IndexFieldCapabilitiesBuilder(name, type).isSingleValued(singleValued).build();
+        return new IndexFieldCapabilitiesBuilder(name, type).isStaticallySingleValued(singleValued).build();
     }
 
     private static FieldCapabilitiesIndexResponse index(String name, IndexFieldCapabilities... fields) {

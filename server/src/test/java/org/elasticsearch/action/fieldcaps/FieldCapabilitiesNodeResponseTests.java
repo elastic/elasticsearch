@@ -176,7 +176,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         );
         final boolean hasSingleValued = indexResponses.stream()
             .flatMap(r -> r.get().values().stream())
-            .anyMatch(IndexFieldCapabilities::isSingleValued);
+            .anyMatch(IndexFieldCapabilities::isStaticallySingleValued);
         assumeTrue(
             "single valued flag requires transport version " + FieldCapabilities.FIELD_CAPS_SINGLE_VALUED,
             hasSingleValued == false || version.supports(FieldCapabilities.FIELD_CAPS_SINGLE_VALUED)

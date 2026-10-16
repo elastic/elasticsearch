@@ -78,10 +78,11 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
 
     public void testSingleValuedSerialization() throws Exception {
         EsField field = new EsField("age", DataType.LONG, Map.of(), true, false, TimeSeriesFieldType.NONE, false, true);
-        assertThat(copyInstance(field, EsField.ESQL_SERIALIZE_SINGLE_VALUED_FIELD).isSingleValued(), is(true));
+        assertThat(copyInstance(field, EsField.ESQL_SERIALIZE_SINGLE_VALUED_FIELD).isStaticallySingleValued(), is(true));
         // A node that cannot read the flag sees "not guaranteed".
         assertThat(
-            copyInstance(field, TransportVersionUtils.getPreviousVersion(EsField.ESQL_SERIALIZE_SINGLE_VALUED_FIELD)).isSingleValued(),
+            copyInstance(field, TransportVersionUtils.getPreviousVersion(EsField.ESQL_SERIALIZE_SINGLE_VALUED_FIELD))
+                .isStaticallySingleValued(),
             is(false)
         );
     }
@@ -95,7 +96,7 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
         boolean isAlias = instance.isAlias();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
         boolean isPassthrough = instance.isPassthrough();
-        boolean isSingleValued = instance.isSingleValued();
+        boolean isStaticallySingleValued = instance.isStaticallySingleValued();
         switch (between(0, 7)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> esDataType = randomValueOtherThan(esDataType, () -> randomFrom(DataType.types()));
@@ -104,9 +105,9 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
             case 4 -> isAlias = false == isAlias;
             case 5 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             case 6 -> isPassthrough = false == isPassthrough;
-            case 7 -> isSingleValued = false == isSingleValued;
+            case 7 -> isStaticallySingleValued = false == isStaticallySingleValued;
             default -> throw new IllegalArgumentException();
         }
-        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType, isPassthrough, isSingleValued);
+        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType, isPassthrough, isStaticallySingleValued);
     }
 }

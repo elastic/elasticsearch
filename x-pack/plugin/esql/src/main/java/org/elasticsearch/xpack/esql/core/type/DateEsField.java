@@ -29,9 +29,9 @@ public class DateEsField extends EsField {
         Map<String, EsField> properties,
         boolean hasDocValues,
         TimeSeriesFieldType tsType,
-        boolean isSingleValued
+        boolean isStaticallySingleValued
     ) {
-        return new DateEsField(name, DataType.DATETIME, properties, hasDocValues, tsType, isSingleValued);
+        return new DateEsField(name, DataType.DATETIME, properties, hasDocValues, tsType, isStaticallySingleValued);
     }
 
     private DateEsField(
@@ -40,9 +40,9 @@ public class DateEsField extends EsField {
         Map<String, EsField> properties,
         boolean hasDocValues,
         TimeSeriesFieldType timeSeriesFieldType,
-        boolean isSingleValued
+        boolean isStaticallySingleValued
     ) {
-        super(name, dataType, properties, hasDocValues, false, timeSeriesFieldType, false, isSingleValued);
+        super(name, dataType, properties, hasDocValues, false, timeSeriesFieldType, false, isStaticallySingleValued);
     }
 
     protected DateEsField(StreamInput in) throws IOException {
@@ -52,13 +52,13 @@ public class DateEsField extends EsField {
             in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),
             readTimeSeriesFieldType(in),
-            readSingleValued(in)
+            readStaticallySingleValued(in)
         );
     }
 
     @Override
     public EsField withProperties(Map<String, EsField> newProperties) {
-        return dateEsField(getName(), newProperties, isAggregatable(), getTimeSeriesFieldType(), isSingleValued());
+        return dateEsField(getName(), newProperties, isAggregatable(), getTimeSeriesFieldType(), isStaticallySingleValued());
     }
 
     @Override
@@ -67,7 +67,7 @@ public class DateEsField extends EsField {
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         writeTimeSeriesFieldType(out);
-        writeSingleValued(out);
+        writeStaticallySingleValued(out);
     }
 
     public String getWriteableName(TransportVersion transportVersion) {

@@ -51,9 +51,11 @@ import java.util.List;
  *   <li>a grouping key or a {@code COUNT} of an earlier {@link Aggregate}; and</li>
  *   <li>an {@link Eval}, {@link Project} or {@code ROW} alias of an attribute proven by these rules.</li>
  * </ul>
- * A field of {@code FROM index} is {@code SINGLE} only if the mapping of every resolved index guarantees it
- * ({@code doc_values.multi_value=false}), as recorded in {@link org.elasticsearch.xpack.esql.core.type.EsField#isSingleValued()}.
- * External sources answer {@code MAYBE_MULTI}; a hook can be added where a statistics guarantee exists.
+ * {@code SINGLE} means <em>statically</em> single-valued: it follows from the query and the mapping alone, without reading data, so it
+ * holds on every shard. A field of {@code FROM index} is {@code SINGLE} only if the mapping of every resolved index guarantees it
+ * ({@code doc_values.multi_value=false}), as recorded in {@link org.elasticsearch.xpack.esql.core.type.EsField#isStaticallySingleValued()}.
+ * The segment statistics of {@code SearchStats} are not used: they describe one shard and exist only in local planning. External
+ * sources answer {@code MAYBE_MULTI}; a hook can be added where their schema guarantees it.
  */
 enum ValueCardinality {
     SINGLE,
@@ -106,7 +108,7 @@ enum ValueCardinality {
         if (plan instanceof EsRelation) {
             // A field is single-valued only if the mapping of every resolved index says so. A field that may be read from _source or
             // converted is not a plain mapped field, so its EsField never carries the flag.
-            return attribute instanceof FieldAttribute field && field.field().isSingleValued() ? SINGLE : MAYBE_MULTI;
+            return attribute instanceof FieldAttribute field && field.field().isStaticallySingleValued() ? SINGLE : MAYBE_MULTI;
         }
         if (plan instanceof Filter || plan instanceof Limit || plan instanceof OrderBy) {
             return ofAttribute(attribute, plan.children().get(0), depth + 1);

@@ -612,7 +612,7 @@ public class IndexResolver {
         }
         boolean aggregatable = first.isAggregatable();
         boolean isPassthrough = Boolean.TRUE.equals(first.isPassthrough());
-        boolean isSingleValued = first.isSingleValued();
+        boolean isStaticallySingleValued = first.isStaticallySingleValued();
         EsField.TimeSeriesFieldType timeSeriesFieldType = fieldsInfo.hasTimeSeriesAggregation()
             ? EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first)
             : EsField.TimeSeriesFieldType.NONE;
@@ -639,7 +639,7 @@ public class IndexResolver {
                 aggregatable &= fc.isAggregatable();
                 isPassthrough &= Boolean.TRUE.equals(fc.isPassthrough());
                 // A field missing from an index has no value there, so only the indices that have it count.
-                isSingleValued &= fc.isSingleValued();
+                isStaticallySingleValued &= fc.isStaticallySingleValued();
             }
         }
 
@@ -660,17 +660,26 @@ public class IndexResolver {
                 normalized,
                 isAlias,
                 timeSeriesFieldType,
-                isSingleValued
+                isStaticallySingleValued
             );
         }
         if (type == DATETIME) {
-            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType, isSingleValued);
+            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType, isStaticallySingleValued);
         }
         if (type == UNSUPPORTED) {
             return unsupported(name, first);
         }
 
-        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType, isPassthrough, isSingleValued);
+        return new EsField(
+            name,
+            type,
+            new HashMap<>(),
+            aggregatable,
+            isAlias,
+            timeSeriesFieldType,
+            isPassthrough,
+            isStaticallySingleValued
+        );
     }
 
     /**

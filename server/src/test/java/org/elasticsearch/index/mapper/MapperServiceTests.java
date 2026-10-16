@@ -151,14 +151,14 @@ public class MapperServiceTests extends MapperServiceTestCase {
         }));
         MappingLookup lookup = mapperService.mappingLookup();
         for (String type : List.of("keyword", "long", "double", "ip", "date", "boolean")) {
-            assertTrue(type, lookup.isSingleValueGuaranteed(type + "_single"));
-            assertFalse(type, lookup.isSingleValueGuaranteed(type + "_multi"));
+            assertTrue(type, lookup.isStaticallySingleValued(type + "_single"));
+            assertFalse(type, lookup.isStaticallySingleValued(type + "_multi"));
         }
-        assertFalse(lookup.isSingleValueGuaranteed("keyword_ignore"));
-        assertFalse(lookup.isSingleValueGuaranteed("unknown"));
+        assertFalse(lookup.isStaticallySingleValued("keyword_ignore"));
+        assertFalse(lookup.isStaticallySingleValued("unknown"));
 
         MapperService standard = createMapperService(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
-        assertFalse(standard.mappingLookup().isSingleValueGuaranteed("field"));
+        assertFalse(standard.mappingLookup().isStaticallySingleValued("field"));
     }
 
     public void testIsSingleValueGuaranteedFromIndexSetting() throws IOException {
@@ -170,14 +170,14 @@ public class MapperServiceTests extends MapperServiceTestCase {
             b.startObject("plain").field("type", "keyword").endObject();
             b.startObject("override").field("type", "keyword").startObject("doc_values").field("multi_value", true).endObject().endObject();
         }));
-        assertTrue(mapperService.mappingLookup().isSingleValueGuaranteed("plain"));
-        assertFalse(mapperService.mappingLookup().isSingleValueGuaranteed("override"));
+        assertTrue(mapperService.mappingLookup().isStaticallySingleValued("plain"));
+        assertFalse(mapperService.mappingLookup().isStaticallySingleValued("override"));
     }
 
     /**
      * The single-value guarantee assumes no {@code copy_to} can feed a field with {@code multi_value=false}. That holds because the
      * {@code doc_values} object form is only accepted in strict columnar index modes, and those modes reject {@code copy_to}. If either
-     * rule changes, {@code copy_to} targets must be excluded from {@link MappingLookup#isSingleValueGuaranteed} or enforced at parse time.
+     * rule changes, {@code copy_to} targets must be excluded from {@link MappingLookup#isStaticallySingleValued} or enforced at parse time.
      */
     public void testSingleValueGuaranteeExcludesCopyTo() {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
@@ -206,9 +206,9 @@ public class MapperServiceTests extends MapperServiceTestCase {
             b.endObject().endObject();
         }));
         MappingLookup lookup = mapperService.mappingLookup();
-        assertTrue(lookup.isSingleValueGuaranteed("parent"));
-        assertFalse(lookup.isSingleValueGuaranteed("parent.plain"));
-        assertTrue(lookup.isSingleValueGuaranteed("parent.single"));
+        assertTrue(lookup.isStaticallySingleValued("parent"));
+        assertFalse(lookup.isStaticallySingleValued("parent.plain"));
+        assertTrue(lookup.isStaticallySingleValued("parent.single"));
     }
 
     public void testMappingLookupAutoFlattenedPassthroughStatus() throws IOException {

@@ -801,7 +801,7 @@ public final class MappingLookup {
      * {@code MapperServiceTests#testSingleValueGuaranteeExcludesCopyTo}), but the values a {@code copy_to} adds are not described by the
      * target's own mapper parameters, so this method does not rely on that.
      */
-    public boolean isSingleValueGuaranteed(String field) {
+    public boolean isStaticallySingleValued(String field) {
         return copyToTargets.contains(field) == false
             && fieldMappers.get(field) instanceof FieldMapper fieldMapper
             && fieldMapper.guaranteesSingleValue();

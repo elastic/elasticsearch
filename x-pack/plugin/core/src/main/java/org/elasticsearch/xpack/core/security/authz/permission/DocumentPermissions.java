@@ -24,6 +24,7 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
@@ -104,14 +105,26 @@ public final class DocumentPermissions implements CacheKey {
         return requiresProfileUid;
     }
 
-    /** Whether any of {@code queries} refers to {@link SecurityQueryTemplateEvaluator#PROFILE_UID_TEMPLATE_VARIABLE}. */
+    /**
+     * Whether any of {@code queries} refers to {@link SecurityQueryTemplateEvaluator#PROFILE_UID_TEMPLATE_VARIABLE}.
+     * A stored script's body is not visible here, so it is assumed to need it.
+     */
     public static boolean anyRequiresProfileUid(Collection<BytesReference> queries) {
         for (BytesReference query : queries) {
-            if (query.utf8ToString().contains(SecurityQueryTemplateEvaluator.PROFILE_UID_TEMPLATE_VARIABLE)) {
+            if (query.utf8ToString().contains(SecurityQueryTemplateEvaluator.PROFILE_UID_TEMPLATE_VARIABLE) || isStoredScript(query)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static boolean isStoredScript(BytesReference query) {
+        try {
+            return DLSRoleQueryValidator.hasStoredScript(query, NamedXContentRegistry.EMPTY);
+        } catch (IOException | XContentParseException e) {
+            // not a well-formed role query, so not a stored script either
+            return false;
+        }
     }
 
     public boolean hasStoredScript() throws IOException {

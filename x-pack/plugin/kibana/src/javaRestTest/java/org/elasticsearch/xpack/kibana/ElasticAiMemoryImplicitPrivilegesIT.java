@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.hasSize;
  * Two users hold the same Kibana privilege in the same space. The implicit grant lets each read
  * {@code .ai-memory-*} without an explicit index privilege, and the templated DLS filter restricts the visible
  * documents to those the space and privilege check admits <em>and</em> that are either unscoped or scoped to
- * that user's profile uid. The uid in the filter is computed by Elasticsearch from the username, so the test
+ * that user's profile uid. The uid in the filter is looked up from the user's activated profile, so the test
  * activates each user's profile and checks that the real uid is the one the filter matches on.
  */
 public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
@@ -309,6 +309,9 @@ public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
+        // HIDDEN from everyone: a bare user scope must not match a user whose uid could not be resolved.
+        indexDoc("bare-user-scope", memory("marketing", "user://"));
+
         // HIDDEN from both: scoped to a user who is not alice or bob.
         indexDoc("other-user-marketing", memory("marketing", "user://u_someone_else_0"));
 
@@ -364,8 +367,9 @@ public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(query, containsString("\"template\""));
         assertThat(query, containsString("permissions.kibana.privileges.space"));
         assertThat(query, containsString(MEMORY_READ_ACTION));
-        assertThat(query, containsString("\"exists\":{\"field\":\"scope_id\""));
-        assertThat(query, containsString("\"scope_id\":{\"value\":\"user://{{_user.profile_uid}}\"}"));
+        assertThat(query, containsString("scope_id"));
+        assertThat(query, containsString("{{#_user.profile_uid}}"));
+        assertThat(query, containsString("user://{{_user.profile_uid}}"));
     }
 
     private void assertUserSeesOnlyAuthorizedDocs(String username, List<String> expectedIds) throws Exception {

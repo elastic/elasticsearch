@@ -126,9 +126,11 @@ public class DocumentPermissionsTests extends ESTestCase {
         final BytesReference templated = new BytesArray(
             "{\"template\":{\"source\":{\"term\":{\"scope_id\":\"user://{{_user.profile_uid}}\"}}}}"
         );
+        final BytesReference stored = new BytesArray("{\"template\":{\"id\":\"dls\"}}");
         assertThat(DocumentPermissions.allowAll().requiresProfileUid(), is(false));
         assertThat(DocumentPermissions.filteredBy(Set.of(plain)).requiresProfileUid(), is(false));
         assertThat(DocumentPermissions.filteredBy(Set.of(plain, templated)).requiresProfileUid(), is(true));
+        assertThat(DocumentPermissions.filteredBy(Set.of(stored)).requiresProfileUid(), is(true));
 
         // Limiting composes the flag from both sides.
         final DocumentPermissions plainOnly = DocumentPermissions.filteredBy(Set.of(plain));

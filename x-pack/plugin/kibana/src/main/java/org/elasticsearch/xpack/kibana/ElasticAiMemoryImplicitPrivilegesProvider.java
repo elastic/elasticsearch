@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.kibana;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplicationPrivilege;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -33,9 +36,9 @@ import java.util.Set;
  * <p>
  * The provider runs during role building and does not know who the user is, so the scope clause is emitted as a
  * mustache template over {@code _user.profile_uid}, which {@code SecurityQueryTemplateEvaluator} fills in per
- * request from the uid that authorization resolves for actions whose DLS needs it. A user without an activated
- * profile renders an empty uid and sees only unscoped memories. Kibana stamps the same uid on write, so a user's
- * memories and Agent Builder conversations share one identity.
+ * request from the uid that authorization resolves for actions whose DLS needs it. The user scope clause is only
+ * rendered when a uid was resolved, so a user without an activated profile sees only unscoped memories. Kibana
+ * stamps the same uid on write, so a user's memories and Agent Builder conversations share one identity.
  * <p>
  * The grant is read-only: DLS does not constrain writes, so a user holding it could otherwise stamp any
  * {@code scope_id}. Kibana writes memory as {@code kibana_system}.
@@ -44,9 +47,12 @@ public class ElasticAiMemoryImplicitPrivilegesProvider implements ImplicitPrivil
 
     static final String[] ELASTIC_MANAGED_AI_MEMORY_INDICES = { ".ai-memory-*" };
 
-    static final String SCOPE_ID_FIELD = "scope_id";
-    static final String USER_SCOPE_PREFIX = "user://";
-    static final String PROFILE_UID_TEMPLATE_VARIABLE = "{{_user.profile_uid}}";
+    /** Unscoped memories always match; the user scope is only emitted when {@code _user.profile_uid} is set. */
+    static final String SCOPE_CLAUSE = """
+        {"bool":{"should":[\
+        {"bool":{"must_not":[{"exists":{"field":"scope_id"}}]}}\
+        {{#_user.profile_uid}},{"term":{"scope_id":"user://{{_user.profile_uid}}"}}{{/_user.profile_uid}}\
+        ],"minimum_should_match":1}}""";
 
     @Override
     public Collection<RoleDescriptor.IndicesPrivileges> getImplicitIndicesPrivileges(
@@ -72,7 +78,8 @@ public class ElasticAiMemoryImplicitPrivilegesProvider implements ImplicitPrivil
 
     /**
      * Builds the DLS query as a mustache template: the space and privilege check from
-     * {@link ElasticAiIndexImplicitPrivilegesProvider#buildDlsQueryBuilder} filtered by {@link #scopeMatches}.
+     * {@link ElasticAiIndexImplicitPrivilegesProvider#buildDlsQueryBuilder} filtered by {@link #SCOPE_CLAUSE}. The
+     * source is a string rather than an object because the scope clause carries mustache section tags.
      * <p>
      * {@code scope_id} is a root-level keyword, not a nested subfield, so unlike the privilege check a root-level
      * {@code exists} on it is sound and is what admits unscoped (shared) memories.
@@ -85,15 +92,12 @@ public class ElasticAiMemoryImplicitPrivilegesProvider implements ImplicitPrivil
         if (spaceAndPrivilegeQuery == null) {
             return null;
         }
-        BoolQueryBuilder query = QueryBuilders.boolQuery().filter(spaceAndPrivilegeQuery).filter(scopeMatches());
-        return "{\"template\":{\"source\":" + Strings.toString(query) + "}}";
-    }
-
-    /** Matches memories shared with everyone who can read the index, or scoped to the authenticated user. */
-    private static BoolQueryBuilder scopeMatches() {
-        return QueryBuilders.boolQuery()
-            .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(SCOPE_ID_FIELD)))
-            .should(QueryBuilders.termQuery(SCOPE_ID_FIELD, USER_SCOPE_PREFIX + PROFILE_UID_TEMPLATE_VARIABLE))
-            .minimumShouldMatch(1);
+        String source = "{\"bool\":{\"filter\":[" + Strings.toString(spaceAndPrivilegeQuery) + "," + SCOPE_CLAUSE + "]}}";
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject().startObject("template").field("source", source).endObject().endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

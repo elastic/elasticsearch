@@ -132,7 +132,6 @@ public class ProfileService implements ProfileUidResolver {
     private static final int DIFFERENTIATOR_UPPER_LIMIT = 9;
     private static final long ACTIVATE_INTERVAL_IN_MS = TimeValue.timeValueSeconds(30).millis();
     private static final TimeValue PROFILE_UID_CACHE_TTL = TimeValue.timeValueMinutes(5);
-    private static final String NO_PROFILE_UID = "";
 
     private final Settings settings;
     private final Clock clock;
@@ -161,10 +160,9 @@ public class ProfileService implements ProfileUidResolver {
      * Resolves the profile uid that DLS role query templates read as {@code _user.profile_uid}. A realm user resolves to
      * its own profile and an API key to its owner's, the same identity {@link #resolveProfileUidsForApiKeys} answers
      * with. Service accounts, internal and anonymous users, run-as targets and keys owned by a service account resolve
-     * to {@code null} without a lookup, as does a user whose profile has not been activated. Results, including the
-     * absence of a profile, are cached per subject for {@link #PROFILE_UID_CACHE_TTL} and dropped when that subject
-     * activates its profile through this node. A lookup failure resolves to {@code null} rather than failing
-     * authorization.
+     * to {@code null} without a lookup, as does a user whose profile has not been activated. Found uids are cached per
+     * subject for {@link #PROFILE_UID_CACHE_TTL}; misses are not, so a profile activated on any node is picked up by
+     * the next lookup. A lookup failure resolves to {@code null} rather than failing authorization.
      */
     @Override
     public void resolve(Authentication authentication, ActionListener<String> listener) {
@@ -176,12 +174,14 @@ public class ProfileService implements ProfileUidResolver {
         final String cacheKey = profileUidCacheKey(subject);
         final String cached = profileUidCache.get(cacheKey);
         if (cached != null) {
-            listener.onResponse(cached.isEmpty() ? null : cached);
+            listener.onResponse(cached);
             return;
         }
         searchVersionedDocumentForSubject(subject, ActionListener.wrap(versionedDocument -> {
             final String uid = versionedDocument == null ? null : versionedDocument.doc.uid();
-            profileUidCache.put(cacheKey, uid == null ? NO_PROFILE_UID : uid);
+            if (uid != null) {
+                profileUidCache.put(cacheKey, uid);
+            }
             listener.onResponse(uid);
         }, e -> {
             logger.debug(() -> format("failed to resolve profile uid for user [%s]", subject.getUser().principal()), e);
@@ -282,14 +282,6 @@ public class ProfileService implements ProfileUidResolver {
      */
     public void activateProfile(Authentication authentication, ActionListener<Profile> listener) {
         final Subject subject = authentication.getEffectiveSubject();
-        if (Subject.Type.USER == subject.getType()) {
-            // Whether the activation succeeds or not, the cached answer for this subject is no longer trustworthy.
-            listener = ActionListener.runBefore(listener, () -> profileUidCache.invalidate(profileUidCacheKey(subject)));
-        }
-        doActivateProfile(subject, listener);
-    }
-
-    private void doActivateProfile(Subject subject, ActionListener<Profile> listener) {
         if (Subject.Type.USER != subject.getType()) {
             listener.onFailure(
                 new IllegalArgumentException(

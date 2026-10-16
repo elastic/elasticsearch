@@ -26,10 +26,12 @@ import java.util.Set;
 import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.KIBANA_APPLICATION;
 import static org.elasticsearch.xpack.kibana.ElasticAiMemoryImplicitPrivilegesProvider.ELASTIC_MANAGED_AI_MEMORY_INDICES;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ElasticAiMemoryImplicitPrivilegesProviderTests extends ESTestCase {
@@ -40,7 +42,7 @@ public class ElasticAiMemoryImplicitPrivilegesProviderTests extends ESTestCase {
      * The grant targets the memory pattern only, is read-only, and its query is a template whose source ANDs the
      * AI index space/privilege check with the scope clause.
      */
-    public void testGrantIsReadOnlyTemplateOverSpaceAndScope() {
+    public void testGrantIsReadOnlyTemplateOverSpaceAndScope() throws Exception {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "feature_memory_read", Set.of("ai_index:memory/read"), Map.of())
         );
@@ -53,15 +55,24 @@ public class ElasticAiMemoryImplicitPrivilegesProviderTests extends ESTestCase {
         RoleDescriptor.IndicesPrivileges privilege = result.iterator().next();
         assertThat(privilege.getIndices(), arrayContainingInAnyOrder(ELASTIC_MANAGED_AI_MEMORY_INDICES));
         assertThat(privilege.getPrivileges(), arrayContainingInAnyOrder("read"));
-        assertThat(privilege.getQuery().utf8ToString(), equalTo(EXPECTED_SINGLE_SPACE_TEMPLATE));
+        assertThat(sourceOf(privilege.getQuery().utf8ToString()), equalTo(EXPECTED_SINGLE_SPACE_SOURCE));
     }
 
     /** The space/privilege half is byte-for-byte the AI index provider's query, so the two grants cannot drift. */
     public void testSpaceClauseMatchesAiIndexProvider() throws Exception {
         Map<String, Set<String>> resourcesToActions = Map.of("space:a", Set.of("ai_index:x/read"));
-        Map<String, Object> template = parse(ElasticAiMemoryImplicitPrivilegesProvider.buildDlsQuery(resourcesToActions));
-        Map<String, Object> spaceClause = filtersOfSource(template).get(0);
+        String source = sourceOf(ElasticAiMemoryImplicitPrivilegesProvider.buildDlsQuery(resourcesToActions));
+        Map<String, Object> spaceClause = filtersOf(render(source, true)).get(0);
         assertThat(spaceClause, equalTo(parse(ElasticAiIndexImplicitPrivilegesProvider.buildDlsQuery(resourcesToActions))));
+    }
+
+    /** Without a profile uid the user term is not rendered at all, so a bare {@code user://} scope can never match. */
+    public void testScopeClauseOmitsUserTermWithoutProfileUid() throws Exception {
+        String source = sourceOf(ElasticAiMemoryImplicitPrivilegesProvider.buildDlsQuery(Map.of("space:a", Set.of("ai_index:x/read"))));
+
+        assertThat(shouldClausesOfScope(render(source, true)), hasSize(2));
+        assertThat(shouldClausesOfScope(render(source, false)), hasSize(1));
+        assertThat(render(source, false), not(containsString("user://")));
     }
 
     /** Same gate as the AI index provider: no space-scoped or global grant yields no privilege at all. */
@@ -79,8 +90,8 @@ public class ElasticAiMemoryImplicitPrivilegesProviderTests extends ESTestCase {
     // let regressions through in a security filter.
     // -------------------------------------------------------------------------------------
 
-    private static final String EXPECTED_SINGLE_SPACE_TEMPLATE = """
-        {"template":{"source":{"bool":{"filter":[\
+    private static final String EXPECTED_SINGLE_SPACE_SOURCE = """
+        {"bool":{"filter":[\
         {"bool":{"should":[\
         {"bool":{"must_not":[{"nested":{"query":{"match_all":{"boost":1.0}},\
         "path":"permissions.kibana.privileges","ignore_unmapped":false,"score_mode":"none","boost":1.0}}],"boost":1.0}},\
@@ -96,9 +107,9 @@ public class ElasticAiMemoryImplicitPrivilegesProviderTests extends ESTestCase {
         "minimum_should_match":"1","boost":1.0}}\
         ],"boost":1.0}}],"boost":1.0}},"path":"permissions.kibana.privileges","ignore_unmapped":false,\
         "score_mode":"none","boost":1.0}}],"boost":1.0}},\
-        {"bool":{"should":[{"bool":{"must_not":[{"exists":{"field":"scope_id","boost":1.0}}],"boost":1.0}},\
-        {"term":{"scope_id":{"value":"user://{{_user.profile_uid}}"}}}],"minimum_should_match":"1","boost":1.0}}\
-        ],"boost":1.0}}}}""";
+        {"bool":{"should":[{"bool":{"must_not":[{"exists":{"field":"scope_id"}}]}}\
+        {{#_user.profile_uid}},{"term":{"scope_id":"user://{{_user.profile_uid}}"}}{{/_user.profile_uid}}\
+        ],"minimum_should_match":1}}]}}""";
 
     // -------------------------------------------------------------------------------------
     // Helpers (mirrors ElasticAiIndexImplicitPrivilegesProviderTests)
@@ -145,10 +156,26 @@ public class ElasticAiMemoryImplicitPrivilegesProviderTests extends ESTestCase {
         }
     }
 
-    /** The filter clauses of the template's source bool: [space-and-privilege, scope]. */
     @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> filtersOfSource(Map<String, Object> template) {
-        Map<String, Object> source = (Map<String, Object>) ((Map<String, Object>) template.get("template")).get("source");
-        return (List<Map<String, Object>>) ((Map<String, Object>) source.get("bool")).get("filter");
+    private String sourceOf(String template) throws Exception {
+        return (String) ((Map<String, Object>) parse(template).get("template")).get("source");
+    }
+
+    /** Stands in for mustache: keeps or drops the {@code _user.profile_uid} section, leaving the variable tag in place. */
+    private static String render(String source, boolean withProfileUid) {
+        return withProfileUid
+            ? source.replace("{{#_user.profile_uid}}", "").replace("{{/_user.profile_uid}}", "")
+            : source.replaceAll("\\{\\{#_user\\.profile_uid}}.*?\\{\\{/_user\\.profile_uid}}", "");
+    }
+
+    /** The filter clauses of the rendered source bool: [space-and-privilege, scope]. */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> filtersOf(String rendered) throws Exception {
+        return (List<Map<String, Object>>) ((Map<String, Object>) parse(rendered).get("bool")).get("filter");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> shouldClausesOfScope(String rendered) throws Exception {
+        return (List<Map<String, Object>>) ((Map<String, Object>) filtersOf(rendered).get(1).get("bool")).get("should");
     }
 }

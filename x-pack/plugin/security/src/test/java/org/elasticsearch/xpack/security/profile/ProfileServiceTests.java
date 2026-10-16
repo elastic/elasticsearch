@@ -116,6 +116,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -510,13 +511,13 @@ public class ProfileServiceTests extends ESTestCase {
         assertThat(query, containsString("\"user_profile.user.realm.type\":{\"value\":\"" + creatorRealmType + "\""));
     }
 
-    public void testResolveProfileUidCachesLookupUntilActivation() {
+    public void testResolveProfileUidCachesOnlyFoundProfiles() {
+        final AtomicReference<SearchHits> hits = new AtomicReference<>(SearchHits.EMPTY_WITH_TOTAL_HITS);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
             var resp = new MultiSearchResponse(
-                new MultiSearchResponse.Item[] {
-                    new MultiSearchResponse.Item(SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(), null) },
+                new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(SearchResponseUtils.successfulResponse(hits.get()), null) },
                 1L
             );
             try {
@@ -527,32 +528,33 @@ public class ProfileServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
 
-        final Authentication authentication = AuthenticationTestHelper.builder().realm().build(false);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("alice"))
+            .realmRef(new Authentication.RealmRef("realm_name_1", "realm_type_1", "node"))
+            .build(false);
 
-        // No profile document: resolves to null and the absence is cached.
+        // No profile document: resolves to null and nothing is cached, so the profile is found as soon as it exists.
         for (int i = 0; i < 3; i++) {
             final PlainActionFuture<String> future = new PlainActionFuture<>();
             profileService.resolve(authentication, future);
             assertThat(future.actionGet(), nullValue());
         }
-        verify(client, times(1)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
-
-        // Activation drops the cached answer, whatever its outcome.
-        when(client.prepareIndex(SECURITY_PROFILE_ALIAS)).thenReturn(new IndexRequestBuilder(client, SECURITY_PROFILE_ALIAS));
-        doAnswer(invocation -> {
-            final ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
-            listener.onFailure(new RuntimeException("expected"));
-            return null;
-        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), anyActionListener());
-        final PlainActionFuture<Profile> activateFuture = new PlainActionFuture<>();
-        profileService.activateProfile(authentication, activateFuture);
-        expectThrows(RuntimeException.class, activateFuture::actionGet);
-
-        final PlainActionFuture<String> future = new PlainActionFuture<>();
-        profileService.resolve(authentication, future);
-        assertThat(future.actionGet(), nullValue());
-        // One search for activation plus one for the fresh resolution.
         verify(client, times(3)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+
+        final SearchHit hit = SearchHit.unpooled(0, "profile_u_alice");
+        hit.sourceRef(new BytesArray(getSampleProfileDocumentSource("u_alice", "alice", List.of("role_a"), 1L)));
+        final SearchHits aliceHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+        try {
+            hits.set(aliceHits);
+            for (int i = 0; i < 3; i++) {
+                final PlainActionFuture<String> future = new PlainActionFuture<>();
+                profileService.resolve(authentication, future);
+                assertThat(future.actionGet(), equalTo("u_alice"));
+            }
+            verify(client, times(4)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+        } finally {
+            aliceHits.decRef();
+        }
     }
 
     public void testActivateProfileShouldFailForInternalUser() {

@@ -409,8 +409,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view1", "FROM emp1");
         viewService.addDataset(projectId, "view_ds");
         LogicalPlan plan = query("FROM view*");
-        // The wildcard also matches a dataset, so it must survive for DatasetResolver instead of being consumed by view1.
-        assertThat(replaceViews(plan, true, true), matchesPlan(query("FROM emp1,view*")));
+        // The wildcard also matches a dataset (in case data federation is enabled),
+        // so it must survive for DatasetResolver instead of being resolved by view1 only.
+        String expected = Federation.isAvailable(Settings.EMPTY) ? "FROM emp1,view*" : "FROM emp1";
+        assertThat(replaceViews(plan, true, true), matchesPlan(query(expected)));
     }
 
     public void testWildcardMatchingViewAndDatasetWithDatasetWildcardsOff() {

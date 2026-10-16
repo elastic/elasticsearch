@@ -124,10 +124,10 @@ public class ClusterPrivilegeResolver {
     );
 
     // Boost profile actions only exist in serverless; these privileges are no-ops elsewhere.
-    private static final Set<String> MONITOR_BOOST_PROFILES_PATTERN = Set.of("cluster:monitor/boost/profile/*");
+    private static final Set<String> READ_BOOST_PROFILES_PATTERN = Set.of("cluster:monitor/boost/profile/*");
     // Rules reference profiles and cannot be authored, checked or explained without reading them, so this privilege includes
     // reading profiles.
-    private static final Set<String> MONITOR_BOOST_RULES_PATTERN = Set.of(
+    private static final Set<String> READ_BOOST_RULES_PATTERN = Set.of(
         "cluster:monitor/boost/rule/*",
         "cluster:monitor/boost/profile/*",
         "cluster:monitor/boost/explain"
@@ -279,14 +279,6 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MONITOR_ENRICH = new ActionClusterPrivilege("monitor_enrich", MONITOR_ENRICH_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ESQL = new ActionClusterPrivilege("monitor_esql", MONITOR_ESQL_PATTERN);
     public static final NamedClusterPrivilege MONITOR_STATS = new ActionClusterPrivilege("monitor_stats", MONITOR_STATS_PATTERN);
-    public static final NamedClusterPrivilege MONITOR_BOOST_PROFILES = new ActionClusterPrivilege(
-        "monitor_boost_profiles",
-        MONITOR_BOOST_PROFILES_PATTERN
-    );
-    public static final NamedClusterPrivilege MONITOR_BOOST_RULES = new ActionClusterPrivilege(
-        "monitor_boost_rules",
-        MONITOR_BOOST_RULES_PATTERN
-    );
     public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage", ALL_CLUSTER_PATTERN, ALL_SECURITY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_INFERENCE = new ActionClusterPrivilege("manage_inference", MANAGE_INFERENCE_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
@@ -307,6 +299,11 @@ public class ClusterPrivilegeResolver {
         "manage_ingest_pipelines",
         MANAGE_INGEST_PIPELINE_PATTERN
     );
+    public static final NamedClusterPrivilege READ_BOOST_PROFILES = new ActionClusterPrivilege(
+        "read_boost_profiles",
+        READ_BOOST_PROFILES_PATTERN
+    );
+    public static final NamedClusterPrivilege READ_BOOST_RULES = new ActionClusterPrivilege("read_boost_rules", READ_BOOST_RULES_PATTERN);
     public static final NamedClusterPrivilege READ_PIPELINE = new ActionClusterPrivilege("read_pipeline", READ_PIPELINE_PATTERN);
     public static final NamedClusterPrivilege READ_PROJECT_ROUTING = new ActionClusterPrivilege(
         "read_project_routing",
@@ -482,8 +479,6 @@ public class ClusterPrivilegeResolver {
             MONITOR_ENRICH,
             MONITOR_ESQL,
             MONITOR_STATS,
-            MONITOR_BOOST_PROFILES,
-            MONITOR_BOOST_RULES,
             MANAGE,
             MANAGE_CONNECTOR,
             MANAGE_INFERENCE,
@@ -495,6 +490,8 @@ public class ClusterPrivilegeResolver {
             MANAGE_REINDEX,
             MANAGE_IDX_TEMPLATES,
             MANAGE_INGEST_PIPELINES,
+            READ_BOOST_PROFILES,
+            READ_BOOST_RULES,
             READ_PIPELINE,
             READ_PROJECT_ROUTING,
             TRANSPORT_CLIENT,

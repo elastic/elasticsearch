@@ -18,8 +18,8 @@ public interface GetBuiltinPrivilegesResponseTranslator {
      * only once boost profile is enabled.
      */
     Set<String> BOOST_CLUSTER_PRIVILEGES = Set.of(
-        ClusterPrivilegeResolver.MONITOR_BOOST_PROFILES.name(),
-        ClusterPrivilegeResolver.MONITOR_BOOST_RULES.name()
+        ClusterPrivilegeResolver.READ_BOOST_PROFILES.name(),
+        ClusterPrivilegeResolver.READ_BOOST_RULES.name()
     );
 
     GetBuiltinPrivilegesResponse translate(GetBuiltinPrivilegesResponse response);

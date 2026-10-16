@@ -1,0 +1,42 @@
+// The initial exemplar rewrite replaces the analyzed metrics query with the relation over all exemplar data streams derived from its
+// resolved time series indices, projected to the exemplar's timestamp, metric name and value plus its full document, most recent first.
+// Metric and filter selection are added separately.
+exemplarsRelation
+required_capability: exemplars_setting_development_v3
+SET exemplars=true\;
+TS metrics-cpu | STATS AVG(cpu_time)
+;
+
+@timestamp:date          | metric_name:keyword | value:double | _source:_source
+2024-05-10T00:04:10.000Z | memory_usage        | 105.0        | "{""@timestamp"":""2024-05-10T00:04:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-9"",""trace_id"":""trace-idle-cpu0-mem"",""value"":105.0}"
+2024-05-10T00:03:20.000Z | request_duration    | 38.0         | "{""@timestamp"":""2024-05-10T00:03:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-8"",""trace_id"":""trace-busy-cpu1-dur"",""value"":38.0}"
+2024-05-10T00:03:10.000Z | memory_usage        | 420.0        | "{""@timestamp"":""2024-05-10T00:03:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""memory_usage"",""span_id"":""span-7"",""trace_id"":""trace-busy-cpu1-mem"",""value"":420.0}"
+2024-05-10T00:02:30.000Z | request_duration    | 9.5          | "{""@timestamp"":""2024-05-10T00:02:30.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""request_duration"",""span_id"":""span-6"",""trace_id"":""trace-idle-cpu1-dur"",""value"":9.5}"
+2024-05-10T00:02:20.000Z | cpu_time            | 2.9          | "{""@timestamp"":""2024-05-10T00:02:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-5"",""trace_id"":""trace-idle-cpu1-cpu"",""value"":2.9}"
+2024-05-10T00:02:10.000Z | memory_usage        | 310.0        | "{""@timestamp"":""2024-05-10T00:02:10.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-4"",""trace_id"":""trace-idle-cpu1-mem"",""value"":310.0}"
+2024-05-10T00:01:20.000Z | request_duration    | 47.5         | "{""@timestamp"":""2024-05-10T00:01:20.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-3"",""trace_id"":""trace-busy-cpu0-dur"",""value"":47.5}"
+2024-05-10T00:01:10.000Z | cpu_time            | 8.1          | "{""@timestamp"":""2024-05-10T00:01:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""busy""},""metric_name"":""cpu_time"",""span_id"":""span-2"",""trace_id"":""trace-busy-cpu0-cpu"",""value"":8.1}"
+2024-05-10T00:00:10.000Z | cpu_time            | 1.7          | "{""@timestamp"":""2024-05-10T00:00:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""cpu_time"",""span_id"":""span-1"",""trace_id"":""trace-idle-cpu0-cpu"",""value"":1.7}"
+;
+
+exemplarsLimit
+required_capability: exemplars_setting_development_v3
+SET exemplars={"limit": 2}\;
+TS metrics-cpu | STATS AVG(cpu_time)
+;
+
+@timestamp:date          | metric_name:keyword | value:double | _source:_source
+2024-05-10T00:04:10.000Z | memory_usage        | 105.0        | "{""@timestamp"":""2024-05-10T00:04:10.000Z"",""attributes"":{""cpu"":""cpu0"",""state"":""idle""},""metric_name"":""memory_usage"",""span_id"":""span-9"",""trace_id"":""trace-idle-cpu0-mem"",""value"":105.0}"
+2024-05-10T00:03:20.000Z | request_duration    | 38.0         | "{""@timestamp"":""2024-05-10T00:03:20.000Z"",""attributes"":{""cpu"":""cpu1"",""state"":""busy""},""metric_name"":""request_duration"",""span_id"":""span-8"",""trace_id"":""trace-busy-cpu1-dur"",""value"":38.0}"
+;
+
+// metrics-noexemplars derives exemplars-noexemplars, which does not exist. The query returns no exemplars, and the exemplar
+// columns it cannot find in any mapping are nullified.
+exemplarsWithoutExemplarDataStream
+required_capability: exemplars_setting_development_v3
+SET exemplars=true\;
+TS metrics-noexemplars | STATS AVG(cpu_time)
+;
+
+@timestamp:null | metric_name:null | value:null | _source:_source
+;

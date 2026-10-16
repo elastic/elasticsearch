@@ -595,7 +595,7 @@ public class ArchiveTests extends PackagingTestCase {
 
         String nodeTool = installation.executables().nodeTool.toString();
         if (Platforms.WINDOWS == false) {
-            nodeTool = "sudo -E -u " + ARCHIVE_OWNER + " " + nodeTool;
+            nodeTool = "sudo --preserve-env=" + String.join(",", sh.getEnv().keySet()) + " -u " + ARCHIVE_OWNER + " " + nodeTool;
         }
 
         Result result = sh.run("echo y | " + nodeTool + " unsafe-bootstrap");

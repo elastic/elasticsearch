@@ -65,7 +65,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#2143: planning-time inference charges the reader's breaker, and a refusal leaves
+     * Planning-time inference charges the reader's breaker, and a refusal leaves
      * {@code metadata()} as a {@link CircuitBreakingException} (HTTP 429), not as an {@code ExternalClientException}
      * about the user's data, and without having been retried on later records.
      */

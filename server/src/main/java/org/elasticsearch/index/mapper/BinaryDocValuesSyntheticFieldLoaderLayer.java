@@ -32,7 +32,7 @@ public class BinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSynthe
     }
 
     @Override
-    public long valueCount() throws IOException {
+    public long valueCount() {
         return hasValue ? bytesValues.docValueCount() : 0;
     }
 

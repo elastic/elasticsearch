@@ -578,59 +578,73 @@ public class TDigestFieldMapper extends FieldMapper {
 
     private class TDigestSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
         private final InternalTDigestValue value = new InternalTDigestValue();
-        private BinaryDocValues docValues;
-        private NumericDocValues minValues;
-        private NumericDocValues maxValues;
-        private NumericDocValues sumValues;
-        private boolean hasValue;
-        private boolean minPresent;
-        private boolean maxPresent;
-        private boolean sumPresent;
+        private BytesRef binaryValue;
+        private double min;
+        private double max;
+        private double sum;
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            docValues = leafReader.getBinaryDocValues(fieldType().name());
-            minValues = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath()));
-            maxValues = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath()));
-            sumValues = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath()));
+            BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldType().name());
+            NumericDocValues minValues = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath()));
+            NumericDocValues maxValues = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath()));
+            NumericDocValues sumValues = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath()));
             if (docValues == null) {
-                hasValue = false;
+                // No values in this leaf
+                binaryValue = null;
                 return null;
             }
             return docId -> {
-                hasValue = docValues.advanceExact(docId);
-                if (hasValue) {
-                    minPresent = minValues != null && minValues.advanceExact(docId);
-                    maxPresent = maxValues != null && maxValues.advanceExact(docId);
-                    sumPresent = sumValues != null && sumValues.advanceExact(docId);
+                if (docValues.advanceExact(docId)) {
+                    // we assume the summary sub-
+                    if (minValues != null && minValues.advanceExact(docId)) {
+                        min = NumericUtils.sortableLongToDouble(minValues.longValue());
+                    } else {
+                        min = Double.NaN;
+                    }
+
+                    if (maxValues != null && maxValues.advanceExact(docId)) {
+                        max = NumericUtils.sortableLongToDouble(maxValues.longValue());
+                    } else {
+                        max = Double.NaN;
+                    }
+
+                    if (sumValues != null && sumValues.advanceExact(docId)) {
+                        sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
+                    } else {
+                        sum = Double.NaN;
+                    }
+
+                    binaryValue = docValues.binaryValue();
+                    return true;
                 }
-                return hasValue;
+                binaryValue = null;
+                return false;
             };
         }
 
         @Override
         public boolean hasValue() {
-            return hasValue;
+            return binaryValue != null;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (hasValue == false) {
+            if (binaryValue == null) {
                 return;
             }
-            BytesRef binaryValue = docValues.binaryValue();
             value.reset(binaryValue);
             b.startObject();
 
             // TODO: Load the summary values out of the sub-fields, if they exist
-            if (minPresent) {
-                b.field("min", NumericUtils.sortableLongToDouble(minValues.longValue()));
+            if (Double.isNaN(min) == false) {
+                b.field("min", min);
             }
-            if (maxPresent) {
-                b.field("max", NumericUtils.sortableLongToDouble(maxValues.longValue()));
+            if (Double.isNaN(max) == false) {
+                b.field("max", max);
             }
-            if (sumPresent) {
-                b.field("sum", NumericUtils.sortableLongToDouble(sumValues.longValue()));
+            if (Double.isNaN(sum) == false) {
+                b.field("sum", sum);
             }
 
             b.startArray(CENTROIDS_NAME);
@@ -655,8 +669,8 @@ public class TDigestFieldMapper extends FieldMapper {
         }
 
         @Override
-        public long valueCount() throws IOException {
-            return hasValue ? 1 : 0;
+        public long valueCount() {
+            return binaryValue != null ? 1 : 0;
         }
     }
 }

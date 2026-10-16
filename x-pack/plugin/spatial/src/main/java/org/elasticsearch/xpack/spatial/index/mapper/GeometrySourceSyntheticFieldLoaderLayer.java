@@ -26,53 +26,42 @@ public class GeometrySourceSyntheticFieldLoaderLayer implements CompositeSynthet
 
     private final String name;
     private BinaryDocValues docValues;
-    private boolean hasValue;
-    private List<Geometry> geometries;
+    private List<Geometry> geometries = List.of();
 
     public GeometrySourceSyntheticFieldLoaderLayer(String name) {
         this.name = name;
     }
 
-    private List<Geometry> ensureDecoded() throws IOException {
-        if (hasValue && geometries == null) {
-            geometries = GeometrySourceDocValuesField.decode(docValues.binaryValue());
-        }
-        return geometries == null ? List.of() : geometries;
-    }
-
     @Override
-    public long valueCount() throws IOException {
-        return ensureDecoded().size();
+    public long valueCount() {
+        return geometries.size();
     }
 
     @Override
     public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
         docValues = leafReader.getBinaryDocValues(name);
         if (docValues == null) {
-            hasValue = false;
-            geometries = null;
+            geometries = List.of();
             return null;
         }
         return docId -> {
-            if (docValues.advanceExact(docId) == false) {
-                hasValue = false;
-                geometries = null;
-                return false;
+            if (docValues.advanceExact(docId)) {
+                geometries = GeometrySourceDocValuesField.decode(docValues.binaryValue());
+                return geometries.isEmpty() == false;
             }
-            geometries = GeometrySourceDocValuesField.decode(docValues.binaryValue());
-            hasValue = geometries.isEmpty() == false;
-            return hasValue;
+            geometries = List.of();
+            return false;
         };
     }
 
     @Override
     public boolean hasValue() {
-        return hasValue;
+        return geometries.isEmpty() == false;
     }
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        for (Geometry geometry : ensureDecoded()) {
+        for (Geometry geometry : geometries) {
             b.value(WellKnownText.toWKT(geometry));
         }
     }

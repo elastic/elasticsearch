@@ -476,31 +476,37 @@ public class HistogramFieldMapper extends FieldMapper {
 
     private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
         private final InternalHistogramValue value = new InternalHistogramValue();
-        private BinaryDocValues docValues;
-        private boolean hasValue;
+        private BytesRef binaryValue;
 
         @Override
         public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf)
             throws IOException {
-            docValues = leafReader.getBinaryDocValues(fieldType().name());
+            BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldType().name());
             if (docValues == null) {
-                hasValue = false;
+                // No values in this leaf
+                binaryValue = null;
                 return null;
             }
-            return docId -> hasValue = docValues.advanceExact(docId);
+            return docId -> {
+                if (docValues.advanceExact(docId)) {
+                    binaryValue = docValues.binaryValue();
+                    return true;
+                }
+                binaryValue = null;
+                return false;
+            };
         }
 
         @Override
         public boolean hasValue() {
-            return hasValue;
+            return binaryValue != null;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (hasValue == false) {
+            if (binaryValue == null) {
                 return;
             }
-            BytesRef binaryValue = docValues.binaryValue();
             b.startObject();
 
             value.reset(binaryValue);
@@ -526,8 +532,8 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public long valueCount() throws IOException {
-            return hasValue ? 1 : 0;
+        public long valueCount() {
+            return binaryValue != null ? 1 : 0;
         }
     };
 }

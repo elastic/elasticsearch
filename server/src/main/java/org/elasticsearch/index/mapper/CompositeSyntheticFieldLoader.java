@@ -159,8 +159,9 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     public interface Layer extends SourceLoader.SyntheticFieldLoader {
         /**
          * Number of values that this loader will write for a given document.
+         * @return
          */
-        long valueCount() throws IOException;
+        long valueCount();
     }
 
     public interface DocValuesLayer extends Layer {
@@ -299,7 +300,7 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
         }
 
         @Override
-        public long valueCount() throws IOException {
+        public long valueCount() {
             return values.size();
         }
 

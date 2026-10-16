@@ -28,7 +28,7 @@ class PatternTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoa
     }
 
     @Override
-    public long valueCount() throws IOException {
+    public long valueCount() {
         return loader != null && loader.hasValue() ? 1 : 0;
     }
 

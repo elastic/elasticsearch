@@ -960,31 +960,37 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     private class ExponentialHistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
-        private DocValuesReader histogramReader;
-        private boolean hasValue;
+        @Nullable
+        private ExponentialHistogram currentHistogram;
 
         @Override
         public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf)
             throws IOException {
-            histogramReader = new DocValuesReader(leafReader, fullPath());
+            DocValuesReader histogramReader = new DocValuesReader(leafReader, fullPath());
             if (histogramReader.hasAnyValues() == false) {
-                hasValue = false;
                 return null;
             }
-            return docId -> hasValue = histogramReader.advanceExact(docId);
+            return docId -> {
+                if (histogramReader.advanceExact(docId)) {
+                    currentHistogram = histogramReader.histogramValue();
+                    return true;
+                }
+                currentHistogram = null;
+                return false;
+            };
         }
 
         @Override
         public boolean hasValue() {
-            return hasValue;
+            return currentHistogram != null;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (hasValue == false) {
+            if (currentHistogram == null) {
                 return;
             }
-            ExponentialHistogramXContent.serialize(b, histogramReader.histogramValue());
+            ExponentialHistogramXContent.serialize(b, currentHistogram);
         }
 
         @Override
@@ -993,8 +999,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public long valueCount() throws IOException {
-            return hasValue ? 1 : 0;
+        public long valueCount() {
+            return currentHistogram != null ? 1 : 0;
         }
     };
 }

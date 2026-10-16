@@ -110,7 +110,7 @@ public class ViewResolver {
      * Maximum number of commands (pipes) the query may have while views are expanded. Bounds the size of the plan that nested or
      * repeated view references can produce. Source commands and the wrappers views are expanded into are not counted.
      */
-    public static final int MAX_EXPANDED_SIZE = LogicalPlanBuilder.MAX_QUERY_DEPTH;
+    public static final int MAX_EXPANDED_SIZE = LogicalPlanBuilder.MAX_QUERY_SIZE;
 
     protected Logger log = LogManager.getLogger(getClass());
     private final Executor executor;

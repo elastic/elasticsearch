@@ -24,7 +24,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.Lifecycle;
@@ -33,10 +32,6 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.LimitedBreaker;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
@@ -46,7 +41,6 @@ import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -92,8 +86,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TranslogReplicatorTests extends ESTestCase {
@@ -838,48 +830,6 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         syncStartedFuture.actionGet();
         future.actionGet();
-    }
-
-    /// A shard unregistered after writing to the node buffer but before any sync must not leave its bytes buffered.
-    public void testUnregisterReleasesBufferedBytesWithoutUpload() throws Exception {
-        ShardId shardId = new ShardId(new Index(randomAlphaOfLength(5), randomUUID()), randomIntBetween(0, 5));
-        long primaryTerm = randomLongBetween(0, 10);
-
-        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        CircuitBreakerService breakerService = LimitedBreaker.service(CircuitBreaker.REQUEST, ByteSizeValue.ofMb(1));
-        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-
-        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
-        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
-        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
-
-        TranslogReplicator translogReplicator = new TranslogReplicator(
-            taskQueue.getThreadPool(),
-            getSettings(),
-            objectStoreService,
-            consistencyService,
-            false,
-            (sId) -> primaryTerm
-        );
-        translogReplicator.setBigArrays(new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService));
-        translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm, (seqNo) -> {});
-
-        Translog.Serialized[] serialized = serializeOperations(generateRandomOperations(1));
-        translogReplicator.add(shardId, serialized[0], 0, new Translog.Location(0, 0, serialized[0].length()));
-        assertThat(translogReplicator.getTranslogBufferedDataSize(), greaterThan(0L));
-        assertThat(breaker.getUsed(), greaterThan(0L));
-
-        translogReplicator.unregister(shardId);
-
-        // runs the pending flush interval timer and the flush it triggers
-        taskQueue.runAllTasks();
-
-        assertThat(translogReplicator.getTranslogBufferedDataSize(), equalTo(0L));
-        assertThat(breaker.getUsed(), equalTo(0L));
-        verify(objectStoreService, never()).uploadTranslogFile(any(), any(), any());
-
-        translogReplicator.doClose();
     }
 
     public void testTranslogSyncOnlyCompletedOnceAllPriorFilesSynced() throws Exception {

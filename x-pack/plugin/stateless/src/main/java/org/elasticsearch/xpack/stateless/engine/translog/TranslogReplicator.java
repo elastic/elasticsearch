@@ -289,10 +289,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         logger.debug(() -> format("shard %s unregistered with translog replicator", shardId));
         assert unregistered != null;
         unregistered.close();
-        // The closed shard may have left operations in the current buffer without ever requesting a sync (e.g. the shard closed
-        // while a bulk was between its translog write and its post-write sync). Request a flush so the buffer is completed and
-        // released; the closed shard's bytes are dropped by NodeTranslogBuffer#complete as it only writes out registered shards.
-        requestSyncFlush();
     }
 
     public void add(final ShardId shardId, final Translog.Serialized operation, final long seqNo, final Translog.Location location) {
@@ -386,7 +382,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         });
     }
 
-    private void requestSyncFlush() {
+    // package-private for TranslogReplicators
+    void requestSyncFlush() {
         NodeTranslogBuffer buffer = currentBuffer.get();
         if (buffer != null && buffer.markSyncRequested()) {
             executor.execute(new FlushTask(buffer));

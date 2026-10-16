@@ -88,7 +88,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
             fieldName.equals(NAMED) ? ChunkCodec.ZSTD : ChunkCodec.IDENTITY,
             StringColumnOptions.DEFAULT_SIZES,
             singleValued,
-            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+            StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
         );
 
         try (Directory dir = newDirectory()) {
@@ -122,7 +123,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 ChunkCodec.ZSTD,
                 StringColumnOptions.DEFAULT_SIZES,
                 randomBoolean(),
-                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
+                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+                StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
             )
         );
         expectThrows(
@@ -133,7 +135,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 null,
                 StringColumnOptions.DEFAULT_SIZES,
                 randomBoolean(),
-                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
+                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+                StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
             )
         );
         expectThrows(
@@ -144,7 +147,8 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
                 ChunkCodec.ZSTD,
                 null,
                 randomBoolean(),
-                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
+                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+                StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
             )
         );
     }

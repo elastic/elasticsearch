@@ -6261,3 +6261,191 @@ other:keyword | _unmapped_fields:_source
 x | "{""tag"":""t""}"
 null | null
 ;
+
+###########################################################################
+# The new commands over fields that are mapped in one index and not another #
+###########################################################################
+
+// url is a mapped keyword in unmapped_compound_outputs and an unmapped field in unmapped_compound_inputs; URI_PARTS reads both.
+uriPartsOnFieldMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: uri_parts_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| URI_PARTS parts = url
+| KEEP id, parts.domain, parts.scheme
+| SORT id
+;
+
+id:keyword | parts.domain:keyword | parts.scheme:keyword
+1 | www.example.com | http
+2 | example.org | https
+3 | c.example.net | http
+b1 | other.example.org | https
+b2 | www.example.com | http
+;
+
+// Same for REGISTERED_DOMAIN over host.
+registeredDomainOnFieldMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: registered_domain_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| REGISTERED_DOMAIN rd = host
+| KEEP id, rd.registered_domain
+| SORT id
+;
+
+id:keyword | rd.registered_domain:keyword
+1 | example.co.uk
+2 | example.org
+3 | example.net
+b1 | example.com
+b2 | example.co.uk
+;
+
+// Same for USER_AGENT over agent.
+userAgentOnFieldMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: user_agent_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| USER_AGENT ua = agent
+| KEEP id, ua.name
+| SORT id
+;
+
+id:keyword | ua.name:keyword
+1 | Chrome
+2 | Firefox
+3 | curl
+b1 | Firefox
+b2 | Chrome
+;
+
+// Same for IP_LOCATION over addr, which is a mapped ip in one index and an unmapped field in the other.
+ipLocationOnFieldMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: ip_location_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| IP_LOCATION g = addr
+| KEEP id, g.country_iso_code
+| SORT id
+;
+
+id:keyword | g.country_iso_code:keyword
+1 | US
+2 | AU
+3 | FR
+b1 | US
+b2 | US
+;
+
+// FILL_NULL over two unmapped fields fills each where a row has no value; both leave _unmapped_fields.
+fillNullOnSeveralUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| FILLNULL "n/a" ON tag, other
+| KEEP id, tag, other, pa*
+| SORT id
+;
+
+id:keyword | tag:keyword | other:keyword | _unmapped_fields:_source
+1 | t | x | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
+2 | t | x | "{""parts.domain"":""old.example2"",""parts.port"":""81""}"
+3 | n/a | n/a | null
+;
+
+// LIMIT BY groups rows by url across both indices: b2 repeats the url of row 1, so only one of them survives.
+limitByFieldMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: esql_limit_by
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| SORT id
+| LIMIT 1 BY url
+| KEEP id, url
+| SORT id
+;
+
+id:keyword | url:keyword
+1 | http://www.example.com:8080/a
+2 | https://example.org/b
+3 | http://c.example.net/c
+b1 | https://other.example.org/x
+;
+
+// DEDUP treats a mapped and an unmapped url alike: b2 repeats row 1 on url and tag, so the two collapse into one.
+dedupAcrossMappedAndUnmappedIndices
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: dedup_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs, unmapped_compound_inputs
+| KEEP url, ta*
+| DEDUP
+| SORT url
+;
+
+url:keyword | _unmapped_fields:_source
+http://c.example.net/c | null
+http://www.example.com:8080/a | "{""tag"":""t""}"
+https://example.org/b | "{""tag"":""t""}"
+https://other.example.org/x | null
+;
+
+// Each FORK branch adds its own output columns, which the other branch null-fills.
+forkBranchesWithDifferentCompoundOutputCommands
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+required_capability: uri_parts_command
+required_capability: registered_domain_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| WHERE id == "1"
+| FORK (URI_PARTS parts = url | KEEP id, parts.scheme) (REGISTERED_DOMAIN rd = host | KEEP id, rd.registered_domain)
+| SORT _fork
+;
+
+id:keyword | parts.scheme:keyword | _fork:keyword | rd.registered_domain:keyword
+1 | http | fork1 | null
+1 | null | fork2 | example.co.uk
+;
+
+// An unmapped field that holds something that is not an IP address yields a null location plus the usual warnings, not an error.
+ipLocationOverUnmappedFieldThatIsNotAnIp
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: ip_location_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| WHERE id == "1"
+| IP_LOCATION g = other
+| KEEP id, g.country_iso_code
+;
+warningregex: Line .*: java.lang.IllegalArgumentException:.*
+warningregex: Line .*: evaluation of \[IP_LOCATION.*\] failed, treating result as null.*
+
+id:keyword | g.country_iso_code:keyword
+1 | null
+;

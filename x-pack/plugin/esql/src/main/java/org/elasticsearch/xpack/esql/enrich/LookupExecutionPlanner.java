@@ -179,6 +179,8 @@ public class LookupExecutionPlanner {
      * Creates a PhysicalOperation with operator factories, matching LocalExecutionPlanner's pattern.
      * @param lookupSource the Source to use for warning messages (from the original LOOKUP JOIN expression),
      *                     passed separately because plan nodes conventionally discard Source during serialization.
+     * @param allowExpensiveQueries this node's {@code search.allow_expensive_queries}, for the evaluators of lookup-side
+     *                              expressions
      */
     public PhysicalOperation buildOperatorFactories(
         PlannerSettings plannerSettings,
@@ -187,7 +189,8 @@ public class LookupExecutionPlanner {
         SourceOperatorFactory sourceFactory,
         FoldContext foldCtx,
         QueryListFromPlanFactory queryListFromPlanFactory,
-        Source lookupSource
+        Source lookupSource,
+        boolean allowExpensiveQueries
     ) {
         return planLookupNode(
             plannerSettings,
@@ -196,7 +199,8 @@ public class LookupExecutionPlanner {
             sourceFactory,
             foldCtx,
             queryListFromPlanFactory,
-            lookupSource
+            lookupSource,
+            allowExpensiveQueries
         );
     }
 
@@ -258,7 +262,8 @@ public class LookupExecutionPlanner {
         SourceOperatorFactory sourceFactory,
         FoldContext foldCtx,
         QueryListFromPlanFactory queryListFromPlanFactory,
-        Source lookupSource
+        Source lookupSource,
+        boolean allowExpensiveQueries
     ) {
         PhysicalOperation source;
         if (node instanceof UnaryExec unaryExec) {
@@ -269,7 +274,8 @@ public class LookupExecutionPlanner {
                 sourceFactory,
                 foldCtx,
                 queryListFromPlanFactory,
-                lookupSource
+                lookupSource,
+                allowExpensiveQueries
             );
         } else {
             // there could be a leaf node such as ParameterizedQueryExec
@@ -290,9 +296,9 @@ public class LookupExecutionPlanner {
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractExec(plannerSettings, fieldExtractExec, source);
         } else if (node instanceof EvalExec evalExec) {
-            return planEvalExec(evalExec, source, foldCtx);
+            return planEvalExec(evalExec, source, foldCtx, allowExpensiveQueries);
         } else if (node instanceof FilterExec filterExec) {
-            return planFilterExec(filterExec, source, foldCtx);
+            return planFilterExec(filterExec, source, foldCtx, allowExpensiveQueries);
         } else if (node instanceof ProjectExec projectExec) {
             return planProjectExec(projectExec, source);
         } else if (node instanceof OutputExec outputExec) {
@@ -461,9 +467,14 @@ public class LookupExecutionPlanner {
         }, layout);
     }
 
-    private PhysicalOperation planEvalExec(EvalExec evalExec, PhysicalOperation source, FoldContext foldCtx) {
+    private PhysicalOperation planEvalExec(
+        EvalExec evalExec,
+        PhysicalOperation source,
+        FoldContext foldCtx,
+        boolean allowExpensiveQueries
+    ) {
         for (Alias field : evalExec.fields()) {
-            var evaluatorSupplier = EvalMapper.toEvaluator(foldCtx, field.child(), source.layout());
+            var evaluatorSupplier = EvalMapper.toEvaluator(foldCtx, field.child(), source.layout(), null, allowExpensiveQueries);
             Layout.Builder layout = source.layout().builder();
             layout.append(field.toAttribute());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
@@ -471,7 +482,12 @@ public class LookupExecutionPlanner {
         return source;
     }
 
-    private PhysicalOperation planFilterExec(FilterExec filterExec, PhysicalOperation source, FoldContext foldCtx) {
+    private PhysicalOperation planFilterExec(
+        FilterExec filterExec,
+        PhysicalOperation source,
+        FoldContext foldCtx,
+        boolean allowExpensiveQueries
+    ) {
         Expression condition = filterExec.condition();
         Layout layout = source.layout();
         /*
@@ -484,7 +500,14 @@ public class LookupExecutionPlanner {
                 LookupDriverContext lookupCtx = (LookupDriverContext) driverContext;
                 EsPhysicalOperationProviders.ShardContext esShardCtx = lookupCtx.lookupShardContext().context();
                 IndexedByShardId<EsPhysicalOperationProviders.ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(esShardCtx);
-                ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(foldCtx, condition, layout, shardContexts);
+                ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
+                    foldCtx,
+                    condition,
+                    layout,
+                    shardContexts,
+                    null,
+                    allowExpensiveQueries
+                );
                 return new FilterOperator(evalFactory.get(driverContext));
             }
 

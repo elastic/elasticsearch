@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
-import org.elasticsearch.xpack.esql.evaluator.EvaluatorServices;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -406,7 +405,8 @@ public class TopSnippetsStaticTests extends ESTestCase {
                 expression,
                 builder.build(),
                 org.elasticsearch.compute.lucene.EmptyIndexedByShardId.instance(),
-                new EvaluatorServices(analysisRegistry, true)
+                analysisRegistry,
+                true
             );
         } else {
             factory = evaluator(expression);

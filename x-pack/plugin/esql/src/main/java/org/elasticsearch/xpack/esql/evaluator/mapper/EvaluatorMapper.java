@@ -54,11 +54,11 @@ public interface EvaluatorMapper {
 
         /**
          * Whether queries compiled while building evaluators (e.g. runtime {@code MATCH} with options) may use the
-         * query types that {@code search.allow_expensive_queries: false} disables in Query DSL. Defaults to
-         * {@code true} for contexts that don't see cluster settings, such as folding and tests.
+         * query types that {@code search.allow_expensive_queries: false} disables in Query DSL. The default throws
+         * rather than guessing, so a context that can't see the node's setting can't silently allow them.
          */
         default boolean allowExpensiveQueries() {
-            return true;
+            throw new UnsupportedOperationException("search.allow_expensive_queries is not available in this evaluator context");
         }
     }
 

@@ -44,6 +44,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
@@ -760,7 +761,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 sourceFactory,
                 foldCtx,
                 queryListFactory,
-                request.source
+                request.source,
+                clusterService.getClusterSettings().get(SearchService.ALLOW_EXPENSIVE_QUERIES)
             );
 
             LookupQueryPlan lookupQueryPlan = executionPlanner.buildOperators(

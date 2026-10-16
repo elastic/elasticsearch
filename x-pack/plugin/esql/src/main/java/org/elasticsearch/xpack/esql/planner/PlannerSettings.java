@@ -19,9 +19,7 @@ import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -364,39 +362,34 @@ public class PlannerSettings {
     );
 
     public static List<Setting<?>> settings() {
-        List<Setting<?>> settings = new ArrayList<>(
-            List.of(
-                DEFAULT_DATA_PARTITIONING,
-                DOC_THRESHOLD_AUTO_PARTITIONING,
-                VALUES_LOADING_JUMBO_SIZE,
-                LUCENE_TOPN_LIMIT,
-                INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
-                REDUCTION_LATE_MATERIALIZATION,
-                PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
-                PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
-                TIME_SERIES_TARGET_CHUNK_ROWS,
-                REUSE_COLUMN_LOADERS_THRESHOLD,
-                BLOCK_LOADER_SIZE_ORDINALS,
-                BLOCK_LOADER_SIZE_SCRIPT,
-                MAX_KEYWORD_SORT_FIELDS,
-                SOURCE_RESERVATION_FACTOR,
-                BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
-                BYTES_REF_RAM_OVERESTIMATE_FACTOR,
-                DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
-                PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS,
-                PARALLEL_OPERATOR_MAX_WORKERS,
-                IN_SUBQUERY_HASH_JOIN_THRESHOLD,
-                MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED,
-                MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
-                MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS,
-                AGG_PARTITIONING_COUNT_THRESHOLD,
-                AGG_PARTITIONING_MEMORY_THRESHOLD
-            )
+        return List.of(
+            DEFAULT_DATA_PARTITIONING,
+            DOC_THRESHOLD_AUTO_PARTITIONING,
+            VALUES_LOADING_JUMBO_SIZE,
+            LUCENE_TOPN_LIMIT,
+            INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
+            REDUCTION_LATE_MATERIALIZATION,
+            PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
+            PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
+            TIME_SERIES_TARGET_CHUNK_ROWS,
+            REUSE_COLUMN_LOADERS_THRESHOLD,
+            BLOCK_LOADER_SIZE_ORDINALS,
+            BLOCK_LOADER_SIZE_SCRIPT,
+            MAX_KEYWORD_SORT_FIELDS,
+            SOURCE_RESERVATION_FACTOR,
+            BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
+            BYTES_REF_RAM_OVERESTIMATE_FACTOR,
+            DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
+            PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS,
+            PARALLEL_OPERATOR_MAX_WORKERS,
+            IN_SUBQUERY_HASH_JOIN_THRESHOLD,
+            MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED,
+            MIN_COMPETITIVE_GLOBAL_MERGE_BATCH_PAGES,
+            MIN_COMPETITIVE_GLOBAL_MERGE_MAX_PENDING_KEYS,
+            AGG_PARTITIONING_COUNT_THRESHOLD,
+            AGG_PARTITIONING_MEMORY_THRESHOLD,
+            LOAD_ALL_MAX_FIELDS
         );
-        if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled()) {
-            settings.add(LOAD_ALL_MAX_FIELDS);
-        }
-        return settings;
     }
 
     public static class Holder {
@@ -434,9 +427,7 @@ public class PlannerSettings {
             clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_ORDINALS, v -> settings.updateAndGet(s -> s.blockLoaderSizeOrdinals(v)));
             clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_SCRIPT, v -> settings.updateAndGet(s -> s.blockLoaderSizeOrdinals(v)));
             clusterSettings.initializeAndWatch(MAX_KEYWORD_SORT_FIELDS, v -> settings.updateAndGet(s -> s.maxKeywordSortFields(v)));
-            if (EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled()) {
-                clusterSettings.initializeAndWatch(LOAD_ALL_MAX_FIELDS, v -> settings.updateAndGet(s -> s.loadAllMaxFields(v)));
-            }
+            clusterSettings.initializeAndWatch(LOAD_ALL_MAX_FIELDS, v -> settings.updateAndGet(s -> s.loadAllMaxFields(v)));
             clusterSettings.initializeAndWatch(SOURCE_RESERVATION_FACTOR, v -> settings.updateAndGet(s -> s.sourceReservationFactor(v)));
             clusterSettings.initializeAndWatch(
                 BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,

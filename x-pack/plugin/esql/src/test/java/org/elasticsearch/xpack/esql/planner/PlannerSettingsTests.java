@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.HashSet;
 
@@ -64,13 +63,9 @@ public class PlannerSettingsTests extends ESTestCase {
         assertThat(PlannerSettings.DEFAULTS.loadAllMaxFields(), equalTo(1000));
     }
 
-    /** The setting is only exposed where its capability is, so that it is not exposed where it has no effect. */
-    public void testLoadAllMaxFieldsIsRegisteredExactlyWhereItsCapabilityIs() {
+    public void testLoadAllMaxFieldsIsRegistered() {
         var registeredKeys = PlannerSettings.settings().stream().map(Setting::getKey).toList();
-        assertThat(
-            registeredKeys.contains(PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey()),
-            equalTo(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled())
-        );
+        assertThat(registeredKeys, hasItems(PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey()));
     }
 
     /**
@@ -78,7 +73,6 @@ public class PlannerSettingsTests extends ESTestCase {
      * rejected: {@code ClusterSettings#updateDynamicSettings}. No cluster service is needed for that.
      */
     public void testLoadAllMaxFieldsIsDynamic() {
-        assumeTrue("the setting is registered", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING.isEnabled());
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(PlannerSettings.settings()));
         String key = PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey();
 

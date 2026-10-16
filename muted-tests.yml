@@ -217,12 +217,6 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/152914
-- class: org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperatorTests
-  method: testMultivaluedGroupColumnProducesWarning
-  issue: https://github.com/elastic/elasticsearch/issues/152928
-- class: org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperatorTests
-  method: testMultivaluedGroupColumnProducesWarning
-  issue: https://github.com/elastic/elasticsearch/issues/152929
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testMultiTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/150101

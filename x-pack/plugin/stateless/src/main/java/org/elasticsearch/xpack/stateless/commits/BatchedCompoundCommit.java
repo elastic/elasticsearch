@@ -31,8 +31,6 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
     implements
         AbstractBatchedCompoundCommit {
 
-    public static final String PREFIX = "stateless_commit_";
-
     public BatchedCompoundCommit {
         if (primaryTermAndGeneration == null) {
             throw new IllegalArgumentException("Batched compound commits must have a non-null primary term and generation");
@@ -249,20 +247,5 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         for (BlobLocation blobLocation : commit.commitFiles().values()) {
             primaryTermAndGenerations.add(blobLocation.getBatchedCompoundCommitTermAndGeneration());
         }
-    }
-
-    // A batched compound commit is stored as a single blob whose name is derived from the generation of its first compound commit.
-    public static boolean startsWithBlobPrefix(String name) {
-        return name.startsWith(PREFIX);
-    }
-
-    public static String blobNameFromGeneration(long generation) {
-        assert generation > 0 : generation;
-        return PREFIX + generation;
-    }
-
-    public static long parseGenerationFromBlobName(String name) {
-        assert startsWithBlobPrefix(name) : name;
-        return Long.parseLong(name.substring(PREFIX.length()));
     }
 }

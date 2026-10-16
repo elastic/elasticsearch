@@ -7,34 +7,22 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
-
-import java.io.IOException;
 
 /**
  * Represents a file (typically a {@link BatchedCompoundCommit}) stored in the blobstore.
  */
-public record BccBlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) implements Writeable {
+public record BccBlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) implements BlobFile {
+
+    public static final String PREFIX = "stateless_commit_";
 
     public BccBlobFile {
-        assert (BatchedCompoundCommit.startsWithBlobPrefix(blobName) == false && termAndGeneration.generation() == -1)
-            || termAndGeneration.generation() == BatchedCompoundCommit.parseGenerationFromBlobName(blobName)
+        assert (startsWithBlobPrefix(blobName) == false && termAndGeneration.generation() == -1)
+            || termAndGeneration.generation() == parseGenerationFromBlobName(blobName)
             : "generation mismatch: " + termAndGeneration + " vs " + blobName;
     }
 
-    public BccBlobFile(StreamInput in) throws IOException {
-        this(in.readString(), new PrimaryTermAndGeneration(in));
-    }
-
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(blobName);
-        termAndGeneration.writeTo(out);
-    }
-
     public long primaryTerm() {
         return termAndGeneration.primaryTerm();
     }
@@ -48,7 +36,20 @@ public record BccBlobFile(String blobName, PrimaryTermAndGeneration termAndGener
 
     @Override
     public String toString() {
-        return "BlobFile{" + "primaryTerm=" + primaryTerm() + ", blobName='" + blobName + '\'' + '}';
+        return "BccBlobFile[term=" + primaryTerm() + ", name=" + blobName() + ']';
     }
 
+    public static boolean startsWithBlobPrefix(String name) {
+        return name.startsWith(PREFIX);
+    }
+
+    public static String blobNameFromGeneration(long generation) {
+        assert generation > 0 : generation;
+        return PREFIX + generation;
+    }
+
+    public static long parseGenerationFromBlobName(String name) {
+        assert startsWithBlobPrefix(name) : name;
+        return Long.parseLong(name.substring(PREFIX.length()));
+    }
 }

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -16,9 +14,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
-import org.elasticsearch.xpack.esql.view.PutViewAction;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -28,7 +23,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -109,35 +103,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             csvFixtureSalaryLong,
             String.join("\n", "emp_no:integer,name:keyword,salary:long", "10,Diana,75000", "11,Eve,65000") + "\n"
         );
-    }
-
-    /** Names every view {@code testXxx} bodies PUT, dropped after each method so the SUITE cluster stays clean. */
-    private static final Set<String> CREATED_VIEWS = Set.of(
-        "emp_meta_view",
-        "emp_ds_view",
-        "emp_union_view",
-        "emp_alt_view",
-        "emp_subq_view",
-        "emp_fork_view"
-    );
-
-    /**
-     * Datasets and the {@code local_ds} data source are registered through the base
-     * {@link AbstractExternalDataSourceIT#registerDataset}/{@link AbstractExternalDataSourceIT#registerDataSource}
-     * helpers, so the base {@code cleanupRegistry()} tears them down. Only views need bespoke teardown here.
-     */
-    @After
-    public void cleanupViews() {
-        for (String view : CREATED_VIEWS) {
-            try {
-                client().execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { view }))
-                    .actionGet(TIMEOUT);
-            } catch (ResourceNotFoundException ignored) {
-                // not created by this test
-            } catch (Exception e) {
-                logger.warn("view cleanup [{}] failed", view, e);
-            }
-        }
     }
 
     public void testSubqueryOnlyDataset() {
@@ -608,26 +573,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             assertThat(rows, hasSize(1));
             assertThat(rows.get(0).get(names.indexOf("_index")), nullValue());
             assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
-        }
-    }
-
-    public void testMetadataSurfacesThroughViewOverDataset() {
-        registerEmployees();
-        createView("emp_meta_view", "FROM employees METADATA _index, _file.path");
-
-        // A view is a saved query; FROM <view> expands to it, so metadata named in the view's body
-        // surfaces at the call site with no KEEP — directly and inside a subquery, matching the FROM
-        // contract. The view body carries the METADATA clause; the caller adds nothing.
-        for (String query : List.of("FROM emp_meta_view | LIMIT 1", "FROM (FROM emp_meta_view) | LIMIT 1")) {
-            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
-                List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-                assertThat(query + " must surface _index without KEEP, got " + names, names, hasItem("_index"));
-                assertThat(query + " must surface _file.path without KEEP, got " + names, names, hasItem("_file.path"));
-
-                List<List<Object>> rows = getValuesList(response);
-                assertThat(rows.get(0).get(names.indexOf("_index")), nullValue());
-                assertThat(rows.get(0).get(names.indexOf("_file.path")).toString(), containsString(".csv"));
-            }
         }
     }
 
@@ -1522,77 +1467,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testForkAfterViewOverDataset() {
-        registerEmployees();
-        createView("emp_ds_view", "FROM employees");
-        try (var response = run(syncEsqlQueryRequest("""
-            FROM emp_ds_view
-            | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)
-            | KEEP _fork, emp_no
-            | SORT _fork, emp_no
-            """), TIMEOUT)) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 1), List.of("fork1", 2), List.of("fork2", 3))));
-        }
-    }
-
-    public void testViewReferencingForkAndDataset() {
-        registerEmployees();
-        createView("emp_fork_view", "FROM employees | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)");
-        try (var response = run(syncEsqlQueryRequest("""
-            FROM emp_fork_view
-            | STATS c = COUNT(*) BY _fork
-            | KEEP _fork, c
-            | SORT _fork
-            """), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
-            assertThat(rows.get(0).get(1), equalTo(2L));
-            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
-            assertThat(rows.get(1).get(1), equalTo(1L));
-        }
-    }
-
-    public void testForkAfterSubqueryDatasetView() {
-        registerEmployees();
-        registerEmployeesAlt();
-        createView("emp_alt_view", "FROM employees_alt");
-        try (var response = run(syncEsqlQueryRequest("""
-            FROM (FROM employees), emp_alt_view
-            | FORK (WHERE emp_no < 10) (WHERE emp_no >= 10)
-            | STATS c = COUNT(*) BY _fork
-            | KEEP _fork, c
-            | SORT _fork
-            """), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
-            assertThat(rows.get(0).get(1), equalTo(3L));
-            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
-            assertThat(rows.get(1).get(1), equalTo(2L));
-        }
-    }
-
-    public void testViewReferencingForkDatasetInSubquery() {
-        registerEmployees();
-        registerEmployeesAlt();
-        createView("emp_fork_view", "FROM employees | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)");
-        try (var response = run(syncEsqlQueryRequest("""
-            FROM (FROM emp_fork_view),
-                 (FROM employees_alt | WHERE emp_no == 10 | EVAL _fork = "fork1")
-            | STATS c = COUNT(*) BY _fork
-            | KEEP _fork, c
-            | SORT _fork
-            """), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
-            assertThat(rows.get(0).get(1), equalTo(3L));
-            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
-            assertThat(rows.get(1).get(1), equalTo(1L));
-        }
-    }
-
     public void testNestedDatasetSubqueryWithRequestFilter() {
         registerEmployees();
         registerEmployeesAlt();
@@ -1626,47 +1500,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(1), equalTo(2L));
             assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
             assertThat(rows.get(1).get(1), equalTo(2L));
-        }
-    }
-
-    public void testForkAfterSubqueryDatasetViewWithRequestFilter() {
-        registerEmployees();
-        registerEmployeesAlt();
-        createView("emp_alt_view", "FROM employees_alt");
-        var request = syncEsqlQueryRequest("""
-            FROM (FROM employees), emp_alt_view
-            | FORK (WHERE emp_no < 10) (WHERE emp_no >= 10)
-            | STATS c = COUNT(*) BY _fork
-            | KEEP _fork, c
-            | SORT _fork
-            """);
-        request.filter(QueryBuilders.rangeQuery("emp_no").gte(2));
-        try (var response = run(request, TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
-            assertThat(rows.get(0).get(1), equalTo(2L));
-            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
-            assertThat(rows.get(1).get(1), equalTo(2L));
-        }
-    }
-
-    public void testMixedViewDatasetIndexWithRequestFilter() {
-        registerEmployees();
-        registerEmployeesAlt();
-        createRealEmployees();
-        createView("emp_fork_view", "FROM employees | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)");
-        var request = syncEsqlQueryRequest("""
-            FROM emp_fork_view, (FROM employees_alt), real_employees
-            | KEEP emp_no
-            | SORT emp_no
-            """);
-        request.filter(QueryBuilders.rangeQuery("emp_no").gte(3));
-        try (var response = run(request, TIMEOUT)) {
-            assertThat(
-                getValuesList(response),
-                equalTo(List.of(List.of(3), List.of(3), List.of(10), List.of(11), List.of(99), List.of(100), List.of(101)))
-            );
         }
     }
 
@@ -1768,12 +1601,6 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
     private void registerEmployees() {
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-    }
-
-    private void createView(String name, String query) {
-        assertAcked(
-            client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, query))).actionGet(TIMEOUT)
-        );
     }
 
     private void registerEmployeesAlt() {

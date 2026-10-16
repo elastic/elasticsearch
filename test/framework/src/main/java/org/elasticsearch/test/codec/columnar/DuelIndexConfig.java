@@ -113,6 +113,7 @@ public final class DuelIndexConfig {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode.getName())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.queries.cache.enabled", false);
     }
 }

@@ -121,6 +121,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -130,7 +131,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
@@ -154,6 +154,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
@@ -492,6 +493,7 @@ public class EsqlSession {
         );
         LOGGER.debug("ESQL resolved settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);
+        request.setResolvedSettings(resolved);
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
         // View and IN subquery resolution. IN_SUBQUERY telemetry is gathered from the result (ViewResolutionResult.hasInSubquery)
@@ -587,8 +589,8 @@ public class EsqlSession {
         );
 
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
-        // Subquery/UnionAll structures into ViewUnionAll. ViewShadowRelation siblings and nested
-        // ViewUnionAlls are intentionally preserved here — they are stripped/flattened in
+        // Subquery/UnionAll structures into BranchPlan. ViewShadowRelation siblings and nested
+        // BranchPlans are intentionally preserved here — they are stripped/flattened in
         // ViewCompaction.postIndexResolution(), which runs as an analyzer rule after ResolveTable so
         // lenient field-caps can pair each shadow with its strict sibling.
         LogicalPlan plan = ViewCompaction.preIndexResolution(viewResolution.plan());
@@ -602,6 +604,7 @@ public class EsqlSession {
             finalConfiguration,
             executionInfo,
             request.filter(),
+            viewResolution.indexViewOrigins(),
             new ActionListener<Versioned<LogicalPlan>>() {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
@@ -1676,6 +1679,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
@@ -1696,7 +1700,15 @@ public class EsqlSession {
             flags,
             planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
-                analyzedPlanAfterDatasetResolution(rewritten, unmappedResolution, configuration, executionInfo, requestFilter, delegate);
+                analyzedPlanAfterDatasetResolution(
+                    rewritten,
+                    unmappedResolution,
+                    configuration,
+                    executionInfo,
+                    requestFilter,
+                    indexViewOrigins,
+                    delegate
+                );
             }))
         );
     }
@@ -1707,6 +1719,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
@@ -1720,7 +1733,8 @@ public class EsqlSession {
         // an older node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may
         // cause bugs.
         PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, requestFilter, configuration)
-            .withMinimumTransportVersion(localClusterMinimumVersion);
+            .withMinimumTransportVersion(localClusterMinimumVersion)
+            .withIndexViewOrigins(indexViewOrigins);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
         // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
         // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
@@ -1783,7 +1797,7 @@ public class EsqlSession {
             unmappedResolution.loadsUnmappedFields()
         );
         boolean filterAppliesToViewOutput = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
-            && parsed.anyMatch(p -> p instanceof ViewUnionAll vua && vua.viewBranchKeys().isEmpty() == false);
+            && parsed.anyMatch(p -> p instanceof BranchPlan vua && vua.viewBranchKeys().isEmpty() == false);
         if (filterAppliesToViewOutput == false || IndexResolver.ALL_FIELDS.equals(result.fieldNames())) {
             return result;
         }
@@ -2510,7 +2524,7 @@ public class EsqlSession {
      */
     private static Set<IndexPattern> viewInternalIndexPatterns(LogicalPlan plan) {
         Set<IndexPattern> patterns = new HashSet<>();
-        plan.forEachDown(ViewUnionAll.class, vua -> {
+        plan.forEachDown(BranchPlan.class, vua -> {
             for (Map.Entry<String, LogicalPlan> branch : vua.namedSubqueries().entrySet()) {
                 if (vua.isViewBranch(branch.getKey())) {
                     branch.getValue().forEachDown(UnresolvedRelation.class, ur -> patterns.add(ur.indexPattern()));
@@ -2751,6 +2765,7 @@ public class EsqlSession {
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
             null,
+            result.indexViewOrigins(),
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -2789,6 +2804,7 @@ public class EsqlSession {
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
             routingInfoCapture,
+            result.indexViewOrigins(),
             planningCpu.meteredCpu(ActionListener.wrap(indexResolution -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -2810,6 +2826,7 @@ public class EsqlSession {
                         preAnalysis.needsAnalyzerGroups(),
                         trackUnmappedFieldIndices,
                         null,
+                        result.indexViewOrigins(),
                         planningCpu.meteredCpu(retryListener)
                     );
                 });
@@ -2919,6 +2936,7 @@ public class EsqlSession {
                     executionInfo,
                     result.indexResolution.values(),
                     result.linkedResolution.values(),
+                    result.indexViewOrigins(),
                     requestFilter != null
                 );
             }
@@ -3111,7 +3129,8 @@ public class EsqlSession {
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
-        TransportVersion minimumTransportVersion
+        TransportVersion minimumTransportVersion,
+        IndexViewOrigins indexViewOrigins
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
@@ -3125,7 +3144,8 @@ public class EsqlSession {
                 null,
                 InferenceResolution.EMPTY,
                 ExternalSourceResolution.EMPTY,
-                TransportVersion.current()
+                TransportVersion.current(),
+                IndexViewOrigins.EMPTY
             );
         }
 
@@ -3155,7 +3175,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                indexViewOrigins
             );
         }
 
@@ -3170,7 +3191,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                indexViewOrigins
             );
         }
 
@@ -3185,7 +3207,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                indexViewOrigins
             );
         }
 
@@ -3200,7 +3223,8 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                indexViewOrigins
             );
         }
 
@@ -3221,7 +3245,24 @@ public class EsqlSession {
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
-                minimumTransportVersion
+                minimumTransportVersion,
+                indexViewOrigins
+            );
+        }
+
+        PreAnalysisResult withIndexViewOrigins(IndexViewOrigins indexViewOrigins) {
+            return new PreAnalysisResult(
+                fieldNames,
+                wildcardJoinIndices,
+                indexResolution,
+                exemplarsResolution,
+                lookupIndices,
+                linkedResolution,
+                enrichResolution,
+                inferenceResolution,
+                externalSourceResolution,
+                minimumTransportVersion,
+                indexViewOrigins
             );
         }
     }

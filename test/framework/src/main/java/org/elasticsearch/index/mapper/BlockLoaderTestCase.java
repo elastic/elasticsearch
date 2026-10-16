@@ -447,13 +447,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         @SuppressWarnings("unchecked")
         var fieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.lookup().get("parent").get("fields")).get("mf");
 
-        if (params.indexMode == IndexMode.LOGSDB) {
-            @SuppressWarnings("unchecked")
-            var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
-            @SuppressWarnings("unchecked")
-            var mappingProperties = (Map<String, Object>) docMapping.get("properties");
-            mappingProperties.put("@timestamp", Map.of("type", "date"));
-        }
+        decorateMappingWithRequiredFields(mapping);
 
         runner.document(decorateWithRequiredFields(new DocumentGenerator(specification).generate(template, mapping)));
 

@@ -36,6 +36,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.tasks.Task;
@@ -225,6 +226,16 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
 
         // Listener that builds final result from accumulated chunks
         ActionListener<FetchSearchResult> childListener = ActionListener.runAfter(ActionListener.wrap(dataNodeResult -> {
+            // A streaming fetch always returns empty hits. Non-empty hits mean the data node fell back to a classic fetch (its
+            // chunked fetch is disabled, which is the default before 9.5.2), and its lastChunkBytes may be in a format without
+            // positions, so the classic result is passed on as is.
+            SearchHits classicHits = dataNodeResult.hits();
+            if (classicHits != null && classicHits.getHits().length > 0) {
+                dataNodeResult.setLastChunkBytes(null, 0);
+                listener.<FetchSearchResult>map(Response::new).onResponse(dataNodeResult);
+                return;
+            }
+
             BytesReference lastChunkBytes = dataNodeResult.getLastChunkBytes();
             int hitCount = dataNodeResult.getLastChunkHitCount();
 

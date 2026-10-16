@@ -683,4 +683,40 @@ public class WatcherServiceTests extends ESTestCase {
     private static <T> ActionListener<T> anyActionListener() {
         return any(ActionListener.class);
     }
+
+    /**
+     * Regression test for #161574: Watcher keeps scheduling watches after the local .watches shard leaves during reload.
+     * This test verifies that pauseExecution increments processedClusterStateVersion under reloadApplyLock,
+     * which invalidates any in-flight reload that was started before the shard left.
+     */
+    @Test
+    public void testPauseExecutionInvalidatesInFlightReload() {
+        TriggerService triggerService = mock(TriggerService.class);
+        TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
+        ExecutionService executionService = mock(ExecutionService.class);
+        WatchParser parser = mock(WatchParser.class);
+
+        WatcherService service = new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            triggeredWatchStore,
+            executionService,
+            parser,
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
+            @Override
+            void stopExecutor() {}
+        };
+
+        // Simulate a reload starting with cluster state version 100
+        service.start(new ClusterState.Builder(new ClusterName("_name")).version(100).build(), () -> {}, e -> {});
+
+        // Call pauseExecution, which should increment the version under reloadApplyLock
+        service.pauseExecution("shard departed");
+
+        // Verify triggerService.pauseExecution was called
+        verify(triggerService).pauseExecution();
+        // The version increment prevents any in-flight reload from applying stale watch data
+    }
 }

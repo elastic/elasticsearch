@@ -80,6 +80,7 @@ public class WatcherService implements WatcherEventConsumer {
     private final Client client;
     private final TimeValue defaultSearchTimeout;
     private final AtomicLong processedClusterStateVersion = new AtomicLong(0);
+    private final Object reloadApplyLock = new Object();
     private final ExecutorService executor;
     private final Map<String, Watch> pendingWatches = new HashMap<>();
 
@@ -279,16 +280,16 @@ public class WatcherService implements WatcherEventConsumer {
         // if we had another state coming in the meantime, we will not start the trigger engines with these watches, but wait
         // until the others are loaded also this is the place where we pause the trigger service execution and clear the current
         // execution service, so that we make sure that existing executions finish, but no new ones are executed
-        if (processedClusterStateVersion.get() == state.getVersion()) {
-            executionService.unPause();
-            triggerService.start(watches);
-            addPendingWatches(state);
-            if (triggeredWatches.isEmpty() == false) {
-                executionService.executeTriggeredWatches(triggeredWatches);
+        final boolean applied;
+        synchronized (reloadApplyLock) {
+            applied = processedClusterStateVersion.get() == state.getVersion();
+            if (applied) {
+                executionService.unPause();
+                triggerService.start(watches);
+                addPendingWatches(state);
             }
-            logger.debug("watch service has been reloaded, reason [{}]", reason);
-            return true;
-        } else {
+        }
+        if (applied == false) {
             logger.debug(
                 "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
                 state.getVersion(),
@@ -296,14 +297,31 @@ public class WatcherService implements WatcherEventConsumer {
             );
             return false;
         }
+        if (triggeredWatches.isEmpty() == false) {
+            synchronized (reloadApplyLock) {
+                if (processedClusterStateVersion.get() == state.getVersion()) {
+                    executionService.executeTriggeredWatches(triggeredWatches);
+                }
+            }
+        }
+        logger.debug("watch service has been reloaded, reason [{}]", reason);
+        return true;
     }
 
     /**
      * Stop execution of watches on this node, do not try to reload anything, but still allow
-     * manual watch execution, i.e. via the execute watch API
+     * manual watch execution, i.e. via the execute watch API.
+     *
+     * This method increments processedClusterStateVersion under reloadApplyLock to invalidate
+     * any in-flight reload that may have started before the shard left this node. This prevents
+     * stale watch data from being scheduled after the local .watches shard is no longer owned.
+     * See issue #161574.
      */
     public void pauseExecution(String reason) {
-        triggerService.pauseExecution();
+        synchronized (reloadApplyLock) {
+            processedClusterStateVersion.incrementAndGet();
+            triggerService.pauseExecution();
+        }
         int cancelledTaskCount = executionService.pause(() -> {});
         logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
     }

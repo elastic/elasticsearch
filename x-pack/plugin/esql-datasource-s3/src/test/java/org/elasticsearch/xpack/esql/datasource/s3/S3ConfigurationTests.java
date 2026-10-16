@@ -7,14 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
-
-import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
-
 import software.amazon.awssdk.services.s3.S3Client;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 

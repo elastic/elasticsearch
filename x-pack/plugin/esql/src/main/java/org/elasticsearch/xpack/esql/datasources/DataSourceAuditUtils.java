@@ -15,10 +15,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class DataSourceAuditUtils {
-    public static Map<String, Object> auditSettings(
-        Map<String, Object> rawSettings,
-        Set<String> auditableSettings
-    ) {
+    public static Map<String, Object> auditSettings(Map<String, Object> rawSettings, Set<String> auditableSettings) {
         var fields = new HashMap<String, Object>();
         for (var entry : rawSettings.entrySet()) {
             if (auditableSettings.contains(entry.getKey())) {

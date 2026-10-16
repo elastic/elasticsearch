@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
-import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 
 import java.util.Map;
 

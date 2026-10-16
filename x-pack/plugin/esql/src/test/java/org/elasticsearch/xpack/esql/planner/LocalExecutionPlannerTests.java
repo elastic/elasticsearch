@@ -18,6 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -103,6 +105,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvide
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -1344,6 +1347,49 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * The planner hands {@code search.allow_expensive_queries} to runtime full-text functions: with it off, a strict
+     * runtime {@code MATCH} asking for {@code fuzziness} fails to plan with Query DSL's error, while one without still plans.
+     */
+    public void testRuntimeMatchHonoursAllowExpensiveQueries() throws IOException {
+        ReferenceAttribute content = new ReferenceAttribute(Source.EMPTY, "content", DataType.TEXT);
+        Literal query = new Literal(Source.EMPTY, new BytesRef("fox"), DataType.KEYWORD);
+        MapExpression fuzzy = new MapExpression(
+            Source.EMPTY,
+            List.of(
+                Literal.keyword(Source.EMPTY, "fuzziness"),
+                Literal.keyword(Source.EMPTY, "1"),
+                Literal.keyword(Source.EMPTY, "lenient"),
+                Literal.keyword(Source.EMPTY, "false")
+            )
+        );
+        Match fuzzyMatch = new Match(Source.EMPTY, content, query, fuzzy);
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> planFilter(content, fuzzyMatch, false));
+        assertThat(e.getMessage(), equalTo("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false."));
+
+        assertNotNull(planFilter(content, fuzzyMatch, true));
+        assertNotNull(planFilter(content, new Match(Source.EMPTY, content, query, null), false));
+    }
+
+    private LocalExecutionPlanner.LocalExecutionPlan planFilter(Attribute input, Expression condition, boolean allowExpensiveQueries)
+        throws IOException {
+        Page page = new Page(TestBlockFactory.getNonBreakingInstance().newConstantBytesRefBlockWith(new BytesRef("brown fox"), 1));
+        PhysicalPlan plan = new FilterExec(
+            Source.EMPTY,
+            new LocalSourceExec(Source.EMPTY, List.of(input), LocalSupplier.of(page)),
+            condition
+        );
+        return planner(null, true, null, allowExpensiveQueries).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            plan,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+    }
+
     private Add add(Expression left, Expression right) {
         return new Add(Source.EMPTY, left, right, config());
     }
@@ -1562,6 +1608,15 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         boolean federationEnabled,
         InferenceService inferenceService
     ) throws IOException {
+        return planner(operatorFactoryRegistry, federationEnabled, inferenceService, true);
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService,
+        boolean allowExpensiveQueries
+    ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
@@ -1590,7 +1645,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            allowExpensiveQueries
         );
     }
 

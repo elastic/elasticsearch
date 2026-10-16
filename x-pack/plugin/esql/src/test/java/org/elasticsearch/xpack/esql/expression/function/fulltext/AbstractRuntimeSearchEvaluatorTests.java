@@ -77,6 +77,11 @@ public abstract class AbstractRuntimeSearchEvaluatorTests extends ESTestCase {
     };
 
     protected static EvaluatorMapper.ToEvaluator toEvaluator() {
+        return toEvaluator(true);
+    }
+
+    /** The evaluator context as built on a node whose {@code search.allow_expensive_queries} is {@code allowExpensiveQueries}. */
+    protected static EvaluatorMapper.ToEvaluator toEvaluator(boolean allowExpensiveQueries) {
         return new EvaluatorMapper.ToEvaluator() {
             @Override
             public ExpressionEvaluator.Factory apply(Expression expression) {
@@ -92,6 +97,11 @@ public abstract class AbstractRuntimeSearchEvaluatorTests extends ESTestCase {
             public Analyzer getAnalyzer(String name) {
                 return PlannerUtils.resolveAnalyzer(name, EsqlTestUtils.TEST_ANALYSIS_REGISTRY);
             }
+
+            @Override
+            public boolean allowExpensiveQueries() {
+                return allowExpensiveQueries;
+            }
         };
     }
 
@@ -106,9 +116,18 @@ public abstract class AbstractRuntimeSearchEvaluatorTests extends ESTestCase {
      * the per-position boolean results ({@code null} only if a position could not be evaluated).
      */
     protected Boolean[] evaluate(FullTextFunction function, Function<BlockFactory, Block> fieldBuilder) {
+        return evaluate(function, toEvaluator(), fieldBuilder);
+    }
+
+    /** Like {@link #evaluate(FullTextFunction, Function)}, but builds the evaluator through the given context. */
+    protected Boolean[] evaluate(
+        FullTextFunction function,
+        EvaluatorMapper.ToEvaluator toEvaluator,
+        Function<BlockFactory, Block> fieldBuilder
+    ) {
+        ExpressionEvaluator.Factory factory = function.toEvaluator(toEvaluator);
         DriverContext context = driverContext();
         Block fieldBlock = fieldBuilder.apply(context.blockFactory());
-        ExpressionEvaluator.Factory factory = function.toEvaluator(toEvaluator());
         try (ExpressionEvaluator evaluator = factory.get(context)) {
             Page page = new Page(fieldBlock);
             try (BooleanBlock result = (BooleanBlock) evaluator.eval(page)) {

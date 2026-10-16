@@ -210,6 +210,19 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
         assertArrayEquals(new Boolean[] { true, true, false }, result);
     }
 
+    /** {@code match_phrase} never builds an expensive query type, so {@code search.allow_expensive_queries: false} doesn't affect it. */
+    public void testTextWithSlopWhenExpensiveQueriesDisallowed() {
+        Boolean[] result = evaluate(
+            runtimeMatchPhraseWithOptions("brown fox", mapOptions("slop", "1")),
+            toEvaluator(false),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("a brown quick fox"));
+                builder.appendBytesRef(new BytesRef("a brown very quick fox"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
     public void testTextWithExplicitSlopZeroRequiresAdjacentPositions() {
         Boolean[] result = evaluatePhraseWithOptions("brown fox", mapOptions("slop", "0"), "a brown fox", "a brown quick fox");
         assertArrayEquals(new Boolean[] { true, false }, result);

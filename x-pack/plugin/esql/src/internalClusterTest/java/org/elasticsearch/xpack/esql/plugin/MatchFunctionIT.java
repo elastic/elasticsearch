@@ -12,12 +12,14 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -353,6 +355,71 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
             // Two matched terms, each weighted by the boost.
             assertValues(resp.values(), List.of(List.of(6, 3.0)));
+        }
+    }
+
+    /**
+     * With {@code search.allow_expensive_queries: false}, runtime {@code match} treats {@code fuzziness} the way a
+     * pushed-down {@code match} does: refused with Query DSL's error when {@code lenient} is {@code false}, a clause
+     * matching nothing otherwise. That holds in WHERE and in an aggregation filter. Runtime {@code match} without an
+     * expensive option still runs.
+     */
+    public void testRuntimeMatchWhenExpensiveQueriesDisallowed() {
+        updateClusterSettings(Settings.builder().put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), false));
+        try {
+            String expected = "[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.";
+            // the indexed field pushes match down to Lucene, the computed one runs it per row
+            for (String field : List.of("content", "to_text(concat(content, \" extra\"))")) {
+                var strict = "FROM test | WHERE match(" + field + ", \"fox\", { \"fuzziness\": \"AUTO\", \"lenient\": false })";
+                var error = expectThrows(ElasticsearchException.class, () -> run(strict));
+                assertThat(error.getMessage(), containsString(expected));
+
+                var lenient = "FROM test | WHERE match(" + field + ", \"fox\", { \"fuzziness\": \"AUTO\" }) | STATS c = count(*)";
+                try (var resp = run(lenient)) {
+                    assertValues(resp.values(), List.of(List.of(0L)));
+                }
+            }
+
+            var aggregationFilter = """
+                FROM test
+                | STATS c = count(*) WHERE match(to_text(concat(content, " extra")), "fox", { "fuzziness": "AUTO", "lenient": false })
+                """;
+            var error = expectThrows(ElasticsearchException.class, () -> run(aggregationFilter));
+            assertThat(error.getMessage(), containsString(expected));
+
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate("expensive_lookup_tags")
+                    .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
+                    .setMapping("id", "type=integer", "tags", "type=keyword")
+            );
+            client().prepareBulk()
+                .add(new IndexRequest("expensive_lookup_tags").source("id", 1, "tags", "fox"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+            ensureYellow("expensive_lookup_tags");
+            var lookupField = """
+                FROM test
+                | LOOKUP JOIN expensive_lookup_tags ON id
+                | WHERE match(to_text(tags), "fox", { "fuzziness": "AUTO", "lenient": false })
+                """;
+            error = expectThrows(ElasticsearchException.class, () -> run(lookupField));
+            assertThat(error.getMessage(), containsString(expected));
+
+            var query = """
+                FROM test
+                | EVAL c = to_text(to_string(content))
+                | WHERE match(c, "fox") OR match(c, "white cat", { "operator": "AND" })
+                | KEEP id
+                | SORT id
+                """;
+            try (var resp = run(query)) {
+                assertColumnNames(resp.columns(), List.of("id"));
+                assertValues(resp.values(), List.of(List.of(1), List.of(5), List.of(6)));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey()));
         }
     }
 
@@ -959,6 +1026,75 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                     List.of("The quick brown fox jumps over the lazy dog", 6, 6, "The quick brown fox jumps over the lazy dog")
                 )
             );
+        }
+    }
+
+    /**
+     * With {@code search.allow_expensive_queries: false}, a {@code match} with {@code fuzziness} in a
+     * {@code LOOKUP JOIN ON} condition is refused like in Query DSL. Only a {@code match} on a lookup field gets that
+     * far: lookup-side ON conditions must be pushable to Lucene, so the analyzer rejects a runtime {@code match}. The
+     * field is then either searched by the lookup query, which turns the failure into a warning and matches nothing,
+     * or, after a keyword bulk lookup, filtered with a Lucene query against the lookup shard.
+     */
+    public void testMatchInLookupJoinOnWhenExpensiveQueriesDisallowed() {
+        assumeTrue(
+            "requires LOOKUP JOIN with full-text function support",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("expensive_kw_lookup")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
+                .setMapping("tag", "type=keyword", "description", "type=text")
+        );
+        client().prepareBulk()
+            .add(new IndexRequest("expensive_kw_lookup").source("tag", "fox_tag", "description", "This is a brown fox"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow("expensive_kw_lookup");
+
+        updateClusterSettings(Settings.builder().put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), false));
+        try {
+            var runtime = """
+                FROM test
+                | RENAME id AS id_left
+                | LOOKUP JOIN test_lookup ON id_left == id AND match(to_text(to_string(lookup_content)), "fox", { "fuzziness": "AUTO" })
+                """;
+            var error = expectThrows(VerificationException.class, () -> run(runtime));
+            assertThat(error.getMessage(), containsString("Unsupported join filter expression"));
+
+            for (String options : List.of("{ \"fuzziness\": \"AUTO\", \"lenient\": false }", "{ \"fuzziness\": \"AUTO\" }")) {
+                var pushed =
+                    "FROM test | RENAME id AS id_left | LOOKUP JOIN test_lookup ON id_left == id AND match(lookup_content, \"fox\", "
+                        + options
+                        + ") | WHERE id IS NOT NULL | STATS c = count(*)";
+                try (var resp = run(pushed)) {
+                    assertValues(resp.values(), List.of(List.of(0L)));
+                }
+            }
+
+            var strict = """
+                ROW left_tag = "fox_tag"
+                | LOOKUP JOIN expensive_kw_lookup
+                    ON left_tag == tag AND match(description, "fox", { "fuzziness": "AUTO", "lenient": false })
+                """;
+            var refused = expectThrows(ElasticsearchException.class, () -> run(strict));
+            assertThat(
+                refused.getMessage(),
+                containsString("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.")
+            );
+
+            var lenient = """
+                ROW left_tag = "fox_tag"
+                | LOOKUP JOIN expensive_kw_lookup ON left_tag == tag AND match(description, "fox", { "fuzziness": "AUTO" })
+                | KEEP left_tag, description
+                """;
+            try (var resp = run(lenient)) {
+                assertValues(resp.values(), List.of(Arrays.asList("fox_tag", null)));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey()));
         }
     }
 

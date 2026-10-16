@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162256
+pr: 162258
+summary: Respect `search.allow_expensive_queries` in runtime full-text search
+type: enhancement

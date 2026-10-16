@@ -405,7 +405,8 @@ public class TopSnippetsStaticTests extends ESTestCase {
                 expression,
                 builder.build(),
                 org.elasticsearch.compute.lucene.EmptyIndexedByShardId.instance(),
-                analysisRegistry
+                analysisRegistry,
+                true
             );
         } else {
             factory = evaluator(expression);

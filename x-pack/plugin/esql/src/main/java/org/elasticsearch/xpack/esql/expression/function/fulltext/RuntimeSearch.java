@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.planner.RuntimeSearchExecutionContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
@@ -120,16 +119,20 @@ public final class RuntimeSearch {
      * {@link RuntimeSearchExecutionContext}, and each row is then matched by indexing its value into a temporary
      * {@link MemoryIndex}. Like an indexed text field's {@code search_analyzer}/{@code analyzer} pair, the
      * {@code queryAnalyzer} covers the query string and the {@code valuesAnalyzer} covers the per-row values;
-     * {@code null} selects the standard analyzer for either.
+     * {@code null} selects the standard analyzer for either. With {@code allowExpensiveQueries} set to {@code false},
+     * the query is compiled the way Query DSL compiles it under {@code search.allow_expensive_queries: false}: an
+     * expensive clause (e.g. from {@code fuzziness}) fails with the same error, or matches nothing if the query is
+     * {@code lenient}.
      */
     public static ExpressionEvaluator.Factory textEvaluatorForQuery(
         Source source,
         ExpressionEvaluator.Factory fieldEvaluator,
         org.elasticsearch.xpack.esql.core.querydsl.query.Query query,
         @Nullable NamedAnalyzer queryAnalyzer,
-        @Nullable NamedAnalyzer valuesAnalyzer
+        @Nullable NamedAnalyzer valuesAnalyzer,
+        boolean allowExpensiveQueries
     ) {
-        Query luceneQuery = compileQuery(query, queryAnalyzer == null ? Lucene.STANDARD_ANALYZER : queryAnalyzer);
+        Query luceneQuery = compileQuery(query, queryAnalyzer == null ? Lucene.STANDARD_ANALYZER : queryAnalyzer, allowExpensiveQueries);
         if (luceneQuery instanceof MatchAllDocsQuery) {
             return ConstantEvaluators.CONSTANT_TRUE_FACTORY;
         }
@@ -158,9 +161,10 @@ public final class RuntimeSearch {
         ExpressionEvaluator.Factory fieldEvaluator,
         org.elasticsearch.xpack.esql.core.querydsl.query.Query query,
         @Nullable NamedAnalyzer queryAnalyzer,
-        @Nullable NamedAnalyzer valuesAnalyzer
+        @Nullable NamedAnalyzer valuesAnalyzer,
+        boolean allowExpensiveQueries
     ) {
-        Query luceneQuery = compileQuery(query, queryAnalyzer == null ? Lucene.STANDARD_ANALYZER : queryAnalyzer);
+        Query luceneQuery = compileQuery(query, queryAnalyzer == null ? Lucene.STANDARD_ANALYZER : queryAnalyzer, allowExpensiveQueries);
         if (luceneQuery instanceof MatchAllDocsQuery) {
             return ConstantEvaluators.constantDouble(1.0);
         }
@@ -182,9 +186,16 @@ public final class RuntimeSearch {
      * {@link RuntimeSearchExecutionContext} using the given analyzer, which must be the analyzer the per-row
      * evaluator indexes with so tokenization stays consistent.
      */
-    private static Query compileQuery(org.elasticsearch.xpack.esql.core.querydsl.query.Query query, NamedAnalyzer namedAnalyzer) {
+    private static Query compileQuery(
+        org.elasticsearch.xpack.esql.core.querydsl.query.Query query,
+        NamedAnalyzer namedAnalyzer,
+        boolean allowExpensiveQueries
+    ) {
         try {
-            return query.toQueryBuilder().toQuery(RuntimeSearchExecutionContext.create(List.of(CONTENT_FIELD), namedAnalyzer));
+            return query.toQueryBuilder()
+                .toQuery(
+                    RuntimeSearchExecutionContext.create(Map.of(CONTENT_FIELD, namedAnalyzer), Map.of(), false, allowExpensiveQueries)
+                );
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

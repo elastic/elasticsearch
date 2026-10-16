@@ -51,6 +51,15 @@ public interface EvaluatorMapper {
         default Analyzer getAnalyzer(String name) {
             throw new UnsupportedOperationException("Analyzer lookup is not available in this evaluator context");
         }
+
+        /**
+         * Whether queries compiled while building evaluators (e.g. runtime {@code MATCH} with options) may use the
+         * query types that {@code search.allow_expensive_queries: false} disables in Query DSL. The default throws
+         * rather than guessing, so a context that can't see the node's setting can't silently allow them.
+         */
+        default boolean allowExpensiveQueries() {
+            throw new UnsupportedOperationException("search.allow_expensive_queries is not available in this evaluator context");
+        }
     }
 
     /**

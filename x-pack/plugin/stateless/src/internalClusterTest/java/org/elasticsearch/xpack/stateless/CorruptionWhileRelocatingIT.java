@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
@@ -484,10 +486,15 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
         );
     }
 
-    public void testNewCommitNotificationWaitsForUploadBoundBeforeMarkRelocating() {
+    public void testNewCommitNotificationWaitsForUploadBound() {
+        final boolean mergeCommitLandsBelowBound = randomBoolean();
         final Settings indexNodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), Boolean.FALSE)
+            .put(IndexEngine.MERGE_FORCE_REFRESH_SIZE.getKey(), ByteSizeValue.ofGb(1))
+            // Only freeze a VBCC for upload when a flush asks for it
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
             .build();
 
         final var oldIndexNode = startMasterAndIndexNode(indexNodeSettings);
@@ -509,20 +516,24 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
 
         final var index = resolveIndex(indexName);
         final var sourceShard = findIndexShard(index, 0, oldIndexNode);
-        final var sourceCommitService = (TestStatelessCommitService) ((IndexEngine) sourceShard.getEngineOrNull())
-            .getStatelessCommitService();
+        final var shardId = sourceShard.shardId();
+        final var sourceEngine = (IndexEngine) sourceShard.getEngineOrNull();
+        final var sourceCommitService = (TestStatelessCommitService) sourceEngine.getStatelessCommitService();
+        final String oldNodeEphemeralId = internalCluster().getInstance(ClusterService.class, oldIndexNode).localNode().getEphemeralId();
 
-        final Set<Long> notifiedGenerations = ConcurrentHashMap.newKeySet();
-        final Set<Long> notifiedNonUploadGenerations = ConcurrentHashMap.newKeySet();
+        // Only track notifications from the old primary: the new primary may reuse the merge generation for its own commits
+        final Set<Long> generationsNotifiedBySource = ConcurrentHashMap.newKeySet();
+        final Set<Long> nonUploadGenerationsNotifiedBySource = ConcurrentHashMap.newKeySet();
         final AtomicLong mergeGeneration = new AtomicLong(-1L);
         final var mergeNotified = new SubscribableListener<Void>();
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
-                if (request instanceof NewCommitNotificationRequest notificationRequest) {
+                if (request instanceof NewCommitNotificationRequest notificationRequest
+                    && notificationRequest.getCompoundCommit().nodeEphemeralId().equals(oldNodeEphemeralId)) {
                     final long generation = notificationRequest.getCompoundCommit().generation();
-                    notifiedGenerations.add(generation);
+                    generationsNotifiedBySource.add(generation);
                     if (notificationRequest.isUploaded() == false) {
-                        notifiedNonUploadGenerations.add(generation);
+                        nonUploadGenerationsNotifiedBySource.add(generation);
                     }
                     if (generation == mergeGeneration.get()) {
                         mergeNotified.onResponse(null);
@@ -545,7 +556,6 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
                 markRelocatingCalled.countDown();
                 safeAwait(resumeMarkRelocating);
                 try {
-                    // markRelocating pins the bound and completes the upload bound listener before returning
                     return originalSupplier.get();
                 } finally {
                     markRelocatingDone.countDown();
@@ -562,16 +572,12 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
         try {
             logger.info("--> waiting for markRelocating to be called");
             safeAwait(markRelocatingCalled);
-            assertTrue(sourceCommitService.relocationUploadBoundIsInstalled(sourceShard.shardId()));
-            assertThat(
-                "bound is not yet pinned",
-                sourceCommitService.getMaxGenerationToUpload(sourceShard.shardId()),
-                equalTo(Long.MAX_VALUE)
-            );
-            final long generationBeforeMerge = sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+            assertTrue(sourceCommitService.relocationUploadBoundIsInstalled(shardId));
+            assertThat("bound is not yet pinned", sourceCommitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
 
-            // Block commit uploads on the source so that the merge commit can only reach the search shard through the
-            // new-commit notification.
+            final long generationBeforeMerge = sourceEngine.getCurrentGeneration();
+            // Block commit uploads on the source, so that the merge commit can only reach the search shard through the
+            // new-commit notification, and fail if a merge commit above the bound is ever uploaded.
             setNodeRepositoryStrategy(oldIndexNode, new StatelessMockRepositoryStrategy() {
                 @Override
                 public void blobContainerWriteBlobAtomic(
@@ -611,47 +617,85 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
                 private void maybeBlockCommitUpload(String blobName) {
                     if (BatchedCompoundCommit.startsWithBlobPrefix(blobName)) {
                         if (BatchedCompoundCommit.parseGenerationFromBlobName(blobName) > generationBeforeMerge) {
-                            mergeUploadBlocked.countDown();
+                            if (mergeCommitLandsBelowBound) {
+                                mergeUploadBlocked.countDown();
+                            } else {
+                                throw new AssertionError("merge commit lands above bound and should not be uploaded: " + blobName);
+                            }
                         }
                         safeAwait(releaseCommitUploads);
                     }
                 }
             });
 
-            logger.info("--> force merging on the old node before markRelocating, generationBeforeMerge=[{}]", generationBeforeMerge);
+            final ActionFuture<BroadcastResponse> forceMergeFuture;
+            if (mergeCommitLandsBelowBound) {
+                logger.info("--> force merging with flush on the old node, generationBeforeMerge=[{}]", generationBeforeMerge);
+                // The force-merge flush waits for its upload, which is blocked, so do not wait for the response yet
+                forceMergeFuture = client(oldIndexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
+                safeAwait(mergeUploadBlocked);
+                mergeGeneration.set(sourceCommitService.getMaxPendingOrUploadedGeneration(shardId));
+            } else {
+                logger.info("--> force merging without flush on the old node, generationBeforeMerge=[{}]", generationBeforeMerge);
+                forceMergeFuture = client(oldIndexNode).admin()
+                    .indices()
+                    .prepareForceMerge(indexName)
+                    .setMaxNumSegments(1)
+                    .setFlush(false)
+                    .execute();
+                assertNoFailures(safeGet(forceMergeFuture));
+                // Use a refresh flush to commit but not upload the merge.
+                safeAwait((ActionListener<Engine.RefreshResult> l) -> sourceEngine.maybeRefresh("test", l));
+                mergeGeneration.set(sourceEngine.getCurrentGeneration());
 
-            // The force-merge flush waits for its upload, which is blocked, so do not wait for the response yet
-            final var forceMergeFuture = client(oldIndexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
-            safeAwait(mergeUploadBlocked);
-            mergeGeneration.set(sourceCommitService.getMaxPendingOrUploadedGeneration(sourceShard.shardId()));
+                final var currentVirtualBcc = sourceCommitService.getCurrentVirtualBcc(shardId);
+                assertNotNull(currentVirtualBcc);
+                assertThat(currentVirtualBcc.getMaxGeneration(), equalTo(mergeGeneration.get()));
+                assertThat(
+                    "the merge commit is neither pending upload nor uploaded",
+                    sourceCommitService.getMaxPendingOrUploadedGeneration(shardId),
+                    lessThan(mergeGeneration.get())
+                );
+            }
+
             assertThat(mergeGeneration.get(), greaterThan(generationBeforeMerge));
-
-            assertThat("merge is not notified before the upload bound is pinned", notifiedGenerations, not(hasItem(mergeGeneration.get())));
+            assertThat(
+                "merge is not notified before the upload bound is pinned",
+                generationsNotifiedBySource,
+                not(hasItem(mergeGeneration.get()))
+            );
 
             logger.info("--> resuming markRelocating, merge generation=[{}]", mergeGeneration.get());
             resumeMarkRelocating.countDown();
-
             safeAwait(markRelocatingDone);
-            assertThat(
-                "force-merge flush includes the merge in the pinned bound",
-                sourceCommitService.getMaxGenerationToUpload(sourceShard.shardId()),
-                greaterThanOrEqualTo(mergeGeneration.get())
-            );
-            safeAwait(mergeNotified);
-            assertThat(notifiedNonUploadGenerations, hasItem(mergeGeneration.get()));
 
-            releaseCommitUploads.countDown();
-            assertNoFailures(safeGet(forceMergeFuture));
+            final long maxGenerationToUpload = sourceCommitService.getMaxGenerationToUpload(shardId);
+            if (mergeCommitLandsBelowBound) {
+                assertThat("pinned bound includes the merge commit", maxGenerationToUpload, greaterThanOrEqualTo(mergeGeneration.get()));
+                safeAwait(mergeNotified);
+                assertThat(nonUploadGenerationsNotifiedBySource, hasItem(mergeGeneration.get()));
+                releaseCommitUploads.countDown();
+                assertNoFailures(safeGet(forceMergeFuture));
+                ensureGreen(indexName);
+            } else {
+                assertThat("the pinned bound excludes the merge commit", maxGenerationToUpload, lessThan(mergeGeneration.get()));
+                releaseCommitUploads.countDown();
+                ensureGreen(indexName);
+                assertThat(
+                    "a commit above the pinned upload bound must never be advertised by the relocation source",
+                    generationsNotifiedBySource,
+                    not(hasItem(mergeGeneration.get()))
+                );
+            }
+
+            assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+                assertNoFailures(searchResponse);
+                assertEquals(200, searchResponse.getHits().getTotalHits().value());
+            });
         } finally {
             resumeMarkRelocating.countDown();
             releaseCommitUploads.countDown();
             setNodeRepositoryStrategy(oldIndexNode, StatelessMockRepositoryStrategy.DEFAULT);
         }
-
-        ensureGreen(indexName);
-        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
-            assertNoFailures(searchResponse);
-            assertEquals(200, searchResponse.getHits().getTotalHits().value());
-        });
     }
 }

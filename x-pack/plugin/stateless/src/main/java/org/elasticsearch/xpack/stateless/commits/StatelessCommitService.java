@@ -815,6 +815,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         // The relocation source abandoned the handoff before markRelocating, so no bound was pinned and uploads
                         // were never paused. Advertise the commit. Any future bound will include it. If the shard is closing, the
                         // global checkpoint listener will complete with an IndexShardClosedException and nothing is sent.
+                        logger.info(
+                            "{} relocation abandoned before the upload bound was pinned, "
+                                + "sending deferred new commit notification for generation [{}]: {}",
+                            shardId,
+                            generation,
+                            e.toString()
+                        );
                         maybeSendNewCommitNotification(
                             commitState,
                             shardRoutingTable.get(),

@@ -106,7 +106,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPlugins().apply(DistributionDownloadPlugin.class);
         project.getPlugins().apply(JvmToolchainsPlugin.class);
-        project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
+        project.getPluginManager().apply(ReaperPlugin.class);
         Provider<ReaperService> reaperServiceProvider = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
             ReaperPlugin.REAPER_SERVICE_NAME
@@ -148,7 +148,9 @@ public class TestClustersPlugin implements Plugin<Project> {
             );
 
         project.getTasks().withType(TestClustersAware.class).configureEach(task -> { task.usesService(testClustersThrottleProvider); });
-        project.getRootProject().getPluginManager().apply(TestClustersHookPlugin.class);
+        if (project.getPath().equals(":")) {
+            project.getPluginManager().apply(TestClustersHookPlugin.class);
+        }
         configureArtifactTransforms(project);
     }
 

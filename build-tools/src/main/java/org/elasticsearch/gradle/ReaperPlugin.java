@@ -39,10 +39,7 @@ public class ReaperPlugin implements Plugin<Project> {
     }
 
     public static void registerReaperService(Project project, ProjectLayout projectLayout, boolean internal) {
-        if (project != project.getRootProject()) {
-            throw new IllegalArgumentException("ReaperPlugin can only be applied to the root project of a build");
-        }
-        File inputDir = projectLayout.getProjectDirectory()
+        File inputDir = projectLayout.getSettingsDirectory()
             .dir(".gradle")
             .dir("reaper")
             .dir("build-" + ProcessHandle.current().pid())
@@ -51,7 +48,7 @@ public class ReaperPlugin implements Plugin<Project> {
         project.getGradle().getSharedServices().registerIfAbsent(REAPER_SERVICE_NAME, ReaperService.class, spec -> {
             // Provide some parameters
             spec.getParameters().getInputDir().set(inputDir);
-            spec.getParameters().getBuildDir().set(projectLayout.getBuildDirectory());
+            spec.getParameters().getBuildDir().set(projectLayout.getSettingsDirectory().dir("build"));
             spec.getParameters().setInternal(internal);
         });
     }

@@ -202,7 +202,6 @@ public final class NodeHeapUsageCalculator {
      */
     public record RoutingNodeHeapCalculation(Map<String, NodeHeapEstimates> nodeHeapEstimates, long maxPostingsHeapUsage) {
         public RoutingNodeHeapCalculation {
-            nodeHeapEstimates = Map.copyOf(nodeHeapEstimates);
             assert maxPostingsHeapUsage >= 0;
         }
     }

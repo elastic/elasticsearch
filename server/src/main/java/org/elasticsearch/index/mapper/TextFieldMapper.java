@@ -60,6 +60,7 @@ import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
@@ -86,6 +87,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.ElasticsearchAnalyzerWrapper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -131,7 +133,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -1214,19 +1218,39 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
-            return reanalyzeIntervals(Intervals.term(term), new TermQuery(new Term(name(), term)), context);
+            return sliceIntervals(
+                context,
+                () -> Intervals.term(term),
+                slice -> Intervals.term(SliceTermQueries.term(slice, term)),
+                () -> Automata.makeBinary(term),
+                term.utf8ToString(),
+                () -> SliceTermQueries.termQuery(name(), term, context)
+            );
         }
 
         @Override
         public IntervalsSource prefixIntervals(BytesRef term, SearchExecutionContext context) {
-            // Answered by the prefix subfield, which indexes its own positions.
-            if (prefixFieldType != null && prefixFieldType.getTextSearchInfo().hasPositions()) {
+            // Answered by the prefix subfield, which indexes its own positions. Those terms carry the slice as well,
+            // so it is only a shortcut where there is no slice to apply.
+            if (prefixFieldType != null
+                && prefixFieldType.getTextSearchInfo().hasPositions()
+                && SliceTermQueries.scope(name(), context) == SliceTermQueries.Scope.PLAIN) {
                 return prefixFieldType.intervals(term);
             }
-            return reanalyzeIntervals(
-                Intervals.prefix(term, IndexSearcher.getMaxClauseCount()),
-                new PrefixQuery(new Term(name(), term)),
-                context
+            return sliceIntervals(
+                context,
+                () -> Intervals.prefix(term, IndexSearcher.getMaxClauseCount()),
+                slice -> Intervals.prefix(SliceTermQueries.term(slice, term), IndexSearcher.getMaxClauseCount()),
+                () -> PrefixQuery.toAutomaton(term),
+                term.utf8ToString(),
+                () -> SliceTermQueries.shape(
+                    name(),
+                    context,
+                    () -> new PrefixQuery(new Term(name(), term)),
+                    slice -> new PrefixQuery(new Term(name(), SliceTermQueries.term(slice, term))),
+                    () -> PrefixQuery.toAutomaton(term),
+                    null
+                )
             );
         }
 
@@ -1238,27 +1262,94 @@ public final class TextFieldMapper extends FieldMapper {
             boolean transpositions,
             SearchExecutionContext context
         ) {
-            FuzzyQuery fq = FuzzyQueries.create(
-                new Term(name(), term),
+            // The confining automaton matches the slice exactly, so the edits only ever apply to the plain term.
+            return sliceIntervals(
+                context,
+                () -> fuzzyIntervals(term, maxDistance, prefixLength, transpositions, name(), context),
+                slice -> fuzzyIntervals(
+                    SliceIndexing.termPrefix(slice) + term,
+                    maxDistance,
+                    prefixLength + SliceIndexing.TERM_PREFIX_LENGTH,
+                    transpositions,
+                    name(),
+                    context
+                ),
+                () -> fuzzyQuery(term, maxDistance, prefixLength, transpositions, name(), context).getAutomata().automaton,
+                term,
+                () -> SliceTermQueries.shape(
+                    name(),
+                    context,
+                    () -> fuzzyQuery(term, maxDistance, prefixLength, transpositions, name(), context),
+                    slice -> fuzzyQuery(
+                        SliceIndexing.termPrefix(slice) + term,
+                        maxDistance,
+                        prefixLength + SliceIndexing.TERM_PREFIX_LENGTH,
+                        transpositions,
+                        name(),
+                        context
+                    ),
+                    () -> fuzzyQuery(term, maxDistance, prefixLength, transpositions, name(), context).getAutomata().automaton,
+                    null
+                )
+            );
+        }
+
+        private static FuzzyQuery fuzzyQuery(
+            String term,
+            int maxDistance,
+            int prefixLength,
+            boolean transpositions,
+            String field,
+            SearchExecutionContext context
+        ) {
+            return FuzzyQueries.create(
+                new Term(field, term),
                 maxDistance,
                 prefixLength,
                 IndexSearcher.getMaxClauseCount(),
                 transpositions,
                 null,
                 context,
-                name()
+                field
             );
-            return reanalyzeIntervals(Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), term), fq, context);
+        }
+
+        private static IntervalsSource fuzzyIntervals(
+            String term,
+            int maxDistance,
+            int prefixLength,
+            boolean transpositions,
+            String field,
+            SearchExecutionContext context
+        ) {
+            FuzzyQuery fq = fuzzyQuery(term, maxDistance, prefixLength, transpositions, field, context);
+            return Intervals.multiterm(fq.getAutomata(), IndexSearcher.getMaxClauseCount(), term);
         }
 
         @Override
         public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
-            return reanalyzeIntervals(Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()), Queries.ALL_DOCS_INSTANCE, context);
+            return sliceIntervals(
+                context,
+                () -> Intervals.wildcard(pattern, IndexSearcher.getMaxClauseCount()),
+                slice -> Intervals.wildcard(SliceTermQueries.term(slice, pattern), IndexSearcher.getMaxClauseCount()),
+                () -> SliceTermQueries.binary(
+                    WildcardQuery.toAutomaton(new Term(name(), pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+                ),
+                pattern.utf8ToString(),
+                () -> Queries.ALL_DOCS_INSTANCE
+            );
         }
 
         @Override
         public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
-            return reanalyzeIntervals(Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()), Queries.ALL_DOCS_INSTANCE, context);
+            return sliceIntervals(
+                context,
+                () -> Intervals.regexp(pattern, IndexSearcher.getMaxClauseCount()),
+                null,
+                () -> SliceTermQueries.binary(new RegExp(pattern.utf8ToString()).toAutomaton()),
+                pattern.utf8ToString(),
+                () -> Queries.ALL_DOCS_INSTANCE
+            );
         }
 
         @Override
@@ -1269,11 +1360,40 @@ public final class TextFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            return reanalyzeIntervals(
-                Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount()),
-                Queries.ALL_DOCS_INSTANCE,
-                context
+            return sliceIntervals(
+                context,
+                () -> Intervals.range(lowerTerm, upperTerm, includeLower, includeUpper, IndexSearcher.getMaxClauseCount()),
+                slice -> Intervals.range(
+                    SliceTermQueries.term(slice, lowerTerm == null ? new BytesRef() : lowerTerm),
+                    upperTerm == null ? SliceTermQueries.sliceEnd(slice) : SliceTermQueries.term(slice, upperTerm),
+                    lowerTerm == null || includeLower,
+                    upperTerm != null && includeUpper,
+                    IndexSearcher.getMaxClauseCount()
+                ),
+                () -> Automata.makeBinaryInterval(lowerTerm, includeLower, upperTerm, includeUpper),
+                (lowerTerm == null ? "*" : lowerTerm.utf8ToString()) + ".." + (upperTerm == null ? "*" : upperTerm.utf8ToString()),
+                () -> Queries.ALL_DOCS_INSTANCE
             );
+        }
+
+        /**
+         * An interval shape over this field, in the two ways the field can answer one. Where it indexes its own
+         * positions, the shape is confined to the slices the search targets, like every other shape here. Where it
+         * does not, the interval is re-analyzed from the field's values, whose token stream yields plain terms; only
+         * {@code approximation}, which reads the index to find the documents worth re-analyzing, carries the slice.
+         */
+        private IntervalsSource sliceIntervals(
+            SearchExecutionContext context,
+            Supplier<IntervalsSource> onPlainIndex,
+            @Nullable Function<String, IntervalsSource> onSlice,
+            Supplier<Automaton> accepts,
+            String label,
+            Supplier<Query> approximation
+        ) {
+            if (getTextSearchInfo().hasPositions() == false) {
+                return reanalyzeIntervals(onPlainIndex.get(), approximation.get(), context);
+            }
+            return SliceTermQueries.intervals(name(), context, onPlainIndex, onSlice, accepts, label);
         }
 
         private void checkForPositions(boolean multi) {

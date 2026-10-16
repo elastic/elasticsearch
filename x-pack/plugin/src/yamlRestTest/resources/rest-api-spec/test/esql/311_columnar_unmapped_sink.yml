@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [ capabilities, allowed_warnings ]
       capabilities:
         - method: PUT
           path: /{index}
@@ -31,7 +31,7 @@ setup:
 
 ---
 "the sink is not a column":
-  # ES|QL resolves columns through field_caps, which never sees the sink.
+  # ES|QL resolves columns through field_caps and skips metadata fields, so the sink is not a column.
   - do:
       esql.query:
         body:
@@ -45,6 +45,17 @@ setup:
       esql.query:
         body:
           query: 'FROM test_mapped | KEEP _unmapped'
+
+  # Loading the sink's own name as an unmapped field returns null, as for _ignored_source: its field type has no block loader.
+  # The warning is only allowed, not required: it is a raw header warning, which ES|QL drops when the shard is on another node.
+  - do:
+      allowed_warnings:
+        - "Field [_unmapped] cannot be retrieved, it is unsupported or not indexed; returning null"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM test_mapped | KEEP _unmapped | LIMIT 10'
+  - match: { columns.0.name: _unmapped }
+  - match: { values.0.0: null }
 
 ---
 "absorbed names are unknown columns":

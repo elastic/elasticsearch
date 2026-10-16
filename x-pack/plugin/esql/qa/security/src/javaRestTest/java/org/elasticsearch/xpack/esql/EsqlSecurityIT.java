@@ -3995,7 +3995,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 ResponseException.class,
                 () -> runESQLCommand(
                     "ds_dataset_query_ok_plus_dls",
-                    "SET wildcards_match_datasets = true; FROM " + dls + ",-" + dls + " | STATS COUNT(*)"
+                    "SET wildcards_match_datasets = true; FROM " + dls + ",-" + dls + "* | STATS COUNT(*)"
                 )
             );
             assertThat(

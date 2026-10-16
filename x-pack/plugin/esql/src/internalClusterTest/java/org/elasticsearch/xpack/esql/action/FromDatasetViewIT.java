@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end coverage for ES|QL views whose body reads a registered dataset.
@@ -612,7 +613,6 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/161954")
     public void testWildcardMatchesViewAndDataset() {
         registerEmployees();
         registerEmployeesAlt();
@@ -644,7 +644,6 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/161954")
     public void testWildcardMatchesViewAndDatasetWithExclusion() {
         registerEmployees();
         registerEmployeesAlt();
@@ -976,19 +975,24 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/161957")
+    /**
+     * A request filter on a field a view computes with {@code STATS} over a dataset is applied to the view's
+     * <em>output</em>, not pushed into the dataset read: a {@code range} on the count selects the bucket after
+     * aggregation rather than filtering the dataset rows first. The dataset rewriter used to also wrap the dataset leaf
+     * inside the view body, where {@code c} does not exist, so the filter bound to NULL there and dropped every row.
+     */
     public void testRequestFilterOnStatsInsideDatasetView() {
         registerEmployees();
         createView("emp_stats_view", "FROM employees | STATS c = COUNT(*) BY department");
 
-        // Source-field filters still bind to the dataset (view DSL filtering is not yet view-output).
+        // A source-field filter on the view output selects the same bucket it would have selected at the source.
         var sourceField = syncEsqlQueryRequest("FROM emp_stats_view | KEEP department, c | SORT department");
         sourceField.filter(QueryBuilders.termQuery("department", "Engineering"));
         try (var response = run(sourceField)) {
             assertThat(getValuesList(response), equalTo(List.of(List.of("Engineering", 2L))));
         }
 
-        // Computed view-output fields are not present on the source, so the filter drops every row.
+        // A computed view-output field only exists above the view, so the filter must bind there.
         var computed = syncEsqlQueryRequest("FROM emp_stats_view | KEEP department, c | SORT department");
         computed.filter(QueryBuilders.rangeQuery("c").gte(2));
         try (var response = run(computed)) {
@@ -997,7 +1001,10 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/161957")
+    /**
+     * Same as {@link #testRequestFilterOnStatsInsideDatasetView} for a field computed by {@code EVAL}: the filter on
+     * {@code doubled} binds to the view output, where the column exists, instead of to the dataset read inside the view.
+     */
     public void testRequestFilterOnEvalInsideDatasetView() {
         registerEmployees();
         createView("emp_eval_view", "FROM employees | EVAL doubled = emp_no * 2");
@@ -1013,6 +1020,38 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         try (var response = run(computed)) {
             assertColumnNames(response.columns(), List.of("emp_no", "doubled"));
             assertThat(getValuesList(response), equalTo(List.of(List.of(1, 2))));
+        }
+    }
+
+    /**
+     * A view over a dataset nested inside a user-written subquery branch is still filtered. The outer union has a view
+     * branch ({@code emp_eval_view}) and a literal subquery branch that itself reads {@code emp_filtered_view}; the
+     * request filter must reach both views' output. Without that, the dataset read inside the nested view is skipped by
+     * the dataset rewriter (it sits under a view branch) and the nested view is skipped by the view rewriter (it sits
+     * below the outer union), so its rows leak through unfiltered.
+     */
+    public void testRequestFilterOnDatasetViewNestedInSubquery() {
+        registerEmployees();
+        createView("emp_eval_view", "FROM employees | EVAL doubled = emp_no * 2");
+        createView("emp_filtered_view", "FROM employees | WHERE emp_no > 1");
+
+        var request = syncEsqlQueryRequest("FROM emp_eval_view, (FROM emp_filtered_view | WHERE emp_no > 0) | KEEP emp_no | SORT emp_no");
+        request.filter(QueryBuilders.termQuery("emp_no", 2));
+        try (var response = run(request)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(2), List.of(2))));
+        }
+
+        // The same shape filtered on a field only the nested view computes: the filter must bind against that view's
+        // output, not the dataset read inside it. The passthrough view binds c to NULL and contributes no rows.
+        createView("emp_ds_view", "FROM employees");
+        createView("emp_stats_view", "FROM employees | STATS c = COUNT(*) BY department");
+        request = syncEsqlQueryRequest("FROM emp_ds_view, (FROM emp_stats_view | WHERE c > 0) | KEEP emp_no, c | SORT c");
+        request.filter(QueryBuilders.rangeQuery("c").gte(2));
+        try (var response = run(request)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), nullValue());
+            assertThat(rows.get(0).get(1), equalTo(2L));
         }
     }
 

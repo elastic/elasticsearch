@@ -47,15 +47,14 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
      * Whether {@code e} is guaranteed to evaluate to {@code NULL}, judging null-ness of its direct inputs
      * with {@code isNullChild}.
      * <p>
-     * This rule passes its transitive null check, folding anything provably null; the pre-optimizer
-     * {@code WarnNullMisuse} passes a stricter predicate matching only explicit, user-written {@code NULL} literals,
-     * so that both agree on <em>which</em> expression shapes collapse while warning only where the user wrote the null.
+     * Both callers share the shapes but deliberately not the null check. This rule passes its transitive check,
+     * folding anything provably null, so {@code x + (y + NULL)} folds as a whole. The pre-optimizer
+     * {@code WarnNullMisuse} only accepts an explicit, user-written {@code NULL} as a direct input, so it warns
+     * on the innermost {@code y + NULL} and not on expressions that are null for other reasons.
      */
     public static boolean foldsToNull(Expression e, Predicate<Expression> isNullChild) {
         if (e instanceof In in) {
-            // Matches In.fold(): a null probe, or a list that is entirely null, is always NULL.
-            // A mixed list (x IN (1, NULL)) is not — a match still yields true.
-            return isNullChild.test(in.value()) || in.list().stream().allMatch(isNullChild);
+            return isNullChild.test(in.value());
         }
         return e instanceof Alias == false && e.nullable() == Nullability.TRUE
         // Non-evaluatable functions stay as a STATS grouping (It isn't moved to an early EVAL like other groupings),

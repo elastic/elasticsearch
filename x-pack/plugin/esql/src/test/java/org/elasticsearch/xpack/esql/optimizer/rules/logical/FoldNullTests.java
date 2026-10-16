@@ -343,7 +343,7 @@ public class FoldNullTests extends ESTestCase {
     public void testInAllNullListSuggestsIsNull() {
         var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
         In in = new In(new Source(1, 12, "emp_no IN (NULL, NULL)"), field, List.of(NULL, NULL));
-        assertNullLiteral(foldNull(in));
+        assertSame(in, foldNull(in));
         assertEquals("emp_no IS NULL", in.nullMisuseAlternative());
     }
 

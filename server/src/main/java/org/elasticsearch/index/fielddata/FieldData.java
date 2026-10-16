@@ -163,7 +163,7 @@ public enum FieldData {
     public static SortedNumericDoubleValues castToDouble(final SortedNumericLongValues values) {
         final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
         if (singleton != null) {
-            return singleton(new DoubleValues() {
+            var doubleValues = new DoubleValues() {
                 @Override
                 public double doubleValue() throws IOException {
                     return singleton.longValue();
@@ -173,7 +173,8 @@ public enum FieldData {
                 public boolean advanceExact(int doc) throws IOException {
                     return singleton.advanceExact(doc);
                 }
-            });
+            };
+            return SortedNumericDoubleValues.singleton(doubleValues, values.docIdIterator());
         }
         return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
             @Override

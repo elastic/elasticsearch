@@ -70,6 +70,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.DeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteRegionPolicyAction;
@@ -1015,14 +1016,17 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        return Field.INFERENCE_PROPAGATED.stream()
+        return InferenceContext.WIRE_LAYOUT.stream()
             .map(field -> new RestHeaderDefinition(field.httpHeader(), field.allowsMultipleRestValues()))
             .toList();
     }
 
     @Override
     public Collection<String> getTaskHeaders() {
-        return Field.INFERENCE_PROPAGATED.stream().map(Field::httpHeader).toList();
+        // Task headers are exposed through the tasks API. The trace, user, and space ids are left out on purpose.
+        return Stream.of(Field.PRODUCT_USE_CASE, Field.PRODUCT_SOLUTION, Field.PRODUCT_FEATURE, Field.INTERACTION_ID)
+            .map(Field::httpHeader)
+            .toList();
     }
 
     protected SSLService getSslService() {

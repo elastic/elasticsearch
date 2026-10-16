@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.INTERACTION_ID;
 import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_FEATURE;
@@ -165,11 +164,6 @@ public class InferenceContextTests extends AbstractWireSerializingTestCase<Infer
             assertThat(context.metadata().get(SPACE_ID), equalTo("space"));
             assertThat(in.available(), equalTo(0));
         }
-    }
-
-    public void testWireLayoutCoversExactlyTheInferencePropagatedFields() {
-        assertThat(Set.copyOf(InferenceContext.WIRE_LAYOUT), equalTo(InferenceRequestMetadata.Field.INFERENCE_PROPAGATED));
-        assertThat(InferenceContext.WIRE_LAYOUT.size(), equalTo(InferenceRequestMetadata.Field.INFERENCE_PROPAGATED.size()));
     }
 
     public void testConstructorRejectsProductOrigin() {

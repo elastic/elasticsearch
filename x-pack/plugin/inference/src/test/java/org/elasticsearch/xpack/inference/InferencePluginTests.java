@@ -129,7 +129,10 @@ public class InferencePluginTests extends ESTestCase {
         }
     }
 
-    public void testAttributionHeadersArePropagatedAsTaskHeaders() {
+    /**
+     * Task headers are exposed through the tasks API, so the trace, user, and space ids are forwarded to EIS but are not task headers.
+     */
+    public void testProductAttributionHeadersArePropagatedAsTaskHeaders() {
         try (var plugin = new InferencePlugin(Settings.EMPTY)) {
             assertThat(
                 plugin.getTaskHeaders(),
@@ -137,10 +140,7 @@ public class InferencePluginTests extends ESTestCase {
                     "X-elastic-product-use-case",
                     "X-Elastic-Inference-Interaction-Id",
                     "X-elastic-product-solution",
-                    "X-elastic-product-feature",
-                    "X-Elastic-Trace-Id",
-                    "X-Elastic-User-Id",
-                    "X-Elastic-Space-Id"
+                    "X-elastic-product-feature"
                 )
             );
             assertThat(plugin.getTaskHeaders(), not(hasItem(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER)));

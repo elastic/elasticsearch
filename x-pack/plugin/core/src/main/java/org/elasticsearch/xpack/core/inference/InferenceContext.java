@@ -40,8 +40,10 @@ public record InferenceContext(InferenceRequestMetadata metadata) implements Wri
      * mixed-cluster contract. The outer {@code inference_context} gate does not make a later field addition
      * compatible with a peer that already understands that version. A caller that sends this request to another
      * node has to version the layout first. The order is listed explicitly; enum order is not the wire layout.
+     * <p>
+     * These are also the headers the inference plugin registers and captures from REST requests.
      */
-    static final List<Field> WIRE_LAYOUT = List.of(
+    public static final List<Field> WIRE_LAYOUT = List.of(
         PRODUCT_USE_CASE,
         PRODUCT_SOLUTION,
         PRODUCT_FEATURE,

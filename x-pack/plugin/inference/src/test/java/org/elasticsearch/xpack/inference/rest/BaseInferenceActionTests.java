@@ -222,7 +222,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
     }
 
     public void testExtractAttributionHeaders_HeaderNameCasingIsIgnoredAndValueCasingIsKept() {
-        for (var field : Field.INFERENCE_PROPAGATED) {
+        for (var field : InferenceContext.WIRE_LAYOUT) {
             var name = field.httpHeader();
             for (var spelling : List.of(name.toLowerCase(Locale.ROOT), name.toUpperCase(Locale.ROOT), alternateCase(name))) {
                 assertExtractedHeaders(

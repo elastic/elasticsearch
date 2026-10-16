@@ -9,7 +9,6 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.inference.InferenceRequestMetadata.Field;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 
@@ -113,15 +112,6 @@ public class InferenceRequestMetadataTests extends ESTestCase {
         assertThat(metadata.get(INTERACTION_ID), equalTo("interaction-id"));
     }
 
-    public void testInferencePropagatedExcludesOnlyProductOrigin() {
-        assertThat(
-            Field.INFERENCE_PROPAGATED,
-            equalTo(EnumSet.of(PRODUCT_USE_CASE, PRODUCT_SOLUTION, PRODUCT_FEATURE, INTERACTION_ID, TRACE_ID, USER_ID, SPACE_ID))
-        );
-        assertThat(PRODUCT_ORIGIN.propagatedByInference(), equalTo(false));
-        expectThrows(UnsupportedOperationException.class, () -> Field.INFERENCE_PROPAGATED.add(PRODUCT_ORIGIN));
-    }
-
     public void testCaptureOfAllFieldsIncludesProductOrigin() {
         Map<String, String> headers = Map.of(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana", "X-Elastic-Trace-Id", "trace-id");
 
@@ -134,7 +124,7 @@ public class InferenceRequestMetadataTests extends ESTestCase {
     public void testCaptureOfSubsetIgnoresOtherHeaders() {
         Map<String, String> headers = Map.of(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana", "X-Elastic-Trace-Id", "trace-id");
 
-        var metadata = InferenceRequestMetadata.capture(Field.INFERENCE_PROPAGATED, headers::get);
+        var metadata = InferenceRequestMetadata.capture(EnumSet.complementOf(EnumSet.of(PRODUCT_ORIGIN)), headers::get);
 
         assertThat(metadata.get(PRODUCT_ORIGIN), nullValue());
         assertThat(metadata.get(TRACE_ID), equalTo("trace-id"));

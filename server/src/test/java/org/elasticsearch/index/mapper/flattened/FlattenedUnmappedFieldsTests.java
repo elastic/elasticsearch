@@ -17,19 +17,26 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Write-path coverage for the implicit flattened {@code _unmapped} sink that absorbs unmapped fields on strict columnar indices.
@@ -54,7 +61,7 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
     }
 
     private static boolean isUnmappedSink(MapperService mapperService) {
-        return ((FlattenedFieldMapper) mapperService.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME)).isUnmappedSink();
+        return mapperService.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME) instanceof UnmappedSinkFieldMapper;
     }
 
     /**
@@ -100,7 +107,137 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
     public void testSinkPresentButNotSerialized() throws IOException {
         MapperService mapperService = columnarService(b -> {});
         assertTrue(isUnmappedSink(mapperService));
+        assertTrue(mapperService.isMetadataField(FlattenedFieldMapper.UNMAPPED_SINK_NAME));
         assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString(FlattenedFieldMapper.UNMAPPED_SINK_NAME)));
+    }
+
+    /**
+     * The sink resolves like {@code _ignored_source}: {@code _unmapped} is a metadata field that cannot be searched, aggregated or fetched,
+     * and no absorbed key resolves under it, so {@code _search} and field-level security never reach absorbed values through the sink.
+     */
+    public void testSinkResolvesAsInternalMetadataField() throws IOException {
+        MapperService mapperService = columnarService(b -> {});
+        String key = randomAlphaOfLengthBetween(1, 10);
+        String value = randomAlphanumericOfLength(6);
+        MappedFieldType sinkType = mapperService.fieldType(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+        assertFalse(sinkType.isSearchable());
+        assertFalse(sinkType.isAggregatable());
+        SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        var termError = expectThrows(IllegalArgumentException.class, () -> sinkType.termQuery(value, context));
+        assertThat(termError.getMessage(), startsWith("Cannot query field [_unmapped]: "));
+        var fetchError = expectThrows(IllegalArgumentException.class, () -> sinkType.valueFetcher(context, null));
+        assertThat(fetchError.getMessage(), startsWith("Cannot fetch values for field [_unmapped]: "));
+
+        String absorbedName = FlattenedFieldMapper.UNMAPPED_SINK_NAME + "." + key;
+        assertNull(mapperService.fieldType(absorbedName));
+        assertFalse(context.isFieldMapped(absorbedName));
+        assertFalse(context.isMappedField(absorbedName));
+    }
+
+    public void testUserFieldWithSameNameAsSinkRejected() {
+        String type = randomFrom("keyword", "flattened", "long");
+        var e = expectThrows(
+            MapperParsingException.class,
+            () -> columnarService(b -> b.startObject(FlattenedFieldMapper.UNMAPPED_SINK_NAME).field("type", type).endObject())
+        );
+        assertThat(e.getMessage(), containsString("Field [_unmapped] is defined more than once"));
+    }
+
+    /**
+     * A user {@code nested} object named {@code _unmapped} keeps the name and collides with the sink. A plain {@code object} is flattened
+     * by {@code subobjects: false} into dotted leaves, which {@link #testUserFieldUnderSinkPrefixRejected} covers.
+     */
+    public void testUserObjectWithSameNameAsSinkRejected() throws IOException {
+        var e = expectThrows(
+            MapperParsingException.class,
+            () -> columnarService(b -> b.startObject(FlattenedFieldMapper.UNMAPPED_SINK_NAME).field("type", "nested").endObject())
+        );
+        assertThat(e.getMessage(), containsString("Field [_unmapped] is defined both as an object and a field"));
+    }
+
+    /**
+     * The sink reserves {@code _unmapped.} as a prefix in mappings: any user field or object under it is rejected, whether it is a plain
+     * leaf, a deeper dotted leaf, a nested object, or one of the sink's own internal {@code _keyed} fields.
+     */
+    public void testUserFieldUnderSinkPrefixRejected() {
+        String sink = FlattenedFieldMapper.UNMAPPED_SINK_NAME;
+        String name = randomFrom(
+            sink + "." + randomAlphaOfLength(5),
+            sink + "." + randomAlphaOfLength(5) + "." + randomAlphaOfLength(5),
+            KEYED,
+            KEYED + ".counts",
+            KEYED + "._ignored"
+        );
+        String type = randomFrom("keyword", "long", "flattened", "nested");
+        var e = expectThrows(MapperParsingException.class, () -> columnarService(b -> b.startObject(name).field("type", type).endObject()));
+        assertThat(e.getMessage(), containsString("Field [" + name + "] is reserved by the metadata field [_unmapped]"));
+    }
+
+    /**
+     * The sink answers metadata columnar support through its wrapped flattened mapper, so the batch path falls back for a shape that mapper
+     * cannot batch, such as the inverted index being enabled through {@code index.mapping.index_disabled_by_default: false}. The sink never
+     * maps a column of its own, so its field-level columnar support is always {@code false}.
+     */
+    public void testSinkColumnarSupportFollowsDelegate() throws IOException {
+        boolean indexDisabled = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(columnarSettings())
+            .put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), indexDisabled)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        var sink = (UnmappedSinkFieldMapper) mapperService.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
+        assertEquals(indexDisabled, sink.supportsColumnarMetadataParse(mapperService.getIndexSettings()));
+        assertFalse(sink.supportsColumnarParse(mapperService.getIndexSettings()));
+    }
+
+    /**
+     * The sink reserves {@code _unmapped} and the prefix {@code _unmapped.} as root document keys. Every value shape is rejected the same
+     * way: scalar, null, object (including empty), array (including empty), and the dotted spellings that {@code subobjects: false}
+     * would otherwise treat as leaves of their own.
+     */
+    public void testDocumentKeyUnderSinkRejected() throws IOException {
+        DocumentMapper mapper = columnarService(b -> {}).documentMapper();
+        String sink = FlattenedFieldMapper.UNMAPPED_SINK_NAME;
+        String dotted = sink + "." + randomAlphaOfLength(5);
+        String deeper = dotted + "." + randomAlphaOfLength(5);
+        String key = randomAlphaOfLength(5);
+        String value = randomAlphanumericOfLength(6);
+        Map<String, CheckedConsumer<XContentBuilder, IOException>> shapes = new LinkedHashMap<>();
+        shapes.put("_unmapped: value", b -> b.field(sink, value));
+        shapes.put("_unmapped: null", b -> b.nullField(sink));
+        shapes.put("_unmapped: {}", b -> b.startObject(sink).endObject());
+        shapes.put("_unmapped: {a: value}", b -> b.startObject(sink).field(key, value).endObject());
+        shapes.put("_unmapped: []", b -> b.startArray(sink).endArray());
+        shapes.put("_unmapped: [value]", b -> b.array(sink, value));
+        shapes.put("_unmapped.a: value", b -> b.field(dotted, value));
+        shapes.put("_unmapped.a: null", b -> b.nullField(dotted));
+        shapes.put("_unmapped.a: {}", b -> b.startObject(dotted).endObject());
+        shapes.put("_unmapped.a: []", b -> b.startArray(dotted).endArray());
+        shapes.put("_unmapped.a.b: value", b -> b.field(deeper, value));
+        for (var shape : shapes.entrySet()) {
+            var e = expectThrows(DocumentParsingException.class, shape.getKey(), () -> mapper.parse(source(shape.getValue())));
+            assertThat(shape.getKey(), e.getMessage(), containsString("failed to parse field [_unmapped]"));
+            assertThat(
+                shape.getKey(),
+                e.getCause().getMessage(),
+                containsString("Field [_unmapped] is a metadata field and cannot be added inside a document")
+            );
+        }
+    }
+
+    /**
+     * The reservation is on the full path, so {@code _unmapped} inside another object (flattened to {@code x._unmapped} under
+     * {@code subobjects: false}) is an ordinary unmapped name and is absorbed.
+     */
+    public void testSinkNameInsideObjectIsNotReserved() throws IOException {
+        DocumentMapper mapper = columnarService(b -> {}).documentMapper();
+        String outer = randomAlphaOfLength(5);
+        String value = randomAlphanumericOfLength(6);
+        ParsedDocument doc = mapper.parse(
+            source(b -> b.startObject(outer).field(FlattenedFieldMapper.UNMAPPED_SINK_NAME, value).endObject())
+        );
+        assertNull(doc.dynamicMappingsUpdate());
+        assertTrue(hasKeyedSlot(doc, outer + "." + FlattenedFieldMapper.UNMAPPED_SINK_NAME + "\0" + value));
     }
 
     public void testAbsentWhenSettingOff() throws IOException {
@@ -140,6 +277,24 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
         assertNull(doc.dynamicMappingsUpdate());
         assertTrue(hasKeyedSlot(doc, "outer.inner.leaf\0" + v1));
         assertTrue(hasKeyedSlot(doc, "outer.other\0" + v2));
+    }
+
+    /**
+     * Pins the current synthetic source rendering of absorbed fields under an {@code _unmapped} object. That rendering cannot be
+     * re-indexed, since {@code _unmapped} is a reserved document key, which is why this test does not round-trip it.
+     */
+    public void testAbsorbedFieldsInSyntheticSource() throws IOException {
+        MapperService mapperService = columnarService(b -> b.startObject("mapped").field("type", "keyword").endObject());
+        DocumentMapper mapper = mapperService.documentMapper();
+        String mapped = randomAlphanumericOfLength(6);
+        String absorbed = randomAlphanumericOfLength(6);
+        ParsedDocument doc = mapper.parse(source(b -> b.field("mapped", mapped).field("other", absorbed)));
+        String expected = "{\"_unmapped\":{\"other\":\"" + absorbed + "\"},\"mapped\":\"" + mapped + "\"}";
+        withLuceneIndex(
+            mapperService,
+            iw -> iw.addDocuments(doc.docs()),
+            reader -> assertEquals(expected, syntheticSource(mapper, reader, 0))
+        );
     }
 
     public void testArraysAbsorbPerElementIncludingNull() throws IOException {

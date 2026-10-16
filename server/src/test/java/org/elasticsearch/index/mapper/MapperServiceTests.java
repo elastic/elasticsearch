@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -524,8 +525,12 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 // _slice_key is mapped only on slice-enabled indices, like the time-series fields on time-series indices.
                 boolean isSliceOnlyField = builtIn.equals(SliceKeyFieldMapper.NAME);
                 boolean isSliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
+                boolean isAbsentUnmappedSink = builtIn.equals(FlattenedFieldMapper.UNMAPPED_SINK_NAME)
+                    && mapperService.getIndexSettings().isFlattenedUnmappedFieldsEnabled() == false;
 
-                if ((isTimeSeriesField && isTimeSeriesMode == false) || (isSliceOnlyField && isSliceEnabled == false)) {
+                if ((isTimeSeriesField && isTimeSeriesMode == false)
+                    || (isSliceOnlyField && isSliceEnabled == false)
+                    || isAbsentUnmappedSink) {
                     assertFalse(
                         "Expected "
                             + builtIn

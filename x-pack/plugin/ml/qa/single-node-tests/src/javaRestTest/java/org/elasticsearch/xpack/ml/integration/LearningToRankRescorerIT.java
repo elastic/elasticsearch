@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -92,8 +91,8 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
     }
 
     /**
-     * The feature queries of the model are profiled next to the main query, and the rescore node of the profile reports how the
-     * rescorer's time splits between feature extraction and inference, and how long each query feature took.
+     * The feature queries of the model are profiled next to the main query, tagged with the rescorer, and the breakdown of the rescore
+     * node reports how the rescorer's time splits between building the feature extractors, feature extraction and inference.
      */
     @SuppressWarnings("unchecked")
     public void testLearningToRankRescoreProfile() throws Exception {
@@ -120,6 +119,10 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
         List<Map<String, Object>> searches = (List<Map<String, Object>>) shard.get("searches");
         List<Map<String, Object>> queries = (List<Map<String, Object>>) searches.get(0).get("query");
         assertThat(queries.get(0).get("description"), equalTo("product:Laptop"));
+        assertThat(queries.get(0).get("debug"), nullValue());
+        for (Map<String, Object> featureQuery : queries.subList(1, queries.size())) {
+            assertThat(featureQuery.get("debug"), equalTo(Map.of("rescorer", 0)));
+        }
         assertThat(
             queries.stream().skip(1).map(query -> (String) query.get("type")).toList(),
             containsInAnyOrder(
@@ -136,22 +139,21 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
         assertThat(rescorers.size(), equalTo(1));
         Map<String, Object> rescorer = rescorers.get(0);
         assertThat(rescorer.get("type"), equalTo("learning_to_rank"));
+        assertThat(rescorer.get("description"), equalTo("model [ltr-model]"));
         assertThat(rescorer.get("children"), nullValue());
-        Map<String, Object> debug = (Map<String, Object>) rescorer.get("debug");
-        assertThat(debug.get("window_size"), equalTo(10));
-        assertThat(debug.get("docs_before_rescore"), equalTo(3));
-        assertThat(debug.get("docs_after_rescore"), equalTo(3));
-        long rescoreTime = ((Number) rescorer.get("time_in_nanos")).longValue();
-        long featureExtractionTime = ((Number) debug.get("feature_extraction_time_in_nanos")).longValue();
-        long inferenceTime = ((Number) debug.get("inference_time_in_nanos")).longValue();
-        assertThat(featureExtractionTime, greaterThan(0L));
-        assertThat(inferenceTime, greaterThan(0L));
-        assertThat(featureExtractionTime + inferenceTime, lessThanOrEqualTo(rescoreTime));
-        Map<String, Object> queryFeatureTimes = (Map<String, Object>) debug.get("query_feature_time_in_nanos");
-        assertThat(queryFeatureTimes.keySet(), containsInAnyOrder("cost", "type_tv", "type_vcr", "type_laptop", "two", "product_bm25"));
-        for (Object queryFeatureTime : queryFeatureTimes.values()) {
-            assertThat(((Number) queryFeatureTime).longValue(), allOf(greaterThan(0L), lessThanOrEqualTo(featureExtractionTime)));
+        assertThat(rescorer.get("debug"), equalTo(Map.of("window_size", 10)));
+        Map<String, Object> breakdown = (Map<String, Object>) rescorer.get("breakdown");
+        assertThat(breakdown.get("build_feature_extractors_count"), equalTo(1));
+        // the three matching documents are rescored
+        assertThat(breakdown.get("feature_extraction_count"), equalTo(3));
+        assertThat(breakdown.get("inference_count"), equalTo(3));
+        long steps = 0;
+        for (String step : List.of("build_feature_extractors", "feature_extraction", "inference")) {
+            long stepTime = ((Number) breakdown.get(step)).longValue();
+            assertThat(stepTime, greaterThan(0L));
+            steps += stepTime;
         }
+        assertThat(steps, lessThanOrEqualTo(((Number) rescorer.get("time_in_nanos")).longValue()));
     }
 
     public void testLearningToRankRescoreSmallWindow() throws Exception {

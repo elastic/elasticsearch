@@ -210,7 +210,7 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
         LearningToRankRescorerContext rescoreContext = rescorerBuilder.innerBuildContext(20, context);
         assertNotNull(rescoreContext);
         assertThat(rescoreContext.getWindowSize(), equalTo(20));
-        List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors(context.searcher(), null);
+        List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors(context.searcher());
         assertThat(featureExtractors, hasSize(1));
 
         FeatureExtractor queryExtractor = featureExtractors.get(0);
@@ -239,7 +239,7 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
         LearningToRankRescorerContext rescoreContext = rescorerBuilder.innerBuildContext(20, context);
         assertNotNull(rescoreContext);
         assertThat(rescoreContext.getWindowSize(), equalTo(20));
-        List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors(context.searcher(), null);
+        List<FeatureExtractor> featureExtractors = rescoreContext.buildFeatureExtractors(context.searcher());
 
         assertThat(featureExtractors, hasSize(2));
 

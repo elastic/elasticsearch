@@ -37,10 +37,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -49,14 +48,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Profiles a search with a {@code learning_to_rank} rescorer. The feature queries of the model must be profiled next to the main query,
- * and the profile of the rescorer must split its time between feature extraction and inference, with the time of each query feature.
+ * Profiles a search with a {@code learning_to_rank} rescorer. The feature queries of the model must be profiled once each next to the
+ * main query, tagged with the rescorer, and the breakdown of the rescorer must split its time between building the feature extractors,
+ * extracting the features of each document, and inference.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class LearningToRankProfileIT extends BaseMlIntegTestCase {
 
     private static final String INDEX = "ltr-profile-index";
     private static final String MODEL_ID = "ltr-profile-model";
+    private static final Map<String, Object> RESCORER_0 = Map.of("rescorer", 0);
 
     @Before
     public void setupCluster() throws IOException {
@@ -85,32 +86,45 @@ public class LearningToRankProfileIT extends BaseMlIntegTestCase {
             assertThat(shards.size(), equalTo(1));
             SearchProfileQueryPhaseResult queryPhase = shards.values().iterator().next().getQueryPhase();
             List<ProfileResult> queries = queryPhase.getQueryProfileResults().get(0).getQueryResults();
-            // the main query, then one query per feature
+            // the main query, then each feature query exactly once, tagged with the position of the rescorer
             assertThat(
                 queries.stream().map(ProfileResult::getLuceneDescription).toList(),
                 equalTo(List.of("product:TV", "best_seller:T", "product:TV"))
             );
+            assertThat(queries.stream().map(ProfileResult::getDebugInfo).toList(), equalTo(List.of(Map.of(), RESCORER_0, RESCORER_0)));
 
             List<ProfileResult> rescorers = queryPhase.getRescoreProfileResults();
             assertThat(rescorers, hasSize(1));
             ProfileResult rescorer = rescorers.get(0);
             assertThat(rescorer.getQueryName(), equalTo("learning_to_rank"));
+            assertThat(rescorer.getLuceneDescription(), equalTo("model [" + MODEL_ID + "]"));
             assertThat(rescorer.getProfiledChildren(), empty());
-            Map<String, Object> debug = rescorer.getDebugInfo();
-            assertThat(debug.get("window_size"), equalTo(10));
-            assertThat(debug.get("docs_before_rescore"), equalTo(2));
-            assertThat(debug.get("docs_after_rescore"), equalTo(2));
-            long featureExtractionTime = (long) debug.get("feature_extraction_time_in_nanos");
-            long inferenceTime = (long) debug.get("inference_time_in_nanos");
-            assertThat(featureExtractionTime, greaterThan(0L));
-            assertThat(inferenceTime, greaterThan(0L));
-            assertThat(featureExtractionTime + inferenceTime, lessThanOrEqualTo(rescorer.getTime()));
-            @SuppressWarnings("unchecked")
-            Map<String, Long> queryFeatureTimes = (Map<String, Long>) debug.get("query_feature_time_in_nanos");
-            assertThat(queryFeatureTimes.keySet(), containsInAnyOrder("best_seller", "product_match"));
-            for (long queryFeatureTime : queryFeatureTimes.values()) {
-                assertThat(queryFeatureTime, allOf(greaterThan(0L), lessThanOrEqualTo(featureExtractionTime)));
+            assertThat(rescorer.getDebugInfo(), equalTo(Map.of("window_size", 10)));
+
+            Map<String, Long> breakdown = rescorer.getTimeBreakdown();
+            assertThat(
+                breakdown.keySet(),
+                equalTo(
+                    Set.of(
+                        "build_feature_extractors",
+                        "build_feature_extractors_count",
+                        "feature_extraction",
+                        "feature_extraction_count",
+                        "inference",
+                        "inference_count"
+                    )
+                )
+            );
+            assertThat(breakdown.get("build_feature_extractors_count"), equalTo(1L));
+            // both matching documents are rescored
+            assertThat(breakdown.get("feature_extraction_count"), equalTo(2L));
+            assertThat(breakdown.get("inference_count"), equalTo(2L));
+            long steps = 0;
+            for (String step : List.of("build_feature_extractors", "feature_extraction", "inference")) {
+                assertThat(breakdown.get(step), greaterThan(0L));
+                steps += breakdown.get(step);
             }
+            assertThat(steps, lessThanOrEqualTo(rescorer.getTime()));
         });
     }
 

@@ -11,13 +11,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.profile.Timer;
-import org.elasticsearch.search.profile.query.ProfileWeight;
-import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
-import org.elasticsearch.search.profile.query.QueryTimingType;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
@@ -28,7 +23,6 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.function.Predicate.not;
 
@@ -58,12 +52,15 @@ public class LearningToRankRescorerContext extends RescoreContext {
         this.learningToRankConfig = learningToRankConfig;
     }
 
+    @Override
+    public String profileDescription() {
+        return regressionModelDefinition == null ? super.profileDescription() : "model [" + regressionModelDefinition.getModelId() + "]";
+    }
+
     /**
-     * @param featureProfiles if not {@code null}, each query feature is profiled and its profile is added to this map, keyed by feature
-     *                        name. The profile covers rewriting the feature's query, creating its weight and running its scorers.
+     * Weights of query features are created through the searcher, so that the search profiler records each feature's query.
      */
-    List<FeatureExtractor> buildFeatureExtractors(IndexSearcher searcher, @Nullable Map<String, QueryProfileBreakdown> featureProfiles)
-        throws IOException {
+    List<FeatureExtractor> buildFeatureExtractors(IndexSearcher searcher) throws IOException {
         assert this.regressionModelDefinition != null && this.learningToRankConfig != null;
 
         List<FeatureExtractor> featureExtractors = new ArrayList<>();
@@ -73,21 +70,7 @@ public class LearningToRankRescorerContext extends RescoreContext {
         for (LearningToRankFeatureExtractorBuilder featureExtractorBuilder : learningToRankConfig.getFeatureExtractorBuilders()) {
             if (featureExtractorBuilder instanceof QueryExtractorBuilder queryExtractorBuilder) {
                 Query query = executionContext.toQuery(queryExtractorBuilder.query().getParsedQuery()).query();
-                Weight weight;
-                if (featureProfiles == null) {
-                    weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE, 1f);
-                } else {
-                    QueryProfileBreakdown featureProfile = new QueryProfileBreakdown();
-                    featureProfiles.put(queryExtractorBuilder.featureName(), featureProfile);
-                    Timer timer = featureProfile.getNewTimer(QueryTimingType.CREATE_WEIGHT);
-                    timer.start();
-                    try {
-                        Query rewritten = searcher.rewrite(query);
-                        weight = new ProfileWeight(rewritten, searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f), featureProfile);
-                    } finally {
-                        timer.stop();
-                    }
-                }
+                Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE, 1f);
                 weights.add(weight);
                 queryFeatureNames.add(queryExtractorBuilder.featureName());
             }

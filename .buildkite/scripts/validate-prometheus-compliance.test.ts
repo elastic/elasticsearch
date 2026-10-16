@@ -87,9 +87,11 @@ exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
     writeFileSync(
       join(bin, "curl"),
       `#!/bin/bash
+printf '%s\\n' "$@" >> "${join(dir, "curl-args.log")}"
 url= out=
 while (($#)); do
   case $1 in
+    -H) [[ $2 == @- ]] && cat >> "${join(dir, "curl-headers.log")}"; shift ;;
     -o) out=$2; shift ;;
     https://*) url=$1 ;;
   esac
@@ -118,10 +120,11 @@ esac
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   /** Runs the script with the given control and test logs, returning what CI would see. */
-  function run(control: Case[], tested: Case[], opts: { controlRc?: number; env?: Record<string, string> } = {}) {
-    writeFileSync(join(dir, "control.log"), promcheckLog(control));
-    writeFileSync(join(dir, "test.log"), promcheckLog(tested));
+  function run(control: Case[], tested: Case[], opts: { controlRc?: number; testRc?: number; controlLog?: string; testLog?: string; env?: Record<string, string> } = {}) {
+    writeFileSync(join(dir, "control.log"), opts.controlLog ?? promcheckLog(control));
+    writeFileSync(join(dir, "test.log"), opts.testLog ?? promcheckLog(tested));
     if (opts.controlRc !== undefined) writeFileSync(join(dir, "control.rc"), String(opts.controlRc));
+    if (opts.testRc !== undefined) writeFileSync(join(dir, "test.rc"), String(opts.testRc));
     const result = spawnSync("bash", [SCRIPT], {
       cwd: repo,
       env: {
@@ -143,6 +146,8 @@ esac
     return {
       status: result.status,
       output: result.stdout + result.stderr,
+      stdout: result.stdout,
+      stderr: result.stderr,
       report: read(report),
       agent: read(join(dir, "agent.log")),
       controlHead: read(join(dir, "control.head")).trim(),
@@ -415,6 +420,98 @@ esac
     );
     expect(r.agent).toContain("== meta-data set pr_comment:validate-prometheus-compliance:body");
     expect(r.report).toBe("");
+  });
+
+  test.each(["control", "test"] as const)("%s query parsing failures produce Not compared", (side) => {
+    const malformed = promcheckLog(STABLE).split("\n").filter(Boolean).map((line) => {
+      const row = JSON.parse(line);
+      if (row.type === "query") row.query = {};
+      return JSON.stringify(row);
+    }).join("\n") + "\n";
+    const r = run(STABLE, STABLE, side === "control" ? { controlLog: malformed } : { testLog: malformed });
+    expect(r.status).toBe(0);
+    expect(r.agent).toContain("**Not compared**");
+    expect(r.agent).toContain(`Could not parse ${side} outcomes`);
+    expect(r.report).toBe("");
+  });
+
+  test("tee failure prevents a truncated log from being compared", () => {
+    writeFileSync(join(dir, "bin", "tee"), "#!/bin/bash\ncat\nexit 1\n", { mode: 0o755 });
+    const r = run(STABLE, STABLE);
+    expect(r.status).toBe(0);
+    expect(r.agent).toContain("Not compared");
+    expect(r.agent).toContain("The control run failed");
+    expect(r.report).toBe("");
+  });
+
+  test("promcheck exit 1 remains a valid comparison result", () => {
+    const cases: Case[] = [["001", "error4xx", "up"]];
+    const r = run(cases, cases, { controlRc: 1, testRc: 1 });
+    expect(r.status).toBe(0);
+    expect(r.report).toContain("No regressions");
+  });
+
+  test("GitHub authorization is passed on stdin instead of curl arguments", () => {
+    const r = run(STABLE, STABLE, { env: { GH_TOKEN: "secret-test-value" } });
+    expect(r.status).toBe(0);
+    const args = readFileSync(join(dir, "curl-args.log"), "utf8");
+    const headers = readFileSync(join(dir, "curl-headers.log"), "utf8");
+    expect(args).not.toContain("secret-test-value");
+    expect(args).not.toContain("Authorization:");
+    expect(headers.match(/Authorization: Bearer secret-test-value/g)).toHaveLength(3);
+  });
+
+  test("fetch updates the target tracking branch even with a narrow clone refspec", () => {
+    git(repo, "config", "remote.origin.fetch", "+refs/heads/other:refs/remotes/origin/other");
+    git(repo, "update-ref", "-d", "refs/remotes/origin/main");
+    const r = run(STABLE, STABLE);
+    expect(r.status).toBe(0);
+    expect(r.report).toContain("No regressions");
+    expect(git(repo, "rev-parse", "origin/main")).toBe(r.controlHead);
+  });
+
+  test("a null query is rendered as empty text without failing jq", () => {
+    const cases: Case[] = [["001", "match", "up"]];
+    const changed: Case[] = [["001", "error4xx", "up"]];
+    const testLog = promcheckLog(changed).replace('"query":"up"', '"query":null');
+    const r = run(cases, changed, { testLog });
+    expect(r.status).toBe(1);
+    expect(r.report).toContain("| 001 | `PASS -> ERROR 4xx` | `` |");
+  });
+
+  test("cleanup runs when mktemp creates a directory but fails", () => {
+    const orphan = join(dir, "orphan-control");
+    writeFileSync(join(dir, "bin", "mktemp"), `#!/bin/bash\nmkdir -p "${orphan}"\nprintf '%s\\n' "${orphan}"\nexit 1\n`, { mode: 0o755 });
+    const r = run(STABLE, STABLE);
+    expect(r.status).not.toBe(0);
+    expect(existsSync(orphan)).toBe(false);
+    expect(git(repo, "worktree", "list", "--porcelain").match(/^worktree /gm)).toHaveLength(1);
+  });
+
+  test("cleanup removes the control worktree after an unhandled comparison failure", () => {
+    writeFileSync(join(dir, "bin", "awk"), "#!/bin/bash\nexit 2\n", { mode: 0o755 });
+    const r = run(STABLE, STABLE);
+    expect(r.status).toBe(2);
+    expect(git(repo, "worktree", "list", "--porcelain").match(/^worktree /gm)).toHaveLength(1);
+    expect(r.report).toBe("");
+  });
+
+  test("cleanup prunes stale worktree metadata", () => {
+    const stale = join(dir, "stale-worktree");
+    git(repo, "worktree", "add", "--detach", stale, "main");
+    rmSync(stale, { recursive: true });
+    const r = run(STABLE, STABLE);
+    expect(r.status).toBe(0);
+    expect(git(repo, "worktree", "list", "--porcelain").match(/^worktree /gm)).toHaveLength(1);
+  });
+
+  test("annotation failures are diagnostics on stderr", () => {
+    writeFileSync(join(dir, "bin", "buildkite-agent"), "#!/bin/bash\ncat >/dev/null\nexit 1\n", { mode: 0o755 });
+    const r = run(STABLE, STABLE);
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain("Failed to annotate the build");
+    expect(r.stderr).toContain("Failed to set the PR comment");
+    expect(r.stdout).not.toContain("Failed to");
   });
 
   test("a misconfigured pipeline fails the job", () => {

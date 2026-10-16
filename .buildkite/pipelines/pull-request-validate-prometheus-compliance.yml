@@ -1,4 +1,4 @@
-# Compares PromQL compliance with Prometheus between a pull request and its merge base. Runs standalone:
+# Detects mismatches between Prometheus and Elasticsearch on a pull request and its merge base. Runs standalone:
 # a 'buildkite run promcheck' PR comment triggers it (see .buildkite/pull-requests.json), and the build
 # bot posts the report as a PR comment when this build ends.
 env:

@@ -18,7 +18,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -97,10 +96,7 @@ public final class NodeHeapUsageCalculator {
      */
     public static NodeHeapEstimates calculateForShardEstimates(long nonShardHeapUsage, ShardHeapUsageEstimates shardHeapUsageEstimates) {
         assert nonShardHeapUsage >= 0;
-        final NodeHeapUsageComponents nodeHeapUsageComponents = componentsForShards(
-            shardHeapUsageEstimates.perShard().keySet(),
-            shardHeapUsageEstimates
-        );
+        final NodeHeapUsageComponents nodeHeapUsageComponents = componentsForShards(shardHeapUsageEstimates);
         final long hostedShardsHeapUsage = Math.addExact(
             nodeHeapUsageComponents.shardAndIndexHeapUsage,
             nodeHeapUsageComponents.postingsHeapUsage
@@ -159,10 +155,10 @@ public final class NodeHeapUsageCalculator {
         return accumulator.result();
     }
 
-    /** Shard and index heap for exactly these shards, including ones that are still initializing. */
-    private static NodeHeapUsageComponents componentsForShards(Set<ShardId> shardIds, ShardHeapUsageEstimates shardHeapUsageEstimates) {
+    /** Shard and index heap for every shard in the estimates, including ones that are still initializing. */
+    private static NodeHeapUsageComponents componentsForShards(ShardHeapUsageEstimates shardHeapUsageEstimates) {
         final NodeHeapUsageComponentsAccumulator accumulator = new NodeHeapUsageComponentsAccumulator(shardHeapUsageEstimates);
-        shardIds.forEach(accumulator::add);
+        shardHeapUsageEstimates.perShard().keySet().forEach(accumulator::add);
         return accumulator.result();
     }
 

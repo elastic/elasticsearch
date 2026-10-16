@@ -36,7 +36,7 @@ LLVM_SUFFIX := $(patsubst clang++%,%,$(firstword $(CLANG_CXX)))
 
 # Darwin cross-compilation. The sysroot is assembled from Apple's open-source
 # distributions plus upstream libc++ headers and baked into the toolchain image; see
-# libs/simdvec/native/darwin-sysroot/assemble.sh. -nostdinc blocks the host (glibc)
+# libs/native-toolchain/darwin-sysroot/assemble.sh. -nostdinc blocks the host (glibc)
 # headers, then the three -isystem paths are added in this order deliberately:
 # libc++ must come before the clang resource directory (otherwise libc++'s <cstddef>
 # cannot find its own <stddef.h>), and the resource directory before the sysroot so
@@ -53,7 +53,7 @@ CLANG_RESOURCE_ARM = $(shell $(CLANG_CXX) --target=aarch64-linux-gnu -print-reso
 CLANG_RESOURCE_X64 = $(shell $(CLANG_CXX) --target=x86_64-linux-gnu -print-resource-dir)
 
 # -nostdinc++ keeps clang from picking up libstdc++-14; include paths below
-# pair clang intrinsics with GCC 8 libstdc++ (see Dockerfile.cross-toolchain).
+# pair clang intrinsics with GCC 8 libstdc++ (see libs/native-toolchain/Dockerfile.cross-toolchain).
 LINUX_CXXFLAGS_ARM = -nostdinc++ \
   -isystem $(CLANG_RESOURCE_ARM)/include \
   -isystem /usr/aarch64-linux-gnu/include \

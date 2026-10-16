@@ -39,7 +39,7 @@ LLVM_SUFFIX := $(patsubst clang++%,%,$(firstword $(CLANG_CXX)))
 
 # Darwin cross-compilation. The sysroot is assembled from Apple's open-source
 # distributions plus upstream libc++ headers and baked into the toolchain image; see
-# darwin-sysroot/assemble.sh. -nostdinc blocks the host (glibc) headers, then the three
+# libs/native-toolchain/darwin-sysroot/assemble.sh. -nostdinc blocks the host (glibc) headers, then the three
 # -isystem paths are added in this order deliberately: libc++ must come before the clang
 # resource directory (otherwise libc++'s <cstddef> cannot find its own <stddef.h>), and the
 # resource directory before the sysroot so clang supplies the target headers (arm_neon.h,

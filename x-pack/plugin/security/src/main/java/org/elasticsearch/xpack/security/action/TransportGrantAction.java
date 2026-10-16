@@ -26,14 +26,17 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.jwt.JwtAuthenticationToken;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
 import static org.elasticsearch.xpack.core.security.action.Grant.ACCESS_TOKEN_GRANT_TYPE;
 import static org.elasticsearch.xpack.core.security.action.Grant.PASSWORD_GRANT_TYPE;
+import static org.elasticsearch.xpack.core.security.action.Grant.USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE;
 
 public abstract class TransportGrantAction<Request extends GrantRequest, Response extends ActionResponse> extends TransportAction<
     Request,
@@ -60,12 +63,26 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
     @Override
     public final void doExecute(Task task, Request request, ActionListener<Response> listener) {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            final AuthenticationToken authenticationToken = getAuthenticationToken(request.getGrant());
+            final Grant grant = request.getGrant();
+            final AuthenticationToken authenticationToken = getAuthenticationToken(grant);
             assert authenticationToken != null : "authentication token must not be null";
 
-            final String runAsUsername = request.getGrant().getRunAsUsername();
+            final String runAsUsername = grant.getRunAsUsername();
 
             final ActionListener<Authentication> authenticationListener = ActionListener.wrap(authentication -> {
+                if (USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE.equals(grant.getType())
+                    && false == authentication.isUserManagedServiceAccount()) {
+                    // The credential authenticated, but not as a user-managed service account. In particular, built-in service
+                    // accounts (e.g. elastic/kibana) are kept out of this grant: it exists for accounts that administrators
+                    // create and assign roles to, and widening it to built-in accounts is a separate decision.
+                    listener.onFailure(
+                        new ElasticsearchSecurityException(
+                            "[service_account_token] must belong to a user-managed service account",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
+                }
                 if (authentication.isRunAs()) {
                     final String effectiveUsername = authentication.getEffectiveSubject().getUser().principal();
                     if (runAsUsername != null && false == runAsUsername.equals(effectiveUsername)) {
@@ -106,10 +123,19 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
                 actionName,
                 request,
                 authenticationToken,
-                ActionListener.runBefore(authenticationListener, authenticationToken::clearCredentials)
+                ActionListener.runBefore(authenticationListener, () -> clearCredentials(grant, authenticationToken))
             );
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    private static void clearCredentials(Grant grant, AuthenticationToken authenticationToken) {
+        authenticationToken.clearCredentials();
+        // A parsed service account token holds a decoded copy of the secret, so clearing it leaves the request field intact.
+        // The other token types wrap the request's own secure string and are cleared along with it.
+        if (grant.getServiceAccountToken() != null) {
+            grant.getServiceAccountToken().close();
         }
     }
 
@@ -125,8 +151,27 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
         return switch (grant.getType()) {
             case PASSWORD_GRANT_TYPE -> new UsernamePasswordToken(grant.getUsername(), grant.getPassword());
             case ACCESS_TOKEN_GRANT_TYPE -> extractAccessToken(grant);
+            case USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE -> extractServiceAccountToken(grant);
             default -> throw new ElasticsearchSecurityException("the grant type [{}] is not supported", grant.getType());
         };
+    }
+
+    /**
+     * Parsing does not validate the credential. The parsed token is authenticated through the regular service account
+     * path, which checks that the account exists and is enabled and that the secret matches, exactly as it would for the
+     * same token presented in an {@code Authorization} header.
+     */
+    private static AuthenticationToken extractServiceAccountToken(Grant grant) {
+        assert USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE.equals(grant.getType()) : "grant must be " + USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE;
+        final ServiceAccountToken serviceAccountToken = ServiceAccountService.tryParseToken(grant.getServiceAccountToken());
+        if (serviceAccountToken == null) {
+            grant.getServiceAccountToken().close();
+            throw new ElasticsearchSecurityException(
+                "[service_account_token] is not a valid service account token",
+                RestStatus.BAD_REQUEST
+            );
+        }
+        return serviceAccountToken;
     }
 
     protected AuthenticationToken extractAccessToken(Grant grant) {

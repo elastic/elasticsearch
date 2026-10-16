@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 161069
+summary: Return 400 instead of 500 when a search pattern is too complex to determinize
+type: bug

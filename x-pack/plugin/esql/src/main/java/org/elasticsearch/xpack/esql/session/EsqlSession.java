@@ -511,8 +511,10 @@ public class EsqlSession {
         if (ViewRequestFilterRewriter.appliesToViewOutputs(request.filter())) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_BRANCHES;
         }
-        if (QuerySettings.UNMAPPED_FIELDS.get(resolved) != UnmappedResolution.DEFAULT
-            || QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved)) {
+        if (ViewBoundaryPreservation.settingsRequireViewIdentity(
+            QuerySettings.UNMAPPED_FIELDS.get(resolved),
+            QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved)
+        )) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_IDENTITY;
         }
         viewResolver.replaceViews(
@@ -1772,7 +1774,7 @@ public class EsqlSession {
         // execute(): ViewCompaction (an analyzer rule reading AnalyzerContext.preserveViewBoundaries()) must not
         // collapse the lone-view wrappers that ResolveUnmapped null-fills outer references on. esql-planning#2273.
         boolean preserveViewBoundaries = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
-            || unmappedResolution != UnmappedResolution.DEFAULT;
+            || ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution);
 
         resolveIndicesAndAnalyze(
             parsed,

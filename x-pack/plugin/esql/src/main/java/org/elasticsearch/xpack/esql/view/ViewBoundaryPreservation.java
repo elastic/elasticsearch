@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+
 /**
  * How much view structure {@link ViewResolver} must keep intact for the boundary features that act on a view's
  * <em>output</em>. The levels are ordered — each keeps everything the previous one keeps — and the request decides
@@ -40,6 +42,25 @@ public enum ViewBoundaryPreservation {
     NONE,
     KEEP_VIEW_BRANCHES,
     KEEP_VIEW_IDENTITY;
+
+    /**
+     * Whether the query settings alone require {@link #KEEP_VIEW_IDENTITY}: a non-{@code DEFAULT} {@code unmapped_fields}, or
+     * {@code wildcards_match_datasets} on. The single source of truth for that decision — production resolution and the
+     * analyzer test harness must both call it so they cannot drift when a new boundary-scoped setting is added.
+     */
+    public static boolean settingsRequireViewIdentity(UnmappedResolution unmappedResolution, boolean wildcardsMatchDatasets) {
+        return unmappedResolution != UnmappedResolution.DEFAULT || wildcardsMatchDatasets;
+    }
+
+    /**
+     * Whether the analyzer must keep view branches because of the query settings: only {@code unmapped_fields} is applied during
+     * analysis ({@code ResolveUnmapped} acts on the view branches). {@code wildcards_match_datasets} is applied before it, on the
+     * plan view resolution produced, so by the time of analysis nothing relies on the view branches for it. Shared by production and
+     * the analyzer test harness so they cannot drift.
+     */
+    public static boolean analysisRequiresViewBranches(UnmappedResolution unmappedResolution) {
+        return unmappedResolution != UnmappedResolution.DEFAULT;
+    }
 
     /** View subplans stay wrapped as identified {@code BranchPlan} branches (both non-{@link #NONE} levels). */
     public boolean keepsViewBranches() {

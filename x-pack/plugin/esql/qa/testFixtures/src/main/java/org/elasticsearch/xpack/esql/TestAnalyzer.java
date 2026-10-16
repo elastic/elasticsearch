@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -110,6 +111,7 @@ public class TestAnalyzer {
 
     private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
+    private boolean wildcardsMatchDatasets = QuerySettings.WILDCARDS_MATCH_DATASETS.defaultValue();
     private TimestampBounds timestampBounds;
     private Supplier<TransportVersion> minimumTransportVersion = TransportVersionUtils::randomCompatibleVersion;
     private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
@@ -622,6 +624,18 @@ public class TestAnalyzer {
     }
 
     /**
+     * Set whether {@code wildcards_match_datasets} is on. It only affects whether view boundaries are preserved here, like
+     * {@code EsqlSession} does; dataset rewriting itself is done by the caller.
+     * <p>
+     *     NOTE: This is overridden by {@link #statement}. If you are using that method you don't need to call this.
+     * </p>
+     */
+    public TestAnalyzer wildcardsMatchDatasets(boolean wildcardsMatchDatasets) {
+        this.wildcardsMatchDatasets = wildcardsMatchDatasets;
+        return this;
+    }
+
+    /**
      * Adds {@code @timestamp} lower and upper bounds extracted from a query DSL filter.
      */
     public TestAnalyzer timestampBounds(TimestampBounds timestampBounds) {
@@ -669,8 +683,12 @@ public class TestAnalyzer {
 
     // This most primitive view resolution only works for the simple cases being tested
     private LogicalPlan resolveViews(LogicalPlan parsed) {
-        // Mirror ViewBoundaryPreservation.KEEP_VIEW_IDENTITY, which EsqlSession picks whenever unmapped_fields is not DEFAULT.
-        return resolveViews(parsed, resolveViews(views), unmappedResolution != UnmappedResolution.DEFAULT);
+        // Mirror ViewBoundaryPreservation.KEEP_VIEW_IDENTITY, which EsqlSession picks whenever the query settings require it.
+        return resolveViews(
+            parsed,
+            resolveViews(views),
+            ViewBoundaryPreservation.settingsRequireViewIdentity(unmappedResolution, wildcardsMatchDatasets)
+        );
     }
 
     /**
@@ -799,6 +817,7 @@ public class TestAnalyzer {
     public LogicalPlan statement(String query) {
         var statement = TEST_PARSER.createStatement(query);
         unmappedResolution = statement.setting(QuerySettings.UNMAPPED_FIELDS);
+        wildcardsMatchDatasets = statement.setting(QuerySettings.WILDCARDS_MATCH_DATASETS);
         var analyzed = buildAnalyzer().analyze(resolveViewsAndInSubqueries(statement.plan()));
         var failures = new Failures();
         PlanConsistencyChecker.checkPlan(analyzed, failures);
@@ -1024,7 +1043,7 @@ public class TestAnalyzer {
             timestampBounds,
             TEST_IP_LOCATION_RESOLUTION,
             // preserveViewBoundaries, as EsqlSession derives it: view branches must survive compaction for ResolveUnmapped.
-            unmappedResolution != UnmappedResolution.DEFAULT,
+            ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution),
             flags
         );
     }

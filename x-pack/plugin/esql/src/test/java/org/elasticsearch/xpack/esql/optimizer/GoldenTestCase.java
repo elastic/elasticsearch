@@ -110,6 +110,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.WILDCARDS_MATCH_DATASETS;
 
 /** See GoldenTestsReadme.md for more information about these tests. */
 @Listeners({ GoldenTestCase.GoldenTestReproduceInfoPrinter.class })
@@ -750,21 +751,29 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (views.isEmpty()) {
                 parsedPlan = InSubqueryResolver.resolve(statement.plan());
             } else {
-                // The unmapped_fields setting decides how much view structure resolution keeps, as in EsqlSession.
-                TestAnalyzer viewAnalyzer = analyzer().unmappedResolution(statement.setting(UNMAPPED_FIELDS));
+                // The unmapped_fields and wildcards_match_datasets settings decide how much view structure resolution keeps, as in
+                // EsqlSession.
+                TestAnalyzer viewAnalyzer = analyzer().unmappedResolution(statement.setting(UNMAPPED_FIELDS))
+                    .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS));
                 views.forEach(viewAnalyzer::addView);
                 parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(statement.plan());
             }
             // Then turn FROM <dataset> targets into UnresolvedExternalRelation, exactly as EsqlSession does. A
             // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
             // test registers datasets, external relations are excluded from CSV index discovery below.
-            // Golden tests name their datasets exactly, which reaches them at the wildcards_match_datasets default.
+            // Golden tests name their datasets exactly, which reaches them at the wildcards_match_datasets default; tests that SET
+            // wildcards_match_datasets get it applied here, as in EsqlSession.
             // Mirror EsqlSession: reshape user-written Subquery/UnionAll structures into BranchPlan before dataset
             // resolution and analysis. Rules that read the pre-analysis shape depend on it — the _class/_name metadata
             // freeze (ResolveSubqueryRelationColumns) answers "subquery" from the Subquery branch wrapper this pass
             // preserves, and without it a subquery branch beside an index silently null-fills _class.
             parsedPlan = ViewCompaction.preIndexResolution(parsedPlan);
-            parsedPlan = rewriteDatasetsUnsecured(parsedPlan, datasetMetadata, TestIndexNameExpressionResolver.newInstance(), false);
+            parsedPlan = rewriteDatasetsUnsecured(
+                parsedPlan,
+                datasetMetadata,
+                TestIndexNameExpressionResolver.newInstance(),
+                statement.setting(WILDCARDS_MATCH_DATASETS)
+            );
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
             System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);
@@ -783,7 +792,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
                 .externalSourceResolution(externalSourceResolution)
-                .unmappedResolution(unmappedResolution);
+                .unmappedResolution(unmappedResolution)
+                .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS));
             boolean trackUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
             loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
                 (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)

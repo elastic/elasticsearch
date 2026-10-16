@@ -228,11 +228,14 @@ public class BytesRefArrayTests extends ESTestCase {
             for (int i = 0; i < 20; i++) {
                 byte[] data = randomByteArrayOfLength(between(4, 2 * PageCacheRecycler.BYTE_PAGE_SIZE));
                 int split = between(2, data.length - 2);
-                var reference = CompositeBytesReference.of(
-                    new BytesArray(data, 0, split),
-                    BytesArray.EMPTY,
-                    new BytesArray(data, split, data.length - split)
-                ).slice(1, data.length - 2);
+                BytesReference reference = i % 2 == 0
+                    ? new BytesArray(data)
+                    : CompositeBytesReference.of(
+                        new BytesArray(data, 0, split),
+                        BytesArray.EMPTY,
+                        new BytesArray(data, split, data.length - split)
+                    );
+                reference = reference.slice(1, data.length - 2);
                 expected.add(BytesRef.deepCopyOf(new BytesRef(data, 1, data.length - 2)));
                 array.append(reference);
                 Arrays.fill(data, (byte) 0); // The array owns the appended bytes, not the reference's backing pages.

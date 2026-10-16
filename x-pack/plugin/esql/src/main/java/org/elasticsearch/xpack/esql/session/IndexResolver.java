@@ -10,6 +10,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -69,6 +71,8 @@ import java.util.TreeSet;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -79,7 +83,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 public class IndexResolver {
 
     private static final Logger LOGGER = LogManager.getLogger(IndexResolver.class);
-
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
 
@@ -186,7 +189,7 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
             true, /* allow empty index resolution when resolving main pattern */
             minimumVersion,
@@ -357,6 +360,20 @@ public class IndexResolver {
                 indexPattern
             );
 
+            // the locally resolved expressions are null unless the request asked for them (e.g. not for lookup indices)
+            if (responseMinimumVersion != null
+                && responseMinimumVersion.supports(FieldCapabilitiesRequest.RESOLVED_FIELDS_CAPS)
+                && response.caps().getResolvedLocally() != null) {
+                Set<String> unresolved = new TreeSet<>();
+                collectUnresolved(null, response.caps().getResolvedLocally(), unresolved);
+                for (var remote : response.caps().getResolvedRemotely().entrySet()) {
+                    collectUnresolved(remote.getKey(), remote.getValue(), unresolved);
+                }
+                if (unresolved.isEmpty() == false) {
+                    l.onFailure(new VerificationException(Strings.format("Unknown index [%s]", String.join(",", unresolved))));
+                }
+            }
+
             l.onResponse(
                 new Versioned<>(
                     mergedMappings(indexPattern, allowEmpty, info, trackUnmappedFieldIndices, originalIndexExtractor),
@@ -367,6 +384,19 @@ public class IndexResolver {
         // Meter the response handling (mergedMappings can take tens of ms for wide mappings) as planning CPU of the query
         // that dispatched this request, if one is metering this thread.
         client.execute(EsqlResolveFieldsAction.TYPE, request, PlanningCpuTracker.inheritMeteredCpu(responseHandler));
+    }
+
+    /**
+     * Adds the expressions that could not be resolved to {@code unresolved}, qualified with the {@code cluster} if it is a remote one.
+     * A wildcard that matches nothing is a successful resolution, so only concrete names end up here.
+     */
+    private static void collectUnresolved(@Nullable String cluster, ResolvedIndexExpressions resolved, Set<String> unresolved) {
+        for (ResolvedIndexExpression expression : resolved.expressions()) {
+            var result = expression.localExpressions().localIndexResolutionResult();
+            if (result == CONCRETE_RESOURCE_NOT_VISIBLE || result == CONCRETE_RESOURCE_UNAUTHORIZED) {
+                unresolved.add(RemoteClusterAware.buildRemoteIndexName(cluster, expression.original()));
+            }
+        }
     }
 
     /**

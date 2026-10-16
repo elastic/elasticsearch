@@ -43,7 +43,7 @@ public final class FieldCapabilitiesRequest extends UntypedActionRequest impleme
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     private static final TransportVersion FIELD_CAPS_ADD_CLUSTER_ALIAS = TransportVersion.fromName("field_caps_add_cluster_alias");
-    static final TransportVersion RESOLVED_FIELDS_CAPS = TransportVersion.fromName("resolved_fields_caps");
+    public static final TransportVersion RESOLVED_FIELDS_CAPS = TransportVersion.fromName("resolved_fields_caps");
 
     private String clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 

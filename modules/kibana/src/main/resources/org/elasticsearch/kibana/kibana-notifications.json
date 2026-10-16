@@ -1,6 +1,6 @@
 {
   "index_patterns": [
-    ".notifications*"
+    ".kibana-notifications*"
   ],
   "data_stream": {
     "allow_custom_routing": false

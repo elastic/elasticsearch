@@ -54,7 +54,7 @@ public class KibanaPluginTests extends ESTestCase {
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".workflows-execution-data-stream-logs")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history-000001")));
-        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".notifications")));
+        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana-notifications")));
     }
 
     public void testWorkflowsSystemIndexDescriptorCoversOtherWorkflowsIndices() {

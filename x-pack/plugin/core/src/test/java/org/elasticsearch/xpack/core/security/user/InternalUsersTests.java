@@ -279,7 +279,7 @@ public class InternalUsersTests extends ESTestCase {
             ".fleet-fileds*",
             ".workflows*",
             ".kibana_change_history*",
-            ".notifications*"
+            ".kibana-notifications*"
         );
         for (var group : role.indices().groups()) {
             if (group.allowRestrictedIndices()) {

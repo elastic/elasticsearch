@@ -87,6 +87,14 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
         return values.valueMaxByteSize();
     }
 
+    /**
+     * The bytes this vector's values hold, which the array sums as it is appended to, or {@code -1} if the array
+     * holds values this vector does not and its sum is not this vector's.
+     */
+    long totalValueBytes() {
+        return values.size() == getPositionCount() ? values.totalBytes() : -1;
+    }
+
     @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;

@@ -454,6 +454,8 @@ The [**Query activity**](docs-content://deploy-manage/monitor/query-activity.md)
 
 When running an {{esql}} query through the [ES|QL query API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-query), set the `profile` body parameter to `true` to include a `profile` object in the response. The profile output is intended for human debugging and can help identify which parts of a query contribute to its runtime. The response format can change at any time, so use it for investigation rather than automation.
 
+{applies_to}`stack: preview 9.6` {applies_to}`serverless: preview` An operator that reads values reports `bytes_decoded`, the bytes the values it decoded spell, next to `bytes_read`, the bytes they were read from. The ratio is how far the stored bytes expanded into values, and dividing `bytes_decoded` by that operator's `process_nanos` gives the rate they were read at. Both the field value read and an external dataset read report it.
+
 ### Query logging
 
 ```{applies_to}

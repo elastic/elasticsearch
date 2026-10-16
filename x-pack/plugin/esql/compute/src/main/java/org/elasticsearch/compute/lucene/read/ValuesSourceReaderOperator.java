@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.ValueBytes;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
@@ -307,6 +308,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     long valuesLoaded;
     long bytesRead;
+    long bytesDecoded;
     long sourceDocsLoaded;
     long sourceFieldReads;
     long sourceBytesLoaded;
@@ -373,10 +375,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     protected ReleasableIterator<Page> receive(Page page) {
         acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        return trackBytesRead(appendBlockArrays(page, valuesReader(docVector)));
+        // The loaded blocks are appended after the ones this was given, so that count is where they start.
+        return trackBytesRead(page.getBlockCount(), appendBlockArrays(page, valuesReader(docVector)));
     }
 
-    private ReleasableIterator<Page> trackBytesRead(ReleasableIterator<Page> inner) {
+    private ReleasableIterator<Page> trackBytesRead(int loadedFrom, ReleasableIterator<Page> inner) {
         return new ReleasableIterator<>() {
             @Override
             public boolean hasNext() {
@@ -386,10 +389,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             @Override
             public Page next() {
                 long bytesSnapshot = directoryBytesRead.getAsLong();
+                Page loaded = null;
                 try {
-                    return inner.next();
+                    loaded = inner.next();
+                    return loaded;
                 } finally {
                     recordBytesRead(bytesSnapshot);
+                    recordBytesDecoded(loaded, loadedFrom);
                 }
             }
 
@@ -398,6 +404,16 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
                 inner.close();
             }
         };
+    }
+
+    /** Adds what the blocks loaded into {@code page} spell to what this read has turned storage into. */
+    private void recordBytesDecoded(Page page, int loadedFrom) {
+        if (page == null) {
+            return;
+        }
+        for (int channel = loadedFrom; channel < page.getBlockCount(); channel++) {
+            bytesDecoded += ValueBytes.of(page.getBlock(channel));
+        }
     }
 
     private void recordBytesRead(long bytesSnapshot) {
@@ -673,6 +689,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             rowsEmitted,
             valuesLoaded,
             bytesRead,
+            bytesDecoded,
             sourceDocsLoaded,
             sourceFieldReads,
             sourceBytesLoaded

@@ -233,6 +233,13 @@ Run with a given seed (seed is a hex-encoded long).
 ./gradlew test -Dtests.seed=DEADBEEF
 ------------------------------
 
+Gradle caches successful tests. Reusing a seed can report success because the
+test did not run. Bypass the cache:
+
+------------------------------
+./gradlew test -Dtests.seed=DEADBEEF -Dtests.timestamp=$(date +%s)
+------------------------------
+
 === Repeats _all_ tests of ClassName N times.
 
 Every test repetition will have a different method seed
@@ -439,6 +446,19 @@ This is only applicable to Java REST tests.
 ./gradlew :modules:kibana:javaRestTest --debug-jvm --debug-server-jvm
 ---------------------------------------------------------------------------
 
+== When a test is missing
+
+A test that is muted in link:./muted-tests.yml[`muted-tests.yml`] is excluded
+before the randomized runner starts. It does not fail, and it does not report
+as skipped. Check that file first when a method is absent from the results:
+
+------------------------------------------------
+grep 'ClassName\|methodName' muted-tests.yml
+------------------------------------------------
+
+If every method in the class is muted, a local run fails with
+`No tests found for given includes`.
+
 == Testing the REST layer
 
 The REST layer is tested through specific tests that are executed against
@@ -575,6 +595,37 @@ and link:./distribution/bwc/build.gradle[distribution/bwc/build.gradle]
 for more information.
 
 When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
+
+==== Which older versions are compatible
+
+* *Wire compatibility* is the oldest version that can join a cluster with the
+current one, and defined as the last minor of the previous major.
+For the 9.X.X series, wire compatibility starts at 8.19.0.
+* *Index compatibility* is the oldest index the current version can open. That
+covers the whole previous major. For the 9.X.X series, index compatibility is every 8.x index.
+* Lucene can still read indices two majors back.
+
+A rolling upgrade stays inside the wire-compatible range. A full restart can
+have any starting version.
+
+==== Rolling upgrade
+
+`ParameterizedRollingUpgradeTestCase` starts a three-node cluster on the old
+version. The same suite then runs once per phase, with `upgradedNodes` set to
+0, 1, 2, and 3. Before each phase, one more node is replaced with the current
+distribution. Indices, data streams, templates, and repositories are kept.
+
+* 0 upgraded nodes: the cluster is entirely old. This phase writes the data.
+* 1 or 2 upgraded nodes: the cluster is mixed.
+* 3 upgraded nodes: the cluster is entirely current. This phase checks that the data survived.
+
+==== Full cluster restart
+
+`ParameterizedFullClusterRestartTestCase` runs the suite twice, once on the old
+cluster (`OLD`), then once after every node has been stopped and restarted on
+the current version (`UPGRADED`). There is no mixed cluster. If the old version
+is older than the minimum wire-compatible version, the cluster is upgraded to
+that version first, then to current.
 
 ==== BWC Testing against a specific remote/branch
 
@@ -713,26 +764,38 @@ There are multiple base classes for tests:
 
 ==== What kind of tests should I write?
 
-Unit tests are the preferred way to test some functionality: most of the time
-they are simpler to understand, more likely to reproduce, and unlikely to be
-affected by changes that are unrelated to the piece of functionality that is
-being tested.
-
-The reason why `ESSingleNodeTestCase` exists is that all our components used to
-be very hard to set up in isolation, which had led us to having a number of
-integration tests but close to no unit tests. `ESSingleNodeTestCase` is a
-workaround for this issue which provides an easy way to spin up a node and get
-access to components that are hard to instantiate like `IndicesService`.
-Whenever practical, you should prefer unit tests.
-
-Many tests extend `ESIntegTestCase`, mostly because this is how most tests used
-to work in the early days of Elasticsearch. However the complexity of these
-tests tends to make them hard to debug. Whenever the functionality that is
-being tested isn't intimately dependent on how Elasticsearch behaves as a
-cluster, it is recommended to write unit tests or REST tests instead.
-
 In short, most new functionality should come with unit tests, and optionally
 REST tests to test integration.
+
+[cols="1,2,2,4"]
+|===
+|Test |Base class |Gradle Task |When to write it
+
+|Unit
+|`ESTestCase`
+|`test`
+|Write a unit test when you can construct the class and check the behavior directly. This is the default, and the preference for new functionality. Unit tests are simpler to understand, easier to reproduce, and a change elsewhere in the system is less likely to break them
+
+|Single node
+|`ESSingleNodeTestCase`
+|`internalClusterTest`
+|The reason why `ESSingleNodeTestCase` exists is that all our components used to be very hard to set up in isolation, which had led us to having a number of integration tests but close to no unit tests. `ESSingleNodeTestCase` is a workaround for this issue which provides an easy way to spin up a node and get access to components that are hard to instantiate like `IndicesService`. Whenever practical, you should prefer unit tests. These tests are lighter than a multi-node cluster
+
+|Internal cluster
+|`ESIntegTestCase`
+|`internalClusterTest`
+|Write an internal cluster test when the behavior depends on several nodes working together, or when the assertion needs state that the REST API does not expose. Many older tests use this style because that is how early Elasticsearch tests were written, and they are hard to debug. Whenever the functionality that is being tested isn't intimately dependent on how Elasticsearch behaves as a cluster, it is recommended to write unit tests or REST tests instead.
+
+|Java REST
+|`ESRestTestCase`
+|`javaRestTest`
+|Write a Java REST test when the behavior is visible over HTTP and the scenario needs something the YAML tests cannot express, such as several node roles, a second cluster, or a restart. The server runs in its own process, which is closer to a production setup than an internal cluster. Add this test alongside the unit test when the public API is part of the behavior and the YAML language cannot describe the scenario.
+
+|YAML REST
+|`ESClientYamlSuiteTestCase`
+|`yamlRestTest`
+|Write a YAML REST test for public API behavior that produces a stable response. These files are shared with the official clients, so prefer this form whenever the YAML language can describe the scenario. Add this test alongside the unit test when the public API is part of the behavior.
+|===
 
 ==== Refactor code to make it easier to test
 

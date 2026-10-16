@@ -133,7 +133,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * the child node, so this holds however the plan around the view (or atop it, see {@link #nullFillViewBoundaries})
      * is rewritten.
      */
-    private static boolean isViewBody(LogicalPlan parent, int childIndex) {
+    static boolean isViewBody(LogicalPlan parent, int childIndex) {
         return parent instanceof BranchPlan branchPlan && branchPlan.isViewBranch(childIndex);
     }
 

@@ -9,68 +9,87 @@
 
 package org.elasticsearch.search.profile.rescore;
 
+import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RescoreProfilerTests extends ESTestCase {
 
     public void testBuildResult() {
         int windowSize = randomIntBetween(1, 100);
-        int docsBefore = randomIntBetween(0, 100);
-        int docsAfter = randomIntBetween(0, docsBefore);
-        RescoreProfiler profiler = new RescoreProfiler("query", windowSize);
-        profiler.setDocsBeforeRescore(docsBefore);
-        profiler.setDocsAfterRescore(docsAfter);
+        RescoreProfiler profiler = new RescoreProfiler("query", "f:a", windowSize);
         Timer timer = profiler.startRescoreTimer();
         timer.stop();
 
         ProfileResult result = profiler.buildResult();
 
         assertThat(result.getQueryName(), equalTo("query"));
-        assertThat(result.getLuceneDescription(), equalTo("rescore top documents"));
+        assertThat(result.getLuceneDescription(), equalTo("f:a"));
         assertThat(result.getTime(), greaterThanOrEqualTo(0L));
-        assertThat(result.getTimeBreakdown().get("rescore_count"), equalTo(1L));
-        assertThat(result.getDebugInfo().keySet(), equalTo(Set.of("window_size", "docs_before_rescore", "docs_after_rescore")));
-        assertThat(result.getDebugInfo().get("window_size"), equalTo(windowSize));
-        assertThat(result.getDebugInfo().get("docs_before_rescore"), equalTo(docsBefore));
-        assertThat(result.getDebugInfo().get("docs_after_rescore"), equalTo(docsAfter));
+        assertThat(result.getTimeBreakdown(), equalTo(Map.of()));
+        assertThat(result.getDebugInfo(), equalTo(Map.of("window_size", windowSize)));
         assertThat(result.getProfiledChildren(), empty());
     }
 
-    public void testRescorerDebugInfo() {
-        RescoreProfiler profiler = new RescoreProfiler("learning_to_rank", 10);
-        profiler.addDebugInfo("inference_time_in_nanos", 42L);
-        profiler.addDebugInfo("feature_time_in_nanos", Map.of("feature", 7L));
+    /**
+     * A rescorer can report its own steps in the breakdown, timed while the rescorer itself is timed, and add to the debug section.
+     */
+    public void testRescorerBreakdownAndDebugInfo() {
+        RescoreProfiler profiler = new RescoreProfiler("learning_to_rank", "model [my-model]", 10);
+        StepsBreakdown breakdown = new StepsBreakdown();
+        profiler.setBreakdown(breakdown);
+        profiler.addDebugInfo("model_cached", true);
+        Timer rescoreTimer = profiler.startRescoreTimer();
+        Timer stepTimer = breakdown.getNewTimer(Step.STEP);
+        int steps = randomIntBetween(1, 5);
+        for (int i = 0; i < steps; i++) {
+            stepTimer.start();
+            stepTimer.stop();
+        }
+        rescoreTimer.stop();
 
         ProfileResult result = profiler.buildResult();
 
-        assertThat(result.getDebugInfo().get("inference_time_in_nanos"), equalTo(42L));
-        assertThat(result.getDebugInfo().get("feature_time_in_nanos"), equalTo(Map.of("feature", 7L)));
-        assertThat(result.getDebugInfo().get("window_size"), equalTo(10));
+        assertThat(result.getTimeBreakdown().keySet(), equalTo(Set.of("step", "step_count")));
+        assertThat(result.getTimeBreakdown().get("step_count"), equalTo((long) steps));
+        assertThat(result.getTimeBreakdown().get("step"), lessThanOrEqualTo(result.getTime()));
+        assertThat(result.getDebugInfo(), equalTo(Map.of("window_size", 10, "model_cached", true)));
     }
 
     public void testBuildResultTimedOut() {
-        int docsBefore = randomIntBetween(0, 100);
-        RescoreProfiler profiler = new RescoreProfiler("query", randomIntBetween(1, 100));
-        profiler.setDocsBeforeRescore(docsBefore);
+        int windowSize = randomIntBetween(1, 100);
+        RescoreProfiler profiler = new RescoreProfiler("query", "f:a", windowSize);
         Timer timer = profiler.startRescoreTimer();
         profiler.setTimedOut();
         timer.stop();
 
         ProfileResult result = profiler.buildResult();
 
-        assertThat(result.getDebugInfo().get("docs_before_rescore"), equalTo(docsBefore));
-        assertThat(result.getDebugInfo().get("timed_out"), equalTo(true));
-        assertThat(result.getDebugInfo(), not(hasKey("docs_after_rescore")));
+        assertThat(result.getDebugInfo(), equalTo(Map.of("window_size", windowSize, "timed_out", true)));
+    }
+
+    private enum Step {
+        STEP;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    private static class StepsBreakdown extends AbstractProfileBreakdown<Step> {
+        StepsBreakdown() {
+            super(Step.class);
+        }
     }
 }

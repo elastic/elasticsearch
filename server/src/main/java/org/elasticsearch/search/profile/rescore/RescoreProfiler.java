@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.profile.rescore;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Timer;
@@ -22,25 +23,29 @@ import java.util.Map;
  * Profiles a single rescorer. There is one instance per
  * {@link org.elasticsearch.search.rescore.RescoreContext} of a search request.
  * <p>
- * Queries executed by the rescorer are still recorded by the profiler of the main query. Rescorers that do work the query profiler
- * can't see, such as running a model, can report it with {@link #addDebugInfo}.
+ * Queries executed by the rescorer are still recorded by the profiler of the main query, and tagged with the position of the rescorer.
+ * Rescorers that do work the query profiler can't see, such as running a model, can report the time of each step in a breakdown of
+ * their own with {@link #setBreakdown}, and other details with {@link #addDebugInfo}.
  */
-public final class RescoreProfiler extends AbstractProfileBreakdown<RescoreTimingType> {
+public final class RescoreProfiler {
 
     private final String type;
+    private final String description;
     private final int windowSize;
+    private final Timer timer = new Timer();
     private final Map<String, Object> rescorerDebugInfo = new HashMap<>();
-    private int docsBeforeRescore;
-    private int docsAfterRescore;
+    @Nullable
+    private AbstractProfileBreakdown<?> breakdown;
     private boolean timedOut;
 
     /**
-     * @param type       name of the rescorer, for example {@code query}
-     * @param windowSize the window size the rescorer was configured with
+     * @param type        name of the rescorer, for example {@code query}
+     * @param description description of what the rescorer runs, for example its query
+     * @param windowSize  the window size the rescorer was configured with
      */
-    public RescoreProfiler(String type, int windowSize) {
-        super(RescoreTimingType.class);
+    public RescoreProfiler(String type, String description, int windowSize) {
         this.type = type;
+        this.description = description;
         this.windowSize = windowSize;
     }
 
@@ -48,23 +53,8 @@ public final class RescoreProfiler extends AbstractProfileBreakdown<RescoreTimin
      * Start timing the rescorer. The caller is responsible for stopping the returned timer.
      */
     public Timer startRescoreTimer() {
-        Timer timer = getNewTimer(RescoreTimingType.RESCORE);
         timer.start();
         return timer;
-    }
-
-    /**
-     * Record the number of top docs handed to the rescorer.
-     */
-    public void setDocsBeforeRescore(int docsBeforeRescore) {
-        this.docsBeforeRescore = docsBeforeRescore;
-    }
-
-    /**
-     * Record the number of top docs returned by the rescorer.
-     */
-    public void setDocsAfterRescore(int docsAfterRescore) {
-        this.docsAfterRescore = docsAfterRescore;
     }
 
     /**
@@ -75,28 +65,32 @@ public final class RescoreProfiler extends AbstractProfileBreakdown<RescoreTimin
     }
 
     /**
-     * Add rescorer specific information to the {@code debug} section of this rescorer's profile, for example the time spent in each
-     * step of the rescorer. Values must be serializable with
+     * Report the steps of the rescorer in the {@code breakdown} section of its profile. The steps should run while the rescorer is
+     * timed, so that their times are part of the rescorer's time. Rescorers that don't set a breakdown report an empty one.
+     */
+    public void setBreakdown(AbstractProfileBreakdown<?> breakdown) {
+        this.breakdown = breakdown;
+    }
+
+    /**
+     * Add rescorer specific information to the {@code debug} section of this rescorer's profile. Values must be serializable with
      * {@link org.elasticsearch.common.io.stream.StreamOutput#writeGenericValue}.
      */
     public void addDebugInfo(String key, Object value) {
         rescorerDebugInfo.put(key, value);
     }
 
-    @Override
-    protected Map<String, Object> toDebugMap() {
+    Map<String, Object> toDebugMap() {
         Map<String, Object> debug = new HashMap<>(rescorerDebugInfo);
         debug.put("window_size", windowSize);
-        debug.put("docs_before_rescore", docsBeforeRescore);
         if (timedOut) {
             debug.put("timed_out", true);
-        } else {
-            debug.put("docs_after_rescore", docsAfterRescore);
         }
         return Collections.unmodifiableMap(debug);
     }
 
     public ProfileResult buildResult() {
-        return new ProfileResult(type, "rescore top documents", toBreakdownMap(), toDebugMap(), toNodeTime(), List.of());
+        Map<String, Long> breakdownMap = breakdown == null ? Map.of() : breakdown.toBreakdownMap();
+        return new ProfileResult(type, description, breakdownMap, toDebugMap(), timer.getApproximateTiming(), List.of());
     }
 }

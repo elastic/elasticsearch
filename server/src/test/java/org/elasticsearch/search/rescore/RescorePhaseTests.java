@@ -51,12 +51,11 @@ import org.elasticsearch.test.TestSearchContext;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
 
 public class RescorePhaseTests extends IndexShardTestCase {
 
@@ -146,7 +145,7 @@ public class RescorePhaseTests extends IndexShardTestCase {
 
     /**
      * Each rescorer gets its own node in the rescore profile, in execution order. The queries the rescorers run stay in the profile of
-     * the main query, after the main query itself.
+     * the main query, after the main query itself, each tagged once with the position of the rescorer that ran it.
      */
     public void testProfileRescorers() throws IOException {
         try (Directory dir = newDirectory()) {
@@ -167,11 +166,14 @@ public class RescorePhaseTests extends IndexShardTestCase {
                         mainQueries.stream().map(ProfileResult::getLuceneDescription).toList(),
                         equalTo(List.of("f:a", "f:c", "f:b"))
                     );
+                    assertThat(mainQueries.get(0).getDebugInfo(), equalTo(Map.of()));
+                    assertThat(mainQueries.get(1).getDebugInfo(), equalTo(Map.of("rescorer", 0)));
+                    assertThat(mainQueries.get(2).getDebugInfo(), equalTo(Map.of("rescorer", 1)));
 
                     List<ProfileResult> rescoreResults = result.getRescoreProfileResults();
                     assertThat(rescoreResults, hasSize(2));
-                    assertRescoreResult(rescoreResults.get(0), 1);
-                    assertRescoreResult(rescoreResults.get(1), 2);
+                    assertRescoreResult(rescoreResults.get(0), "f:c", 1);
+                    assertRescoreResult(rescoreResults.get(1), "f:b", 2);
                 }
             }
         }
@@ -270,26 +272,25 @@ public class RescorePhaseTests extends IndexShardTestCase {
                     SearchProfileQueryPhaseResult result = profilers.buildQueryPhaseResults();
                     List<ProfileResult> mainQueries = result.getQueryProfileResults().get(0).getQueryResults();
                     assertThat(mainQueries.stream().map(ProfileResult::getLuceneDescription).toList(), equalTo(List.of("f:a", "f:c")));
+                    assertThat(mainQueries.get(1).getDebugInfo(), equalTo(Map.of("rescorer", 0)));
 
                     List<ProfileResult> rescoreResults = result.getRescoreProfileResults();
                     assertThat(rescoreResults, hasSize(1));
                     ProfileResult rescoreResult = rescoreResults.get(0);
                     assertThat(rescoreResult.getQueryName(), equalTo(timingOutRescorer.getClass().getName()));
-                    assertThat(rescoreResult.getDebugInfo().get("timed_out"), equalTo(true));
-                    assertThat(rescoreResult.getDebugInfo(), not(hasKey("docs_after_rescore")));
+                    assertThat(rescoreResult.getLuceneDescription(), equalTo("rescore top documents"));
+                    assertThat(rescoreResult.getDebugInfo(), equalTo(Map.of("window_size", 10, "timed_out", true)));
                     assertThat(rescoreResult.getProfiledChildren(), empty());
                 }
             }
         }
     }
 
-    private static void assertRescoreResult(ProfileResult rescoreResult, int windowSize) {
+    private static void assertRescoreResult(ProfileResult rescoreResult, String description, int windowSize) {
         assertThat(rescoreResult.getQueryName(), equalTo("query"));
-        assertThat(rescoreResult.getLuceneDescription(), equalTo("rescore top documents"));
-        assertThat(rescoreResult.getTimeBreakdown().get("rescore_count"), equalTo(1L));
-        assertThat(rescoreResult.getDebugInfo().get("window_size"), equalTo(windowSize));
-        assertThat(rescoreResult.getDebugInfo().get("docs_before_rescore"), equalTo(2));
-        assertThat(rescoreResult.getDebugInfo().get("docs_after_rescore"), equalTo(2));
+        assertThat(rescoreResult.getLuceneDescription(), equalTo(description));
+        assertThat(rescoreResult.getTimeBreakdown(), equalTo(Map.of()));
+        assertThat(rescoreResult.getDebugInfo(), equalTo(Map.of("window_size", windowSize)));
         assertThat(rescoreResult.getProfiledChildren(), empty());
     }
 

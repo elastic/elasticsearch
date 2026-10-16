@@ -53,6 +53,14 @@ public class RescoreContext {
     }
 
     /**
+     * Describes what this rescorer runs, to tell rescorers apart in search profile results. Rescorers should override this with
+     * something more specific, like the query or model they run.
+     */
+    public String profileDescription() {
+        return "rescore top documents";
+    }
+
+    /**
      * The profiler of this rescorer, which rescorers can use to report details of their own execution. It is {@code null} unless the
      * search request is profiled and the rescorer is running.
      */

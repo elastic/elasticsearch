@@ -22,6 +22,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.Timer;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.profile.rescore.RescoreProfiler;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.sort.ShardDocSortField;
@@ -67,9 +68,10 @@ public class RescorePhase {
         }
         try {
             Runnable cancellationCheck = getCancellationChecks(context);
-            for (RescoreContext ctx : context.rescore()) {
+            for (int i = 0; i < context.rescore().size(); i++) {
+                RescoreContext ctx = context.rescore().get(i);
                 ctx.setCancellationChecker(cancellationCheck);
-                topDocs = rescore(context, ctx, topDocs);
+                topDocs = rescore(context, ctx, i, topDocs);
                 // It is the responsibility of the rescorer to sort the resulted top docs,
                 // here we only assert that this condition is met.
                 assert topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
@@ -101,27 +103,28 @@ public class RescorePhase {
 
     /**
      * Runs a single rescorer. When profiling, the rescorer is timed and can report details of its execution through
-     * {@link RescoreContext#profiler()}. Queries run by the rescorer are still recorded by the profiler of the main query.
+     * {@link RescoreContext#profiler()}. Queries run by the rescorer are still recorded by the profiler of the main query, tagged
+     * with the position of the rescorer.
      */
-    private static TopDocs rescore(SearchContext context, RescoreContext ctx, TopDocs topDocs) throws IOException {
+    private static TopDocs rescore(SearchContext context, RescoreContext ctx, int position, TopDocs topDocs) throws IOException {
         Profilers profilers = context.getProfilers();
         if (profilers == null) {
             return ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
         }
         String type = ctx.name() != null ? ctx.name() : ctx.rescorer().getClass().getName();
-        RescoreProfiler rescoreProfiler = profilers.addRescoreProfiler(type, ctx.getWindowSize());
-        rescoreProfiler.setDocsBeforeRescore(topDocs.scoreDocs.length);
+        RescoreProfiler rescoreProfiler = profilers.addRescoreProfiler(type, ctx.profileDescription(), ctx.getWindowSize());
+        QueryProfiler queryProfiler = profilers.getCurrentQueryProfiler();
         ctx.setProfiler(rescoreProfiler);
+        queryProfiler.setRescorer(position);
         Timer timer = rescoreProfiler.startRescoreTimer();
         try {
-            TopDocs rescored = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
-            rescoreProfiler.setDocsAfterRescore(rescored.scoreDocs.length);
-            return rescored;
+            return ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
         } catch (ContextIndexSearcher.TimeExceededException e) {
             rescoreProfiler.setTimedOut();
             throw e;
         } finally {
             timer.stop();
+            queryProfiler.setRescorer(null);
             ctx.setProfiler(null);
         }
     }

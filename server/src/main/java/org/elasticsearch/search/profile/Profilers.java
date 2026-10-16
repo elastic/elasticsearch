@@ -59,8 +59,8 @@ public final class Profilers {
     /**
      * Build a profiler for a rescorer. Rescorers run sequentially, so profilers are reported in the order they were added.
      */
-    public RescoreProfiler addRescoreProfiler(String type, int windowSize) {
-        RescoreProfiler rescoreProfiler = new RescoreProfiler(type, windowSize);
+    public RescoreProfiler addRescoreProfiler(String type, String description, int windowSize) {
+        RescoreProfiler rescoreProfiler = new RescoreProfiler(type, description, windowSize);
         rescoreProfilers.add(rescoreProfiler);
         return rescoreProfiler;
     }

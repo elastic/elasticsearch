@@ -187,6 +187,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.StatementParserTests
   method: testInvalidFromPatterns
   issue: https://github.com/elastic/elasticsearch/issues/162271
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testDenseVectorImplicitCasting
+  issue: https://github.com/elastic/elasticsearch/issues/162273
 
 # Examples:
 #

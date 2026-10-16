@@ -1475,8 +1475,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Renames an explicit {@code BY WITHOUT(...)} grouping from its parser-given sourceText name to its final output
-         * name, {@code _timeseries}, the moment the aggregate is visited. The Finish-Analysis lowering
+         * Renames an unaliased {@code BY WITHOUT(...)} grouping from its parser-given sourceText name to its final output
+         * name, {@code _timeseries}, the moment the aggregate resolves. The Finish-Analysis lowering
          * ({@code TranslateTimeSeriesWithout}) replaces the grouping with a {@code _timeseries}-named metadata attribute
          * under the <em>same name id</em>; renaming here means that replacement no longer changes any output name after
          * resolution. That matters because resolution-time consumers capture output names: {@link #resolveMergePlan}
@@ -1484,13 +1484,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * would silently change names once the optimizer's project-combining normalizes attribute instances by id,
          * failing the post-optimization merge consistency check. It also makes {@code FROM idx, (TS ... BY WITHOUT(...))}
          * surface the column as {@code _timeseries} — the same name a lone TS query (and the WITHOUT docs) show.
+         * <p>
+         * Two groupings are left alone. A user alias ({@code BY dims = WITHOUT(...)}) keeps its name, so downstream
+         * commands can refer to it; the lowering preserves the alias over the lowered attribute. An unresolved grouping
+         * (e.g. {@code WITHOUT(unmapped)} under {@code unmapped_fields="nullify"}) is not renamed yet: the parser exports
+         * it into the aggregates as an attribute <em>by name</em>, and only once the grouping resolves does
+         * {@link #maybeResolveAggregates} bind that export to the grouping's id. Renaming earlier would orphan the export,
+         * which {@code ResolveUnmapped} would then nullify as an input field.
          */
         private static Map<NameId, Alias> timeSeriesWithoutRenames(List<Expression> groupings) {
             Map<NameId, Alias> renames = new HashMap<>();
             for (Expression grouping : groupings) {
                 if (grouping instanceof Alias a
+                    && a.resolved()
                     && a.child() instanceof TimeSeriesWithout
-                    && a.name().equals(MetadataAttribute.TIMESERIES) == false) {
+                    && a.name().equals(a.child().sourceText())) {
                     renames.put(a.id(), new Alias(a.source(), MetadataAttribute.TIMESERIES, a.child(), a.id(), a.synthetic()));
                 }
             }

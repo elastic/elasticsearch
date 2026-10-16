@@ -501,9 +501,6 @@ tests:
 - class: org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValuesGenericWriteableTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/162108
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
-  method: testClientInitializer
-  issue: https://github.com/elastic/elasticsearch/issues/162143
 - class: org.elasticsearch.search.heappressure.ColumnarKeywordWildcardHeapPressureIT
   method: testPausedHeavyCaseInsensitiveWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/162159
@@ -531,3 +528,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
   method: testMultilineFieldsTrueReadsPlainPrefixThenQuotedMultilineCsv
   issue: https://github.com/elastic/elasticsearch/issues/162221
+- class: org.elasticsearch.columnar.PayloadColumnMergeTests
+  method: testMergeCarriesRepeatsOverWithoutComparing
+  issue: https://github.com/elastic/elasticsearch/issues/162235
+- class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=2 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
+  issue: https://github.com/elastic/elasticsearch/issues/162240
+- class: org.elasticsearch.search.heappressure.FuzzyHighlightHeapPressureIT
+  issue: https://github.com/elastic/elasticsearch/issues/149983
+- class: org.elasticsearch.xpack.esql.datasource.s3.S3StorageObjectAsyncTests
+  issue: https://github.com/elastic/elasticsearch/issues/162263
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
+  issue: https://github.com/elastic/elasticsearch/issues/162277
+- class: org.elasticsearch.columnar.StringColumnMergeTests
+  method: testSegmentsOfOneFieldInBothFramingsMergeIntoEitherFraming
+  issue: https://github.com/elastic/elasticsearch/issues/162245
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/162282

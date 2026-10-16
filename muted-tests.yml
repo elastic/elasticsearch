@@ -258,6 +258,9 @@ tests:
 - class: org.elasticsearch.upgrades.BinaryKeywordCollapseFullClusterRestartIT
   method: testCollapseOnBinaryKeyword {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/162279
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=profiling/10_basic/Test topN functions from test-events}
+  issue: https://github.com/elastic/elasticsearch/issues/162284
 
 # Examples:
 #

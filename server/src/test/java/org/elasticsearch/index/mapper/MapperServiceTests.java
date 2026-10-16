@@ -174,6 +174,43 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertFalse(mapperService.mappingLookup().isSingleValueGuaranteed("override"));
     }
 
+    /**
+     * The single-value guarantee assumes no {@code copy_to} can feed a field with {@code multi_value=false}. That holds because the
+     * {@code doc_values} object form is only accepted in strict columnar index modes, and those modes reject {@code copy_to}. If either
+     * rule changes, {@code copy_to} targets must be excluded from {@link MappingLookup#isSingleValueGuaranteed} or enforced at parse time.
+     */
+    public void testSingleValueGuaranteeExcludesCopyTo() {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(columnar, mapping(b -> {
+            b.startObject("src").field("type", "keyword").field("copy_to", "target").endObject();
+            b.startObject("target").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
+        })));
+        assertThat(e.getMessage(), containsString("[copy_to] is not allowed on field [src]"));
+
+        e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("target").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
+        })));
+        assertThat(e.getMessage(), containsString("unsupported doc_values configuration for field [target] in non-columnar index"));
+    }
+
+    /**
+     * A multi-field reads its own {@code doc_values} parameters, so a single-valued parent does not make its sub-field single-valued.
+     */
+    public void testSingleValueGuaranteeOfMultiField() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(columnar, mapping(b -> {
+            b.startObject("parent").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject();
+            b.startObject("fields");
+            b.startObject("plain").field("type", "keyword").endObject();
+            b.startObject("single").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
+            b.endObject().endObject();
+        }));
+        MappingLookup lookup = mapperService.mappingLookup();
+        assertTrue(lookup.isSingleValueGuaranteed("parent"));
+        assertFalse(lookup.isSingleValueGuaranteed("parent.plain"));
+        assertTrue(lookup.isSingleValueGuaranteed("parent.single"));
+    }
+
     public void testMappingLookupAutoFlattenedPassthroughStatus() throws IOException {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();

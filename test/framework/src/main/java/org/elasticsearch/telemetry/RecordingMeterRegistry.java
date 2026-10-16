@@ -64,6 +64,10 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return instrument;
     }
 
+    protected DoubleUpDownCounter buildDoubleUpDownCounter(String name, String description, String unit) {
+        return new RecordingInstruments.RecordingDoubleUpDownCounter(name, recorder);
+    }
+
     @Override
     public DoubleAsyncUpDownCounter registerDoubleAsyncUpDownCounter(
         String name,
@@ -71,11 +75,9 @@ public class RecordingMeterRegistry implements MeterRegistry {
         String unit,
         Consumer<DoubleAsyncMeasurement> callback
     ) {
-        return new RecordingInstruments.RecordingDoubleAsyncUpDownCounter(name, recorder, callback);
-    }
-
-    protected DoubleUpDownCounter buildDoubleUpDownCounter(String name, String description, String unit) {
-        return new RecordingInstruments.RecordingDoubleUpDownCounter(name, recorder);
+        var instrument = new RecordingInstruments.RecordingDoubleAsyncUpDownCounter(name, recorder, callback);
+        recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
+        return instrument;
     }
 
     @Override
@@ -155,6 +157,10 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return instrument;
     }
 
+    protected LongUpDownCounter buildLongUpDownCounter(String name, String description, String unit) {
+        return new RecordingInstruments.RecordingLongUpDownCounter(name, recorder);
+    }
+
     @Override
     public LongAsyncUpDownCounter registerLongAsyncUpDownCounter(
         String name,
@@ -162,7 +168,9 @@ public class RecordingMeterRegistry implements MeterRegistry {
         String unit,
         Consumer<LongAsyncMeasurement> callback
     ) {
-        return new RecordingInstruments.RecordingLongAsyncUpDownCounter(name, recorder, callback);
+        var instrument = new RecordingInstruments.RecordingLongAsyncUpDownCounter(name, recorder, callback);
+        recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
+        return instrument;
     }
 
     @Override
@@ -170,10 +178,6 @@ public class RecordingMeterRegistry implements MeterRegistry {
         LongGauge instrument = new RecordingInstruments.RecordingLongGauge(name, recorder);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
-    }
-
-    protected LongUpDownCounter buildLongUpDownCounter(String name, String description, String unit) {
-        return new RecordingInstruments.RecordingLongUpDownCounter(name, recorder);
     }
 
     @Override

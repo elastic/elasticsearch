@@ -79,12 +79,12 @@ public class DoubleAsyncUpDownCounterAdapterTests extends ESTestCase {
         assertThat(metrics.get(0).getDouble(), equalTo(-3.0));
     }
 
-    public void testZeroValuesAreNotRecorded() {
+    public void testZeroValuesAreRecorded() {
         var counter = registry.registerDoubleAsyncUpDownCounter("es.test.name.total", "desc", "unit", () -> 0.0);
 
         otelMeter.collectMetrics();
 
-        assertThat(otelMeter.getRecorder().getMeasurements(counter), hasSize(0));
+        assertThat(otelMeter.getRecorder().getMeasurements(counter), hasSize(1));
     }
 
     public void testWithInvalidAttribute() {

@@ -45,7 +45,7 @@ class LongAsyncUpDownCounterAdapter extends AbstractAsyncInstrument<ObservableLo
                 .upDownCounterBuilder(name)
                 .setDescription(description)
                 .setUnit(unit)
-                .buildWithCallback(OtelHelper.longCounterMeasurementCallback(name, callback));
+                .buildWithCallback(OtelHelper.longMeasurementCallback(name, callback));
         }
     }
 }

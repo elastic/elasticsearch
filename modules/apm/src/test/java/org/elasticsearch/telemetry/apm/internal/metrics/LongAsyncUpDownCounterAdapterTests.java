@@ -79,12 +79,12 @@ public class LongAsyncUpDownCounterAdapterTests extends ESTestCase {
         assertThat(metrics.get(0).getLong(), equalTo(-3L));
     }
 
-    public void testZeroValuesAreNotRecorded() {
+    public void testZeroValuesAreRecorded() {
         var counter = registry.registerLongAsyncUpDownCounter("es.test.name.total", "desc", "unit", () -> 0L);
 
         otelMeter.collectMetrics();
 
-        assertThat(otelMeter.getRecorder().getMeasurements(counter), hasSize(0));
+        assertThat(otelMeter.getRecorder().getMeasurements(counter), hasSize(1));
     }
 
     public void testWithInvalidAttribute() {

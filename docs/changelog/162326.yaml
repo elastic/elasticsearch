@@ -1,0 +1,11 @@
+area: Infra/Metrics
+deprecation:
+  area: Infra/Metrics
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  title: Deprecate APM Agent settings
+issues: []
+pr: 162326
+summary: Deprecate APM Agent settings
+type: deprecation

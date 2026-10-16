@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_v2 ]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2 ]
       reason: >
         copy_to targets and multi-fields are the two mapping features that create a queryable field name
         which NEVER appears in _source. LOAD_ALL reads only _source, so such a name is unrecoverable for any

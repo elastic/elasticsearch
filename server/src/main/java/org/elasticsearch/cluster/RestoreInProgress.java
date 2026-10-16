@@ -115,10 +115,11 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         State state,
         boolean quiet,
         List<String> indices,
-        Map<ShardId, ShardRestoreStatus> shards
+        Map<ShardId, ShardRestoreStatus> shards,
+        boolean reportShardRestoring
     ) {
         /**
-         * Creates new restore metadata
+         * Creates new restore metadata that does not report restoring shards as {@code ShardRestoringException}
          *
          * @param uuid     uuid of the restore
          * @param snapshot snapshot
@@ -136,6 +137,34 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             List<String> indices,
             Map<ShardId, ShardRestoreStatus> shards
         ) {
+            this(uuid, snapshot, state, quiet, indices, shards, /* reportShardRestoring = */ false);
+        }
+
+        /**
+         * Creates new restore metadata
+         *
+         * @param uuid                 uuid of the restore
+         * @param snapshot             snapshot
+         * @param state                current state of the restore process
+         * @param quiet                {@code true} if logging of the start and completion of the snapshot restore should be at
+         *                             {@code DEBUG} log level, else it should be at {@code INFO} log level
+         * @param indices              list of indices being restored
+         * @param shards               map of shards being restored to their current restore status
+         * @param reportShardRestoring {@code true} if requests that hit a shard of this restore should fail with a
+         *                             {@code ShardRestoringException} rather than the generic shard-unavailable errors. Chosen explicitly
+         *                             by the caller that starts the restore. It is not part of the wire format yet, so it is only
+         *                             visible on the node that created the entry.
+         */
+        public Entry(
+            String uuid,
+            Snapshot snapshot,
+            State state,
+            boolean quiet,
+            List<String> indices,
+            Map<ShardId, ShardRestoreStatus> shards,
+            boolean reportShardRestoring
+        ) {
+            this.reportShardRestoring = reportShardRestoring;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.state = Objects.requireNonNull(state);
             this.quiet = Objects.requireNonNull(quiet);
@@ -285,6 +314,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             boolean quiet;
             quiet = in.readBoolean();
             List<String> indices = in.readCollectionAsImmutableList(StreamInput::readString);
+            // reportShardRestoring is not part of the wire format yet, so an entry read from the wire never reports shard restoring
             entriesBuilder.put(
                 uuid,
                 new Entry(uuid, snapshot, state, quiet, indices, in.readImmutableMap(ShardId::new, ShardRestoreStatus::readFrom))

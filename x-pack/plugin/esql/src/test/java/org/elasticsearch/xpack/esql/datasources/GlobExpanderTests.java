@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
@@ -1342,6 +1343,46 @@ public class GlobExpanderTests extends ESTestCase {
         );
     }
 
+    public void testListingCacheDiscriminatorReflectsFolderRangePredicate() {
+        String pattern = "s3://bucket/logs/" + "**/*.parquet";
+        PartitionSpec spec = PartitionSpec.parse("year(@timestamp), month(@timestamp), day(@timestamp)");
+        Instant morning = Instant.parse("2026-10-14T01:00:00Z");
+        Instant afternoon = Instant.parse("2026-10-14T18:00:00Z");
+        Instant nextDay = Instant.parse("2026-10-15T01:00:00Z");
+        FolderRangePredicate sameDayA = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, morning))
+        );
+        FolderRangePredicate sameDayB = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, afternoon))
+        );
+        FolderRangePredicate next = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, nextDay))
+        );
+        assertNotNull(sameDayA);
+        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON);
+        String a = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, sameDayA);
+        String b = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, sameDayB);
+        String c = GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, next);
+        assertNotEquals("one-sided must not share the unfiltered listing", unhinted, a);
+        assertEquals("same UTC day shares identity", a, b);
+        assertNotEquals("next UTC day differs", a, c);
+
+        Instant jan1 = Instant.parse("2024-01-01T00:00:00Z");
+        Instant jun15 = Instant.parse("2024-06-15T00:00:00Z");
+        Instant dec31 = Instant.parse("2024-12-31T00:00:00Z");
+        FolderRangePredicate ends = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.IN, jan1, dec31))
+        );
+        FolderRangePredicate withMid = spec.folderRangePredicate(
+            List.of(hint("@timestamp", PartitionFilterHintExtractor.Operator.IN, jan1, jun15, dec31))
+        );
+        assertNotEquals(
+            "IN lists that share a hull must not share a listing cache entry",
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, ends),
+            GlobExpander.listingCacheDiscriminator(pattern, null, HIVE_ON, withMid)
+        );
+    }
+
     /**
      * A non-integral equality leaves {@code price=*} in place and drops folders afterwards. {@code price=*} is
      * walk-eligible, so that hint and a one-sided range each join the cache key. Sharing either with the unfiltered
@@ -1752,6 +1793,23 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(2, result.fileCount());
         assertEquals("s3://bucket/a.parquet", result.path(0).toString());
         assertEquals("s3://bucket/b.parquet", result.path(1).toString());
+    }
+
+    /**
+     * An object found by an existence probe, and so never read, is listed under the version the probe saw. A provider that
+     * reports a version only from a read would list every probed file unversioned, and its footer would never be cached.
+     */
+    public void testEnumeratedGlobEntriesCarryTheProbedVersion() throws IOException {
+        StubProvider provider = new StubProvider(List.of());
+        provider.existingPaths.add("s3://bucket/a.parquet");
+        provider.existingPaths.add("s3://bucket/b.parquet");
+        provider.probedVersions.put("s3://bucket/a.parquet", "etag-a");
+        provider.probedVersions.put("s3://bucket/b.parquet", "etag-b");
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}.parquet", provider, null, HIVE_ON);
+        assertEquals(2, result.fileCount());
+        assertEquals("etag-a", result.version(0));
+        assertEquals("etag-b", result.version(1));
     }
 
     public void testExpandGlobBraceOnlyMissingFileSkipped() throws IOException {
@@ -3100,6 +3158,8 @@ public class GlobExpanderTests extends ESTestCase {
 
         private final List<StorageEntry> listing;
         private final List<String> existingPaths = new ArrayList<>();
+        /** The version each path's existence probe reports, by path string. Absent paths report none. */
+        private final Map<String, String> probedVersions = new HashMap<>();
 
         StubProvider(List<StorageEntry> listing) {
             this.listing = listing;
@@ -3107,7 +3167,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         @Override
         public StorageObject newObject(StoragePath path) {
-            return new StubStorageObject(path, 0, existingPaths.contains(path.toString()));
+            return new StubStorageObject(path, 0, existingPaths.contains(path.toString()), probedVersions.get(path.toString()));
         }
 
         @Override
@@ -3161,11 +3221,23 @@ public class GlobExpanderTests extends ESTestCase {
         private final StoragePath path;
         private final long length;
         private final boolean exists;
+        private final String probedVersion;
 
         StubStorageObject(StoragePath path, long length, boolean exists) {
+            this(path, length, exists, null);
+        }
+
+        StubStorageObject(StoragePath path, long length, boolean exists, String probedVersion) {
             this.path = path;
             this.length = length;
             this.exists = exists;
+            this.probedVersion = probedVersion;
+        }
+
+        /** No pin is ever set here, so this is the only version the stub reports: the one its probe saw. */
+        @Override
+        public String probedVersion() {
+            return probedVersion;
         }
 
         @Override

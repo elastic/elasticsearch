@@ -703,7 +703,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testFetchMvLongs() throws IOException {
         int fields = 100;
         initMvLongsIndex(100, fields, 1000, false);
-        Map<?, ?> response = fetchMvLongs();
+        Map<?, ?> response = fetchMvLongs(100);
         ListMatcher columns = matchesList();
         for (int f = 0; f < fields; f++) {
             columns = columns.item(matchesMap().entry("name", String.format(Locale.ROOT, "f%02d", f)).entry("type", "long"));
@@ -712,13 +712,14 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchTooManyMvLongs() throws IOException {
-        initMvLongsIndex(500, 100, 1000, false);
-        assertCircuitBreaks(attempt -> fetchMvLongs());
+        int docs = scaleToHeap(500);
+        initMvLongsIndex(docs, 100, 1000, false);
+        assertCircuitBreaks(attempt -> fetchMvLongs(docs));
     }
 
-    private Map<String, Object> fetchMvLongs() throws IOException {
+    private Map<String, Object> fetchMvLongs(int docs) throws IOException {
         StringBuilder query = startQuery();
-        query.append("FROM mv_longs\"}");
+        query.append("FROM mv_longs | LIMIT ").append(docs).append("\"}");
         return responseAsMap(query(query.toString(), "columns"));
     }
 
@@ -903,7 +904,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * generate a large of buckets. All the aforementioned participates in inflating the size of the grouping state.
      */
     public void testFirstAggWithManyLongs() throws IOException {
-        initMvLongsIndex(5000, 2, 3000, true);
+        initMvLongsIndex(scaleToHeap(5000), 2, 3000, true);
         assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("FIRST"));
     }
 
@@ -913,7 +914,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testLastAggWithManyLongs() throws IOException {
-        initMvLongsIndex(5000, 2, 3000, true);
+        initMvLongsIndex(scaleToHeap(5000), 2, 3000, true);
         assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("LAST"));
     }
 
@@ -923,7 +924,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testFirstAggWithGiantText() throws IOException {
-        initGiantTextField(50, true, 3);
+        initGiantTextField(scaleToHeap(50), true, 3);
         assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("FIRST"));
     }
 
@@ -933,7 +934,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testLastAggWithGiantText() throws IOException {
-        initGiantTextField(50, true, 3);
+        initGiantTextField(scaleToHeap(50), true, 3);
         assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("LAST"));
     }
 

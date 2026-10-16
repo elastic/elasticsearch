@@ -170,6 +170,9 @@ public class CsvColumnarIT extends CsvIT {
         "unmapped_multi_stored_mixed",
         "unmapped_array_data",
         "unmapped_object_data",
+        // Both are dynamic:false and are read for the fields their mapping does not declare, which strict columnar drops at ingest.
+        "flattened_paths_mapped",
+        "flattened_paths_unmapped",
         "synthetic_source_partial_mapping",
         // unmapped_source_* family: dynamic:false with only id mapped; everything else lives in
         // _source / _ignored_source, which strict columnar drops at ingest. unmapped_source_disabled

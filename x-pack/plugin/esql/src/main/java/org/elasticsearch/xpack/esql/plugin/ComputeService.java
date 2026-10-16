@@ -1936,7 +1936,8 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener
     ) {
         QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
-        var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings));
+        boolean flattenedKeys = context.configuration().flattenedKeys();
+        var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings, flattenedKeys));
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that

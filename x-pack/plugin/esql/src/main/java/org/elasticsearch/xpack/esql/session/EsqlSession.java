@@ -502,15 +502,17 @@ public class EsqlSession {
         // rewritten away into SemiJoin/AntiJoin/MarkJoin — during resolution. The WHERE counter is set by the analyzer/verifier plan
         // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
         // The weakest ViewBoundaryPreservation level that covers this request: a DSL filter needs view branches kept
-        // so the rewriter can apply it at view outputs; a non-DEFAULT unmapped_fields setting needs pass-through view
-        // identity kept too — a view must produce the same rows whatever the caller's query settings say (a
-        // materialized view would have baked its contents in), so ResolveUnmapped skips every view branch wholesale
-        // and null-fills outer references at the view's output instead.
+        // so the rewriter can apply it at view outputs; a setting that must stop at view boundaries needs pass-through
+        // view identity kept too — a view must produce the same rows whatever the caller's query settings say (a
+        // materialized view would have baked its contents in). For a non-DEFAULT unmapped_fields, ResolveUnmapped skips
+        // every view branch wholesale and null-fills outer references at the view's output instead; for
+        // wildcards_match_datasets, the dataset rewrite turns wildcard dataset matching off inside view branches.
         ViewBoundaryPreservation boundaryPreservation = ViewBoundaryPreservation.NONE;
         if (ViewRequestFilterRewriter.appliesToViewOutputs(request.filter())) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_BRANCHES;
         }
-        if (QuerySettings.UNMAPPED_FIELDS.get(resolved) != UnmappedResolution.DEFAULT) {
+        if (QuerySettings.UNMAPPED_FIELDS.get(resolved) != UnmappedResolution.DEFAULT
+            || QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved)) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_IDENTITY;
         }
         viewResolver.replaceViews(

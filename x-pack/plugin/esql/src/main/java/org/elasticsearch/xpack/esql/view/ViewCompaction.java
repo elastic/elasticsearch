@@ -12,7 +12,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
@@ -614,15 +613,8 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 }
             }
         }
-        // A merged relation serving caller-owned content must not claim view origin: per-relation settings scoping
-        // (DatasetRewriter.wildcardsMatchDatasetsFor) reads the Source view tag, and keeping a
-        // view-tagged source on a relation that now also carries the caller's own patterns would wrongly scope them.
-        // Prefer the untagged side's source wholesale rather than clearing the tag on the tagged one — a Source's
-        // positions are only meaningful within the query text its tag names, so mixing tag and positions would break
-        // source-text reconstruction on serialization.
-        Source mergedSource = main.source().viewName() != null && other.source().viewName() == null ? other.source() : main.source();
         return new UnresolvedRelation(
-            mergedSource,
+            main.source(),
             new IndexPattern(main.indexPattern().source(), main.indexPattern().indexPattern() + "," + other.indexPattern().indexPattern()),
             main.frozen(),
             main.metadataFields(),

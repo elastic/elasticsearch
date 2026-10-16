@@ -696,6 +696,29 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * A pass-through view next to an index in the same FROM: without a view boundary to keep them apart, the view's
+     * relation merges with the caller's, and the caller's SET then reached the view's wildcard through the merged relation.
+     */
+    public void testWildcardInPassThroughViewBodyBesideIndexDoesNotMatchDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createRealEmployees();
+        createView("emp_star_view", "FROM employees*");
+        // Default: only real_employees' 5 rows; the view's wildcard reaches no dataset.
+        try (var response = run(syncEsqlQueryRequest("FROM real_employees, emp_star_view | STATS c = COUNT(*)"))) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+        }
+        // The caller's SET stops at the view boundary, so still only real_employees' rows, not the datasets' 5 more.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM real_employees, emp_star_view | STATS c = COUNT(*)")
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(5L))));
+        }
+    }
+
     public void testWildcardMatchesDatasetsIgnoresMatchingView() {
         registerEmployees();
         registerEmployeesAlt();

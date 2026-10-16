@@ -89,7 +89,11 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
      */
     public void testDenseRangesInAnyOrder() throws IOException {
         int docCount = 40;
-        try (BaseDirectoryWrapper dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+        // Preserve insertion order because the expected matches depend on doc ID parity.
+        try (
+            BaseDirectoryWrapper dir = newDirectory();
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setMergePolicy(newLogMergePolicy()))
+        ) {
             for (int i = 0; i < docCount; i++) {
                 writer.addDocument(List.of(new KeywordField("g", i % 2 == 0 ? "even" : "odd", Field.Store.NO)));
             }

@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenUpdateAction;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingActions;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenUpdateRequest;
 
 import java.util.List;
@@ -38,6 +38,6 @@ public final class RestQuerySamplingGoldenUpdateAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         QuerySamplingGoldenUpdateRequest updateRequest = new QuerySamplingGoldenUpdateRequest(request.paramAsInt("max", DEFAULT_MAX));
-        return channel -> client.execute(QuerySamplingGoldenUpdateAction.INSTANCE, updateRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(QuerySamplingActions.GOLDEN_UPDATE, updateRequest, new RestToXContentListener<>(channel));
     }
 }

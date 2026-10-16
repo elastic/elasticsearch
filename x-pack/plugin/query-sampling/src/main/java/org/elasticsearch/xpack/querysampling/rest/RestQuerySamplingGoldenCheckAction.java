@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenCheckAction;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingActions;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenCheckRequest;
 
 import java.util.List;
@@ -41,6 +41,6 @@ public final class RestQuerySamplingGoldenCheckAction extends BaseRestHandler {
             request.paramAsLong("version", 0L),
             request.paramAsInt("max", DEFAULT_MAX)
         );
-        return channel -> client.execute(QuerySamplingGoldenCheckAction.INSTANCE, checkRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(QuerySamplingActions.GOLDEN_CHECK, checkRequest, new RestToXContentListener<>(channel));
     }
 }

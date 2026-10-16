@@ -38,15 +38,6 @@ public final class QuerySamplingRecallResponse extends ActionResponse implements
         this.samples = samples;
     }
 
-    public RecallEstimate estimate() {
-        return estimate;
-    }
-
-    @Nullable
-    public List<Sample> samples() {
-        return samples;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         TransportAction.localOnly();

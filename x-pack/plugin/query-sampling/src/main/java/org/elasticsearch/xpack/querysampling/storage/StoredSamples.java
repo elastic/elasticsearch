@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
@@ -20,8 +21,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
@@ -49,26 +52,37 @@ public final class StoredSamples {
         SearchRequest request = new SearchRequest(QuerySamplingIndex.NAME).source(
             new SearchSourceBuilder().query(query).sort(sortField, order).size(max)
         );
-        search.accept(request, ActionListener.wrap(response -> listener.onResponse(read(response)), e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                listener.onResponse(new Read(List.of(), 0));
-            } else {
-                listener.onFailure(e);
-            }
-        }));
+        read(search, request, source -> SampleRecord.parse(source, registry), listener);
     }
 
-    private Read read(SearchResponse response) {
-        List<StoredSample> samples = new ArrayList<>();
-        int unreadable = 0;
-        for (SearchHit hit : response.getHits().getHits()) {
-            try {
-                samples.add(SampleRecord.parse(hit.getSourceAsMap(), registry));
-            } catch (Exception e) {
-                unreadable++;
-                logger.debug("failed to read the sampled query [{}]", hit.getId(), e);
+    /** Shared with {@link GoldenReader}: a document that cannot be parsed is counted and skipped, a missing index reads as empty. */
+    static void read(
+        BiConsumer<SearchRequest, ActionListener<SearchResponse>> search,
+        SearchRequest request,
+        CheckedFunction<Map<String, Object>, StoredSample, IOException> parse,
+        ActionListener<Read> listener
+    ) {
+        search.accept(request, ActionListener.wrap(response -> {
+            List<StoredSample> samples = new ArrayList<>();
+            int unreadable = 0;
+            for (SearchHit hit : response.getHits().getHits()) {
+                try {
+                    samples.add(parse.apply(hit.getSourceAsMap()));
+                } catch (Exception e) {
+                    unreadable++;
+                    logger.debug("failed to read the stored query [{}]", hit.getId(), e);
+                }
             }
+            listener.onResponse(new Read(samples, unreadable));
+        }, e -> noIndexIs(new Read(List.of(), 0), e, listener)));
+    }
+
+    /** A missing index just means nothing was ever stored. */
+    static <T> void noIndexIs(T nothing, Exception e, ActionListener<T> listener) {
+        if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+            listener.onResponse(nothing);
+        } else {
+            listener.onFailure(e);
         }
-        return new Read(samples, unreadable);
     }
 }

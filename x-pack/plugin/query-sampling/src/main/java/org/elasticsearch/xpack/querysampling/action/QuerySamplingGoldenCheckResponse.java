@@ -25,10 +25,6 @@ public final class QuerySamplingGoldenCheckResponse extends ActionResponse imple
         this.result = result;
     }
 
-    public GoldenStaleness.Result result() {
-        return result;
-    }
-
     @Nullable
     private Long version() {
         return result.version() == 0 ? null : result.version();

@@ -66,7 +66,6 @@ public final class WeightsRefresher {
     private boolean inFlight;
 
     private final LongAdder refreshed = new LongAdder();
-    private final LongAdder failed = new LongAdder();
 
     /**
      * @param tracking tells whether the tracker still holds the query, that is whether its weights can still change
@@ -197,7 +196,6 @@ public final class WeightsRefresher {
                     written.computeIfPresent(fingerprint, (key, value) -> new Written(value.tracked(), sent));
                     continue;
                 }
-                failed.increment();
                 allSucceeded = false;
                 if (outcome == Outcome.GONE) {
                     written.remove(fingerprint);
@@ -230,10 +228,6 @@ public final class WeightsRefresher {
 
     public long refreshed() {
         return refreshed.sum();
-    }
-
-    public long failed() {
-        return failed.sum();
     }
 
     public synchronized int tracked() {

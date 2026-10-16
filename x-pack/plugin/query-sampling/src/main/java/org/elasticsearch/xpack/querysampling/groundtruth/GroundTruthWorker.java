@@ -108,22 +108,18 @@ public final class GroundTruthWorker {
     }
 
     private void finished(GroundTruthRunner.Result result) {
-        record(result);
-        synchronized (this) {
-            inFlight = false;
-        }
+        computed.add(result.computed());
+        failed.add(result.failed());
+        batchDone();
     }
 
     private void failed(Exception e) {
         logger.debug("failed to compute the ground truth of stored queries", e);
-        synchronized (this) {
-            inFlight = false;
-        }
+        batchDone();
     }
 
-    private void record(GroundTruthRunner.Result result) {
-        computed.add(result.computed());
-        failed.add(result.failed());
+    private synchronized void batchDone() {
+        inFlight = false;
     }
 
     // only exact searches update the cost estimate, the state probes are too small to say what the next batch costs

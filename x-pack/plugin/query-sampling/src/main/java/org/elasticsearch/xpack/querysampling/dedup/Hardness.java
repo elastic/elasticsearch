@@ -9,17 +9,7 @@ package org.elasticsearch.xpack.querysampling.dedup;
 
 /** How hard a query is to answer, in thirds of the queries of its field. */
 public enum Hardness {
-    EASY(-1),
-    MEDIUM(0),
-    HARD(1);
-
-    private final int rank;
-
-    Hardness(int rank) {
-        this.rank = rank;
-    }
-
-    public int rank() {
-        return rank;
-    }
+    EASY,
+    MEDIUM,
+    HARD
 }

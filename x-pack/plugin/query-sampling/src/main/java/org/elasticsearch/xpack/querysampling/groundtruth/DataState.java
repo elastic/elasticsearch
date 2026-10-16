@@ -27,7 +27,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 /**
@@ -106,36 +105,14 @@ public record DataState(long documents, long digest) {
             listener.onFailure(new IllegalStateException("found more than [" + MAX_SHARDS + "] shards in an index"));
             return;
         }
-        ActionListener<SearchResponse> done = new ActionListener<>() {
-            // a search function may complete the listener and then still throw, only the first outcome counts
-            private final AtomicBoolean completed = new AtomicBoolean();
-
-            @Override
-            public void onResponse(SearchResponse response) {
-                boolean more;
-                try {
-                    more = add(response, shard, states);
-                } catch (Exception e) {
-                    onFailure(e);
-                    return;
-                }
-                if (completed.compareAndSet(false, true) == false) {
-                    return;
-                }
-                if (more) {
-                    read(search, query, shard + 1, states, listener);
-                } else {
-                    listener.onResponse(of(states));
-                }
+        // a search function may complete the listener and then still throw, only the first outcome counts
+        ActionListener<SearchResponse> done = ActionListener.notifyOnce(ActionListener.wrap(response -> {
+            if (add(response, shard, states)) {
+                read(search, query, shard + 1, states, listener);
+            } else {
+                listener.onResponse(of(states));
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (completed.compareAndSet(false, true)) {
-                    listener.onFailure(e);
-                }
-            }
-        };
+        }, listener::onFailure));
         try {
             search.accept(probe(query, shard), done);
         } catch (Exception e) {

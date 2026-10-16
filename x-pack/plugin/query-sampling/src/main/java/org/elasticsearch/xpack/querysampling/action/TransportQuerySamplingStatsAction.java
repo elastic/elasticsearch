@@ -42,7 +42,7 @@ public final class TransportQuerySamplingStatsAction extends TransportNodesActio
         QuerySamplingService querySamplingService
     ) {
         super(
-            QuerySamplingStatsAction.NAME,
+            QuerySamplingActions.STATS.name(),
             clusterService,
             transportService,
             actionFilters,
@@ -73,7 +73,7 @@ public final class TransportQuerySamplingStatsAction extends TransportNodesActio
 
     @Override
     protected QuerySamplingNodeStatsResponse nodeOperation(NodeRequest request, Task task) {
-        return new QuerySamplingNodeStatsResponse(clusterService.localNode(), querySamplingService.stats());
+        return new QuerySamplingNodeStatsResponse(clusterService.localNode(), querySamplingService.stats().get());
     }
 
     static final class NodeRequest extends AbstractTransportRequest {

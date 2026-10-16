@@ -39,7 +39,12 @@ public final class TransportQuerySamplingGoldenCheckAction extends TransportActi
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(QuerySamplingGoldenCheckAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            QuerySamplingActions.GOLDEN_CHECK.name(),
+            actionFilters,
+            transportService.getTaskManager(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         OriginSettingClient pluginClient = new OriginSettingClient(client, QUERY_SAMPLING_ORIGIN);
         this.staleness = new GoldenStaleness(new GoldenReader(pluginClient::search, xContentRegistry), client::search);
     }

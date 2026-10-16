@@ -41,7 +41,6 @@ public final class SampleRetention {
     private final TimeValue retention;
 
     private final LongAdder deleted = new LongAdder();
-    private final LongAdder failed = new LongAdder();
 
     public SampleRetention(
         BiConsumer<DeleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse>> deleteByQuery,
@@ -79,26 +78,19 @@ public final class SampleRetention {
             deleteByQuery.accept(request, ActionListener.wrap(response -> {
                 deleted.add(response.getDeleted());
                 if (response.getBulkFailures().isEmpty() == false || response.getSearchFailures().isEmpty() == false) {
-                    failed.increment();
                     logger.debug("some expired sampled queries could not be deleted");
                 }
             }, e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException == false) { // nothing was ever sampled
-                    failed.increment();
                     logger.debug("failed to delete the expired sampled queries", e);
                 }
             }));
         } catch (Exception e) {
-            failed.increment();
             logger.debug("failed to delete the expired sampled queries", e);
         }
     }
 
     public long deleted() {
         return deleted.sum();
-    }
-
-    public long failed() {
-        return failed.sum();
     }
 }

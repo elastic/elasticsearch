@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
@@ -36,8 +35,6 @@ public final class GoldenPromotionJob {
     private final BiConsumer<Integer, ActionListener<GoldenUpdater.Result>> grow;
     private final BooleanSupplier electedMaster;
     private final AtomicBoolean running = new AtomicBoolean();
-    private final LongAdder promotions = new LongAdder();
-    private final LongAdder failed = new LongAdder();
     private volatile int limit = 1;
 
     public GoldenPromotionJob(BiConsumer<Integer, ActionListener<GoldenUpdater.Result>> grow, BooleanSupplier electedMaster) {
@@ -60,7 +57,6 @@ public final class GoldenPromotionJob {
         }
         ActionListener<GoldenUpdater.Result> done = ActionListener.runAfter(ActionListener.wrap(result -> {
             if (result.version() > 0) {
-                promotions.increment();
                 logger.info(
                     "made version [{}] of the golden dataset from [{}] with [{}] new queries, [{}] left out",
                     result.version(),
@@ -69,22 +65,11 @@ public final class GoldenPromotionJob {
                     result.dropped()
                 );
             }
-        }, e -> {
-            failed.increment();
-            logger.debug("failed to grow the golden dataset", e);
-        }), () -> running.set(false));
+        }, e -> { logger.debug("failed to grow the golden dataset", e); }), () -> running.set(false));
         try {
             grow.accept(limit, done);
         } catch (Exception e) {
             done.onFailure(e);
         }
-    }
-
-    public long promotions() {
-        return promotions.sum();
-    }
-
-    public long failed() {
-        return failed.sum();
     }
 }

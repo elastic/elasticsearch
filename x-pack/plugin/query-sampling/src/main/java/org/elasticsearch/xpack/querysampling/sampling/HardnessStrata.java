@@ -95,7 +95,8 @@ public final class HardnessStrata {
         if (hardness == null || tilt == 0.0) {
             return 1.0;
         }
-        return 3.0 * Math.exp(tilt * hardness.rank()) / (Math.exp(-tilt) + 1.0 + Math.exp(tilt));
+        // easy, medium, hard sit at -1, 0, 1
+        return 3.0 * Math.exp(tilt * (hardness.ordinal() - 1)) / (Math.exp(-tilt) + 1.0 + Math.exp(tilt));
     }
 
     private static final class Moments {

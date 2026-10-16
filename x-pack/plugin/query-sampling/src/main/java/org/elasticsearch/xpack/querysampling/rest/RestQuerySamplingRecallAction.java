@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingRecallAction;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingActions;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingRecallRequest;
 
 import java.util.List;
@@ -39,6 +39,6 @@ public final class RestQuerySamplingRecallAction extends BaseRestHandler {
             request.paramAsInt("max", QuerySamplingRecallRequest.MAX_SAMPLES),
             request.paramAsBoolean("include_samples", false)
         );
-        return channel -> client.execute(QuerySamplingRecallAction.INSTANCE, recallRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(QuerySamplingActions.RECALL, recallRequest, new RestToXContentListener<>(channel));
     }
 }

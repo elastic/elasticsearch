@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.querysampling.groundtruth.ExactSearch;
 import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -62,28 +61,14 @@ public final class GroundTruthRunner {
             return;
         }
         T query = queries.get(index);
-        ActionListener<GroundTruth> computedListener = new ActionListener<>() {
-            // a search function may complete the listener and then still throw, only the first outcome counts
-            private final AtomicBoolean completed = new AtomicBoolean();
-
-            @Override
-            public void onResponse(GroundTruth groundTruth) {
-                if (completed.compareAndSet(false, true) == false) {
-                    return;
-                }
-                store.accept(query, groundTruth);
-                next(queries, queryOf, store, index + 1, computed + 1, failed, listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (completed.compareAndSet(false, true) == false) {
-                    return;
-                }
-                logger.debug("failed to compute the ground truth of a sampled kNN search", e);
-                next(queries, queryOf, store, index + 1, computed, failed + 1, listener);
-            }
-        };
+        // a search function may complete the listener and then still throw, only the first outcome counts
+        ActionListener<GroundTruth> computedListener = ActionListener.notifyOnce(ActionListener.wrap(groundTruth -> {
+            store.accept(query, groundTruth);
+            next(queries, queryOf, store, index + 1, computed + 1, failed, listener);
+        }, e -> {
+            logger.debug("failed to compute the ground truth of a sampled kNN search", e);
+            next(queries, queryOf, store, index + 1, computed, failed + 1, listener);
+        }));
         try {
             compute(queryOf.apply(query), computedListener);
         } catch (Exception e) {
@@ -109,31 +94,13 @@ public final class GroundTruthRunner {
     }
 
     private void scan(CapturedQuery query, @Nullable DataState state, ActionListener<GroundTruth> listener) {
-        ActionListener<SearchResponse> exactSearchListener = new ActionListener<>() {
-            // a search function may complete the listener and then still throw, only the first outcome counts
-            private final AtomicBoolean completed = new AtomicBoolean();
-
-            @Override
-            public void onResponse(SearchResponse response) {
-                GroundTruth groundTruth;
-                try {
-                    groundTruth = ExactSearch.parse(response);
-                } catch (Exception e) {
-                    onFailure(e);
-                    return;
-                }
-                if (completed.compareAndSet(false, true)) {
-                    listener.onResponse(new GroundTruth(groundTruth.neighbors(), state));
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (completed.compareAndSet(false, true)) {
-                    listener.onFailure(e);
-                }
-            }
-        };
+        // a search function may complete the listener and then still throw, only the first outcome counts
+        ActionListener<SearchResponse> exactSearchListener = ActionListener.notifyOnce(
+            ActionListener.wrap(
+                response -> listener.onResponse(new GroundTruth(ExactSearch.parse(response).neighbors(), state)),
+                listener::onFailure
+            )
+        );
         try {
             search.accept(ExactSearch.request(query), exactSearchListener);
         } catch (Exception e) {

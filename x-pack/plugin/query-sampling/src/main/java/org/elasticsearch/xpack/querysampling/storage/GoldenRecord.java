@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -40,25 +39,20 @@ public final class GoldenRecord {
         builder.field("dataset_version", version);
         builder.field("promoted_at", nowMillis);
         builder.field("source_picked_at", sample.pickedAt());
-        builder.field("sampler_id", sample.samplerId());
-        builder.field("fingerprint", sample.fingerprint());
-        builder.array("indices", query.indices());
-        builder.field("field", query.field());
-        builder.field("k", query.k());
-        SampleRecord.weights(builder, sample.weights());
-        if (sample.stratum() != null) {
-            builder.field("spatial_space", sample.stratum().space());
-            builder.field("spatial_cluster", sample.stratum().cluster());
-        }
-        if (sample.hardness() != null) {
-            builder.field("hardness", sample.hardness().name().toLowerCase(Locale.ROOT));
-        }
-        if (sample.selectivity() != null) {
-            builder.field("selectivity", sample.selectivity().name().toLowerCase(Locale.ROOT));
-        }
+        SampleRecord.identity(
+            builder,
+            sample.samplerId(),
+            sample.fingerprint(),
+            null,
+            query,
+            sample.weights(),
+            sample.stratum(),
+            sample.hardness(),
+            sample.selectivity()
+        );
         SampleRecord.query(builder, query);
         SampleRecord.liveHits(builder, sample.search());
-        SampleRecord.groundTruthObject(builder, sample.groundTruth());
+        SampleRecord.groundTruth(builder, sample.groundTruth());
         return builder.endObject();
     }
 

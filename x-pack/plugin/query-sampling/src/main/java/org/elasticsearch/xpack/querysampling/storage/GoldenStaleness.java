@@ -53,13 +53,13 @@ public final class GoldenStaleness {
     }
 
     private void read(long version, int max, ActionListener<Result> listener) {
-        reader.read(version, max, ActionListener.wrap(read -> classify(read.records(), ActionListener.wrap(statuses -> {
+        reader.read(version, max, ActionListener.wrap(read -> classify(read.samples(), ActionListener.wrap(statuses -> {
             int[] counts = new int[Status.values().length];
             statuses.forEach(status -> counts[status.ordinal()]++);
             listener.onResponse(
                 new Result(
                     version,
-                    read.records().size() + read.unreadable(),
+                    read.samples().size() + read.unreadable(),
                     counts[Status.FRESH.ordinal()],
                     counts[Status.STALE.ordinal()],
                     counts[Status.UNKNOWN.ordinal()],

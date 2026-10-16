@@ -25,14 +25,6 @@ public final class QuerySamplingGroundTruthResponse extends ActionResponse imple
         this.failed = failed;
     }
 
-    public int computed() {
-        return computed;
-    }
-
-    public int failed() {
-        return failed;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         TransportAction.localOnly();

@@ -40,7 +40,7 @@ public final class TransportQuerySamplingRecallAction extends TransportAction<Qu
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(QuerySamplingRecallAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(QuerySamplingActions.RECALL.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.storedSamples = new StoredSamples(new OriginSettingClient(client, QUERY_SAMPLING_ORIGIN)::search, xContentRegistry);
     }
 

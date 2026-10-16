@@ -184,7 +184,6 @@ public class CaptureTests extends ESTestCase {
                 handoff.accept(captureHandoffCaptured());
             }
 
-            assertThat(handoff.handedOff(), equalTo(3L));
             assertThat(handoff.dropped(), equalTo((long) overflow));
 
             release.countDown();

@@ -22,6 +22,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -31,6 +32,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
@@ -43,7 +45,9 @@ import org.elasticsearch.xpack.querysampling.groundtruth.GroundTruth;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -261,12 +265,20 @@ public class GoldenTests extends ESTestCase {
             new CapturedSearch(query, List.of(), 1, 1.0),
             new MultiplicityTracker(10).record(fingerprint)
         );
-        sampled.attach(GroundTruth.KEY, new GroundTruth(List.of(new CapturedSearch.Hit("idx", "goldenUpdaterStored" + n, 1f))));
+        // a picked query gets its ground truth as an update, so the stored document is the two put together
+        XContentBuilder picked = SampleRecord.document(JsonXContent.contentBuilder(), samplerId, sampled, pickedAt);
+        Map<String, Object> source = new HashMap<>(toMap(picked));
+        GroundTruth groundTruth = new GroundTruth(List.of(new CapturedSearch.Hit("idx", "goldenUpdaterStored" + n, 1f)), null);
+        source.putAll(toMap(SampleRecord.groundTruthUpdate(JsonXContent.contentBuilder(), groundTruth, pickedAt)));
         SearchHit hit = SearchHit.unpooled((int) n, SampleRecord.documentId(samplerId, fingerprint));
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            hit.sourceRef(BytesReference.bytes(SampleRecord.document(builder, samplerId, sampled, pickedAt)));
+            hit.sourceRef(BytesReference.bytes(builder.map(source)));
         }
         return hit;
+    }
+
+    private static Map<String, Object> toMap(XContentBuilder builder) {
+        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
     }
 
     private static void respond(ActionListener<SearchResponse> listener, List<SearchHit> hits) {

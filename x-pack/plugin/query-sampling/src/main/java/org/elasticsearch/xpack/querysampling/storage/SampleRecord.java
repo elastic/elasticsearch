@@ -47,63 +47,72 @@ public final class SampleRecord {
 
     /** The sampler is part of the id so that two samplers that picked the same query do not overwrite each other's weights. */
     public static String documentId(String samplerId, QueryFingerprint fingerprint) {
-        return documentId(samplerId, fingerprint.hex());
+        return documentId(samplerId, fingerprint.hex(), null);
     }
 
-    static String documentId(String samplerId, String fingerprintHex) {
-        return samplerId + "_" + fingerprintHex;
-    }
-
-    public static String documentId(String samplerId, QueryFingerprint fingerprint, @Nullable String eventId) {
-        return eventId == null ? documentId(samplerId, fingerprint) : documentId(samplerId, fingerprint) + "_" + eventId;
-    }
-
-    static String documentId(String samplerId, String fingerprintHex, @Nullable String eventId) {
-        return eventId == null ? documentId(samplerId, fingerprintHex) : documentId(samplerId, fingerprintHex) + "_" + eventId;
+    public static String documentId(String samplerId, String fingerprintHex, @Nullable String eventId) {
+        String id = samplerId + "_" + fingerprintHex;
+        return eventId == null ? id : id + "_" + eventId;
     }
 
     public static XContentBuilder document(XContentBuilder builder, String samplerId, SampledQuery sampled, long nowMillis)
         throws IOException {
         CapturedSearch search = sampled.search();
         CapturedQuery query = search.query();
-        GroundTruth groundTruth = sampled.attachment(GroundTruth.KEY);
+        TrackedQuery tracked = sampled.tracked();
 
         builder.startObject();
+        identity(
+            builder,
+            samplerId,
+            sampled.fingerprint().hex(),
+            sampled.eventId(),
+            query,
+            tracked.weights(),
+            tracked.stratum(),
+            tracked.hardness(),
+            tracked.selectivity()
+        );
+        builder.field("picked_at", nowMillis);
+        builder.field("updated_at", nowMillis);
+        builder.field("has_ground_truth", false); // the ground truth is computed later and written as an update
+
+        query(builder, query);
+        liveHits(builder, search);
+        return builder.endObject();
+    }
+
+    /** The fields that a sampled query and its golden copy have in common, up to its hardness and selectivity. */
+    static void identity(
+        XContentBuilder builder,
+        String samplerId,
+        String fingerprint,
+        @Nullable String eventId,
+        CapturedQuery query,
+        TrackedQuery.Weights weights,
+        @Nullable Stratum stratum,
+        @Nullable Hardness hardness,
+        @Nullable Selectivity selectivity
+    ) throws IOException {
         builder.field("sampler_id", samplerId);
-        builder.field("fingerprint", sampled.fingerprint().hex());
-        if (sampled.eventId() != null) {
-            builder.field("event_id", sampled.eventId());
+        builder.field("fingerprint", fingerprint);
+        if (eventId != null) {
+            builder.field("event_id", eventId);
         }
         builder.array("indices", query.indices());
         builder.field("field", query.field());
         builder.field("k", query.k());
-        weights(builder, sampled.tracked().weights());
-        Stratum stratum = sampled.tracked().stratum();
+        weights(builder, weights);
         if (stratum != null) {
             builder.field("spatial_space", stratum.space());
             builder.field("spatial_cluster", stratum.cluster());
         }
-        Hardness hardness = sampled.tracked().hardness();
         if (hardness != null) {
             builder.field("hardness", hardness.name().toLowerCase(Locale.ROOT));
         }
-        Selectivity selectivity = sampled.tracked().selectivity();
         if (selectivity != null) {
             builder.field("selectivity", selectivity.name().toLowerCase(Locale.ROOT));
         }
-        builder.field("picked_at", nowMillis);
-        builder.field("updated_at", nowMillis);
-        builder.field("has_ground_truth", groundTruth != null);
-
-        query(builder, query);
-        liveHits(builder, search);
-
-        if (groundTruth != null) {
-            builder.startObject("ground_truth");
-            groundTruth(builder, groundTruth);
-            builder.endObject();
-        }
-        return builder.endObject();
     }
 
     static void query(XContentBuilder builder, CapturedQuery query) throws IOException {
@@ -134,12 +143,6 @@ public final class SampleRecord {
         builder.endObject();
     }
 
-    static void groundTruthObject(XContentBuilder builder, GroundTruth groundTruth) throws IOException {
-        builder.startObject("ground_truth");
-        groundTruth(builder, groundTruth);
-        builder.endObject();
-    }
-
     public static XContentBuilder weightsUpdate(XContentBuilder builder, TrackedQuery.Weights weights, long nowMillis) throws IOException {
         builder.startObject();
         weights(builder, weights);
@@ -149,9 +152,7 @@ public final class SampleRecord {
 
     public static XContentBuilder groundTruthUpdate(XContentBuilder builder, GroundTruth groundTruth, long nowMillis) throws IOException {
         builder.startObject();
-        builder.startObject("ground_truth");
         groundTruth(builder, groundTruth);
-        builder.endObject();
         builder.field("has_ground_truth", true);
         builder.field("updated_at", nowMillis);
         return builder.endObject();
@@ -276,7 +277,8 @@ public final class SampleRecord {
         builder.field("capture_rate", weights.captureRate());
     }
 
-    private static void groundTruth(XContentBuilder builder, GroundTruth groundTruth) throws IOException {
+    static void groundTruth(XContentBuilder builder, GroundTruth groundTruth) throws IOException {
+        builder.startObject("ground_truth");
         hits(builder, "neighbors", groundTruth.neighbors());
         if (groundTruth.dataState() != null) {
             builder.startObject("data_state");
@@ -284,6 +286,7 @@ public final class SampleRecord {
             builder.field("digest", groundTruth.dataState().digest());
             builder.endObject();
         }
+        builder.endObject();
     }
 
     private static void hits(XContentBuilder builder, String name, Iterable<CapturedSearch.Hit> hits) throws IOException {

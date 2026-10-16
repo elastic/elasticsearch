@@ -28,11 +28,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenCheckAction;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingGoldenUpdateAction;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingGroundTruthAction;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingRecallAction;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingStatsAction;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingActions;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGoldenCheckAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGoldenUpdateAction;
 import org.elasticsearch.xpack.querysampling.action.TransportQuerySamplingGroundTruthAction;
@@ -178,7 +174,7 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
         eventSlice.watch(clusterSettings);
         SelectivityStrata selectivity = new SelectivityStrata(client::search, services.threadPool()::relativeTimeInMillis);
         selectivity.watch(clusterSettings);
-        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(writer), budget, eventSlice, selectivity);
+        SamplingPipeline pipeline = new SamplingPipeline(tracker, sampler, List.of(writer::onSampled), budget, eventSlice, selectivity);
         // runs as the plugin since no user asked for these searches
         GroundTruthWorker groundTruthWorker = new GroundTruthWorker(
             client::search,
@@ -200,18 +196,38 @@ public class QuerySamplingPlugin extends Plugin implements ActionPlugin, SystemI
             filter.startRateUpdates(services.threadPool(), services.threadPool().generic());
         }
         return List.of(
-            new QuerySamplingService(filter, handoff, tracker, pipeline, writer, refresher, retention, groundTruthWorker, budget)
+            new QuerySamplingService(
+                () -> new QuerySamplingStats(
+                    filter.knnSearches(),
+                    filter.captured(),
+                    handoff.dropped(),
+                    tracker.distinct(),
+                    tracker.untracked(),
+                    pipeline.picked(),
+                    writer.written(),
+                    writer.failed(),
+                    writer.dropped(),
+                    refresher.refreshed(),
+                    retention.deleted(),
+                    groundTruthWorker.computed(),
+                    groundTruthWorker.failed(),
+                    pipeline.starved(),
+                    filter.effectiveCaptureRate(),
+                    pipeline.acceptanceScale(),
+                    budget.credit()
+                )
+            )
         );
     }
 
     @Override
     public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler(QuerySamplingStatsAction.INSTANCE, TransportQuerySamplingStatsAction.class),
-            new ActionHandler(QuerySamplingGroundTruthAction.INSTANCE, TransportQuerySamplingGroundTruthAction.class),
-            new ActionHandler(QuerySamplingRecallAction.INSTANCE, TransportQuerySamplingRecallAction.class),
-            new ActionHandler(QuerySamplingGoldenUpdateAction.INSTANCE, TransportQuerySamplingGoldenUpdateAction.class),
-            new ActionHandler(QuerySamplingGoldenCheckAction.INSTANCE, TransportQuerySamplingGoldenCheckAction.class)
+            new ActionHandler(QuerySamplingActions.STATS, TransportQuerySamplingStatsAction.class),
+            new ActionHandler(QuerySamplingActions.GROUND_TRUTH, TransportQuerySamplingGroundTruthAction.class),
+            new ActionHandler(QuerySamplingActions.RECALL, TransportQuerySamplingRecallAction.class),
+            new ActionHandler(QuerySamplingActions.GOLDEN_UPDATE, TransportQuerySamplingGoldenUpdateAction.class),
+            new ActionHandler(QuerySamplingActions.GOLDEN_CHECK, TransportQuerySamplingGoldenCheckAction.class)
         );
     }
 

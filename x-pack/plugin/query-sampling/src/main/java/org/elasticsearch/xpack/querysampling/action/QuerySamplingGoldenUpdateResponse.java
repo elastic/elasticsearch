@@ -25,10 +25,6 @@ public final class QuerySamplingGoldenUpdateResponse extends ActionResponse impl
         this.result = result;
     }
 
-    public GoldenUpdater.Result result() {
-        return result;
-    }
-
     @Nullable
     private static Long orNull(long version) {
         return version == 0 ? null : version;

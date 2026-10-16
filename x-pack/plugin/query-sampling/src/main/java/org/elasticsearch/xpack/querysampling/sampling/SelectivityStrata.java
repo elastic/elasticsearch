@@ -52,8 +52,6 @@ public final class SelectivityStrata {
     private final AtomicInteger inFlight = new AtomicInteger();
     private final Map<String, Total> totals = new ConcurrentHashMap<>();
     private final LongAdder counted = new LongAdder();
-    private final LongAdder skipped = new LongAdder();
-    private final LongAdder failed = new LongAdder();
     private volatile boolean enabled;
 
     /**
@@ -63,10 +61,6 @@ public final class SelectivityStrata {
     public SelectivityStrata(BiConsumer<SearchRequest, ActionListener<SearchResponse>> search, LongSupplier clock) {
         this.search = search;
         this.clock = clock;
-    }
-
-    public static SelectivityStrata none() {
-        return new SelectivityStrata((request, listener) -> listener.onFailure(new UnsupportedOperationException()), () -> 0L);
     }
 
     public void watch(ClusterSettings clusterSettings) {
@@ -86,16 +80,12 @@ public final class SelectivityStrata {
         }
         if (inFlight.incrementAndGet() > MAX_IN_FLIGHT) {
             inFlight.decrementAndGet();
-            skipped.increment();
             return;
         }
         ActionListener<Double> done = ActionListener.runAfter(ActionListener.wrap(fraction -> {
             tracked.selectivity(Selectivity.of(fraction));
             counted.increment();
-        }, e -> {
-            failed.increment();
-            logger.debug("failed to count the vectors that the filters of a query leave", e);
-        }), inFlight::decrementAndGet);
+        }, e -> { logger.debug("failed to count the vectors that the filters of a query leave", e); }), inFlight::decrementAndGet);
         try {
             vectors(query, done.delegateFailureAndWrap((l, total) -> {
                 if (total == 0) {
@@ -140,14 +130,5 @@ public final class SelectivityStrata {
 
     public long counted() {
         return counted.sum();
-    }
-
-    /** Queries not counted because too many counts were in flight. */
-    public long skipped() {
-        return skipped.sum();
-    }
-
-    public long failed() {
-        return failed.sum();
     }
 }

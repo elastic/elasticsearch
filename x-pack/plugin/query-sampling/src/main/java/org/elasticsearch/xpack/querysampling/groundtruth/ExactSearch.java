@@ -19,7 +19,7 @@ import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.querysampling.capture.CapturedQuery;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -50,10 +50,9 @@ public final class ExactSearch {
      */
     public static GroundTruth parse(SearchResponse response) {
         SearchHit[] searchHits = response.getHits().getHits();
-        List<CapturedSearch.Hit> neighbors = new ArrayList<>(searchHits.length);
-        for (SearchHit hit : searchHits) {
-            neighbors.add(new CapturedSearch.Hit(hit.getIndex(), hit.getId(), hit.getScore()));
-        }
-        return new GroundTruth(List.copyOf(neighbors), null);
+        List<CapturedSearch.Hit> neighbors = Arrays.stream(searchHits)
+            .map(hit -> new CapturedSearch.Hit(hit.getIndex(), hit.getId(), hit.getScore()))
+            .toList();
+        return new GroundTruth(neighbors, null);
     }
 }

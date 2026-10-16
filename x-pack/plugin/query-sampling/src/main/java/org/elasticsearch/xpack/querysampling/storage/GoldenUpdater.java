@@ -89,9 +89,9 @@ public final class GoldenUpdater {
         int trimmed
     ) {}
 
-    private void refresh(long latest, GoldenReader.Read read, int limit, ActionListener<Result> listener) {
+    private void refresh(long latest, StoredSamples.Read read, int limit, ActionListener<Result> listener) {
         // the next version keeps the newest queries, so the older ones are not looked at or recomputed
-        List<StoredSample> all = read.records();
+        List<StoredSample> all = read.samples();
         List<StoredSample> records = new ArrayList<>(all);
         records.sort(Comparator.comparingLong(StoredSample::pickedAt).reversed());
         int trimmed = Math.max(0, records.size() - limit);

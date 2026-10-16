@@ -14,7 +14,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.xpack.querysampling.action.QuerySamplingStatsAction;
+import org.elasticsearch.xpack.querysampling.action.QuerySamplingActions;
 import org.elasticsearch.xpack.querysampling.action.QuerySamplingStatsRequest;
 
 import java.util.List;
@@ -38,10 +38,6 @@ public final class RestQuerySamplingStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("node_id"));
         QuerySamplingStatsRequest statsRequest = new QuerySamplingStatsRequest(nodesIds);
-        return channel -> client.execute(
-            QuerySamplingStatsAction.INSTANCE,
-            statsRequest,
-            new RestActions.NodesResponseRestListener<>(channel)
-        );
+        return channel -> client.execute(QuerySamplingActions.STATS, statsRequest, new RestActions.NodesResponseRestListener<>(channel));
     }
 }

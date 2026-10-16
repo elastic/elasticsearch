@@ -30,7 +30,7 @@ public class SamplerTests extends ESTestCase {
         AtomicLong clock = new AtomicLong();
         PickBudget limit = new PickBudget(clock::get);
         limit.perHour(60);
-        QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.0), limit);
+        QuerySampler sampler = new QuerySampler(1.0, 1000, alwaysDrawing(0.0), limit, new SpatialStrata(0));
         MultiplicityTracker tracker = new MultiplicityTracker(10);
 
         TrackedQuery first = tracker.record(new QueryFingerprint(1, 1));
@@ -49,7 +49,7 @@ public class SamplerTests extends ESTestCase {
     }
 
     public void testInclusionProbabilityMatchesHowOftenQueriesAreSampled() {
-        QuerySampler sampler = new QuerySampler(0.3, 1000, seededRandom());
+        QuerySampler sampler = new QuerySampler(0.3, 1000, seededRandom(), new PickBudget(System::nanoTime), new SpatialStrata(0));
         int arrivals = 6;
         int trials = 20_000;
         int sampled = 0;

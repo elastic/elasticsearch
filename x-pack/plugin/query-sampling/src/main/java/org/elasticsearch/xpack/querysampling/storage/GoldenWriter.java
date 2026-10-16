@@ -21,14 +21,10 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -72,7 +68,10 @@ public final class GoldenWriter {
 
     /** @param sourceVersion the version the queries come from, if any, kept in the manifest */
     public void write(List<StoredSample> queries, @Nullable Long sourceVersion, ActionListener<Written> listener) {
-        latestVersion(
+        // the latest version, completed or not
+        GoldenReader.latest(
+            search,
+            QueryBuilders.termQuery("kind", GoldenIndex.VERSION),
             ActionListener.wrap(
                 latest -> claim(
                     latest + 1,
@@ -83,25 +82,6 @@ public final class GoldenWriter {
                 listener::onFailure
             )
         );
-    }
-
-    // latest version, completed or not, 0 if none
-    private void latestVersion(ActionListener<Long> listener) {
-        SearchRequest request = new SearchRequest(GoldenIndex.NAME).source(
-            new SearchSourceBuilder().query(QueryBuilders.termQuery("kind", GoldenIndex.VERSION))
-                .sort("dataset_version", SortOrder.DESC)
-                .size(1)
-        );
-        search.accept(request, ActionListener.wrap(response -> {
-            SearchHit[] hits = response.getHits().getHits();
-            listener.onResponse(hits.length == 0 ? 0L : ((Number) hits[0].getSourceAsMap().get("dataset_version")).longValue());
-        }, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                listener.onResponse(0L);
-            } else {
-                listener.onFailure(e);
-            }
-        }));
     }
 
     // creating the manifest fails if the number exists, then the next one is tried

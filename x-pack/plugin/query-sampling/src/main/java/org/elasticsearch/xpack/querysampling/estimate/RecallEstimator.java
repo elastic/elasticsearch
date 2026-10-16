@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 
 /**
  * Estimates recall from sampled queries with known ground truth. The sample is not uniform, so each query is weighted by the
@@ -91,24 +92,13 @@ public final class RecallEstimator {
             double uniqueWeight = 1.0 / (weights.inclusionProbability() * weights.seenProbability());
             all.add(trafficWeight, uniqueWeight, recall.getAsDouble());
             // strata keep the weights the queries have among all queries
-            if (sample.hardness() != null) {
-                byHardness.computeIfAbsent(sample.hardness(), key -> new Estimates())
-                    .add(trafficWeight, uniqueWeight, recall.getAsDouble());
-            }
-            if (sample.selectivity() != null) {
-                bySelectivity.computeIfAbsent(sample.selectivity(), key -> new Estimates())
-                    .add(trafficWeight, uniqueWeight, recall.getAsDouble());
-            }
-            if (sample.stratum() != null) {
-                byCluster.computeIfAbsent(sample.stratum(), key -> new Estimates()).add(trafficWeight, uniqueWeight, recall.getAsDouble());
-            }
+            addTo(byHardness, sample.hardness(), trafficWeight, uniqueWeight, recall.getAsDouble());
+            addTo(bySelectivity, sample.selectivity(), trafficWeight, uniqueWeight, recall.getAsDouble());
+            addTo(byCluster, sample.stratum(), trafficWeight, uniqueWeight, recall.getAsDouble());
         }
-        List<RecallEstimate.GroupEstimate> hardnesses = new ArrayList<>();
-        byHardness.forEach((hardness, estimates) -> hardnesses.add(estimates.group(hardness.name().toLowerCase(Locale.ROOT))));
-        List<RecallEstimate.GroupEstimate> selectivities = new ArrayList<>();
-        bySelectivity.forEach((selectivity, estimates) -> selectivities.add(estimates.group(selectivity.name().toLowerCase(Locale.ROOT))));
-        List<RecallEstimate.GroupEstimate> clusters = new ArrayList<>();
-        byCluster.forEach((stratum, estimates) -> clusters.add(estimates.group(stratum.space() + "#" + stratum.cluster())));
+        List<RecallEstimate.GroupEstimate> hardnesses = groups(byHardness, hardness -> hardness.name().toLowerCase(Locale.ROOT));
+        List<RecallEstimate.GroupEstimate> selectivities = groups(bySelectivity, s -> s.name().toLowerCase(Locale.ROOT));
+        List<RecallEstimate.GroupEstimate> clusters = groups(byCluster, stratum -> stratum.space() + "#" + stratum.cluster());
         return new RecallEstimate(
             queryRecords,
             used,
@@ -121,6 +111,19 @@ public final class RecallEstimator {
             selectivities,
             new RecallEstimate.EventEstimate(eventRecords, eventsUsed, events.mean(), events.effectiveSize())
         );
+    }
+
+    /** Queries not assigned to a group of this kind (null key) are left out of it. */
+    private static <K> void addTo(Map<K, Estimates> groups, K key, double trafficWeight, double uniqueWeight, double recall) {
+        if (key != null) {
+            groups.computeIfAbsent(key, k -> new Estimates()).add(trafficWeight, uniqueWeight, recall);
+        }
+    }
+
+    private static <K> List<RecallEstimate.GroupEstimate> groups(Map<K, Estimates> groups, Function<K, String> label) {
+        List<RecallEstimate.GroupEstimate> estimates = new ArrayList<>();
+        groups.forEach((key, group) -> estimates.add(group.group(label.apply(key))));
+        return estimates;
     }
 
     private static final class Estimates {

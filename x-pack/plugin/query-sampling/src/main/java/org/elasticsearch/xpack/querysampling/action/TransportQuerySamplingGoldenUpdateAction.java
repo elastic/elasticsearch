@@ -44,7 +44,12 @@ public final class TransportQuerySamplingGoldenUpdateAction extends TransportAct
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(QuerySamplingGoldenUpdateAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            QuerySamplingActions.GOLDEN_UPDATE.name(),
+            actionFilters,
+            transportService.getTaskManager(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         OriginSettingClient pluginClient = new OriginSettingClient(client, QUERY_SAMPLING_ORIGIN);
         GoldenReader reader = new GoldenReader(pluginClient::search, xContentRegistry);
         this.updater = new GoldenUpdater(

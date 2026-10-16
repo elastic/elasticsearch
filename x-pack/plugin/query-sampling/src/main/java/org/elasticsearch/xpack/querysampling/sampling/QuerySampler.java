@@ -42,28 +42,9 @@ public final class QuerySampler {
      * @param scale         γ, the probability scale
      * @param headThreshold estimated multiplicity from which a query is always picked
      */
-    public QuerySampler(double scale, long headThreshold, Random random) {
-        this(scale, headThreshold, random, new PickBudget(System::nanoTime));
-    }
-
-    public QuerySampler(double scale, long headThreshold, Random random, PickBudget budget) {
-        this(scale, headThreshold, random, budget, new SpatialStrata(0));
-    }
-
     public QuerySampler(double scale, long headThreshold, Random random, PickBudget budget, SpatialStrata spatial) {
-        this(scale, headThreshold, random, budget, spatial, new HardnessStrata());
-    }
-
-    public QuerySampler(
-        double scale,
-        long headThreshold,
-        Random random,
-        PickBudget budget,
-        SpatialStrata spatial,
-        HardnessStrata hardness
-    ) {
         this.spatial = spatial;
-        this.hardness = hardness;
+        this.hardness = new HardnessStrata();
         this.scale = scale;
         this.headThreshold = headThreshold;
         this.random = random;
@@ -86,13 +67,9 @@ public final class QuerySampler {
         long[] last = { System.nanoTime() };
         return threadPool.scheduleWithFixedDelay(() -> {
             long now = System.nanoTime();
-            regulate((now - last[0]) / 1_000_000_000.0);
+            regulator.observe((now - last[0]) / 1_000_000_000.0);
             last[0] = now;
         }, TimeValue.timeValueSeconds(10), executor);
-    }
-
-    void regulate(double seconds) {
-        regulator.observe(seconds);
     }
 
     /** Arrivals given no chance to be picked because the pick limit was reached. */
@@ -102,21 +79,6 @@ public final class QuerySampler {
 
     public double effectiveScale() {
         return scale * regulator.adjustment();
-    }
-
-    double acceptanceProbability(long multiplicity) {
-        return acceptanceProbability(multiplicity, 1.0);
-    }
-
-    /**
-     * @param multiplicity estimated arrivals of the query including this one
-     * @param weight       how many of those this arrival stands for
-     */
-    double acceptanceProbability(double multiplicity, double weight) {
-        if (multiplicity >= headThreshold) {
-            return 1.0;
-        }
-        return Math.min(1.0, uncappedAcceptance(multiplicity, weight));
     }
 
     /**

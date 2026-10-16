@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.querysampling;
 
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
 import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
-import org.elasticsearch.xpack.querysampling.sampling.SampleListener;
 import org.elasticsearch.xpack.querysampling.sampling.SelectivityStrata;
 import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 
@@ -31,35 +31,16 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
 
     private final MultiplicityTracker tracker;
     private final QuerySampler sampler;
-    private final List<SampleListener> listeners;
+    private final List<Consumer<SampledQuery>> listeners;
     private final CostBudget budget;
     private final EventSlice events;
     private final SelectivityStrata selectivity;
     private final LongAdder picked = new LongAdder();
-    private final LongAdder eventsKept = new LongAdder();
-
-    public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<SampleListener> listeners) {
-        this(tracker, sampler, listeners, new CostBudget(0.0, 0.0));
-    }
-
-    public SamplingPipeline(MultiplicityTracker tracker, QuerySampler sampler, List<SampleListener> listeners, CostBudget budget) {
-        this(tracker, sampler, listeners, budget, new EventSlice(), SelectivityStrata.none());
-    }
 
     public SamplingPipeline(
         MultiplicityTracker tracker,
         QuerySampler sampler,
-        List<SampleListener> listeners,
-        CostBudget budget,
-        EventSlice events
-    ) {
-        this(tracker, sampler, listeners, budget, events, SelectivityStrata.none());
-    }
-
-    public SamplingPipeline(
-        MultiplicityTracker tracker,
-        QuerySampler sampler,
-        List<SampleListener> listeners,
+        List<Consumer<SampledQuery>> listeners,
         CostBudget budget,
         EventSlice events,
         SelectivityStrata selectivity
@@ -74,10 +55,6 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
 
     public long picked() {
         return picked.sum();
-    }
-
-    public long eventsKept() {
-        return eventsKept.sum();
     }
 
     public long starved() {
@@ -107,15 +84,16 @@ public final class SamplingPipeline implements Consumer<CapturedSearch> {
         // event selection is independent of tracking and picking
         double sliceRate = events.draw();
         if (sliceRate > 0) {
-            eventsKept.increment();
-            tell(SampledQuery.event(fingerprint, captured, TrackedQuery.event(captured.captureRate(), sliceRate), events.newId()));
+            TrackedQuery event = TrackedQuery.event(captured.captureRate(), sliceRate);
+            // events of the same query are distinct documents, so the id is random rather than derived from the query
+            tell(SampledQuery.event(fingerprint, captured, event, UUIDs.randomBase64UUID()));
         }
     }
 
     private void tell(SampledQuery sampled) {
-        for (SampleListener listener : listeners) {
+        for (Consumer<SampledQuery> listener : listeners) {
             try {
-                listener.onSampled(sampled);
+                listener.accept(sampled);
             } catch (Exception e) {
                 logger.debug("a sample listener failed", e);
             }

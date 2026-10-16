@@ -128,7 +128,7 @@ public class RecallEstimatorTests extends ESTestCase {
         double seenProbability
     ) {
         CapturedSearch search = new CapturedSearch(query(k), hits(live), 1, 1.0);
-        return stored(search, new GroundTruth(hits(truth)), multiplicity, inclusionProbability, seenProbability);
+        return stored(search, new GroundTruth(hits(truth), null), multiplicity, inclusionProbability, seenProbability);
     }
 
     private static StoredSample stored(

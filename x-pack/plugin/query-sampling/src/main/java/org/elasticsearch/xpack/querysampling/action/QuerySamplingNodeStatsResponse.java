@@ -31,10 +31,6 @@ public final class QuerySamplingNodeStatsResponse extends BaseNodeResponse imple
         this.stats = new QuerySamplingStats(in);
     }
 
-    public QuerySamplingStats getStats() {
-        return stats;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

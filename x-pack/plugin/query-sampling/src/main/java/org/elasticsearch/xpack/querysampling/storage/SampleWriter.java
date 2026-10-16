@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
 import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
-import org.elasticsearch.xpack.querysampling.sampling.SampleListener;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -36,7 +35,7 @@ import java.util.function.LongSupplier;
  * cannot keep up drops queries beyond {@code maxPending}, which is harmless as which ones are dropped does not
  * depend on the query.
  */
-public final class SampleWriter implements SampleListener {
+public final class SampleWriter {
 
     private static final Logger logger = LogManager.getLogger(SampleWriter.class);
 
@@ -85,7 +84,6 @@ public final class SampleWriter implements SampleListener {
         void written(QueryFingerprint fingerprint, TrackedQuery tracked, TrackedQuery.Weights weights);
     }
 
-    @Override
     public void onSampled(SampledQuery query) {
         synchronized (this) {
             if (pending.size() >= maxPending) {
@@ -145,10 +143,8 @@ public final class SampleWriter implements SampleListener {
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 // read before the document is built, so that if they change in between it shows as a change later
                 TrackedQuery.Weights written = query.tracked().weights();
-                request.add(
-                    new IndexRequest(QuerySamplingIndex.NAME).id(SampleRecord.documentId(samplerId, query.fingerprint(), query.eventId()))
-                        .source(SampleRecord.document(builder, samplerId, query, now))
-                );
+                String id = SampleRecord.documentId(samplerId, query.fingerprint().hex(), query.eventId());
+                request.add(new IndexRequest(QuerySamplingIndex.NAME).id(id).source(SampleRecord.document(builder, samplerId, query, now)));
                 sent.add(query);
                 weights.add(written);
             } catch (Exception e) {

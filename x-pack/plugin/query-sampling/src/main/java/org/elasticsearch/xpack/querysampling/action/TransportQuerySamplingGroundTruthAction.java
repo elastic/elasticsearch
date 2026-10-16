@@ -40,7 +40,12 @@ public final class TransportQuerySamplingGroundTruthAction extends TransportActi
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(QuerySamplingGroundTruthAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            QuerySamplingActions.GROUND_TRUTH.name(),
+            actionFilters,
+            transportService.getTaskManager(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         OriginSettingClient sampleClient = new OriginSettingClient(client, QUERY_SAMPLING_ORIGIN);
         this.storedGroundTruth = new StoredGroundTruth(
             sampleClient::search,

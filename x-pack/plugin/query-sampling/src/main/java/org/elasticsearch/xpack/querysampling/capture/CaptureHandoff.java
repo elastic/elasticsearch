@@ -17,7 +17,6 @@ public final class CaptureHandoff implements Consumer<CapturedSearch> {
 
     private final Executor executor;
     private final Consumer<CapturedSearch> downstream;
-    private final LongAdder handedOff = new LongAdder();
     private final LongAdder dropped = new LongAdder();
 
     public CaptureHandoff(Executor executor, Consumer<CapturedSearch> downstream) {
@@ -29,14 +28,9 @@ public final class CaptureHandoff implements Consumer<CapturedSearch> {
     public void accept(CapturedSearch captured) {
         try {
             executor.execute(() -> downstream.accept(captured));
-            handedOff.increment();
         } catch (RejectedExecutionException e) {
             dropped.increment();
         }
-    }
-
-    public long handedOff() {
-        return handedOff.sum();
     }
 
     public long dropped() {

@@ -15,7 +15,10 @@ import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
 import org.elasticsearch.xpack.querysampling.dedup.MultiplicityTracker;
 import org.elasticsearch.xpack.querysampling.groundtruth.CostBudget;
 import org.elasticsearch.xpack.querysampling.sampling.EventSlice;
+import org.elasticsearch.xpack.querysampling.sampling.PickBudget;
 import org.elasticsearch.xpack.querysampling.sampling.QuerySampler;
+import org.elasticsearch.xpack.querysampling.sampling.SelectivityStrata;
+import org.elasticsearch.xpack.querysampling.sampling.SpatialStrata;
 import org.elasticsearch.xpack.querysampling.storage.SampledQuery;
 
 import java.util.ArrayList;
@@ -33,7 +36,14 @@ public class QuerySamplingTests extends ESTestCase {
     private final List<SampledQuery> sampled = new ArrayList<>();
 
     public void testRepeatedQueryIsPickedOnceAndKeepsBeingCounted() {
-        SamplingPipeline pipeline = new SamplingPipeline(tracker, new QuerySampler(1.0, 100, picking(0.0)), List.of(sampled::add));
+        SamplingPipeline pipeline = new SamplingPipeline(
+            tracker,
+            sampler(1.0, 0.0),
+            List.of(sampled::add),
+            new CostBudget(0.0, 0.0),
+            new EventSlice(),
+            noSelectivity()
+        );
         float[] vector = { 1f, 2f, 3f };
 
         for (int i = 0; i < 5; i++) {
@@ -55,10 +65,11 @@ public class QuerySamplingTests extends ESTestCase {
         MultiplicityTracker tiny = new MultiplicityTracker(1);
         SamplingPipeline pipeline = new SamplingPipeline(
             tiny,
-            new QuerySampler(0.1, 100, picking(0.999999)),
+            sampler(0.1, 0.999999),
             List.of(sampled::add),
             new CostBudget(0.0, 0.0),
-            events
+            events,
+            noSelectivity()
         );
         CapturedQuery query = new CapturedQuery(new String[] { "idx" }, "vec", new float[] { 1f }, 10, 100, null, null, List.of(), null);
 
@@ -67,12 +78,20 @@ public class QuerySamplingTests extends ESTestCase {
         pipeline.accept(search(new float[] { 2f }));
 
         assertThat(pipeline.picked(), equalTo(0L));
-        assertThat(pipeline.eventsKept(), equalTo(3L));
         assertThat(sampled.size(), equalTo(3));
         assertTrue(sampled.stream().allMatch(SampledQuery::isEvent));
         assertThat("two events of the same query", sampled.get(0).eventId().equals(sampled.get(1).eventId()), equalTo(false));
         assertThat("captured with 0.5 and kept with 0.25", sampled.get(0).tracked().inclusionProbability(), closeTo(0.125, 1e-12));
         assertThat("each is one search, standing for two", sampled.get(0).tracked().weightedMultiplicity(), closeTo(2.0, 1e-12));
+    }
+
+    private static QuerySampler sampler(double scale, double draw) {
+        return new QuerySampler(scale, 100, picking(draw), new PickBudget(System::nanoTime), new SpatialStrata(0));
+    }
+
+    /** Selectivity counts are off in these tests; if one were asked for it would fail rather than search. */
+    private static SelectivityStrata noSelectivity() {
+        return new SelectivityStrata((request, listener) -> listener.onFailure(new UnsupportedOperationException()), () -> 0L);
     }
 
     /** A random whose draws are all the given value, so sampling decisions are deterministic. */

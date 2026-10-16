@@ -105,14 +105,6 @@ public final class SpatialStrata {
         }
     }
 
-    /** For diagnostics and tests; empty until the clusters are fitted. */
-    public long[] counts(String space) {
-        synchronized (spaces) {
-            Space found = spaces.get(space);
-            return found == null || found.fitted == false ? new long[0] : Arrays.copyOf(found.counts, found.counts.length);
-        }
-    }
-
     private static final class Space {
         private final float[][] centroids;
         private final long[] counts;

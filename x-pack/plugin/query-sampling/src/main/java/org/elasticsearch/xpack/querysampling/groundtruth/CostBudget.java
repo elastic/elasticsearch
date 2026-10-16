@@ -26,11 +26,7 @@ public final class CostBudget {
     }
 
     public void watch(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(QuerySamplingSettings.SAMPLING_COST_RATIO, this::ratio);
-    }
-
-    public void ratio(double ratio) {
-        this.ratio = ratio;
+        clusterSettings.initializeAndWatch(QuerySamplingSettings.SAMPLING_COST_RATIO, value -> this.ratio = value);
     }
 
     public double ratio() {

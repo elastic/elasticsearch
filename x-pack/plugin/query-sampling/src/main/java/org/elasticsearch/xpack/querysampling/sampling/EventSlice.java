@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.querysampling.sampling;
 
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.xpack.querysampling.QuerySamplingSettings;
 
@@ -43,10 +42,5 @@ public final class EventSlice {
     public double draw() {
         double rate = this.rate;
         return rate > 0 && random.get().nextDouble() < rate ? rate : 0.0;
-    }
-
-    /** Events of the same query are distinct documents, so the id is random rather than derived from the query. */
-    public String newId() {
-        return UUIDs.randomBase64UUID();
     }
 }

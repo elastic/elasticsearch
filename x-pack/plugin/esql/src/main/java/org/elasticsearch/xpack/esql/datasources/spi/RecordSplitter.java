@@ -87,6 +87,10 @@ public interface RecordSplitter {
      * with embedded newlines, bracketed multi-value cells): starting a probe inside such a construct
      * misreads an in-construct newline as a terminator and desyncs the parse. Callers that get {@code false}
      * must not split at arbitrary offsets; they read the file as one sequential stream instead.
+     * <p>
+     * A splitter may also return {@code true} for a grammar that can carry a record across a raw newline when the
+     * format reader has been configured to assume that no record does; the reader is then responsible for failing,
+     * rather than misreading, on data that proves the assumption wrong.
      */
     default boolean supportsStridedProbing() {
         return true;

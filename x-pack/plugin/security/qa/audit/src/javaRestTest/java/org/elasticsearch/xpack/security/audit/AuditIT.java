@@ -192,12 +192,20 @@ public class AuditIT extends ESRestTestCase {
                 "region": "us-east-1"
               }
             }""", dataSourceName));
-        request.addParameter("ignore", "400");
         var start = Instant.now();
         final Response response = executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
             String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
             assertThat(body, containsString("\"data_source\""));
         });
+        try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+            var events = findEvents(
+                Streams.readAllLines(auditLog),
+                AuditLevel.ACCESS_GRANTED,
+                e -> EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(e.get(LoggingAuditTrail.ACTION_FIELD_NAME))
+            );
+            assertThat(events, hasSize(1));
+            assertThat(events.get(0), hasEntry(LoggingAuditTrail.DATA_SOURCES_FIELD_NAME, List.of(dataSourceName)));
+        }
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertPutDataset(
             datasetName,
@@ -505,7 +513,7 @@ public class AuditIT extends ESRestTestCase {
                 assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
                 assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "transport"));
                 assertThat(event, hasEntry(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, "rest"));
-                assertThat(event, hasEntry("data_sources", List.of(dataSourceName)));
+                assertThat(event, hasEntry(LoggingAuditTrail.DATA_SOURCES_FIELD_NAME, List.of(dataSourceName)));
             }
         }, 5, TimeUnit.SECONDS);
     }

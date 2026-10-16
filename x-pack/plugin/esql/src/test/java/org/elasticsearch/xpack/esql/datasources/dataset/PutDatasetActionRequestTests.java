@@ -22,6 +22,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.datasources.DataSourceLimits.MAX_DESCRIPTION_LENGTH;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -215,6 +216,38 @@ public class PutDatasetActionRequestTests extends AbstractWireSerializingTestCas
                     + description.length()
                     + " characters, the maximum allowed is "
                     + MAX_DESCRIPTION_LENGTH
+            )
+        );
+    }
+
+    public void testAuditFields() {
+        var request = new Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "my_dataset",
+            "my_datasource",
+            "http://my-datasource.example.com?query=value",
+            null,
+            Map.of("unknown_key", "value", "region", "http://my-datasource.example.com?query=value", "format", "csv")
+        );
+
+        assertThat(
+            request.auditFields(),
+            equalTo(
+                Map.of(
+                    "settings.unknown_key",
+                    "::es_redacted::",
+                    "resource",
+                    "http://my-datasource.example.com",
+                    "name",
+                    "my_dataset",
+                    "settings.format",
+                    "csv",
+                    "data_source",
+                    "my_datasource",
+                    "settings.region",
+                    "http://my-datasource.example.com"
+                )
             )
         );
     }

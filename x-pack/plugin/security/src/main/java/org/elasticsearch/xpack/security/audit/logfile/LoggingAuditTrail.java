@@ -232,6 +232,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
     public static final String TRACE_ID_FIELD_NAME = "trace.id";
     public static final String X_FORWARDED_FOR_FIELD_NAME = "x_forwarded_for";
+    public static final String DATA_SOURCES_FIELD_NAME = "data_sources";
     // the fields below are used exclusively for "security_config_change" type of events, and show the configuration
     // object taking effect; it could be creating a new, or updating an existing configuration
     // if our (REST) APIs (at least the security APIs) would make the distinction between creating a *new* resource using the POST
@@ -787,6 +788,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             Optional.of(action)
                         )
                     ) == false) {
+                var dataSources = msg instanceof DataSourceRequestInfo info ? info.dataSourceNames() : null;
+
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "access_granted")
                     .with(ACTION_FIELD_NAME, action)
@@ -795,6 +798,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(msg, threadContext)
                     .withIndices(indices.orElse(null))
+                    .with(DATA_SOURCES_FIELD_NAME, dataSources)
                     .withContext(ctx)
                     .with(authorizationInfo.asMap())
                     .build();
@@ -1036,7 +1040,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
-                    .with("data_sources", dataSources)
+                    .with(DATA_SOURCES_FIELD_NAME, dataSources)
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
                     .with(authorizationInfo.asMap())

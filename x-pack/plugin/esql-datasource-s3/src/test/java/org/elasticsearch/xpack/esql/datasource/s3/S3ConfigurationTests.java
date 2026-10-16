@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+
+import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+
 import software.amazon.awssdk.services.s3.S3Client;
 
 import org.elasticsearch.common.ValidationException;
@@ -803,5 +807,27 @@ public class S3ConfigurationTests extends ESTestCase {
     public void testStorageIdentityNullEndpointDoesNotThrow() {
         S3Configuration config = S3Configuration.fromFields("ak", "sk", null, "us-east-1");
         assertNotNull(S3CredentialIdentity.of(config));
+    }
+
+    public void testDataSourceAuditSettings() {
+        var configuration = S3Configuration.fromMap(Map.of("auth", "anonymous"));
+        var secretFields = S3Configuration.secretFieldNames();
+
+        for (var field : configuration.fieldNames()) {
+            var request = new PutDataSourceAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "datasource",
+                "s3",
+                null,
+                Map.of(field, "test-value")
+            );
+
+            assertEquals(
+                "Unexpected audit value for setting [" + field + "]",
+                secretFields.contains(field) ? "::es_redacted::" : "test-value",
+                request.auditFields().get("settings." + field)
+            );
+        }
     }
 }

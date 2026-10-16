@@ -22,6 +22,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
 import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeRequest;
+import org.elasticsearch.xpack.esql.datasources.DataSourceAuditUtils;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -51,6 +54,7 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
         "role_arn",
         "role_session_name",
         "service_account_impersonation_url",
+        "sts_audience",
         "sts_endpoint",
         "sts_region",
         "tenant_id",
@@ -205,13 +209,7 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
             if (description != null) {
                 fields.put("description", description);
             }
-            for (var entry : rawSettings.entrySet()) {
-                if (AUDITABLE_SETTINGS.contains(entry.getKey())) {
-                    fields.put("settings." + entry.getKey(), entry.getValue());
-                } else {
-                    fields.put("settings." + entry.getKey(), "::es_redacted::");
-                }
-            }
+            fields.putAll(DataSourceAuditUtils.auditSettings(rawSettings, AUDITABLE_SETTINGS));
             return fields;
         }
 

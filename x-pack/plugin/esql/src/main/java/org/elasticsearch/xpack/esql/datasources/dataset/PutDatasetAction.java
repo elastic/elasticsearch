@@ -26,6 +26,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.audit.SecurityConfigChangeRequest;
+import org.elasticsearch.xpack.esql.datasources.DataSourceAuditUtils;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 
 import java.io.IOException;
@@ -74,7 +76,16 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         "max_field_size",
         "delimiter",
         "quote",
-        "escape"
+        "escape",
+        "partition_path",
+        "hive_partitioning",
+        "file_exclusions",
+        "partition_spec",
+        "null_value",
+        "comment",
+        "multi_value_syntax",
+        "column_prefix",
+        "datetime_format"
     );
 
     private PutDatasetAction() {
@@ -278,13 +289,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
             if (description != null) {
                 fields.put("description", description);
             }
-            for (var entry : rawSettings.entrySet()) {
-                if (AUDITABLE_SETTINGS.contains(entry.getKey())) {
-                    fields.put("settings." + entry.getKey(), entry.getValue());
-                } else {
-                    fields.put("settings." + entry.getKey(), "::es_redacted::");
-                }
-            }
+            fields.putAll(DataSourceAuditUtils.auditSettings(rawSettings, AUDITABLE_SETTINGS));
             return fields;
         }
 

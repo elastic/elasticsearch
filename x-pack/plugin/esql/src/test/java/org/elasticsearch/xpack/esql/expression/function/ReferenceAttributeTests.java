@@ -25,7 +25,18 @@ import static org.hamcrest.Matchers.containsString;
 public class ReferenceAttributeTests extends AbstractNamedExpressionSerializationTests<ReferenceAttribute> {
     @Override
     protected ReferenceAttribute createTestInstance() {
-        return randomReferenceAttribute(false);
+        ReferenceAttribute reference = randomReferenceAttribute(false);
+        return new ReferenceAttribute(
+            reference.source(),
+            reference.qualifier(),
+            reference.name(),
+            reference.dataType(),
+            reference.nullable(),
+            reference.id(),
+            reference.synthetic(),
+            reference.valuesAnalyzer(),
+            randomBoolean()
+        );
     }
 
     @Override
@@ -38,7 +49,8 @@ public class ReferenceAttributeTests extends AbstractNamedExpressionSerializatio
         NameId id = instance.id();
         boolean synthetic = instance.synthetic();
         String valuesAnalyzer = instance.valuesAnalyzer();
-        switch (between(0, 6)) {
+        boolean metric = instance.isMetric();
+        switch (between(0, 7)) {
             case 0 -> qualifier = randomAlphaOfLength(qualifier == null ? 3 : qualifier.length() + 1);
             case 1 -> name = randomAlphaOfLength(name.length() + 1);
             case 2 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
@@ -46,8 +58,9 @@ public class ReferenceAttributeTests extends AbstractNamedExpressionSerializatio
             case 4 -> id = new NameId();
             case 5 -> synthetic = false == synthetic;
             case 6 -> valuesAnalyzer = randomAlphaOfLength(valuesAnalyzer == null ? 3 : valuesAnalyzer.length() + 1);
+            case 7 -> metric = metric == false;
         }
-        return new ReferenceAttribute(source, qualifier, name, type, nullability, id, synthetic, valuesAnalyzer);
+        return new ReferenceAttribute(source, qualifier, name, type, nullability, id, synthetic, valuesAnalyzer, metric);
     }
 
     @Override
@@ -101,6 +114,35 @@ public class ReferenceAttributeTests extends AbstractNamedExpressionSerializatio
         assertEquals("whitespace", ((ReferenceAttribute) attribute.withName("renamed")).valuesAnalyzer());
         assertEquals("whitespace", ((ReferenceAttribute) attribute.withId(new NameId())).valuesAnalyzer());
         assertEquals("whitespace", ((ReferenceAttribute) attribute.withQualifier("q")).valuesAnalyzer());
+    }
+
+    public void testSerializationPreservesMetricIdentity() throws IOException {
+        ReferenceAttribute attribute = metricReference();
+        ReferenceAttribute copy = copyInstance(attribute);
+        assertTrue(copy.isMetric());
+        assertEquals(attribute, copy);
+    }
+
+    public void testBackcompatSerializationWithoutMetricIdentity() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(ReferenceAttribute.ESQL_METRIC_IDENTITY_IN_REFERENCES);
+        ReferenceAttribute attribute = metricReference();
+        ReferenceAttribute copy = copyInstance(attribute, oldVersion);
+        // Older nodes retain their existing cast semantics, where references do not carry metric identity.
+        assertFalse(copy.isMetric());
+        assertEquals(attribute.name(), copy.name());
+        assertEquals(attribute.dataType(), copy.dataType());
+    }
+
+    public void testCloneHelpersPreserveMetricIdentity() {
+        ReferenceAttribute attribute = metricReference();
+        assertTrue(attribute.withName("renamed").isMetric());
+        assertTrue(attribute.withId(new NameId()).isMetric());
+        assertTrue(attribute.withQualifier("q").isMetric());
+        assertTrue(attribute.withDataType(DataType.DOUBLE).isMetric());
+    }
+
+    private static ReferenceAttribute metricReference() {
+        return new ReferenceAttribute(Source.EMPTY, null, "metric", DataType.LONG, Nullability.TRUE, new NameId(), false, null, true);
     }
 
     @Override

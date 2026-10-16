@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetricExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Set;
@@ -15,11 +16,20 @@ import java.util.Set;
 /**
  * A function that converts from one type to another.
  */
-public interface ConvertFunction {
+public interface ConvertFunction extends MetricExpression {
     /**
      * Expression containing the values to be converted.
      */
     Expression field();
+
+    /**
+     * Casts change the representation of their input while retaining its metric identity. In particular, converting a counter to
+     * a plain numeric data type drops counter semantics without turning it into a non-metric column.
+     */
+    @Override
+    default boolean isMetric() {
+        return MetricExpression.isMetric(field());
+    }
 
     /**
      * The types that {@link #field()} can have.

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -98,24 +100,11 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         Filter filter = as(tsAgg.child(), Filter.class);
         Or or = as(filter.expressions().getFirst(), Or.class);
 
-        // For reasons beyond my comprehension, the ordering of the conditionals inside the OR is nondeterministic.
-        IsNotNull condition;
-        FieldAttribute attribute;
-
-        condition = as(or.left(), IsNotNull.class);
-        attribute = as(condition.field(), FieldAttribute.class);
-        if (attribute.fieldName().string().equals("metric_1")) {
-            condition = as(or.right(), IsNotNull.class);
-            attribute = as(condition.field(), FieldAttribute.class);
-            assertEquals("metric_2", attribute.fieldName().string());
-        } else if (attribute.fieldName().string().equals("metric_2")) {
-            condition = as(or.right(), IsNotNull.class);
-            attribute = as(condition.field(), FieldAttribute.class);
-            assertEquals("metric_1", attribute.fieldName().string());
-        } else {
-            // something weird happened
-            assert false;
-        }
+        // Null checks follow the order of metrics in the aggregate expressions.
+        IsNotNull left = as(or.left(), IsNotNull.class);
+        assertEquals("metric_1", as(left.field(), FieldAttribute.class).fieldName().string());
+        IsNotNull right = as(or.right(), IsNotNull.class);
+        assertEquals("metric_2", as(right.field(), FieldAttribute.class).fieldName().string());
     }
 
     /**
@@ -138,10 +127,9 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
     }
 
     /**
-     * A converted metric doesn't carry the metric property. Filtering on metric_1 alone would drop the rows that only have a value for
-     * metric_2, so no filter is added.
+     * Casts retain metric identity for null filtering, independently of their output data types.
      */
-    public void testSkipFilterForConvertedMetrics() {
+    public void testFilterConvertedMetrics() {
         LogicalPlan actual = metrics().localPlan("""
             TS test
             | STATS max(max_over_time(metric_1)), max(max_over_time(metric_2::double))
@@ -151,8 +139,86 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         Aggregate agg = as(limit.child(), Aggregate.class);
         // The optimizer expands the STATS out into two STATS steps
         Aggregate tsAgg = as(agg.child(), Aggregate.class);
-        Eval eval = as(tsAgg.child(), Eval.class);
-        as(eval.child(), EsRelation.class);
+        assertTrue(actual.toString(), tsAgg.anyMatch(Filter.class::isInstance));
+    }
+
+    /**
+     * Casts preserve metric identity only when their input is a metric. Computed inputs must still disable null filtering.
+     */
+    public void testSkipFilterForCastsWithComputedInputs() {
+        for (String computed : new String[] {
+            "coalesce(metric_2, 0)::double",
+            "coalesce(metric_2::double, 0)",
+            "(metric_2 + 1)::double" }) {
+            LogicalPlan actual = metrics().localPlan(Strings.format("""
+                TS test
+                | EVAL converted = metric_1::double::long, computed = %s
+                | STATS max(max_over_time(converted)), min(min_over_time(computed)) BY BUCKET(@timestamp, 1 min)
+                | LIMIT 10
+                """, computed));
+            assertFalse(actual.toString(), actual.anyMatch(Filter.class::isInstance));
+        }
+    }
+
+    /**
+     * Absence and presence still need null rows when a computed input is aggregated alongside a cast metric.
+     */
+    public void testSkipFilterForComputedPresenceWithCastMetric() {
+        for (String function : new String[] { "absent_over_time", "present_over_time" }) {
+            LogicalPlan actual = metrics().localPlan(Strings.format("""
+                TS test
+                | EVAL converted = metric_1::double, computed = (metric_2 + 0)::double
+                | STATS max(max_over_time(converted)), max(%s(computed)) BY BUCKET(@timestamp, 1 min)
+                | LIMIT 10
+                """, function));
+            assertFalse(actual.toString(), actual.anyMatch(Filter.class::isInstance));
+        }
+    }
+
+    public void testFilterOnlyConvertedMetric() {
+        LogicalPlan actual = metrics().localPlan("""
+            TS test | STATS max(max_over_time(metric_1::double)) BY BUCKET(@timestamp, 1 min) | LIMIT 10
+            """);
+        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
+    }
+
+    public void testFilterChainedCastsAndAliases() {
+        LogicalPlan actual = metrics().localPlan("""
+            TS test
+            | EVAL converted = metric_2::double, chained = converted::long
+            | STATS max(max_over_time(metric_1)), max(max_over_time(chained))
+            | LIMIT 10
+            """);
+        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
+    }
+
+    public void testFilterOverwrittenMetric() {
+        LogicalPlan actual = metrics().localPlan("""
+            TS test
+            | EVAL metric_2 = metric_2::double
+            | STATS max(max_over_time(metric_1)), max(max_over_time(metric_2))
+            | LIMIT 10
+            """);
+        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
+    }
+
+    public void testFilterGaugeAndCounterCasts() {
+        LogicalPlan actual = ts().localPlan("""
+            TS k8s
+            | STATS average = avg(avg_over_time(network.total_bytes_in::gauge)), rate = max(rate(network.total_bytes_out::gauge::counter))
+            | LIMIT 10
+            """);
+        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
+    }
+
+    public void testCastStillStripsCounterSemantics() {
+        LogicalPlan actual = ts().localPlan("""
+            TS k8s
+            | STATS average = avg(avg_over_time(network.total_bytes_in::long)) BY BUCKET(@timestamp, 1 min)
+            | LIMIT 10
+            """);
+        assertEquals(DataType.DOUBLE, actual.output().getFirst().dataType());
+        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
     }
 
     /**

@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -38,7 +38,8 @@ import java.util.Set;
 public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSeriesAggregate> {
     @Override
     public LogicalPlan rule(TimeSeriesAggregate agg) {
-        Set<Attribute> metrics = new HashSet<>();
+        // Preserve expression order so equivalent plans produce the same null-filter predicate.
+        Set<Attribute> metrics = new LinkedHashSet<>();
         agg.forEachExpression(Attribute.class, attr -> {
             if (attr.isMetric()) {
                 metrics.add(attr);
@@ -61,8 +62,9 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
     }
 
     /**
-     * Whether an aggregation reads an input that isn't a metric field, such as a converted metric ({@code metric::double}) or a value
-     * computed in an {@code EVAL}. A filter on the metrics alone would drop the rows that only have values for that input.
+     * Whether an aggregation reads an input that isn't a metric, such as a value computed with arithmetic or {@code COALESCE}
+     * in an {@code EVAL}. Casts and aliases of metrics retain metric identity. A filter on the metrics alone would drop the rows
+     * that only have values for that input.
      * <p>
      * In that case, we skip the filter entirely rather than also filtering on the non-metric inputs. Nulls of non-metric fields have
      * never been filtered out, and aggregations rely on seeing them, like {@code absent_over_time} or buckets reporting {@code null}.

@@ -25,19 +25,17 @@ These connectors are written in Python and the source code is available in the [
 
 ## Setup modes [setup-modes]
 
-Use [self-managed connectors](self-managed-connectors.md) to set up content connectors. They are available in any Elastic environment, including {{es-serverless}} projects and Elastic 9.x deployments.
-
-The availability of each setup mode is indicated on the interface of your {{kib}} **Content connectors** page.
+You can set up content connectors in two ways. The availability of each setup mode is indicated on the interface of your {{kib}} **Content connectors** page.
 
 | | **[Self-managed](self-managed-connectors.md)** | **Elastic managed** |
 |---|---|---|
-| **Infrastructure** | You deploy the connector service | Elastic hosted it for you |
-| **Availability** | Any Elastic environment | {{ech}} on Elastic 8.x only (8.5.0 and later). Not available in Elastic 9.0+ or on {{es-serverless}}. |
-| **Can send data to** | Any {{es}} instance | The deployment the connector ran in only |
+| **Infrastructure** | You deploy the connector service | Elastic hosts it for you |
+| **Availability** | Any Elastic environment, including {{es-serverless}} | {{ecloud}} only, where the option is enabled on the **Content connectors** page (for example, for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md)) |
+| **Can send data to** | Any {{es}} instance | Deployment or project the connector is deployed within only |
 | **Customization** | Supported | Not supported |
 
 ::::{note}
-Elastic managed connectors were never available on {{es-serverless}}. They were discontinued in Elastic **9.0.0** along with Enterprise Search. If you are on Elastic 8.x {{ech}}, refer to the 8.x documentation for Elastic managed connectors. For details, refer to [Connector release notes](release-notes.md).
+In Elastic 8.x, Elastic managed connectors ran on Enterprise Search in {{ech}} deployments only. They were never available that way on {{es-serverless}}, and that model was discontinued in Elastic **9.0.0** along with Enterprise Search. For details, refer to [Connector release notes](release-notes.md).
 ::::
 
 ## Available connectors

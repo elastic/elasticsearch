@@ -14,9 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -25,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
@@ -116,44 +113,16 @@ public class Not extends UnaryScalarFunction
 
     @Override
     public String nullMisuseAlternative() {
-        Expression kept = keptNonNullOperand();
-        // Suggesting `<literal> IS NOT NULL` (e.g. `5 IS NOT NULL`) is never what the user meant.
-        if (kept == null || kept instanceof Literal) {
-            return null;
-        }
-        String text = kept.sourceText();
-        return text.isEmpty() ? null : text + " IS NOT NULL";
-    }
-
-    /**
-     * Operand that would remain after rewriting {@code NOT (x == NULL)} / {@code x NOT IN (NULL)}
-     * as {@code x IS NOT NULL}, or {@code null} if this {@code NOT} is not that shape.
-     */
-    private Expression keptNonNullOperand() {
         if (field() instanceof Equals equals) {
-            return keptNonNullOperand(equals.left(), equals.right());
+            return NullMisuseSuggestion.equalsNullToIsNull(equals.left(), equals.right(), true);
         }
         if (field() instanceof InsensitiveEquals insensitiveEquals) {
-            return keptNonNullOperand(insensitiveEquals.left(), insensitiveEquals.right());
+            return NullMisuseSuggestion.equalsNullToIsNull(insensitiveEquals.left(), insensitiveEquals.right(), true);
         }
-        if (field() instanceof In in && in.list().stream().allMatch(Not::isNullOperand)) {
-            return in.value();
-        }
-        return null;
-    }
-
-    private static Expression keptNonNullOperand(Expression left, Expression right) {
-        if (isNullOperand(right)) {
-            return left;
-        }
-        if (isNullOperand(left)) {
-            return right;
+        if (field() instanceof In in && in.list().stream().allMatch(NullMisuseSuggestion::isNullOperand)) {
+            return NullMisuseSuggestion.isNullCheckText(in.value(), true);
         }
         return null;
-    }
-
-    private static boolean isNullOperand(Expression e) {
-        return Expressions.isGuaranteedNull(e) || ConvertFunction.isExplicitNull(e);
     }
 
     @Override

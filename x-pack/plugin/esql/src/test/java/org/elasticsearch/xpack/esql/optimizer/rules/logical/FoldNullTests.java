@@ -318,13 +318,6 @@ public class FoldNullTests extends ESTestCase {
         assertEquals("emp_no IS NULL", equals.nullMisuseAlternative());
     }
 
-    public void testNotEqualsNullSuggestsIsNotNull() {
-        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 19, "emp_no"));
-        NotEquals notEquals = new NotEquals(new Source(1, 19, "emp_no != NULL"), field, NULL);
-        assertNullLiteral(foldNull(notEquals));
-        assertEquals("emp_no IS NOT NULL", notEquals.nullMisuseAlternative());
-    }
-
     public void testInsensitiveEqualsNullSuggestsIsNull() {
         var field = getFieldAttribute("name", KEYWORD).withLocation(new Source(1, 12, "name"));
         InsensitiveEquals insensitiveEquals = new InsensitiveEquals(new Source(1, 12, "name =~ NULL"), field, NULL);

@@ -109,7 +109,7 @@ public class WarnNullMisuse implements LogicalPlanPreOptimizerRule {
             );
             return;
         }
-        String isNull = NullMisuseSuggestion.isNullCheck(in.value(), false);
+        String isNull = NullMisuseSuggestion.isNullCheckText(in.value(), false);
         if (isNull != null) {
             addWarning(
                 "Line {}:{}: NULL in the IN list of [{}] never matches, add [OR {}] to also match NULL values.",

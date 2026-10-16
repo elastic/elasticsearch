@@ -1,0 +1,653 @@
+// CSE-CIC-IDS2018 processed CICFlowMeter CSVs: REAL dirty security logs on anonymous S3
+// (ca-central-1). The workload binds the 8 standard-header (80-column, LF) files via an explicit
+// comma-list of URIs (the engine's multi-location resource form); the 84-column CRLF file and the mixed-schema glob are dirty-data cases, not
+// workload. Real-world dirt asserted BY these expectations, not worked around: embedded mid-file
+// header rows read as data rows (null numeric fields, literal 'Label'/'Timestamp' strings),
+// dd/MM/yyyy timestamp STRINGS (lexical min/max), Excel-truncated files (2^20-1 rows), and
+// Infinity/NaN rate columns (excluded from arithmetic). Expected tables derived at authoring time
+// by clickhouse local reading every column as String with *OrNull casts - the exact mirror of
+// retain-row/null-field semantics (see each query's notes). Every test allows (not requires)
+// warnings: dirty reads legitimately warn per unparseable value, warning text varies with node
+// topology and caps, and the VALUES are the assertion here. Tightening to warning families is a
+// recorded follow-up once a green run catalogues the exact texts.
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: embedded mid-file header rows are retained as rows with null numeric fields (approved probe)
+q01_countFlows
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS count = COUNT(*);
+warningRegex:.*
+
+count:long
+7235679
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') WHERE Label != 'Benign'
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: includes the literal 'Label' rows: they are != 'Benign' in both engines
+q02_countNonBenign
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | WHERE Label != "Benign" | STATS count = COUNT(*);
+warningRegex:.*
+
+count:long
+1885912
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(toInt64OrNull(`Flow Duration`)), count(), avg(toInt64OrNull(`TotLen Fwd Pkts`)) FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: embedded mid-file header rows are retained as rows with null numeric fields (approved probe)
+q03_statsDurationTotals
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS sum_duration = SUM(`Flow Duration`), count = COUNT(*), avg_fwd_len = AVG(`TotLen Fwd Pkts`);
+warningRegex:.*
+
+sum_duration:long | count:long | avg_fwd_len:double
+72126706849111    | 7235679    | 1342.0230893828034
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT avg(toInt64OrNull(`Flow Duration`)) FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q04_statsAvgDuration
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS avg_duration = AVG(`Flow Duration`);
+warningRegex:.*
+
+avg_duration:double
+9968282.862990456
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(toInt64OrNull(`Dst Port`)) + if(countIf(toInt64OrNull(`Dst Port`) IS NULL) > 0, 1, 0) FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: two-stage distinct counts the null group; oracle mirrors with +1 when nulls exist
+q05_distinctDstPorts
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS BY `Dst Port` | STATS u = COUNT(*);
+warningRegex:.*
+
+u:long
+63554
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(Label) + if(countIf(Label IS NULL) > 0, 1, 0) FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q06_distinctLabels
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS BY Label | STATS u = COUNT(*);
+warningRegex:.*
+
+u:long
+14
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT min(Timestamp), max(Timestamp) FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: keyword min/max is LEXICAL over dd/MM/yyyy strings; max is the literal 'Timestamp' from an embedded header row
+q07_minMaxTimestamp
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS min_ts = MIN(Timestamp), max_ts = MAX(Timestamp);
+warningRegex:.*
+
+min_ts:keyword      | max_ts:keyword
+01/03/2018 01:00:00 | Timestamp
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, toInt64OrNull(`Protocol`) AS p FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') GROUP BY p ORDER BY c DESC, p ASC NULLS LAST LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+// sort-reviewed: ES|QL sorts nulls last ascending; oracle mirrors with NULLS LAST
+q08_flowsByProtocol
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS c = COUNT(*) BY Protocol | SORT c DESC, Protocol ASC | LIMIT 10;
+warningRegex:.*
+
+c:long  | Protocol:long
+5672199 | 6
+1482622 | 17
+80799   | 0
+59      | null
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(toInt64OrNull(`Dst Port`)) + if(countIf(toInt64OrNull(`Dst Port`) IS NULL) > 0, 1, 0) AS u, toInt64OrNull(`Protocol`) AS p FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') GROUP BY p ORDER BY u DESC, p ASC NULLS LAST LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+// sort-reviewed: ES|QL sorts nulls last ascending; oracle mirrors with NULLS LAST
+q09_distinctPortsByProtocol
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS BY Protocol, `Dst Port` | STATS u = COUNT(*) BY Protocol | SORT u DESC, Protocol ASC | LIMIT 10;
+warningRegex:.*
+
+u:long | Protocol:long
+63539  | 6
+628    | 17
+1      | 0
+1      | null
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(toInt64OrNull(`Tot Fwd Pkts`)) AS s, count() AS c, avg(toInt64OrNull(`Flow Duration`)) AS a, toInt64OrNull(`Protocol`) AS p FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') GROUP BY p ORDER BY c DESC, p ASC NULLS LAST LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+// sort-reviewed: ES|QL sorts nulls last ascending; oracle mirrors with NULLS LAST
+q10_protocolAggregates
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS sum_fwd = SUM(`Tot Fwd Pkts`), c = COUNT(*), avg_duration = AVG(`Flow Duration`) BY Protocol | SORT c DESC, Protocol ASC | LIMIT 10;
+warningRegex:.*
+
+sum_fwd:long | c:long  | avg_duration:double | Protocol:long
+34983131     | 5672199 | 12311570.377590243  | 6
+205174643    | 1482622 | 996723.701633997    | 17
+699564       | 80799   | 10090040.433049913  | 0
+null         | 59      | null                | null
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, Label FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') GROUP BY Label ORDER BY c DESC, Label ASC LIMIT 15
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 15
+q13_flowsByLabel
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS c = COUNT(*) BY Label | SORT c DESC, Label ASC | LIMIT 15;
+warningRegex:.*
+
+c:long  | Label:keyword
+5349767 | Benign
+686012  | DDOS attack-HOIC
+461912  | DoS attacks-Hulk
+193360  | FTP-BruteForce
+187589  | SSH-Bruteforce
+161934  | Infilteration
+139890  | DoS attacks-SlowHTTPTest
+41508   | DoS attacks-GoldenEye
+10990   | DoS attacks-Slowloris
+1730    | DDOS attack-LOIC-UDP
+611     | Brute Force -Web
+230     | Brute Force -XSS
+87      | SQL Injection
+59      | Label
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, toInt64OrNull(`Protocol`) AS p, Label FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') GROUP BY p, Label ORDER BY c DESC, p ASC NULLS LAST, Label ASC LIMIT 15
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 15
+// sort-reviewed: ES|QL sorts nulls last ascending; oracle mirrors with NULLS LAST
+q15_labelByProtocol
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS c = COUNT(*) BY Protocol, Label | SORT c DESC, Protocol ASC, Label ASC | LIMIT 15;
+warningRegex:.*
+
+c:long  | Protocol:long | Label:keyword
+3841845 | 6             | Benign
+1429399 | 17            | Benign
+686012  | 6             | DDOS attack-HOIC
+461912  | 6             | DoS attacks-Hulk
+193360  | 6             | FTP-BruteForce
+187589  | 6             | SSH-Bruteforce
+139890  | 6             | DoS attacks-SlowHTTPTest
+108319  | 6             | Infilteration
+78523   | 0             | Benign
+51360   | 17            | Infilteration
+41508   | 6             | DoS attacks-GoldenEye
+10990   | 6             | DoS attacks-Slowloris
+2255    | 0             | Infilteration
+1730    | 17            | DDOS attack-LOIC-UDP
+462     | 6             | Brute Force -Web
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, toInt64OrNull(`Dst Port`) AS d FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') GROUP BY d ORDER BY c DESC, d ASC NULLS LAST LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+// sort-reviewed: ES|QL sorts nulls last ascending; oracle mirrors with NULLS LAST
+q16_flowsByDstPort
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS c = COUNT(*) BY `Dst Port` | SORT c DESC, `Dst Port` ASC | LIMIT 10;
+warningRegex:.*
+
+c:long  | Dst Port:long
+1920221 | 80
+1421326 | 53
+711641  | 443
+566917  | 3389
+333562  | 21
+239796  | 445
+194906  | 22
+80799   | 0
+27521   | 5355
+14149   | 135
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, toInt64OrNull(`Dst Port`) AS d, Label FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') GROUP BY d, Label ORDER BY c DESC, d ASC NULLS LAST, Label ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+// sort-reviewed: ES|QL sorts nulls last ascending; oracle mirrors with NULLS LAST
+q17_flowsByDstPortLabel
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS c = COUNT(*) BY `Dst Port`, Label | SORT c DESC, `Dst Port` ASC, Label ASC | LIMIT 10;
+warningRegex:.*
+
+c:long  | Dst Port:long | Label:keyword
+1371006 | 53            | Benign
+711470  | 80            | Benign
+686012  | 80            | DDOS attack-HOIC
+682379  | 443           | Benign
+553287  | 3389          | Benign
+461912  | 80            | DoS attacks-Hulk
+234331  | 445           | Benign
+193360  | 21            | FTP-BruteForce
+187559  | 22            | SSH-Bruteforce
+139890  | 21            | DoS attacks-SlowHTTPTest
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT toInt64OrNull(`Dst Port`) FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') WHERE toInt64OrNull(`Dst Port`) = 179
+// oracle-run: 2026-08-14
+// read-shape: scan
+// max-rows: 300
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q20_scanNeedlePort
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | WHERE `Dst Port` == 179 | KEEP `Dst Port`;
+warningRegex:.*
+
+Dst Port:long
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') WHERE Label LIKE '%Bruteforce%'
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: case-sensitive in both engines; matches SSH-Bruteforce but not FTP-BruteForce
+q21_countBruteforceLabels
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | WHERE Label LIKE "*Bruteforce*" | STATS count = COUNT(*);
+warningRegex:.*
+
+count:long
+187589
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT min(Timestamp) AS m, count() AS c, Label FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') WHERE Label LIKE '%DoS%' GROUP BY Label ORDER BY c DESC, Label ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+q22_labelPatternStats
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | WHERE Label LIKE "*DoS*" | STATS min_ts = MIN(Timestamp), c = COUNT(*) BY Label | SORT c DESC, Label ASC | LIMIT 10;
+warningRegex:.*
+
+min_ts:keyword      | c:long | Label:keyword
+16/02/2018 01:45:27 | 461912 | DoS attacks-Hulk
+16/02/2018 10:12:14 | 139890 | DoS attacks-SlowHTTPTest
+15/02/2018 09:27:42 | 41508  | DoS attacks-GoldenEye
+15/02/2018 11:00:12 | 10990  | DoS attacks-Slowloris
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT toInt64OrNull(`Flow Duration`), toInt64OrNull(`Dst Port`), toInt64OrNull(`Protocol`), `Timestamp`, toInt64OrNull(`Tot Fwd Pkts`), toInt64OrNull(`Tot Bwd Pkts`), `Label` FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') ORDER BY toInt64OrNull(`Flow Duration`) DESC NULLS LAST, Timestamp ASC, toInt64OrNull(`Dst Port`) ASC, toInt64OrNull(`Tot Fwd Pkts`) ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+// sort-reviewed: ES|QL treats nulls as largest (first on bare DESC - observed live), so the query says NULLS LAST explicitly; oracle mirrors
+q24_topLongestFlows
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | SORT `Flow Duration` DESC NULLS LAST, Timestamp ASC, `Dst Port` ASC, `Tot Fwd Pkts` ASC | KEEP `Flow Duration`, `Dst Port`, Protocol, Timestamp, `Tot Fwd Pkts`, `Tot Bwd Pkts`, Label | LIMIT 10;
+warningRegex:.*
+
+Flow Duration:long | Dst Port:long | Protocol:long | Timestamp:keyword   | Tot Fwd Pkts:long | Tot Bwd Pkts:long | Label:keyword
+120000000          | 443           | 6             | 15/02/2018 03:14:21 | 10                | 7                 | Benign
+119999999          | 443           | 6             | 15/02/2018 01:57:46 | 9                 | 8                 | Benign
+119999999          | 443           | 6             | 15/02/2018 10:43:29 | 7                 | 11                | Benign
+119999998          | 80            | 17            | 21/02/2018 10:23:44 | 111264            | 0                 | DDOS attack-LOIC-UDP
+119999996          | 80            | 17            | 21/02/2018 10:39:19 | 111295            | 0                 | DDOS attack-LOIC-UDP
+119999994          | 80            | 17            | 21/02/2018 10:19:01 | 134847            | 0                 | DDOS attack-LOIC-UDP
+119999994          | 80            | 17            | 21/02/2018 10:39:26 | 121023            | 0                 | DDOS attack-LOIC-UDP
+119999993          | 443           | 6             | 22/02/2018 11:05:04 | 70                | 106               | Benign
+119999992          | 443           | 6             | 01/03/2018 09:06:42 | 6                 | 5                 | Benign
+119999992          | 80            | 17            | 21/02/2018 10:23:30 | 98368             | 0                 | DDOS attack-LOIC-UDP
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT Label FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') ORDER BY Label ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+// sort-reviewed: single-key ascending sort over the projected column itself; boundary ties are identical values
+q26_sortLabelsAsc
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | SORT Label ASC | KEEP Label | LIMIT 10;
+warningRegex:.*
+
+Label:keyword
+Benign
+Benign
+Benign
+Benign
+Benign
+Benign
+Benign
+Benign
+Benign
+Benign
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT avg(toFloat64OrNull(`Pkt Len Mean`)) AS l, count() AS c, toInt64OrNull(`Protocol`) AS p FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') GROUP BY p HAVING c > 1000 ORDER BY l DESC NULLS LAST, p ASC NULLS LAST LIMIT 25
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 25
+// sort-reviewed: ES|QL sorts nulls last; oracle mirrors with NULLS LAST
+q28_avgPktLenByProtocol
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS l = AVG(`Pkt Len Mean`), c = COUNT(*) BY Protocol | WHERE c > 1000 | SORT l DESC, Protocol ASC | LIMIT 25;
+warningRegex:.*
+
+l:double          | c:long  | Protocol:long
+78.07214892858005 | 5672199 | 6
+64.47715702287559 | 1482622 | 17
+0                 | 80799   | 0
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(toInt64OrNull(`Tot Fwd Pkts`)), sum(toInt64OrNull(`Tot Fwd Pkts`) + 1), sum(toInt64OrNull(`Tot Fwd Pkts`) + 2) FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+// note: 3-term shape (canonical has 10); null rows contribute to no term in either engine
+q30_sumSeries
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | STATS s0 = SUM(`Tot Fwd Pkts`), s1 = SUM(`Tot Fwd Pkts` + 1), s2 = SUM(`Tot Fwd Pkts` + 2);
+warningRegex:.*
+
+s0:long   | s1:long   | s2:long
+240857338 | 248092958 | 255328578
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS PageViews, toInt64OrNull(`Dst Port`) AS d FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') WHERE toInt64OrNull(`Protocol`) = 6 AND Label = 'Benign' GROUP BY d ORDER BY PageViews DESC, d ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+q37_benignTcpPorts
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | WHERE Protocol == 6 AND Label == "Benign" | STATS PageViews = COUNT(*) BY `Dst Port` | SORT PageViews DESC, `Dst Port` ASC | LIMIT 10;
+warningRegex:.*
+
+PageViews:long | Dst Port:long
+709872         | 80
+682378         | 443
+553282         | 3389
+234330         | 445
+12075          | 3128
+11570          | 135
+6407           | 22
+3617           | 23
+2097           | 139
+844            | 8545
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, substring(Timestamp, 12, 2) AS h FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') GROUP BY h ORDER BY h ASC LIMIT 25
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 25
+// sort-reviewed: sorted by the group key itself, which is unique per row
+// note: embedded header rows land in the empty-substring group, asserted deliberately
+q43_flowsPerHour
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | EVAL h = SUBSTRING(Timestamp, 12, 2) | STATS c = COUNT(*) BY h | SORT h ASC | LIMIT 25;
+warningRegex:.*
+
+c:long  | h:keyword
+59      |
+1394994 | 01
+1606919 | 02
+456705  | 03
+385854  | 04
+178781  | 05
+1       | 06
+2       | 07
+409080  | 08
+648736  | 09
+831075  | 10
+808732  | 11
+514741  | 12
+;
+
+// corpus: cse-cic-ids2018
+// reference-variant: cse-cic-ids2018-s3-csv-uncompressed-shards
+// pinned: 8 objects (explicit comma-list of URIs), 2479355784 bytes total, standard 80-col LF header set
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT toInt64OrNull(`Dst Port`) FROM file('{Friday-16-02-2018,Friday-23-02-2018,Thursday-01-03-2018,Thursday-15-02-2018,Thursday-22-02-2018,Wednesday-14-02-2018,Wednesday-21-02-2018,Wednesday-28-02-2018}_TrafficForML_CICFlowMeter.csv', CSVWithNames, '`Dst Port` String, `Protocol` String, `Timestamp` String, `Flow Duration` String, `Tot Fwd Pkts` String, `Tot Bwd Pkts` String, `TotLen Fwd Pkts` String, `TotLen Bwd Pkts` String, `Fwd Pkt Len Max` String, `Fwd Pkt Len Min` String, `Fwd Pkt Len Mean` String, `Fwd Pkt Len Std` String, `Bwd Pkt Len Max` String, `Bwd Pkt Len Min` String, `Bwd Pkt Len Mean` String, `Bwd Pkt Len Std` String, `Flow Byts/s` String, `Flow Pkts/s` String, `Flow IAT Mean` String, `Flow IAT Std` String, `Flow IAT Max` String, `Flow IAT Min` String, `Fwd IAT Tot` String, `Fwd IAT Mean` String, `Fwd IAT Std` String, `Fwd IAT Max` String, `Fwd IAT Min` String, `Bwd IAT Tot` String, `Bwd IAT Mean` String, `Bwd IAT Std` String, `Bwd IAT Max` String, `Bwd IAT Min` String, `Fwd PSH Flags` String, `Bwd PSH Flags` String, `Fwd URG Flags` String, `Bwd URG Flags` String, `Fwd Header Len` String, `Bwd Header Len` String, `Fwd Pkts/s` String, `Bwd Pkts/s` String, `Pkt Len Min` String, `Pkt Len Max` String, `Pkt Len Mean` String, `Pkt Len Std` String, `Pkt Len Var` String, `FIN Flag Cnt` String, `SYN Flag Cnt` String, `RST Flag Cnt` String, `PSH Flag Cnt` String, `ACK Flag Cnt` String, `URG Flag Cnt` String, `CWE Flag Count` String, `ECE Flag Cnt` String, `Down/Up Ratio` String, `Pkt Size Avg` String, `Fwd Seg Size Avg` String, `Bwd Seg Size Avg` String, `Fwd Byts/b Avg` String, `Fwd Pkts/b Avg` String, `Fwd Blk Rate Avg` String, `Bwd Byts/b Avg` String, `Bwd Pkts/b Avg` String, `Bwd Blk Rate Avg` String, `Subflow Fwd Pkts` String, `Subflow Fwd Byts` String, `Subflow Bwd Pkts` String, `Subflow Bwd Byts` String, `Init Fwd Win Byts` String, `Init Bwd Win Byts` String, `Fwd Act Data Pkts` String, `Fwd Seg Size Min` String, `Active Mean` String, `Active Std` String, `Active Max` String, `Active Min` String, `Idle Mean` String, `Idle Std` String, `Idle Max` String, `Idle Min` String, `Label` String') WHERE toInt64OrNull(`Dst Port`) = 179 LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: limit
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q44_limitNeedlePort
+required_capability: dataset_in_from_command
+dataset: cse_ids2018: "{{corpus}}"
+FROM cse_ids2018 | WHERE `Dst Port` == 179 | KEEP `Dst Port` | LIMIT 10;
+warningRegex:.*
+
+Dst Port:long
+179
+179
+179
+179
+179
+179
+179
+179
+179
+179
+;

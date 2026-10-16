@@ -1,0 +1,346 @@
+// GHCN-D daily observations, the USW00003* station fraction: 195 small files per tree,
+// 20,064,326 rows, on anonymous S3. Two variants hold PROVEN-identical rows (equal counts and
+// content hashes): the uncompressed csv/by_station tree is headered; the gzip csv.gz/by_station
+// tree is SYSTEMATICALLY headerless (all 195 files) - a real published-dataset dialect
+// difference, expressed per-variant (header_row false + positional path mappings on the gz leg).
+// The by_station trees have been frozen since 2025-02 (stable pins); by_year regenerates daily
+// and is unpinnable (declared gap). Expected tables derived at authoring time by clickhouse
+// local over the scratch copy of the same pinned objects.
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q01_countObservations
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | STATS count = COUNT(*);
+
+count:long
+20064326
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') WHERE ELEMENT = 'PRCP'
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q02_countPrcp
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | WHERE ELEMENT == "PRCP" | STATS count = COUNT(*);
+
+count:long
+1986558
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT sum(DATA_VALUE), count(), avg(DATA_VALUE) FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') WHERE ELEMENT = 'TMAX'
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q03_statsTmax
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | WHERE ELEMENT == "TMAX" | STATS sum_value = SUM(DATA_VALUE), count = COUNT(*), avg_value = AVG(DATA_VALUE);
+
+sum_value:long | count:long | avg_value:double
+444882087      | 2007197    | 221.64345951094984
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(ID) FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q05_distinctStations
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | STATS BY ID | STATS u = COUNT(*);
+
+u:long
+195
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT uniqExact(ELEMENT) FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q06_distinctElements
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | STATS BY ELEMENT | STATS u = COUNT(*);
+
+u:long
+84
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT min(DATE), max(DATE) FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String')
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 1
+q07_minMaxDate
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | STATS min_date = MIN(DATE), max_date = MAX(DATE);
+
+min_date:integer | max_date:integer
+18930101         | 20250206
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, ELEMENT FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') GROUP BY ELEMENT ORDER BY c DESC, ELEMENT ASC LIMIT 12
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 12
+q08_obsByElement
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | STATS c = COUNT(*) BY ELEMENT | SORT c DESC, ELEMENT ASC | LIMIT 12;
+
+c:long  | ELEMENT:keyword
+2007197 | TMAX
+2007009 | TMIN
+1986558 | PRCP
+1161587 | SNOW
+1132034 | SNWD
+1104018 | AWND
+994342  | WSF2
+994245  | WDF2
+970514  | WSF5
+969872  | WDF5
+759382  | PGTM
+491227  | WT01
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, ID FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') GROUP BY ID ORDER BY c DESC, ID ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+q13_obsByStation
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | STATS c = COUNT(*) BY ID | SORT c DESC, ID ASC | LIMIT 10;
+
+c:long | ID:keyword
+475236 | USW00003822
+399776 | USW00003820
+393837 | USW00003813
+390232 | USW00003928
+386825 | USW00003940
+383092 | USW00003927
+381114 | USW00003812
+371563 | USW00003103
+368810 | USW00003856
+365042 | USW00003870
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, Q_FLAG FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') GROUP BY Q_FLAG ORDER BY c DESC, Q_FLAG ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 10
+// note: the quality-flag dirt axis; the dominant group is the empty string (unflagged)
+q22_qualityFlags
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | STATS c = COUNT(*) BY Q_FLAG | SORT c DESC, Q_FLAG ASC | LIMIT 10;
+
+c:long   | Q_FLAG:keyword
+20052955 |
+5069     | I
+3081     | X
+1523     | Z
+724      | G
+452      | S
+268      | D
+138      | O
+69       | K
+26       | L
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT ID FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') WHERE ID = 'USW00003031' AND ELEMENT = 'SNOW' AND DATA_VALUE > 100
+// oracle-run: 2026-08-14
+// read-shape: scan
+// max-rows: 300
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q20_scanNeedleSnow
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | WHERE ID == "USW00003031" AND ELEMENT == "SNOW" AND DATA_VALUE > 100 | KEEP ID;
+
+ID:keyword
+USW00003031
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT ID, DATE, ELEMENT, DATA_VALUE FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') ORDER BY DATA_VALUE DESC NULLS LAST, ID ASC, DATE ASC, ELEMENT ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+q24_topReadings
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | SORT DATA_VALUE DESC NULLS LAST, ID ASC, DATE ASC, ELEMENT ASC | KEEP ID, DATE, ELEMENT, DATA_VALUE | LIMIT 10;
+
+ID:keyword  | DATE:integer | ELEMENT:keyword | DATA_VALUE:integer
+USW00003812 | 19881211     | FMTM            | 32767
+USW00003853 | 19880422     | PGTM            | 32767
+USW00003872 | 19850427     | PGTM            | 32767
+USW00003872 | 19860514     | FMTM            | 32767
+USW00003928 | 19890220     | FMTM            | 32767
+USW00003928 | 19950901     | PGTM            | 32767
+USW00003937 | 19880608     | FMTM            | 32767
+USW00003937 | 19960218     | FMTM            | 32767
+USW00003937 | 19960218     | PGTM            | 32767
+USW00003937 | 19960219     | FMTM            | 32767
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT ID FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') ORDER BY ID ASC, DATE ASC, ELEMENT ASC LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: topn
+// max-rows: 10
+// sort-reviewed: ties project identical ID values
+q26_sortStationsAsc
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | SORT ID ASC, DATE ASC, ELEMENT ASC | KEEP ID | LIMIT 10;
+
+ID:keyword
+USW00003012
+USW00003012
+USW00003012
+USW00003012
+USW00003012
+USW00003012
+USW00003012
+USW00003012
+USW00003012
+USW00003012
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT count() AS c, intDiv(DATE, 10000) AS y FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') GROUP BY y ORDER BY y ASC LIMIT 40
+// oracle-run: 2026-08-14
+// read-shape: aggregate
+// max-rows: 40
+// sort-reviewed: sorted by the group key itself, which is unique per row
+q43_obsPerYear
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | EVAL y = DATE / 10000 | STATS c = COUNT(*) BY y | SORT y ASC | LIMIT 40;
+
+c:long | y:integer
+516    | 1893
+1099   | 1894
+980    | 1895
+780    | 1896
+1041   | 1897
+806    | 1898
+1693   | 1900
+2212   | 1901
+2124   | 1902
+2120   | 1903
+2185   | 1904
+2814   | 1905
+3421   | 1906
+2388   | 1907
+2202   | 1908
+1909   | 1909
+1824   | 1910
+1815   | 1911
+1848   | 1912
+1844   | 1913
+2170   | 1914
+2145   | 1915
+2153   | 1916
+2188   | 1917
+2030   | 1918
+2094   | 1919
+2464   | 1920
+2027   | 1921
+2990   | 1922
+2734   | 1923
+4728   | 1924
+4756   | 1925
+4818   | 1926
+4188   | 1927
+4098   | 1928
+3970   | 1929
+4691   | 1930
+5219   | 1931
+4897   | 1932
+4705   | 1933
+;
+
+// corpus: ghcnd-usw3
+// reference-variant: ghcnd-usw3-s3-csv-uncompressed-small
+// pinned: 195 objects, 700125209 bytes (csv tree), USW00003* stations, frozen since 2025-02
+// oracle: clickhouse local 26.8.1.1309
+// oracle-sql: SELECT ID FROM file('csv/*.csv', CSVWithNames, 'ID String, DATE Int64, ELEMENT String, DATA_VALUE Nullable(Int64), M_FLAG String, Q_FLAG String, S_FLAG String, OBS_TIME String') WHERE ID = 'USW00003999' LIMIT 10
+// oracle-run: 2026-08-14
+// read-shape: limit
+// max-rows: 10
+// sort-reviewed: every returned value is the needle itself; order carries no information
+q44_limitNeedleStation
+required_capability: dataset_in_from_command
+dataset: ghcnd_usw3: "{{corpus}}"
+FROM ghcnd_usw3 | WHERE ID == "USW00003999" | KEEP ID | LIMIT 10;
+
+ID:keyword
+USW00003999
+USW00003999
+USW00003999
+USW00003999
+USW00003999
+USW00003999
+USW00003999
+USW00003999
+USW00003999
+USW00003999
+;

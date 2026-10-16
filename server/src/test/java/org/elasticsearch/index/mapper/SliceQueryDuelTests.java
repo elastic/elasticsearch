@@ -15,7 +15,8 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -25,6 +26,7 @@ import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -32,10 +34,14 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.SliceSelection;
+import org.elasticsearch.index.SliceTermsVerifier;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.WeightedToken;
+import org.elasticsearch.inference.WeightedTokensUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -133,9 +139,13 @@ public class SliceQueryDuelTests extends MapperServiceTestCase {
             }
             writer.forceMerge(1);
         }, reader -> {
-            final SearchExecutionContext context = createSearchExecutionContext(mapperService);
-            context.setSliceSelection(SliceSelection.fromSearchSlice(slice));
-            names.addAll(matches(reader, query.apply(context)));
+            final SliceSelection selection = SliceSelection.fromSearchSlice(slice);
+            // Through the verifier, so that a shape which answered correctly by accident still fails here, and reading
+            // through it as well so that a query consulting the dictionary while it is built is held to the same rule.
+            final IndexReader verified = SliceTermsVerifier.wrap(reader, selection);
+            final SearchExecutionContext context = createSearchExecutionContext(mapperService, new IndexSearcher(verified));
+            context.setSliceSelection(selection);
+            names.addAll(matches(verified, query.apply(context)));
         });
         return names;
     }
@@ -171,7 +181,7 @@ public class SliceQueryDuelTests extends MapperServiceTestCase {
                 }
             }
             writer.forceMerge(1);
-        }, reader -> names.addAll(matches(reader, query.apply(createSearchExecutionContext(mapperService)))));
+        }, reader -> names.addAll(matches(reader, query.apply(createSearchExecutionContext(mapperService, new IndexSearcher(reader))))));
         return names;
     }
 
@@ -191,7 +201,7 @@ public class SliceQueryDuelTests extends MapperServiceTestCase {
     }
 
     /** The names of the matching documents, sorted, read from the plain doc values. */
-    private static List<String> matches(DirectoryReader reader, Query query) throws IOException {
+    private static List<String> matches(IndexReader reader, Query query) throws IOException {
         final IndexSearcher searcher = new IndexSearcher(reader);
         searcher.setQueryCache(null);
         final ScoreDoc[] hits = searcher.search(query, 100).scoreDocs;
@@ -231,6 +241,22 @@ public class SliceQueryDuelTests extends MapperServiceTestCase {
             "sparse_vector feature",
             List.of("tenant-a", "tenant-b"),
             context -> context.getFieldType("sv").termQuery("shared", context)
+        );
+    }
+
+    /**
+     * The pruning of a {@code sparse_vector} query reads a token's document frequency itself rather than through a
+     * shape. The token is indexed under its slice, so the frequency has to be read from the slices in scope; read
+     * plainly it would be zero and every token would be pruned away as absent.
+     */
+    public void testSparseVectorPruningReadsFrequenciesFromItsSlice() throws IOException {
+        // A weight threshold of zero keeps a token on its weight alone, so the only thing left that can drop one is a
+        // document frequency of zero.
+        final TokenPruningConfig pruning = new TokenPruningConfig(1f, 0f, false);
+        final List<WeightedToken> tokens = List.of(new WeightedToken("shared", 1f), new WeightedToken("missing", 2f));
+        duel(
+            "sparse_vector pruning",
+            context -> WeightedTokensUtils.queryBuilderWithPrunedTokens("sv", pruning, tokens, context.getFieldType("sv"), context)
         );
     }
 
@@ -532,6 +558,20 @@ public class SliceQueryDuelTests extends MapperServiceTestCase {
     /** The corpus has to distinguish the slices for the normalized field too, not only report nothing everywhere. */
     public void testTheNormalizedFieldMatchesSomething() throws IOException {
         assertThat(searchSliced("tenant-a", context -> context.getFieldType("norm").termQuery("alpha", context)), equalTo(List.of("a1")));
+    }
+
+    /**
+     * A {@code completion} field encodes its own terms, which a slice index leaves plain, so a query over it must ask for
+     * the plain term as well.
+     */
+    public void testACompletionFieldIsAskedForWithoutTheSlice() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build(),
+            mapping(b -> b.startObject("sug").field("type", "completion").field("analyzer", "default").endObject())
+        );
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        context.setSliceSelection(SliceSelection.fromSearchSlice("tenant-a"));
+        assertThat(context.getFieldType("sug").termQuery("alpha", context), equalTo(new TermQuery(new Term("sug", "alpha"))));
     }
 
     /**

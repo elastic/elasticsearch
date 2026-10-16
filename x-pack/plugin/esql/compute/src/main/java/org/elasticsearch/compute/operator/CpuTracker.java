@@ -39,10 +39,16 @@ public class CpuTracker {
     /** Innermost open measurement on this thread, whichever tracker owns it. */
     private static final ThreadLocal<Measurement> CURRENT = new ThreadLocal<>();
 
-    /** {@link Measurement#startCpuNanos} while a measurement of another tracker is open inside it. Never a reading. */
-    private static final long PAUSED = -2;
-
     private static final Releasable NOOP = () -> {};
+
+    /** Lifecycle of a {@link Measurement}. Only a running one counts CPU time. */
+    private enum State {
+        /** The innermost open measurement on its thread. */
+        RUNNING,
+        /** A measurement of another tracker is open inside it and counts the time instead. */
+        PAUSED,
+        CLOSED
+    }
 
     private final LongSupplier cpuClock;
     private final LongAdder cpuNanos = new LongAdder();
@@ -64,9 +70,9 @@ public class CpuTracker {
         /** The measurement this one is nested in, restored when this one closes. */
         @Nullable
         private final Measurement outer;
-        /** Thread CPU at the latest (re)start, or {@code PAUSED}. A negative reading stops counting. */
+        /** Thread CPU at the latest (re)start. A negative reading stops counting. */
         private long startCpuNanos;
-        private boolean closed;
+        private State state = State.RUNNING;
 
         Measurement(@Nullable Measurement outer, long startCpuNanos) {
             this.outer = outer;
@@ -77,40 +83,42 @@ public class CpuTracker {
             return CpuTracker.this;
         }
 
-        /** Adds the CPU time since the latest (re)start to the owner. Does nothing while paused. */
+        /** Adds the CPU time since the latest (re)start to the owner. Does nothing unless running. */
         void commit(long nowCpuNanos) {
-            if (startCpuNanos >= 0) {
+            if (state == State.RUNNING && startCpuNanos >= 0) {
                 add(nowCpuNanos - startCpuNanos);
             }
         }
 
         void pause(long nowCpuNanos) {
             commit(nowCpuNanos);
-            startCpuNanos = PAUSED;
+            state = State.PAUSED;
         }
 
         void resume(long nowCpuNanos) {
-            if (startCpuNanos == PAUSED) {
+            if (state == State.PAUSED) {
+                state = State.RUNNING;
                 startCpuNanos = nowCpuNanos;
             }
         }
 
         @Override
         public void close() {
-            if (closed) {
+            if (state == State.CLOSED) {
                 return;
             }
-            closed = true;
             if (CURRENT.get() != this) {
                 // Closed before a measurement opened inside it, so it is paused and has nothing to count. It stays on
                 // the stack until the measurements inside it close and skip it.
+                state = State.CLOSED;
                 assert false : "measurements close on the thread that opened them, innermost first";
                 return;
             }
             long endCpuNanos = cpuClock.getAsLong();
             commit(endCpuNanos);
+            state = State.CLOSED;
             Measurement restored = outer;
-            while (restored != null && restored.closed) {
+            while (restored != null && restored.state == State.CLOSED) {
                 restored = restored.outer;
             }
             if (restored == null) {

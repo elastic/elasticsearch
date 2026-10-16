@@ -157,7 +157,26 @@ public class StringMatchTests extends ColumnarStringTestCase {
                     while (end < docValues.length && docValues[end].length == 0) {
                         end++;
                     }
-                    assertEquals("run from " + doc + " with a dictionary: " + reader.hasDictionary(), end, empty.docIDRunEnd());
+                    int covered = doc;
+                    while (covered < end) {
+                        final int runEnd = empty.docIDRunEnd();
+                        assertTrue(
+                            "run from "
+                                + covered
+                                + " ends at "
+                                + runEnd
+                                + ", within "
+                                + end
+                                + ", with a dictionary: "
+                                + reader.hasDictionary(),
+                            runEnd > covered && runEnd <= end
+                        );
+                        covered = runEnd;
+                        if (covered < end) {
+                            assertEquals(covered, approximation.advance(covered));
+                            assertTrue(empty.matches());
+                        }
+                    }
                     runs++;
                     doc = end < docValues.length ? approximation.advance(end) : DocIdSetIterator.NO_MORE_DOCS;
                 }

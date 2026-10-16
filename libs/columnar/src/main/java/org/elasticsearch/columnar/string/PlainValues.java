@@ -311,6 +311,7 @@ final class PlainValues {
 
         /** Null when every value has {@link #constantLength}. */
         private final LongValues starts;
+        private final long numLengthBlocks;
         private final LongBlocks.Reader lengths;
         private final int lengthShift;
         private final int lengthMask;
@@ -339,6 +340,7 @@ final class PlainValues {
             this.chunkTargetBytes = meta.chunkTargetBytes();
             if (meta.constant()) {
                 this.starts = null;
+                this.numLengthBlocks = 0;
                 this.lengths = null;
                 this.lengthShift = 0;
                 this.lengthMask = 0;
@@ -348,6 +350,7 @@ final class PlainValues {
                 return;
             }
             final int lengthBlockSize = meta.lengths().blockSize();
+            this.numLengthBlocks = meta.lengths().numBlocks();
             this.lengthShift = Integer.numberOfTrailingZeros(lengthBlockSize);
             this.lengthMask = lengthBlockSize - 1;
             this.starts = MonotonicReader.open(
@@ -365,6 +368,90 @@ final class PlainValues {
 
         long numValues() {
             return numValues;
+        }
+
+        /**
+         * Asks for what reading the values at {@code [firsts[i], firsts[i] + counts[i])} reads: a block of values as one span,
+         * or value by value when it is larger than a chunk. Stage {@code 0} asks for the length blocks, and for the value
+         * blocks the navigation bounds; stage {@code 1} reads the lengths and asks for the others.
+         *
+         * @return whether stage {@code 1} is needed
+         */
+        boolean prefetch(int stage, long[] firsts, long[] counts, int count) throws IOException {
+            boolean deferred = false;
+            long lastLengths = -1;
+            long lastBlock = -1;
+            for (int i = 0; i < count; i++) {
+                for (long address = firsts[i]; address < firsts[i] + counts[i]; address++) {
+                    final long valueBlock = address >>> valuesShift;
+                    if (constantLength >= 0) {
+                        if (stage == 0) {
+                            lastBlock = prefetchConstant(valueBlock, address, lastBlock);
+                        }
+                        continue;
+                    }
+                    final long lengthBlock = address >>> lengthShift;
+                    if (stage == 0) {
+                        if (lengthBlock != lastLengths) {
+                            lastLengths = lengthBlock;
+                            lengths.prefetchBlocks(lengthBlock, lengthBlock);
+                        }
+                        if (valueBlock != lastBlock) {
+                            lastBlock = valueBlock;
+                            deferred |= prefetchFromNavigation(lengthBlock) == false;
+                        }
+                    } else {
+                        lastBlock = prefetchFromLengths(valueBlock, address, lastBlock);
+                    }
+                }
+            }
+            return deferred;
+        }
+
+        /** Asks for a block of values of one length, or the value at {@code address} when it is read value by value. */
+        private long prefetchConstant(long valueBlock, long address, long lastBlock) throws IOException {
+            final long first = valueBlock << valuesShift;
+            final long end = Math.min(first + valuesPerBlock, numValues);
+            if ((end - first) * constantLength <= chunkTargetBytes) {
+                if (valueBlock != lastBlock) {
+                    chunks.prefetch(first * constantLength, (end - first) * constantLength);
+                }
+            } else {
+                chunks.prefetch(address * constantLength, constantLength);
+            }
+            return valueBlock;
+        }
+
+        /** Asks for the values of length block {@code lengthBlock} when the navigation bounds them as one span read whole. */
+        private boolean prefetchFromNavigation(long lengthBlock) throws IOException {
+            if (valuesPerBlock != slotStarts.length) {
+                return false;
+            }
+            final long start = starts.get(lengthBlock);
+            final long end = lengthBlock + 1 < numLengthBlocks ? starts.get(lengthBlock + 1) : chunks.length();
+            if (end - start > chunkTargetBytes) {
+                return false;
+            }
+            chunks.prefetch(start, end - start);
+            return true;
+        }
+
+        /** Asks for what {@link #read} reads for {@code address}, from its lengths. */
+        private long prefetchFromLengths(long valueBlock, long address, long lastBlock) throws IOException {
+            final long first = valueBlock << valuesShift;
+            loadLengths(first >>> lengthShift);
+            final int at = (int) (first & lengthMask);
+            final int last = Math.min(at + valuesPerBlock, loadedCount) - 1;
+            final long blockStart = slotStarts[at];
+            final long blockLength = slotStarts[last] + slotLengths[last] - blockStart;
+            if (blockLength > chunkTargetBytes) {
+                final int slot = (int) (address & lengthMask);
+                chunks.prefetch(slotStarts[slot], slotLengths[slot]);
+            } else if (valueBlock != lastBlock && valuesPerBlock != slotStarts.length) {
+                // Otherwise stage 0 asked for it.
+                chunks.prefetch(blockStart, blockLength);
+            }
+            return valueBlock;
         }
 
         /** Whether the slot at {@code valueAddress} is null, which its code says. */

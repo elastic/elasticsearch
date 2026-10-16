@@ -25,6 +25,7 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
@@ -35,6 +36,7 @@ import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
+import org.elasticsearch.lucene.store.PrefetchRanges;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -188,13 +190,20 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
 
     private BinaryDocValues stringBinary(StringColumnMetadata metadata, boolean singleValued) throws IOException {
         StringColumnReader reader = StringColumnReader.open(metadata, inputs, skipIndex);
-        return new ColumnarStringBinaryDocValues(reader, reader.iterator(), singleValued);
+        // A column with no value has nothing to prefetch.
+        IOFunction<PrefetchRanges, StringColumnReader> prefetchColumn = metadata.numDocsWithField() == 0
+            ? null
+            : prefetches -> StringColumnReader.open(metadata, inputs.wrap(prefetches), skipIndex);
+        return new ColumnarStringBinaryDocValues(reader, reader.iterator(), singleValued, prefetchColumn);
     }
 
     private BinaryDocValues numericBinary(NumericColumnMetadata metadata) throws IOException {
         NumericColumnReader reader = new NumericColumnReader(metadata, inputs);
         ColumnIterator iterator = reader.iterator();
-        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, metadata.skipper(), skipIndex);
+        IOFunction<PrefetchRanges, NumericColumnReader> prefetchColumn = metadata.numDocsWithField() == 0
+            ? null
+            : prefetches -> new NumericColumnReader(metadata, inputs.wrap(prefetches));
+        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, metadata.skipper(), skipIndex, prefetchColumn);
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
+import org.elasticsearch.lucene.store.PrefetchRanges;
 
 import java.io.IOException;
 
@@ -178,6 +179,7 @@ public final class LongBlocks {
         private final long[] blockBuffer;
 
         private long cachedBlock = -1;
+        private boolean askedAll;
 
         public Reader(Metadata meta, IndexInput data, IndexInput navigation) throws IOException {
             this.meta = meta;
@@ -200,6 +202,29 @@ public final class LongBlocks {
         /** Values per block, which is how a caller turns a position into a block and an index in it. */
         public int blockSize() {
             return meta.blockSize();
+        }
+
+        /** Asks for blocks {@code [first, last]}, unless all were asked for. */
+        public void prefetchBlocks(long first, long last) throws IOException {
+            if (askedAll == false) {
+                final long start = blockOffsets.get(first);
+                data.prefetch(meta.valuesOffset() + start, blockOffsets.get(last + 1) - start);
+            }
+        }
+
+        /** Asks for all blocks if they lie within a single read unit. */
+        public boolean prefetchAllIfWithinOneUnit(PrefetchRanges prefetches) throws IOException {
+            if (askedAll || meta.numBlocks() == 0) {
+                return false;
+            }
+            final long start = meta.valuesOffset() + blockOffsets.get(0);
+            final long length = blockOffsets.get(meta.numBlocks()) - blockOffsets.get(0);
+            if (prefetches.withinOneUnit(start, length) == false) {
+                return false;
+            }
+            askedAll = true;
+            data.prefetch(start, length);
+            return true;
         }
 
         /**

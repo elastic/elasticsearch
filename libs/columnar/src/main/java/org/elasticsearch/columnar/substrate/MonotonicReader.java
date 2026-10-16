@@ -14,6 +14,9 @@ import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.elasticsearch.lucene.store.DirectMonotonicLocator;
+import org.elasticsearch.lucene.store.DirectMonotonicTablePrefetcher;
+import org.elasticsearch.lucene.store.PrefetchRanges;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -51,5 +54,27 @@ public final class MonotonicReader {
             meta = DirectMonotonicReader.loadMeta(metaInput, numEntries, MonotonicWriter.BLOCK_SHIFT);
         }
         return DirectMonotonicReader.getInstance(meta, data.randomAccessSlice(dataOffset, dataLength));
+    }
+
+    /** Prefetches the table {@link #open} opens with the same arguments. */
+    public static DirectMonotonicTablePrefetcher prefetcher(
+        PrefetchRanges prefetches,
+        IndexInput data,
+        byte[] tableMeta,
+        long numEntries,
+        long dataOffset,
+        long dataLength
+    ) throws IOException {
+        DirectMonotonicReader.Meta meta;
+        try (
+            IndexInput metaInput = new ByteBuffersIndexInput(
+                new ByteBuffersDataInput(List.of(ByteBuffer.wrap(tableMeta))),
+                "monotonic-meta"
+            )
+        ) {
+            meta = DirectMonotonicReader.loadMeta(metaInput, numEntries, MonotonicWriter.BLOCK_SHIFT);
+        }
+        DirectMonotonicLocator locator = DirectMonotonicLocator.of(tableMeta, numEntries, MonotonicWriter.BLOCK_SHIFT);
+        return new DirectMonotonicTablePrefetcher(prefetches, data, dataOffset, dataLength, meta, locator);
     }
 }

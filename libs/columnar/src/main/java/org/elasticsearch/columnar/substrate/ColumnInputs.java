@@ -10,6 +10,18 @@
 package org.elasticsearch.columnar.substrate;
 
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.lucene.store.PrefetchRanges;
 
 /** Where a column is read from; see {@link ColumnOutputs} for what each file holds. */
-public record ColumnInputs(IndexInput data, IndexInput addressing, IndexInput lengths, IndexInput navigation) {}
+public record ColumnInputs(IndexInput data, IndexInput addressing, IndexInput lengths, IndexInput navigation) {
+
+    /** The same inputs, wrapped by {@code prefetches}. */
+    public ColumnInputs wrap(PrefetchRanges prefetches) {
+        return new ColumnInputs(
+            prefetches.wrap(data.clone()),
+            prefetches.wrap(addressing.clone()),
+            prefetches.wrap(lengths.clone()),
+            prefetches.wrap(navigation.clone())
+        );
+    }
+}

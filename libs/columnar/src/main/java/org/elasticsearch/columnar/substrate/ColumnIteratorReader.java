@@ -11,6 +11,9 @@ package org.elasticsearch.columnar.substrate;
 
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.lucene.store.IndexedDISIPrefetcher;
+import org.elasticsearch.lucene.store.PrefetchRanges;
 
 import java.io.IOException;
 
@@ -32,6 +35,23 @@ public final class ColumnIteratorReader {
     public ColumnIteratorReader(ColumnIteratorMetadata meta, IndexInput data) {
         this.meta = meta;
         this.data = data;
+    }
+
+    /** Prefetches the presence of a sparse column; {@code null} for a dense or empty one. */
+    @Nullable
+    public IndexedDISIPrefetcher presencePrefetcher(PrefetchRanges prefetches) {
+        if (meta.isSparse() == false) {
+            return null;
+        }
+        return new IndexedDISIPrefetcher(
+            prefetches,
+            data,
+            meta.offset(),
+            meta.length(),
+            meta.jumpTableEntryCount(),
+            meta.denseRankPower(),
+            meta.numDocsWithField()
+        );
     }
 
     public ColumnIterator iterator() throws IOException {

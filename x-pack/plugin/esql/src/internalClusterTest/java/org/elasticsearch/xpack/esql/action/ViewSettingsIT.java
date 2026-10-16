@@ -95,8 +95,9 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * The caller and the view body name the very same pattern, so they would share one index resolution if it were keyed by the
-     * pattern alone: the caller's {@code n} is loaded from {@code _source} where it is unmapped, the view's is not.
+     * The caller and the view body name the very same pattern, and each gets an index resolution of its own (resolutions
+     * are keyed by the pattern plus its view scope): the caller's {@code n} is loaded from {@code _source} where it is
+     * unmapped, the view's is not.
      */
     public void testLoadDoesNotLoadPartiallyUnmappedFieldInViewBodySharingCallerPattern() {
         setupPunkIndices();

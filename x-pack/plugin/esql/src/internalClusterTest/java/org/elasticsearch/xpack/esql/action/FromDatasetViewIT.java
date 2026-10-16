@@ -697,8 +697,8 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A pass-through view next to an index in the same FROM: without a view boundary to keep them apart, the view's
-     * relation merges with the caller's, and the caller's SET then reached the view's wildcard through the merged relation.
+     * A pass-through view next to an index in the same FROM: the view keeps a boundary of its own instead of merging
+     * into the caller's relation, so the caller's SET stops at it and the wildcard inside the body matches no dataset.
      */
     public void testWildcardInPassThroughViewBodyBesideIndexDoesNotMatchDatasets() {
         registerEmployees();

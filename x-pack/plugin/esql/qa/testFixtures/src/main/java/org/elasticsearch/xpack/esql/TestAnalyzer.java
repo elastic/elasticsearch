@@ -66,9 +66,11 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -115,6 +117,7 @@ public class TestAnalyzer {
     private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
     private boolean stripErrorPrefix;
     private Map<String, String> views = new LinkedHashMap<>();
+    private final Set<String> viewsWithoutSourceTags = new HashSet<>();
     private EsqlFlags flags = EsqlFlags.DEFAULTS;
 
     TestAnalyzer() {}
@@ -445,6 +448,17 @@ public class TestAnalyzer {
     }
 
     /**
+     * Add a view definition whose body carries no view name on its {@link org.elasticsearch.xpack.esql.core.tree.Source}s,
+     * as if a rewrite had lost it. A view must be recognized by its position in the plan, not by that tag, so analysis
+     * must treat this view exactly like one added with {@link #addView}, apart from the "in view" part of error messages.
+     */
+    public TestAnalyzer addViewWithoutSourceTags(String name, String query) {
+        views.put(name, query);
+        viewsWithoutSourceTags.add(name);
+        return this;
+    }
+
+    /**
      * Adds the standard set of enrich policy resolutions used by many analyzer tests.
      */
     public TestAnalyzer addAnalysisTestsEnrichResolution() {
@@ -670,7 +684,7 @@ public class TestAnalyzer {
     // This most primitive view resolution only works for the simple cases being tested
     private LogicalPlan resolveViews(LogicalPlan parsed) {
         // Mirror ViewBoundaryPreservation.KEEP_VIEW_IDENTITY, which EsqlSession picks whenever unmapped_fields is not DEFAULT.
-        return resolveViews(parsed, resolveViews(views), unmappedResolution != UnmappedResolution.DEFAULT);
+        return resolveViews(parsed, resolveViews(views, viewsWithoutSourceTags), unmappedResolution != UnmappedResolution.DEFAULT);
     }
 
     /**
@@ -764,14 +778,17 @@ public class TestAnalyzer {
         );
     }
 
-    private static Map<String, LogicalPlan> resolveViews(Map<String, String> views) {
+    private static Map<String, LogicalPlan> resolveViews(Map<String, String> views, Set<String> withoutSourceTags) {
         var parsedViews = new HashMap<String, LogicalPlan>();
         for (Map.Entry<String, String> entry : views.entrySet()) {
             // parseView, not parseQuery: production stamps the view name on every Source in a view body, which e.g.
             // names the view in errors on references inside its body.
             parsedViews.put(
                 entry.getKey(),
-                TEST_PARSER.parseView(entry.getValue(), new QueryParams(), new InferenceSettings(Settings.EMPTY), entry.getKey()).plan()
+                withoutSourceTags.contains(entry.getKey())
+                    ? TEST_PARSER.parseQuery(entry.getValue(), new QueryParams())
+                    : TEST_PARSER.parseView(entry.getValue(), new QueryParams(), new InferenceSettings(Settings.EMPTY), entry.getKey())
+                        .plan()
             );
         }
         return parsedViews;

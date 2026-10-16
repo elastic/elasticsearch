@@ -220,17 +220,6 @@ public final class ColumnarStringTermQuery extends Query implements ColumnarScan
         }
     }
 
-    /**
-     * A whole value is found by bisection on a column in term order and by ordinals on a dictionary column. On a plain
-     * column the stored lengths narrow the candidates to values of the term's own length, and an empty term is settled
-     * by them alone. Lucene's own handling of an exclusion suits that. A start or a run of bytes inside a value is
-     * not narrowed that way, so every value of at least that length has to be read.
-     */
-    @Override
-    public boolean costlyToExclude() {
-        return where != Where.WHOLE;
-    }
-
     @Override
     public String toString(String defaultField) {
         return switch (where) {

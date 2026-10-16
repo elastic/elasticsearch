@@ -951,22 +951,11 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
     /** ES|QL emits each NOT as a bool query of its own; Lucene only folds it into the enclosing conjunction at rewrite. */
     public void testLoneColumnarScanExclusionIsRequired() throws IOException {
-        Query scan = ColumnarStringTermQuery.contains("kw", new BytesRef("google"), false, s -> {});
+        Query scan = ColumnarStringTermQuery.term("kw", new BytesRef(""), false, s -> {});
         BooleanQuery query = (BooleanQuery) boolQuery().mustNot(new FixedQueryBuilder(scan)).toQuery(createSearchExecutionContext());
         assertThat(query.clauses().size(), equalTo(1));
         assertThat(query.clauses().get(0).occur(), equalTo(BooleanClause.Occur.FILTER));
         assertEquals(new ColumnarNegatedQuery(scan), query.clauses().get(0).query());
-    }
-
-    /** {@code != ""} is settled from stored lengths, so it stays an ordinary exclusion. */
-    public void testWholeValueColumnarExclusionStaysProhibited() throws IOException {
-        Query term = ColumnarStringTermQuery.term("kw", new BytesRef(""), false, s -> {});
-        BooleanQuery query = (BooleanQuery) boolQuery().mustNot(new FixedQueryBuilder(term)).toQuery(createSearchExecutionContext());
-        // A pure negative bool is completed with a match-all clause, so the exclusion is not alone.
-        assertThat(queriesOf(query, BooleanClause.Occur.MUST_NOT), containsInAnyOrder(term));
-        for (BooleanClause clause : query.clauses()) {
-            assertFalse(clause.query() instanceof ColumnarNegatedQuery);
-        }
     }
 
     /** ES|QL wraps what it pushes down, so the scan is found inside the clause rather than being it. */

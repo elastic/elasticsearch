@@ -16,21 +16,4 @@ package org.elasticsearch.columnar;
  * where it sits in a boolean query matters. {@link ColumnarNegatedQuery} uses the mark to tell an exclusion worth
  * reordering from one Lucene already handles well.
  */
-public interface ColumnarScanQuery {
-
-    /**
-     * Whether, as an exclusion, this query is expensive to confirm because it has to read the values of documents it
-     * cannot rule out beforehand.
-     *
-     * <p>Where the answer is no, Lucene's own handling of an exclusion is already a good fit: the query reaches only a
-     * short list of candidates, so walking them costs little however few documents the other clauses keep. Requiring
-     * it instead then adds a check on every document and gives up skipping a run of excluded documents at once, for
-     * nothing in return.
-     *
-     * <p>The default is yes, which is the safe answer: the reordering never changes which documents match, so being
-     * wrong costs time, not results.
-     */
-    default boolean costlyToExclude() {
-        return true;
-    }
-}
+public interface ColumnarScanQuery {}

@@ -100,7 +100,7 @@ public class PreAnalyzer {
                     IndexMode m1 = p.indexMode();
                     IndexMode m2 = indexes.get(p.indexPattern());
                     throw new IllegalStateException(
-                        "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
+                        "index pattern '" + p.indexPattern() + "' found with different index mode: " + m2 + " != " + m1
                     );
                 }
             }

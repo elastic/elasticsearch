@@ -292,6 +292,10 @@ public class IndexVersions {
     public static final IndexVersion COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF = def(9_118_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion TIME_SERIES_IP_SKIPPERS_HONOR_INDEX_AND_DOC_VALUES = def(9_119_0_00, Version.LUCENE_10_5_1);
     public static final IndexVersion TEXT_INDEX_OPTIONS_DOCS_BY_DEFAULT_IN_COLUMNAR = def(9_120_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING = def(9_121_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion TRACKS_UNMAPPED_FIELD_RETENTION = def(9_122_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion TIME_SERIES_COMBINE_DYNAMIC_UPDATES_DEFAULT = def(9_123_0_00, Version.LUCENE_10_5_1);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_5_2 = def(9_124_0_00, Version.LUCENE_10_5_2);
 
     public static final IndexVersion UPGRADE_TO_LUCENE_10_6_0 = def(9_300_00_0, Version.LUCENE_10_6_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_7_0 = def(9_400_00_0, Version.LUCENE_10_7_0);

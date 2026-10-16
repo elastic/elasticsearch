@@ -91,6 +91,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     private final FlatVectorsFormat rawVectorFormat;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
+    private final TaskExecutor quantizerExec;
     private final int flatVectorThreshold;
     private final String sliceField;
     private final IvfFlushConfigSource ivfFlushConfigSource;
@@ -109,6 +110,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             DenseVectorFieldMapper.ElementType.FLOAT,
             null,
             1,
+            null,
             defaultFlatThreshold(vectorPerCluster),
             sliceField,
             IvfFlushConfigSource.empty(),
@@ -123,6 +125,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         DenseVectorFieldMapper.ElementType elementType,
         ExecutorService mergingExecutorService,
         int maxMergingWorkers,
+        ExecutorService quantizerExecutorService,
         int flatVectorThreshold,
         String sliceField,
         IvfFlushConfigSource ivfFlushConfigSource,
@@ -164,6 +167,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         };
         this.mergeExec = mergingExecutorService == null ? null : new TaskExecutor(mergingExecutorService);
         this.numMergeWorkers = maxMergingWorkers;
+        this.quantizerExec = quantizerExecutorService == null ? null : new TaskExecutor(quantizerExecutorService);
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
         this.sliceField = sliceField;
         this.ivfFlushConfigSource = ivfFlushConfigSource;
@@ -181,6 +185,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             centroidsPerParentCluster,
             mergeExec,
             numMergeWorkers,
+            quantizerExec,
             flatVectorThreshold,
             sliceField,
             ivfFlushConfigSource,

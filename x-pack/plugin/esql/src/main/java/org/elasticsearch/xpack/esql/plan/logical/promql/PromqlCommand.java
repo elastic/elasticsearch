@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -30,13 +31,13 @@ import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
@@ -399,7 +400,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         );
     }
 
-    public void verify(Failures failures) {
+    public void verify(Failures failures, int maxBranches, String limitSource) {
         LogicalPlan p = promqlPlan();
         boolean hasStep = step.value() != null;
         boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
@@ -437,9 +438,15 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             // into a single UnionAll. Reject chains exceeding the UnionAll branch limit with a clear message here
             // rather than failing later during translation.
             int branchCount = topLevelUnions.size() + 1;
-            if (MergePlan.exceedsMaxBranches(branchCount)) {
+            if (branchCount > maxBranches) {
                 failures.add(
-                    fail(p, "PromQL set operator [or] supports up to [{}] operands, got [{}]", MergePlan.MAX_BRANCHES, branchCount)
+                    fail(
+                        p,
+                        "PromQL set operator [or] supports up to [{}] operands, got [{}], exceeding the limit set by the {}",
+                        maxBranches,
+                        branchCount,
+                        limitSource
+                    )
                 );
             }
         }
@@ -514,7 +521,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     }
                 }
                 case PromqlFunctionCall functionCall -> {
-                    // ok — counter/gauge type mismatches are coerced during translation
+                    if (functionCall instanceof ResultOrderingFunction && root.get() == false) {
+                        failures.add(
+                            fail(
+                                lp,
+                                "[{}] is only supported at the top-level at this time [{}]",
+                                functionCall.functionName(),
+                                lp.sourceText()
+                            )
+                        );
+                    }
                 }
                 case ScalarFunction scalarFunction -> {
                     // ok
@@ -561,6 +577,17 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                                 // https://github.com/elastic/elasticsearch/issues/157669
                                 // Operand shapes that produce them: without aggregations (#157671), label functions (#157672).
                                 failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
+                            } else if (scalarOperand == false && pairsMetricsInSeparateSeries(binaryOperator)) {
+                                // Implicit ignoring(__name__) over opaque operands needs the same runtime-defined match keys.
+                                // https://github.com/elastic/elasticsearch/issues/157669
+                                failures.add(
+                                    fail(
+                                        lp,
+                                        "binary operations between different metrics require aggregating both operands by the "
+                                            + "labels to match on, such as sum by (instance) (a) / sum by (instance) (b) [{}]",
+                                        lp.sourceText()
+                                    )
+                                );
                             }
                     }
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
@@ -824,6 +851,34 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     private static boolean hasConcreteLabels(LogicalPlan plan) {
         return plan.output().stream().noneMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
+    }
+
+    /**
+     * Whether an opaque operand pairs different metrics on a source mapping {@code __name__} as a dimension, as Prometheus
+     * remote write does. Every metric then has series of its own, so folding both into one shared frame yields no rows.
+     */
+    private boolean pairsMetricsInSeparateSeries(VectorBinaryOperator op) {
+        if (hasConcreteLabels(op.left()) && hasConcreteLabels(op.right())) {
+            return false;
+        }
+        Set<String> left = metricNames(op.left());
+        Set<String> right = metricNames(op.right());
+        return left.isEmpty() == false
+            && right.isEmpty() == false
+            && left.equals(right) == false
+            && child().output()
+                .stream()
+                .anyMatch(a -> a instanceof FieldAttribute f && f.isDimension() && LabelMatcher.NAME.equals(PromqlLabels.labelName(f)));
+    }
+
+    private static Set<String> metricNames(LogicalPlan plan) {
+        Set<String> names = new HashSet<>();
+        for (Selector selector : plan.collect(Selector.class)) {
+            if (selector instanceof LiteralSelector == false && selector.series() instanceof Attribute series) {
+                names.add(series.name());
+            }
+        }
+        return names;
     }
 
     /**

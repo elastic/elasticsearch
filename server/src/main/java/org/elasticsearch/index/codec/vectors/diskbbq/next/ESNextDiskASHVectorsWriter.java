@@ -77,6 +77,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     private final int centroidsPerParentCluster;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
+    private final TaskExecutor quantizerExec;
     private final String sliceField;
     private final IvfFlushConfigSource flushConfigSource;
     private final IvfMergeConfigResolver mergeConfigResolver;
@@ -94,6 +95,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         int centroidsPerParentCluster,
         TaskExecutor mergeExec,
         int numMergeWorkers,
+        TaskExecutor quantizerExec,
         int flatVectorThreshold,
         String sliceField,
         IvfFlushConfigSource flushConfigSource,
@@ -117,6 +119,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.mergeExec = mergeExec;
         this.numMergeWorkers = numMergeWorkers;
+        this.quantizerExec = quantizerExec;
         this.sliceField = sliceField;
         this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
         this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
@@ -174,6 +177,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             assignments,
             overspillAssignments,
             ivfSegmentConfig,
+            quantizerExec,
             null,
             false // flush: vectors are on-heap, train on a reduced sample
         );
@@ -204,6 +208,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             assignments,
             overspillAssignments,
             ivfSegmentConfig,
+            quantizerExec,
             inheritedWT,
             true // merge: streams vectors off-heap by ordinal and trains on the full sample
         );
@@ -285,6 +290,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         int[] assignments,
         OverspillAssignments overspillAssignments,
         IvfSegmentConfig segmentConfig,
+        TaskExecutor quantizerExec,
         float[] pretrainedWT,
         boolean trainOnFullSample
     ) throws IOException {
@@ -304,6 +310,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             assignments,
             overspillAssignments,
             segmentConfig.ashConfig(),
+            quantizerExec,
             fieldInfo.getVectorSimilarityFunction(),
             skipDocIds,
             pretrainedWT,

@@ -28,6 +28,7 @@ import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -40,9 +41,11 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.Matcher;
@@ -237,10 +240,30 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             false
         ).dimensions(64)
             .indexOptions(
-                DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW.parseIndexOptions("vector", indexOptions, IndexVersion.current(), false)
+                DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW.parseIndexOptions("vector", indexOptions, mappingParserContext(), false)
             )
             .build(MapperBuilderContext.root(false, false));
         return MappingLookup.fromMappers(Mapping.EMPTY, List.of(mapper), List.of(), IndexMode.STANDARD);
+    }
+
+    /** The parser context index options are parsed with: only the index version created is read. */
+    private static MappingParserContext mappingParserContext() {
+        return new MappingParserContext(
+            null,
+            null,
+            null,
+            IndexVersion.current(),
+            TransportVersion::current,
+            f -> true,
+            null,
+            ScriptCompiler.NONE,
+            null,
+            IndexSettingsModule.newIndexSettings("index", Settings.EMPTY),
+            query -> {
+                throw new UnsupportedOperationException();
+            },
+            null
+        );
     }
 
     /** A merge-context write of raw vectors, as a writer issues it. */

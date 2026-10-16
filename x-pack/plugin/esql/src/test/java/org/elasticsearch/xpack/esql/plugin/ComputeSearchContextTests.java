@@ -24,7 +24,7 @@ public class ComputeSearchContextTests extends MapperServiceTestCase {
     public void testReleasingTheShardContextClosesTheSearchContext() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> b.startObject("k").field("type", "keyword").endObject()));
         SearchContext searchContext = new TestSearchContext(createSearchExecutionContext(mapperService, null));
-        ShardContext shardContext = new ComputeSearchContext(0, searchContext).shardContext(QueryWarnings.EMIT);
+        ShardContext shardContext = new ComputeSearchContext(0, searchContext).shardContext(QueryWarnings.EMIT, false);
         shardContext.decRef();
         assertTrue(searchContext.isClosed());
     }

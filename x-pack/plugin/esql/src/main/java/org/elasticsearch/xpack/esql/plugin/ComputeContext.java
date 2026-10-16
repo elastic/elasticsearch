@@ -28,7 +28,11 @@ record ComputeContext(
     Supplier<ExchangeSink> exchangeSinkSupplier,
     boolean singleNodeOptimizations
 ) {
+    /**
+     * The search execution contexts the statistics the plan is optimized with read the mapping through.
+     */
     IndexedByShardId<? extends SearchExecutionContext> searchExecutionContexts() {
-        return searchContexts.map(s -> s.searchContext().getSearchExecutionContext());
+        boolean flattenedKeys = configuration.flattenedKeys();
+        return searchContexts.map(s -> s.statsSearchExecutionContext(flattenedKeys));
     }
 }

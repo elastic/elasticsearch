@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.HashSet;
 import java.util.Locale;
@@ -587,6 +588,21 @@ public class EsqlCapabilities {
          * root from doc values, rendering mapped sub-fields with their native type and dropping a bare text sub-field.
          */
         FLATTENED_ROOT_STRINGIFIES_MAPPED_SUBFIELDS,
+
+        /**
+         * A name under a {@code flattened} field (e.g. {@code attrs.bar}) is a {@code keyword} field of its own, the key of that
+         * name, in every {@code unmapped_fields} mode. It loads, filters and sorts like any {@code keyword} field. Another index
+         * that maps the same name as another type makes it a type conflict that a cast resolves. A pattern of {@code KEEP} or
+         * {@code DROP} under such a field (e.g. {@code attrs.b*}) keeps or drops its keys, and the columns it matches. In an index
+         * where the name of a {@code flattened} field is only an object, the field is unmapped.
+         */
+        FLATTENED_SUBFIELDS(EsqlPlugin.FLATTENED_SUBFIELDS_FEATURE_FLAG),
+
+        /**
+         * A filter over a {@code keyword} field that may be unmapped under {@code unmapped_fields="load"} is pushed to every shard
+         * that maps the field, and checked against the values the others read from their unmapped fields.
+         */
+        UNMAPPED_FIELDS_SHARD_PUSHDOWN,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713

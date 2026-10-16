@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
 import java.io.Closeable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 import javax.crypto.SecretKey;
@@ -55,6 +58,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
     private final Supplier<Settings> settingsSupplier;
     private volatile KeyCache cache = KeyCache.EMPTY;
     private volatile boolean encryptionRequired = true;
+    private final Set<String> missingKeyIdWarnings = ConcurrentHashMap.newKeySet();
 
     private ProjectEncryptionKeyService(
         ClusterService clusterService,
@@ -140,11 +144,12 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         ProjectState projectState = projectResolver.getProjectState(state);
         ProjectEncryptionKeyMetadata metadata = projectState.metadata().custom(ProjectEncryptionKeyMetadata.TYPE);
 
+        long version = state.version();
         if (metadata == null) {
-            if (this.cache != KeyCache.EMPTY) {
+            if (cache.activeKeyId() != null || cache.degraded()) {
                 logger.debug("project encryption key cache cleared after metadata removed");
-                this.cache = KeyCache.EMPTY;
             }
+            this.cache = new KeyCache(null, Map.of(), false, version);
             return;
         }
 
@@ -154,8 +159,8 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
                     "project encryption key: disk recovery failed (degraded state), encryption/decryption unavailable."
                         + " To recover: fix the password and restart, or call POST /_encryption/_reset?accept_data_loss=true"
                 );
-                this.cache = KeyCache.DEGRADED;
             }
+            this.cache = new KeyCache(null, Map.of(), true, version);
             return;
         }
 
@@ -163,7 +168,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         for (Map.Entry<String, ProjectEncryptionKeyMetadata.KeyEntry> entry : metadata.getKeys().entrySet()) {
             decryptedKeys.put(entry.getKey(), new SecretKeySpec(entry.getValue().bytes(), "AES"));
         }
-        this.cache = new KeyCache(metadata.getActiveKeyId(), Map.copyOf(decryptedKeys), false);
+        this.cache = new KeyCache(metadata.getActiveKeyId(), Map.copyOf(decryptedKeys), false, version);
         logger.debug("project encryption key cache updated: activeKeyId={}", metadata.getActiveKeyId());
     }
 
@@ -172,24 +177,42 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
     public AesGcmEncryptionService.ActiveKey getActiveKey() {
         KeyCache snapshot = cache;
         if (snapshot.activeKeyId == null) {
+            checkMissingKey(snapshot, null);
             return null;
         }
-        SecretKey key = snapshot.decryptedKeys.get(snapshot.activeKeyId);
-        if (key == null) {
-            return null;
-        }
-        return new AesGcmEncryptionService.ActiveKey(snapshot.activeKeyId, key);
+        return new AesGcmEncryptionService.ActiveKey(snapshot.activeKeyId, snapshot.decryptedKeys.get(snapshot.activeKeyId));
     }
 
     @Override
     @Nullable
     public SecretKey getKey(String keyId) {
-        return cache.decryptedKeys.get(keyId);
+        KeyCache snapshot = cache;
+        SecretKey key = snapshot.decryptedKeys.get(keyId);
+        if (key == null) {
+            checkMissingKey(snapshot, keyId);
+        }
+        return key;
     }
 
-    private record KeyCache(@Nullable String activeKeyId, Map<String, SecretKey> decryptedKeys, boolean degraded) {
-        static final KeyCache EMPTY = new KeyCache(null, Map.of(), false);
-        static final KeyCache DEGRADED = new KeyCache(null, Map.of(), true);
+    /** Asserts the cache doesn't lag the visible cluster state and warns once per key that is missing from it. */
+    private void checkMissingKey(KeyCache snapshot, @Nullable String keyId) {
+        ClusterState visible = clusterService.state();
+        ProjectMetadata project = visible.metadata().projects().get(projectResolver.getProjectId());
+        ProjectEncryptionKeyMetadata metadata = project == null ? null : project.custom(ProjectEncryptionKeyMetadata.TYPE);
+        if (metadata == null || metadata.isUnwrapFailed()) {
+            return;
+        }
+        String id = keyId != null ? keyId : metadata.getActiveKeyId();
+        boolean inState = metadata.getKeys().containsKey(id);
+        // a cache built from a newer state than the visible one is expected while that state is being applied
+        assert inState == false || visible.version() <= snapshot.stateVersion() : "key [" + id + "] is in cluster state but not cached";
+        if (inState == false && missingKeyIdWarnings.add(id)) {
+            logger.warn("project encryption key [{}] is not in cluster state (active key is [{}])", id, metadata.getActiveKeyId());
+        }
+    }
+
+    private record KeyCache(@Nullable String activeKeyId, Map<String, SecretKey> decryptedKeys, boolean degraded, long stateVersion) {
+        static final KeyCache EMPTY = new KeyCache(null, Map.of(), false, -1L);
 
         KeyCache {
             assert degraded || activeKeyId == null || decryptedKeys.containsKey(activeKeyId);

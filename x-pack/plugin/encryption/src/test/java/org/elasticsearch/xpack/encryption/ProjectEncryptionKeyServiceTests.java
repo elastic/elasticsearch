@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
@@ -36,6 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import javax.crypto.SecretKey;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,6 +56,7 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
             Set.of(ProjectEncryptionKeyPasswordSettings.ENCRYPTION_REQUIRED)
         );
         when(cs.getClusterSettings()).thenReturn(clusterSettings);
+        when(cs.state()).thenReturn(stateWithoutKey());
         return cs;
     }
 
@@ -244,6 +248,68 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
         } finally {
             terminate(threadPool);
         }
+    }
+
+    public void testCacheBehindVisibleStateTripsAssertion() {
+        ClusterService clusterService = mockClusterService();
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            () -> Settings.EMPTY
+        );
+        ProjectEncryptionKeyMetadata pek = plaintextPekMetadata(PASSWORD_ID);
+        when(clusterService.state()).thenReturn(stateWithKey(pek));
+
+        AssertionError e = expectThrows(AssertionError.class, () -> service.getKey(pek.getActiveKeyId()));
+        assertThat(e.getMessage(), containsString("is in cluster state but not cached"));
+        expectThrows(AssertionError.class, service::getActiveKey);
+    }
+
+    public void testWarnsOnceWhenKeyNotInClusterState() {
+        ClusterService clusterService = mockClusterService();
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            () -> Settings.EMPTY
+        );
+        ClusterStateApplier applier = captureApplier(clusterService);
+        ProjectEncryptionKeyMetadata pek = plaintextPekMetadata(PASSWORD_ID);
+        ClusterState withKey = stateWithKey(pek);
+        applier.applyClusterState(new ClusterChangedEvent("test", withKey, stateWithoutKey()));
+        when(clusterService.state()).thenReturn(withKey);
+
+        String missingKeyId = ProjectEncryptionKeyMetadata.generateKeyId();
+        MockLog.assertThatLogger(
+            () -> assertNull(service.getKey(missingKeyId)),
+            ProjectEncryptionKeyService.class,
+            new MockLog.SeenEventExpectation(
+                "missing key",
+                ProjectEncryptionKeyService.class.getName(),
+                Level.WARN,
+                "project encryption key [" + missingKeyId + "] is not in cluster state*active key is [" + pek.getActiveKeyId() + "]*"
+            )
+        );
+        MockLog.assertThatLogger(
+            () -> assertNull(service.getKey(missingKeyId)),
+            ProjectEncryptionKeyService.class,
+            new MockLog.UnseenEventExpectation("no repeat", ProjectEncryptionKeyService.class.getName(), Level.WARN, "*")
+        );
+    }
+
+    public void testNoWarningWhileNoKeyInstalled() {
+        ClusterService clusterService = mockClusterService();
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            () -> Settings.EMPTY
+        );
+        MockLog.assertThatLogger(() -> {
+            assertNull(service.getActiveKey());
+            assertNull(service.getKey(ProjectEncryptionKeyMetadata.generateKeyId()));
+        },
+            ProjectEncryptionKeyService.class,
+            new MockLog.UnseenEventExpectation("no warning", ProjectEncryptionKeyService.class.getName(), Level.WARN, "*")
+        );
     }
 
     public void testSettingsChangeDoesNotAffectKeyCache() {

@@ -25,7 +25,7 @@ import java.util.Objects;
  * duplicates and inline {@code null} positions; unlike it, the slot count travels in the blob, so there is no companion field to advance
  * on and every shape a document takes — values, nulls, an empty array — arrives as one payload.
  */
-public final class ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
+public class ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
     private final String name;
     private final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
 
@@ -96,8 +96,13 @@ public final class ColumnarPayloadBinaryDocValuesSyntheticFieldLoaderLayer imple
             if (value == null) {
                 b.nullValue();
             } else {
-                b.utf8Value(value.bytes, value.offset, value.length);
+                writeValue(b, value);
             }
         }
+    }
+
+    /** Writes one value; UTF-8 text unless a field stores its values in another form. */
+    protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+        b.utf8Value(value.bytes, value.offset, value.length);
     }
 }

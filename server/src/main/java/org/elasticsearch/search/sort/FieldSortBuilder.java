@@ -569,7 +569,11 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 return extractNumericMinAndMax(reader, sortField, fieldType, sortBuilder);
             case STRING:
             case STRING_VAL:
-                if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                if (fieldType instanceof KeywordFieldMapper.KeywordFieldType
+                    // On a slice index the terms of this field carry the slice they belong to, so the first and last term
+                    // of the dictionary bound the slices rather than the values and say nothing about this field's range.
+                    // The bound is only used to order the shards, so dropping it costs that ordering and nothing else.
+                    && context.getIndexSettings().isSliceEnabled() == false) {
                     Terms terms = MultiTerms.getTerms(reader, fieldType.name());
                     if (terms == null) {
                         return null;

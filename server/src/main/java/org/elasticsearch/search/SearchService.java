@@ -2342,6 +2342,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         if (source.suggest() != null) {
+            // The suggesters run their own query against the terms dictionary, so they neither pick up the filter that scopes a
+            // search to its slice nor go through a field type that would put the slice on the terms they read. Suggesting over
+            // one slice means reaching into another's terms, so a slice index declines it rather than answer across tenants.
+            if (searchExecutionContext.getIndexSettings().isSliceEnabled()) {
+                throw new IllegalArgumentException(
+                    "[suggest] is not supported on an index with [" + IndexSettings.SLICE_ENABLED.getKey() + "] set"
+                );
+            }
             try {
                 context.suggest(source.suggest().build(searchExecutionContext));
             } catch (IOException e) {

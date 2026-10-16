@@ -132,7 +132,7 @@ public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
         }
         int queryOrd = randomInt(numVecs - 1);
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, values[queryOrd], values, ordinals, expectedScores);
+        ScalarOperations.bulkSparse(function, values[queryOrd], values, ordinals, expectedScores);
 
         var nativeQuerySeg = segment.asSlice((long) queryOrd * dims * Float.BYTES, (long) dims * Float.BYTES);
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
@@ -172,7 +172,7 @@ public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
         }
         int queryOrd = randomInt(numVecs - 1);
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, values[queryOrd], values, ordinals, expectedScores);
+        ScalarOperations.bulkSparse(function, values[queryOrd], values, ordinals, expectedScores);
 
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {

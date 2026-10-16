@@ -12,7 +12,6 @@ package org.elasticsearch.simdvec;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
-import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
 public class SimdVecLibraryInt7uDotProductTests extends SimdVecLibraryInt7uTests {
@@ -21,201 +20,89 @@ public class SimdVecLibraryInt7uDotProductTests extends SimdVecLibraryInt7uTests
         super(SimdVecLibrary.SimilarityFunction.DOT_PRODUCT, size);
     }
 
-    public void testInt7uBulkWithOffsets() {
+    public void testInt7uBulkMasked() {
         assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = randomIntBetween(2, 101);
-        var offsets = new int[numVecs];
-        var vectors = new byte[numVecs][dims];
-        var vectorsSegment = arena.allocate((long) dims * numVecs);
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
-            randomBytesBetween(vectors[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
-            MemorySegment.copy(vectors[i], 0, vectorsSegment, ValueLayout.JAVA_BYTE, (long) i * dims, dims);
-        }
-        int queryOrd = randomInt(numVecs - 1);
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, vectors[queryOrd], vectors, offsets, expectedScores);
-
-        var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * dims, dims);
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-
-        getVectorDistance().dotProductI7uBulkWithOffsets(
-            vectorsSegment,
-            nativeQuerySeg,
-            dims,
-            dims,
-            offsetsSegment,
-            numVecs,
-            bulkScoresSeg
-        );
-        assertScoresEquals(expectedScores, bulkScoresSeg);
+        doTestInt7uBulkMasked(0, false);
     }
 
-    // All offsets point to the same vector; every score in the result should be identical.
-    public void testInt7uBulkWithDuplicateOffsets() {
+    public void testInt7uBulkMaskedWithPitch() {
         assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = randomIntBetween(4, 101);
-        var vectors = new byte[numVecs][dims];
-        var vectorsSegment = arena.allocate((long) dims * numVecs);
-        for (int i = 0; i < numVecs; i++) {
-            randomBytesBetween(vectors[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
-            MemorySegment.copy(vectors[i], 0, vectorsSegment, ValueLayout.JAVA_BYTE, (long) i * dims, dims);
-        }
-        int target = randomInt(numVecs - 1);
-        var offsets = new int[numVecs];
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = target;
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, target);
-        }
-        int queryOrd = randomInt(numVecs - 1);
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, vectors[queryOrd], vectors, offsets, expectedScores);
-
-        var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * dims, dims);
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-        getVectorDistance().dotProductI7uBulkWithOffsets(
-            vectorsSegment,
-            nativeQuerySeg,
-            dims,
-            dims,
-            offsetsSegment,
-            numVecs,
-            bulkScoresSeg
-        );
-        assertScoresEquals(expectedScores, bulkScoresSeg);
-
-        for (int i = 1; i < numVecs; i++) {
-            assertEquals(bulkScoresSeg.get(JAVA_FLOAT_UNALIGNED, 0L), bulkScoresSeg.get(JAVA_FLOAT_UNALIGNED, (long) i * Float.BYTES), 0f);
-        }
-    }
-
-    // Identity offsets (offsets[i] == i) should produce the same results as the non-offset bulk path.
-    public void testInt7uBulkWithIdentityOffsets() {
-        assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = randomIntBetween(2, 101);
-        var vectors = new byte[numVecs][dims];
-        var vectorsSegment = arena.allocate((long) dims * numVecs);
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-        for (int i = 0; i < numVecs; i++) {
-            randomBytesBetween(vectors[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
-            MemorySegment.copy(vectors[i], 0, vectorsSegment, ValueLayout.JAVA_BYTE, (long) i * dims, dims);
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, i);
-        }
-        int queryOrd = randomInt(numVecs - 1);
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulk(function, vectors[queryOrd], vectors, expectedScores);
-
-        var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * dims, dims);
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-        getVectorDistance().dotProductI7uBulkWithOffsets(
-            vectorsSegment,
-            nativeQuerySeg,
-            dims,
-            dims,
-            offsetsSegment,
-            numVecs,
-            bulkScoresSeg
-        );
-        assertScoresEquals(expectedScores, bulkScoresSeg);
-    }
-
-    public void testInt7uBulkWithOffsetsAndPitch() {
-        assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = randomIntBetween(2, 101);
-        var offsets = new int[numVecs];
-        var vectors = new byte[numVecs][dims];
-
         // Mimics extra data at the end
-        var pitch = dims * Byte.BYTES + Float.BYTES;
-        var vectorsSegment = arena.allocate((long) numVecs * pitch);
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
+        doTestInt7uBulkMasked(Float.BYTES, false);
+    }
+
+    public void testInt7uBulkMaskedHeapSegments() {
+        assumeTrue(notSupportedMsg(), supported());
+        doTestInt7uBulkMasked(0, true);
+    }
+
+    private void doTestInt7uBulkMasked(int extraData, boolean heapQueryAndScores) {
+        final int dims = size;
+        final int pitch = dims + extraData;
+        final int count = randomIntBetween(1, Integer.SIZE);
+        final int mask = randomBulkMask(count);
+
+        var vectors = new byte[count][dims];
+        var vectorsSegment = arena.allocate((long) count * pitch);
+        for (int i = 0; i < count; i++) {
             randomBytesBetween(vectors[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
             MemorySegment.copy(vectors[i], 0, vectorsSegment, ValueLayout.JAVA_BYTE, (long) i * pitch, dims);
         }
-        int queryOrd = randomInt(numVecs - 1);
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, vectors[queryOrd], vectors, offsets, expectedScores);
+        var query = new byte[dims];
+        randomBytesBetween(query, MIN_INT7_VALUE, MAX_INT7_VALUE);
 
-        var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * pitch, pitch);
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        float[] expectedScores = unselectedScores(count);
+        ScalarOperations.bulkMasked(function, query, vectors, mask, expectedScores);
 
-        getVectorDistance().dotProductI7uBulkWithOffsets(
-            vectorsSegment,
-            nativeQuerySeg,
-            dims,
-            pitch,
-            offsetsSegment,
-            numVecs,
-            bulkScoresSeg
-        );
-        assertScoresEquals(expectedScores, bulkScoresSeg);
-    }
-
-    public void testInt7uBulkWithOffsetsHeapSegments() {
-        assumeTrue(notSupportedMsg(), supported());
-        final int dims = size;
-        final int numVecs = randomIntBetween(2, 101);
-        var offsets = new int[numVecs];
-        var values = new byte[numVecs][dims];
-        var segment = arena.allocate((long) dims * numVecs);
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            randomBytesBetween(values[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
-            MemorySegment.copy(values[i], 0, segment, ValueLayout.JAVA_BYTE, (long) i * dims, dims);
+        if (heapQueryAndScores) {
+            float[] bulkScores = unselectedScores(count);
+            getVectorDistance().dotProductI7uBulkMasked(
+                vectorsSegment,
+                MemorySegment.ofArray(query),
+                dims,
+                pitch,
+                mask,
+                count,
+                MemorySegment.ofArray(bulkScores)
+            );
+            assertArrayEquals(expectedScores, bulkScores, 0f);
+        } else {
+            var nativeQuerySeg = arena.allocate(dims);
+            MemorySegment.copy(query, 0, nativeQuerySeg, ValueLayout.JAVA_BYTE, 0L, dims);
+            var bulkScoresSeg = unselectedScoresSegment(count);
+            getVectorDistance().dotProductI7uBulkMasked(vectorsSegment, nativeQuerySeg, dims, pitch, mask, count, bulkScoresSeg);
+            assertScoresEquals(expectedScores, bulkScoresSeg);
         }
-        int queryOrd = randomInt(numVecs - 1);
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, values[queryOrd], values, offsets, expectedScores);
-
-        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims, dims);
-        float[] bulkScores = new float[numVecs];
-        getVectorDistance().dotProductI7uBulkWithOffsets(
-            segment,
-            nativeQuerySeg,
-            dims,
-            dims,
-            MemorySegment.ofArray(offsets),
-            numVecs,
-            MemorySegment.ofArray(bulkScores)
-        );
-        assertArrayEquals(expectedScores, bulkScores, 0f);
     }
 
-    // Verifies that individual offset values are bounds-checked against the data segment.
-    public void testBulkOffsetsOutOfRange() {
+    public void testBulkMaskedIllegalArgs() {
         assumeTrue(notSupportedMsg(), supported());
         final int dims = size;
-        final int numVecs = 3;
-        var vectorsSegment = arena.allocate((long) dims * numVecs);
+        final int count = 3;
+        var vectorsSegment = arena.allocate((long) dims * count);
         var query = arena.allocate(dims);
-        var scores = arena.allocate((long) numVecs * Float.BYTES);
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+        var scores = arena.allocate((long) Integer.SIZE * Float.BYTES);
 
-        // One offset beyond the data segment
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 0, 0);
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, numVecs);
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
+        // a vector past the end of the block is selected
         Exception ex = expectThrows(
+            IAE,
+            () -> getVectorDistance().dotProductI7uBulkMasked(vectorsSegment, query, dims, dims, 1 << count, count, scores)
+        );
+        assertThat(ex.getMessage(), containsString("selects vectors beyond count"));
+
+        // a block larger than the mask
+        var largeVectorsSegment = arena.allocate((long) dims * (Integer.SIZE + 1));
+        var largeScores = arena.allocate((long) (Integer.SIZE + 1) * Float.BYTES);
+        ex = expectThrows(
             IOOBE,
-            () -> getVectorDistance().dotProductI7uBulkWithOffsets(vectorsSegment, query, dims, dims, offsetsSegment, numVecs, scores)
+            () -> getVectorDistance().dotProductI7uBulkMasked(largeVectorsSegment, query, dims, dims, 1, Integer.SIZE + 1, largeScores)
         );
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
-        // Negative offset
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
+        // a block larger than the dataset
         ex = expectThrows(
             IOOBE,
-            () -> getVectorDistance().dotProductI7uBulkWithOffsets(vectorsSegment, query, dims, dims, offsetsSegment, numVecs, scores)
+            () -> getVectorDistance().dotProductI7uBulkMasked(vectorsSegment, query, dims, dims, 1, count + 1, scores)
         );
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }

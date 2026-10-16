@@ -103,7 +103,8 @@ template <
     float32x4_t(*inner_op)(const float32x4_t, const float32x4_t, const float32x4_t),
     f32_t(*scalar_op)(const bf16_t, const TQuery),
     f32_t(*bulk_tail)(const bf16_t*, const TQuery*, const int32_t),
-    int batches = 8
+    int batches = 8,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void bf16_bulk_inner(
     const TData* a,
@@ -162,14 +163,15 @@ static inline void bf16_bulk_inner(
             });
         }
 
-        // this should be turned into direct value copies by the compiler
-        std::copy_n(res, batches, results + c);
+        apply_indexed<batches>([&](auto I) {
+            results[out_mapper(offsets, c + I)] = res[I];
+        });
     }
 
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const bf16_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = bulk_tail(a0, b, dims);
+        results[out_mapper(offsets, c)] = bulk_tail(a0, b, dims);
     }
 }
 

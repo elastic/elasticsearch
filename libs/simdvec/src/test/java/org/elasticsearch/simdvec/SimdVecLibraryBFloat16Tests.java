@@ -168,7 +168,7 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
         };
 
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, queryVector, bf16Values, ordinals, expectedScores);
+        ScalarOperations.bulkSparse(function, queryVector, bf16Values, ordinals, expectedScores);
 
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {
@@ -219,7 +219,7 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
         };
 
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, queryVector, bf16Values, ordinals, expectedScores);
+        ScalarOperations.bulkSparse(function, queryVector, bf16Values, ordinals, expectedScores);
 
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {
@@ -287,7 +287,7 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
         int[] identity = new int[numVecs];
         Arrays.setAll(identity, IntUnaryOperator.identity());
         float[] expected = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, base, docs, identity, expected);
+        ScalarOperations.bulkSparse(function, base, docs, identity, expected);
         var scores = arena.allocate((long) numVecs * Float.BYTES);
         similarityBulk(bf16Segment, querySeg, dims, numVecs, scores);
         assertDistances("bulk", expected, scores);
@@ -299,7 +299,7 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
         }
         // Guarantee that every layout scores the exact duplicate (docs[0]) on every seed.
         ordinals[0] = 0;
-        ScalarOperations.bulkWithOffsets(function, base, docs, ordinals, expected);
+        ScalarOperations.bulkSparse(function, base, docs, ordinals, expected);
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int v = 0; v < numVecs; v++) {
             addressesSeg.setAtIndex(

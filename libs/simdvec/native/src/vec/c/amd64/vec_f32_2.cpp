@@ -95,7 +95,8 @@ template <
     const f32_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
     __m512(*inner_op)(const __m512, const __m512, const __m512),
     f32_t(*scalar_tail)(const f32_t*, const f32_t*, const int32_t),
-    int batches = 4
+    int batches = 4,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void call_f32_bulk_512(
     const TData* a,
@@ -137,13 +138,13 @@ static inline void call_f32_bulk_512(
         }
 
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = _mm512_reduce_add_ps(sums[I]);
+            results[out_mapper(offsets, c + I)] = _mm512_reduce_add_ps(sums[I]);
         });
     }
 
     for (; c < count; c++) {
         const f32_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = scalar_tail(a0, b, dims);
+        results[out_mapper(offsets, c)] = scalar_tail(a0, b, dims);
     }
 }
 

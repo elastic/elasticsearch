@@ -36,7 +36,8 @@ template <
     __m256(*inner_op)(const __m256, const __m256, const __m256),
     f32_t(*scalar_op)(const f32_t, const f32_t),
     f32_t(*bulk_tail)(const f32_t*, const f32_t*, const int32_t),
-    int batches = 4
+    int batches = 4,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void call_f32_bulk(
     const TData* a,
@@ -82,14 +83,15 @@ static inline void call_f32_bulk(
             });
         }
 
-        // this should be turned into direct value copies by the compiler
-        std::copy_n(res, batches, results + c);
+        apply_indexed<batches>([&](auto I) {
+            results[out_mapper(offsets, c + I)] = res[I];
+        });
     }
 
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const f32_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = bulk_tail(a0, b, dims);
+        results[out_mapper(offsets, c)] = bulk_tail(a0, b, dims);
     }
 }
 

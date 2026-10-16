@@ -87,7 +87,8 @@ template <
     typename TData,
     const f32_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
     svfloat32_t(*inner_op)(const svbool_t, const svfloat32_t, const svfloat32_t, const svfloat32_t),
-    f32_t(*bulk_tail)(const f32_t*, const f32_t*, const int32_t)
+    f32_t(*bulk_tail)(const f32_t*, const f32_t*, const int32_t),
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void call_f32_bulk(
     const TData* a,
@@ -137,20 +138,20 @@ static inline void call_f32_bulk(
         }
 
         // Horizontal reduction of the vector accumulators
-        results[c + 0] = svaddv(svptrue_b32(), sum0);
-        results[c + 1] = svaddv(svptrue_b32(), sum1);
-        results[c + 2] = svaddv(svptrue_b32(), sum2);
-        results[c + 3] = svaddv(svptrue_b32(), sum3);
-        results[c + 4] = svaddv(svptrue_b32(), sum4);
-        results[c + 5] = svaddv(svptrue_b32(), sum5);
-        results[c + 6] = svaddv(svptrue_b32(), sum6);
-        results[c + 7] = svaddv(svptrue_b32(), sum7);
+        results[out_mapper(offsets, c + 0)] = svaddv(svptrue_b32(), sum0);
+        results[out_mapper(offsets, c + 1)] = svaddv(svptrue_b32(), sum1);
+        results[out_mapper(offsets, c + 2)] = svaddv(svptrue_b32(), sum2);
+        results[out_mapper(offsets, c + 3)] = svaddv(svptrue_b32(), sum3);
+        results[out_mapper(offsets, c + 4)] = svaddv(svptrue_b32(), sum4);
+        results[out_mapper(offsets, c + 5)] = svaddv(svptrue_b32(), sum5);
+        results[out_mapper(offsets, c + 6)] = svaddv(svptrue_b32(), sum6);
+        results[out_mapper(offsets, c + 7)] = svaddv(svptrue_b32(), sum7);
     }
 
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const f32_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = bulk_tail(a0, b, dims);
+        results[out_mapper(offsets, c)] = bulk_tail(a0, b, dims);
     }
 }
 

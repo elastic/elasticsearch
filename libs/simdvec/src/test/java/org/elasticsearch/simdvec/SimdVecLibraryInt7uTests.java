@@ -123,7 +123,7 @@ public abstract class SimdVecLibraryInt7uTests extends SimdVecLibraryTests {
         }
         int queryOrd = randomInt(numVecs - 1);
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, vectors[queryOrd], vectors, ordinals, expectedScores);
+        ScalarOperations.bulkSparse(function, vectors[queryOrd], vectors, ordinals, expectedScores);
 
         var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * dims, dims);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
@@ -151,7 +151,7 @@ public abstract class SimdVecLibraryInt7uTests extends SimdVecLibraryTests {
         }
         int queryOrd = randomInt(numVecs - 1);
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, vectors[queryOrd], vectors, ordinals, expectedScores);
+        ScalarOperations.bulkSparse(function, vectors[queryOrd], vectors, ordinals, expectedScores);
 
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {

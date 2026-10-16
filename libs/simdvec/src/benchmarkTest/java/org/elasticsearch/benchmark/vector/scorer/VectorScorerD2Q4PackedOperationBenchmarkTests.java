@@ -26,6 +26,7 @@ public class VectorScorerD2Q4PackedOperationBenchmarkTests extends BenchmarkTest
         bench.dims = dims;
         bench.numVectors = 1000;
         bench.bulkSize = 200;
+        bench.selected = randomIntBetween(0, Integer.SIZE);
         bench.setup(vectorData);
         return bench;
     }
@@ -41,11 +42,11 @@ public class VectorScorerD2Q4PackedOperationBenchmarkTests extends BenchmarkTest
         }
     }
 
-    public void testBulkOffsets() {
+    public void testBulkMasked() {
         for (int i = 0; i < 100; i++) {
             var bench = newBench();
             try {
-                assertArrayEquals("DOT_PRODUCT", bench.scoreSingleAtOrdinals().clone(), bench.scoreBulkOffsets(), 0f);
+                assertArrayEquals("DOT_PRODUCT", bench.scoreSingleMasked().clone(), bench.scoreBulkMasked(), 0f);
             } finally {
                 bench.teardown();
             }

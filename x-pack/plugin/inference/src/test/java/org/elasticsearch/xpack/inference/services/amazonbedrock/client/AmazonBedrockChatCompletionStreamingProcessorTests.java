@@ -18,6 +18,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ReasoningContentBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.TokenUsage;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlockStart;
 
@@ -102,6 +103,45 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
 
         verify(upstream, times(1)).cancel();
         verifyNoMoreInteractions(upstream);
+    }
+
+    /**
+     * Reasoning content deltas (e.g. from Claude Sonnet 5) are skipped instead of failing the stream, and the processor asks the
+     * upstream for the next item since nothing was sent downstream.
+     */
+    public void testReasoningContentDeltaIsSkipped() {
+        ExecutorService executorService = mock();
+        ThreadPool threadPool = mock();
+        when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
+        processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model");
+        doAnswer(ans -> {
+            Runnable command = ans.getArgument(0);
+            command.run();
+            return null;
+        }).when(executorService).execute(any());
+
+        Flow.Subscription upstream = mock();
+        processor.onSubscribe(upstream);
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        processor.subscribe(downstream);
+
+        ConverseStreamOutput reasoningDelta = mock();
+        when(reasoningDelta.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.CONTENT_BLOCK_DELTA);
+        doAnswer(ans -> {
+            ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
+            ContentBlockDelta delta = ContentBlockDelta.builder()
+                .reasoningContent(ReasoningContentBlockDelta.builder().text("thinking").build())
+                .build();
+            visitor.visitContentBlockDelta(ContentBlockDeltaEvent.builder().delta(delta).contentBlockIndex(0).build());
+            return null;
+        }).when(reasoningDelta).accept(any());
+
+        processor.onNext(reasoningDelta);
+
+        verify(downstream, never()).onNext(any());
+        verify(downstream, never()).onError(any());
+        verify(upstream, times(1)).request(1);
+        verify(upstream, never()).cancel();
     }
 
     public void testMultiplePublishesCallsOnError() {

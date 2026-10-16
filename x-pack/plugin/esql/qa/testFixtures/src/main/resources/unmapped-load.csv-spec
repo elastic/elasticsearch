@@ -3701,6 +3701,7 @@ loadViewPassthroughLoadsFromSource_KeepUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
@@ -3708,14 +3709,15 @@ FROM partial_mapping_view
 | KEEP @timestamp, message, unmapped_message
 ;
 
-@timestamp:date          | message:keyword | unmapped_message:keyword
-2024-10-23T13:33:34.937Z | 42              | 43
+@timestamp:datetime      | message:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 42              | null
 ;
 
 loadViewDefinitionWildcardKeepPermitsUnmappedLoad
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view_message_wildcard
@@ -3724,13 +3726,14 @@ FROM partial_mapping_view_message_wildcard
 ;
 
 message:keyword | unmapped_message:keyword
-42              | 43
+42              | null
 ;
 
 loadViewPassthroughLoadsFromSource_WithStatsUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
@@ -3738,7 +3741,7 @@ FROM partial_mapping_view
 ;
 
 loaded:long | rows:long
-7           | 7
+0           | 7
 ;
 
 loadViewBranchingLoadsFromSourceInOneBranch_KeepUnmappedInsideAndOut
@@ -3746,6 +3749,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employees | KEEP emp_no)
@@ -3754,14 +3758,7 @@ FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employe
 | SORT message
 ;
 
-message:keyword        | unmapped_message:keyword
-42                     | 43
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1
-Connected to 10.1.0.2! | Disconnected from 10.1.0.2
-Connected to 10.1.0.3! | Disconnected from 10.1.0.3
-Connection error?      | Disconnection error
-Connection error?      | Disconnection error
-Connection error?      | Disconnection error
+message:keyword | unmapped_message:keyword
 ;
 
 loadViewBranchingUnmappedFieldReferencedOnlyAboveUnion
@@ -3769,6 +3766,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
@@ -3777,14 +3775,15 @@ FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_
 ;
 
 message:keyword        | unmapped_message:keyword
-42                     | 43
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+42                     | null
+Connected to 10.1.0.1! | null
 ;
 
 loadMvViewExpandCount_MvExpandUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -3793,13 +3792,14 @@ FROM partial_mapping_mv_view
 ;
 
 c:long
-13
+7
 ;
 
 loadMvViewExpandValues_MvExpandUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -3810,17 +3810,16 @@ FROM partial_mapping_mv_view
 ;
 
 message:keyword   | unmapped_mv:keyword
-Connection error? | c
-Connection error? | d
-Connection error? | e
-Connection error? | f
-Connection error? | g
+Connection error? | null
+Connection error? | null
+Connection error? | null
 ;
 
 loadMvViewFunctions_WithUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -3830,13 +3829,14 @@ FROM partial_mapping_mv_view
 ;
 
 message:keyword | n:integer | lo:keyword | hi:keyword
-42              | 2         | h          | i
+42              | null      | null       | null
 ;
 
 loadDissectViewLoadedUnmappedField
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -3846,7 +3846,7 @@ FROM partial_mapping_mv_view
 ;
 
 message:keyword        | action:keyword | host:keyword
-Connected to 10.1.0.3! | Disconnected   | 10.1.0.3
+Connected to 10.1.0.3! | null           | null
 ;
 
 loadMvViewBranching_ExpandUnmapped_InOneBranch
@@ -3854,6 +3854,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_mv_view | WHERE message == "42" | MV_EXPAND unmapped_mv | KEEP message, unmapped_mv), (FROM partial_mapping_mv_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message, unmapped_mv)
@@ -3861,9 +3862,8 @@ FROM (FROM partial_mapping_mv_view | WHERE message == "42" | MV_EXPAND unmapped_
 ;
 
 message:keyword        | unmapped_mv:keyword
-42                     | h
-42                     | i
-Connected to 10.1.0.1! | [a, b]
+42                     | null
+Connected to 10.1.0.1! | null
 ;
 
 loadViewOuterEvalFunction_MaterializesUnmapped_AllBranches
@@ -3871,6 +3871,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -3880,9 +3881,9 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 | SORT message
 ;
 
-message:keyword        | unmapped_message:keyword   | upper:keyword
-42                     | 43                         | 43
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | DISCONNECTED FROM 10.1.0.1
+message:keyword        | unmapped_message:keyword | upper:keyword
+42                     | null                     | null
+Connected to 10.1.0.1! | null                     | null
 ;
 
 loadViewOuterStatsBy_MaterializesUnmapped_AllBranches
@@ -3890,6 +3891,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -3899,8 +3901,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 ;
 
 c:long | unmapped_message:keyword
-1      | 43
-1      | Disconnected from 10.1.0.1
+2      | null
 ;
 
 loadViewOuterSortDesc_MaterializesUnmapped_ThreeBranches
@@ -3908,19 +3909,22 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
+// unmapped_message is null in every row (the views contribute null at their output), so the sort needs the
+// message tiebreaker to be deterministic.
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
      (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!"),
      (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.2!")
 | KEEP message, unmapped_message
-| SORT unmapped_message DESC
+| SORT unmapped_message DESC, message ASC
 ;
 
 message:keyword        | unmapped_message:keyword
-Connected to 10.1.0.2! | Disconnected from 10.1.0.2
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1
-42                     | 43
+42                     | null
+Connected to 10.1.0.1! | null
+Connected to 10.1.0.2! | null
 ;
 
 loadViewDropUnmapped_InOneBranch_MaterializesUnmapped_Sibling
@@ -3928,6 +3932,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
@@ -3938,7 +3943,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message)
 
 message:keyword        | unmapped_message:keyword
 42                     | null
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+Connected to 10.1.0.1! | null
 ;
 
 loadViewRenameUnmappedAway_OuterReferences_OriginalUnmappedName
@@ -3946,6 +3951,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
@@ -3954,9 +3960,9 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_messag
 | SORT message
 ;
 
-message:keyword        | unmapped_message:keyword   | renamed:keyword
-42                     | null                       | 43
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null
+message:keyword        | unmapped_message:keyword | renamed:keyword
+42                     | null                     | null
+Connected to 10.1.0.1! | null                     | null
 ;
 
 loadViewWhereThenDropUnmappedInOneBranch_MaterializesUnmappedSibling
@@ -3964,6 +3970,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE unmapped_message == "43" | DROP unmapped_message),
@@ -3973,8 +3980,7 @@ FROM (FROM partial_mapping_view | WHERE unmapped_message == "43" | DROP unmapped
 ;
 
 message:keyword        | unmapped_message:keyword
-42                     | null
-Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+Connected to 10.1.0.1! | null
 ;
 
 loadViewEvalUnmappedInOneBranch_ScopesFieldToBranch
@@ -3982,6 +3988,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_message),
@@ -3991,7 +3998,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_me
 ;
 
 message:keyword        | unmapped_message:keyword | tag:keyword
-42                     | 43                       | 43
+42                     | null                     | null
 Connected to 10.1.0.1! | null                     | null
 ;
 
@@ -4000,6 +4007,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
@@ -4010,7 +4018,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped
 ;
 
 message:keyword        | unmapped_message:keyword | has:boolean
-42                     | 43                       | true
+42                     | null                     | false
 Connected to 10.1.0.1! | null                     | false
 ;
 
@@ -4019,6 +4027,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
@@ -4028,7 +4037,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_messag
 ;
 
 message:keyword        | renamed:keyword
-42                     | 43
+42                     | null
 Connected to 10.1.0.1! | null
 ;
 
@@ -4037,6 +4046,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -4046,7 +4056,7 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
 ;
 
 message:keyword        | unmapped_message:keyword
-42                     | 43
+42                     | null
 Connected to 10.1.0.1! | Disconnected from 10.1.0.1
 ;
 
@@ -4072,6 +4082,7 @@ loadViewPassthrough_OuterEvalMaterializesUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
@@ -4080,8 +4091,8 @@ FROM partial_mapping_view
 | KEEP message, upper, len
 ;
 
-message:keyword        | upper:keyword              | len:integer
-Connected to 10.1.0.3! | DISCONNECTED FROM 10.1.0.3 | 26
+message:keyword        | upper:keyword | len:integer
+Connected to 10.1.0.3! | null          | null
 ;
 
 loadViewInSubqueryAfterSubqueryIn_FromWhereUnmapped_KeepBranchesUnmapped
@@ -4090,6 +4101,7 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: where_in_subquery_with_view
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
@@ -4100,7 +4112,6 @@ FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped
 ;
 
 message:keyword | unmapped_message:keyword
-42              | 43
 ;
 
 dropNonMatchingPatternIsNoop

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,6 +49,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 /**
  * Rewrites {@code FROM <dataset>} into the same {@link UnresolvedExternalRelation} the
@@ -218,21 +220,43 @@ public final class DatasetRewriter {
             return parsed;
         }
         Map<UnresolvedRelation, DatasetResolution> resolutions = new IdentityHashMap<>();
-        parsed.forEachUp(UnresolvedRelation.class, r -> {
+        forEachRelation(parsed, wildcardsMatchDatasets, (r, relationWildcards) -> {
             if (resolutions.containsKey(r)) {
                 return;
             }
             List<String> patterns = patternsOf(r);
-            if (hasRemotePattern(patterns) || anyPatternCouldMatchDataset(patterns, datasetNames, wildcardsMatchDatasets) == false) {
+            if (hasRemotePattern(patterns) || anyPatternCouldMatchDataset(patterns, datasetNames, relationWildcards) == false) {
                 return;
             }
             // Unsecured: the (un-narrowed) raw patterns are the authorized indices — every registered dataset matched
             // by the pattern is authorized, so resolve() returns it.
             String[] raw = patterns.toArray(String[]::new);
-            resolutions.put(r, resolve(raw, raw, projectMetadata, iner, wildcardsMatchDatasets));
+            resolutions.put(r, resolve(raw, raw, projectMetadata, iner, relationWildcards));
         });
         // Unsecured/test path runs without CPS (single local project): never preserve a wildcard for remote resolution.
         return rewrite(parsed, projectMetadata, resolutions, false, maxBranchCountPerMerge, maxBranchCountPerMergeSource);
+    }
+
+    /**
+     * Visits every {@link UnresolvedRelation} in {@code plan} together with its effective {@code wildcards_match_datasets}:
+     * the caller's setting, except inside a view body, where wildcards never match datasets — the caller's SET must not
+     * change which sources a stored view definition resolves to (esql-planning#2273). A dataset named exactly inside a
+     * view body is unaffected — exact reachability is not what the setting controls.
+     * <p>
+     * A view body is a view branch of a {@link BranchPlan}. Every view is one while the setting is on, because
+     * {@code EsqlSession} then resolves views with {@link ViewBoundaryPreservation#KEEP_VIEW_IDENTITY}: otherwise a
+     * pass-through view's relation could merge with a sibling relation of the caller, and nothing in the merged relation
+     * would tell the view's patterns apart from the caller's.
+     */
+    static void forEachRelation(LogicalPlan plan, boolean wildcardsMatchDatasets, BiConsumer<UnresolvedRelation, Boolean> action) {
+        if (plan instanceof UnresolvedRelation relation) {
+            action.accept(relation, wildcardsMatchDatasets);
+        }
+        List<LogicalPlan> children = plan.children();
+        for (int i = 0; i < children.size(); i++) {
+            boolean viewBody = plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i);
+            forEachRelation(children.get(i), wildcardsMatchDatasets && viewBody == false, action);
+        }
     }
 
     static boolean hasRemotePattern(List<String> patterns) {

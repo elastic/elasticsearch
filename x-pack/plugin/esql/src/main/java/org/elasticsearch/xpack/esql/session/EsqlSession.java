@@ -488,8 +488,7 @@ public class EsqlSession {
             request.requestSettings(),
             statement,
             SettingsValidationContext.from(crossProjectModeDecider),
-            verifier.licenseState(),
-            plannerSettings.loadAllMaxFields()
+            verifier.licenseState()
         );
         LOGGER.debug("ESQL resolved settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);

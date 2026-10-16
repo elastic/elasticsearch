@@ -467,7 +467,6 @@ public final class QuerySettings {
      * above is only the fold, without those overrides.
      *
      * @param licenseState the license of the cluster, which decides what an operator's default for approximation means
-     * @param loadAllMaxFields the value of {@code esql.query.unmapped_fields.load_all_max_fields}; only {@code 0} has an effect
      */
     public static ResolvedSettings resolve(
         Settings clusterState,
@@ -475,11 +474,10 @@ public final class QuerySettings {
         Map<QuerySettingDef<?>, Object> requestParams,
         @Nullable EsqlStatement statement,
         SettingsValidationContext ctx,
-        @Nullable XPackLicenseState licenseState,
-        int loadAllMaxFields
+        @Nullable XPackLicenseState licenseState
     ) {
         ResolvedSettings resolved = resolve(clusterState, nodeSettings, requestParams, statement, ctx);
-        return applyLoadAllMaxFields(applyApproximationLicense(resolved, requestParams, statement, licenseState), loadAllMaxFields);
+        return applyApproximationLicense(resolved, requestParams, statement, licenseState);
     }
 
     /**
@@ -515,19 +513,6 @@ public final class QuerySettings {
             return resolved;
         }
         return resolved.withOverride(APPROXIMATION, null);
-    }
-
-    /**
-     * A {@code load_all_max_fields} of {@code 0} makes {@code LOAD_ALL} discover nothing, which is what
-     * {@code LOAD} is. Resolve it to {@code LOAD} then, so that every phase of the query sees {@code LOAD}: no
-     * {@code _unmapped_fields} column is planned and shipped from the data nodes only to be dropped, and the restrictions
-     * that only {@code LOAD_ALL} has do not apply.
-     */
-    private static ResolvedSettings applyLoadAllMaxFields(ResolvedSettings resolved, int loadAllMaxFields) {
-        if (loadAllMaxFields == 0 && resolved.get(UNMAPPED_FIELDS) == UnmappedResolution.LOAD_ALL) {
-            return resolved.withOverride(UNMAPPED_FIELDS, UnmappedResolution.LOAD);
-        }
-        return resolved;
     }
 
     /**

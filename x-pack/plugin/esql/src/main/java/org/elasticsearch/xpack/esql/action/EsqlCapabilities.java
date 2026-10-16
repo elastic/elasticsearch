@@ -3706,14 +3706,6 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS,
 
         /**
-         * The cluster setting {@code esql.query.unmapped_fields.load_all_max_fields} exists. Under the single-column layout its only
-         * effect is that {@code 0} downgrades {@code unmapped_fields="LOAD_ALL"} to {@code LOAD}. Needed by tests that set it, which
-         * older nodes would reject as an unknown setting.
-         * See https://github.com/elastic/elasticsearch/issues/161340.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING,
-
-        /**
          * Under {@code unmapped_fields="LOAD_ALL"}, the keys of a mapped field whose type takes an object as its value are
          * not discovered on the shard that maps it: they are part of its value.
          */

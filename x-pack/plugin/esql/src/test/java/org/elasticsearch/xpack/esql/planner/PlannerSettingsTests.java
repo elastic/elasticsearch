@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.Mockito.mock;
@@ -57,45 +56,5 @@ public class PlannerSettingsTests extends ESTestCase {
         PlannerSettings updated = holder.get();
         assertThat(updated.partialEmitKeysThreshold(), equalTo(12_345));
         assertThat("the time-series chunk rows updates independently", updated.timeSeriesTargetChunkRows(), equalTo(999));
-    }
-
-    public void testLoadAllMaxFieldsDefault() {
-        assertThat(PlannerSettings.DEFAULTS.loadAllMaxFields(), equalTo(1000));
-    }
-
-    public void testLoadAllMaxFieldsIsRegistered() {
-        var registeredKeys = PlannerSettings.settings().stream().map(Setting::getKey).toList();
-        assertThat(registeredKeys, hasItems(PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey()));
-    }
-
-    /**
-     * Runs the update the way {@code PUT _cluster/settings} does, which is where an update of a setting that is not dynamic is
-     * rejected: {@code ClusterSettings#updateDynamicSettings}. No cluster service is needed for that.
-     */
-    public void testLoadAllMaxFieldsIsDynamic() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(PlannerSettings.settings()));
-        String key = PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey();
-
-        Settings.Builder target = Settings.builder();
-        Settings.Builder updates = Settings.builder();
-        assertTrue(clusterSettings.updateDynamicSettings(Settings.builder().put(key, 2500).build(), target, updates, "persistent"));
-        assertThat(updates.build().get(key), equalTo("2500"));
-    }
-
-    public void testLoadAllMaxFieldsBounds() {
-        String key = PlannerSettings.LOAD_ALL_MAX_FIELDS.getKey();
-        assertThat(PlannerSettings.LOAD_ALL_MAX_FIELDS.get(Settings.builder().put(key, 0).build()), equalTo(0));
-        assertThat(PlannerSettings.LOAD_ALL_MAX_FIELDS.get(Settings.builder().put(key, 100_000).build()), equalTo(100_000));
-
-        IllegalArgumentException tooSmall = expectThrows(
-            IllegalArgumentException.class,
-            () -> PlannerSettings.LOAD_ALL_MAX_FIELDS.get(Settings.builder().put(key, -1).build())
-        );
-        assertThat(tooSmall.getMessage(), containsString("must be >= 0"));
-        IllegalArgumentException tooBig = expectThrows(
-            IllegalArgumentException.class,
-            () -> PlannerSettings.LOAD_ALL_MAX_FIELDS.get(Settings.builder().put(key, 100_001).build())
-        );
-        assertThat(tooBig.getMessage(), containsString("must be <= 100000"));
     }
 }

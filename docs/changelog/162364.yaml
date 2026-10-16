@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 162364
-summary: Make `unmapped_fields="LOAD_ALL"` available in release builds
+summary: Enable `unmapped_fields="LOAD_ALL"`
 type: feature

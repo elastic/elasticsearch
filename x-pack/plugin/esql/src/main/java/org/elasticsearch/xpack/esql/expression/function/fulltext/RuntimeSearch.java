@@ -26,6 +26,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
@@ -37,6 +38,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -247,7 +249,6 @@ public final class RuntimeSearch {
         if (luceneQuery instanceof MatchNoDocsQuery) {
             return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
         }
-        luceneQuery = prebuildFuzzyAutomata(luceneQuery);
         return new RuntimeSearchTextWithLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
@@ -279,7 +280,6 @@ public final class RuntimeSearch {
         if (luceneQuery instanceof MatchNoDocsQuery) {
             return ConstantEvaluators.constantDouble(0.0);
         }
-        luceneQuery = prebuildFuzzyAutomata(luceneQuery);
         return new RuntimeSearchScoreLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
@@ -293,41 +293,82 @@ public final class RuntimeSearch {
     /**
      * Compiles an ES|QL query into a Lucene {@link Query} on {@link #CONTENT_FIELD} against a synthetic
      * {@link RuntimeSearchExecutionContext} using the given analyzer, which must be the analyzer the per-row
-     * evaluator indexes with so tokenization stays consistent.
+     * evaluator indexes with so tokenization stays consistent. Fuzzy clauses come back with their automata
+     * prebuilt, see {@link #prebuildFuzzyAutomata}.
      */
-    private static Query compileQuery(org.elasticsearch.xpack.esql.core.querydsl.query.Query query, NamedAnalyzer namedAnalyzer) {
+    static Query compileQuery(org.elasticsearch.xpack.esql.core.querydsl.query.Query query, NamedAnalyzer namedAnalyzer) {
         try {
-            return query.toQueryBuilder().toQuery(RuntimeSearchExecutionContext.create(List.of(CONTENT_FIELD), namedAnalyzer));
+            return prebuildFuzzyAutomata(
+                query.toQueryBuilder().toQuery(RuntimeSearchExecutionContext.create(List.of(CONTENT_FIELD), namedAnalyzer))
+            );
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
     /**
+     * Caps the bytes of automata that {@link #prebuildFuzzyAutomata} keeps for one compiled query. Nothing charges
+     * them to a circuit breaker, they live as long as the query runs, and concurrent queries add up, so the cap stays
+     * small next to the heap. It still fits a query string of 32 distinct 20-character terms at {@code fuzziness: AUTO}
+     * (two edits, about 360 KB each) with room to spare, even though each clause must first fit its
+     * {@link FuzzyQueries#estimateBytes} estimate (about 950 KB for such a term).
+     */
+    static final long PREBUILT_FUZZY_AUTOMATA_BUDGET_BYTES = ByteSizeValue.ofMb(16).getBytes();
+
+    /**
      * Replaces each {@link FuzzyQuery} with edits in the compiled query by a {@link PrebuiltFuzzyQuery}, whose
-     * automata are built once rather than on every per-row rewrite against the {@link MemoryIndex}. Walks the
-     * {@link BooleanQuery} and {@link BoostQuery} wrappers a compiled {@code match} query can contain and returns
-     * the same instance for any subtree without such a fuzzy query.
+     * automata are built once rather than on every per-row rewrite against the {@link MemoryIndex}. Identical
+     * clauses, such as a repeated word, share one instance. Clauses that would exceed
+     * {@link #PREBUILT_FUZZY_AUTOMATA_BUDGET_BYTES} stay plain {@link FuzzyQuery}s, which rebuild their automata per
+     * row as they would without this. Walks the {@link BooleanQuery} and {@link BoostQuery} wrappers a compiled
+     * {@code match} query can contain and returns the same instance for any subtree it leaves unchanged.
      */
     static Query prebuildFuzzyAutomata(Query query) {
-        if (query instanceof FuzzyQuery fuzzy && fuzzy.getMaxEdits() > 0) {
-            return new PrebuiltFuzzyQuery(fuzzy);
+        return prebuildFuzzyAutomata(query, PREBUILT_FUZZY_AUTOMATA_BUDGET_BYTES);
+    }
+
+    static Query prebuildFuzzyAutomata(Query query, long budgetBytes) {
+        return new FuzzyAutomataPrebuilder(budgetBytes).rewrite(query);
+    }
+
+    private static final class FuzzyAutomataPrebuilder {
+        private final Map<FuzzyQuery, FuzzyQuery> prebuilt = new HashMap<>();
+        private long remainingBytes;
+
+        FuzzyAutomataPrebuilder(long budgetBytes) {
+            this.remainingBytes = budgetBytes;
         }
-        if (query instanceof BooleanQuery bool) {
-            BooleanQuery.Builder builder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(bool.getMinimumNumberShouldMatch());
-            boolean changed = false;
-            for (BooleanClause clause : bool.clauses()) {
-                Query rewritten = prebuildFuzzyAutomata(clause.query());
-                changed |= rewritten != clause.query();
-                builder.add(rewritten, clause.occur());
+
+        Query rewrite(Query query) {
+            if (query instanceof FuzzyQuery fuzzy && fuzzy.getMaxEdits() > 0) {
+                return prebuilt.computeIfAbsent(fuzzy, this::prebuild);
             }
-            return changed ? builder.build() : bool;
+            if (query instanceof BooleanQuery bool) {
+                BooleanQuery.Builder builder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(bool.getMinimumNumberShouldMatch());
+                boolean changed = false;
+                for (BooleanClause clause : bool.clauses()) {
+                    Query rewritten = rewrite(clause.query());
+                    changed |= rewritten != clause.query();
+                    builder.add(rewritten, clause.occur());
+                }
+                return changed ? builder.build() : bool;
+            }
+            if (query instanceof BoostQuery boost) {
+                Query rewritten = rewrite(boost.getQuery());
+                return rewritten == boost.getQuery() ? boost : new BoostQuery(rewritten, boost.getBoost());
+            }
+            return query;
         }
-        if (query instanceof BoostQuery boost) {
-            Query rewritten = prebuildFuzzyAutomata(boost.getQuery());
-            return rewritten == boost.getQuery() ? boost : new BoostQuery(rewritten, boost.getBoost());
+
+        private FuzzyQuery prebuild(FuzzyQuery fuzzy) {
+            // One segment: the per-row MemoryIndex has exactly one
+            if (FuzzyQueries.estimateBytes(fuzzy, 1) > remainingBytes) {
+                return fuzzy;
+            }
+            PrebuiltFuzzyQuery query = new PrebuiltFuzzyQuery(fuzzy);
+            remainingBytes -= query.ramBytesUsed();
+            return query;
         }
-        return query;
     }
 
     /**

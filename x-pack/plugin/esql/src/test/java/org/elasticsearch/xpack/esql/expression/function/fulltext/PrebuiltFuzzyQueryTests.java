@@ -25,14 +25,19 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.planner.RuntimeSearchExecutionContext;
@@ -43,15 +48,22 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Checks that {@link PrebuiltFuzzyQuery} matches and scores exactly like the {@link FuzzyQuery} it is built from on a
@@ -191,6 +203,212 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
      * A multi-word synonym without phrase generation nests a boolean query of fuzzy clauses for the synonym's words.
      */
     public void testRewriteSynonymGraph() throws IOException {
+        Query compiled = compile(
+            "ny foxx",
+            synonymAnalyzer(),
+            "fuzziness",
+            "1",
+            "operator",
+            "AND",
+            "auto_generate_synonyms_phrase_query",
+            false
+        );
+        assertEquals(4, fuzzyLeaves(compiled).size());
+        assertFuzzyClausesPrebuilt(compiled);
+    }
+
+    /**
+     * Random runtime {@code match} queries with fuzziness and the options that shape the boolean query around the fuzzy
+     * clauses (operator, {@code minimum_should_match}, boost, a multi-word synonym), checked by hits and scores against
+     * the compiled query on random rows. Half the time the budget is random, so some clauses stay plain.
+     */
+    public void testPrebuiltMatchesCompiledQuery() throws IOException {
+        NamedAnalyzer synonyms = synonymAnalyzer();
+        MemoryIndex memoryIndex = new MemoryIndex();
+        for (int i = 0; i < 100; i++) {
+            List<String> words = new ArrayList<>(randomList(1, 5, () -> randomWord(ASCII_ALPHABET, between(2, 8))));
+            boolean useSynonyms = randomBoolean();
+            if (useSynonyms) {
+                words.add(between(0, words.size()), "ny");
+            }
+            Map<String, Object> options = new HashMap<>();
+            options.put("fuzziness", randomFrom("1", "2", "AUTO"));
+            if (randomBoolean()) {
+                options.put("operator", randomFrom("AND", "OR"));
+            }
+            if (randomBoolean()) {
+                options.put("minimum_should_match", randomFrom("1", "2", "-1", "50%"));
+            }
+            if (randomBoolean()) {
+                options.put("boost", randomFrom(0.5f, 2.0f, 3.5f));
+            }
+            if (randomBoolean()) {
+                options.put("prefix_length", between(0, 2));
+            }
+            if (randomBoolean()) {
+                options.put("max_expansions", between(1, 10));
+            }
+            if (randomBoolean()) {
+                options.put("fuzzy_transpositions", randomBoolean());
+            }
+            String rewrite = randomRewriteName(between(1, 10));
+            if (rewrite != null) {
+                options.put("fuzzy_rewrite", rewrite);
+            }
+            if (useSynonyms) {
+                options.put("auto_generate_synonyms_phrase_query", false);
+            }
+            Query compiled = compile(String.join(" ", words), useSynonyms ? synonyms : Lucene.STANDARD_ANALYZER, options);
+
+            long budget = randomBoolean() ? RuntimeSearch.PREBUILT_FUZZY_AUTOMATA_BUDGET_BYTES : randomLongBetween(0, 2 << 20);
+            Query prebuilt = RuntimeSearch.prebuildFuzzyAutomata(compiled, budget);
+            long retained = distinctPrebuilt(prebuilt).stream().mapToLong(PrebuiltFuzzyQuery::ramBytesUsed).sum();
+            assertThat(retained, lessThanOrEqualTo(budget));
+
+            for (int r = 0; r < 5; r++) {
+                StringBuilder row = new StringBuilder();
+                int rowWords = between(1, 50);
+                for (int w = 0; w < rowWords; w++) {
+                    String word = switch (between(0, 2)) {
+                        case 0 -> typo(ASCII_ALPHABET, randomFrom(words));
+                        case 1 -> randomWord(ASCII_ALPHABET, between(1, 9));
+                        case 2 -> typo(ASCII_ALPHABET, randomFrom("new", "york"));
+                        default -> throw new AssertionError();
+                    };
+                    row.append(word).append(' ');
+                }
+                memoryIndex.reset();
+                memoryIndex.addField(RuntimeSearch.CONTENT_FIELD, row.toString(), Lucene.STANDARD_ANALYZER);
+                assertSameHitsAndScores(memoryIndex, compiled, prebuilt);
+            }
+        }
+    }
+
+    /**
+     * {@link RuntimeSearch#compileQuery} is the single compile path of both runtime evaluator factories, so this fails
+     * if it stops prebuilding.
+     */
+    public void testCompileQueryPrebuildsFuzzyClauses() {
+        Map<String, Object> options = Map.of("lenient", true, "fuzziness", "AUTO", "operator", "AND");
+        Query compiled = RuntimeSearch.compileQuery(
+            new MatchQuery(Source.EMPTY, RuntimeSearch.CONTENT_FIELD, "brwon foxx", options),
+            Lucene.STANDARD_ANALYZER
+        );
+        List<FuzzyQuery> leaves = fuzzyLeaves(compiled);
+        assertEquals(2, leaves.size());
+        assertThat(leaves, everyItem(instanceOf(PrebuiltFuzzyQuery.class)));
+    }
+
+    /**
+     * A compiled {@code match} gets one fuzzy clause per occurrence of a word; the occurrences share one prebuilt query.
+     */
+    public void testRepeatedTermsSharePrebuiltQuery() {
+        Query compiled = compile("bron foxx bron lazy bron foxx", Lucene.STANDARD_ANALYZER, "fuzziness", "1");
+        Query rewritten = RuntimeSearch.prebuildFuzzyAutomata(compiled);
+        List<FuzzyQuery> leaves = fuzzyLeaves(rewritten);
+        assertEquals(6, leaves.size());
+        assertThat(leaves, everyItem(instanceOf(PrebuiltFuzzyQuery.class)));
+        assertEquals(3, distinctPrebuilt(rewritten).size());
+        Map<String, List<FuzzyQuery>> byTerm = leaves.stream().collect(Collectors.groupingBy(fuzzy -> fuzzy.getTerm().text()));
+        assertEquals(
+            Map.of("bron", 3, "foxx", 2, "lazy", 1),
+            byTerm.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()))
+        );
+        for (List<FuzzyQuery> occurrences : byTerm.values()) {
+            assertThat(occurrences, everyItem(sameInstance(occurrences.get(0))));
+        }
+    }
+
+    /**
+     * With a budget that only fits the estimate of the first clause, {@code bron}, the longer clauses after it stay the
+     * original plain {@link FuzzyQuery}s, and the query still matches and scores the same.
+     */
+    public void testClausesPastBudgetStayPlain() throws IOException {
+        Query compiled = compile("bron quick brown jumps", Lucene.STANDARD_ANALYZER, "fuzziness", "1", "minimum_should_match", "2");
+        List<FuzzyQuery> plain = fuzzyLeaves(compiled);
+        assertEquals(4, plain.size());
+        FuzzyQuery bron = plain.stream().filter(fuzzy -> fuzzy.getTerm().text().equals("bron")).findFirst().orElseThrow();
+
+        Query rewritten = RuntimeSearch.prebuildFuzzyAutomata(compiled, FuzzyQueries.estimateBytes(bron, 1));
+        for (FuzzyQuery leaf : fuzzyLeaves(rewritten)) {
+            if (leaf.getTerm().text().equals("bron")) {
+                assertThat(leaf, instanceOf(PrebuiltFuzzyQuery.class));
+            } else {
+                assertThat(plain, hasItem(sameInstance(leaf)));
+            }
+        }
+        assertSame(compiled, RuntimeSearch.prebuildFuzzyAutomata(compiled, 0));
+
+        MemoryIndex memoryIndex = new MemoryIndex();
+        for (int r = 0; r < 50; r++) {
+            List<String> row = randomList(1, 10, () -> typo(ASCII_ALPHABET, randomFrom("bron", "quick", "brown", "jumps", "abcd")));
+            memoryIndex.reset();
+            memoryIndex.addField(RuntimeSearch.CONTENT_FIELD, String.join(" ", row), Lucene.STANDARD_ANALYZER);
+            assertSameHitsAndScores(memoryIndex, compiled, rewritten);
+        }
+    }
+
+    /**
+     * {@link FuzzyQuery#visit} and {@link FuzzyQuery#getAutomata} build the automaton again on every call; the prebuilt
+     * query hands out the one it holds, which accepts the same terms.
+     */
+    public void testVisitAndGetAutomataReusePrebuiltAutomaton() {
+        String text = randomWord(UNICODE_ALPHABET, between(3, 10));
+        FuzzyQuery plain = new FuzzyQuery(new Term(FIELD, text), between(1, 2), between(0, 2), 50, randomBoolean());
+        PrebuiltFuzzyQuery prebuilt = new PrebuiltFuzzyQuery(plain);
+        CompiledAutomaton automaton = prebuilt.getAutomata();
+        assertSame(automaton, prebuilt.getAutomata());
+
+        List<ByteRunAutomaton> visited = new ArrayList<>();
+        QueryVisitor visitor = new QueryVisitor() {
+            @Override
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> supplier) {
+                assertSame(prebuilt, query);
+                assertEquals(FIELD, field);
+                visited.add(supplier.get());
+            }
+        };
+        prebuilt.visit(visitor);
+        prebuilt.visit(visitor);
+        assertEquals(2, visited.size());
+        assertSame(automaton.runAutomaton, visited.get(0));
+        assertSame(automaton.runAutomaton, visited.get(1));
+
+        ByteRunAutomaton expected = plain.getAutomata().runAutomaton;
+        for (int i = 0; i < 200; i++) {
+            BytesRef candidate = new BytesRef(
+                randomBoolean() ? typo(UNICODE_ALPHABET, text) : randomWord(UNICODE_ALPHABET, between(1, 12))
+            );
+            assertEquals(
+                candidate.utf8ToString(),
+                expected.run(candidate.bytes, candidate.offset, candidate.length),
+                automaton.runAutomaton.run(candidate.bytes, candidate.offset, candidate.length)
+            );
+        }
+    }
+
+    /**
+     * {@link PrebuiltFuzzyQuery#ramBytesUsed} counts the automata it holds, and implementing {@link Accountable} doesn't
+     * change what {@link MaxClauseCountQueryVisitor} estimates, since it checks for {@link FuzzyQuery} first.
+     */
+    public void testRamBytesUsed() {
+        String text = randomWord(ASCII_ALPHABET, between(3, 20));
+        FuzzyQuery plain = new FuzzyQuery(new Term(FIELD, text), between(1, 2), between(0, 2), 50, randomBoolean());
+        PrebuiltFuzzyQuery prebuilt = new PrebuiltFuzzyQuery(plain);
+        long automata = 0;
+        for (int k = 1; k <= plain.getMaxEdits(); k++) {
+            automata += FuzzyQuery.getFuzzyAutomaton(text, k, plain.getPrefixLength(), plain.getTranspositions()).ramBytesUsed();
+        }
+        assertThat(prebuilt.ramBytesUsed(), greaterThan(automata + prebuilt.getTerm().ramBytesUsed()));
+        assertThat(prebuilt.ramBytesUsed(), lessThan(automata + prebuilt.getTerm().ramBytesUsed() + 256));
+
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null, null, 1);
+        prebuilt.visit(visitor);
+        assertEquals(FuzzyQueries.estimateBytes(prebuilt, 1), visitor.getEstimatedBytes());
+        assertNotEquals(prebuilt.ramBytesUsed(), visitor.getEstimatedBytes());
+    }
+
+    private static NamedAnalyzer synonymAnalyzer() throws IOException {
         SynonymMap.Builder synonyms = new SynonymMap.Builder(true);
         synonyms.add(new CharsRef("ny"), SynonymMap.Builder.join(new String[] { "new", "york" }, new CharsRefBuilder()), true);
         SynonymMap map = synonyms.build();
@@ -201,22 +419,34 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
                 return new TokenStreamComponents(tokenizer, new SynonymGraphFilter(tokenizer, map, true));
             }
         };
-        NamedAnalyzer named = new NamedAnalyzer("synonyms", AnalyzerScope.GLOBAL, analyzer);
-        Query compiled = compile("ny foxx", named, "fuzziness", "1", "operator", "AND", "auto_generate_synonyms_phrase_query", false);
-        assertEquals(4, fuzzyLeaves(compiled).size());
-        assertFuzzyClausesPrebuilt(compiled);
+        return new NamedAnalyzer("synonyms", AnalyzerScope.GLOBAL, analyzer);
     }
 
-    /**
-     * Compiles a runtime {@code match} the way {@link RuntimeSearch} does, with the {@code lenient: true} that
-     * {@link Match} always adds.
-     */
+    private static Set<PrebuiltFuzzyQuery> distinctPrebuilt(Query query) {
+        Set<PrebuiltFuzzyQuery> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (FuzzyQuery fuzzy : fuzzyLeaves(query)) {
+            if (fuzzy instanceof PrebuiltFuzzyQuery prebuilt) {
+                distinct.add(prebuilt);
+            }
+        }
+        return distinct;
+    }
+
     private static Query compile(String query, NamedAnalyzer analyzer, Object... options) {
         Map<String, Object> opts = new HashMap<>();
-        opts.put("lenient", true);
         for (int i = 0; i < options.length; i += 2) {
             opts.put((String) options[i], options[i + 1]);
         }
+        return compile(query, analyzer, opts);
+    }
+
+    /**
+     * Compiles a runtime {@code match} the way {@link RuntimeSearch} does, without prebuilding, and with the
+     * {@code lenient: true} that {@link Match} always adds.
+     */
+    private static Query compile(String query, NamedAnalyzer analyzer, Map<String, Object> options) {
+        Map<String, Object> opts = new HashMap<>(options);
+        opts.put("lenient", true);
         try {
             return new MatchQuery(Source.EMPTY, RuntimeSearch.CONTENT_FIELD, query, opts).toQueryBuilder()
                 .toQuery(RuntimeSearchExecutionContext.create(List.of(RuntimeSearch.CONTENT_FIELD), analyzer));
@@ -273,7 +503,10 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
     }
 
     private static void assertSameHitsAndScores(MemoryIndex memoryIndex, FuzzyQuery query) throws IOException {
-        PrebuiltFuzzyQuery prebuilt = new PrebuiltFuzzyQuery(query);
+        assertSameHitsAndScores(memoryIndex, query, new PrebuiltFuzzyQuery(query));
+    }
+
+    private static void assertSameHitsAndScores(MemoryIndex memoryIndex, Query query, Query prebuilt) throws IOException {
         for (Similarity similarity : new Similarity[] { new BooleanSimilarity(), new BM25Similarity() }) {
             TopDocs expected;
             try {
@@ -309,7 +542,11 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
      * {@code FuzzyQueries#create} does.
      */
     private static MultiTermQuery.RewriteMethod randomRewriteMethod(int maxExpansions) {
-        String name = randomFrom(
+        return QueryParsers.parseRewriteMethod(randomRewriteName(maxExpansions), null, LoggingDeprecationHandler.INSTANCE);
+    }
+
+    private static String randomRewriteName(int maxExpansions) {
+        return randomFrom(
             new String[] {
                 null,
                 "constant_score",
@@ -320,7 +557,6 @@ public class PrebuiltFuzzyQueryTests extends ESTestCase {
                 "top_terms_boost_" + maxExpansions,
                 "top_terms_blended_freqs_" + maxExpansions }
         );
-        return QueryParsers.parseRewriteMethod(name, null, LoggingDeprecationHandler.INSTANCE);
     }
 
     private static String randomWord(int[] alphabet, int length) {

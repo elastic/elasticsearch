@@ -12,9 +12,12 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TopTermsRewrite;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 
@@ -25,15 +28,19 @@ import java.io.IOException;
  * its query against a fresh single-document {@link org.apache.lucene.index.memory.MemoryIndex} per row, and a plain
  * {@link FuzzyQuery} rebuilds its automata on every rewrite. Lucene doesn't keep them on the query on purpose, since
  * query caches hold queries as keys; that doesn't apply here, where the query lives only as long as the evaluator
- * factory. The automata are held for that lifetime and are not counted by the circuit breaker. A term too complex
- * for the automaton fails when the evaluator is built rather than on the first row.
+ * factory. The automata are held for that lifetime. No circuit breaker counts them; instead
+ * {@link RuntimeSearch#prebuildFuzzyAutomata} caps their {@link #ramBytesUsed} per compiled query and leaves clauses
+ * past that budget as plain {@link FuzzyQuery}s. A term too complex for the automaton fails when the evaluator is
+ * built rather than on the first row.
  * <p>
  * Terms get the same {@link BoostAttribute} as in {@code FuzzyTermsEnum}, and the inherited rewrite method selects
  * and scores them, so the query matches and scores exactly like {@link FuzzyQuery}. Unlike {@code FuzzyTermsEnum},
  * the enum doesn't lower the edit distance once the top-terms queue is full; that is only an early exit, since
  * {@link TopTermsRewrite} drops non-competitive terms anyway.
  */
-final class PrebuiltFuzzyQuery extends FuzzyQuery {
+final class PrebuiltFuzzyQuery extends FuzzyQuery implements Accountable {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(PrebuiltFuzzyQuery.class);
+
     /** Indexed by edit distance; index 0 is unused because an exact match is a bytes comparison. */
     private final CompiledAutomaton[] automata;
     private final int termLength;
@@ -60,6 +67,29 @@ final class PrebuiltFuzzyQuery extends FuzzyQuery {
     @Override
     protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {
         return new PrebuiltFuzzyTermsEnum(terms, automata, getTerm().bytes(), termLength);
+    }
+
+    /** The prebuilt max-edit automaton, the one {@link FuzzyQuery#getAutomata} would build again on every call. */
+    @Override
+    public CompiledAutomaton getAutomata() {
+        return automata[automata.length - 1];
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(getField())) {
+            CompiledAutomaton automaton = getAutomata();
+            visitor.consumeTermsMatching(this, getField(), () -> automaton.runAutomaton);
+        }
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long bytes = SHALLOW_SIZE + getTerm().ramBytesUsed() + RamUsageEstimator.shallowSizeOf(automata);
+        for (int k = 1; k < automata.length; k++) {
+            bytes += automata[k].ramBytesUsed();
+        }
+        return bytes;
     }
 
     private static final class PrebuiltFuzzyTermsEnum extends FilteredTermsEnum {

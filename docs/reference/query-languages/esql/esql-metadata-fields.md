@@ -23,12 +23,12 @@ The following metadata fields are available in {{esql}}:
 
 | Metadata field | Type | Description |
 |---------------|------|-------------|
-| `_class` {applies_to}`stack: ga 9.6` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What kind of source the row came from: `index` or `dataset`. |
+| `_class` {applies_to}`stack: ga 9.6` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What kind of source the row came from: `index`, `view`, `subquery`, or `dataset`. |
 | [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Unique document ID. |
 | [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Names every field in a document that was ignored when the document was indexed. |
 | [`_index`](/reference/elasticsearch/mapping-reference/mapping-index-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Index name. |
 | `_index_mode` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | [Index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting). For example: `standard`, `lookup`, or `logsdb`. |
-| `_name` {applies_to}`stack: ga 9.6` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What the source is called: the index name on an index, the dataset name on a dataset. |
+| `_name` {applies_to}`stack: ga 9.6` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What the source is called: the index name on an index, the view name on a view, `null` on a subquery, and the dataset name on a dataset. |
 | `_score` | [`float`](/reference/elasticsearch/mapping-reference/number.md) | Query relevance score (when enabled). Scores are updated when using [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md). |
  | `_size`| [`integer`](/reference/elasticsearch/mapping-reference/number.md) | Size in bytes of the original `_source` field when the [mapper-size plugin](../../elasticsearch-plugins/mapper-size.md) is enabled.
 | [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) | Special `_source` type | Original JSON document body passed at index time (or a reconstructed version if [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is enabled). |
@@ -36,7 +36,7 @@ The following metadata fields are available in {{esql}}:
 
 ## Usage and limitations
 
-- Most metadata fields are only available when the data source is an index. {applies_to}`stack: ga 9.6` `_class` and `_name` are answered by indices and datasets alike, and a dataset answers the rest either with a value or with `null` — refer to [query datasets](esql-data-federation-querying.md#use-metadata-columns)
+- Most metadata fields are only available when the data source is an index. {applies_to}`stack: ga 9.6` When a field is not available for a given source, `null` is returned. `_class` and `_name` are available on every source: indices, [views](esql-views.md#views-with-metadata), [subqueries](esql-from-subquery.md#subqueries-with-metadata), and [datasets](esql-data-federation-querying.md#use-metadata-columns)
 - The `_source` type is not supported by functions
 - Only the `FROM` command supports the `METADATA` directive
 - Once enabled, metadata fields work like regular index fields

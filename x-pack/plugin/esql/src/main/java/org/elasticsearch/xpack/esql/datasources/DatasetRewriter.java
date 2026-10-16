@@ -29,18 +29,21 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -84,7 +87,7 @@ public final class DatasetRewriter {
     /**
      * Per-relation engine-side resolution, run from the {@code EsqlResolveDatasetAction} body. Returns the authorized
      * dataset names, the concrete non-dataset names resolved from the same pattern (used in heterogeneous-FROM
-     * {@link UnionAll} building), and the explicitly-named-but-unauthorized datasets — which {@link #rewriteOne}
+     * {@link BranchPlan} building), and the explicitly-named-but-unauthorized datasets — which {@link #rewriteOne}
      * surfaces as {@code Unknown index} (400), the same error a missing index gives, so an unauthorized dataset
      * can't be told apart from a missing name.
      *
@@ -177,12 +180,35 @@ public final class DatasetRewriter {
      * relation with the full authorized set and {@link #rewrite}s — the in-process equivalent of
      * {@link DatasetResolver}'s dispatch, minus the {@code EsqlResolveDatasetAction} round-trip. {@code null} or
      * dataset-free project is a no-op.
+     *
+     * @param pragmas the request query pragmas. A set {@code max_branch_count_per_merge} pragma overrides {@code flags}.
+     * @param flags the coordinator's live {@link EsqlFlags}, including {@code esql.query.max_branch_count_per_merge}.
      */
     public static LogicalPlan rewriteUnsecured(
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver iner,
-        boolean wildcardsMatchDatasets
+        boolean wildcardsMatchDatasets,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return rewriteUnsecured(
+            parsed,
+            projectMetadata,
+            iner,
+            wildcardsMatchDatasets,
+            maxBranchCountPerMerge(pragmas, flags),
+            maxBranchCountPerMergeSource(pragmas)
+        );
+    }
+
+    static LogicalPlan rewriteUnsecured(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver iner,
+        boolean wildcardsMatchDatasets,
+        int maxBranchCountPerMerge,
+        String maxBranchCountPerMergeSource
     ) {
         if (projectMetadata == null) {
             return parsed;
@@ -206,7 +232,7 @@ public final class DatasetRewriter {
             resolutions.put(r, resolve(raw, raw, projectMetadata, iner, wildcardsMatchDatasets));
         });
         // Unsecured/test path runs without CPS (single local project): never preserve a wildcard for remote resolution.
-        return rewrite(parsed, projectMetadata, resolutions, false);
+        return rewrite(parsed, projectMetadata, resolutions, false, maxBranchCountPerMerge, maxBranchCountPerMergeSource);
     }
 
     static boolean hasRemotePattern(List<String> patterns) {
@@ -220,12 +246,13 @@ public final class DatasetRewriter {
 
     /**
      * Walks {@code parsed} and rewrites every {@link UnresolvedRelation} that resolved to external dataset(s) into
-     * {@link UnresolvedExternalRelation} (single dataset) or {@link UnionAll} of such (multi), using the per-relation
-     * {@link DatasetResolution} computed engine-side by {@link #resolve}. All other relations are left untouched. The
-     * {@code projectMetadata == null} / no-datasets-registered short-circuits avoid touching the common path.
+     * {@link UnresolvedExternalRelation} (single dataset) or a {@link BranchPlan} of such (multi) carrying a
+     * {@link BranchIdentity} per branch, using the per-relation {@link DatasetResolution} computed engine-side by
+     * {@link #resolve}. All other relations are left untouched. The {@code projectMetadata == null} /
+     * no-datasets-registered short-circuits avoid touching the common path.
      *
      * <p>Throws {@link VerificationException} for: non-{@code STANDARD} {@link IndexMode} on a dataset, or
-     * {@code UnionAll} branch-cap exceeded. Designed
+     * branch-cap exceeded. Designed
      * to run once on the parsed plan before pre-analysis (so the analyzer sees a uniform
      * {@code UnresolvedExternalRelation} tree regardless of whether the user wrote {@code FROM <dataset>} or inline
      * {@code EXTERNAL}).
@@ -236,12 +263,34 @@ public final class DatasetRewriter {
      * @param crossProjectEnabled whether cross-project search (CPS) is active; when {@code true}, a wildcard that
      *                    matched a dataset is kept alongside the dataset so the remote (linked-project) half still
      *                    resolves — see {@link #rewriteOne}.
+     * @param pragmas the request query pragmas. A set {@code max_branch_count_per_merge} pragma overrides {@code flags}.
+     * @param flags the coordinator's live {@link EsqlFlags}, including {@code esql.query.max_branch_count_per_merge}.
      */
     public static LogicalPlan rewrite(
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         Map<UnresolvedRelation, DatasetResolution> resolutions,
-        boolean crossProjectEnabled
+        boolean crossProjectEnabled,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return rewrite(
+            parsed,
+            projectMetadata,
+            resolutions,
+            crossProjectEnabled,
+            maxBranchCountPerMerge(pragmas, flags),
+            maxBranchCountPerMergeSource(pragmas)
+        );
+    }
+
+    static LogicalPlan rewrite(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        Map<UnresolvedRelation, DatasetResolution> resolutions,
+        boolean crossProjectEnabled,
+        int maxBranchCountPerMerge,
+        String maxBranchCountPerMergeSource
     ) {
         if (projectMetadata == null) {
             return parsed;
@@ -256,8 +305,26 @@ public final class DatasetRewriter {
             if (resolution == null) {
                 return r;
             }
-            return rewriteOne(r, datasetMetadata, dataSourceMetadata, resolution, crossProjectEnabled);
+            return rewriteOne(
+                r,
+                datasetMetadata,
+                dataSourceMetadata,
+                resolution,
+                crossProjectEnabled,
+                maxBranchCountPerMerge,
+                maxBranchCountPerMergeSource
+            );
         });
+    }
+
+    /** Resolved {@code max_branch_count_per_merge}: a set query pragma overrides {@link EsqlFlags#maxBranchCountPerMerge()}. */
+    private static int maxBranchCountPerMerge(QueryPragmas pragmas, EsqlFlags flags) {
+        return pragmas.maxBranchCountPerMerge(flags.maxBranchCountPerMerge());
+    }
+
+    /** Label for whichever knob supplied {@link #maxBranchCountPerMerge(QueryPragmas, EsqlFlags)}. */
+    private static String maxBranchCountPerMergeSource(QueryPragmas pragmas) {
+        return pragmas.maxBranchCountPerMergeLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE.getKey());
     }
 
     private static LogicalPlan rewriteOne(
@@ -265,7 +332,9 @@ public final class DatasetRewriter {
         DatasetMetadata datasets,
         DataSourceMetadata dataSources,
         DatasetResolution resolution,
-        boolean crossProjectEnabled
+        boolean crossProjectEnabled,
+        int maxBranchCountPerMerge,
+        String maxBranchCountPerMergeSource
     ) {
         if (resolution.explicitUnauthorized().isEmpty() == false) {
             // An explicitly-named dataset the caller can't read — same error (and 400) a missing index gives, so an
@@ -299,9 +368,11 @@ public final class DatasetRewriter {
         // CPS rule (a remote view is invisible, a remote dataset is invisible, and a remote index of the same name reads) must
         // hold uniformly, so the cross-project siblings below are appended regardless of whether the FROM also names
         // local indices. Keeping the two shapes on one path is what stops them drifting.
-        List<LogicalPlan> children = new ArrayList<>();
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
         for (String name : datasetNames) {
-            children.add(buildDatasetBranch(name, datasets, dataSources, relation.source(), relation.metadataFields()));
+            branches.put(name, buildDatasetBranch(name, datasets, dataSources, relation.source(), relation.metadataFields()));
+            identities.put(name, BranchIdentity.dataset(name));
         }
 
         // Index branch: the concrete local non-dataset names plus, under cross-project, any preserved positive
@@ -314,7 +385,9 @@ public final class DatasetRewriter {
             indexBranch.addAll(crossProjectPatternsToPreserve(patternsOf(relation)));
         }
         if (indexBranch.isEmpty() == false) {
-            children.add(
+            // The null key marks the bare-plan branch, matching the ViewResolver/ViewCompaction convention.
+            branches.put(
+                null,
                 new UnresolvedRelation(
                     relation.source(),
                     new IndexPattern(relation.source(), String.join(",", indexBranch)),
@@ -324,20 +397,23 @@ public final class DatasetRewriter {
                     relation.unresolvedMessage()
                 )
             );
+            identities.put(null, BranchIdentity.INDEX);
         }
 
         // Cap the real-read branches (datasets + the index branch) here, BEFORE the speculative shadows. A shadow
         // strips when its name has no remote namesake, so it must not consume the rewrite-time budget; a matched
-        // shadow is a real read bounded post-analysis by MergePlan.checkBranchCount.
-        if (MergePlan.exceedsMaxBranches(children.size())) {
+        // shadow is a real read bounded by logical verifier.
+        if (branches.size() > maxBranchCountPerMerge) {
             throw new VerificationException(
                 "FROM ["
                     + relation.indexPattern().indexPattern()
                     + "] resolved to "
-                    + children.size()
-                    + " branches, exceeding the current limit of "
-                    + MergePlan.MAX_BRANCHES
-                    + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
+                    + branches.size()
+                    + " branches, exceeding the limit of "
+                    + maxBranchCountPerMerge
+                    + " set by the "
+                    + maxBranchCountPerMergeSource
+                    + ". Narrow the pattern, exclude some datasets, or split into multiple queries."
             );
         }
 
@@ -347,13 +423,27 @@ public final class DatasetRewriter {
         // stays inert until datasets exist: datasetNames is non-empty only once datasets are registered, which dataset
         // registration gating controls (see Federation) — this method enforces no flag check of its own.
         if (crossProjectEnabled) {
-            children.addAll(crossProjectExactNameShadows(relation, datasetNames));
+            for (DatasetShadowRelation shadow : crossProjectExactNameShadows(relation, datasetNames)) {
+                // A shadow's name is its dataset's name, which already keys the dataset branch — uniquify. A resolved
+                // shadow is a plain remote-index read, so it carries INDEX identity, like ViewResolver's view shadows.
+                branches.put(uniqueKey(branches, shadow.datasetName()), shadow);
+            }
         }
 
-        if (children.size() == 1) {
-            return children.get(0);
+        if (branches.size() == 1) {
+            return branches.values().iterator().next();
         }
-        return new UnionAll(relation.source(), children, List.of());
+        return new BranchPlan(relation.source(), branches, identities, List.of());
+    }
+
+    /** Uniquifies {@code key} against the branch map ({@code "ds"} → {@code "ds~2"}), like {@code ViewCompaction.makeUniqueKey}. */
+    private static String uniqueKey(Map<String, LogicalPlan> branches, String key) {
+        String candidate = key;
+        int counter = 2;
+        while (branches.containsKey(candidate)) {
+            candidate = key + "~" + counter++;
+        }
+        return candidate;
     }
 
     /**
@@ -574,7 +664,7 @@ public final class DatasetRewriter {
     /**
      * Per-relation result of {@link #resolve}: the external dataset names the relation resolved to (security-filtered
      * to those the caller may read), the concrete non-dataset names resolved from the same pattern (drives
-     * heterogeneous-FROM {@link UnionAll} building), and the explicitly-named datasets absent from the resolved set
+     * heterogeneous-FROM {@link BranchPlan} building), and the explicitly-named datasets absent from the resolved set
      * (surfaced by {@link #rewriteOne} as {@code Unknown index}).
      */
     public record DatasetResolution(Set<String> resolvedExternalDatasets, Set<String> nonDatasetNames, Set<String> explicitUnauthorized) {}

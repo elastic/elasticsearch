@@ -12,6 +12,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.RemovedParquetDatasetSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -28,25 +29,27 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
-/** Pins that the Parquet reader claims no per-dataset configuration keys. */
+/** Pins that {@code schema_max_fields} is the only per-dataset configuration key the Parquet reader claims. */
 public class ParquetFormatReaderConfigKeysTests extends ESTestCase {
 
     private static final BlockFactory NOOP_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
-    public void testFormatSpecConfigKeysAreEmpty() {
+    public void testFormatSpecConfigKeysAreSchemaMaxFieldsOnly() {
         ParquetDataSourcePlugin plugin = new ParquetDataSourcePlugin();
         Set<FormatSpec> specs = plugin.formatSpecs();
         assertThat(specs.size(), equalTo(1));
         FormatSpec spec = specs.iterator().next();
         assertThat(spec.format(), equalTo(FormatNameResolver.FORMAT_PARQUET));
-        assertThat("FormatSpec for [" + spec.format() + "] must declare no config keys", spec.configKeys(), empty());
+        assertThat(spec.configKeys(), equalTo(Set.of("schema_max_fields")));
+        assertThat(spec.configKeys(), equalTo(ParquetFormatReader.RECOGNIZED_KEYS));
     }
 
-    public void testWithConfigClaimsNothingIncludingRemovedKeys() {
+    public void testWithConfigClaimsNothingButSchemaMaxFieldsIncludingRemovedKeys() {
         ParquetFormatReader reader = new ParquetFormatReader(NOOP_BLOCK_FACTORY);
         Map<String, Object> config = new HashMap<>();
         for (String key : RemovedParquetDatasetSettings.KEYS) {
@@ -56,6 +59,32 @@ public class ParquetFormatReaderConfigKeysTests extends ESTestCase {
         Configured<FormatReader> result = reader.withConfigTrackingConsumedKeys(config);
         assertThat(result.consumedKeys(), empty());
         assertThat(result.value(), sameInstance(reader));
+    }
+
+    public void testSchemaMaxFieldsIsConsumedAndMovesIdentity() {
+        ParquetFormatReader reader = new ParquetFormatReader(NOOP_BLOCK_FACTORY);
+        Configured<FormatReader> seven = reader.withConfigTrackingConsumedKeys(Map.of("schema_max_fields", 7));
+        assertThat(seven.consumedKeys(), equalTo(Set.of("schema_max_fields")));
+        assertThat(seven.identity(), not(equalTo("")));
+        assertThat(seven.identity(), not(equalTo(reader.withConfigTrackingConsumedKeys(Map.of("schema_max_fields", 8)).identity())));
+    }
+
+    public void testSchemaMaxFieldsIsBounded() {
+        for (Object bad : new Object[] { 0, -1, ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS + 1, "many" }) {
+            expectThrows(IllegalArgumentException.class, () -> ParquetFormatReader.validateConfig(Map.of("schema_max_fields", bad)));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(Map.of("schema_max_fields", bad))
+            );
+        }
+        ParquetFormatReader.validateConfig(Map.of("schema_max_fields", ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS));
+    }
+
+    /** Declaring the dataset's columns does not lift the cap for Parquet, so the refusal at the ceiling does not suggest it. */
+    public void testSchemaWidthMessageAtTheCeilingDoesNotSuggestDeclaring() {
+        String message = ParquetFormatReader.schemaWidthMessage(ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS);
+        assertThat(message, not(containsString("dynamic: false")));
+        assertThat(message, containsString("wider than any Parquet schema"));
     }
 
     public void testEmptyConfigConsumesNothing() {

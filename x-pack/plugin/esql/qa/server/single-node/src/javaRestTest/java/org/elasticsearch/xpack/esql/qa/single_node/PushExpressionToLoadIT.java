@@ -55,7 +55,6 @@ import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.fixTypesOnP
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -1585,25 +1584,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
         assertResultMap(
             result,
-            getResultMatcher(result).entry(
-                "profile",
-                matchesMap() //
-                    .entry("drivers", instanceOf(List.class))
-                    .entry("plans", instanceOf(List.class))
-                    .entry("planning", matchesMap().extraOk())
-                    .entry("parsing", matchesMap().extraOk())
-                    .entry("view_resolution", matchesMap().extraOk())
-                    .entry("dataset_resolution", matchesMap().extraOk())
-                    .entry("preanalysis", matchesMap().extraOk())
-                    .entry("indices_resolution", matchesMap().extraOk())
-                    .entry("enrich_resolution", matchesMap().extraOk())
-                    .entry("inference_resolution", matchesMap().extraOk())
-                    .entry("analysis", matchesMap().extraOk())
-                    .entry("query", matchesMap().extraOk())
-                    .entry("field_caps_calls", instanceOf(Integer.class))
-                    .entry("unmapped_fields", instanceOf(String.class))
-                    .entry("minimumTransportVersion", instanceOf(Integer.class))
-            ),
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
             columnMatcher,
             matchesList().item(expectedValue)
         );

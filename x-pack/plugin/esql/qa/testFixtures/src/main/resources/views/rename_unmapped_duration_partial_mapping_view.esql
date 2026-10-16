@@ -1,0 +1,1 @@
+FROM partial_mapping_sample_data | RENAME unmapped_event_duration AS renamed_duration

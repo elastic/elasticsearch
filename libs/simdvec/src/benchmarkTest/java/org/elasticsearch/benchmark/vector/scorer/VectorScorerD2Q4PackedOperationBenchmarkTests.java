@@ -34,7 +34,7 @@ public class VectorScorerD2Q4PackedOperationBenchmarkTests extends BenchmarkTest
         for (int i = 0; i < 100; i++) {
             var bench = newBench();
             try {
-                assertArrayEquals("DOT_PRODUCT", bench.scoreSingle(), bench.scoreBulk(), 0f);
+                assertArrayEquals("DOT_PRODUCT", bench.scoreSingle().clone(), bench.scoreBulk(), 0f);
             } finally {
                 bench.teardown();
             }
@@ -45,7 +45,7 @@ public class VectorScorerD2Q4PackedOperationBenchmarkTests extends BenchmarkTest
         for (int i = 0; i < 100; i++) {
             var bench = newBench();
             try {
-                assertArrayEquals("DOT_PRODUCT", bench.scoreSingleAtOrdinals(), bench.scoreBulkOffsets(), 0f);
+                assertArrayEquals("DOT_PRODUCT", bench.scoreSingleAtOrdinals().clone(), bench.scoreBulkOffsets(), 0f);
             } finally {
                 bench.teardown();
             }

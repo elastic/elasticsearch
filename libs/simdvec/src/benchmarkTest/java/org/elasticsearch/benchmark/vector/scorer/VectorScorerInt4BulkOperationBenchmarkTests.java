@@ -27,7 +27,7 @@ public class VectorScorerInt4BulkOperationBenchmarkTests extends BenchmarkTest {
         bench.bulkSize = 200;
         bench.setup(vectorData);
         try {
-            float[] single = bench.scoreSequential();
+            float[] single = bench.scoreSequential().clone();
             float[] bulk = bench.scoreBulk();
             assertArrayEquals("scoreBulk vs scoreSequential", single, bulk, 0f);
         } finally {
@@ -43,7 +43,7 @@ public class VectorScorerInt4BulkOperationBenchmarkTests extends BenchmarkTest {
         bench.bulkSize = 200;
         bench.setup(vectorData);
         try {
-            float[] single = bench.scoreRandom();
+            float[] single = bench.scoreRandom().clone();
             float[] bulk = bench.scoreBulkOffsets();
             assertArrayEquals("scoreBulkOffsets vs scoreRandom", single, bulk, 0f);
         } finally {
@@ -59,7 +59,7 @@ public class VectorScorerInt4BulkOperationBenchmarkTests extends BenchmarkTest {
         bench.bulkSize = 200;
         bench.setup(vectorData);
         try {
-            float[] single = bench.scoreRandom();
+            float[] single = bench.scoreRandom().clone();
             float[] bulk = bench.scoreBulkSparse();
             assertArrayEquals("scoreBulkSparse vs scoreRandom", single, bulk, 0f);
         } finally {

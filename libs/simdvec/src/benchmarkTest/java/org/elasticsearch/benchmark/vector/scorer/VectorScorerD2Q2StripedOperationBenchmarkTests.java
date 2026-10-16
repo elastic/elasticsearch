@@ -33,7 +33,7 @@ public class VectorScorerD2Q2StripedOperationBenchmarkTests extends BenchmarkTes
     public void testBulk() {
         var bench = newBench();
         try {
-            assertArrayEquals("DOT_PRODUCT", bench.scoreSingle(), bench.scoreBulk(), 0f);
+            assertArrayEquals("DOT_PRODUCT", bench.scoreSingle().clone(), bench.scoreBulk(), 0f);
         } finally {
             bench.teardown();
         }
@@ -42,7 +42,7 @@ public class VectorScorerD2Q2StripedOperationBenchmarkTests extends BenchmarkTes
     public void testBulkOffsets() {
         var bench = newBench();
         try {
-            assertArrayEquals("DOT_PRODUCT", bench.scoreSingleAtOrdinals(), bench.scoreBulkOffsets(), 0f);
+            assertArrayEquals("DOT_PRODUCT", bench.scoreSingleAtOrdinals().clone(), bench.scoreBulkOffsets(), 0f);
         } finally {
             bench.teardown();
         }

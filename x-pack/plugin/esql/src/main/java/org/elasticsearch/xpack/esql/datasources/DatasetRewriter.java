@@ -240,7 +240,7 @@ public final class DatasetRewriter {
     /**
      * Visits every {@link UnresolvedRelation} in {@code plan} together with its effective {@code wildcards_match_datasets}:
      * the caller's setting, except inside a view body, where wildcards never match datasets — the caller's SET must not
-     * change which sources a stored view definition resolves to (esql-planning#2273). A dataset named exactly inside a
+     * change which sources a stored view definition resolves to. A dataset named exactly inside a
      * view body is unaffected — exact reachability is not what the setting controls.
      * <p>
      * A view body is a view branch of a {@link BranchPlan}. Every view is one while the setting is on, because

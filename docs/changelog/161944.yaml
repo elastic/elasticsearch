@@ -1,14 +1,4 @@
 area: Columnar
-highlight:
-  body: |-
-    Indices in the `columnar` and `logsdb_columnar` index modes now store the doc values of
-    `keyword`, `text` and `match_only_text` fields in a new columnar doc values format, which
-    further reduces their storage footprint. The format is used by default for indices created
-    on this version. Existing indices keep the format they were written with.
-
-    See [Doc values format for string fields](https://www.elastic.co/docs/reference/elasticsearch/columnar#columnar-doc-values-format).
-  notable: true
-  title: New doc values format for string fields in columnar indices
 issues: []
 pr: 161944
 summary: Use the columnar doc values format by default in columnar index modes

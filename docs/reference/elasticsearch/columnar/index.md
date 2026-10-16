@@ -299,25 +299,6 @@ Term-level queries (`term`, `terms`, `prefix`, `wildcard` and `regexp`) match a 
 
 Without term statistics, a document scores one point for each query term it matches, and a phrase counts as one term.
 
-## Doc values format for string fields [columnar-doc-values-format]
-```yaml {applies_to}
-stack: preview 9.6
-serverless: preview
-```
-
-Columnar indices store the doc values of `keyword`, `text`, and `match_only_text` fields in a dedicated columnar doc values format, which further reduces their storage footprint. The format is used by default for indices created on 9.6 or later. An index keeps the format it was created with: indices created before 9.6 keep their previous format after an upgrade, and the format of an existing index can't be changed.
-
-### Settings [columnar-doc-values-format-settings]
-```yaml {applies_to}
-stack: preview 9.6
-```
-
-`index.columnar_codec.enabled`
-:   (Boolean) Whether the index uses the columnar doc values format for its string fields. Defaults to `true` for indices created on 9.6 or later, and `false` for older indices. This setting can only be set at index creation time. Set it to `false` to create an index that uses the previous format.
-
-`cluster.columnar_codec.enabled`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), Boolean) Whether new columnar indices can use the columnar doc values format. Defaults to `true`. When `false`, every columnar index created afterwards gets `index.columnar_codec.enabled: false`, overriding the value in index templates and create index requests. Existing indices are not affected.
-
 ## Limitations [columnar-limitations]
 
 The following features are not supported in columnar index modes:

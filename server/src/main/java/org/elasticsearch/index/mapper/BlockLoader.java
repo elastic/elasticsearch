@@ -387,6 +387,12 @@ public interface BlockLoader {
          * If the stored fields are not loaded yet, the block loader might avoid loading them when not needed.
          */
         boolean loaded();
+
+        /**
+         * Returns what {@code compute} returns for the current document. It is called once for each {@code key} and
+         * document, so that the loaders of a document can share what they read from it.
+         */
+        <T> T shared(Object key, IOFunction<StoredFields, T> compute) throws IOException;
     }
 
     /**

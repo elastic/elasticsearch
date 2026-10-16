@@ -5966,3 +5966,83 @@ FROM partial_mapping_sample_data
 @timestamp:datetime | unmapped_message:keyword
 2024-10-23T13:33:34.937Z | 43
 ;
+
+###############################################################
+# New commands across indices, in FORK and in subqueries      #
+###############################################################
+
+// GROK reads message, which partial_mapping_sample_data maps as keyword and no_mapping_sample_data leaves unmapped. Both indices produce
+// the same verb, and _unmapped_fields is narrowed to the unmapped_m* leaves on each.
+grokOnFieldMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, no_mapping_sample_data METADATA _index
+| WHERE @timestamp == "2024-10-23T13:55:01.543Z"
+| GROK message "%{WORD:verb}"
+| KEEP _index, verb, unmapped_m*
+| SORT _index
+;
+
+_index:keyword | verb:keyword | _unmapped_fields:_source
+no_mapping_sample_data | Connected | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
+partial_mapping_sample_data | Connected | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
+;
+
+// GROK in one FORK branch adds a column that the other branch null-fills; _unmapped_fields stays per branch.
+forkBranchWithGrok
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fork
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE @timestamp == "2024-10-23T13:33:34.937Z"
+| FORK (GROK message "%{WORD:verb}" | KEEP @timestamp, verb, unmapped_m*) (KEEP @timestamp, unmapped_m*)
+| SORT _fork
+;
+
+@timestamp:datetime | verb:keyword | _fork:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | 42 | fork1 | "{""unmapped_message"":""43""}"
+2024-10-23T13:33:34.937Z | null | fork2 | "{""unmapped_message"":""43""}"
+;
+
+// MV_EXPAND and SAMPLE each in a FORK branch.
+forkBranchesWithMvExpandAndSample
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fork
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_mv_sample_data
+| WHERE @timestamp == "2024-10-23T13:33:34.937Z"
+| FORK (MV_EXPAND unmapped_mv | KEEP @timestamp, unmapped_mv, unmapped_m*) (SAMPLE .9999999999999999 | KEEP @timestamp, unmapped_m*)
+| SORT _fork, unmapped_mv
+;
+
+@timestamp:datetime | unmapped_mv:keyword | _fork:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | h | fork1 | "{""unmapped_message"":""43""}"
+2024-10-23T13:33:34.937Z | i | fork1 | "{""unmapped_message"":""43""}"
+2024-10-23T13:33:34.937Z | [i, h] | fork2 | "{""unmapped_message"":""43""}"
+;
+
+// DISSECT inside one subquery of a FROM over a mapped and an unmapped index.
+dissectInSubquery
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE @timestamp == "2024-10-23T13:55:01.543Z" | DISSECT message "%{a} %{b}" | KEEP a, b, unmapped_m*),
+     (FROM no_mapping_sample_data | WHERE @timestamp == "2024-10-23T13:55:01.543Z" | KEEP unmapped_m*)
+| SORT a
+;
+
+a:keyword | b:keyword | _unmapped_fields:_source
+Connected | to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
+null | null | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
+;

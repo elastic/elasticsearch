@@ -854,17 +854,12 @@ The `rescore` section in the profile response is an array with one element per r
       {
         "rescore": [
           {
-            "type": "query",                <1>
-            "description": "rescore top documents",
-            "time_in_nanos": 254826,        <2>
-            "breakdown": {
-              "rescore": 254826,
-              "rescore_count": 1
-            },
+            "type": "query",                       <1>
+            "description": "message:search",       <2>
+            "time_in_nanos": 254826,               <3>
+            "breakdown": {},                       <4>
             "debug": {
-              "window_size": 2,             <3>
-              "docs_before_rescore": 5,     <4>
-              "docs_after_rescore": 5       <5>
+              "window_size": 2                     <5>
             }
           }
         ]
@@ -876,35 +871,32 @@ The `rescore` section in the profile response is an array with one element per r
 % TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
 
 1. The name of the rescorer, such as `query` or `learning_to_rank`.
-2. The total time spent in the rescorer, including the time spent running its queries. The `rescore` property of the `breakdown` reports the same time.
-3. The number of top documents the rescorer was configured to rescore on each shard.
-4. The number of top documents passed to the rescorer.
-5. The number of top documents returned by the rescorer. The `query` rescorer only rescores the top `window_size` documents but returns all the documents it was given, while the `learning_to_rank` rescorer only returns the top `window_size` documents.
+2. What the rescorer runs. For a `query` rescorer, this is its `rescore_query`. For a `learning_to_rank` rescorer, this is `model [<model_id>]`.
+3. The total time spent in the rescorer, including the time spent running its queries.
+4. The time spent in each step of the rescorer. Rescorers that don't report steps, like the `query` rescorer, have an empty `breakdown`.
+5. The number of top documents the rescorer was configured to rescore on each shard.
 
-If the search times out while a rescorer is running, its `debug` section has `"timed_out": true` and no `docs_after_rescore`, and the top documents of the shard are not rescored.
+If the search times out while a rescorer is running, its `debug` section has `"timed_out": true`, and the top documents of the shard are not rescored.
 
-The queries run by a rescorer, such as the `rescore_query` of a `query` rescorer or the feature queries of a `learning_to_rank` model, are profiled in the [query section](#query-section) of `searches`, after the main query, and their rewrite time is part of its `rewrite_time`. Because their time is also part of the rescorer's `time_in_nanos`, don't add the two together. To compare the time of the main query with the time spent rescoring, use the first element of the `query` array or the [collector section](#collectors-section), which doesn't include the rescore phase.
+The queries run by a rescorer, such as the `rescore_query` of a `query` rescorer or the feature queries of a `learning_to_rank` model, are profiled in the [query section](#query-section) of `searches`, after the main query, and their rewrite time is part of its `rewrite_time`. Each of these queries has a `debug` section with the position of its rescorer in the `rescore` array, like `"debug": { "rescorer": 0 }`. Because their time is also part of the rescorer's `time_in_nanos`, don't add the two together. To compare the time of the main query with the time spent rescoring, use the queries without a `rescorer` or the [collector section](#collectors-section), which doesn't include the rescore phase.
 
-A `learning_to_rank` rescorer adds details about the model to its `debug` section:
+A `learning_to_rank` rescorer reports the steps of the model in its `breakdown`:
 
 ```js
-"debug": {
-  "window_size": 10,
-  "docs_before_rescore": 10,
-  "docs_after_rescore": 10,
-  "feature_extraction_time_in_nanos": 1935167,    <1>
-  "inference_time_in_nanos": 1943541,             <2>
-  "query_feature_time_in_nanos": {                <3>
-    "best_seller": 148375,
-    "product_match": 21042
-  }
+"breakdown": {
+  "build_feature_extractors": 310250,      <1>
+  "build_feature_extractors_count": 1,
+  "feature_extraction": 1624917,           <2>
+  "feature_extraction_count": 10,
+  "inference": 1943541,                    <3>
+  "inference_count": 10
 }
 ```
 % NOTCONSOLE
 
-1. The time spent extracting the features of the top documents, including building the queries of the query features.
-2. The time spent running the model on the extracted features.
-3. The time spent on each query feature, keyed by feature name. It covers rewriting the feature's query, creating its weight and scoring the top documents. Features that read the value of a document field are part of `feature_extraction_time_in_nanos` but aren't listed here.
+1. The time spent turning the feature queries of the model into queries that can score documents. This step runs once per rescore.
+2. The time spent extracting the features of the top documents. The count is the number of documents rescored. It includes scoring the top documents with the feature queries, which are listed with their own timings in `searches`, and reading the field values used as features.
+3. The time spent running the model on the extracted features. The count is the number of documents rescored.
 
 
 ### Profiling fetch [profiling-fetch]

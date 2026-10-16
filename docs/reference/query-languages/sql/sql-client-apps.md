@@ -15,6 +15,7 @@ Thanks to its [JDBC](sql-jdbc.md) and [ODBC](sql-odbc.md) interfaces, a broad ra
 
 * [DBeaver](sql-client-apps-dbeaver.md)
 * [DbVisualizer](sql-client-apps-dbvis.md)
+* [LibreDB Studio](sql-client-apps-libredb-studio.md)
 * [Microsoft Excel](sql-client-apps-excel.md)
 * [Microsoft Power BI Desktop](sql-client-apps-powerbi.md)
 * [Microsoft PowerShell](sql-client-apps-ps1.md)

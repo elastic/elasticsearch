@@ -848,6 +848,7 @@ public class IngestDocumentTests extends ESTestCase {
     public void testSetIngestObject() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.setFieldValue("_ingest", "value");
+            assertThat(doc.getSource().get("_ingest"), equalTo("value"));
             assertThat(doc.getCtxMap().get("_ingest"), equalTo("value"));
         });
     }

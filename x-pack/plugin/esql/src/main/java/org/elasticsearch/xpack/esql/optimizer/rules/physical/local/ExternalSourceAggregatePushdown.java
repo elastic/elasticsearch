@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.MergedSplitStats;
-import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
@@ -480,19 +479,19 @@ public final class ExternalSourceAggregatePushdown {
 
         if (splits.isEmpty() || splits.size() == 1) {
             org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = null;
+            Map<String, Object> sourceMetadata = externalExec.sourceMetadata();
             if (splits.size() == 1) {
                 stats = splits.getFirst().splitStats();
-            }
-            if (stats == null) {
-                // Fall back to the whole-file cache stats — but honor STATS_PARTIAL exactly as the unfiltered
-                // path does (SplitStats.resolveEffectiveStats): a partial whole-file row_count (e.g. a single
-                // CoalescedSplit whose stat-less child collapsed splitStats() to null) cannot answer a FILTERED
-                // count. Serving it would emit a partial COUNT. Safe-miss instead.
-                Map<String, Object> sourceMetadata = externalExec.sourceMetadata();
-                if (sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(SourceStatisticsSerializer.STATS_PARTIAL))) {
-                    return null;
+                if (stats == null) {
+                    // Same grain as resolveEffectiveStats: listing metadata that covers more files
+                    // than this assignment must not answer INITIAL COUNT on a data node (#161409).
+                    if (SplitStats.refuseListingFallback(splits.getFirst(), sourceMetadata)) {
+                        return null;
+                    }
+                    stats = SplitStats.sourceMetadataStatsIfComplete(sourceMetadata);
                 }
-                stats = externalExec.sourceMetadataStats();
+            } else {
+                stats = SplitStats.sourceMetadataStatsIfComplete(sourceMetadata);
             }
             if (stats == null) {
                 return null;

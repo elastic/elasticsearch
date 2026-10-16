@@ -20,10 +20,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * The single per-batch context metadata mappers read and write during columnar batch mapping (see
@@ -155,6 +157,25 @@ public final class BatchMappingContext implements Releasable {
         resources.add(resource);
     }
 
+    /**
+     * Returns a cursor that reassembles, one document at a time, the Lucene fields of every column attached so far — the row-oriented
+     * view of the batch, for mappers that must read back what the other mappers produced (e.g. {@code columnar_stored} rebuilding
+     * {@code _source}). Unlike {@link #columns()} this does not {@link #frozen freeze} the context, so the caller may still
+     * attach or {@link #removeColumnsIf remove} columns afterwards; columns attached later are not seen by the returned cursor.
+     */
+    public MappedColumns.RowCursor rowCursor() {
+        return mappedColumns().rowCursor();
+    }
+
+    /**
+     * Detaches every column whose Lucene field name matches {@code nameFilter}. The backing data of a detached column stays registered
+     * with this context and is released on {@link #close()}.
+     */
+    public void removeColumnsIf(Predicate<String> nameFilter) {
+        assert frozen == false;
+        columns.removeIf(column -> nameFilter.test(column.toLuceneColumn().name()));
+    }
+
     @Override
     public void close() {
         Releasables.close(resources);
@@ -214,6 +235,22 @@ public final class BatchMappingContext implements Releasable {
      */
     public BytesReference[] sources() {
         return batch.sources();
+    }
+
+    /**
+     * Returns the size in bytes of document {@code doc}'s source, for accounting rather than storage.
+     *
+     * <p>A document that arrives as a row of a pre-built {@link SourceBatch} carries no source bytes on its request, so
+     * {@link #sources()} cannot size it; its size is estimated from the batch row instead, which is what the row-major path does
+     * for row-backed sources (see {@code DocumentSource#estimatedSizeInBytes}). A document with neither has size {@code 0}.
+     */
+    public int sourceSizeInBytes(int doc) {
+        final BytesReference source = batch.sources()[doc];
+        if (source != null && source.length() > 0) {
+            return source.length();
+        }
+        final SourceBatch sourceBatch = batch.sourceBatch();
+        return sourceBatch != null ? sourceBatch.row(doc).sizeInBytes() : 0;
     }
 
     /**
@@ -336,6 +373,10 @@ public final class BatchMappingContext implements Releasable {
      */
     public MappedColumns columns() {
         frozen = true;
+        return mappedColumns();
+    }
+
+    private MappedColumns mappedColumns() {
         return new MappedColumns(0, batch.docCount(), batch.seqNoBytes(), batch.primaryTermBytes(), batch.versionBytes(), columns);
     }
 }

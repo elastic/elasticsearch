@@ -277,7 +277,9 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * Included:
      * <ul>
      *   <li>Response shell ({@link #BASE_RESPONSE_OVERHEAD}).</li>
-     *   <li>Top-level and nested hits ({@link #estimateHitBytes}).</li>
+     *   <li>Top-level and nested hits ({@link #estimateHitBytes}), unless the response holds the coordinating node's
+     *       fetch charge for them ({@link SearchResponse#hasCoordinatorFetchCharge()}), which stays on the request
+     *       breaker while the response is buffered.</li>
      *   <li>Merged aggregations when {@link SearchResponse#getQueryPhaseAggregationBreakerBytes()} is zero
      *       (no handoff from {@link QueryPhaseResultConsumer}), via
      *       {@link DelayableWriteable#getUncompressedSerializedSize}. When handoff bytes are non-zero, aggregations
@@ -326,8 +328,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         CountingStreamOutput counter = new CountingStreamOutput();
         counter.setTransportVersion(TransportVersion.current());
 
-        for (SearchHit hit : response.getHits().getHits()) {
-            bytes += estimateHitBytes(hit, counter);
+        if (response.hasCoordinatorFetchCharge() == false) {
+            for (SearchHit hit : response.getHits().getHits()) {
+                bytes += estimateHitBytes(hit, counter);
+            }
         }
 
         if (response.hasAggregations() && response.getQueryPhaseAggregationBreakerBytes() == 0) {

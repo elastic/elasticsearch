@@ -28,7 +28,7 @@ setup:
       index:
         index: ash_disk_slice
         id: "1"
-        slice: s1
+        _slice: s1
         body:
           vector: [0.077,  0.32 , -0.205,  0.63 ,  0.032,  0.201,  0.167, -0.313,
                    0.176,  0.531, -0.375,  0.334, -0.046,  0.078, -0.349,  0.272,
@@ -43,7 +43,7 @@ setup:
       index:
         index: ash_disk_slice
         id: "3"
-        slice: s1
+        _slice: s1
         body:
           vector: [-0.11 ,  0.377, -0.137,  0.623, -0.132,  0.113,  0.37 , -0.142,
                    -0.069,  0.455, -0.174,  0.057, -0.097,  0.199, -0.357,  0.14 ,
@@ -58,7 +58,7 @@ setup:
       index:
         index: ash_disk_slice
         id: "2"
-        slice: s2
+        _slice: s2
         body:
           vector: [0.196,  0.514,  0.039,  0.555, -0.042,  0.242,  0.463, -0.348,
                    -0.08 ,  0.442, -0.067, -0.05 , -0.001,  0.298, -0.377,  0.048,
@@ -73,7 +73,7 @@ setup:
       index:
         index: ash_disk_slice
         id: "4"
-        slice: s2
+        _slice: s2
         body:
           vector: [0.15 ,  0.41 , -0.08 ,  0.59 , -0.05 ,  0.18 ,  0.31 , -0.23 ,
                    0.05 ,  0.49 , -0.22 ,  0.19 , -0.07 ,  0.14 , -0.36 ,  0.16 ,
@@ -91,7 +91,7 @@ setup:
   - do:
       search:
         index: ash_disk_slice
-        slice: s1
+        _slice: s1
         body:
           knn:
             field: vector
@@ -115,7 +115,7 @@ setup:
   - do:
       search:
         index: ash_disk_slice
-        slice: s2
+        _slice: s2
         body:
           knn:
             field: vector
@@ -139,7 +139,7 @@ setup:
   - do:
       search:
         index: ash_disk_slice
-        slice: s1,s2
+        _slice: s1,s2
         body:
           knn:
             field: vector
@@ -165,7 +165,7 @@ setup:
   - do:
       search:
         index: ash_disk_slice
-        slice: _all
+        _slice: _all
         body:
           knn:
             field: vector

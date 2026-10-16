@@ -44,6 +44,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -110,6 +111,7 @@ public class SliceQueryDuelTests extends MapperServiceTestCase {
             b.startObject("norm").field("type", "keyword").field("normalizer", "uppercase").endObject();
             b.startObject("uni").field("type", "keyword").endObject();
             b.startObject("body").field("type", "text").endObject();
+            b.startObject("sv").field("type", "sparse_vector").endObject();
         }));
     }
 
@@ -183,6 +185,8 @@ public class SliceQueryDuelTests extends MapperServiceTestCase {
             // A value and a token outside ASCII: a term is bytes, so a shape that reasons in characters answers wrongly here.
             b.field("uni", "café-" + fields[1]);
             b.field("body", fields[2] + " café");
+            // One feature every document shares and one that follows the keyword, so a slice-scoped query has to tell them apart.
+            b.startObject("sv").field("shared", 1.0).field(fields[1], 2.0).endObject();
         }, mapperService.getIndexSettings().isSliceEnabled() ? fields[0] : null));
     }
 
@@ -210,6 +214,42 @@ public class SliceQueryDuelTests extends MapperServiceTestCase {
         for (String value : List.of("brown", "quick", "lazy", "missing")) {
             duel("text term " + value, context -> context.getFieldType("body").termQuery(value, context));
         }
+    }
+
+    /**
+     * {@code sparse_vector} stores a feature as a term and its weight as the term frequency, and {@link
+     * org.apache.lucene.document.FeatureField} can only name one term, so the shape asks each targeted slice for its own copy.
+     */
+    public void testSparseVectorFeatureQuery() throws IOException {
+        for (String feature : List.of("shared", "alpha", "beta", "gamma", "delta", "missing")) {
+            duel("sparse_vector feature " + feature, context -> context.getFieldType("sv").termQuery(feature, context));
+        }
+    }
+
+    public void testSparseVectorFeatureQueryAcrossSlices() throws IOException {
+        duelAcross(
+            "sparse_vector feature",
+            List.of("tenant-a", "tenant-b"),
+            context -> context.getFieldType("sv").termQuery("shared", context)
+        );
+    }
+
+    /** A feature is scored one term at a time, so there is no form that reaches every slice at once. */
+    public void testSparseVectorFeatureQueryOverEverySliceIsDeclined() throws IOException {
+        final MapperService mapperService = mapperService(true);
+        withLuceneIndex(mapperService, writer -> {
+            for (var entry : CORPUS.entrySet()) {
+                writer.addDocument(parse(mapperService, entry).rootDoc());
+            }
+        }, reader -> {
+            final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+            context.setSliceSelection(SliceSelection.ALL);
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> context.getFieldType("sv").termQuery("shared", context)
+            );
+            assertThat(e.getMessage(), containsString("scores one term at a time"));
+        });
     }
 
     public void testTermsQuery() throws IOException {

@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.SliceTermQueries;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -276,7 +277,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return FeatureField.newLinearQuery(name(), indexedValueForSearch(value), DEFAULT_BOOST);
+            return SliceTermQueries.singleTermShape(
+                name(),
+                indexedValueForSearch(value),
+                context,
+                token -> FeatureField.newLinearQuery(name(), token, DEFAULT_BOOST)
+            );
         }
 
         @Override

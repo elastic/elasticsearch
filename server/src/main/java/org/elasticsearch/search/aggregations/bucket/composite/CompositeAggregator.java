@@ -454,9 +454,16 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         Sort indexSortPrefix = buildIndexSortPrefix(aggCtx.getLeafReaderContext());
         int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
 
-        SortedDocsProducer sortedDocsProducer = (sortPrefixLen == 0 && parent == null)
-            ? sources[0].createSortedDocsProducerOrNull(aggCtx.getLeafReaderContext().reader(), topLevelQuery())
-            : null;
+        // A slice index carries the slice on its indexed terms, and this producer walks the terms dictionary directly
+        // rather than through a field type, so it would seek plain bounds, cross slice boundaries and hand prefixed
+        // terms back as bucket keys. Collecting from doc values instead is correct and already slice-local, since the
+        // index sort keeps a slice contiguous. A named slice is declined anyway because its routing filter leaves the
+        // top-level query a boolean, but [slice=_all] adds no filter and would reach here.
+        SortedDocsProducer sortedDocsProducer = (sortPrefixLen == 0
+            && parent == null
+            && context.getIndexSettings().isSliceEnabled() == false)
+                ? sources[0].createSortedDocsProducerOrNull(aggCtx.getLeafReaderContext().reader(), topLevelQuery())
+                : null;
         if (sortedDocsProducer != null) {
             // Visit documents sorted by the leading source of the composite definition and terminates
             // when the leading source value is guaranteed to be greater than the lowest composite bucket

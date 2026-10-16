@@ -169,15 +169,15 @@ public class WarnNullMisuseTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * Real {@code In}: every list element is an explicit NULL. The list {@code NULL}s are ignored;
-     * the remaining suggestion is {@code IS NULL}.
+     * Real {@code In}: every list element is an explicit NULL, so it is always NULL, like the
+     * one-element {@code emp_no IN (NULL)}.
      */
     public void testFieldInAllNullListSuggestsIsNull() {
         plan("""
             ROW emp_no = 1
             | EVAL x = emp_no IN (NULL, NULL)
             """);
-        assertWarnings("Line 2:12: NULL in the IN list of [emp_no IN (NULL, NULL)] is ignored, did you mean [emp_no IS NULL]?");
+        assertWarnings("Line 2:12: Expression [emp_no IN (NULL, NULL)] always evaluates to NULL, did you mean [emp_no IS NULL]?");
     }
 
     public void testFieldNotInAllNullListSuggestsIsNotNull() {
@@ -185,19 +185,62 @@ public class WarnNullMisuseTests extends AbstractLogicalPlanOptimizerTests {
             ROW emp_no = 1
             | EVAL x = emp_no NOT IN (NULL, NULL)
             """);
-        assertWarnings("Line 2:12: NULL in the IN list of [emp_no NOT IN (NULL, NULL)] is ignored, did you mean [emp_no IS NOT NULL]?");
+        assertWarnings("Line 2:12: Expression [emp_no NOT IN (NULL, NULL)] always evaluates to NULL, did you mean [emp_no IS NOT NULL]?");
+    }
+
+    public void testFieldInAllNullListWithCastSuggestsIsNull() {
+        plan("""
+            ROW emp_no = 1
+            | EVAL x = emp_no IN (null::integer, NULL)
+            """);
+        assertWarnings("Line 2:12: Expression [emp_no IN (null::integer, NULL)] always evaluates to NULL, did you mean [emp_no IS NULL]?");
     }
 
     /**
-     * A match still yields true; the list {@code NULL} never matches. Suggest moving the null
-     * check to {@code OR … IS NULL} rather than rewriting the {@code IN} source.
+     * A {@code NULL} probe is always NULL, even if the list has other values besides its own {@code NULL}.
      */
-    public void testFieldInValueAndNullIsIgnored() {
+    public void testNullInValueAndNullAlwaysNull() {
+        plan("""
+            ROW emp_no = 1
+            | EVAL x = NULL IN (emp_no, NULL)
+            """);
+        assertWarnings("Line 2:12: Expression [NULL IN (emp_no, NULL)] always evaluates to NULL.");
+    }
+
+    /**
+     * A match still yields true; the list {@code NULL} never matches. Suggest adding the null
+     * check as {@code OR … IS NULL} rather than rewriting the {@code IN} source.
+     */
+    public void testFieldInValueAndNullSuggestsOrIsNull() {
         plan("""
             ROW emp_no = 1
             | EVAL x = emp_no IN (1, NULL)
             """);
-        assertWarnings("Line 2:12: NULL in the IN list of [emp_no IN (1, NULL)] is ignored, you can move it to [OR emp_no IS NULL].");
+        assertWarnings(
+            "Line 2:12: NULL in the IN list of [emp_no IN (1, NULL)] never matches, add [OR emp_no IS NULL] to also match NULL values."
+        );
+    }
+
+    /**
+     * {@code NOT IN} with a {@code NULL} in the list is never true, so there is no {@code IS NULL} hint.
+     */
+    public void testFieldNotInValueAndNullIsNeverTrue() {
+        plan("""
+            ROW emp_no = 1
+            | EVAL x = emp_no NOT IN (1, NULL)
+            """);
+        assertWarnings("Line 2:12: NULL in the IN list of [emp_no NOT IN (1, NULL)] makes the expression never true.");
+    }
+
+    /**
+     * {@code IS NULL} on a literal is never what the user meant, so there is no hint.
+     */
+    public void testLiteralInFieldAndNullHasNoHint() {
+        plan("""
+            ROW emp_no = 1
+            | EVAL x = 5 IN (emp_no, NULL)
+            """);
+        assertWarnings("Line 2:12: NULL in the IN list of [5 IN (emp_no, NULL)] never matches.");
     }
 
     /**

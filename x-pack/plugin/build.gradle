@@ -225,7 +225,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     // Previous-release YAML tests do not list NULL-misuse warnings.
     task.addAllowedWarningRegex(
       ".*Expression \\[.*\\] always evaluates to NULL\\.",
-      ".*NULL in the IN list of \\[.*\\] is ignored.*"
+      ".*NULL in the IN list of \\[.*\\].*"
     )
   }
 )

@@ -568,7 +568,7 @@ emp_no:integer |job_positions:keyword |is_in:boolean
 in3VLWithNull
 required_capability: warn_null_misuse
 from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship", null);
-warning:Line 1:145: NULL in the IN list of [job_positions in (\"Accountant\", \"Internship\", null)] is ignored, you can move it to [OR job_positions IS NULL].
+warning:Line 1:145: NULL in the IN list of [job_positions in (\"Accountant\", \"Internship\", null)] never matches, add [OR job_positions IS NULL] to also match NULL values.
 
 emp_no:integer |job_positions:keyword |is_in:boolean
 10024          |Junior Developer      |null
@@ -579,7 +579,7 @@ emp_no:integer |job_positions:keyword |is_in:boolean
 in3VLWithNull-99347_bugfix
 required_capability: warn_null_misuse
 from employees | where emp_no == 10025 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship", null);
-warning:Line 1:84: NULL in the IN list of [job_positions in (\"Accountant\", \"Internship\", null)] is ignored, you can move it to [OR job_positions IS NULL].
+warning:Line 1:84: NULL in the IN list of [job_positions in (\"Accountant\", \"Internship\", null)] never matches, add [OR job_positions IS NULL] to also match NULL values.
 
 emp_no:integer |job_positions:keyword |is_in:boolean
 10025          |Accountant            |true
@@ -599,7 +599,7 @@ emp_no:integer |job_positions:keyword |nil:keyword |is_in:boolean
 in3VLWithNullAsValue
 required_capability: warn_null_misuse
 from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval is_in = null in ("Accountant", "Internship", null);
-warning:Line 1:145: NULL in the IN list of [null in (\"Accountant\", \"Internship\", null)] is ignored.
+warning:Line 1:145: Expression [null in (\"Accountant\", \"Internship\", null)] always evaluates to NULL.
 
 emp_no:integer |job_positions:keyword |is_in:boolean
 10024          |Junior Developer      |null
@@ -611,7 +611,7 @@ in3VLWithComputedNullAsValue
 required_capability: warn_null_misuse
 from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval nil = concat("", null) | eval is_in = nil in ("Accountant", "Internship", null);
 warning:Line 1:143: Expression [concat(\"\", null)] always evaluates to NULL.
-warning:Line 1:175: NULL in the IN list of [nil in (\"Accountant\", \"Internship\", null)] is ignored, you can move it to [OR nil IS NULL].
+warning:Line 1:175: NULL in the IN list of [nil in (\"Accountant\", \"Internship\", null)] never matches, add [OR nil IS NULL] to also match NULL values.
 
 emp_no:integer |job_positions:keyword |nil:keyword |is_in:boolean
 10024          |Junior Developer      |null        |null

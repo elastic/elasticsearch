@@ -2187,7 +2187,7 @@ FROM employees
 | STATS c = COUNT(*) BY gender
 | SORT c
 ;
-warning:Line 2:9: NULL in the IN list of [gender IN (\"F\", \"M\", null)] is ignored, you can move it to [OR gender IS NULL].
+warning:Line 2:9: NULL in the IN list of [gender IN (\"F\", \"M\", null)] never matches, add [OR gender IS NULL] to also match NULL values.
 
 c:long | gender:keyword
 33     | F
@@ -2226,7 +2226,7 @@ FROM employees
 | STATS c = COUNT(*) BY languages
 | SORT c
 ;
-warning:Line 2:9: NULL in the IN list of [languages NOT IN (1, 2, 3 , 4, null)] is ignored.
+warning:Line 2:9: NULL in the IN list of [languages NOT IN (1, 2, 3 , 4, null)] makes the expression never true.
 
 c:long | languages:integer
 ;

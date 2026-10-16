@@ -212,7 +212,7 @@ FROM employees
 | KEEP emp_no, first_name, last_name
 | SORT emp_no
 ;
-warning:Line 2:9: NULL in the IN list of [emp_no in (10021, 10022, null::int)] is ignored, you can move it to [OR emp_no IS NULL].
+warning:Line 2:9: NULL in the IN list of [emp_no in (10021, 10022, null::int)] never matches, add [OR emp_no IS NULL] to also match NULL values.
 
 emp_no:integer | first_name:keyword | last_name:keyword   
 10021          | Ramzi              | Erde
@@ -478,7 +478,7 @@ required_capability: warn_null_misuse
 
 ROW x = 1 | EVAL result = x IN (1, null) | KEEP result
 ;
-warning:Line 1:27: NULL in the IN list of [x IN (1, null)] is ignored, you can move it to [OR x IS NULL].
+warning:Line 1:27: NULL in the IN list of [x IN (1, null)] never matches, add [OR x IS NULL] to also match NULL values.
 
 result:boolean
 true
@@ -506,7 +506,7 @@ required_capability: warn_null_misuse
 
 ROW x = 5 | EVAL result = x IN (1, 2, null) | KEEP result
 ;
-warning:Line 1:27: NULL in the IN list of [x IN (1, 2, null)] is ignored, you can move it to [OR x IS NULL].
+warning:Line 1:27: NULL in the IN list of [x IN (1, 2, null)] never matches, add [OR x IS NULL] to also match NULL values.
 
 result:boolean
 null
@@ -546,7 +546,7 @@ required_capability: warn_null_misuse
 
 ROW x = "foo" | EVAL result = x IN ("foo", null) | KEEP result
 ;
-warning:Line 1:31: NULL in the IN list of [x IN (\"foo\", null)] is ignored, you can move it to [OR x IS NULL].
+warning:Line 1:31: NULL in the IN list of [x IN (\"foo\", null)] never matches, add [OR x IS NULL] to also match NULL values.
 
 result:boolean
 true
@@ -560,7 +560,7 @@ required_capability: warn_null_misuse
 
 ROW x = "foo" | EVAL result = x IN ("bar", null) | KEEP result
 ;
-warning:Line 1:31: NULL in the IN list of [x IN (\"bar\", null)] is ignored, you can move it to [OR x IS NULL].
+warning:Line 1:31: NULL in the IN list of [x IN (\"bar\", null)] never matches, add [OR x IS NULL] to also match NULL values.
 
 result:boolean
 null
@@ -574,7 +574,7 @@ required_capability: warn_null_misuse
 
 FROM employees | WHERE emp_no IN (10001, 10002, null) | SORT emp_no | KEEP emp_no | LIMIT 3
 ;
-warning:Line 1:24: NULL in the IN list of [emp_no IN (10001, 10002, null)] is ignored, you can move it to [OR emp_no IS NULL].
+warning:Line 1:24: NULL in the IN list of [emp_no IN (10001, 10002, null)] never matches, add [OR emp_no IS NULL] to also match NULL values.
 
 emp_no:integer
 10001
@@ -602,7 +602,7 @@ required_capability: warn_null_misuse
 
 FROM employees | WHERE emp_no IN (10001, null) AND first_name IS NOT NULL | SORT emp_no | KEEP emp_no, first_name | LIMIT 1
 ;
-warning:Line 1:24: NULL in the IN list of [emp_no IN (10001, null)] is ignored, you can move it to [OR emp_no IS NULL].
+warning:Line 1:24: NULL in the IN list of [emp_no IN (10001, null)] never matches, add [OR emp_no IS NULL] to also match NULL values.
 
 emp_no:integer | first_name:keyword
 10001          | Georgi
@@ -1343,7 +1343,7 @@ ROW emp_no = 1
 | EVAL x = emp_no IN (NULL, NULL)
 ;
 
-warning:Line 2:12: NULL in the IN list of [emp_no IN (NULL, NULL)] is ignored, did you mean [emp_no IS NULL]?
+warning:Line 2:12: Expression [emp_no IN (NULL, NULL)] always evaluates to NULL, did you mean [emp_no IS NULL]?
 
 emp_no:integer|x:boolean
 1             |null
@@ -1356,7 +1356,7 @@ ROW emp_no = 1
 | EVAL x = emp_no NOT IN (NULL, NULL)
 ;
 
-warning:Line 2:12: NULL in the IN list of [emp_no NOT IN (NULL, NULL)] is ignored, did you mean [emp_no IS NOT NULL]?
+warning:Line 2:12: Expression [emp_no NOT IN (NULL, NULL)] always evaluates to NULL, did you mean [emp_no IS NOT NULL]?
 
 emp_no:integer|x:boolean
 1             |null
@@ -1370,7 +1370,7 @@ ROW emp_no = 1
 | EVAL x = emp_no IN (1, NULL)
 ;
 
-warning:Line 2:12: NULL in the IN list of [emp_no IN (1, NULL)] is ignored, you can move it to [OR emp_no IS NULL].
+warning:Line 2:12: NULL in the IN list of [emp_no IN (1, NULL)] never matches, add [OR emp_no IS NULL] to also match NULL values.
 
 emp_no:integer|x:boolean
 1             |true

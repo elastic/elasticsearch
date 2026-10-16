@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -28,7 +27,8 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
  * <p>
  * Special cases:
  * <ul>
- *     <li>{@code IN} — a {@code NULL} in the list is ignored, not treated as always-null.</li>
+ *     <li>{@code IN} — a {@code NULL} in a list with other values never matches, but a match still yields
+ *     {@code true}, so it gets its own warning. An all-{@code NULL} list is always {@code NULL}.</li>
  *     <li>{@code !=} and {@code NOT IN} — warn on the parsed {@code NOT} so the message
  *     matches the source the user wrote.</li>
  *     <li>A cast or conversion of an explicit {@code NULL} ({@code null::string}, {@code TO_INTEGER(NULL)})
@@ -55,7 +55,7 @@ public class WarnNullMisuse implements LogicalPlanPreOptimizerRule {
         }
         // `NOT IN` is parsed as NOT(IN) sharing the user's source; warn on the NOT.
         if (e instanceof Not not && not.field() instanceof In in && hasExplicitNullInList(in)) {
-            warnInListNull(not, in, true);
+            warnInWithNull(not, in, true);
             in.children().forEach(WarnNullMisuse::check);
             return;
         }
@@ -66,7 +66,7 @@ public class WarnNullMisuse implements LogicalPlanPreOptimizerRule {
             return;
         }
         if (e instanceof In in && hasExplicitNullInList(in)) {
-            warnInListNull(in, in, false);
+            warnInWithNull(in, in, false);
             in.children().forEach(WarnNullMisuse::check);
             return;
         }
@@ -86,47 +86,46 @@ public class WarnNullMisuse implements LogicalPlanPreOptimizerRule {
     }
 
     /**
-     * {@code NULL} in an {@code IN} list never matches. Do not try to rewrite the {@code IN} source
-     * without the nulls: the text the user wrote may not even be an {@code IN} after parsing.
+     * A {@code NULL} probe or an all-{@code NULL} list makes the {@code IN} always {@code NULL}, like the
+     * one-element {@code x IN (NULL)} the parser turns into {@code x == NULL}. Otherwise the list {@code NULL}
+     * never matches. Do not try to rewrite the {@code IN} source without the nulls: the text the user wrote
+     * may not even be an {@code IN} after parsing.
      */
-    private static void warnInListNull(Expression source, In in, boolean negated) {
+    private static void warnInWithNull(Expression source, In in, boolean negated) {
+        if (ConvertFunction.isExplicitNull(in.value()) || in.list().stream().allMatch(ConvertFunction::isExplicitNull)) {
+            warnNullLiteral(source);
+            return;
+        }
         if (source.sourceLocation().getLineNumber() < 0) {
             return;
         }
-        String kept = operandText(in.value());
-        boolean allNull = in.list().stream().allMatch(ConvertFunction::isExplicitNull);
-        if (allNull && kept != null) {
+        if (negated) {
+            // No IS NULL check gives back what the user meant, so there is no hint.
             addWarning(
-                "Line {}:{}: NULL in the IN list of [{}] is ignored, did you mean [{}]?",
+                "Line {}:{}: NULL in the IN list of [{}] makes the expression never true.",
                 source.sourceLocation().getLineNumber(),
                 source.sourceLocation().getColumnNumber(),
-                source.sourceText(),
-                kept + (negated ? " IS NOT NULL" : " IS NULL")
+                source.sourceText()
             );
-        } else if (allNull == false && negated == false && kept != null) {
+            return;
+        }
+        String isNull = NullMisuseSuggestion.isNullCheck(in.value(), false);
+        if (isNull != null) {
             addWarning(
-                "Line {}:{}: NULL in the IN list of [{}] is ignored, you can move it to [{}].",
+                "Line {}:{}: NULL in the IN list of [{}] never matches, add [OR {}] to also match NULL values.",
                 source.sourceLocation().getLineNumber(),
                 source.sourceLocation().getColumnNumber(),
                 source.sourceText(),
-                "OR " + kept + " IS NULL"
+                isNull
             );
         } else {
             addWarning(
-                "Line {}:{}: NULL in the IN list of [{}] is ignored.",
+                "Line {}:{}: NULL in the IN list of [{}] never matches.",
                 source.sourceLocation().getLineNumber(),
                 source.sourceLocation().getColumnNumber(),
                 source.sourceText()
             );
         }
-    }
-
-    private static String operandText(Expression e) {
-        if (e instanceof Literal) {
-            return null;
-        }
-        String text = e.sourceText();
-        return text.isEmpty() ? null : text;
     }
 
     private static void warnNullLiteral(Expression e) {

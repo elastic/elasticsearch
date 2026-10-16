@@ -320,7 +320,7 @@ required_capability: warn_null_misuse
 
 FROM ul_logs | WHERE id IN (42, 85) | LIMIT 5 | SORT id | WHERE bytes_in IN (to_ul(0), null) | KEEP id, bytes_in 
 ;
-warning:Line 1:65: NULL in the IN list of [bytes_in IN (to_ul(0), null)] is ignored, you can move it to [OR bytes_in IS NULL].
+warning:Line 1:65: NULL in the IN list of [bytes_in IN (to_ul(0), null)] never matches, add [OR bytes_in IS NULL] to also match NULL values.
 warning:Line 1:65: evaluation of [bytes_in IN (to_ul(0), null)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:65: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -347,7 +347,7 @@ required_capability: warn_null_misuse
 
 ROW ul = to_ul(42) | EVAL result = ul IN (to_ul(42), null) | KEEP result
 ;
-warning:Line 1:36: NULL in the IN list of [ul IN (to_ul(42), null)] is ignored, you can move it to [OR ul IS NULL].
+warning:Line 1:36: NULL in the IN list of [ul IN (to_ul(42), null)] never matches, add [OR ul IS NULL] to also match NULL values.
 
 result:boolean
 true

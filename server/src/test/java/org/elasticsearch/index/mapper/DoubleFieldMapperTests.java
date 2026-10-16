@@ -185,14 +185,16 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
-        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "double").endObject()))
-            .documentMapper();
+        MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "double").endObject())
+        );
         // randomDouble() returns [0,1) — survives double roundtrip cleanly and serializes without scientific notation.
         double v1 = randomDouble();
         double v2 = randomDouble();
         double v3 = randomDouble();
         // Out-of-order with v2 duplicated — sorted-deduped output would collapse the run.
-        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        String src = syntheticSource(mapperService, b -> b.array("field", v2, v1, v3, v2));
         assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
     }
 }

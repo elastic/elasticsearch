@@ -815,14 +815,15 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * The synthetic source must reconstruct the original malformed value via {@code _ignored_source}.
      */
     public void testSourceKeepAllMalformedValueCommittedToIgnoredSource() throws Exception {
-        DocumentMapper mapper = createSytheticSourceMapperService(
+        MapperService mapperService = createSytheticSourceMapperService(
             fieldMapping(b -> b.field("type", "integer").field("synthetic_source_keep", "all").field("ignore_malformed", true))
-        ).documentMapper();
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
 
         FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoredSource().expectIgnoreMalformed().verify();
-        assertEquals("{\"field\":\"not-a-number\"}", syntheticSource(mapper, b -> b.field("field", "not-a-number")));
+        assertEquals("{\"field\":\"not-a-number\"}", syntheticSource(mapperService, b -> b.field("field", "not-a-number")));
     }
 
     /**

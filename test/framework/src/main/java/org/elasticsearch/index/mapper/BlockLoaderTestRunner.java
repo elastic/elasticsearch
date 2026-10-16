@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
-import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -193,33 +192,40 @@ public class BlockLoaderTestRunner {
             throw new IllegalStateException("need to set fieldName");
         }
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            RandomIndexWriter iw = TestIndexWriterBuilder.mapped(mapperService).build(directory);
 
             LuceneDocument doc = this.document().rootDoc();
 
-            /*
-             * Add three documents with doc id 0, 1, 2. The real document is 1.
-             * The other two are empty documents.
-             */
-            iw.addDocuments(List.of(List.of(), doc, List.of()));
+            boolean sortedIndex = mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort();
+            if (sortedIndex) {
+                // NOTE: an index sort reorders documents, so the real document cannot be kept between empty ones; it is the only one.
+                iw.addDocument(doc);
+            } else {
+                /*
+                 * Add three documents with doc id 0, 1, 2. The real document is 1.
+                 * The other two are empty documents.
+                 */
+                iw.addDocuments(List.of(List.of(), doc, List.of()));
+            }
             iw.close();
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                MapperServiceTestCase.assertDocValuesWrittenAsMapped(mapperService, reader);
                 LeafReaderContext context = reader.leaves().getFirst();
-                return load(createBlockLoader(fieldName), context);
+                return load(createBlockLoader(fieldName), context, sortedIndex ? 0 : 1);
             }
         }
     }
 
-    private Object load(BlockLoader blockLoader, LeafReaderContext context) throws IOException {
+    private Object load(BlockLoader blockLoader, LeafReaderContext context, int realDoc) throws IOException {
         // `columnAtATimeReader` is tried first, we mimic `ValuesSourceReaderOperator`
         var columnAtATimeReaderSource = blockLoader.columnAtATimeReader(context);
         if (columnAtATimeReaderSource != null) {
             int[] docArray;
             int offset;
-            if (randomBoolean()) {
+            if (realDoc == 0 || randomBoolean()) {
                 // Half the time we load a single document. Nice and simple.
-                docArray = new int[] { 1 };
+                docArray = new int[] { realDoc };
                 offset = 0;
             } else {
                 /*
@@ -259,11 +265,11 @@ public class BlockLoaderTestRunner {
             StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(context, null),
             leafSourceLoader
         );
-        storedFieldsLoader.advanceTo(1);
+        storedFieldsLoader.advanceTo(realDoc);
 
         BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(), 1);
         try (BlockLoader.RowStrideReader reader = blockLoader.rowStrideReader(breaker, context)) {
-            reader.read(1, storedFieldsLoader, builder);
+            reader.read(realDoc, storedFieldsLoader, builder);
             var block = (TestBlock) builder.build();
             assertThat(block.size(), equalTo(1));
             return block.get(0);

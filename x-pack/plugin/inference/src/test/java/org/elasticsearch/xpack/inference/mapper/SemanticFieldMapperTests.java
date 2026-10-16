@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -98,21 +97,20 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
             IndexVersion.current(),
             SourceFieldMapper.Mode.SYNTHETIC
         );
-        DocumentMapper mapper = mapperService.documentMapper();
 
-        assertThat(syntheticSource(mapper, b -> b.field("my_field", "hello")), equalTo("{\"my_field\":\"hello\"}"));
+        assertThat(syntheticSource(mapperService, b -> b.field("my_field", "hello")), equalTo("{\"my_field\":\"hello\"}"));
 
         String dataUri = dataUri(new byte[] { 1, 2, 3, 4, 5 });
         assertThat(
             syntheticSource(
-                mapper,
+                mapperService,
                 b -> b.startObject("my_field").field("type", "image").field("format", "base64").field("value", dataUri).endObject()
             ),
             equalTo("{\"my_field\":" + imageObject(dataUri) + "}")
         );
 
         // A mixed text/image array preserves document order and types.
-        assertThat(syntheticSource(mapper, b -> {
+        assertThat(syntheticSource(mapperService, b -> {
             b.startArray("my_field");
             b.value("first");
             b.startObject().field("type", "image").field("format", "base64").field("value", dataUri).endObject();
@@ -227,14 +225,13 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
             IndexVersion.current(),
             SourceFieldMapper.Mode.SYNTHETIC
         );
-        DocumentMapper mapper = mapperService.documentMapper();
 
-        assertThat(syntheticSource(mapper, b -> b.field("my_field", true)), equalTo("{\"my_field\":\"true\"}"));
-        assertThat(syntheticSource(mapper, b -> b.field("my_field", 42)), equalTo("{\"my_field\":\"42\"}"));
-        assertThat(syntheticSource(mapper, b -> b.field("my_field", 1.5)), equalTo("{\"my_field\":\"1.5\"}"));
+        assertThat(syntheticSource(mapperService, b -> b.field("my_field", true)), equalTo("{\"my_field\":\"true\"}"));
+        assertThat(syntheticSource(mapperService, b -> b.field("my_field", 42)), equalTo("{\"my_field\":\"42\"}"));
+        assertThat(syntheticSource(mapperService, b -> b.field("my_field", 1.5)), equalTo("{\"my_field\":\"1.5\"}"));
 
         // A mixed array of a string, boolean and number preserves document order, with each non-string value coerced to a string.
-        assertThat(syntheticSource(mapper, b -> {
+        assertThat(syntheticSource(mapperService, b -> {
             b.startArray("my_field");
             b.value("text");
             b.value(false);

@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -555,7 +554,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
             reader = readerForListedObject(location, storagePath.objectName(), config).withSchemaSampleShare(schemaSampleShare);
 
             if (hint != null) {
-                storageObject = provider.newObject(storagePath, hint.length(), Instant.ofEpochMilli(hint.lastModifiedMillis()));
+                storageObject = provider.newObject(
+                    storagePath,
+                    hint.length(),
+                    Instant.ofEpochMilli(hint.lastModifiedMillis()),
+                    hint.version()
+                );
             } else {
                 storageObject = provider.newObject(storagePath);
                 if (storageObject.exists() == false) {
@@ -838,7 +842,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * Config-bearing pool borrow that does not call {@code createProvider} until the first storage
      * operation. {@link #close()} is a no-op if the factory never ran {@code get()}.
      */
-    private static final class DeferredPoolLease implements StorageProvider {
+    static final class DeferredPoolLease extends DelegatingStorageProvider {
         private final Supplier<StorageProvider> supplier;
         private StorageProvider inner;
         private boolean closed;
@@ -847,7 +851,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
             this.supplier = supplier;
         }
 
-        private StorageProvider inner() {
+        /**
+         * Borrowed on first use rather than when the factory is built, so a driver that is planned and never
+         * started does not pin an SDK client. Every forwarded call resolves through here.
+         */
+        @Override
+        protected StorageProvider delegate() {
             synchronized (this) {
                 if (closed) {
                     throw new IllegalStateException("storage lease already returned");
@@ -859,51 +868,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
         }
 
-        @Override
-        public StorageObject newObject(StoragePath path) {
-            return inner().newObject(path);
-        }
-
-        @Override
-        public StorageObject newObject(StoragePath path, long length) {
-            return inner().newObject(path, length);
-        }
-
-        @Override
-        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
-            return inner().newObject(path, length, lastModified);
-        }
-
-        @Override
-        public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
-            return inner().listObjects(prefix, recursive);
-        }
-
-        @Override
-        public StorageChildren listChildren(StoragePath prefix, int limit) throws IOException {
-            return inner().listChildren(prefix, limit);
-        }
-
-        @Override
-        public boolean exists(StoragePath path) throws IOException {
-            return inner().exists(path);
-        }
-
-        @Override
-        public List<String> supportedSchemes() {
-            return inner().supportedSchemes();
-        }
-
-        @Override
-        public boolean supportsStableMetadata() {
-            return inner().supportsStableMetadata();
-        }
-
-        @Override
-        public boolean listsInKeyOrder() {
-            return inner().listsInKeyOrder();
-        }
-
+        /** Returns the lease to the pool. Never borrows one to close: an unused lease has nothing to return. */
         @Override
         public void close() {
             StorageProvider current;

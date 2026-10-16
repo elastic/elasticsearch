@@ -41,8 +41,10 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.mockito.ArgumentCaptor;
 import org.reactivestreams.Subscriber;
@@ -440,7 +442,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         });
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
-        assertThat(error.get(), instanceOf(IOException.class));
+        assertThat(error.get(), instanceOf(ExternalClientException.class));
         assertThat(error.get().getMessage(), containsString("External data object not found"));
     }
 
@@ -658,7 +660,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals("a 403 must not be retried", 1, calls.get());
-        assertThat(error.get(), instanceOf(IOException.class));
+        assertThat(error.get(), instanceOf(ExternalClientException.class));
         assertThat(error.get().getMessage(), containsString("Access denied"));
         assertNull(ExceptionsHelper.unwrap(error.get(), ExternalCredentialsExpiredException.class));
     }
@@ -962,7 +964,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         });
 
         assertNotNull(subscriber.get());
-        assertEquals(payload.length, breaker.getUsed());
+        assertEquals(HeapFootprint.byteArrayBytes(payload.length), breaker.getUsed());
         cancel.close();
 
         assertTrue("listener must be notified after in-flight cancel", listenerCalled.await(5, TimeUnit.SECONDS));
@@ -1008,7 +1010,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             }
         });
 
-        assertEquals(PAYLOAD.length, breaker.getUsed());
+        assertEquals(HeapFootprint.byteArrayBytes(PAYLOAD.length), breaker.getUsed());
         cancel.close();
 
         assertTrue(listenerCalled.await(5, TimeUnit.SECONDS));
@@ -1053,7 +1055,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             listenerCalled.countDown();
         }));
 
-        assertEquals(PAYLOAD.length, breaker.getUsed());
+        assertEquals(HeapFootprint.byteArrayBytes(PAYLOAD.length), breaker.getUsed());
         sdkFuture.get().completeExceptionally(new IOException("connection reset by peer"));
 
         assertTrue(listenerCalled.await(5, TimeUnit.SECONDS));
@@ -1095,7 +1097,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         }, e -> fail("read should succeed, but failed with: " + e)));
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
-        assertEquals(PAYLOAD.length, breaker.getUsed());
+        assertEquals(HeapFootprint.byteArrayBytes(PAYLOAD.length), breaker.getUsed());
         byte[] bytes = new byte[result.get().buffer().remaining()];
         result.get().buffer().get(bytes);
         assertArrayEquals(PAYLOAD, bytes);

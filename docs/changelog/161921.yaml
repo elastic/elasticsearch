@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161921
+summary: Fix queries containing 'STATS ... WHERE' w/ TO_TEXT analyzer. Previously, queries like this were rejected with an error message saying "analyzer cannot be resolved without an analysis registry".
+type: bug

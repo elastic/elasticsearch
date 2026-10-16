@@ -42,8 +42,8 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     protected final QuantizedByteVectorValues values;
     protected final int dims;
     protected final int vectorPitch;
-    final FixedSizeScratch firstScratch;
-    final FixedSizeScratch secondScratch;
+    final FixedSizeSegmentScratch firstScratch;
+    final FixedSizeSegmentScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
     final float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
@@ -56,8 +56,8 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         // Scratches are sized to the full per-vector record (vector + corrections), so that the same
         // backing slice can be used for both the dot product (first dims bytes) and the corrections
         // (trailing {@code CORRECTIONS_BYTES} bytes).
-        this.firstScratch = new FixedSizeScratch(vectorPitch);
-        this.secondScratch = new FixedSizeScratch(vectorPitch);
+        this.firstScratch = new FixedSizeSegmentScratch(vectorPitch);
+        this.secondScratch = new FixedSizeSegmentScratch(vectorPitch);
     }
 
     protected abstract float applyCorrections(float rawScore, MemorySegment correctionsSlice, QueryContext query) throws IOException;

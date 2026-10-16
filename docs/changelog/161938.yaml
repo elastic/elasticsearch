@@ -1,4 +1,4 @@
-area: "Logs, Aggregations"
+area: Aggregations
 issues: []
 pr: 161938
 summary: Count terms aggs on single-valued ColumNAR keyword fields a page at a time

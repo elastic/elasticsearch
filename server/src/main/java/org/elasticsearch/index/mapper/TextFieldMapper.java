@@ -953,6 +953,7 @@ public final class TextFieldMapper extends FieldMapper {
             return fielddata;
         }
 
+        @Override
         public boolean usesBinaryDocValues() {
             return usesBinaryDocValues;
         }

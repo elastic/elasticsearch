@@ -486,9 +486,6 @@ tests:
 - class: org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValuesGenericWriteableTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/162108
-- class: org.elasticsearch.search.heappressure.ColumnarKeywordWildcardHeapPressureIT
-  method: testPausedHeavyCaseInsensitiveWildcardsTripBreaker
-  issue: https://github.com/elastic/elasticsearch/issues/162159
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/162163
@@ -529,3 +526,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
   method: test {csv-spec:prometheus-k8s-delta.eval_on_delta_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162373
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  method: testBulkRequestSameOutcomeAsSeparateRequests
+  issue: https://github.com/elastic/elasticsearch/issues/162390

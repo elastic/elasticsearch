@@ -18,10 +18,16 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.ParseIp.FROM_INTEGER;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.ParseIp.FROM_KEYWORD_LEADING_ZEROS_OCTAL;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.ParseIp.FROM_LONG;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.ParseIp.FROM_UNSIGNED_LONG;
 
 public class ToIpLeadingZerosOctal extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -33,7 +39,10 @@ public class ToIpLeadingZerosOctal extends AbstractConvertFunction {
     static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(IP, (source, field) -> field),
         Map.entry(KEYWORD, FROM_KEYWORD_LEADING_ZEROS_OCTAL),
-        Map.entry(TEXT, FROM_KEYWORD_LEADING_ZEROS_OCTAL)
+        Map.entry(TEXT, FROM_KEYWORD_LEADING_ZEROS_OCTAL),
+        Map.entry(INTEGER, FROM_INTEGER),
+        Map.entry(LONG, FROM_LONG),
+        Map.entry(UNSIGNED_LONG, FROM_UNSIGNED_LONG)
     );
 
     public ToIpLeadingZerosOctal(Source source, Expression field) {

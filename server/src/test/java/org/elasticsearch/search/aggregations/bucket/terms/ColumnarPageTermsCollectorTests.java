@@ -29,7 +29,6 @@ import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
@@ -40,6 +39,7 @@ import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.PageBudget;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.ColumnarPayloadSortableBinaryDocValues;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
@@ -120,7 +120,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         for (int i = 0; i < docs.length; i++) {
             docs[i] = vocabulary[randomIntBetween(0, vocabulary.length - 1)];
         }
-        final Outcome outcome = search(docs, Set.of(), null, new MatchAllDocsQuery(), false);
+        final Outcome outcome = search(docs, Set.of(), null, Queries.ALL_DOCS_INSTANCE, false);
         assertThat(outcome.counts, equalTo(expected(docs, null)));
         assertThat("no document went the ordinary way", outcome.perDocumentDocs, equalTo(0));
         assertThat("every page is a dictionary and ordinals", outcome.ordinalPages, equalTo(3));
@@ -133,7 +133,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         for (int i = 0; i < docs.length; i++) {
             docs[i] = "unique-" + i;
         }
-        final Outcome outcome = search(docs, Set.of(), null, new MatchAllDocsQuery(), false);
+        final Outcome outcome = search(docs, Set.of(), null, Queries.ALL_DOCS_INSTANCE, false);
         assertThat(outcome.counts, equalTo(expected(docs, null)));
         assertThat("a page of distinct values is handed over as values", outcome.flatPages, equalTo(1));
         assertThat(outcome.ordinalPages, equalTo(0));
@@ -146,7 +146,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         for (int doc = 0; doc < docs.length; doc += randomIntBetween(1, 30)) {
             deleted.add(doc);
         }
-        final Outcome outcome = search(docs, deleted, null, new MatchAllDocsQuery(), false);
+        final Outcome outcome = search(docs, deleted, null, Queries.ALL_DOCS_INSTANCE, false);
         assertThat(outcome.counts, equalTo(expected(docs, live(docs.length, deleted, null))));
         assertThat("the live documents arrived as streams", outcome.perDocumentDocs, equalTo(0));
     }
@@ -163,7 +163,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
             docs[i] = i % 12 == 1 ? "unique-" + i + "-" + "x".repeat(120) : common[randomIntBetween(0, common.length - 1)];
             distinct.add(docs[i]);
         }
-        final Outcome outcome = search(docs, Set.of(), null, new MatchAllDocsQuery(), false);
+        final Outcome outcome = search(docs, Set.of(), null, Queries.ALL_DOCS_INSTANCE, false);
         assertThat(outcome.counts, equalTo(expected(docs, null)));
         assertThat("a dictionary, so the rest escaped", outcome.dictionarySize, greaterThan(0));
         assertThat("that does not name every value", outcome.dictionarySize, lessThan(distinct.size()));
@@ -173,7 +173,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
     /** Documents delivered one at a time go the ordinary way. */
     public void testDocumentsOneAtATimeAreNotCountedAsPages() throws IOException {
         final String[] docs = randomDocs(5000, 6);
-        final Outcome outcome = search(docs, Set.of(), null, new MatchAllDocsQuery(), true);
+        final Outcome outcome = search(docs, Set.of(), null, Queries.ALL_DOCS_INSTANCE, true);
         assertThat(outcome.counts, equalTo(expected(docs, null)));
         assertThat(outcome.perDocumentDocs, equalTo(docs.length));
         assertThat(outcome.ordinalPages + outcome.flatPages, equalTo(0));
@@ -203,7 +203,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
                     }
                 }
             }
-            final Query query = tagged == null ? new MatchAllDocsQuery() : new TermQuery(new Term("tag", "yes"));
+            final Query query = tagged == null ? Queries.ALL_DOCS_INSTANCE : new TermQuery(new Term("tag", "yes"));
             final Outcome outcome = search(docs, deleted, tagged, query, randomBoolean());
             assertThat(outcome.counts, equalTo(expected(docs, live(docs.length, deleted, tagged))));
         }

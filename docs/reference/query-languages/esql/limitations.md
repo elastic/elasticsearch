@@ -309,6 +309,54 @@ a row scores the `boost` option (1.0 by default) for each query term occurrence 
 statistics for an expression. In earlier versions, `MATCH` on an expression does not contribute
 to the score.
 
+A search on an expression contributes to `_score` only once it runs. Filtering on `_score` after
+the search sees its score:
+
+```esql
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings")
+| WHERE _score > 1.5
+```
+
+Within one `WHERE`, a condition on `_score` combined with `AND` sees the score from every search in
+that `WHERE`, wherever it appears. Here `_score > 1.5` sees the score from both `MATCH` functions:
+
+```esql
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings") AND _score > 1.5 AND MATCH(content, "English")
+```
+
+Anything that uses `_score` before the search runs sees the score from before it, which is 0.0 if no
+earlier search has scored. For example, a `WHERE` on `_score` before the expression is computed, which
+keeps no books here:
+
+```esql
+FROM books METADATA _score
+| WHERE _score > 1.5
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings")
+```
+
+A value computed from `_score` before or alongside the expression, so `s` is 0.0:
+
+```esql
+FROM books METADATA _score
+| EVAL s = _score + 0.0, content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings")
+```
+
+A `SORT` and `LIMIT` before the search, which pick 10 books **_before_** any of them have been scored:
+
+```esql
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| SORT _score DESC
+| LIMIT 10
+| WHERE MATCH(content, "Tolkien Rings")
+```
+
 ### Text fields without a search function [esql-limitations-full-text-search-keyword-fallback]
 
 Lastly, note that any queries on `text` fields that do not explicitly use the full-text functions,

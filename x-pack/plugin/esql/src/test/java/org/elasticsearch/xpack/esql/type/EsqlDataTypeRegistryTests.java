@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -83,7 +84,17 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, flattenedDataTypeEnabled),
+            new IndexResolver.FieldsInfo(
+                caps,
+                TransportVersion.current(),
+                false,
+                false,
+                false,
+                false,
+                false,
+                flattenedDataTypeEnabled,
+                flattenedDataTypeEnabled ? Set.of() : null
+            ),
             false,
             IndexResolver.DO_NOT_GROUP
         );
@@ -111,7 +122,7 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, true),
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, true, Set.of()),
             false,
             IndexResolver.DO_NOT_GROUP
         );

@@ -13,10 +13,6 @@ This processor comes packaged with many [reusable patterns](https://github.com/e
 
 If you need help building patterns to match your logs, you will find the [Grok Debugger](docs-content://explore-analyze/query-filter/tools/grok-debugger.md) tool quite useful! The [Grok Constructor](https://grokconstructor.appspot.com) is also a useful tool.
 
-:::{note}
-While custom code can run within {{es}}, troubleshooting its failures or optimizing its performance falls outside the of [scope of Elastic's support](https://www.elastic.co/support_policy#6).
-:::
-
 ## Using the Grok Processor in a Pipeline [using-grok]
 
 $$$grok-options$$$
@@ -24,7 +20,7 @@ $$$grok-options$$$
 | Name | Required | Default | Description |
 | --- | --- | --- | --- |
 | `field` | yes | - | The field to use for grok expression parsing |
-| `patterns` | yes | - | An ordered list of grok expression to match and extract named captures with. Returns on the first expression in the list that matches. |
+| `patterns` | yes | - | An ordered list of grok expressions to match and extract named captures with. Returns the match that starts leftmost in the input string. If two patterns match at the same position, the first pattern in the list wins. |
 | `pattern_definitions` | no | - | A map of pattern-name and pattern tuples defining custom patterns to be used by the current processor. Patterns matching existing names will override the pre-existing definition. |
 | `ecs_compatibility` | no | `disabled` | Must be `disabled` or `v1`. If `v1`, the processor uses patterns with [Elastic Common Schema (ECS)](ecs://reference/ecs-field-reference.md) field names. |
 | `trace_match` | no | false | when true, `_ingest._grok_match_index` will be inserted into your matched document’s metadata with the index into the pattern found in `patterns` that matched. |
@@ -234,6 +230,37 @@ POST _ingest/pipeline/_simulate
 In the above response, you can see that the index of the pattern that matched was `"1"`. This is to say that it was the second (index starts at zero) pattern in `patterns` to match.
 
 This trace metadata enables debugging which of the patterns matched. This information is stored in the ingest metadata and will not be indexed.
+
+### Which pattern matches
+
+When you provide multiple patterns, the processor does not necessarily use the first pattern in the list that matches. {{es}} combines the patterns into a single regular expression, so the pattern that matches leftmost in the input string wins. List order only breaks ties between patterns that match at the same position.
+
+For example, `%{GREEDYDATA:event.original}` matches from the start of the string, so it wins even though `some=%{NUMBER:some.number}` is listed first:
+
+```console
+POST _ingest/pipeline/_simulate
+{
+  "docs": [
+    { "_source": { "message": "something some=1234567890" } }
+  ],
+  "pipeline": {
+    "processors": [
+      {
+        "grok": {
+          "field": "message",
+          "patterns": [
+            "some=%{NUMBER:some.number}",
+            "%{GREEDYDATA:event.original}"
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+% NOTCONSOLE
+
+The `some=%{NUMBER:some.number}` pattern only matches from position 10, so the result populates `event.original` and not `some.number`.
 
 
 ## Validating input without extracting fields [validate-only]

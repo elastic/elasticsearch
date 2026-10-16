@@ -1714,7 +1714,7 @@ public class EsqlSession {
             planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
                 datasetResolutionProfile.stop();
                 analyzedPlanAfterDatasetResolution(
-                    rewritten,
+                    scopeIndexPatternsInViews(rewritten, unmappedResolution),
                     unmappedResolution,
                     configuration,
                     executionInfo,
@@ -2552,6 +2552,34 @@ public class EsqlSession {
     }
 
     /**
+     * Scopes the index pattern of every relation inside a view body to that view (see {@link IndexPattern#insideView()}), when the
+     * query loads unmapped fields. A view is a virtual index with no {@code _source} of its own, so its relations must be resolved
+     * as if {@code unmapped_fields} were {@code DEFAULT}: no field is marked partially unmapped, which would let a later rule load
+     * the view's unmapped rows from the view's source indices. Resolutions are keyed by index pattern, so a pattern that the caller
+     * and a view body both name needs a distinct pattern for the view; otherwise they would share one resolution.
+     * <p>
+     * View bodies are found by their position, as the view branches of a {@link BranchPlan}. They are kept while the setting is
+     * active, see {@link ViewBoundaryPreservation#KEEP_VIEW_IDENTITY}.
+     */
+    private static LogicalPlan scopeIndexPatternsInViews(LogicalPlan plan, UnmappedResolution unmappedResolution) {
+        if (unmappedResolution.loadsUnmappedFields() == false) {
+            return plan;
+        }
+        List<LogicalPlan> children = plan.children();
+        List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+        boolean changed = false;
+        for (int i = 0; i < children.size(); i++) {
+            LogicalPlan child = children.get(i);
+            LogicalPlan newChild = plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)
+                ? child.transformUp(UnresolvedRelation.class, ur -> ur.withIndexPattern(ur.indexPattern().insideView()))
+                : scopeIndexPatternsInViews(child, unmappedResolution);
+            changed |= newChild != child;
+            newChildren.add(newChild);
+        }
+        return changed ? plan.replaceChildren(newChildren) : plan;
+    }
+
+    /**
      * Perform a field caps request for each index pattern and determine the minimum transport version of all clusters with matching
      * indices.
      */
@@ -2591,7 +2619,8 @@ public class EsqlSession {
                     e.getValue(),
                     preAnalysis,
                     executionInfo,
-                    trackUnmappedFieldIndices,
+                    // A view body is resolved as if unmapped_fields were DEFAULT: it has no _source of its own to load from.
+                    trackUnmappedFieldIndices && e.getKey().isInsideView() == false,
                     r,
                     // A pattern reachable only inside a view branch must not be pruned by the request filter.
                     viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
@@ -2614,7 +2643,8 @@ public class EsqlSession {
                     QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
                     preAnalysis,
                     executionInfo,
-                    trackUnmappedFieldIndices,
+                    // A view body is resolved as if unmapped_fields were DEFAULT: it has no _source of its own to load from.
+                    trackUnmappedFieldIndices && e.getKey().isInsideView() == false,
                     r,
                     // A pattern reachable only inside a view branch must not be pruned by the request filter.
                     viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,

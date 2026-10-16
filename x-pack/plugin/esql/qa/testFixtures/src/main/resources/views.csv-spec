@@ -3167,6 +3167,110 @@ rows:long | loaded:long
 9         | 7
 ;
 
+// A view is resolved as if unmapped_fields were "default": a field that is mapped in only some of the view's indices is null
+// where it is unmapped, rather than loaded from _source. The view here is FROM sample_data, no_mapping_sample_data, whose
+// date, ip, long and keyword fields are mapped in sample_data only; the same fields are all present in the source of
+// no_mapping_sample_data. The first two tests are the same query, with and without SET unmapped_fields="load".
+viewPartiallyUnmappedFieldsAreNotLoadedFromSource
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: settings_scoped_at_view_boundaries
+
+SET unmapped_fields="load"\;
+FROM view_partially_unmapped_sample_data
+| STATS rows = COUNT(*), timestamps = COUNT(@timestamp), ips = COUNT(client_ip), durations = COUNT(event_duration), messages = COUNT(message)
+;
+
+rows:long | timestamps:long | ips:long | durations:long | messages:long
+14        | 7               | 7        | 7              | 7
+;
+
+viewPartiallyUnmappedFieldsInDefaultMode
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: optional_fields_v5
+required_capability: settings_scoped_at_view_boundaries
+
+FROM view_partially_unmapped_sample_data
+| STATS rows = COUNT(*), timestamps = COUNT(@timestamp), ips = COUNT(client_ip), durations = COUNT(event_duration), messages = COUNT(message)
+;
+
+rows:long | timestamps:long | ips:long | durations:long | messages:long
+14        | 7               | 7        | 7              | 7
+;
+
+viewPartiallyUnmappedFieldsAreStillLoadedBesideTheView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: settings_scoped_at_view_boundaries
+
+// The caller names the very same pattern as the view body: its fields are loaded (14 non-null each), the view's are not (7).
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data, view_partially_unmapped_sample_data
+| STATS rows = COUNT(*), timestamps = COUNT(@timestamp), ips = COUNT(client_ip), durations = COUNT(event_duration), messages = COUNT(message)
+;
+
+rows:long | timestamps:long | ips:long | durations:long | messages:long
+28        | 21              | 21       | 21             | 21
+;
+
+// Only sample_data's rows qualify: no_mapping_sample_data's event_duration is not loaded, so those rows filter out as null.
+viewPartiallyUnmappedFieldsKeepTheirTypes
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: settings_scoped_at_view_boundaries
+
+SET unmapped_fields="load"\;
+FROM view_partially_unmapped_sample_data
+| WHERE event_duration > 3000000
+| KEEP @timestamp, client_ip, event_duration, message
+| SORT event_duration
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword
+2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233             | Connected to 10.1.0.3
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error
+;
+
+// Several mapped types plus unmapped: @timestamp is a date in sample_data, a long in sample_data_ts_long, and unmapped in
+// no_mapping_sample_data. As by default, it needs an explicit conversion, and the unmapped rows are null.
+viewPartiallyUnmappedConflictingFieldIsNotLoadedFromSource
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: settings_scoped_at_view_boundaries
+
+SET unmapped_fields="load"\;
+FROM view_partially_unmapped_conflicting_sample_data
+| STATS rows = COUNT(*), timestamps = COUNT(TO_DATETIME(@timestamp))
+;
+
+rows:long | timestamps:long
+21        | 14
+;
+
+viewPartiallyUnmappedConflictingFieldInDefaultMode
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: optional_fields_v5
+required_capability: settings_scoped_at_view_boundaries
+
+FROM view_partially_unmapped_conflicting_sample_data
+| STATS rows = COUNT(*), timestamps = COUNT(TO_DATETIME(@timestamp))
+;
+
+rows:long | timestamps:long
+21        | 14
+;
+
 forkViewInSubqueryInlineStatsInMainQuery
 required_capability: fork_v9
 required_capability: views_with_no_branching

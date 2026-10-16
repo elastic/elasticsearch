@@ -47,6 +47,89 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         prepareIndex("caller_idx").setSource("id", 3, "extra", "e3").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
     }
 
+    /**
+     * {@code n} is mapped as an integer in {@code punk_a} (id 1) and present in {@code _source} but unmapped in
+     * {@code punk_b} (id 2): a partially unmapped non-keyword field (PUNK) over {@code FROM punk_a, punk_b}.
+     */
+    private void setupPunkIndices() {
+        assertAcked(indicesAdmin().prepareCreate("punk_a").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}, "n": {"type": "integer"}}}
+            """));
+        assertAcked(indicesAdmin().prepareCreate("punk_b").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}}}
+            """));
+        prepareIndex("punk_a").setSource("id", 1, "n", 10).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("punk_b").setSource("id", 2, "n", 20).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+    }
+
+    public void testLoadStillLoadsPartiallyUnmappedFieldOutsideViews() {
+        setupPunkIndices();
+        try (var resp = run("""
+            SET unmapped_fields="load";
+            FROM punk_a, punk_b | KEEP id, n | SORT id
+            """)) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1, 10), List.of(2, 20))));
+        }
+    }
+
+    public void testLoadDoesNotLoadPartiallyUnmappedFieldInsideViewBody() {
+        setupPunkIndices();
+        assertAcked(createView("punk_view", "FROM punk_a, punk_b"));
+        try (var resp = run("""
+            SET unmapped_fields="load";
+            FROM punk_view | KEEP id, n | SORT id
+            """)) {
+            assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, 10), Arrays.asList(2, null))));
+        }
+    }
+
+    public void testLoadDoesNotLoadPartiallyUnmappedFieldInsideViewBodyBesideCallerPattern() {
+        setupPunkIndices();
+        assertAcked(createView("punk_view", "FROM punk_a, punk_b"));
+        try (var resp = run("""
+            SET unmapped_fields="load";
+            FROM punk_a, punk_view | KEEP id, n | SORT id
+            """)) {
+            assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, 10), Arrays.asList(1, 10), Arrays.asList(2, null))));
+        }
+    }
+
+    /**
+     * The caller and the view body name the very same pattern, so they would share one index resolution if it were keyed by the
+     * pattern alone: the caller's {@code n} is loaded from {@code _source} where it is unmapped, the view's is not.
+     */
+    public void testLoadDoesNotLoadPartiallyUnmappedFieldInViewBodySharingCallerPattern() {
+        setupPunkIndices();
+        assertAcked(createView("punk_view", "FROM punk_a, punk_b"));
+        try (var resp = run("""
+            SET unmapped_fields="load";
+            FROM punk_a, punk_b, punk_view | KEEP id, n | SORT id, n
+            """)) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(List.of(Arrays.asList(1, 10), Arrays.asList(1, 10), Arrays.asList(2, 20), Arrays.asList(2, null)))
+            );
+        }
+    }
+
+    public void testLoadDoesNotLoadPartiallyUnmappedKeywordFieldInsideViewBody() {
+        assertAcked(indicesAdmin().prepareCreate("kpunk_a").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}, "k": {"type": "keyword"}}}
+            """));
+        assertAcked(indicesAdmin().prepareCreate("kpunk_b").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}}}
+            """));
+        prepareIndex("kpunk_a").setSource("id", 1, "k", "a1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("kpunk_b").setSource("id", 2, "k", "b1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        assertAcked(createView("kpunk_view", "FROM kpunk_a, kpunk_b"));
+        try (var resp = run("""
+            SET unmapped_fields="load";
+            FROM kpunk_view | KEEP id, k | SORT id
+            """)) {
+            assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, "a1"), Arrays.asList(2, null))));
+        }
+    }
+
     public void testLoadAppliesToCallerOwnPattern() {
         setupUnmappedIndices();
         try (var resp = run("""

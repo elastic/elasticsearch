@@ -521,6 +521,7 @@ public class EsqlSession {
             parsedPlan,
             QuerySettings.PROJECT_ROUTING.get(resolved),
             QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
+            QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved),
             (query, viewName) -> planningCpu.meteredCpu(
                 () -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName).plan()
             ),

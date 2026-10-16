@@ -780,6 +780,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
             query(query),
             null,
             true,
+            false,
             this::parse,
             ViewBoundaryPreservation.NONE,
             future.delegateFailureAndWrap((l, viewResult) -> {

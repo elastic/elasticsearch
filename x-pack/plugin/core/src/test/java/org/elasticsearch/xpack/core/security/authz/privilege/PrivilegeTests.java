@@ -604,9 +604,9 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testReadBoostRulesPrivilege() {
-        verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:monitor/boost/profile/get");
         verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:monitor/boost/rule/get");
         verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:monitor/boost/explain");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:monitor/boost/profile/get");
         verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:admin/boost/profile/put");
         verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:admin/boost/rule/create");
         verifyClusterActionDenied(ClusterPrivilegeResolver.READ_BOOST_RULES, "cluster:admin/boost/rule/update");

@@ -125,13 +125,8 @@ public class ClusterPrivilegeResolver {
 
     // Boost profile actions only exist in serverless; these privileges are no-ops elsewhere.
     private static final Set<String> READ_BOOST_PROFILES_PATTERN = Set.of("cluster:monitor/boost/profile/*");
-    // Rules reference profiles and cannot be authored, checked or explained without reading them, so this privilege includes
-    // reading profiles.
-    private static final Set<String> READ_BOOST_RULES_PATTERN = Set.of(
-        "cluster:monitor/boost/rule/*",
-        "cluster:monitor/boost/profile/*",
-        "cluster:monitor/boost/explain"
-    );
+    // Explain is granted here although its response currently includes the resolved profile
+    private static final Set<String> READ_BOOST_RULES_PATTERN = Set.of("cluster:monitor/boost/rule/*", "cluster:monitor/boost/explain");
 
     private static final Set<String> MANAGE_PROJECT_ROUTING_PATTERN = Set.of(
         "cluster:monitor/project/*",

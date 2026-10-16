@@ -265,7 +265,9 @@ public class AbstractEstimatedHeapAllocationDeciderTests extends ESAllocationTes
 
     private ClusterInfo clusterInfo(Map<ShardId, ShardAndIndexHeapUsage> shardUsages) {
         return ClusterInfo.builder()
-            .nodeHeapMetrics(Map.of(NODE_ID, new NodeHeapMetrics(NODE_ID, ByteSizeValue.ofGb(1).getBytes(), new NodeHeapEstimates(0, 0))))
+            .nodeHeapMetrics(
+                Map.of(NODE_ID, new NodeHeapMetrics(NODE_ID, ByteSizeValue.ofGb(1).getBytes(), new NodeHeapEstimates(0, 0, 0)))
+            )
             .estimatedShardHeapUsages(shardUsages)
             .build();
     }

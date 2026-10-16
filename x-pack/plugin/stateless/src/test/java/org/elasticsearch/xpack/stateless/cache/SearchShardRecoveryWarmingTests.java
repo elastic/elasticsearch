@@ -97,8 +97,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
                 SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
                 SharedBlobCacheWarmingService.WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
-                SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
-                SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING
+                SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING
             )
         ).collect(Collectors.toSet());
     }
@@ -164,15 +163,15 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             threadPool,
             telemetryProvider,
             clusterSettings,
-            new DefaultWarmingRatioProviderFactory().create(clusterSettings),
-            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings)
+            new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, ByteSizeValue.ZERO)
         ) {
             @Override
             protected void warmCache(
-                SharedBlobCacheWarmingService.Type type,
+                Type type,
                 IndexShard indexShard,
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
+                WarmingRatioProvider warmingRatioProvider,
                 @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                 boolean preWarmForIdLookup,
                 ActionListener<Void> listener
@@ -230,8 +229,16 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var service = newWarmingService(threadPool, telemetryProvider(meterRegistry), startWarmLatch, blockWarmLatch);
             ClusterState state = clusterStateOneSearchReplica("idx", STARTED);
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
-            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
-            service.warmCacheForSearchShardRecovery(state, mockIndexShard(self), null, null, null, resume);
+            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().getFirst();
+            service.warmCacheForSearchShardRecovery(
+                () -> state,
+                mockIndexShard(self),
+                null,
+                null,
+                mock(WarmingRatioProvider.class),
+                null,
+                resume
+            );
             // recovery is resumed
             assertTrue(resume.isDone());
             // make sure warming started running
@@ -247,7 +254,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             List<Measurement> measurements = meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC);
             assertThat(measurements, hasSize(1));
-            Measurement measurement = measurements.get(0);
+            Measurement measurement = measurements.getFirst();
             assertThat(measurement.getDouble(), equalTo(0.0D));
             assertWaitOutcome(measurement, SearchRecoveryWaitOutcome.NO_WAIT);
         }
@@ -289,10 +296,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = initializingSearchReplica(state, shardId);
             service.warmCacheForSearchShardRecovery(
-                state,
+                () -> state,
                 mockIndexShard(self),
                 null,
                 mockDirectory(),
+                mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
                 resume
             );
@@ -342,12 +350,13 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var service = newWarmingService(threadPool, telemetryProvider(meterRegistry), startWarmLatch, blockWarmLatch);
             ClusterState state = clusterStateOneSearchReplica("idx", INITIALIZING);
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
-            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
+            ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().getFirst();
             service.warmCacheForSearchShardRecovery(
-                state,
+                () -> state,
                 mockIndexShard(self),
                 null,
                 null,
+                mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
                 resume
             );
@@ -366,7 +375,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             List<Measurement> measurements = meterRegistry.getRecorder()
                 .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC);
             assertThat(measurements, hasSize(1));
-            Measurement measurement = measurements.get(0);
+            Measurement measurement = measurements.getFirst();
             assertThat(measurement.getDouble(), equalTo(0.0D));
             assertWaitOutcome(measurement, SearchRecoveryWaitOutcome.NO_WAIT);
         }
@@ -408,10 +417,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardRouting self = initializingSearchReplica(state, shardId);
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             service.warmCacheForSearchShardRecovery(
-                state,
+                () -> state,
                 mockIndexShard(self),
                 null,
                 mockDirectory(),
+                mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L, 1L)),
                 resume
             );
@@ -517,7 +527,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         List<Measurement> measurements = meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC);
         assertThat(measurements, hasSize(1));
-        assertWaitOutcome(measurements.get(0), SearchRecoveryWaitOutcome.TIMEOUT);
+        assertWaitOutcome(measurements.getFirst(), SearchRecoveryWaitOutcome.TIMEOUT);
     }
 
     /// Deterministic counterpart of [#testSearchRecoveryWarmingListenerRecordsTimeoutOutcomeEvenWhenCancelReportsSuccess]: warming
@@ -544,7 +554,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         List<Measurement> measurements = meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC);
         assertThat(measurements, hasSize(1));
-        assertWaitOutcome(measurements.get(0), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+        assertWaitOutcome(measurements.getFirst(), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
     }
 
     /// A warming failure that beats the timeout must propagate to the resume listener and still record the wait metric (attributed
@@ -570,7 +580,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         List<Measurement> measurements = meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC);
         assertThat(measurements, hasSize(1));
-        assertWaitOutcome(measurements.get(0), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+        assertWaitOutcome(measurements.getFirst(), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
     }
 
     /// The timeout branch reports how much of the shard was warmed before the deadline: the shard's data set size, the bytes offline
@@ -654,7 +664,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     ) {
         List<Measurement> measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, metricName);
         assertThat(measurements, hasSize(1));
-        Measurement measurement = measurements.get(0);
+        Measurement measurement = measurements.getFirst();
         assertThat(measurement.getDouble(), greaterThanOrEqualTo(minMillis / 1000.0));
         assertThat(measurement.getDouble(), lessThan(TimeValue.timeValueMinutes(1).millis() / 1000.0));
         return measurement;

@@ -11,9 +11,10 @@ package org.elasticsearch.painless;
 
 public class DefOptimizationTests extends ScriptTestCase {
 
+    // get(int) is the name of a @script_aware doc value read, so a def bracket read site also carries the script instance.
     public void testIntBraceArrayOptiLoad() {
         final String script = "int x = 0; def y = new int[1]; y[0] = 5; x = y[0]; return x;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;I)I");
+        assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;ILorg/elasticsearch/painless/PainlessScript$Script;)I");
         assertEquals(5, exec(script));
     }
 
@@ -25,7 +26,7 @@ public class DefOptimizationTests extends ScriptTestCase {
 
     public void testIntBraceListOptiLoad() {
         final String script = "int x = 0; def y = new ArrayList(); y.add(5); x = y[0]; return x;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;I)I");
+        assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;ILorg/elasticsearch/painless/PainlessScript$Script;)I");
         assertEquals(5, exec(script));
     }
 
@@ -37,7 +38,7 @@ public class DefOptimizationTests extends ScriptTestCase {
 
     public void testIntBraceMapOptiLoad() {
         final String script = "int x = 0; def y = new HashMap(); y.put(0, 5); x = y[0];";
-        assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;I)I");
+        assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;ILorg/elasticsearch/painless/PainlessScript$Script;)I");
         assertEquals(5, exec(script));
     }
 
@@ -48,8 +49,9 @@ public class DefOptimizationTests extends ScriptTestCase {
     }
 
     public void testIntFieldListOptiLoad() {
+        // A numeric shortcut may be a @script_aware list read, so the load site carries the script instance.
         final String script = "int x = 0; def y = new ArrayList(); y.add(5); x = y.0;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;)I");
+        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)I");
         assertEquals(5, exec(script));
     }
 
@@ -61,7 +63,7 @@ public class DefOptimizationTests extends ScriptTestCase {
 
     public void testIntFieldMapOptiLoad() {
         final String script = "int x = 0; def y = new HashMap(); y.put('0', 5); x = y.0; return x;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;)I");
+        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)I");
         assertEquals(5, exec(script));
     }
 
@@ -71,21 +73,28 @@ public class DefOptimizationTests extends ScriptTestCase {
         assertEquals(1, exec(script));
     }
 
+    // get(Object) is the name of a @script_aware doc value read, so a def get call site also carries the script instance.
     public void testIntCall0Opti() {
         final String script = "int x; def y = new HashMap(); y['int'] = 1; x = y.get('int'); return x;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC get(Ljava/lang/Object;Ljava/lang/String;)I");
+        assertBytecodeExists(
+            script,
+            "INVOKEDYNAMIC get(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;Ljava/lang/String;)I"
+        );
         assertEquals(1, exec(script));
     }
 
     public void testIntCall1Opti() {
         final String script = "int x; def y = new HashMap(); y['int'] = 1; x = y.get('int');";
-        assertBytecodeExists(script, "INVOKEDYNAMIC get(Ljava/lang/Object;Ljava/lang/String;)I");
+        assertBytecodeExists(
+            script,
+            "INVOKEDYNAMIC get(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;Ljava/lang/String;)I"
+        );
         assertEquals(1, exec(script));
     }
 
     public void testDoubleBraceArrayOptiLoad() {
         final String script = "double x = 0; def y = new double[1]; y[0] = 5.0; x = y[0]; return x;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;I)D");
+        assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;ILorg/elasticsearch/painless/PainlessScript$Script;)D");
         assertEquals(5.0, exec(script));
     }
 
@@ -99,7 +108,7 @@ public class DefOptimizationTests extends ScriptTestCase {
     public void testDoubleBraceListOptiLoad() {
         final String script = "double x = 0.0; def y = new ArrayList(); y.add(5.0); x = y[0]; return x;";
 
-        assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;I)D");
+        assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;ILorg/elasticsearch/painless/PainlessScript$Script;)D");
         assertEquals(5.0, exec(script));
     }
 
@@ -113,7 +122,7 @@ public class DefOptimizationTests extends ScriptTestCase {
     public void testDoubleBraceMapOptiLoad() {
         final String script = "double x = 0.0; def y = new HashMap(); y.put(0, 5.0); x = y[0];";
 
-        assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;I)D");
+        assertBytecodeExists(script, "INVOKEDYNAMIC arrayLoad(Ljava/lang/Object;ILorg/elasticsearch/painless/PainlessScript$Script;)D");
         assertEquals(5.0, exec(script));
     }
 
@@ -126,7 +135,7 @@ public class DefOptimizationTests extends ScriptTestCase {
 
     public void testDoubleFieldListOptiLoad() {
         final String script = "double x = 0; def y = new ArrayList(); y.add(5.0); x = y.0;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;)D");
+        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)D");
         assertEquals(5.0, exec(script));
     }
 
@@ -138,7 +147,7 @@ public class DefOptimizationTests extends ScriptTestCase {
 
     public void testDoubleFieldMapOptiLoad() {
         final String script = "double x = 0; def y = new HashMap(); y.put('0', 5.0); x = y.0; return x;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;)D");
+        assertBytecodeExists(script, "INVOKEDYNAMIC 0(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;)D");
         assertEquals(5.0, exec(script));
     }
 
@@ -150,19 +159,28 @@ public class DefOptimizationTests extends ScriptTestCase {
 
     public void testDoubleCall0Opti() {
         final String script = "double x; def y = new HashMap(); y['double'] = 1.0; x = y.get('double'); return x;";
-        assertBytecodeExists(script, "INVOKEDYNAMIC get(Ljava/lang/Object;Ljava/lang/String;)D");
+        assertBytecodeExists(
+            script,
+            "INVOKEDYNAMIC get(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;Ljava/lang/String;)D"
+        );
         assertEquals(1.0, exec(script));
     }
 
     public void testDoubleCall1Opti() {
         final String script = "double x; def y = new HashMap(); y['double'] = 1.0; x = y.get('double');";
-        assertBytecodeExists(script, "INVOKEDYNAMIC get(Ljava/lang/Object;Ljava/lang/String;)D");
+        assertBytecodeExists(
+            script,
+            "INVOKEDYNAMIC get(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;Ljava/lang/String;)D"
+        );
         assertEquals(1.0, exec(script));
     }
 
     public void testIllegalCast() {
         final String script = "int x;\ndef y = new HashMap();\ny['double'] = 1.0;\nx = y.get('double');\n";
-        assertBytecodeExists(script, "INVOKEDYNAMIC get(Ljava/lang/Object;Ljava/lang/String;)I");
+        assertBytecodeExists(
+            script,
+            "INVOKEDYNAMIC get(Ljava/lang/Object;Lorg/elasticsearch/painless/PainlessScript$Script;Ljava/lang/String;)I"
+        );
 
         final Exception exception = expectScriptThrows(ClassCastException.class, () -> { exec(script); });
         assertTrue(exception.getMessage().contains("Cannot cast java.lang.Double to java.lang.Integer"));

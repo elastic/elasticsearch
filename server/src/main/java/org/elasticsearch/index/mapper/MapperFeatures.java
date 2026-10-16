@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.vectors.DenseVectorAutoCalibrate;
 
 import java.util.Set;
 
@@ -42,6 +43,7 @@ public class MapperFeatures implements FeatureSpecification {
     );
     public static final NodeFeature SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX = new NodeFeature("mapper.subobjects_false_mapping_update_fix");
     public static final NodeFeature INVALID_DATE_FIX = new NodeFeature("mapper.range.invalid_date_fix");
+    public static final NodeFeature RANGE_DOCVALUE_FIELDS_FIX = new NodeFeature("mapper.range.docvalue_fields_fix");
     public static final NodeFeature ROUTING_AS_DOC_VALUES = new NodeFeature("mapper.routing_as_doc_values");
     public static final NodeFeature ROUTING_AS_DOC_VALUES_BY_DEFAULT = new NodeFeature("mapper.routing_as_doc_values_by_default");
     public static final NodeFeature ID_FIELD_MODE_MAPPING_ATTRIBUTE = new NodeFeature("mapper.id_field.mode_mapping_attribute");
@@ -172,7 +174,9 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
     public static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
     public static final NodeFeature COLUMNAR_IGNORE_ABOVE_NO_OP = new NodeFeature("mapper.columnar.ignore_above_no_op");
+    public static final NodeFeature TEXT_SEARCH_WITHOUT_TERMS = new NodeFeature("mapper.text.search_without_terms");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
+    public static final NodeFeature COMBINE_DYNAMIC_MAPPING_UPDATES = new NodeFeature("mapper.combine_dynamic_updates");
     public static final NodeFeature DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING = new NodeFeature(
         "mapper.dynamic_template.warn_on_duplicate_names"
     );
@@ -182,15 +186,19 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY = new NodeFeature(
         "mapper.fix_sorted_numeric_with_offsets_empty_array"
     );
+    public static final NodeFeature MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX = new NodeFeature(
+        "mapper.multi_valued_binary_index_sort_sparse_fix"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT);
+        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT, DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES, COMBINE_DYNAMIC_MAPPING_UPDATES);
     }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
+            TEXT_SEARCH_WITHOUT_TERMS,
             DATE_RANGE_INDEXING_FIX,
             DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
             REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
@@ -290,6 +298,8 @@ public class MapperFeatures implements FeatureSpecification {
             MAPPING_LIMIT_CHECKS_AT_PARSE_TIME,
             DENSE_VECTOR_UNIFIED_VALUE_FORMATS,
             FIX_SORTED_NUMERIC_WITH_OFFSETS_EMPTY_ARRAY,
+            MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX,
+            RANGE_DOCVALUE_FIELDS_FIX,
             TEXT_FIELD_DOC_VALUES_WITHOUT_FEATURE_FLAG
         );
     }

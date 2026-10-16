@@ -544,3 +544,5 @@ tests:
 - class: org.elasticsearch.columnar.StringColumnMergeTests
   method: testSegmentsOfOneFieldInBothFramingsMergeIntoEitherFraming
   issue: https://github.com/elastic/elasticsearch/issues/162245
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/162282

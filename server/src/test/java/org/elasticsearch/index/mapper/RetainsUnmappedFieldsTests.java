@@ -22,6 +22,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -223,7 +224,7 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
             // Nothing is read, by name or by walking, from a shard that holds no unmapped field.
             assertThat(unmappedFields.mayExist("not_in_the_mapping"), equalTo(expected));
             assertThat(unmappedFields.blockLoader("not_in_the_mapping") == ConstantNull.INSTANCE, equalTo(expected == false));
-            BlockLoader all = unmappedFields.allFieldsBlockLoader(1.0, UnmappedFields.Filter.ALL);
+            BlockLoader all = unmappedFields.allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 1.0));
             assertThat(all == ConstantNull.INSTANCE, equalTo(expected == false));
         });
     }

@@ -613,7 +613,6 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/161954")
     public void testWildcardMatchesViewAndDataset() {
         registerEmployees();
         registerEmployeesAlt();
@@ -645,7 +644,6 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/161954")
     public void testWildcardMatchesViewAndDatasetWithExclusion() {
         registerEmployees();
         registerEmployeesAlt();

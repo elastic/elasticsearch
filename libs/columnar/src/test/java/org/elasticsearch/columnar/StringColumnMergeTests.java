@@ -826,6 +826,9 @@ public class StringColumnMergeTests extends ESTestCase {
     /** Every document's blob, in doc order. Decoding needs a slot count, which the caller supplies. */
     private static List<BytesRef> readBlobs(LeafReader leaf, String field) throws IOException {
         final BinaryDocValues dv = leaf.getBinaryDocValues(field);
+        if (dv == null) {
+            return List.of();
+        }
         final List<BytesRef> blobs = new ArrayList<>();
         for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
             blobs.add(BytesRef.deepCopyOf(dv.binaryValue()));

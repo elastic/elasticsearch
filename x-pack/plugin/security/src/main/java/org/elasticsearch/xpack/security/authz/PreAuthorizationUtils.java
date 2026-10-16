@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -36,16 +37,26 @@ public final class PreAuthorizationUtils {
      * Here we define all child actions for which the authorization can be safely skipped
      * on a remote node as they only access a subset of resources.
      */
-    public static final Map<String, Set<String>> CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT = Map.of(
-        TransportSearchAction.TYPE.name(),
-        Set.of(
-            SearchTransportService.FREE_CONTEXT_ACTION_NAME,
-            SearchTransportService.DFS_ACTION_NAME,
-            SearchTransportService.QUERY_ACTION_NAME,
-            SearchTransportService.QUERY_ID_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME,
-            SearchTransportService.RANK_FEATURE_SHARD_ACTION_NAME,
-            SearchTransportService.QUERY_CAN_MATCH_NODE_NAME
+    public static final Map<String, Set<String>> CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT = Map.ofEntries(
+        Map.entry(
+            TransportSearchAction.TYPE.name(),
+            Set.of(
+                SearchTransportService.FREE_CONTEXT_ACTION_NAME,
+                SearchTransportService.DFS_ACTION_NAME,
+                SearchTransportService.QUERY_ACTION_NAME,
+                SearchTransportService.QUERY_ID_ACTION_NAME,
+                SearchTransportService.FETCH_ID_ACTION_NAME,
+                SearchTransportService.RANK_FEATURE_SHARD_ACTION_NAME,
+                SearchTransportService.QUERY_CAN_MATCH_NODE_NAME
+            )
+        ),
+        Map.entry(
+            TransportShardBulkAction.ACTION_NAME,
+            Set.of(
+                TransportShardBulkAction.ACTION_NAME,
+                TransportShardBulkAction.ACTION_NAME + "[p]",
+                TransportShardBulkAction.ACTION_NAME + "[r]"
+            )
         )
     );
 

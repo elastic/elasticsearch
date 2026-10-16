@@ -70,6 +70,7 @@ import java.util.function.IntFunction;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -119,6 +120,7 @@ public class ParquetOrdinalBytesRefTests extends ComputeTestCase {
         byte[] data = writeStringFile(numRows, withNulls, valueFor);
         assertDictionaryEncoded(data);
         List<Page> pages = readAll(data);
+        int ordinalPages = 0;
         try {
             for (Page page : pages) {
                 BytesRefBlock bytesBlock = page.getBlock(0);
@@ -130,10 +132,12 @@ public class ParquetOrdinalBytesRefTests extends ComputeTestCase {
                     assertThat("dictionary must not have dangling references", distinctValues, equalTo(dictEntries));
                     assertThat("dictionary must not have duplicates", dictEntries, hasSize(dict.getPositionCount()));
                     assertTrue(ordinals.isDense());
+                    ordinalPages++;
                 } else {
                     assertFalse(OrdinalBytesRefBlock.isDense(bytesBlock.getTotalValueCount(), distinctValues.size()));
                 }
             }
+            assertThat(ordinalPages, greaterThanOrEqualTo(1));
             assertPageValues(pages, numRows, valueFor);
         } finally {
             Releasables.close(pages);

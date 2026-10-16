@@ -181,18 +181,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/162106
-- class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
-  method: testKnnOptionsPushDown {default}
-  issue: https://github.com/elastic/elasticsearch/issues/162269
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testInvalidFromPatterns
-  issue: https://github.com/elastic/elasticsearch/issues/162271
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testDenseVectorImplicitCasting
-  issue: https://github.com/elastic/elasticsearch/issues/162273
-- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggsTests
-  method: testDuplicatedInlineAggWithFoldableIdenticalExpressions
-  issue: https://github.com/elastic/elasticsearch/issues/162275
 
 # Examples:
 #

@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.datasources.BackendFixture;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
+import org.elasticsearch.xpack.esql.generator.GenerativeFunctionCatalog;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
@@ -339,9 +341,19 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     @Before
     public void setup() throws IOException {
+        for (GenerativeFeature feature : enabledFeatures()) {
+            for (EsqlCapabilities.Cap cap : feature.requiredCapabilities()) {
+                assumeTrue("cluster doesn't support " + feature, clusterSupports(cap.capabilityName()));
+            }
+        }
+        GenerativeFunctionCatalog.restrictToCluster(this::clusterSupports);
         if (indexExists(CSV_DATASET.keySet().iterator().next()) == false) {
             loadDataSetIntoEs(client(), true, supportsSourceFieldMapping(), false);
         }
+    }
+
+    private boolean clusterSupports(String capability) {
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(capability));
     }
 
     /**
@@ -582,10 +594,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     /**
      * Returns the root {@link GenerationContext} for a single iteration of the test loop, populated with
-     * {@link #enabledFeatures()}.
+     * {@link #enabledFeatures()} and the capabilities of the cluster under test.
      */
     protected GenerationContext rootGenerationContext() {
-        return GenerationContext.root(enabledFeatures());
+        return GenerationContext.root(enabledFeatures(), this::clusterSupports);
     }
 
     protected CommandGenerator.ValidationResult checkPipelineResults(

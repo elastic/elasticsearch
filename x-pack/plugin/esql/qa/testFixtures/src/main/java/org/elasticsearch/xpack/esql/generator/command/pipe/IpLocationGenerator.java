@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
@@ -80,6 +81,9 @@ public class IpLocationGenerator implements CommandGenerator {
         QueryExecutor executor,
         GenerationContext context
     ) {
+        if (context.clusterSupports(EsqlCapabilities.Cap.IP_LOCATION_COMMAND) == false) {
+            return EMPTY_DESCRIPTION;
+        }
         String inputExpression = pickIpInput(previousOutput);
         String prefixRaw = EsqlQueryGenerator.randomIdentifier();
         String prefixForCmd = EsqlQueryGenerator.needsQuoting(prefixRaw) ? EsqlQueryGenerator.quote(prefixRaw) : prefixRaw;

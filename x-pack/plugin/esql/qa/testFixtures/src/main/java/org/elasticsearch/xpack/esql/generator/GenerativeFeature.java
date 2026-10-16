@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.generator;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
+
+import java.util.List;
+
 /**
  * Optional behaviors that a generative test run can opt into via {@link GenerationContext}.
  * Features are off by default in the main generative suite so that failures specific to one
@@ -18,32 +22,46 @@ public enum GenerativeFeature {
      * <p>
      * Not to be used in code. This is the same as no features enabled.
      * */
-    BASELINE,
+    BASELINE(),
 
     /**
      * Allow {@code FROM (...)} subqueries to be produced as sources by the per-feature generative test harness.
      */
-    SUBQUERIES,
+    SUBQUERIES(Cap.SUBQUERY_IN_FROM_COMMAND),
 
     /**
      * Always prepend {@code SET unmapped_fields="load"} and force unmapped
      * fields to be loaded as keyword fields.
      */
-    UNMAPPED_FIELDS_LOAD,
+    UNMAPPED_FIELDS_LOAD(Cap.OPTIONAL_FIELDS_V5),
 
     /**
      * Start generated pipelines from time-series source commands.
      */
-    METRICS,
+    METRICS(Cap.TS_COMMAND_V0),
 
     /**
      * Start generated pipelines from {@code PROMQL}.
      */
-    PROMQL,
+    PROMQL(Cap.PROMQL_COMMAND_V0),
 
     /**
      * Generate {@code FROM <dataset>} queries against external parquet datasets registered via
      * {@code PUT /_query/dataset/} using an in-process S3 fixture.
      */
-    PARQUET_DATASET
+    PARQUET_DATASET(Cap.DATASET_IN_FROM_COMMAND);
+
+    private final List<Cap> requiredCapabilities;
+
+    GenerativeFeature(Cap... requiredCapabilities) {
+        this.requiredCapabilities = List.of(requiredCapabilities);
+    }
+
+    /**
+     * Capabilities the cluster under test must support for this feature to run. The cluster may be older than the
+     * test code, so a feature it lacks is skipped rather than reported as a failure.
+     */
+    public List<Cap> requiredCapabilities() {
+        return requiredCapabilities;
+    }
 }

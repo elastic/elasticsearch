@@ -86,14 +86,14 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         return blobLength;
     }
 
-    public BlobFile toBlobFile() {
-        String blobName = blobNameFromGeneration(primaryTermAndGeneration.generation());
-        return new BlobFile(blobName, primaryTermAndGeneration);
+    public BccBlobFile toBlobFile() {
+        return new BccBlobFile(primaryTermAndGeneration);
     }
 
     @Override
     public String toString() {
-        return '[' + blobNameFromGeneration(primaryTermAndGeneration().generation()) + ']' + lastCompoundCommit().toShortDescription();
+        return '[' + BccBlobFile.blobNameFromGeneration(primaryTermAndGeneration().generation()) + ']'
+            + lastCompoundCommit().toShortDescription();
     }
 
     /**
@@ -193,7 +193,7 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
                 var compoundCommit = StatelessCompoundCommit.readFromStoreAtOffset(
                     streamInput,
                     offset,
-                    ignored -> parseGenerationFromBlobName(blobName)
+                    ignored -> BccBlobFile.parseGenerationFromBlobName(blobName)
                 );
 
                 assert assertPaddingComposedOfZeros(blobName, maxBlobLength, blobReader, offset, compoundCommit);

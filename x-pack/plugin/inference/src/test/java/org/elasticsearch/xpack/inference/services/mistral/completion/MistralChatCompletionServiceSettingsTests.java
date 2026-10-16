@@ -37,6 +37,7 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
     private static final int INITIAL_TEST_RATE_LIMIT = 100;
 
     private static final int DEFAULT_RATE_LIMIT = 240;
+    private static final TransportVersion REASONING_EFFORT_ADDED = TransportVersion.fromName("inference_api_mistral_reasoning_effort");
 
     public void testFromMap_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
@@ -54,6 +55,41 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
         );
 
         assertThat(serviceSettings, is(new MistralChatCompletionServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
+    }
+
+    public void testFromMap_ReasoningEffort_IsPassedThroughUnvalidated() {
+        var map = buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
+        map.put(MistralConstants.REASONING_EFFORT_FIELD, "low");
+
+        var serviceSettings = MistralChatCompletionServiceSettings.fromMap(map, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(serviceSettings.reasoningEffort(), is("low"));
+    }
+
+    public void testFromMap_NoReasoningEffort_IsNull() {
+        var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT),
+            randomFrom(ConfigurationParseContext.values())
+        );
+
+        assertNull(serviceSettings.reasoningEffort());
+    }
+
+    public void testToXContent_WritesReasoningEffort() throws IOException {
+        var serviceSettings = new MistralChatCompletionServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT), "high");
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        serviceSettings.toXContent(builder, null);
+
+        assertThat(Strings.toString(builder), is(XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "model": "%s",
+                "rate_limit": {
+                    "requests_per_minute": %d
+                },
+                "reasoning_effort": "high"
+            }
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT))));
     }
 
     public void testFromMap_NoModel_ThrowsValidationError() {
@@ -127,13 +163,23 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
 
     @Override
     protected MistralChatCompletionServiceSettings mutateInstance(MistralChatCompletionServiceSettings instance) throws IOException {
-        if (randomBoolean()) {
-            var modelId = randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(8));
-            return new MistralChatCompletionServiceSettings(modelId, instance.rateLimitSettings());
-        } else {
-            var rateLimitSettings = randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom);
-            return new MistralChatCompletionServiceSettings(instance.modelId(), rateLimitSettings);
-        }
+        return switch (randomInt(2)) {
+            case 0 -> new MistralChatCompletionServiceSettings(
+                randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(8)),
+                instance.rateLimitSettings(),
+                instance.reasoningEffort()
+            );
+            case 1 -> new MistralChatCompletionServiceSettings(
+                instance.modelId(),
+                randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom),
+                instance.reasoningEffort()
+            );
+            default -> new MistralChatCompletionServiceSettings(
+                instance.modelId(),
+                instance.rateLimitSettings(),
+                randomValueOtherThan(instance.reasoningEffort(), () -> randomFrom("high", "none", null))
+            );
+        };
     }
 
     @Override
@@ -141,13 +187,16 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
         MistralChatCompletionServiceSettings instance,
         TransportVersion version
     ) {
+        if (version.supports(REASONING_EFFORT_ADDED) == false) {
+            return new MistralChatCompletionServiceSettings(instance.modelId(), instance.rateLimitSettings());
+        }
         return instance;
     }
 
     private static MistralChatCompletionServiceSettings createRandom() {
         var modelId = randomAlphaOfLength(8);
 
-        return new MistralChatCompletionServiceSettings(modelId, RateLimitSettingsTests.createRandom());
+        return new MistralChatCompletionServiceSettings(modelId, RateLimitSettingsTests.createRandom(), randomFrom("high", "none", null));
     }
 
     public static Map<String, Object> buildServiceSettingsMap(@Nullable String modelId, @Nullable Integer rateLimit) {

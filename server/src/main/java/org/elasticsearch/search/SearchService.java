@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -158,6 +159,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -315,6 +317,68 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope
     );
+
+    /**
+     * The default keep-alive for async search requests when none is specified by the caller. Applies to all four
+     * async APIs: {@code _async_search}, EQL async search, ES|QL async query, and SQL async query.
+     */
+    public static final Setting<TimeValue> ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING = Setting.timeSetting(
+        "async_search.default_keep_alive",
+        TimeValue.timeValueDays(5),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.MAX_VALUE,
+        new AsyncKeepAliveValidator(),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * The maximum allowed keep-alive for async search requests. A value of {@code -1} (the default) means
+     * no maximum is enforced. When set, the limit applies at submit time and when extending results via GET.
+     * Applies to all four async APIs. The check is inclusive: exactly equal to the maximum is permitted.
+     */
+    public static final Setting<TimeValue> ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING = Setting.timeSetting(
+        "async_search.max_keep_alive",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        TimeValue.MAX_VALUE,
+        new AsyncKeepAliveValidator(),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Validates the cross-setting constraint between {@link #ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING} and
+     * {@link #ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING}: when {@code max} is non-negative (i.e., an actual limit is
+     * configured), {@code default} must not exceed it.
+     */
+    static class AsyncKeepAliveValidator implements Setting.Validator<TimeValue> {
+        @Override
+        public void validate(TimeValue value) {}
+
+        @Override
+        public void validate(TimeValue value, Map<Setting<?>, Object> settings) {
+            @SuppressWarnings("unchecked")
+            TimeValue defaultKeepAlive = (TimeValue) settings.get(ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING);
+            @SuppressWarnings("unchecked")
+            TimeValue maxKeepAlive = (TimeValue) settings.get(ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING);
+            if (maxKeepAlive.millis() >= 0 && defaultKeepAlive.millis() > maxKeepAlive.millis()) {
+                throw new IllegalArgumentException(
+                    "async_search.default_keep_alive ["
+                        + defaultKeepAlive
+                        + "] must not exceed async_search.max_keep_alive ["
+                        + maxKeepAlive
+                        + "]"
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            List<Setting<?>> settings = List.of(ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING, ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING);
+            return settings.iterator();
+        }
+    }
 
     public static final Setting<Boolean> CCS_COLLECT_TELEMETRY = Setting.boolSetting(
         "search.ccs.collect_telemetry",
@@ -714,7 +778,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Lifecycle lifecycle
     ) {
         final boolean header = threadPool.getThreadContext() == null || getErrorTraceHeader(threadPool);
-        return listener.delegateResponse((l, e) -> {
+        return listener.delegateResponse((l, original) -> {
+            final Exception e = badRequestIfPatternTooComplex(original);
             org.apache.logging.log4j.util.Supplier<String> messageSupplier = () -> format(
                 "[%s]%s: failed to execute search request for task [%d]",
                 nodeId,
@@ -741,6 +806,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             l.onFailure(e);
         });
+    }
+
+    /**
+     * Search only compiles automata from patterns in the request, so failing to determinize one is a client error
+     * regardless of which phase or component compiled it.
+     */
+    static Exception badRequestIfPatternTooComplex(Exception e) {
+        if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.unwrap(e, TooComplexToDeterminizeException.class) != null) {
+            return new IllegalArgumentException("Pattern was too complex to determinize", e);
+        }
+        return e;
+    }
+
+    private static <T> ActionListener<T> badRequestIfPatternTooComplex(ActionListener<T> listener) {
+        return listener.delegateResponse((l, e) -> l.onFailure(badRequestIfPatternTooComplex(e)));
     }
 
     private static boolean getErrorTraceHeader(ThreadPool threadPool) {
@@ -1184,7 +1264,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhaseResponseChunk.Writer writer,
         ActionListener<FetchSearchResult> listener
     ) {
-        final ActionListener<FetchSearchResult> releaseListener = releaseCircuitBreakerOnResponse(listener, result -> result);
+        final ActionListener<FetchSearchResult> releaseListener = releaseCircuitBreakerOnResponse(
+            badRequestIfPatternTooComplex(listener),
+            result -> result
+        );
         final ShardSearchRequest suppliedShardSearchRequest = request.getShardSearchRequest();
         final ReaderContext readerContext = findReaderContext(
             request.contextId(),
@@ -1509,7 +1592,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         },
             wrapFailureListener(
-                releaseCircuitBreakerOnResponse(listener, result -> result.result().fetchResult()),
+                releaseCircuitBreakerOnResponse(badRequestIfPatternTooComplex(listener), result -> result.result().fetchResult()),
                 markAsUsed,
                 e -> processScrollContinuationFailure(readerContext, e)
             )

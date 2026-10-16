@@ -34,8 +34,8 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
     final int vectorByteSize;
     final IndexInput input;
     final ByteVectorValues values;
-    final FixedSizeScratch firstScratch;
-    final FixedSizeScratch secondScratch;
+    final FixedSizeSegmentScratch firstScratch;
+    final FixedSizeSegmentScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
     final float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
@@ -45,8 +45,8 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
         this.values = values;
         this.dims = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
-        this.firstScratch = new FixedSizeScratch(vectorByteSize);
-        this.secondScratch = new FixedSizeScratch(vectorByteSize);
+        this.firstScratch = new FixedSizeSegmentScratch(vectorByteSize);
+        this.secondScratch = new FixedSizeSegmentScratch(vectorByteSize);
     }
 
     protected final void checkOrdinal(int ord) {

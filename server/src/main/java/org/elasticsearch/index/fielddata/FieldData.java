@@ -161,6 +161,20 @@ public enum FieldData {
      * Wrap the provided {@link SortedNumericDocValues} instance to cast all values to doubles.
      */
     public static SortedNumericDoubleValues castToDouble(final SortedNumericLongValues values) {
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
+        if (singleton != null) {
+            return singleton(new DoubleValues() {
+                @Override
+                public double doubleValue() throws IOException {
+                    return singleton.longValue();
+                }
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return singleton.advanceExact(doc);
+                }
+            });
+        }
         return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
             @Override
             public double nextValue() throws IOException {

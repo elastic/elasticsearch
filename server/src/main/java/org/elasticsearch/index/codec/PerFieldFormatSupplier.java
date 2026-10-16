@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -79,6 +81,14 @@ public class PerFieldFormatSupplier {
         INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
         EXCLUDE_MAPPER_TYPES = Set.of("geo_shape");
     }
+
+    // vectordb queries fetch a few top-k documents rather than scanning, so string columns are written in
+    // small chunks to make each read decompress fewer values.
+    private static final int VECTORDB_MAX_VALUES_PER_CHUNK = 128;
+    private static final ChunkBounds VECTORDB_PLAIN_CHUNKS = new ChunkBounds(128 * 1024, VECTORDB_MAX_VALUES_PER_CHUNK);
+    /** Escaped values are reached one at a time, so they are chunked no larger than the values. */
+    private static final ChunkBounds VECTORDB_ESCAPE_CHUNKS = new ChunkBounds(32 * 1024, VECTORDB_MAX_VALUES_PER_CHUNK);
+    private static final int VECTORDB_COMPRESSED_ORDINAL_BLOCK_SIZE = 512;
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final KnnVectorsFormat knnVectorsFormat;
@@ -273,11 +283,31 @@ public class PerFieldFormatSupplier {
 
     /**
      * How a string column is written, asked once per field by the codec. A field that is not stored as one is
-     * never asked, so the defaults here are only ever a fallback for a mapping that changed underneath.
+     * never asked, and asking about one fails rather than guessing the options.
      */
-    private StringColumnOptions resolveStringColumnOptions(final String field, final ColumnarFieldType type) {
+    StringColumnOptions resolveStringColumnOptions(final String field, final ColumnarFieldType type) {
         final StringColumnOptions options = columnarStringOptionsOf(field);
-        return options != null ? options : StringColumnOptions.DEFAULT;
+        if (options == null) {
+            throw new IllegalStateException(
+                "field [" + field + "] is written as a ColumNAR string column but its mapper has no string options"
+            );
+        }
+        if (mapperService.getIndexSettings().getMode() != IndexMode.VECTORDB_COLUMNAR) {
+            return options;
+        }
+        final StringColumnOptions.Sizes sizes = options.sizes();
+        return options.withSizes(
+            new StringColumnOptions.Sizes(
+                sizes.valuesPerBlock(),
+                VECTORDB_PLAIN_CHUNKS,
+                VECTORDB_ESCAPE_CHUNKS,
+                sizes.packedOrdinalBlockSize(),
+                VECTORDB_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                sizes.escapeRankBlockSize(),
+                sizes.slotCountsBlockSize(),
+                sizes.lengthBlockSize()
+            )
+        );
     }
 
     FieldContext resolveFieldContext(final String fieldName, final int blockSize) {
@@ -330,7 +360,11 @@ public class PerFieldFormatSupplier {
     }
 
     private boolean excludeFields(String fieldName) {
-        return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
+        // The _unmapped sink holds ordinary user data despite its leading underscore, so it and all of its subfields - _keyed, the ignored
+        // values, the .counts companion - are matched by prefix rather than enumerated, which would go stale as encodings add subfields.
+        return fieldName.startsWith("_")
+            && INCLUDE_META_FIELDS.contains(fieldName) == false
+            && fieldName.startsWith(FlattenedFieldMapper.UNMAPPED_SINK_NAME) == false;
     }
 
     private boolean excludeMapperTypes(String fieldName) {

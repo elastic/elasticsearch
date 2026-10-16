@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -544,6 +546,62 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    /**
+     * A request filter keeps the view boundary, so the view branch is not inlined. {@code _class} and {@code _name} must
+     * still name the view, on the view branch only, while the bare-index branch answers for its index.
+     */
+    public void testRequestFilterKeepsClassAndNameOnViewBranch() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", EsqlCapabilities.Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        assertThat(
+            rows(
+                "FROM " + PASSTHROUGH_VIEW + " METADATA _class, _name | KEEP id, _class, _name | SORT id ASC",
+                QueryBuilders.termQuery("status", 300)
+            ),
+            equalTo(List.of(List.of(1, "view", PASSTHROUGH_VIEW), List.of(4, "view", PASSTHROUGH_VIEW)))
+        );
+        assertThat(
+            rows(
+                "FROM " + PASSTHROUGH_VIEW + ", " + INDEX + " METADATA _class, _name | KEEP id, _class, _name | SORT id ASC, _class ASC",
+                QueryBuilders.termQuery("status", 300)
+            ),
+            equalTo(
+                List.of(
+                    List.of(1, "index", INDEX),
+                    List.of(1, "view", PASSTHROUGH_VIEW),
+                    List.of(4, "index", INDEX),
+                    List.of(4, "view", PASSTHROUGH_VIEW)
+                )
+            )
+        );
+    }
+
+    /**
+     * A view whose body is a bare union is lifted into one branch per body piece. Each piece must still answer the
+     * view for {@code _class} and {@code _name}, not the index or subquery it came from.
+     */
+    public void testRequestFilterKeepsClassAndNameOnLiftedViewPieces() {
+        assumeTrue("requires METADATA_CLASS_AND_NAME", EsqlCapabilities.Cap.METADATA_CLASS_AND_NAME.isEnabled());
+        createBranchIndexes("vrf_rc_a", "vrf_rc_b");
+        String view = "vrf_rc_union";
+        createView(view, "FROM vrf_rc_a, (FROM vrf_rc_b)");
+
+        assertThat(
+            rows(
+                "FROM " + view + ", " + INDEX + " METADATA _class, _name | KEEP id, _class, _name | SORT id ASC",
+                QueryBuilders.termQuery("region", "eu")
+            ),
+            equalTo(
+                List.of(
+                    List.of(0, "index", INDEX),
+                    List.of(1, "view", view),
+                    List.of(2, "index", INDEX),
+                    List.of(3, "view", view),
+                    List.of(4, "index", INDEX)
+                )
+            )
+        );
+    }
+
     // ─── Views vs user-written subqueries ────────────────────────────────────────
 
     /**
@@ -565,6 +623,29 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
                 QueryBuilders.termQuery("region", "eu")
             ),
             equalTo(List.of(List.of("eu", 3L), List.of("eu", 3L)))
+        );
+    }
+
+    /**
+     * A view nested inside a user-written subquery branch is a view the query names, so the request filter applies to its
+     * output just as it does to a view at the top level. {@code cnt} exists only in the stats view's output, so it can
+     * only be filtered there; its fragments are marked as view-branch fragments and skipped by the Lucene push-in path,
+     * so without an output filter the nested view would leak every bucket.
+     */
+    public void testRequestFilterOnViewNestedInLiteralSubqueryBranch() {
+        assertThat(
+            rows(
+                "FROM " + STATS_VIEW + ", (FROM " + STATS_VIEW + " | WHERE cnt > 0) | KEEP region, cnt",
+                QueryBuilders.termQuery("region", "eu")
+            ),
+            equalTo(List.of(List.of("eu", 3L), List.of("eu", 3L)))
+        );
+        assertThat(
+            rows(
+                "FROM " + PASSTHROUGH_VIEW + ", (FROM " + STATS_VIEW + " | WHERE cnt > 0) | KEEP region, cnt | SORT region",
+                QueryBuilders.rangeQuery("cnt").gte(3)
+            ),
+            equalTo(List.of(List.of("eu", 3L), List.of("us", 3L)))
         );
     }
 
@@ -604,5 +685,58 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
             "expected a warning naming the dropped [wildcard] and the view; got: " + warnings,
             warnings.stream().anyMatch(w -> w.contains("[wildcard] on view [" + STATS_VIEW + "]"))
         );
+    }
+
+    // ─── View + FORK ──────────────────────────────────────────────────────────────
+
+    public void testRequestFilterAppliesToForkViewOutput() {
+        String view = "vrf_fork";
+        createView(view, "FROM " + INDEX + " | FORK (WHERE id > 2) (WHERE id <= 2) | KEEP _fork, id");
+        List<List<Object>> rows = rows("FROM " + view + " | KEEP _fork, id | SORT _fork, id", QueryBuilders.rangeQuery("id").gte(3));
+        assertThat(rows, hasSize(3));
+        assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+        assertThat(rows.get(0).get(1), equalTo(3));
+        assertThat(rows.get(1).get(0).toString(), equalTo("fork1"));
+        assertThat(rows.get(1).get(1), equalTo(4));
+        assertThat(rows.get(2).get(0).toString(), equalTo("fork1"));
+        assertThat(rows.get(2).get(1), equalTo(5));
+    }
+
+    public void testRequestFilterOnEvalAfterForkInView() {
+        String view = "vrf_fork_eval";
+        createView(view, "FROM " + INDEX + " | FORK (WHERE id > 2) (WHERE id <= 2) | EVAL doubled = id * 2");
+        assertThat(
+            rows("FROM " + view + " | KEEP id, doubled | SORT id", QueryBuilders.termQuery("doubled", 6)),
+            equalTo(List.of(List.of(3, 6)))
+        );
+    }
+
+    public void testForkAfterForkViewWithAndWithoutRequestFilter() {
+        String view = "vrf_fork_then_fork";
+        createView(view, "FROM " + INDEX + " | FORK (WHERE id > 0) (WHERE id < 2)");
+        String query = "FROM " + view + " | FORK (WHERE id > 0) (WHERE id < 5) | KEEP _fork, id | SORT _fork, id";
+
+        VerificationException withoutFilter = expectThrows(VerificationException.class, () -> run(syncEsqlQueryRequest(query)).close());
+        assertThat(withoutFilter.getMessage(), containsString("Only a single FORK command is supported"));
+
+        List<List<Object>> rows = rows(query, QueryBuilders.rangeQuery("id").gte(0));
+        assertThat(rows, hasSize(12));
+        assertForkId(rows.get(0), "fork1", 1);
+        assertForkId(rows.get(1), "fork1", 1);
+        assertForkId(rows.get(2), "fork1", 2);
+        assertForkId(rows.get(3), "fork1", 3);
+        assertForkId(rows.get(4), "fork1", 4);
+        assertForkId(rows.get(5), "fork1", 5);
+        assertForkId(rows.get(6), "fork2", 0);
+        assertForkId(rows.get(7), "fork2", 1);
+        assertForkId(rows.get(8), "fork2", 1);
+        assertForkId(rows.get(9), "fork2", 2);
+        assertForkId(rows.get(10), "fork2", 3);
+        assertForkId(rows.get(11), "fork2", 4);
+    }
+
+    private static void assertForkId(List<Object> row, String fork, int id) {
+        assertThat(row.get(0).toString(), equalTo(fork));
+        assertThat(row.get(1), equalTo(id));
     }
 }

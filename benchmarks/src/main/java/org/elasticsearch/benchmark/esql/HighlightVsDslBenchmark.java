@@ -111,7 +111,7 @@ public class HighlightVsDslBenchmark {
     private static final String[] PHRASE = { "quick", "brown", TERM };
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static final FoldContext FOLD_CONTEXT = FoldContext.small();
@@ -236,8 +236,8 @@ public class HighlightVsDslBenchmark {
             HighlightOptions.ORDER_SCORE.equals(options.order()),
             options.analyzerName(),
             options.maxAnalyzedOffset()
-        ).withExecutionContext(analyzer, luceneQuery, List.of(FIELD));
-        return new HighlightOperator(blockFactory, config, new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) });
+        ).withExecutionContext(List.of(analyzer), luceneQuery, List.of(FIELD));
+        return new HighlightOperator(blockFactory, config, new ExpressionEvaluator[] { new LoadFromPageEvaluator(0) }, null);
     }
 
     private void buildIndex() throws IOException {

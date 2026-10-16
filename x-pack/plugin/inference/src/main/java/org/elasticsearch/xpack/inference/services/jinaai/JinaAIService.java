@@ -18,10 +18,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.EmbeddingInferenceService;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -67,7 +69,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.BaseJinaAIEmbeddingsServiceSettings.updateEmbeddingDetails;
 
-public class JinaAIService extends SenderService<JinaAIModel> implements RerankingInferenceService {
+public class JinaAIService extends SenderService<JinaAIModel> implements EmbeddingInferenceService, RerankingInferenceService {
 
     public static final TransportVersion JINA_AI_EMBEDDING_REFACTOR = TransportVersion.fromName("jina_ai_embedding_refactor");
 
@@ -263,6 +265,11 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
     @Override
     public boolean supportsNonTextEmbeddingContent() {
         return true;
+    }
+
+    @Override
+    public boolean requiresSingleInputEmbeddingRequest(Model model, InferenceString input) {
+        return input.dataType() == DataType.PDF;
     }
 
     @Override

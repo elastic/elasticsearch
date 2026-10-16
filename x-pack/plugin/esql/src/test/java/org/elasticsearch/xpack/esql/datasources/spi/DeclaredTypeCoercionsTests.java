@@ -926,38 +926,102 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
-     * A whole-number source declared {@code date_nanos} is an identity epoch-NANOS reinterpret — the declared
-     * type names the numeric unit (datetime = millis, date_nanos = nanos), matching the shipped CSV
-     * inline-schema numeric read and keeping footer stats, pushdown, and scan values bit-identical for a raw
-     * column. NOT the mapper-ingest millis reading — see the class Javadoc's deliberate divergence.
+     * A whole-number source declared {@code date_nanos} with no format is epoch MILLIS widened to nanos — the same
+     * unit as under {@code datetime}, the {@code epoch_millis} branch of an index {@code date_nanos} field's default
+     * format, and the unit a numeric request-filter bound on the column is read in. The declared type fixes only the
+     * stored precision, not what the number means.
      */
-    public void testCastWholeNumberToDateNanosIsIdentityNanos() {
-        long nanos = 1_700_000_000_123_456_789L;
+    public void testCastWholeNumberToDateNanosIsEpochMillis() {
+        long millis = 1_719_828_000_000L; // 2024-07-01T10:00:00Z
+        long expectedNanos = EsqlDataTypeConverter.dateNanosToLong("2024-07-01T10:00:00.000000000Z");
         try (
-            Block src = blockFactory.newLongArrayVector(new long[] { 0L, nanos }, 2).asBlock();
+            Block src = blockFactory.newLongArrayVector(new long[] { 0L, millis }, 2).asBlock();
             Block cast = castStrict(src, DataType.LONG, DataType.DATE_NANOS)
         ) {
             LongBlock out = (LongBlock) cast;
             assertEquals(0L, out.getLong(out.getFirstValueIndex(0)));
-            assertEquals("identity reinterpret, no scaling", nanos, out.getLong(out.getFirstValueIndex(1)));
+            assertEquals("epoch millis widened to nanos", expectedNanos, out.getLong(out.getFirstValueIndex(1)));
         }
         try (
             Block src = blockFactory.newIntArrayVector(new int[] { 42 }, 1).asBlock();
             Block cast = castStrict(src, DataType.INTEGER, DataType.DATE_NANOS)
         ) {
-            assertEquals(42L, ((LongBlock) cast).getLong(0));
+            assertEquals(42_000_000L, ((LongBlock) cast).getLong(0));
+        }
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { NumericUtils.asLongUnsigned(BigInteger.valueOf(millis)) }, 1)
+                .asBlock();
+            Block cast = castStrict(src, DataType.UNSIGNED_LONG, DataType.DATE_NANOS)
+        ) {
+            assertEquals(expectedNanos, ((LongBlock) cast).getLong(0));
         }
     }
 
     /**
-     * A negative epoch has no {@code date_nanos} representation (the {@code TO_DATE_NANOS} range rule): the
-     * lenient read nulls the cell and warns — never a negative nanos long — and the strict read fails.
+     * The no-format read of a whole number into {@code date_nanos} is the declared {@code epoch_millis} read, value for
+     * value, including both edges of the representable range ({@code 9_223_372_036_854} is the last millisecond before
+     * 2262-04-11T23:47:16.854775807Z). Pinning the two together keeps the decode and the pushdown relation, which treats
+     * the bare column exactly as an {@code epoch_millis} one, from drifting apart.
      */
+    public void testCastWholeNumberToDateNanosWithoutFormatEqualsEpochMillisFormat() {
+        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");
+        long lastMilli = 9_223_372_036_854L;
+        long[] accepted = { 0L, 1L, 1_719_828_000_000L, lastMilli, randomLongBetween(0L, lastMilli) };
+        for (long millis : accepted) {
+            try (
+                Block src = blockFactory.newLongArrayVector(new long[] { millis }, 1).asBlock();
+                Block noFormat = castStrict(src, DataType.LONG, DataType.DATE_NANOS);
+                Block withFormat = castStrict(src, DataType.LONG, DataType.DATE_NANOS, epochMillis)
+            ) {
+                assertEquals("[" + millis + "]", ((LongBlock) withFormat).getLong(0), ((LongBlock) noFormat).getLong(0));
+            }
+        }
+        for (long millis : new long[] { -1L, lastMilli + 1 }) {
+            try (Block src = blockFactory.newLongArrayVector(new long[] { millis }, 1).asBlock()) {
+                expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.LONG, DataType.DATE_NANOS).close());
+                expectThrows(
+                    InvalidArgumentException.class,
+                    () -> castStrict(src, DataType.LONG, DataType.DATE_NANOS, epochMillis).close()
+                );
+            }
+        }
+    }
+
+    /**
+     * A bare nanosecond count no longer reads as an instant: {@code 1719828000000000000} (2024-07-01T10:00:00Z in nanos)
+     * read as epoch millis is far past 2262, so the lenient read nulls the cell and warns and the strict read fails.
+     */
+    public void testCastWholeNumberNanosCountToDateNanosIsOutOfRange() {
+        long nanosCount = 1_719_828_000_000_000_000L;
+        List<String> warnings = new ArrayList<>();
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { nanosCount, 1_719_828_000_000L }, 2).asBlock();
+            Block cast = DeclaredTypeCoercions.castBlock(
+                src,
+                DataType.LONG,
+                DataType.DATE_NANOS,
+                null,
+                blockFactory,
+                "ts",
+                capturing(warnings)
+            )
+        ) {
+            assertTrue("a nanosecond count is out of range as epoch millis", cast.isNull(0));
+            LongBlock out = (LongBlock) cast;
+            assertEquals(1_719_828_000_000_000_000L, out.getLong(out.getFirstValueIndex(1)));
+        }
+        assertThat(warnings, hasSize(1));
+        assertThat(warnings.get(0), containsString("column [ts]: cannot read [long] as [date_nanos]: "));
+        try (Block src = blockFactory.newLongArrayVector(new long[] { nanosCount }, 1).asBlock()) {
+            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.LONG, DataType.DATE_NANOS).close());
+        }
+    }
+
     /**
      * A whole-number source declared {@code date_nanos} WITH a declared {@code format} parses THROUGH the format —
-     * the unit rule, identical to the DATETIME arm: the format names the unit, and only in its absence does the type
-     * ({@code date_nanos} = nanos). Without this a column declared {@code {date_nanos, format: epoch_second}} would
-     * silently reinterpret seconds as nanos: 1704067200 would read as 1970-01-01T00:00:01.37Z instead of 2024-01-01.
+     * the unit rule, identical to the DATETIME arm: the format names the unit, and only in its absence is the number
+     * epoch millis. Without this a column declared {@code {date_nanos, format: epoch_second}} would silently
+     * reinterpret seconds as millis: 1704067200 would read as 1970-01-20T17:21:07.2Z instead of 2024-01-01.
      * <p>
      * This is the pair that was jointly unreachable before the datetime and date_nanos work were reconciled — the
      * resolver rejected a format on a numeric physical, so the combination could not be expressed; once it could, the
@@ -996,6 +1060,10 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
+    /**
+     * A negative epoch has no {@code date_nanos} representation (the {@code TO_DATE_NANOS} range rule): the
+     * lenient read nulls the cell and warns — never a negative nanos long — and the strict read fails.
+     */
     public void testCastNegativeWholeNumberToDateNanosFailsPerValue() {
         List<String> warnings = new ArrayList<>();
         try (
@@ -1012,7 +1080,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         ) {
             assertTrue("negative epoch nulls the cell", cast.isNull(0));
             LongBlock out = (LongBlock) cast;
-            assertEquals("the good cell still decodes", 5L, out.getLong(out.getFirstValueIndex(1)));
+            assertEquals("the good cell still decodes", 5_000_000L, out.getLong(out.getFirstValueIndex(1)));
         }
         assertThat(warnings, hasSize(1));
         assertThat(warnings.get(0), containsString(" as [date_nanos]: "));
@@ -1026,11 +1094,11 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
 
     /**
      * An {@code unsigned_long} source decodes through valueReader's sign-flip decode to the true Number, so a
-     * magnitude &ge; 2^63 arrives as a BigInteger whose longValue() is negative and the non-negative domain
-     * check rejects it per value — a wrapped positive cannot leak. In-domain magnitudes pass identically.
+     * magnitude &ge; 2^63 arrives as a BigInteger whose longValue() would be negative; it is rejected per value
+     * before it could wrap — a wrapped value cannot leak. In-domain magnitudes widen millis to nanos.
      */
     public void testCastUnsignedLongToDateNanosRejectsAboveSignedRangePerValue() {
-        long inRange = NumericUtils.asLongUnsigned(BigInteger.valueOf(1_700_000_000_123_456_789L));
+        long inRange = NumericUtils.asLongUnsigned(BigInteger.valueOf(1_700_000_000_123L));
         long aboveSigned = NumericUtils.asLongUnsigned(new BigInteger("9223372036854775808")); // 2^63
         List<String> warnings = new ArrayList<>();
         try (
@@ -1046,13 +1114,15 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             )
         ) {
             LongBlock out = (LongBlock) cast;
-            assertEquals(1_700_000_000_123_456_789L, out.getLong(out.getFirstValueIndex(0)));
+            assertEquals(1_700_000_000_123_000_000L, out.getLong(out.getFirstValueIndex(0)));
             assertTrue("2^63 has no date_nanos representation — per-value failure, not a wrap", cast.isNull(1));
         }
         assertThat(warnings, hasSize(1));
+        // rejected as the unsigned magnitude it is, not as the negative long a wrap would have produced
+        assertThat(warnings.get(0), containsString("[9223372036854775808] is out of range"));
     }
 
-    /** Multi-value positions coerce element-by-element; a failing element nulls the whole position (bulk semantics). */
+    /** Multi-value positions coerce element-by-element; a failing element is removed and the readable ones kept. */
     public void testCastLongToDateNanosMultiValue() {
         List<String> warnings = new ArrayList<>();
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
@@ -1079,13 +1149,16 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                     LongBlock out = (LongBlock) cast;
                     assertThat(out.getValueCount(0), equalTo(2));
                     int first = out.getFirstValueIndex(0);
-                    assertEquals(1L, out.getLong(first));
-                    assertEquals(2L, out.getLong(first + 1));
-                    assertTrue("bulk semantics null the whole position on a negative element", cast.isNull(1));
+                    assertEquals(1_000_000L, out.getLong(first));
+                    assertEquals(2_000_000L, out.getLong(first + 1));
+                    assertFalse("the negative element is removed, not the position", cast.isNull(1));
+                    assertThat(out.getValueCount(1), equalTo(1));
+                    assertEquals(3_000_000L, out.getLong(out.getFirstValueIndex(1)));
                 }
             }
         }
         assertThat(warnings, hasSize(1));
+        assertThat(warnings.get(0), startsWith(REMOVED));
     }
 
     // ---- per-cell bulk leniency ----
@@ -1208,32 +1281,112 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
-    public void testMultiValuePositionNullsWholePositionOnFailure() {
+    public void testMultiValuePositionKeepsReadableValuesOnFailure() {
         List<String> warnings = new ArrayList<>();
         SkipWarnings sink = capturing(warnings);
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(2)) {
-            builder.beginPositionEntry();
-            builder.appendBytesRef(new BytesRef("1"));
-            builder.appendBytesRef(new BytesRef("oops"));
-            builder.endPositionEntry();
-            builder.beginPositionEntry();
-            builder.appendBytesRef(new BytesRef("2"));
-            builder.appendBytesRef(new BytesRef("3"));
-            builder.endPositionEntry();
-            try (Block source = builder.build()) {
-                try (
-                    Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.LONG, null, blockFactory, "col", sink)
-                ) {
-                    assertTrue("bulk semantics null the whole field, not one element", cast.isNull(0));
-                    LongBlock longs = (LongBlock) cast;
-                    assertThat(longs.getValueCount(1), equalTo(2));
-                    int first = longs.getFirstValueIndex(1);
-                    assertThat(longs.getLong(first), equalTo(2L));
-                    assertThat(longs.getLong(first + 1), equalTo(3L));
-                }
+        try (Block source = multiValueKeywords(List.of("oops", "1", "nope", "4"), List.of("2", "3"))) {
+            try (Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.LONG, null, blockFactory, "col", sink)) {
+                LongBlock longs = (LongBlock) cast;
+                assertThat("a failing value is removed from its cell, the readable ones kept", longs.getValueCount(0), equalTo(2));
+                int first = longs.getFirstValueIndex(0);
+                assertThat(longs.getLong(first), equalTo(1L));
+                assertThat(longs.getLong(first + 1), equalTo(4L));
+                assertThat(longs.getValueCount(1), equalTo(2));
+                first = longs.getFirstValueIndex(1);
+                assertThat(longs.getLong(first), equalTo(2L));
+                assertThat(longs.getLong(first + 1), equalTo(3L));
             }
         }
+        assertThat("one detail per removed value", warnings, hasSize(2));
+        assertThat(warnings.get(0), startsWith(REMOVED + "column [col]: cannot read [keyword] as [long]"));
+        assertThat(warnings.get(1), startsWith(REMOVED));
+    }
+
+    public void testMultiValuePositionNullsWhenNoValueIsReadable() {
+        List<String> warnings = new ArrayList<>();
+        try (Block source = multiValueKeywords(List.of("oops", "nope"), List.of("5", "6"))) {
+            try (
+                Block cast = DeclaredTypeCoercions.castBlock(
+                    source,
+                    DataType.KEYWORD,
+                    DataType.LONG,
+                    null,
+                    blockFactory,
+                    "col",
+                    capturing(warnings)
+                )
+            ) {
+                assertTrue("a cell none of whose values can be read is null", cast.isNull(0));
+                assertThat(cast.getValueCount(1), equalTo(2));
+            }
+        }
+        assertThat(warnings, hasSize(2));
+    }
+
+    /** Under skip_row the row is dropped by the caller: the position is reported once, at its first failure. */
+    public void testMultiValuePositionReportsFirstFailureOnceUnderSkipRow() {
+        List<String> warnings = new ArrayList<>();
+        List<Integer> failed = new ArrayList<>();
+        try (Block source = multiValueKeywords(List.of("2", "3"), List.of("1", "oops", "nope"))) {
+            try (
+                Block cast = DeclaredTypeCoercions.castBlock(
+                    source,
+                    DataType.KEYWORD,
+                    DataType.LONG,
+                    null,
+                    blockFactory,
+                    "col",
+                    capturing(warnings),
+                    failed::add
+                )
+            ) {
+                assertThat(cast.getPositionCount(), equalTo(2));
+                assertThat(cast.getValueCount(0), equalTo(2));
+            }
+        }
+        assertThat(failed, equalTo(List.of(1)));
         assertThat(warnings, hasSize(1));
+        assertThat("a dropped row is not a removal from a multi-valued cell", warnings.get(0), not(startsWith(REMOVED)));
+    }
+
+    public void testMultiValueFailureUnderStrictThrows() {
+        try (Block source = multiValueKeywords(List.of("1", "oops"))) {
+            expectThrows(
+                InvalidArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.LONG, null, blockFactory, "col", null).close()
+            );
+        }
+    }
+
+    public void testUncoercibleColumnUnderStrictThrowsNamingFileColumnAndTypes() {
+        InvalidArgumentException e = expectThrows(
+            InvalidArgumentException.class,
+            () -> DeclaredTypeCoercions.onUncoercibleColumn("flag", "data/a.parquet", DataType.INTEGER, DataType.BOOLEAN, null)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "column [flag] in [data/a.parquet] is [integer] in the file and cannot be read as its declared type [boolean]; "
+                    + "set [error_mode] to [null_field] to return null instead"
+            )
+        );
+    }
+
+    public void testUncoercibleColumnUnderLenientPolicyWarnsOnce() {
+        List<String> emitted = new ArrayList<>();
+        SkipWarnings warnings = new SkipWarnings(DeclaredTypeCoercions.uncoercibleColumnsNullSummary("data/a.parquet"), emitted::add);
+        for (int i = 0; i < 3; i++) {
+            DeclaredTypeCoercions.onUncoercibleColumn("flag", "data/a.parquet", DataType.INTEGER, DataType.BOOLEAN, warnings);
+        }
+        assertThat(
+            emitted,
+            equalTo(
+                List.of(
+                    "Some columns in [data/a.parquet] have a type the query cannot read; returning null",
+                    "column [flag]: [integer] in the file, [boolean] in the query"
+                )
+            )
+        );
     }
 
     public void testNullsAndIdentityPreserved() {
@@ -1310,13 +1463,37 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
+    /** Prefixes the details {@link #capturing} records for a value removed from a multi-valued cell. */
+    private static final String REMOVED = "removed: ";
+
+    /** Records each detail; one recorded as removed from a multi-valued cell carries the {@link #REMOVED} prefix. */
     private static SkipWarnings capturing(List<String> into) {
         return new SkipWarnings("summary") {
             @Override
             public void add(String detail) {
                 into.add(detail);
             }
+
+            @Override
+            public void addRemovedFromMultiValue(String detail) {
+                into.add(REMOVED + detail);
+            }
         };
+    }
+
+    /** A keyword block with one multi-valued position per list. */
+    @SafeVarargs
+    private Block multiValueKeywords(List<String>... positions) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions.length)) {
+            for (List<String> values : positions) {
+                builder.beginPositionEntry();
+                for (String v : values) {
+                    builder.appendBytesRef(new BytesRef(v));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
+        }
     }
 
     /**

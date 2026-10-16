@@ -114,12 +114,12 @@ public final class BehaviorDuelHarness {
         final boolean corpusHasKeywordValues = docs.stream().anyMatch(doc -> doc.nonNullValues().isEmpty() == false);
 
         try {
-            createAndIndex(baseline, docs, plan);
+            createAndIndex(baseline, scenario, docs, plan);
             assertDocValuesFormat(baseline, corpusHasKeywordValues);
             assertBaselineValid(duelName, scenario, baseline, plan, docs, checks);
 
             try {
-                createAndIndex(contender, docs, plan);
+                createAndIndex(contender, scenario, docs, plan);
                 assertDocValuesFormat(contender, corpusHasKeywordValues);
 
                 final DuelContext context = duelContext(duelName, baseline, contender, scenario, plan, docs);
@@ -170,7 +170,7 @@ public final class BehaviorDuelHarness {
     ) {
         final KeywordIndexConfig reference = baseline.withIndexName(baseline.indexName() + "_ref");
         try {
-            createAndIndex(reference, docs, plan);
+            createAndIndex(reference, scenario, docs, plan);
             final DuelContext context = duelContext(duelName, baseline, reference, scenario, plan, docs);
             for (final BehaviorCheck check : checks) {
                 try {
@@ -221,8 +221,19 @@ public final class BehaviorDuelHarness {
         );
     }
 
-    private void createAndIndex(final KeywordIndexConfig config, final List<KeywordDoc> docs, final BehaviorWritePlan plan) {
-        assertAcked(client.admin().indices().prepareCreate(config.indexName()).setSettings(config.settings()).setMapping(mapping()));
+    private void createAndIndex(
+        final KeywordIndexConfig config,
+        final KeywordScenario scenario,
+        final List<KeywordDoc> docs,
+        final BehaviorWritePlan plan
+    ) {
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(config.indexName())
+                .setSettings(config.settings())
+                .setMapping(mapping(scenario.multiValue()))
+        );
         plan.apply(client, config.indexName(), docs, KEYWORD_FIELD);
     }
 
@@ -282,19 +293,17 @@ public final class BehaviorDuelHarness {
         assertAcked(client.admin().indices().prepareDelete(indexName).setIndicesOptions(IndicesOptions.lenientExpandOpen()));
     }
 
-    private static XContentBuilder mapping() {
+    private static XContentBuilder mapping(boolean multiValue) {
         try {
-            return XContentFactory.jsonBuilder()
+            final XContentBuilder builder = XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
                 .startObject(KEYWORD_FIELD)
-                .field("type", "keyword")
-                .endObject()
-                .startObject(DOC_ID_FIELD)
-                .field("type", "long")
-                .endObject()
-                .endObject()
-                .endObject();
+                .field("type", "keyword");
+            if (multiValue == false) {
+                builder.startObject("doc_values").field("multi_value", false).endObject();
+            }
+            return builder.endObject().startObject(DOC_ID_FIELD).field("type", "long").endObject().endObject().endObject();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

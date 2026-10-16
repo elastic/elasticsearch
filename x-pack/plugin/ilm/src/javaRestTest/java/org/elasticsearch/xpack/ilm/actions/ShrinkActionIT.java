@@ -170,7 +170,7 @@ public class ShrinkActionIT extends IlmESRestTestCase {
                 .put(SETTING_NUMBER_OF_SHARDS, 2)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 // required so the shrink doesn't wait on SetSingleNodeAllocateStep
-                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", "test-cluster-0")
+                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", "ilm-cluster-0")
         );
         // index document so snapshot actually does something
         indexDocument(client(), index);

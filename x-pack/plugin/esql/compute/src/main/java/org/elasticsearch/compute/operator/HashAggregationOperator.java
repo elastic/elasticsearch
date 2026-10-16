@@ -168,11 +168,23 @@ public class HashAggregationOperator implements Operator {
 
     public static final int DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD = 100_000;
     public static final double DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD = 0.1;
+    public static final long DEFAULT_PARTITIONING_MEMORY_THRESHOLD = 16L * 1024 * 1024;
+    public static final int DEFAULT_PARTITIONING_NUM_KEYS_THRESHOLD = 400_000;
 
     // TODO: Push down LIMIT only
     public record TopAggregation(int aggregatorIndex, boolean asc, int limit) {}
 
-    public record ParallelConfig(Executor executor, int numWorkers, int pagesPerWorker, int partitionKeysThreshold) {}
+    public record ParallelConfig(
+        Executor executor,
+        int numWorkers,
+        int pagesPerWorker,
+        int partitionKeysThreshold,
+        long partitioningMemoryThreshold
+    ) {
+        public ParallelConfig(Executor executor, int numWorkers, int pagesPerWorker, int partitionKeysThreshold) {
+            this(executor, numWorkers, pagesPerWorker, partitionKeysThreshold, Long.MAX_VALUE);
+        }
+    }
 
     /**
      * Builder for {@link HashAggregationOperator}. {@link #groups(List)}, {@link #mode(AggregatorMode)},
@@ -332,6 +344,7 @@ public class HashAggregationOperator implements Operator {
     protected final DriverContext driverContext;
     private final boolean supportPartitioning;
     private final int partitioningRowThreshold;
+    private final long partitioningMemoryThreshold;
     private final ParallelConfig parallelConfig;
 
     // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
@@ -410,6 +423,7 @@ public class HashAggregationOperator implements Operator {
         this.topAggregation = topAggregation;
         this.parallelConfig = parallelConfig;
         this.partitioningRowThreshold = parallelConfig != null ? parallelConfig.partitionKeysThreshold : Integer.MAX_VALUE;
+        this.partitioningMemoryThreshold = parallelConfig != null ? parallelConfig.partitioningMemoryThreshold : Long.MAX_VALUE;
         boolean success = false;
         try {
             this.blockHash = blockHashSupplier.apply(driverContext);
@@ -476,7 +490,7 @@ public class HashAggregationOperator implements Operator {
     @Override
     public Operator tryPromote(DriverContext driverContext) {
         if (partitionedAggregationBlocks.isEmpty() == false
-            || (supportPartitioning && aggregatorMode.isOutputPartial() == false && blockHash.numKeys() >= partitioningRowThreshold)) {
+            || (supportPartitioning && aggregatorMode.isOutputPartial() == false && partitioningThresholdReached())) {
             var parallelOp = new ParallelHashAggregationOperator(parallelConfig, this);
             Releasables.close(this);
             return parallelOp;
@@ -656,11 +670,13 @@ public class HashAggregationOperator implements Operator {
             return true;
         }
         // Partition when the current batch reaches the threshold.
-        if (blockHash.numKeys() >= partitioningRowThreshold) {
+        if (partitioningThresholdReached()) {
             return true;
         }
         // For the final batch, partition at 75% of the threshold.
-        return finished && blockHash.numKeys() >= Math.toIntExact((partitioningRowThreshold * 3L + 3L) / 4L);
+        return finished
+            && (blockHash.numKeys() >= Math.toIntExact((partitioningRowThreshold * 3L + 3L) / 4L)
+                || estimatedBytesForPartitioning() >= partitioningMemoryThreshold - partitioningMemoryThreshold / 4);
     }
 
     /**
@@ -701,7 +717,7 @@ public class HashAggregationOperator implements Operator {
         }
         final int numKeys = blockHash.numKeys();
         if (partitionedPartialOutput) {
-            return numKeys >= partitioningRowThreshold;
+            return partitioningThresholdReached();
         } else {
             if (numKeys < partialEmitKeysThreshold) {
                 return false;
@@ -712,6 +728,19 @@ public class HashAggregationOperator implements Operator {
 
     protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash) {
         return new GroupingAggregatorEvaluationContext(driverContext);
+    }
+
+    boolean partitioningThresholdReached() {
+        return blockHash.numKeys() >= partitioningRowThreshold || estimatedBytesForPartitioning() >= partitioningMemoryThreshold;
+    }
+
+    private long estimatedBytesForPartitioning() {
+        if (blockHash instanceof PartitionedBlockHash partitioned) {
+            return partitioned.estimatedBytesForPartitioning();
+        } else {
+            assert false : "expected a partitioned block hash; got " + blockHash;
+            return -1;
+        }
     }
 
     @Override

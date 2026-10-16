@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -53,6 +55,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -111,6 +114,7 @@ public class TestAnalyzer {
     private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
     private boolean stripErrorPrefix;
     private Map<String, String> views = new LinkedHashMap<>();
+    private EsqlFlags flags = EsqlFlags.DEFAULTS;
 
     TestAnalyzer() {}
 
@@ -124,6 +128,14 @@ public class TestAnalyzer {
 
     protected Configuration configuration() {
         return configuration;
+    }
+
+    /**
+     * Set the cluster-level {@link EsqlFlags}, for example to lower a query-wide limit the analyzer enforces.
+     */
+    public TestAnalyzer flags(EsqlFlags flags) {
+        this.flags = flags;
+        return this;
     }
 
     /**
@@ -581,6 +593,14 @@ public class TestAnalyzer {
     }
 
     /**
+     * Add an inference resolution with the similarity measure used by the endpoint.
+     */
+    public TestAnalyzer addInferenceResolution(String inferenceId, TaskType taskType, SimilarityMeasure similarity) {
+        this.inferenceResolution.withResolvedInference(new ResolvedInference(inferenceId, taskType, similarity));
+        return this;
+    }
+
+    /**
      * Add an error in inference resolution.
      */
     public TestAnalyzer addInferenceResolutionError(String inferenceId, String reason) {
@@ -688,10 +708,11 @@ public class TestAnalyzer {
                 ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
                 : new NamedSubquery(view.source(), view, indexPattern);
         }).toList();
+        boolean keepViewWrapper = MetadataAttribute.requestsRelationColumn(ur.metadataFields());
         if (resolved.size() == 1) {
             var subplan = resolved.get(0);
             if (subplan instanceof NamedSubquery n) {
-                return n.child();
+                return keepViewWrapper ? n : n.child();
             }
             return subplan;
         }
@@ -715,11 +736,11 @@ public class TestAnalyzer {
         }
         Set<String> viewBranchKeys = new HashSet<>();
         for (NamedSubquery namedSubquery : namedSubqueries) {
-            subplans.put(namedSubquery.name(), namedSubquery.child());
+            subplans.put(namedSubquery.name(), keepViewWrapper ? namedSubquery : namedSubquery.child());
             viewBranchKeys.add(namedSubquery.name());
         }
         if (subplans.size() == 1) {
-            return namedSubqueries.get(0).child();
+            return subplans.values().iterator().next();
         } else {
             return new ViewUnionAll(ur.source(), subplans, viewBranchKeys, List.of());
         }
@@ -991,7 +1012,8 @@ public class TestAnalyzer {
             unmappedResolution,
             timestampBounds,
             TEST_IP_LOCATION_RESOLUTION,
-            false
+            false,
+            flags
         );
     }
 

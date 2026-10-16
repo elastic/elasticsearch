@@ -285,8 +285,12 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
         assertBusy(() -> {
             final ThreadPoolStats.Stats stats = executorStats(threadPool, executorName);
             assertThat(stats, is(notNullValue()));
-            assertThat(stats.completed(), greaterThan(previouslyObservedCompletedTasks));
-            assertThat(stats.active() + stats.queue(), is(0));
+            assertThat(
+                "[" + executorName + "] completed no task since baseline [" + previouslyObservedCompletedTasks + "]: " + stats,
+                stats.completed(),
+                greaterThan(previouslyObservedCompletedTasks)
+            );
+            assertThat("[" + executorName + "] still has active or queued tasks: " + stats, stats.active() + stats.queue(), is(0));
         });
     }
 
@@ -305,10 +309,22 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
 
             long executorTasksCompleted = shardReadStats.completed() + fillVbccStats.completed();
             long executorTasksBaseline = shardReadCompletedBaseline + fillVbccCompletedBaseline;
-            assertThat(executorTasksCompleted, greaterThan(executorTasksBaseline));
+            assertThat(
+                "no task completed since baseline [" + executorTasksBaseline + "] on " + shardReadStats + " and " + fillVbccStats,
+                executorTasksCompleted,
+                greaterThan(executorTasksBaseline)
+            );
 
-            assertThat(shardReadStats.active() + shardReadStats.queue(), is(0));
-            assertThat(fillVbccStats.active() + fillVbccStats.queue(), is(0));
+            assertThat(
+                "[" + shardReadThreadPool + "] still has active or queued tasks: " + shardReadStats,
+                shardReadStats.active() + shardReadStats.queue(),
+                is(0)
+            );
+            assertThat(
+                "[" + fillVbccThreadPool + "] still has active or queued tasks: " + fillVbccStats,
+                fillVbccStats.active() + fillVbccStats.queue(),
+                is(0)
+            );
         });
     }
 
@@ -374,10 +390,18 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            WarmingRatioProvider warmingRatioProvider,
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             // no-op the warming on shard recovery so we can manually fetch ranges into the cache on the search tier
-            return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider) {
+            return new SharedBlobCacheWarmingService(
+                cacheService,
+                threadPool,
+                telemetryProvider,
+                clusterSettings,
+                warmingRatioProvider,
+                searchRecoveryTimeoutCalculationService
+            ) {
                 @Override
                 protected void warmCache(
                     Type type,

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -17,7 +18,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +27,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -40,21 +41,11 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  */
 public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanVerificationAware, ExecutesOn.Coordinator {
 
-    public static final int MAX_BRANCHES = 8;
     private final List<Attribute> output;
 
     protected MergePlan(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
         this.output = output;
-    }
-
-    /**
-     * Branch-count predicate shared by every {@link MergePlan} and any caller that wants to fail
-     * earlier with a more user-facing message. Returns {@code true} if {@code count} would exceed the
-     * branch cap. Centralizes the comparison so the cap can move in one place.
-     */
-    public static boolean exceedsMaxBranches(int count) {
-        return count > MAX_BRANCHES;
     }
 
     @Override
@@ -148,7 +139,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
 
     protected List<Attribute> refreshedOutput() {
         List<Attribute> converted = toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
-        // LOAD_ALL stamps $$unmapped_fields; preserve type-conflict UnsupportedAttributes that alignment Eval-null'd in children.
+        // LOAD_ALL stamps _unmapped_fields; preserve type-conflict UnsupportedAttributes that alignment Eval-null'd in children.
         if (unmappedFieldsAttributeFromChildren() != null) {
             converted = keepExistingUnsupportedAttributes(converted, this.output());
         }
@@ -162,7 +153,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         }
         for (int i = 0; i < converted.size(); i++) {
             if (converted.get(i).name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
-                // Keep the subtype so coordinator expansion can find $$unmapped_fields after the merge.
+                // Keep the subtype so that _unmapped_fields is found after the merge and returned.
                 converted.set(i, ufa.withId(converted.get(i).id()));
                 break;
             }
@@ -251,49 +242,23 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        return MergePlan::checkBranchCount;
-    }
-
-    /**
-     * Branch-count bounds shared by all {@link MergePlan} subclasses (Fork, UnionAll, ViewUnionAll).
-     * Lives at post-analysis verification rather than the constructor so that compaction
-     * passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both
-     * {@code Fork::checkFork} and {@code UnionAll::checkUnionAll} since each subclass dispatches
-     * to its own {@link #postAnalysisPlanVerification()} override.
-     * <p>
-     * The lower bound (≥ 1 branch) catches invalid plans where {@link #pruneEmptyBranches}
-     * removed every branch — e.g. a CCS subquery whose {@code IndexResolution} came back
-     * {@code EMPTY_SUBQUERY} for every sibling. The {@code PruneEmptyMergeBranches} optimizer
-     * rule short-circuits this case to a {@code LocalRelation}; rules that don't (the analyzer's
-     * {@code PruneEmptyUnionAllBranch}, {@code ViewCompaction.stripViewShadowRelations}) rely on
-     * this check to surface the bad state with a clear message rather than letting an empty
-     * {@code MergePlan} propagate silently.
-     */
-    static void checkBranchCount(LogicalPlan plan, Failures failures) {
-        if (plan instanceof MergePlan merge) {
-            int size = merge.children().size();
-            if (exceedsMaxBranches(size)) {
-                failures.add(Failure.fail(merge, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
-            } else if (size == 0) {
-                failures.add(Failure.fail(merge, "{} requires at least one branch", merge.getClass().getSimpleName()));
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification(
+        AnalysisRegistry analysisRegistry,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+        return (plan, failures) -> {
+            if (plan != this) {
+                return;
             }
-        }
+            checkBranchCount(plan, failures, pragmas, flags);
+            postAnalysisPlanVerification().accept(plan, failures);
+        };
     }
 
-    /**
-     * Traverses the plan tree downward, invoking {@code action} for each {@link MergePlan} encountered,
-     * but does not descend into the right-hand side (subquery plan) of an {@link AbstractSubqueryJoin}.
-     * The right side is a separate query scope; a FORK or merge inside it is independent of any FORK
-     * or merge in the enclosing query.
-     */
-    static void forEachMergePlanSkippingSubqueries(LogicalPlan plan, Consumer<MergePlan> action) {
-        if (plan instanceof MergePlan merge) {
-            action.accept(merge);
-        }
-        List<LogicalPlan> children = plan instanceof AbstractSubqueryJoin join ? List.of(join.left()) : plan.children();
-        for (LogicalPlan child : children) {
-            forEachMergePlanSkippingSubqueries(child, action);
+    void checkBranchCount(LogicalPlan plan, Failures failures, QueryPragmas pragmas, EsqlFlags flags) {
+        if (plan.children().isEmpty()) {
+            failures.add(Failure.fail(plan, "{} requires at least one branch", plan.getClass().getSimpleName()));
         }
     }
 }

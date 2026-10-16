@@ -518,12 +518,11 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     }
 
     // =========================================================================
-    // ColumNAR codec: the doc-values blob is a payload rather than the bare value
+    // ColumNAR codec: the doc-values blob is a payload, or the bare value for multi_value=false
     //
-    // Under the codec a field's doc values are a ColumnarBinaryDocValuesField payload, carrying their
-    // slot count in the blob, whatever the field's cardinality. That is the one output the batch path
-    // cannot take straight from the source column, so these pin it against the row path — the check
-    // that catches a bare value written where a payload is read.
+    // Under the codec a multi-valued field's doc values are a ColumnarBinaryDocValuesField payload and a
+    // multi_value=false field's are the bare value. The batch path cannot take the payload straight from
+    // the source column, so these pin both framings against the row path.
     // =========================================================================
 
     private static Settings columnarCodecSettings() {
@@ -538,17 +537,17 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
     }
 
-    public void testColumnarCodecSingleValueMultiValueFalse() throws IOException {
+    public void testColumnarCodecSingleValue() throws IOException {
         assumeColumnarCodecEnabled();
-        // A lone value still travels with its count, so the blob is never the bare term.
+        final boolean multiValue = randomBoolean();
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.startObject("doc_values").field("multi_value", multiValue).endObject();
             b.endObject();
         }),
             columnarCodecSettings(),
             batch(
-                "columnar codec single value multi_value=false",
+                "columnar codec single value multi_value=" + multiValue,
                 1L,
                 doc("d1", 1L, "{\"f\":\"hello\"}"),
                 doc("d2", 2L, "{}"),
@@ -558,30 +557,37 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testColumnarCodecNoIndexDocValuesOnlyMultiValueFalse() throws IOException {
+    public void testColumnarCodecNoIndexDocValuesOnly() throws IOException {
         assumeColumnarCodecEnabled();
-        // index:false — the payload column is the only output, so it cannot ride along with a terms column.
+        final boolean multiValue = randomBoolean();
+        // index:false, so the doc-values column is the only output and cannot ride along with a terms column.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("index", false);
-            b.startObject("doc_values").field("multi_value", false).endObject();
-            b.endObject();
-        }),
-            columnarCodecSettings(),
-            batch("columnar codec no-index dv-only multi_value=false", 1L, doc("d1", 1L, "{\"f\":\"only_dv\"}"), doc("d2", 2L, "{}"))
-        );
-    }
-
-    public void testColumnarCodecIgnoreAboveMultiValueFalse() throws IOException {
-        assumeColumnarCodecEnabled();
-        // A value that trips ignore_above writes no payload, and deoptimizes the shared terms column it would have ridden on.
-        assertColumnarMatchesXContent(mapping(b -> {
-            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.startObject("doc_values").field("multi_value", multiValue).endObject();
             b.endObject();
         }),
             columnarCodecSettings(),
             batch(
-                "columnar codec ignore_above multi_value=false",
+                "columnar codec no-index dv-only multi_value=" + multiValue,
+                1L,
+                doc("d1", 1L, "{\"f\":\"only_dv\"}"),
+                doc("d2", 2L, "{}")
+            )
+        );
+    }
+
+    public void testColumnarCodecIgnoreAbove() throws IOException {
+        assumeColumnarCodecEnabled();
+        final boolean multiValue = randomBoolean();
+        // A value that trips ignore_above writes no doc value, and deoptimizes the shared terms column it would have ridden on.
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("ignore_above", 8);
+            b.startObject("doc_values").field("multi_value", multiValue).endObject();
+            b.endObject();
+        }),
+            columnarCodecSettings(),
+            batch(
+                "columnar codec ignore_above multi_value=" + multiValue,
                 1L,
                 doc("d1", 1L, "{\"f\":\"toolongvalue\"}"),
                 doc("d2", 2L, "{\"f\":\"short\"}"),
@@ -590,16 +596,17 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testColumnarCodecNullValueSubstitutionMultiValueFalse() throws IOException {
+    public void testColumnarCodecNullValueSubstitution() throws IOException {
         assumeColumnarCodecEnabled();
+        final boolean multiValue = randomBoolean();
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("null_value", "NULL");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.startObject("doc_values").field("multi_value", multiValue).endObject();
             b.endObject();
         }),
             columnarCodecSettings(),
             batch(
-                "columnar codec null_value substitution multi_value=false",
+                "columnar codec null_value substitution multi_value=" + multiValue,
                 1L,
                 doc("d1", 1L, "{\"f\":null}"),
                 doc("d2", 2L, "{\"f\":\"a\"}"),
@@ -608,17 +615,18 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
-    public void testColumnarCodecScalarCoercionsMultiValueFalse() throws IOException {
+    public void testColumnarCodecScalarCoercions() throws IOException {
         assumeColumnarCodecEnabled();
-        // A non-STRING source column is built through the shared builder; the payload column is built beside it either way.
+        final boolean multiValue = randomBoolean();
+        // A non-STRING source column is built through the shared builder, whichever framing the doc values take.
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.startObject("doc_values").field("multi_value", multiValue).endObject();
             b.endObject();
         }),
             columnarCodecSettings(),
             batch(
-                "columnar codec scalar coercions multi_value=false",
+                "columnar codec scalar coercions multi_value=" + multiValue,
                 1L,
                 doc("d1", 1L, "{\"f\":42}"),
                 doc("d2", 2L, "{\"f\":3.14}"),

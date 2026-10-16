@@ -446,6 +446,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterExpressionModeIdentifierPattern(EsqlBaseParser.ExpressionModeIdentifierPatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitExpressionModeIdentifierPattern(EsqlBaseParser.ExpressionModeIdentifierPatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterInputParam(EsqlBaseParser.InputParamContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1005,6 +1017,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFillNullValue(EsqlBaseParser.FillNullValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFillNullValue(EsqlBaseParser.FillNullValueContext ctx) { }
   /**
    * {@inheritDoc}
    *

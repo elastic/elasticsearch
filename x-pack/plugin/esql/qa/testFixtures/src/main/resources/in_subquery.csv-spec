@@ -3512,16 +3512,20 @@ caseWhenInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_case_coalesce_is_null
 
+// tag::case_when_in_subquery[]
 FROM employees
 | WHERE CASE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), true, false)
 | SORT emp_no
 | KEEP emp_no, first_name
+// end::case_when_in_subquery[]
 ;
 
+// tag::case_when_in_subquery-result[]
 emp_no:integer | first_name:keyword
 10001          | Georgi
 10002          | Bezalel
 10003          | Parto
+// end::case_when_in_subquery-result[]
 ;
 
 caseWhenNotInSubquery
@@ -3570,16 +3574,20 @@ coalesceInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_case_coalesce_is_null
 
+// tag::coalesce_in_subquery[]
 FROM employees
 | WHERE COALESCE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), false)
 | SORT emp_no
 | KEEP emp_no, first_name
+// end::coalesce_in_subquery[]
 ;
 
+// tag::coalesce_in_subquery-result[]
 emp_no:integer | first_name:keyword
 10001          | Georgi
 10002          | Bezalel
 10003          | Parto
+// end::coalesce_in_subquery-result[]
 ;
 
 coalesceNotInSubquery
@@ -3613,14 +3621,18 @@ isNullInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_case_coalesce_is_null
 
+// tag::is_null_in_subquery[]
 FROM employees
 | WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) IS NULL
 | STATS c = COUNT(*)
+// end::is_null_in_subquery[]
 ;
 
 // IS NULL of a non-null mark is always FALSE so no employees pass
+// tag::is_null_in_subquery-result[]
 c:long
 0
+// end::is_null_in_subquery-result[]
 ;
 
 caseWithConjunctiveInSubqueries
@@ -4295,16 +4307,20 @@ inSubqueryInEquals
 required_capability: where_in_subquery_without_view
 required_capability: where_in_subquery_with_equals_not_equals
 
+// tag::in_subquery_in_equals[]
 FROM employees
 | WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) == true
 | SORT emp_no
 | KEEP emp_no, first_name
+// end::in_subquery_in_equals[]
 ;
 
+// tag::in_subquery_in_equals-result[]
 emp_no:integer | first_name:keyword
 10001          | Georgi
 10002          | Bezalel
 10003          | Parto
+// end::in_subquery_in_equals-result[]
 ;
 
 inSubqueryInNotEquals
@@ -4453,18 +4469,22 @@ inSubqueryInEval
 required_capability: where_in_subquery_without_view
 required_capability: eval_in_subquery
 
+// tag::in_subquery_in_eval[]
 FROM employees
 | EVAL m = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
 | WHERE emp_no <= 10004
 | SORT emp_no ASC
 | KEEP emp_no, m
+// end::in_subquery_in_eval[]
 ;
 
+// tag::in_subquery_in_eval-result[]
 emp_no:integer | m:boolean
 10001          | true
 10002          | true
 10003          | true
 10004          | false
+// end::in_subquery_in_eval-result[]
 ;
 
 notInSubqueryInEval
@@ -4670,18 +4690,22 @@ caseWithInSubqueryInEval
 required_capability: where_in_subquery_without_view
 required_capability: eval_in_subquery
 
+// tag::case_with_in_subquery_in_eval[]
 FROM employees
 | EVAL m = CASE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), "yes", "no")
 | WHERE emp_no <= 10004
 | SORT emp_no ASC
 | KEEP emp_no, m
+// end::case_with_in_subquery_in_eval[]
 ;
 
+// tag::case_with_in_subquery_in_eval-result[]
 emp_no:integer | m:keyword
 10001          | yes
 10002          | yes
 10003          | yes
 10004          | no
+// end::case_with_in_subquery_in_eval-result[]
 ;
 
 coalesceWithInSubqueryInEval
@@ -4993,12 +5017,16 @@ inSubqueryInStatsWhere
 required_capability: where_in_subquery_without_view
 required_capability: stats_where_in_subquery
 
+// tag::in_subquery_in_stats_where[]
 FROM employees
 | STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+// end::in_subquery_in_stats_where[]
 ;
 
+// tag::in_subquery_in_stats_where-result[]
 c:long
 3
+// end::in_subquery_in_stats_where-result[]
 ;
 
 notInSubqueryInStatsWhere
@@ -5017,14 +5045,18 @@ multipleInSubqueryInStatsWhere
 required_capability: where_in_subquery_without_view
 required_capability: stats_where_in_subquery
 
+// tag::multiple_in_subqueries_in_stats_where[]
 FROM employees
 | STATS in_top3 = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
         not_in_top3 = COUNT(*) WHERE emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
         total = COUNT(*)
+// end::multiple_in_subqueries_in_stats_where[]
 ;
 
+// tag::multiple_in_subqueries_in_stats_where-result[]
 in_top3:long | not_in_top3:long | total:long
 3            | 97               | 100
+// end::multiple_in_subqueries_in_stats_where-result[]
 ;
 
 inSubqueryInStatsWhereWithGroupBy
@@ -5537,19 +5569,23 @@ inSubqueryInInlineStatsWhere
 required_capability: where_in_subquery_without_view
 required_capability: inline_stats_where_in_subquery
 
+// tag::in_subquery_in_inline_stats_where[]
 FROM employees
 | KEEP emp_no
 | INLINE STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
 | WHERE emp_no <= 10005
 | SORT emp_no
+// end::in_subquery_in_inline_stats_where[]
 ;
 
+// tag::in_subquery_in_inline_stats_where-result[]
 emp_no:integer | c:long
 10001          | 3
 10002          | 3
 10003          | 3
 10004          | 3
 10005          | 3
+// end::in_subquery_in_inline_stats_where-result[]
 ;
 
 notInSubqueryInInlineStatsWhere

@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 161394
+ - 161473
+pr: 161738
+summary: "ESQL:DS: Guard late TopN threshold rebuild"
+type: bug

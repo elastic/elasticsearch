@@ -90,8 +90,22 @@ public final class SimdJsonTestDocuments {
                 {"n":1.5}""", """
                 {"n":1e2}""", """
                 {"n":12.5}""", """
+                {"n":1.5e-5}""", """
                 {"a":[0,9,10,99,100,1234567890,-5,-99]}""", """
-                {"a":[1.5,12.5]}""",
+                {"a":[1.5,12.5,2e5]}""",
+                // Valid shapes near the strict-number checks: signed exponents, zero fractions,
+                // and whitespace after a fraction/exponent, as field values and array elements.
+                """
+                {"n":1e+5}""", """
+                {"n":1E-5}""", """
+                {"n":-1.5e+3}""", """
+                {"n":-0.0}""", """
+                {"n":1.0e0}""", """
+                {"n":1.5 ,"m":2 }""", """
+                {"n":1e5\t,"m":2\n}""", """
+                {"a":[1e+5,1E-5,-0.0]}""", """
+                {"a":[1.5 ,2e5\t,3\n]}""", """
+                {"a":[[1],[2.5],[3e0]]}""",
                 // Integer digit-count boundary at 19 (long vs. BigInteger fallback): exactly 19
                 // digits fitting a signed long (both sign boundaries), 19 digits overflowing it
                 // (both sign boundaries), and 20+ digits (always BigInteger), and the same
@@ -149,6 +163,48 @@ public final class SimdJsonTestDocuments {
         docs.add("{\"longRaw\":\"" + "a".repeat(150) + "café" + "a".repeat(50) + "\"}");
         docs.add("{\"arrLong\":[\"" + "a".repeat(200) + "\",\"" + "b".repeat(100) + "\\t" + "c".repeat(80) + "\"]}");
         docs.add("{\"objArrLong\":[{\"a\":\"" + "a".repeat(200) + "\",\"b\":\"" + "b".repeat(120) + "\\n" + "b".repeat(60) + "\"}]}");
+        return List.copyOf(docs);
+    }
+
+    /**
+     * Malformed documents that both simdjson and Jackson/XContent are expected to reject.
+     * Grouped by RFC 8259 rule violated.
+     */
+    public static List<String> invalidDocumentsRejectedByBothParsers() {
+        List<String> docs = new ArrayList<>();
+        // tag::noformat
+        Collections.addAll(
+            docs,
+            // Unescaped control characters (RFC 8259: U+0000-U+001F must be escaped), in a
+            // string value and in a field name.
+            "{\"a\":\"x" + '\n' + "y\"}",
+            "{\"a\":\"x" + '\t' + "y\"}",
+            "{\"a\":\"x" + (char) 1 + "y\"}",
+            "{\"a" + (char) 1 + "b\":1}",
+            // Unrecognized or incomplete escapes.
+            """
+                {"a":"x\\qy"}""", """
+                {"a":"x\\u12"}""",
+            // Grammar errors: missing/extra/misplaced structural characters.
+            """
+                {"a" 1}""", """
+                {"a":1 "b":2}""", """
+                {"a":[1 2]}""", """
+                {"a":[,1]}""", """
+                {'a':1}""", """
+                {a:1}""", """
+                {"a":1,,"b":2}""", """
+                {"a":1:"b":2}""", """
+                {"a":[1,2}""",
+            // Non-standard number tokens (JsonReadFeature-gated in Jackson; simdjson has no
+            // equivalent opt-in).
+            """
+                {"a":NaN}""", """
+                {"a":Infinity}""", """
+                {"a":+1}""", """
+                {"a":0x1A}"""
+        );
+        // end::noformat
         return List.copyOf(docs);
     }
 }

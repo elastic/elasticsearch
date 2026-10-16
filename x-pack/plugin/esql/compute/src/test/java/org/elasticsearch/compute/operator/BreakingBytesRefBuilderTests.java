@@ -100,7 +100,9 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
         ObjectArray<BreakingBytesRefBuilder> builders = bigArrays.newObjectArray(numBuilders);
         for (int i = 0; i < numBuilders; i++) {
             // Leave some slots null too -- closeAll must skip them, not just batch over them.
-            if (randomBoolean()) {
+            // Index 0 is always populated so there's always at least one builder to release;
+            // otherwise closeAll legitimately has nothing to release and skips the breaker call.
+            if (i == 0 || randomBoolean()) {
                 builders.set(i, new BreakingBytesRefBuilder(countingBreaker, "test", randomIntBetween(0, 64)));
             }
         }

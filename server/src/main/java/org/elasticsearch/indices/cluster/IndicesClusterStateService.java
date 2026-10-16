@@ -138,6 +138,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Setting.Property.NodeScope
     );
 
+    /**
+     * Enable / disable local retry functionality on recovery failure.
+     */
+    public static final Setting<Boolean> INDICES_RECOVERY_LOCAL_RETRY_SETTING = Setting.boolSetting(
+        "indices.recovery.local_retry",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -167,6 +177,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final NodeClient client;
     private final TimeValue shardLockRetryInterval;
     private final TimeValue shardLockRetryTimeout;
+    private volatile boolean localRecoveryRetryEnabled;
 
     private final Executor shardCloseExecutor;
 
@@ -242,6 +253,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.shardLockRetryInterval = SHARD_LOCK_RETRY_INTERVAL_SETTING.get(settings);
         this.shardLockRetryTimeout = SHARD_LOCK_RETRY_TIMEOUT_SETTING.get(settings);
         this.shardCloseExecutor = new ShardCloseExecutor(settings, threadPool.generic());
+        // setting only registered in tests today
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(INDICES_RECOVERY_LOCAL_RETRY_SETTING, b -> localRecoveryRetryEnabled = b);
     }
 
     @Override
@@ -287,6 +301,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             closingMoreShards = true;
             return currentClusterStateShardsClosedListeners.acquire();
         }
+    }
+
+    // package private for tests
+    boolean getLocalRecoveryRetryEnabled() {
+        return localRecoveryRetryEnabled;
     }
 
     /**
@@ -595,6 +614,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetadata existingMetadata = indexService.getIndexSettings().getIndexMetadata();
 
             IndexRemovalReason reason = null;
+            boolean cleanUpRemovedShards = false;
             if (indexMetadata != null && indexMetadata.getState() != existingMetadata.getState()) {
                 reason = indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : REOPENED;
             } else if (indexMetadata != null && isRestoreHistoryUuidTransition(existingMetadata, indexMetadata)) {
@@ -621,9 +641,23 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 reason = indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
             }
 
+            // A restore (over an open or a closed index) may have reduced the shard count. If this node keeps shards of the index then the
+            // cleanup happens when the index service is recreated (see createIndicesAndUpdateShards), otherwise nothing else would ever
+            // remove the stores of the removed shards.
+            if (reason != null
+                && indexMetadata != null
+                && indexMetadata.getNumberOfShards() < existingMetadata.getNumberOfShards()
+                && historyUUID(existingMetadata).equals(historyUUID(indexMetadata)) == false
+                && (localRoutingNode == null || localRoutingNode.hasIndex(index) == false)) {
+                cleanUpRemovedShards = true;
+            }
+
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
                 indicesService.removeIndex(index, reason, "removing index (" + reason + ")", shardCloseExecutor, getShardsClosedListener());
+                if (cleanUpRemovedShards) {
+                    deleteStoresOfShardsOutsideIndexRange(indexMetadata);
+                }
             } else {
                 // remove shards based on routing nodes (no deletion of data)
                 for (Shard shard : indexService) {
@@ -812,7 +846,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             for (ShardRouting shardRouting : entry.getValue()) {
                 createOrUpdateShard(state, shardRouting, indexService);
             }
+            // Also covers stores left behind by a restore that reduced the shard count, whether this node was restarted since or the
+            // index service was just recreated by that restore.
+            deleteStoresOfShardsOutsideIndexRange(indexMetadata);
         }
+    }
+
+    /**
+     * Removes stores of shards that are beyond the index's current shard count, which a restore over an existing index can leave
+     * behind. Waits for shards closed by this and earlier cluster states so that the shard locks are released first. A failure is
+     * only logged: the next time the index service is created on this node (e.g. after a restart) will try again.
+     */
+    private void deleteStoresOfShardsOutsideIndexRange(IndexMetadata indexMetadata) {
+        onClusterStateShardsClosed(
+            () -> indicesService.deleteShardsOutsideIndexRange(
+                indexMetadata,
+                ActionListener.wrap(
+                    ignored -> {},
+                    e -> logger.debug(() -> format("failed to clean up stores of shards removed from %s", indexMetadata.getIndex()), e)
+                )
+            )
+        );
     }
 
     private void createOrUpdateShard(ClusterState state, ShardRouting shardRouting, AllocatedIndex<? extends Shard> indexService) {
@@ -1287,7 +1341,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
             if (failureStrategy == FailureStrategy.ABORT) {
                 // We don't need to notify master of anything here because recovery abortion is a
                 // symptom of a shard that is closing and this is communicated to master through other
@@ -1577,6 +1631,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             Executor shardCloseExecutor,
             ActionListener<Void> shardsClosedListener
         );
+
+        /**
+         * Deletes the on-disk stores of any shards of the given index whose ID is not below its current number of shards, for example
+         * because a restore reduced the shard count. Runs asynchronously, off the calling thread.
+         *
+         * @param metadata the current metadata of the index
+         * @param listener completed when all such stores have been deleted
+         */
+        void deleteShardsOutsideIndexRange(IndexMetadata metadata, ActionListener<Void> listener);
 
         /**
          * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.

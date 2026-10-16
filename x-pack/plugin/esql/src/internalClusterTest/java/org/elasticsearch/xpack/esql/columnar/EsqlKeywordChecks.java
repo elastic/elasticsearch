@@ -11,13 +11,16 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.codec.columnar.BehaviorCheck;
 import org.elasticsearch.test.codec.columnar.DuelContext;
+import org.elasticsearch.test.codec.columnar.KeywordDoc;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,6 +59,7 @@ public final class EsqlKeywordChecks {
             new ExistsCheck(),
             new IsNullCheck(),
             new SortCheck(),
+            new LengthCheck(),
             new StatsByKeywordCheck(),
             new CountDistinctCheck(),
             new ValueCountCheck(),
@@ -274,6 +278,55 @@ public final class EsqlKeywordChecks {
                 );
             }
             assertEquals(context + " stage=[contender-vs-baseline]", baseline, contender);
+        }
+    }
+
+    /**
+     * LENGTH and BYTE_LENGTH, which the planner pushes into the field's doc-values loader rather than computing over loaded
+     * values. Each answers for a document holding exactly one value and is null otherwise, so every document's answer is
+     * known from the corpus.
+     */
+    static final class LengthCheck implements BehaviorCheck {
+        @Override
+        public String name() {
+            return "esql_length";
+        }
+
+        @Override
+        public void check(final DuelContext ctx) {
+            final String query = "FROM %s | EVAL n = LENGTH("
+                + ctx.keywordField()
+                + "), b = BYTE_LENGTH("
+                + ctx.keywordField()
+                + ") | KEEP "
+                + ctx.docIdField()
+                + ", n, b | SORT "
+                + ctx.docIdField();
+            final List<String> expected = new ArrayList<>(ctx.docs().size());
+            for (final KeywordDoc doc : ctx.docs().stream().sorted(Comparator.comparingLong(KeywordDoc::docId)).toList()) {
+                final List<String> values = doc.nonNullValues();
+                if (values.size() == 1) {
+                    final String value = values.get(0);
+                    expected.add(
+                        doc.docId() + "|" + value.codePointCount(0, value.length()) + "|" + value.getBytes(StandardCharsets.UTF_8).length
+                    );
+                } else {
+                    expected.add(doc.docId() + "|null|null");
+                }
+            }
+            final List<String> baseline = lengthRows(runEsql(ctx.client(), Strings.format(query, ctx.baselineIndex())));
+            final List<String> contender = lengthRows(runEsql(ctx.client(), Strings.format(query, ctx.contenderIndex())));
+            final String context = ctx.failureContext(name());
+            assertEquals(context + " stage=[baseline-oracle]", expected, baseline);
+            assertEquals(context + " stage=[contender-vs-baseline]", baseline, contender);
+        }
+
+        private static List<String> lengthRows(final List<List<Object>> rows) {
+            final List<String> ordered = new ArrayList<>(rows.size());
+            for (final List<Object> row : rows) {
+                ordered.add(((Number) row.get(0)).longValue() + "|" + row.get(1) + "|" + row.get(2));
+            }
+            return ordered;
         }
     }
 

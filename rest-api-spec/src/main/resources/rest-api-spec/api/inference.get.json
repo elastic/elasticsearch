@@ -43,6 +43,7 @@
               "options": [
                 "chat_completion",
                 "completion",
+                "document_extraction",
                 "embedding",
                 "rerank",
                 "sparse_embedding",

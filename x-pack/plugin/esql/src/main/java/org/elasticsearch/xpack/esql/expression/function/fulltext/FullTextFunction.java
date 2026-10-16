@@ -232,8 +232,6 @@ public abstract class FullTextFunction extends Function
      * Whether this function can search an expression at all, as opposed to {@link #isRuntimeSearch()}, which says
      * whether the call in hand does. A function that cannot has no alternative to offer when it is rejected for
      * needing the index, so error messages naming that restriction only qualify it for functions that can.
-     * <p>
-     * Not necessarily constant per class: {@code KNN} answers from its configuration.
      */
     public abstract boolean supportsRuntimeSearch();
 
@@ -524,7 +522,7 @@ public abstract class FullTextFunction extends Function
             if (function.isRuntimeSearch()) {
                 return;
             }
-
+            // TODO: Can be removed. QSTR and KQL are the only functions with no runtime support, but they do not reach this method.
             plan.forEachExpression(function.getClass(), m -> {
                 if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
                     String fieldName = field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText();
@@ -552,13 +550,15 @@ public abstract class FullTextFunction extends Function
                 return;
             }
             // Full-text functions inside a HIGHLIGHT query expression are used to define highlighting
-            // terms, not as Lucene filter predicates, so the non-STANDARD restriction does not apply here.
+            // terms, not as Lucene filter predicates, so the LOOKUP JOIN restriction does not apply here.
             if (plan instanceof Highlight) {
                 return;
             }
+            // Fields from the right-hand side of a LOOKUP JOIN are not in the main index. A Lucene query on them
+            // runs against the main index shards and silently matches nothing.
             // Traverse the plan to find the EsRelation outputting the field
             plan.forEachDown(p -> {
-                if (p instanceof EsRelation esRelation && esRelation.indexMode() != IndexMode.STANDARD) {
+                if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
                     // Check if this EsRelation supplies the field
                     if (esRelation.outputSet().contains(fieldAttribute)) {
                         failures.add(

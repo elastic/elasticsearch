@@ -147,7 +147,7 @@ install_locally() {
     unzip -oq "$jar" -d "$platform_dir"
   done
   # Match the directory renames that extractLibs applies
-  for src_suffix in "linux-x86-64:linux-x64" "darwin-x86-64:darwin-x64" "win32-x86-64:windows-x86-64"; do
+  for src_suffix in "linux-x86-64:linux-x64" "darwin-x86-64:darwin-x64" "win32-x86-64:windows-x64"; do
     local src="${src_suffix%%:*}" dst="${src_suffix##*:}"
     if [ -d "$platform_dir/$src" ]; then
       mkdir -p "$platform_dir/$dst"

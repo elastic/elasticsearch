@@ -969,12 +969,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 0,
                 0L,
                 new RunOnce(
-                    () -> HotThreads.logLocalCurrentThreads(
-                        logger,
-                        Level.WARN,
-                        shardId + ": acquire shard lock for create",
-                        ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING
-                    )
+                    // forked so that hot threads sampling (which blocks for a while) never runs while holding this service's monitor
+                    () -> threadPool.generic()
+                        .execute(
+                            () -> HotThreads.logLocalCurrentThreads(
+                                logger,
+                                Level.WARN,
+                                shardId + ": acquire shard lock for create",
+                                ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING
+                            )
+                        )
                 ),
                 ActionListener.runBefore(new ActionListener<>() {
                     @Override

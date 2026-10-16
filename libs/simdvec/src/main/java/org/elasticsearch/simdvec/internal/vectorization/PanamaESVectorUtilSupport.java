@@ -3047,6 +3047,12 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
+    public void matrixMultiply(byte[] a, byte[] b, int m, int k, int n, int[] result, TaskExecutor executor) {
+        // panama doesn't give us anything over scalar, as panama integer is rubbish
+        new DefaultESVectorUtilSupport().matrixMultiply(a, b, m, k, n, result, executor);
+    }
+
+    @Override
     public void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
         int i = 0;
         // split aligned so that most of the time it doesn't need to worry about masks at all

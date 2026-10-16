@@ -883,6 +883,85 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void matrixMultiply(byte[] a, byte[] b, int m, int k, int n, int[] result, TaskExecutor executor) {
+        Arrays.fill(result, 0);
+        multiplyAccumulate(a, k, b, result, m, k, n, executor);
+    }
+
+    /**
+     * Accumulates {@code C = A @ B}, where element (i, l) of the left operand is
+     * {@code a[i * aRowStride + l]}.
+     *
+     * @param aRowStride distance in {@code a} between consecutive rows of the left operand
+     * @param cRows      rows of C, and of the left operand
+     * @param inner      inner dimension of the multiplication
+     * @param n          columns of C, and of B
+     */
+    private void multiplyAccumulate(byte[] a, int aRowStride, byte[] b, int[] c, int cRows, int inner, int n, TaskExecutor executor) {
+        // unroll 4x, so 4 values are accumulated into each c cell at once
+        int innerLimit = inner - inner % 4;
+        int taskNum = cRows / 4;
+
+        if (executor == null || taskNum < MIN_PARALLEL_TASKS) {
+            for (int r = 0; r < cRows; r++) {
+                multiplyRow(a, aRowStride, b, c, inner, n, r, innerLimit);
+            }
+        } else {
+            List<Callable<Void>> ops = new ArrayList<>(taskNum);
+            for (int r = 0; r < cRows; r += 4) {
+                int rowStart = r;
+                int rowEnd = Math.min(r + 4, cRows);
+                ops.add(() -> {
+                    for (int i = rowStart; i < rowEnd; i++) {
+                        multiplyRow(a, aRowStride, b, c, inner, n, i, innerLimit);
+                    }
+                    return null;
+                });
+            }
+
+            try {
+                executor.invokeAll(ops);
+            } catch (IOException e) {
+                // can't happen
+                throw new AssertionError(e);
+            }
+        }
+    }
+
+    private void multiplyRow(byte[] a, int aRowStride, byte[] b, int[] c, int inner, int n, int i, int innerLimit) {
+        int aBase = i * aRowStride;
+        int cBase = i * n;
+        int l = 0;
+        for (; l < innerLimit; l += 4) {
+            int aV0 = a[aBase + l];
+            int aV1 = a[aBase + l + 1];
+            int aV2 = a[aBase + l + 2];
+            int aV3 = a[aBase + l + 3];
+            int b0 = l * n;
+            int b1 = b0 + n;
+            int b2 = b0 + n * 2;
+            int b3 = b0 + n * 3;
+            for (int j = 0; j < n; j++) {
+                int acc = c[cBase + j];
+                acc += aV0 * b[b0 + j];
+                acc += aV1 * b[b1 + j];
+                acc += aV2 * b[b2 + j];
+                acc += aV3 * b[b3 + j];
+                c[cBase + j] = acc;
+            }
+        }
+
+        // tail
+        for (; l < inner; l++) {
+            int aVal = a[aBase + l];
+            int bl = l * n;
+            for (int d = 0; d < n; d++) {
+                c[cBase + d] += aVal * b[bl + d];
+            }
+        }
+    }
+
+    @Override
     public void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
         // unroll x4
         int i = 0;

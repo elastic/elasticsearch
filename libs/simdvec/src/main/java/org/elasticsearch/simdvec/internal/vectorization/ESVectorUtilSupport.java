@@ -195,5 +195,7 @@ public interface ESVectorUtilSupport {
 
     void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor);
 
+    void matrixMultiply(byte[] a, byte[] b, int m, int k, int n, int[] result, TaskExecutor executor);
+
     void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result);
 }

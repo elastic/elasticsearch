@@ -328,6 +328,44 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testRegionStartOffsetIsRegionTimesRegionSize() throws IOException {
+        final long regionSize = size(4L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            // At least two regions, so an implementation that always returns 0 cannot pass.
+            final int regions = randomIntBetween(2, 10);
+            final long exactBlobLength = regionSize * regions;
+            for (int region = 0; region < regions; region++) {
+                assertEquals(region * regionSize, cacheService.get(cacheKey, exactBlobLength, region, irrelevantTimestamp()).startOffset());
+            }
+
+            // A short final region still starts on the region boundary, not at the blob length.
+            final long shortTail = randomLongBetween(1, regionSize - 1);
+            final long shortBlobLength = regionSize + shortTail;
+            final var shortKey = generateCacheKey();
+            assertEquals(0L, cacheService.get(shortKey, shortBlobLength, 0, irrelevantTimestamp()).startOffset());
+            assertEquals(regionSize, cacheService.get(shortKey, shortBlobLength, 1, irrelevantTimestamp()).startOffset());
+        }
+    }
+
     public void testFetchOverloadsStampTimestamp() throws Exception {
         final long cacheSize = size(500L);
         final long regionSize = size(100L);

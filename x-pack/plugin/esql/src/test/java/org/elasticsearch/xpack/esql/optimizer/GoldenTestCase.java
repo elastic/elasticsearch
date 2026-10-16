@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.view.ViewCompaction;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
@@ -757,6 +758,11 @@ public abstract class GoldenTestCase extends ESTestCase {
             // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
             // test registers datasets, external relations are excluded from CSV index discovery below.
             // Golden tests name their datasets exactly, which reaches them at the wildcards_match_datasets default.
+            // Mirror EsqlSession: reshape user-written Subquery/UnionAll structures into BranchPlan before dataset
+            // resolution and analysis. Rules that read the pre-analysis shape depend on it — the _class/_name metadata
+            // freeze (ResolveSubqueryRelationColumns) answers "subquery" from the Subquery branch wrapper this pass
+            // preserves, and without it a subquery branch beside an index silently null-fills _class.
+            parsedPlan = ViewCompaction.preIndexResolution(parsedPlan);
             parsedPlan = rewriteDatasetsUnsecured(parsedPlan, datasetMetadata, TestIndexNameExpressionResolver.newInstance(), false);
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;

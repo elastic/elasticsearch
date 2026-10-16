@@ -29,8 +29,8 @@ import java.util.Set;
 public final class UnwrapRedundantAliases extends Rule<LogicalPlan, LogicalPlan> {
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        // Merge inputs are aligned by name, independently of their output ids. These aliases define the
-        // resolved branch schema, so they are not redundant even when a branch has only one metadata field.
+        // Merge inputs are aligned by name, independently of their output ids. Preserve aliases whose
+        // removal would change a resolved branch column's name.
         Set<NameId> mergeInputIds = new HashSet<>();
         plan.forEachDown(MergePlan.class, merge -> {
             for (LogicalPlan child : merge.children()) {
@@ -53,10 +53,11 @@ public final class UnwrapRedundantAliases extends Rule<LogicalPlan, LogicalPlan>
                 return aggregate;
             }
             Alias alias = (Alias) metadataGroupings.getFirst();
-            if (mergeInputIds.contains(alias.id())) {
+            Attribute field = metadata.getFirst();
+            // A user-provided name or a merge input name is part of the resolved output schema.
+            if (alias.name().equals(field.name()) == false && (alias.synthetic() == false || mergeInputIds.contains(alias.id()))) {
                 return aggregate;
             }
-            Attribute field = metadata.getFirst();
             Attribute replacement = field.withId(alias.id());
             var groupings = new ArrayList<Expression>(aggregate.groupings());
             groupings.replaceAll(g -> g == alias ? replacement : g);

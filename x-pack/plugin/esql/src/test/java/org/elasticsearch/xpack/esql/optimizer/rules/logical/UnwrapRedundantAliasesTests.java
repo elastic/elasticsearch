@@ -34,7 +34,7 @@ public class UnwrapRedundantAliasesTests extends ESTestCase {
     public void testSingleProjectionKeepsIdentityAndUpdatesParentReferences() {
         for (var origin : TimeSeriesAggregate.Origin.values()) {
             var field = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("cluster"));
-            var alias = new Alias(Source.EMPTY, randomFrom("WITHOUT(cluster)", "_timeseries$1"), field);
+            var alias = new Alias(Source.EMPTY, randomFrom(MetadataAttribute.TIMESERIES, "_timeseries$1"), field, null, true);
             var aggregate = aggregate(List.of(field), List.of(alias), origin);
             var filter = new Filter(Source.EMPTY, aggregate, new IsNotNull(Source.EMPTY, alias.toAttribute()));
             var explicitAlias = new Alias(Source.EMPTY, "labels", alias.toAttribute());
@@ -61,15 +61,25 @@ public class UnwrapRedundantAliasesTests extends ESTestCase {
         }
     }
 
+    public void testUserAliasKeepsOutputName() {
+        for (var origin : TimeSeriesAggregate.Origin.values()) {
+            var field = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("cluster"));
+            var alias = new Alias(Source.EMPTY, "labels", field);
+            var aggregate = aggregate(List.of(field), List.of(alias), origin);
+            var project = new Project(Source.EMPTY, aggregate, List.of(alias.toAttribute()));
+            assertSame(project, new UnwrapRedundantAliases().apply(project));
+        }
+    }
+
     public void testUnionRetainsBranchColumnNames() {
         for (var origin : TimeSeriesAggregate.Origin.values()) {
             var field = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("cluster"));
-            var alias = new Alias(Source.EMPTY, "WITHOUT(cluster)", field);
+            var alias = new Alias(Source.EMPTY, "_timeseries$1", field, null, true);
             var aggregate = aggregate(List.of(field), List.of(alias), origin);
             var filter = new Filter(Source.EMPTY, aggregate, new IsNotNull(Source.EMPTY, alias.toAttribute()));
             var project = new Project(Source.EMPTY, filter, List.of(alias.toAttribute()));
             var otherField = new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("cluster"));
-            var otherAlias = new Alias(Source.EMPTY, alias.name(), otherField);
+            var otherAlias = new Alias(Source.EMPTY, alias.name(), otherField, null, true);
             var other = aggregate(List.of(otherField), List.of(otherAlias), origin);
             var union = new UnionAll(Source.EMPTY, List.of(project, other), List.of(alias.toAttribute().withId(new NameId())));
 

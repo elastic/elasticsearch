@@ -693,7 +693,9 @@ public record TranslationContext(
                 excludedLabels.isEmpty()
                     ? MetadataAttribute.TIMESERIES
                     : TemporaryNameGenerator.locallyUniqueTemporaryName(MetadataAttribute.TIMESERIES),
-                metadata
+                metadata,
+                null,
+                true
             )
         );
     }

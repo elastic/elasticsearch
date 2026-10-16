@@ -50,15 +50,6 @@ public class VectorScorerBFloat16BulkOperationBenchmarkTests extends BenchmarkTe
         }
     }
 
-    public void testBulkOffsets() {
-        var bench = newBench();
-        try {
-            assertArrayEquals(function + "/" + queryType, bench.scoreRandom(), bench.scoreBulkOffsets(), 1e-3f);
-        } finally {
-            bench.teardown();
-        }
-    }
-
     public void testBulkSparse() {
         var bench = newBench();
         try {

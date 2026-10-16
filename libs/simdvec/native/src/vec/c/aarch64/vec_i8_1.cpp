@@ -194,17 +194,6 @@ EXPORT void vec_cosi8_bulk(const int8_t* a, const int8_t* b, const int32_t dims,
     cosi8_inner_bulk<int8_t, sequential_mapper, 2>(a, b, dims, dims, NULL, count, results);
 }
 
-EXPORT void vec_cosi8_bulk_offsets(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    cosi8_inner_bulk<int8_t, offsets_mapper>(a, b, dims, pitch, offsets, count, results);
-}
-
 EXPORT void vec_cosi8_bulk_sparse(
     const void* const* addresses,
     const int8_t* b,
@@ -371,17 +360,6 @@ EXPORT void vec_doti8_bulk(const int8_t* a, const int8_t* b, const int32_t dims,
     call_i8_bulk<int8_t, int32x4_t, sequential_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>(a, b, dims, dims, NULL, count, results);
 }
 
-EXPORT void vec_doti8_bulk_offsets(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    call_i8_bulk<int8_t, int32x4_t, offsets_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>(a, b, dims, pitch, offsets, count, results);
-}
-
 EXPORT void vec_doti8_bulk_sparse(
     const void* const* addresses,
     const int8_t* b,
@@ -447,17 +425,6 @@ EXPORT void vec_sqri7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims
     call_i8_bulk<int8_t, uint32x4_t, sequential_mapper, sqri8_vector_op, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, dims, NULL, count, results);
 }
 
-EXPORT void vec_sqri7u_bulk_offsets(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    call_i8_bulk<int8_t, uint32x4_t, offsets_mapper, sqri8_vector_op, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, pitch, offsets, count, results);
-}
-
 EXPORT void vec_sqri7u_bulk_sparse(
     const void* const* addresses,
     const int8_t* b,
@@ -469,17 +436,6 @@ EXPORT void vec_sqri7u_bulk_sparse(
 
 EXPORT void vec_sqri8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     call_i8_bulk<int8_t, uint32x4_t, sequential_mapper, sqri8_vector_op, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, dims, NULL, count, results);
-}
-
-EXPORT void vec_sqri8_bulk_offsets(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    call_i8_bulk<int8_t, uint32x4_t, offsets_mapper, sqri8_vector_op, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_sqri8_bulk_sparse(

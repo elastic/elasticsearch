@@ -176,18 +176,6 @@ EXPORT void vec_dotf32_bulk_sparse_2(
         (const f32_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
-EXPORT void vec_dotf32_bulk_offsets_2(
-    const f32_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    call_f32_bulk<f32_t, offsets_mapper, dotf32_vector, vec_dotf32_2>(
-        a, b, dims, pitch / sizeof(f32_t), offsets, count, results);
-}
-
 static inline svfloat32_t sqrf32_vector(const svbool_t pg, const svfloat32_t sum, const svfloat32_t a, const svfloat32_t b) {
     svfloat32_t diff = svsub_f32_x(pg, a, b);
     return svmla_f32_m(pg, sum, diff, diff);
@@ -209,16 +197,4 @@ EXPORT void vec_sqrf32_bulk_sparse_2(
     f32_t* results) {
     call_f32_bulk<const f32_t*, sparse_mapper, sqrf32_vector, vec_sqrf32_2>(
         (const f32_t* const*)addresses, query, length, 0, NULL, count, results);
-}
-
-EXPORT void vec_sqrf32_bulk_offsets_2(
-    const f32_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    call_f32_bulk<f32_t, offsets_mapper, sqrf32_vector, vec_sqrf32_2>(
-        a, b, dims, pitch / sizeof(f32_t), offsets, count, results);
 }

@@ -368,6 +368,44 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
         }
     }
 
+    /**
+     * The emitted checks compute the required size and read {@code byteSize()} as {@code long}s, so a
+     * segment larger than {@code Integer.MAX_VALUE} bytes is accepted, and a required size beyond the
+     * {@code int} range is still enforced (see #143232, where a narrowing cast rejected such segments).
+     * The large segment is a small real allocation reinterpreted to a larger size; {@code memcmp} only
+     * reads its first {@code n} bytes.
+     */
+    @SuppressWarnings("restricted")
+    public void testChecksDoNotOverflowBeyondIntRange() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            import org.elasticsearch.foreign.VectorSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @VectorSegment(countParam = "n", elementBits = 8) MemorySegment a,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8) MemorySegment b,
+                    long n);
+            }
+            """);
+
+        // rows = cols = n = 50_000 -> the matrix needs n*n = 2.5e9 bytes, more than Integer.MAX_VALUE.
+        final long n = 50_000L;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment real = arena.allocate(n);
+            MemorySegment large = real.reinterpret(n * n);
+            assertEquals(0, (int) lib.call("memcmp", large, large, n));
+
+            MemorySegment tooSmall = real.reinterpret(n * n - 1);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", large, tooSmall, n);
+        }
+    }
+
     /** Fills the whole segment with ascending byte values and returns it. */
     private static MemorySegment fill(MemorySegment segment) {
         return fill(segment, (int) segment.byteSize());

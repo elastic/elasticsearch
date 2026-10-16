@@ -45,17 +45,6 @@ public class VectorScorerFloat32BulkOperationBenchmarkTests extends BenchmarkTes
         }
     }
 
-    public void testBulkOffsets() {
-        for (int i = 0; i < 100; i++) {
-            var bench = newBench();
-            try {
-                assertArrayEquals(function.toString(), bench.scoreRandom(), bench.scoreBulkOffsets(), 1e-5f);
-            } finally {
-                bench.teardown();
-            }
-        }
-    }
-
     public void testBulkSparse() {
         for (int i = 0; i < 100; i++) {
             var bench = newBench();

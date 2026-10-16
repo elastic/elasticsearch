@@ -292,18 +292,6 @@ EXPORT void vec_dotDbf16Qbf16_bulk_sparse_2(
         (const bf16_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
-EXPORT void vec_dotDbf16Qbf16_bulk_offsets_2(
-    const bf16_t* a,
-    const bf16_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    dotDbf16Qbf16_bulk_sve<bf16_t, offsets_mapper>(a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
-}
-
 /*
  * Bulk squared distance for bf16×bf16 using bfdot via ||a-b||² = a·a - 2·a·b + b·b.
  * Loads query once per dimension step. Computes q·q once (shared across all vectors
@@ -442,17 +430,5 @@ EXPORT void vec_sqrDbf16Qbf16_bulk_sparse_2(
 ) {
     sqrDbf16Qbf16_bulk_sve<const bf16_t*, sparse_mapper>(
         (const bf16_t* const*)addresses, query, length, 0, NULL, count, results);
-}
-
-EXPORT void vec_sqrDbf16Qbf16_bulk_offsets_2(
-    const bf16_t* a,
-    const bf16_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    sqrDbf16Qbf16_bulk_sve<bf16_t, offsets_mapper>(a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }
 

@@ -141,19 +141,6 @@ EXPORT void vec_dotf32_bulk_sparse(
         (const f32_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
-EXPORT void vec_dotf32_bulk_offsets(
-    const f32_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    call_f32_bulk<f32_t, offsets_mapper, _mm256_fmadd_ps, dot_scalar<f32_t>, vec_dotf32>(
-        a, b, dims, pitch / sizeof(f32_t), offsets, count, results);
-}
-
 static inline __m256 sqrf32_vector(__m256 a, __m256 b, __m256 sum) {
     __m256 diff = _mm256_sub_ps(a, b);
     return _mm256_fmadd_ps(diff, diff, sum);
@@ -205,17 +192,4 @@ EXPORT void vec_sqrf32_bulk_sparse(
 ) {
     call_f32_bulk<const f32_t*, sparse_mapper, sqrf32_vector, sqr_scalar<f32_t>, vec_sqrf32>(
         (const f32_t* const*)addresses, query, length, 0, NULL, count, results);
-}
-
-EXPORT void vec_sqrf32_bulk_offsets(
-    const f32_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    call_f32_bulk<f32_t, offsets_mapper, sqrf32_vector, sqr_scalar<f32_t>, vec_sqrf32>(
-        a, b, dims, pitch / sizeof(f32_t), offsets, count, results);
 }

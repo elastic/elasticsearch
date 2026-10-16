@@ -225,30 +225,6 @@ EXPORT void vec_dotDbf16Qbf16_bulk_sparse(
         (const bf16_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
-EXPORT void vec_dotDbf16Qf32_bulk_offsets(
-    const bf16_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    bf16_bulk_inner<bf16_t, f32_t, offsets_mapper, load_f32, vfmaq_f32, dot_scalar, vec_dotDbf16Qf32>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
-}
-
-EXPORT void vec_dotDbf16Qbf16_bulk_offsets(
-    const bf16_t* a,
-    const bf16_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    bf16_bulk_inner<bf16_t, bf16_t, offsets_mapper, load_bf16, vfmaq_f32, dot_scalar, vec_dotDbf16Qbf16>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
-}
-
 static inline float32x4_t sqrf32_vector(float32x4_t sum, float32x4_t a, float32x4_t b) {
     float32x4_t diff = vsubq_f32(a, b);
     return vmlaq_f32(sum, diff, diff);
@@ -304,28 +280,4 @@ EXPORT void vec_sqrDbf16Qbf16_bulk_sparse(
 ) {
     bf16_bulk_inner<const bf16_t*, bf16_t, sparse_mapper, load_bf16, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qbf16>(
         (const bf16_t* const*)addresses, query, length, 0, NULL, count, results);
-}
-
-EXPORT void vec_sqrDbf16Qf32_bulk_offsets(
-    const bf16_t* a,
-    const f32_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    bf16_bulk_inner<bf16_t, f32_t, offsets_mapper, load_f32, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qf32>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
-}
-
-EXPORT void vec_sqrDbf16Qbf16_bulk_offsets(
-    const bf16_t* a,
-    const bf16_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    bf16_bulk_inner<bf16_t, bf16_t, offsets_mapper, load_bf16, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qbf16>(
-        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }

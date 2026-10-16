@@ -425,17 +425,6 @@ EXPORT void vec_sqri7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t di
     sqr7u_bulk_avx512<int8_t, sequential_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
-EXPORT void vec_sqri7u_bulk_offsets_2(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results) {
-    sqr7u_bulk_avx512<int8_t, offsets_mapper>(a, b, dims, pitch, offsets, count, results);
-}
-
 EXPORT void vec_sqri7u_bulk_sparse_2(
     const void* const* addresses,
     const int8_t* b,

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FileOrderConfig;
 import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.glob.ListedObjectsLimitException;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
@@ -5745,6 +5746,45 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("the first file the bound counts, not an empty listing", 1, result.fileCount());
         assertEquals("s3://bucket/data/b/x.parquet", result.path(0).toString());
         assertTrue("one of the two matching files, so the listing is a prefix of the dataset", result.isTruncated());
+    }
+
+    /**
+     * The loop counts files that survive the pattern, so a heavily-pruning glob reads far past one page to fill
+     * its sample and {@code max_listed_objects} becomes reachable. A listing that bounded its file set keeps its
+     * survivors there and reports itself truncated; the key-counted bound would have answered from page one.
+     * <p>
+     * The pattern's metacharacter sits immediately after the prefix, so {@code literalNamePrefix} is empty and no
+     * store can narrow this: it is the shape every provider pays, not only the ones that ignore the name prefix.
+     */
+    public void testABoundedListingKeepsItsSurvivorsAtTheKeyCeiling() throws Exception {
+        List<StorageEntry> tree = new ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            tree.add(entry("s3://bucket/data/f" + i + "/other.parquet", 10));
+        }
+        tree.add(entry("s3://bucket/data/f0/keep.parquet", 10));
+        tree.add(entry("s3://bucket/data/f1/keep.parquet", 10));
+
+        String pattern = "s3://bucket/data/*/keep.parquet";
+
+        // Two files survive the pattern and the file-set bound is five, so the loop can never fill it and runs
+        // on to the key ceiling - the case where survivors are already in hand.
+        FileList bounded = expandSync(pattern, new TreeStubProvider(tree), null, HIVE_ON, MAX, MAX, 10, 5, 1, () -> false);
+        assertTrue("stopped at the key ceiling, so the file set is a prefix of the matches", bounded.isTruncated());
+        assertEquals("the matches found before the ceiling are kept, not discarded with an exception", 2, bounded.fileCount());
+        assertEquals(
+            Set.of("s3://bucket/data/f0/keep.parquet", "s3://bucket/data/f1/keep.parquet"),
+            Set.of(bounded.path(0).toString(), bounded.path(1).toString())
+        );
+
+        ListedObjectsLimitException e = expectThrows(
+            ListedObjectsLimitException.class,
+            () -> expandSync(pattern, new TreeStubProvider(tree), null, HIVE_ON, MAX, MAX, 10, MAX, 1, () -> false)
+        );
+        assertThat(
+            "an unbounded listing promised every match, so a silent prefix would drop files from the scan",
+            e.getMessage(),
+            containsString("max_listed_objects")
+        );
     }
 
     /**

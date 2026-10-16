@@ -29,4 +29,14 @@ public class ListingExtentsTests extends ESTestCase {
         assertFalse(ListingExtents.UNBOUNDED.boundsFileSet());
     }
 
+    /**
+     * The key ceiling reads this rather than {@link ListingExtents#boundsFileSet()}: a prefix-accepting listing
+     * keeps its survivors there and reports itself truncated, and every other one stops hard. The two agree
+     * today, so this pins the agreement rather than assuming it survives a change to either.
+     */
+    public void testAskingForABoundIsWhatAcceptsAPrefix() {
+        assertTrue(new ListingExtents(10).acceptsPrefix());
+        assertFalse(ListingExtents.UNBOUNDED.acceptsPrefix());
+    }
+
 }

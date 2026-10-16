@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.mistral;
 
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ChatCompletionErrorResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
@@ -50,7 +51,9 @@ public class MistralUnifiedChatCompletionResponseHandler extends OpenAiUnifiedCh
     public StreamingUnifiedChatCompletionResults parseResult(OutboundRequest outboundRequest, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         var mistralProcessor = new MistralUnifiedStreamingProcessor(
-            (m, e) -> CHAT_COMPLETION_ERROR_RESPONSE_HANDLER.buildMidStreamChatCompletionError(outboundRequest.getInferenceEntityId(), m, e)
+            (m, e) -> e instanceof UnifiedChatCompletionException typed
+                ? typed
+                : CHAT_COMPLETION_ERROR_RESPONSE_HANDLER.buildMidStreamChatCompletionError(outboundRequest.getInferenceEntityId(), m, e)
         );
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(mistralProcessor);

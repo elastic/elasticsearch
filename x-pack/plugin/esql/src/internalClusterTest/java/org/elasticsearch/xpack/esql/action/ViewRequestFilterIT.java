@@ -201,7 +201,7 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
         QueryBuilder fake = QueryBuilders.termQuery("fake", 1);
         // View branch alongside a bare index: only the bare-index branch survives.
         String mixed = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + INDEX + " | KEEP id", fake);
-        assertThat("the view branch is pruned, leaving the bare-index branch", mixed, containsString("BranchPlan[[main]]"));
+        assertThat("the view branch is pruned, leaving the bare-index branch", mixed, containsString("BranchPlan[[main=INDEX]]"));
         assertThat(mixed, not(containsString(PREFILTERED_VIEW)));
         // Every branch is a view: the union collapses to an empty local relation.
         String allViews = optimizedLogicalPlan("FROM " + PREFILTERED_VIEW + ", " + STATS_VIEW, fake);
@@ -768,6 +768,28 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
             rows("FROM " + view + " | KEEP id, doubled | SORT id", QueryBuilders.termQuery("doubled", 6)),
             equalTo(List.of(List.of(3, 6)))
         );
+    }
+
+    /**
+     * A view whose body ends in FORK is flattened by compaction: the Fork node dissolves and each fork branch is
+     * lifted into the enclosing merge as its own view branch (the parser already attached the per-branch
+     * {@code _fork} Evals, so results are unchanged). The lifted branches keep the view's identity, so a request
+     * filter on a column the fork branches compute binds at each branch's output instead of leaking into the
+     * source scan. Pins the fork-topped shape from the PR review: {@code FORK (EVAL x = 1) (EVAL x = 2)} with a
+     * range filter on {@code x}.
+     */
+    public void testRequestFilterOnForkComputedColumnBindsAtFlattenedBranches() {
+        String view = "vrf_fork_computed";
+        createView(view, "FROM " + INDEX + " | FORK (EVAL x = 1) (EVAL x = 2)");
+        // Matches both fork branches: every doc appears once per branch.
+        assertThat(rows("FROM " + view + " | STATS c = COUNT(*)", QueryBuilders.rangeQuery("x").gte(0)), equalTo(List.of(List.of(12L))));
+        // Matches only the second fork branch.
+        List<List<Object>> rows = rows("FROM " + view + " | KEEP x, id | SORT id", QueryBuilders.rangeQuery("x").gte(2));
+        assertThat(rows, hasSize(6));
+        for (int i = 0; i < 6; i++) {
+            assertThat(rows.get(i).get(0), equalTo(2));
+            assertThat(rows.get(i).get(1), equalTo(i));
+        }
     }
 
     public void testForkAfterForkViewWithAndWithoutRequestFilter() {

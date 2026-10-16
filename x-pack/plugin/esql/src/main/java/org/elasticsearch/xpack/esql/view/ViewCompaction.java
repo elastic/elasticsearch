@@ -435,6 +435,12 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
                 // parent name. As in the BranchPlan branch above, a bare UnresolvedRelation child
                 // with an exclusion must be wrapped in a NamedSubquery before lifting so the
                 // subsequent merge step does not widen its scope.
+                // This also lifts a body-topping Fork, dissolving the Fork node: results are
+                // unchanged because the parser already attached the per-branch _fork Evals, and
+                // the pieces keep the view identity below. What the dissolved node no longer gets
+                // is Fork's own post-analysis verification (Fork.checkFork); its pieces are
+                // checked by the enclosing union's instead — to be unified when FORK folds into
+                // the MergePlan/BranchIdentity model.
                 MergePlan mergePlan = (MergePlan) inner;
                 int childIndex = 1;
                 // A view whose body is a bare union lifts into one branch per body piece; each piece is still part of

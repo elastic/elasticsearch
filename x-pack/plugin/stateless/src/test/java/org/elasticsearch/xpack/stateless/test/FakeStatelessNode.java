@@ -413,7 +413,6 @@ public class FakeStatelessNode implements Closeable {
             threadPool,
             telemetryProvider,
             clusterSettings,
-            warmingRatioProvider,
             searchRecoveryTimeoutCalculationService
         );
     }

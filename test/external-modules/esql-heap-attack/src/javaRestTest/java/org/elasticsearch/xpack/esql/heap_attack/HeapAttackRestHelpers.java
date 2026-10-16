@@ -16,6 +16,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -37,6 +38,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -51,6 +54,11 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 public abstract class HeapAttackRestHelpers extends ESRestTestCase {
 
     protected static final int MAX_ATTEMPTS = 5;
+
+    /**
+     * Number of nodes seen by the last {@link #assertRequestBreakerEmpty} probe.
+     */
+    private int expectedNodes;
 
     @Override
     protected boolean shouldFailureSkipRemainingTests() {
@@ -194,6 +202,7 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
         logger.info("--> test {} started querying", getTestName());
         final ThreadPool testThreadPool = new TestThreadPool(getTestName());
         final long startedTimeInNanos = System.nanoTime();
+        final AtomicBoolean triggeredOutOfMemory = new AtomicBoolean();
         Scheduler.Cancellable schedule = null;
         try {
             schedule = testThreadPool.schedule(new AbstractRunnable() {
@@ -206,11 +215,23 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
                 protected void doRun() throws Exception {
                     TimeValue elapsed = TimeValue.timeValueNanos(System.nanoTime() - startedTimeInNanos);
                     logger.info("--> test {} triggering OOM after {}", getTestName(), elapsed);
+                    triggeredOutOfMemory.set(true);
                     Request triggerOOM = new Request("POST", "/_trigger_out_of_memory");
                     client().performRequest(triggerOOM);
                 }
             }, TimeValue.timeValueMinutes(5), testThreadPool.executor(ThreadPool.Names.GENERIC));
-            Response resp = run.get();
+            Response resp;
+            try {
+                resp = run.get();
+            } catch (ResponseException e) {
+                if (e.getResponse().getStatusLine().getStatusCode() >= 500) {
+                    assertNoNodeLeft(e, triggeredOutOfMemory.get());
+                }
+                throw e;
+            } catch (IOException e) {
+                assertNoNodeLeft(e, triggeredOutOfMemory.get());
+                throw e;
+            }
             logger.info("--> test {} completed querying", getTestName());
             return resp;
         } finally {
@@ -219,6 +240,38 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
             }
             terminate(testThreadPool);
         }
+    }
+
+    /**
+     * A query that fails with a connection error or a 5xx may have taken a node down with it. Every heap-attack query must
+     * either succeed or trip a circuit breaker, so report a lost node as that, rather than as the client error it produced.
+     */
+    private void assertNoNodeLeft(Exception cause, boolean triggeredOutOfMemory) {
+        AtomicReference<String> lost = new AtomicReference<>();
+        // The client sees the connection close before the master removes the node, so give the master a moment.
+        waitUntil(() -> {
+            try {
+                Response response = adminClient().performRequest(new Request("GET", "/_nodes"));
+                int nodes = ((Map<?, ?>) responseAsMap(response).get("nodes")).size();
+                if (nodes < expectedNodes) {
+                    lost.set(Strings.format("only [%s] of [%s] nodes are left", nodes, expectedNodes));
+                }
+            } catch (IOException e) {
+                lost.set("the cluster no longer answers [GET /_nodes] (" + e.getMessage() + ")");
+            }
+            return lost.get() != null;
+        });
+        if (lost.get() == null) {
+            return;
+        }
+        String reason = triggeredOutOfMemory
+            ? "the query ran longer than 5 minutes, so the test triggered an out of memory error to capture a heap dump"
+            : "a node most likely ran out of heap before the request circuit breaker tripped. The breakers don't track all of "
+                + "the heap, so the request limit has to leave room for the rest";
+        throw new AssertionError(
+            Strings.format("%s after the query failed: %s. Look for java_pid*.hprof in the node logs.", lost.get(), reason),
+            cause
+        );
     }
 
     @Override
@@ -238,6 +291,7 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
             Response response = adminClient().performRequest(new Request("GET", "/_nodes/stats"));
             Map<?, ?> stats = responseAsMap(response);
             Map<?, ?> nodes = (Map<?, ?>) stats.get("nodes");
+            expectedNodes = nodes.size();
             for (Object n : nodes.values()) {
                 Map<?, ?> node = (Map<?, ?>) n;
                 Map<?, ?> breakers = (Map<?, ?>) node.get("breakers");

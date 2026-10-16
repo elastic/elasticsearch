@@ -315,45 +315,43 @@ public class MeteredStorage {
             }
         }
 
+        /**
+         * Walks all pages using the already-metered {@link #getNextPage()}, so each HTTP page fetch
+         * is counted as one LIST operation rather than one operation per element.
+         */
         @Override
-        public MeteredIterableBlob iterateAll() {
-            return new MeteredIterableBlob(pages.iterateAll());
+        public Iterable<Blob> iterateAll() {
+            return () -> new Iterator<>() {
+                private MeteredBlobPage current = MeteredBlobPage.this;
+                private Iterator<Blob> values = current.pages.getValues().iterator();
+
+                @Override
+                public boolean hasNext() {
+                    while (values.hasNext() == false) {
+                        if (current.hasNextPage() == false) {
+                            return false;
+                        }
+                        current = current.getNextPage();
+                        values = current.pages.getValues().iterator();
+                    }
+                    return true;
+                }
+
+                @Override
+                public Blob next() {
+                    return values.next();
+                }
+            };
         }
 
+        /**
+         * Returns the current page's blobs directly. The page fetch itself was already metered
+         * (either via {@link MeteredStorage#meteredList} for the first page, or via
+         * {@link #getNextPage()} for subsequent pages), so per-element metering is unnecessary.
+         */
         @Override
-        public MeteredIterableBlob getValues() {
-            return new MeteredIterableBlob(pages.getValues());
-        }
-
-        public class MeteredIterator implements Iterator<Blob> {
-            final Iterator<Blob> iterator;
-
-            MeteredIterator(Iterator<Blob> iterator) {
-                this.iterator = iterator;
-            }
-
-            @Override
-            public boolean hasNext() {
-                return statsCollector.collectSupplier(purpose, LIST, iterator::hasNext);
-            }
-
-            @Override
-            public Blob next() {
-                return statsCollector.collectSupplier(purpose, LIST, iterator::next);
-            }
-        }
-
-        public class MeteredIterableBlob implements Iterable<Blob> {
-            final Iterable<Blob> iterable;
-
-            MeteredIterableBlob(Iterable<Blob> iterable) {
-                this.iterable = iterable;
-            }
-
-            @Override
-            public Iterator<Blob> iterator() {
-                return new MeteredIterator(iterable.iterator());
-            }
+        public Iterable<Blob> getValues() {
+            return pages.getValues();
         }
     }
 

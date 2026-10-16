@@ -89,10 +89,10 @@ public class LogicalOptimizerContextTests extends ESTestCase {
         return new EsqlFlags(
             randomBoolean(),
             randomIntBetween(-1, 127),
-            randomBoolean(),
             randomIntBetween(1, 50),
             randomIntBetween(1, 20),
-            randomIntBetween(1, 20)
+            randomIntBetween(1, 20),
+            randomIntBetween(1, 100_000)
         );
     }
 }

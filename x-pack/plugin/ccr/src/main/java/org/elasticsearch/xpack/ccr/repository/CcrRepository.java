@@ -54,7 +54,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
@@ -113,6 +115,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
@@ -324,7 +327,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         customMetadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, remoteClusterAlias);
         imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, customMetadata);
 
-        imdBuilder.settings(leaderIndexMetadata.getSettings());
+        Settings.Builder settings = Settings.builder().put(leaderIndexMetadata.getSettings());
+        if (leaderIndexMetadata.getCreationVersion().onOrAfter(IndexVersions.TRACKS_UNMAPPED_FIELD_RETENTION)) {
+            // The files copied next may hold documents indexed under a mapping the leader got after this metadata was read.
+            settings.put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), true);
+        }
+        imdBuilder.settings(settings);
         imdBuilder.transportVersion(leaderIndexMetadata.getTransportVersion());
 
         // Copy mappings from leader IMD to follow IMD
@@ -383,7 +391,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
+        Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
         ActionListener<RepositoryData> repositoryDataUpdateListener,

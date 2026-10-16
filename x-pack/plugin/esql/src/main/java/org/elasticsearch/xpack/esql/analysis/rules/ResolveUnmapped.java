@@ -92,6 +92,12 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+        // TODO: unmapped-field resolution must not reach inside view branches. A view is a virtual
+        // index, and SET unmapped_fields is an ES-index concept (loading from _source) that its callers should not see
+        // through the view boundary — the same principle that keeps the raw request-filter DSL out of a view's source
+        // scans. BranchPlan.branchIdentity() now says which branches are views; once the design discussion settles,
+        // skip resolution in subtrees under VIEW-kind branches (re-enabled later only by SET unmapped_fields inside
+        // the view definition itself).
         return switch (context.unmappedResolution()) {
             case UnmappedResolution.DEFAULT -> plan;
             case UnmappedResolution.NULLIFY -> resolve(plan, false);
@@ -250,9 +256,19 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         MergePlan transformed = (MergePlan) mergePlan.transformDownSkipBranch((plan, skip) -> {
             if (plan instanceof Project project) {
                 skip.set(true); // process top Project only (merge-injected)
-                plan = patchMergeProject(project);
-                if (plan != project) {
-                    changed.set(Boolean.TRUE);
+                // Only a merge-injected alignment Project (exact class; resolveMergePlan emits plain Projects) may
+                // surface newly loaded attributes. The branch's top projection can also be a user-written one
+                // (KEEP/DROP/RENAME Project subclasses) now that branches are no longer wrapped in Subquery nodes:
+                // such an explicit column list must keep hiding what it hides, otherwise a broadcast load would
+                // e.g. resurrect a DROPped unmapped field inside that branch.
+                // TODO: keying on the exact class is fragile. Either have resolveMergePlan emit ResolvingProject
+                // (which passes unmapped fields through by design) or add an explicit merge-injected marker on
+                // Project, and match on that instead.
+                if (plan.getClass() == Project.class) {
+                    plan = patchMergeProject(project);
+                    if (plan != project) {
+                        changed.set(Boolean.TRUE);
+                    }
                 }
             }
             return plan;

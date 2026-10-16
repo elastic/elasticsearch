@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
 import org.elasticsearch.xpack.esql.datasources.cache.TestDatasetIdentities;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -1089,6 +1090,7 @@ public class EsqlSessionTests extends ESTestCase {
                 Map<String, org.elasticsearch.cluster.metadata.DatasetMapping> declaredMappings,
                 Set<String> pathsRequiringStats,
                 Set<String> pathsReadingNoRows,
+                Map<String, FolderRangePredicate> folderRanges,
                 ActionListener<ExternalSourceResolution> listener
             ) {
                 resolveCalled.set(true);

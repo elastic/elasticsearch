@@ -427,9 +427,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.action.datafeed.DatafeedEsqlGatesTests
   method: testValidateEsqlDatafeedEnabledWhenFlagOnAndClusterSupportsItShouldSucceed
   issue: https://github.com/elastic/elasticsearch/issues/161485
-- class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
-  method: testShardPrewarming
-  issue: https://github.com/elastic/elasticsearch/issues/161487
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: test {yaml=/37_columnar_collapse/collapse on a single valued columnar keyword field with the columnar codec disabled}
   issue: https://github.com/elastic/elasticsearch/issues/161603
@@ -504,18 +501,6 @@ tests:
 - class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldWildcardHeapPressureIT
   method: testPausedHeavyWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/162207
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
-  method: testUnsetMultilineFieldsFailsOnQuotedMultilineRows
-  issue: https://github.com/elastic/elasticsearch/issues/162215
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
-  method: testRandomizedQuotedCsvCountsExactlyAcrossSplits
-  issue: https://github.com/elastic/elasticsearch/issues/162217
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
-  method: testQuoteFreeCsvCountsExactlyByDefault
-  issue: https://github.com/elastic/elasticsearch/issues/162219
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
-  method: testMultilineFieldsTrueReadsPlainPrefixThenQuotedMultilineCsv
-  issue: https://github.com/elastic/elasticsearch/issues/162221
 - class: org.elasticsearch.columnar.PayloadColumnMergeTests
   method: testMergeCarriesRepeatsOverWithoutComparing
   issue: https://github.com/elastic/elasticsearch/issues/162235
@@ -524,8 +509,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162240
 - class: org.elasticsearch.search.heappressure.FuzzyHighlightHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/149983
-- class: org.elasticsearch.xpack.esql.datasource.s3.S3StorageObjectAsyncTests
-  issue: https://github.com/elastic/elasticsearch/issues/162263
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
   issue: https://github.com/elastic/elasticsearch/issues/162277
@@ -537,3 +520,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecPrometheusK8sDeltaIT
   method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162319
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
+  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/162369
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
+  method: test {csv-spec:prometheus-k8s-delta.delta_with_filtering_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/162371
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
+  method: test {csv-spec:prometheus-k8s-delta.eval_on_delta_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/162373

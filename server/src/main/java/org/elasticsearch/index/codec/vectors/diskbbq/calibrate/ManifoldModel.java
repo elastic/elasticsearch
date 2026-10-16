@@ -88,7 +88,41 @@ public final class ManifoldModel {
      * @param alpha  OLS intercept (log-scale)
      * @param invDim OLS slope (approximates 1/intrinsic-dimension of the corpus)
      */
-    public record ManifoldParams(double alpha, double invDim) {}
+    public record ManifoldParams(double alpha, double invDim, QueryCurves queryCurves) {
+        public ManifoldParams(double alpha, double invDim) {
+            this(alpha, invDim, null);
+        }
+    }
+
+    /**
+     * Per-query distance curves {@code log(dist at rank j) = alpha[q] + slope[q] * (log(j) - log(N))} of a few
+     * representative calibration queries, used by the recall model instead of the single pooled curve.
+     * <p>
+     * Recall is an average over queries of a strongly non-linear function of each query's own neighbour gaps, and
+     * those gaps vary a lot between queries (coefficient of variation 0.5-0.9 on real embeddings): evaluating the
+     * recall integral once on the average curve over-estimates recall (Jensen). The slope is also fitted only on the
+     * (rank, sample size) points whose {@code log(rank / size)} is closest to the range the recall integral uses at the
+     * real segment size, because the local dimension drifts with scale and the pooled fit over the whole sweep
+     * mis-predicts the gaps of large (and some small) segments.
+     */
+    public record QueryCurves(double[] alpha, double[] slope) {
+        public int size() {
+            return alpha.length;
+        }
+    }
+
+    /** Number of representative calibration queries kept in {@link QueryCurves}. */
+    static final int REPRESENTATIVE_QUERIES = 16;
+
+    /**
+     * Minimum number of (rank, sample size) points a per-query curve is fitted on. For very large segments no sweep
+     * point lies inside the target range and the nearest points are the lowest ranks (1-2) of the largest prefixes.
+     * Along nested prefixes a query's rank-1 distance is a step function (it only changes when a closer document
+     * arrives), so a fit on those few points alone gives near-zero slopes for most queries and grossly pessimistic
+     * recall (DBpedia, 4.6M vectors: -20 pts). 180 points (about the lowest decile of the 25 x 60 grid) also span
+     * ranks up to about 10, which keeps the fit local yet stable.
+     */
+    static final int MIN_QUERY_FIT_POINTS = 180;
 
     /**
      * Estimate manifold parameters (alpha, invDim) using default sample sizes.
@@ -96,7 +130,19 @@ public final class ManifoldModel {
      * any Neyshabur lift or cosine normalization applied when the source was built.
      */
     public static ManifoldParams estimateManifoldParameters(CalibrationSource source) throws IOException {
-        return estimateManifoldParameters(source, ranksFromMultipliers(source.k()));
+        return estimateManifoldParameters(source, 3 * source.k());
+    }
+
+    /**
+     * Like {@link #estimateManifoldParameters(CalibrationSource)}, fitting the per-query curves for a recall model
+     * that reranks at most {@code maxRerankN} candidates.
+     */
+    public static ManifoldParams estimateManifoldParameters(CalibrationSource source, int maxRerankN) throws IOException {
+        return estimateManifoldParameters(source, ranksFromMultipliers(source.k()), maxRerankN);
+    }
+
+    static ManifoldParams estimateManifoldParameters(CalibrationSource source, int[] ranksForK) throws IOException {
+        return estimateManifoldParameters(source, ranksForK, 3 * source.k());
     }
 
     static int[] ranksFromMultipliers(int k) {
@@ -112,11 +158,12 @@ public final class ManifoldModel {
      * ranks and sample sizes. Corpus vectors are accessed lazily via {@link CalibrationSource#vectors()}
      * and {@link CalibrationSource#corpusOrdinals()}.
      *
-     * @param source    calibration context (similarity function, vectors, query set, target k)
-     * @param ranksForK the rank values to sweep
-     * @return {@link ManifoldParams} containing {log(alpha), invDim}
+     * @param source     calibration context (similarity function, vectors, query set, target k)
+     * @param ranksForK  the rank values to sweep
+     * @param maxRerankN the largest rerank depth the recall model will be evaluated at
+     * @return {@link ManifoldParams} containing {log(alpha), invDim} and the representative per-query curves
      */
-    static ManifoldParams estimateManifoldParameters(CalibrationSource source, int[] ranksForK) throws IOException {
+    static ManifoldParams estimateManifoldParameters(CalibrationSource source, int[] ranksForK, int maxRerankN) throws IOException {
         int nQueries = source.queryOrdinals().length;
         int nDocsTotal = source.corpusOrdinals().length;
         int m = Math.min(ranksForK.length, ManifoldModel.SAMPLE_SIZES.length);
@@ -149,11 +196,16 @@ public final class ManifoldModel {
             );
         }
 
+        int capacity = 6 * source.k();
         ManifoldTopK[] topKs = new ManifoldTopK[nQueries];
         for (int qi = 0; qi < nQueries; qi++) {
-            topKs[qi] = new ManifoldTopK(dotLike, 6 * source.k(), ESVectorUtil.dotProduct(queries[qi], queries[qi]));
+            topKs[qi] = new ManifoldTopK(dotLike, capacity, ESVectorUtil.dotProduct(queries[qi], queries[qi]));
         }
         float[] bulkDistances = new float[4];
+        // sorted rank distances of every query after every sweep step, for the per-query curve fits
+        float[][][] sortedByStep = new float[nQueries][m][];
+        int[] stepSizes = new int[m];
+        int[] stepFilled = new int[m];
 
         int sampleStart = 0;
         for (int i = 0; i < m; i++) {
@@ -201,9 +253,16 @@ public final class ManifoldModel {
                 }
             }
             double sum = 0;
+            int filled = capacity;
             for (int qi = 0; qi < nQueries; qi++) {
-                sum += topKs[qi].ithDistance(rank);
+                float[] sorted = new float[capacity];
+                int size = topKs[qi].sortedDistances(sorted);
+                sortedByStep[qi][logCount] = sorted;
+                filled = Math.min(filled, size);
+                sum += size == 0 ? 0f : sorted[Math.min(rank, size) - 1];
             }
+            stepSizes[logCount] = sampleEnd;
+            stepFilled[logCount] = filled;
             double avgDist = sum / nQueries;
             logRanks[logCount] = Math.log(rank);
             logSampleSizes[logCount] = Math.log(ManifoldModel.SAMPLE_SIZES[i]);
@@ -238,7 +297,129 @@ public final class ManifoldModel {
                 r2
             )
         );
-        return new ManifoldParams(res.beta0(), res.beta1());
+        QueryCurves curves = fitQueryCurves(
+            sortedByStep,
+            stepSizes,
+            stepFilled,
+            logCount,
+            source.numVectors(),
+            source.k(),
+            maxRerankN,
+            res.beta0(),
+            res.beta1()
+        );
+        return new ManifoldParams(res.beta0(), res.beta1(), curves);
+    }
+
+    /**
+     * Fits {@code log(dist) = alpha + slope * log(rank / size)} for every calibration query on the (rank, sample size)
+     * points closest to the range {@code [log(1 / N), log(window * maxRerankN / N)]} the recall integral evaluates at
+     * the real segment size {@code N}, and returns {@link #REPRESENTATIVE_QUERIES} queries taken at evenly spaced
+     * quantiles of their absolute local gap {@code dist(2k) - dist(k)} at {@code N}.
+     *
+     * @param sortedByStep [query][step] ascending rank distances after each sweep step
+     * @param stepSizes    corpus prefix size of each step
+     * @param stepFilled   number of valid ranks of each step (common to all queries)
+     * @param steps        number of steps run
+     */
+    static QueryCurves fitQueryCurves(
+        float[][][] sortedByStep,
+        int[] stepSizes,
+        int[] stepFilled,
+        int steps,
+        int numVectors,
+        int k,
+        int maxRerankN,
+        double fallbackAlpha,
+        double fallbackSlope
+    ) {
+        int nQueries = sortedByStep.length;
+        if (nQueries == 0 || steps == 0 || numVectors <= 0) {
+            return null;
+        }
+        // candidate points (query independent): every rank of every step
+        int total = 0;
+        for (int s = 0; s < steps; s++) {
+            total += stepFilled[s];
+        }
+        int[] pStep = new int[total];
+        int[] pRank = new int[total];
+        double[] pX = new double[total];
+        int p = 0;
+        for (int s = 0; s < steps; s++) {
+            for (int r = 1; r <= stepFilled[s]; r++) {
+                pStep[p] = s;
+                pRank[p] = r;
+                pX[p] = Math.log(r) - Math.log(stepSizes[s]);
+                p++;
+            }
+        }
+        double lo = Math.log(1.0 / numVectors);
+        double hi = Math.log((double) ExpectedRecall.RERANK_WINDOW_RANK_MULTIPLIER * maxRerankN / numVectors);
+        // distance of each point to the target window; points inside have distance 0
+        double[] outside = new double[total];
+        int inside = 0;
+        for (int i = 0; i < total; i++) {
+            outside[i] = pX[i] < lo ? lo - pX[i] : (pX[i] > hi ? pX[i] - hi : 0);
+            if (outside[i] == 0) {
+                inside++;
+            }
+        }
+        int nSelected = Math.clamp(inside, MIN_QUERY_FIT_POINTS, total);
+        Integer[] byDistance = new Integer[total];
+        for (int i = 0; i < total; i++) {
+            byDistance[i] = i;
+        }
+        Arrays.sort(byDistance, (a, b) -> Double.compare(outside[a], outside[b]));
+
+        double[] alpha = new double[nQueries];
+        double[] slope = new double[nQueries];
+        for (int q = 0; q < nQueries; q++) {
+            double sx = 0, sy = 0, sxx = 0, sxy = 0;
+            int count = 0;
+            for (int j = 0; j < nSelected; j++) {
+                int i = byDistance[j];
+                double d = sortedByStep[q][pStep[i]][pRank[i] - 1];
+                if (d > 0 && Double.isFinite(d)) {
+                    double x = pX[i];
+                    double y = Math.log(d);
+                    sx += x;
+                    sy += y;
+                    sxx += x * x;
+                    sxy += x * y;
+                    count++;
+                }
+            }
+            double denom = count * sxx - sx * sx;
+            double b = count >= 2 && denom > 0 ? (count * sxy - sx * sy) / denom : Double.NaN;
+            if (Double.isFinite(b) && b > 0) {
+                slope[q] = b;
+                alpha[q] = (sy - b * sx) / count;
+            } else {
+                // degenerate query (e.g. exact duplicates): fall back to the pooled slope
+                slope[q] = fallbackSlope;
+                alpha[q] = count > 0 ? (sy - fallbackSlope * sx) / count : fallbackAlpha;
+            }
+        }
+
+        // representative queries: evenly spaced quantiles of the absolute local gap at N
+        double logN = Math.log(numVectors);
+        double[] gap = new double[nQueries];
+        Integer[] order = new Integer[nQueries];
+        for (int q = 0; q < nQueries; q++) {
+            gap[q] = Math.exp(alpha[q] + slope[q] * (Math.log(2.0 * k) - logN)) - Math.exp(alpha[q] + slope[q] * (Math.log(k) - logN));
+            order[q] = q;
+        }
+        Arrays.sort(order, (a, b) -> Double.compare(gap[a], gap[b]));
+        int reps = Math.min(REPRESENTATIVE_QUERIES, nQueries);
+        double[] repAlpha = new double[reps];
+        double[] repSlope = new double[reps];
+        for (int i = 0; i < reps; i++) {
+            int q = order[(int) ((i + 0.5) / reps * nQueries)];
+            repAlpha[i] = alpha[q];
+            repSlope[i] = slope[q];
+        }
+        return new QueryCurves(repAlpha, repSlope);
     }
 
     /**
@@ -305,6 +486,22 @@ public final class ManifoldModel {
                     maxIndex = i;
                 }
             }
+        }
+
+        /**
+         * Copies the stored distances into {@code dst} in ascending order, in the units the model is fit in, and
+         * returns how many there are.
+         */
+        int sortedDistances(float[] dst) {
+            System.arraycopy(buffer, 0, dst, 0, size);
+            Arrays.sort(dst, 0, size);
+            if (isDotLike) {
+                float offset = 0.5f * queryNormSq;
+                for (int i = 0; i < size; i++) {
+                    dst[i] += offset;
+                }
+            }
+            return size;
         }
 
         /**

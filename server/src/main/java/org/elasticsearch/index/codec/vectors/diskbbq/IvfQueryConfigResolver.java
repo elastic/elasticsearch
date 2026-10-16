@@ -21,8 +21,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Resolves a single {@link IvfSegmentConfig} per leaf at query time: persisted calibration when enabled,
- * else mapping defaults, with query-time oversample override.
+ * Resolves a single {@link IvfSegmentConfig} per leaf at query time: persisted calibration when available and valid,
+ * otherwise mapping defaults, with query-time oversample override.
  */
 public class IvfQueryConfigResolver {
 
@@ -69,40 +69,47 @@ public class IvfQueryConfigResolver {
     }
 
     public IvfSegmentConfig resolve(FieldInfo fieldInfo, LeafReader leafReader) throws IOException {
-        IvfSegmentConfig raw = autoCalibrate ? resolveCalibrated(fieldInfo, leafReader) : mappingDefaults();
+        SegmentCalibrationParameters persisted = readPersisted(fieldInfo, leafReader);
+        IvfSegmentConfig raw = switch (persisted) {
+            case null -> mappingDefaults(mappingUsePrecondition);
+            case SegmentCalibrationParameters.Osq osq when autoCalibrate && osq.calibrated() -> new IvfSegmentConfig(
+                CentroidIndexFormat.FLAT,
+                new IvfSegmentConfig.OsqConfig(osq.encoding()),
+                osq.precondition(),
+                osq.oversample()
+            );
+            case SegmentCalibrationParameters.Osq osq -> mappingDefaults(osq.precondition());
+        };
         return IvfSegmentConfig.withEffectiveRescoreOversample(raw, queryOversample, mappingRescoreOversample);
     }
 
-    private IvfSegmentConfig mappingDefaults() {
+    private IvfSegmentConfig mappingDefaults(boolean usePrecondition) {
         return new IvfSegmentConfig(
             CentroidIndexFormat.FLAT,
             new IvfSegmentConfig.OsqConfig(QuantEncoding.fromBits((byte) quantBits)),
-            mappingUsePrecondition,
+            usePrecondition,
             Float.NaN
         );
     }
 
-    private IvfSegmentConfig resolveCalibrated(FieldInfo fieldInfo, LeafReader leafReader) throws IOException {
+    /**
+     * Reads what the segment itself recorded for the field, or {@code null} when the segment's reader
+     * cannot report it.
+     */
+    @Nullable
+    private static SegmentCalibrationParameters readPersisted(FieldInfo fieldInfo, LeafReader leafReader) {
         SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leafReader);
         if (segmentReader == null) {
-            return mappingDefaults();
+            return null;
         }
         KnnVectorsReader vectorsReader = segmentReader.getVectorReader();
         if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
             vectorsReader = perField.getFieldReader(fieldInfo.name);
         }
         if (vectorsReader instanceof CalibrationAwareReader calibrationAwareReader) {
-            return switch (calibrationAwareReader.getCalibrationParameters(fieldInfo)) {
-                case SegmentCalibrationParameters.Osq osq when osq.calibrated() == false -> mappingDefaults();
-                case SegmentCalibrationParameters.Osq osq -> new IvfSegmentConfig(
-                    CentroidIndexFormat.FLAT,
-                    new IvfSegmentConfig.OsqConfig(osq.encoding()),
-                    osq.precondition(),
-                    osq.oversample()
-                );
-            };
+            return calibrationAwareReader.getCalibrationParameters(fieldInfo);
         }
-        return mappingDefaults();
+        return null;
     }
 
     @Override

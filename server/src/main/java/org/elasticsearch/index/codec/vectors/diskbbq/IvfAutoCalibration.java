@@ -510,7 +510,7 @@ public class IvfAutoCalibration {
         CalibrationMode mode
     ) throws IOException {
 
-        ManifoldModel.ManifoldParams manifold = ManifoldModel.estimateManifoldParameters(calibrationSource);
+        ManifoldModel.ManifoldParams manifold = ManifoldModel.estimateManifoldParameters(calibrationSource, maxRerankN());
 
         return switch (mode) {
             case FAST -> sweepQuantizationCandidatesRealResiduals(
@@ -564,9 +564,9 @@ public class IvfAutoCalibration {
                 );
                 errorModelCache.put(key, errorModel);
             }
-            // cap evaluation at the measured sample size to avoid extrapolating beyond its fitted range
-            int effectiveN = Math.min(numVectors, state.ndocs());
-            return errorModel.errorStd(vectorsPerCluster, effectiveN);
+            // the error measured on the sample's coarse clustering, projected to the real segment's (smaller) residuals
+            double sampleStd = errorModel.errorStd(vectorsPerCluster, state.ndocs());
+            return ErrorModel.projectErrorStdToSegment(sampleStd, state.ndocs(), numVectors, vectorsPerCluster, invDim);
         });
     }
 
@@ -582,6 +582,11 @@ public class IvfAutoCalibration {
         }
         sweeps.sort(Comparator.comparingDouble(CalibrationSweep::cost).thenComparingInt(s -> s.candidate().qbits()));
         return Collections.unmodifiableList(sweeps);
+    }
+
+    /** The deepest rerank the sweep evaluates, in candidates. */
+    private int maxRerankN() {
+        return ExpectedRecall.rerankN(k, Arrays.stream(RERANK_DEPTHS).max().orElse(1.0));
     }
 
     private static double calibrationCost(int dbits, double rerankDepth) {
@@ -633,6 +638,7 @@ public class IvfAutoCalibration {
     ) throws IOException {
         double alpha = manifold.alpha();
         double invDim = manifold.invDim();
+        ManifoldModel.QueryCurves queryCurves = manifold.queryCurves();
         double bestRecall = -1;
         QuantEncoding bestEncoding = QuantEncoding.ONE_BIT_4BIT_QUERY;
         float bestOversample = DEFAULT_CALIBRATED_OVERSAMPLE;
@@ -647,7 +653,9 @@ public class IvfAutoCalibration {
 
             for (boolean precondition : preconditionValues) {
                 double errorStd = errorStdProvider.errorStd(candidate, precondition);
-                double expected = ExpectedRecall.expectedRecallAtK(similarityFunction, numVectors, alpha, invDim, errorStd, k, rerankVal);
+                double expected = queryCurves != null && queryCurves.size() > 0
+                    ? ExpectedRecall.expectedRecallAtK(numVectors, queryCurves, errorStd, k, rerankVal)
+                    : ExpectedRecall.expectedRecallAtK(similarityFunction, numVectors, alpha, invDim, errorStd, k, rerankVal);
 
                 logger.debug(
                     () -> format(

@@ -14,6 +14,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -403,6 +404,195 @@ public class ManifoldModelTests extends ESTestCase {
             alphaRelDiff,
             lessThan(0.01)
         );
+    }
+
+    /** Builds per-step sorted rank distances that follow {@code log d = alpha + slope * log(rank / size)} exactly. */
+    private static float[][][] powerLawSweep(double[] alpha, double[] slope, int steps, int ranks) {
+        float[][][] sorted = new float[alpha.length][steps][ranks];
+        for (int q = 0; q < alpha.length; q++) {
+            for (int s = 0; s < steps; s++) {
+                for (int r = 1; r <= ranks; r++) {
+                    double x = Math.log(r) - Math.log(ManifoldModel.SAMPLE_SIZES[s]);
+                    sorted[q][s][r - 1] = (float) Math.exp(alpha[q] + slope[q] * x);
+                }
+            }
+        }
+        return sorted;
+    }
+
+    private static int[] filled(int steps, int ranks) {
+        int[] f = new int[steps];
+        Arrays.fill(f, ranks);
+        return f;
+    }
+
+    public void testFitQueryCurvesRecoversPerQueryPowerLaws() {
+        int nQueries = 40;
+        int steps = ManifoldModel.SAMPLE_SIZES.length;
+        Random random = new Random(17);
+        double[] alpha = new double[nQueries];
+        double[] slope = new double[nQueries];
+        for (int q = 0; q < nQueries; q++) {
+            alpha[q] = -2 + random.nextDouble();
+            slope[q] = 0.05 + 0.3 * random.nextDouble();
+        }
+        int numVectors = 100_000;
+        int k = 10;
+        ManifoldModel.QueryCurves curves = ManifoldModel.fitQueryCurves(
+            powerLawSweep(alpha, slope, steps, 6 * k),
+            ManifoldModel.SAMPLE_SIZES,
+            filled(steps, 6 * k),
+            steps,
+            numVectors,
+            k,
+            3 * k,
+            -1,
+            0.1
+        );
+        assertEquals(ManifoldModel.REPRESENTATIVE_QUERIES, curves.size());
+        double previousGap = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i < curves.size(); i++) {
+            // every representative is one of the generated queries, recovered exactly
+            boolean found = false;
+            for (int q = 0; q < nQueries; q++) {
+                if (Math.abs(curves.alpha()[i] - alpha[q]) < 1e-4 && Math.abs(curves.slope()[i] - slope[q]) < 1e-4) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue("representative " + i + " does not match any query", found);
+            // representatives are ordered by their absolute local gap at the segment size
+            double a = curves.alpha()[i];
+            double s = curves.slope()[i];
+            double logN = Math.log(numVectors);
+            double gap = Math.exp(a + s * (Math.log(2.0 * k) - logN)) - Math.exp(a + s * (Math.log(k) - logN));
+            assertThat(gap, greaterThan(previousGap));
+            previousGap = gap;
+        }
+    }
+
+    /**
+     * When the local dimension drifts with scale, the curve must be fitted on the points closest to the
+     * range the recall model needs at the segment size: for a very large segment, the smallest
+     * {@code log(rank / size)} of the sweep.
+     */
+    public void testFitQueryCurvesUsesPointsClosestToTheSegmentScale() {
+        int steps = ManifoldModel.SAMPLE_SIZES.length;
+        int ranks = 60;
+        double knee = -7.0; // the MIN_QUERY_FIT_POINTS lowest x of the grid are all below -7.19
+        double fineSlope = 0.15;
+        double coarseSlope = 0.05;
+        float[][][] sorted = new float[1][steps][ranks];
+        for (int s = 0; s < steps; s++) {
+            for (int r = 1; r <= ranks; r++) {
+                double x = Math.log(r) - Math.log(ManifoldModel.SAMPLE_SIZES[s]);
+                double logD = x < knee ? fineSlope * (x - knee) : coarseSlope * (x - knee);
+                sorted[0][s][r - 1] = (float) Math.exp(logD);
+            }
+        }
+        ManifoldModel.QueryCurves curves = ManifoldModel.fitQueryCurves(
+            sorted,
+            ManifoldModel.SAMPLE_SIZES,
+            filled(steps, ranks),
+            steps,
+            10_000_000,
+            10,
+            30,
+            0,
+            0.1
+        );
+        assertEquals(1, curves.size());
+        assertEquals(fineSlope, curves.slope()[0], 1e-3);
+    }
+
+    /**
+     * Regression test for very large segments (e.g., DBpedia, 4.6M vectors): no sweep point lies inside the target range,
+     * and along nested prefixes a query's rank-1 and rank-2 distances are step functions (flat here). Fitting on the
+     * dozen lowest-rank points alone collapses the slope (to about 0.04 for a true 0.08) and the recall prediction
+     * with it; the fit must use enough points to reach the ranks that still follow the power law.
+     */
+    public void testFitQueryCurvesIsStableForVeryLargeSegments() {
+        int steps = ManifoldModel.SAMPLE_SIZES.length;
+        int ranks = 60;
+        double slope = 0.08;
+        int largest = ManifoldModel.SAMPLE_SIZES[steps - 1];
+        float[][][] sorted = new float[1][steps][ranks];
+        for (int s = 0; s < steps; s++) {
+            for (int r = 1; r <= ranks; r++) {
+                int size = r <= 2 ? largest : ManifoldModel.SAMPLE_SIZES[s];
+                sorted[0][s][r - 1] = (float) Math.exp(slope * (Math.log(r) - Math.log(size)));
+            }
+        }
+        ManifoldModel.QueryCurves curves = ManifoldModel.fitQueryCurves(
+            sorted,
+            ManifoldModel.SAMPLE_SIZES,
+            filled(steps, ranks),
+            steps,
+            4_635_922,
+            10,
+            30,
+            0,
+            0.05
+        );
+        Assert.assertNotNull(curves);
+        assertThat(curves.slope()[0], greaterThan(0.06));
+        assertThat(curves.slope()[0], lessThan(0.12));
+    }
+
+    public void testFitQueryCurvesFallsBackForDegenerateQueries() {
+        int steps = ManifoldModel.SAMPLE_SIZES.length;
+        float[][][] sorted = new float[1][steps][60]; // all-zero distances: exact duplicates
+        ManifoldModel.QueryCurves curves = ManifoldModel.fitQueryCurves(
+            sorted,
+            ManifoldModel.SAMPLE_SIZES,
+            filled(steps, 60),
+            steps,
+            100_000,
+            10,
+            30,
+            -1.5,
+            0.12
+        );
+        assertEquals(1, curves.size());
+        assertEquals(0.12, curves.slope()[0], 0.0);
+        assertEquals(-1.5, curves.alpha()[0], 0.0);
+    }
+
+    public void testEstimateManifoldParametersReturnsRepresentativeQueryCurves() throws IOException {
+        int dim = 16;
+        float[][] rows = randomNormalizedRows(64 + 8192, dim, 5L);
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, dim);
+        int[] queryOrdinals = new int[64];
+        for (int i = 0; i < queryOrdinals.length; i++) {
+            queryOrdinals[i] = i;
+        }
+        int[] corpusOrdinals = new int[8192];
+        for (int i = 0; i < corpusOrdinals.length; i++) {
+            corpusOrdinals[i] = 64 + i;
+        }
+        CalibrationSource source = new CalibrationSource(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            dim,
+            fvv,
+            queryOrdinals,
+            dim,
+            false,
+            false,
+            null,
+            corpusOrdinals,
+            10,
+            500_000
+        );
+        ManifoldModel.ManifoldParams params = ManifoldModel.estimateManifoldParameters(source, 30);
+        ManifoldModel.QueryCurves curves = params.queryCurves();
+        assertNotNull(curves);
+        assertEquals(ManifoldModel.REPRESENTATIVE_QUERIES, curves.size());
+        for (int i = 0; i < curves.size(); i++) {
+            assertTrue(Double.isFinite(curves.alpha()[i]));
+            assertThat(curves.slope()[i], greaterThan(0.0));
+            // random directions on the 16-d sphere: a 15-dimensional manifold, so squared distances scale as (k/N)^(2/15)
+            assertThat(curves.slope()[i], lessThan(1.0));
+        }
     }
 
     private static float[][] randomNormalizedRows(int count, int dim, long seed) {

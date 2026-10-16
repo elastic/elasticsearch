@@ -50,9 +50,62 @@ public final class ErrorModel {
     private ErrorModel() {}
 
     /**
+     * Centroids per second-level (parent) cluster used by the DiskBBQ writers. Mirrors
+     * {@code ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER} /
+     * {@code ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER}, the only value the mappers configure.
+     */
+    static final int CENTROIDS_PER_PARENT_CLUSTER = 16;
+
+    /**
+     * Whether a segment of {@code numVectors} vectors clustered at {@code nDocsPerCluster} vectors per cluster will
+     * quantize queries against the segment's <em>global</em> centroid. The DiskBBQ writers only build parent
+     * clusters when there are more than {@code CENTROIDS_PER_PARENT_CLUSTER^2} centroids; otherwise the reader
+     * quantizes the query once, against the global centroid, for every posting list. The query residual (and so
+     * the quantization error) is then much larger than when the query is quantized against a nearby centroid, so the
+     * error model must reproduce that to avoid under-estimating the error on small segments.
+     */
+    static boolean queriesUseGlobalCentroid(int numVectors, int nDocsPerCluster) {
+        long expectedCentroids = Math.max(1L, Math.round((double) numVectors / Math.max(1, nDocsPerCluster)));
+        return expectedCentroids <= (long) CENTROIDS_PER_PARENT_CLUSTER * CENTROIDS_PER_PARENT_CLUSTER;
+    }
+
+    /**
+     * Projects the quantization error std measured on a {@code sampleDocs}-document sample, clustered at
+     * {@code nDocsPerCluster} documents per cluster, to a segment of {@code numVectors} vectors.
+     * <p>
+     * The error of the OSQ dot-product estimate is bilinear in the query and document residual norms. With a fixed
+     * number of documents per cluster, a cluster of the real segment covers a {@code sampleDocs / numVectors} smaller
+     * fraction of the data than a cluster of the sample, so document residuals (distances) shrink by
+     * {@code (sampleDocs / numVectors)^(1/d)}. The manifold slope {@code invDim} is fitted on <em>squared</em> distances,
+     * i.e. it is {@code 2/d}, hence the exponent {@code invDim / 2}. Query residuals only shrink when the segment
+     * has parent clusters: the reader then quantizes queries against a parent of {@link #CENTROIDS_PER_PARENT_CLUSTER}
+     * clusters, i.e. a {@code 16 * nDocsPerCluster / numVectors} fraction of the data, whereas the sample quantizes
+     * them against (clusters of) its document centroids, a {@code nDocsPerCluster / sampleDocs} fraction. Without
+     * parent clusters the reader uses the global centroid, which {@link #queriesUseGlobalCentroid} already mirrors
+     * in the sample, so the query residual needs no projection.
+     */
+    public static double projectErrorStdToSegment(double sampleStd, int sampleDocs, int numVectors, int nDocsPerCluster, double invDim) {
+        if (numVectors <= sampleDocs || invDim <= 0 || Double.isFinite(invDim) == false) {
+            return sampleStd;
+        }
+        double exponent = invDim / 2;
+        double docFactor = Math.pow((double) sampleDocs / numVectors, exponent);
+        double queryFactor = queriesUseGlobalCentroid(numVectors, nDocsPerCluster)
+            ? 1.0
+            : Math.min(1.0, Math.pow((double) CENTROIDS_PER_PARENT_CLUSTER * sampleDocs / numVectors, exponent));
+        return sampleStd * docFactor * queryFactor;
+    }
+
+    /**
      * Quantized representation error standard deviation. Quantizes doc residuals and
      * query residuals using OSQ, estimates dot products, and compares to exact
-     * similarities for the top-5k ranked documents per query.
+     * similarities for each query's true top-5k documents (ranked by exact similarity, as in the
+     * paper's definition of the error over the j-th nearest neighbours; ranking by the quantized estimate
+     * would select documents whose error happens to be favourable).
+     *
+     * @param globalQueryCentroid quantize queries against the mean of the sampled documents, as the reader does for
+     *                            segments without parent clusters (see {@link #queriesUseGlobalCentroid}); otherwise
+     *                            queries are quantized against clusters of the document centroids
      */
     static QuantizedQueryErrorResult quantizedRepErrorStd(
         CalibrationSource source,
@@ -64,6 +117,7 @@ public final class ErrorModel {
         int dbits,
         HierarchicalKMeans<float[]> kmeans,
         float[][] warmStartQueryCentroids,
+        boolean globalQueryCentroid,
         QuantizedErrorScratch scratch
     ) throws IOException {
         VectorSimilarityFunction sim = source.similarityFunction();
@@ -75,25 +129,24 @@ public final class ErrorModel {
             return new QuantizedQueryErrorResult(1.0, docCentroids.length > 0 ? new float[][] { docCentroids[0].clone() } : new float[0][]);
         }
 
-        int effectiveQueryClusters = Math.min(N_QUERY_CLUSTERS, nDocClusters);
         float[][] queryCentroids;
         int[] docCentroidAssignments;
-        if (effectiveQueryClusters <= 1) {
-            queryCentroids = new float[][] { docCentroids[0].clone() };
+        if (globalQueryCentroid) {
+            // single query centroid: the sample mean, computed once the documents are materialized below
+            queryCentroids = null;
             docCentroidAssignments = new int[nDocClusters];
         } else {
-            int targetSize = Math.max(1, nDocClusters / effectiveQueryClusters);
-            KMeansFloatVectorValues centroidVectors = KMeansFloatVectorValues.build(Arrays.asList(docCentroids), null, dimWork);
-            var queryClustering = kmeans.cluster(centroidVectors, targetSize, warmStartQueryCentroids);
-            queryCentroids = queryClustering.centroids();
-            docCentroidAssignments = queryClustering.assignments();
-        }
-        int actualQueryClusters = queryCentroids.length;
-
-        // Cluster-count scratch: sized to the actual cluster counts (~nDocs / vectorsPerCluster), not maxNDocs.
-        double[] centroidDotCentroid = new double[nDocClusters];
-        for (int i = 0; i < nDocClusters; i++) {
-            centroidDotCentroid[i] = ESVectorUtil.dotProduct(queryCentroids[docCentroidAssignments[i]], docCentroids[i]);
+            int effectiveQueryClusters = Math.min(N_QUERY_CLUSTERS, nDocClusters);
+            if (effectiveQueryClusters <= 1) {
+                queryCentroids = new float[][] { docCentroids[0].clone() };
+                docCentroidAssignments = new int[nDocClusters];
+            } else {
+                int targetSize = Math.max(1, nDocClusters / effectiveQueryClusters);
+                KMeansFloatVectorValues centroidVectors = KMeansFloatVectorValues.build(Arrays.asList(docCentroids), null, dimWork);
+                var queryClustering = kmeans.cluster(centroidVectors, targetSize, warmStartQueryCentroids);
+                queryCentroids = queryClustering.centroids();
+                docCentroidAssignments = queryClustering.assignments();
+            }
         }
 
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(VectorSimilarityFunction.EUCLIDEAN);
@@ -108,6 +161,7 @@ public final class ErrorModel {
         byte[][] docQuantized = scratch.docQuantized;
         double[] corpusDotCentroid = scratch.corpusDotCentroid;
         double[] docDotDoc = scratch.docDotDoc;
+        float[][] docVectors = scratch.docVectors;
 
         for (int i = 0; i < nDocs; i++) {
             float[] doc = source.vectors().vectorValue(source.corpusOrdinals()[i]);
@@ -118,8 +172,8 @@ public final class ErrorModel {
                 source.preconditioner().applyTransform(doc, preconditionScratch);
                 doc = preconditionScratch;
             }
-            int qc = docCentroidAssignments[docAssignments[i]];
-            corpusDotCentroid[i] = ESVectorUtil.dotProduct(queryCentroids[qc], doc);
+            // keep the transformed document: exact similarities are needed for every document to rank by them
+            System.arraycopy(doc, 0, docVectors[i], 0, dimWork);
             var qr = quantizer.scalarQuantize(doc, residualScratch, quantizeScratch, (byte) dbits, docCentroids[docAssignments[i]]);
             ESVectorUtil.packAsBytes(quantizeScratch, docQuantized[i], dimWork);
             docLower[i] = qr.lowerInterval();
@@ -128,6 +182,31 @@ public final class ErrorModel {
             if (docDotDoc != null) {
                 docDotDoc[i] = ESVectorUtil.dotProduct(doc, doc);
             }
+        }
+
+        if (globalQueryCentroid) {
+            float[] mean = new float[dimWork];
+            for (int i = 0; i < nDocs; i++) {
+                float[] doc = docVectors[i];
+                for (int j = 0; j < dimWork; j++) {
+                    mean[j] += doc[j];
+                }
+            }
+            for (int j = 0; j < dimWork; j++) {
+                mean[j] /= nDocs;
+            }
+            queryCentroids = new float[][] { mean };
+        }
+        int actualQueryClusters = queryCentroids.length;
+
+        // Cluster-count scratch: sized to the actual cluster counts (~nDocs / vectorsPerCluster), not maxNDocs.
+        double[] centroidDotCentroid = new double[nDocClusters];
+        for (int i = 0; i < nDocClusters; i++) {
+            centroidDotCentroid[i] = ESVectorUtil.dotProduct(queryCentroids[docCentroidAssignments[i]], docCentroids[i]);
+        }
+        for (int i = 0; i < nDocs; i++) {
+            int qc = docCentroidAssignments[docAssignments[i]];
+            corpusDotCentroid[i] = ESVectorUtil.dotProduct(queryCentroids[qc], docVectors[i]);
         }
 
         WelfordVariance moments = new WelfordVariance();
@@ -143,6 +222,7 @@ public final class ErrorModel {
 
         double[] queryDotCentroid = new double[nDocClusters];
         double[] simOsq = scratch.simOsq;
+        double[] exactSim = scratch.exactSim;
         int[] order = scratch.order;
 
         // Group doc indices by their query cluster once (assignments are query-independent), so the
@@ -243,26 +323,21 @@ public final class ErrorModel {
                 simOsq[i] = dotEst;
             }
 
-            int topN = Math.min(5 * source.k(), nDocs);
-            CalibrationUtils.selectTopNDescending(simOsq, order, nDocs, topN);
-            for (int i = 0; i < topN; i++) {
-                int docIdx = order[i];
-                float[] doc = source.vectors().vectorValue(source.corpusOrdinals()[docIdx]);
-                if (cosine) {
-                    doc = CalibrationUtils.copyAndNormalize(doc, normScratch);
-                }
-                if (usePreconditioned && source.preconditioner() != null) {
-                    source.preconditioner().applyTransform(doc, preconditionScratch);
-                    doc = preconditionScratch;
-                }
-                double exact;
+            // measure the error on the query's true nearest neighbours: rank by exact similarity, not by simOsq
+            for (int i = 0; i < nDocs; i++) {
+                double dot = ESVectorUtil.dotProduct(queryScratch, docVectors[i]);
                 if (sim == VectorSimilarityFunction.EUCLIDEAN) {
                     assert docDotDoc != null;
-                    exact = 2.0 * ESVectorUtil.dotProduct(queryScratch, doc) - docDotDoc[docIdx];
+                    exactSim[i] = 2.0 * dot - docDotDoc[i];
                 } else {
-                    exact = ESVectorUtil.dotProduct(queryScratch, doc);
+                    exactSim[i] = dot;
                 }
-                moments.add(exact - simOsq[docIdx]);
+            }
+            int topN = Math.min(5 * source.k(), nDocs);
+            CalibrationUtils.selectTopNDescending(exactSim, order, nDocs, topN);
+            for (int i = 0; i < topN; i++) {
+                int docIdx = order[i];
+                moments.add(exactSim[docIdx] - simOsq[docIdx]);
             }
         }
 
@@ -316,6 +391,7 @@ public final class ErrorModel {
             dbits,
             kmeans,
             warmStartQueryCentroids,
+            queriesUseGlobalCentroid(source.numVectors(), nDocsPerCluster),
             scratch
         );
 
@@ -561,8 +637,11 @@ public final class ErrorModel {
      * not recomputed per encoding.
      * <p>
      * Measures OSQ error once at {@link #REAL_RESIDUAL_SAMPLE} and anchors the intercept at that sample
-     * size. The manifold slope is used as the scaling exponent, so evaluating at the real corpus size {@code N}
-     * extrapolates as {@code errorStd = measuredStd × (REAL_RESIDUAL_SAMPLE / N)^invDim}.
+     * size. The manifold slope is used as the scaling exponent, so evaluating at a corpus size {@code N}
+     * would extrapolate as {@code errorStd = measuredStd × (REAL_RESIDUAL_SAMPLE / N)^invDim}. The fast calibration
+     * path instead evaluates the model at the sample size and projects the measurement to the segment with
+     * {@link #projectErrorStdToSegment}, whose exponent accounts for {@code invDim} being fitted on squared distances
+     * and for whether query residuals shrink with the segment size.
      */
     public static QuantizationErrorStdModel estimateMagnitudeFromRealResiduals(
         double invDim,
@@ -628,12 +707,20 @@ public final class ErrorModel {
         final float[] docUpper;
         final int[] docL1;
         final byte[][] docQuantized;
+        /**
+         * transformed (normalized / preconditioned) documents, kept so exact similarities can be computed for every
+         * document of every query without re-reading and re-transforming them ({@code maxNDocs * dim} floats:
+         * 8MB for the fast path's 2048 documents at 1024 dimensions)
+         */
+        final float[][] docVectors;
         final double[] corpusDotCentroid;
         /** null unless the similarity function is EUCLIDEAN */
         final double[] docDotDoc;
         /** per-query-loop: OSQ estimated similarities, indexed [0..nDocs) */
         final double[] simOsq;
-        /** per-query-loop: sort permutation over simOsq, indexed [0..nDocs) */
+        /** per-query-loop: exact similarities, indexed [0..nDocs) */
+        final double[] exactSim;
+        /** per-query-loop: sort permutation over exactSim, indexed [0..nDocs) */
         final int[] order;
         /** per-query-loop: raw packed-byte doc·query dot products, indexed [0..nDocs) */
         final int[] intDots;
@@ -661,9 +748,11 @@ public final class ErrorModel {
             docUpper = new float[maxNDocs];
             docL1 = new int[maxNDocs];
             docQuantized = new byte[maxNDocs][dim];
+            docVectors = new float[maxNDocs][dim];
             corpusDotCentroid = new double[maxNDocs];
             docDotDoc = euclidean ? new double[maxNDocs] : null;
             simOsq = new double[maxNDocs];
+            exactSim = new double[maxNDocs];
             order = new int[maxNDocs];
             intDots = new int[maxNDocs];
             bucketedDocs = new int[maxNDocs];

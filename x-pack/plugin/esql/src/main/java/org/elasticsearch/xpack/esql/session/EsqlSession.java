@@ -567,7 +567,7 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
         ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
-        Configuration configuration = new Configuration(
+        Configuration newConfiguration = new Configuration(
             Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
@@ -586,6 +586,10 @@ public class EsqlSession {
             resolved,
             viewResolution.viewQueries()
         );
+        // The kill switch of the flattened data type is read once, so that resolution and every data node apply the same rule
+        Configuration configuration = EsqlPlugin.FLATTENED_SUBFIELDS_FEATURE_FLAG.isEnabled() && indexResolver.flattenedDataTypeEnabled()
+            ? newConfiguration.withFlattenedKeys()
+            : newConfiguration;
 
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
         // Subquery/UnionAll structures into BranchPlan. ViewShadowRelation siblings and nested
@@ -618,6 +622,8 @@ public class EsqlSession {
                     assert planningCpu.isMeteringCurrentThread() : "analyzed-plan callback reached on an unmetered thread";
 
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
+                    // Data nodes read the keys of flattened fields only if the analyzer planned for them
+                    Configuration executionConfiguration = finalConfiguration.forMinimumVersion(minimumVersion);
 
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path.
@@ -659,7 +665,9 @@ public class EsqlSession {
                     var logicalPlanOptimizer = new LogicalPlanOptimizer(
                         new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion, flags)
                     );
-                    var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
+                    var physicalPlanOptimizer = new PhysicalPlanOptimizer(
+                        new PhysicalOptimizerContext(configuration.forMinimumVersion(minimumVersion), minimumVersion)
+                    );
 
                     var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
@@ -684,7 +692,7 @@ public class EsqlSession {
                                 executionInfo,
                                 planRunner,
                                 p,
-                                finalConfiguration,
+                                executionConfiguration,
                                 foldContext,
                                 new Holder<ApproximationDriver>(),
                                 physicalPlanOptimizer,
@@ -1793,7 +1801,7 @@ public class EsqlSession {
         PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
             parsed,
             preAnalysis.enriches().isEmpty() == false,
-            unmappedResolution.loadsUnmappedFields()
+            unmappedResolution.loadsUnmappedFields() || configuration.flattenedKeys()
         );
         boolean filterAppliesToViewOutput = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
             && parsed.anyMatch(p -> p instanceof BranchPlan vua && vua.viewBranchKeys().isEmpty() == false);
@@ -1836,6 +1844,7 @@ public class EsqlSession {
                 configuration,
                 executionInfo,
                 trackedUnmappedFieldIndices,
+                configuration.flattenedKeys() ? FieldNameUtils.namedFields(parsed) : null,
                 result,
                 requestFilter,
                 viewInternalIndexPatterns(parsed),
@@ -2542,6 +2551,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
+        @Nullable Set<String> flattenedKeys,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         Set<IndexPattern> viewInternalPatterns,
@@ -2574,6 +2584,7 @@ public class EsqlSession {
                     preAnalysis,
                     executionInfo,
                     trackUnmappedFieldIndices,
+                    flattenedKeys,
                     r,
                     // A pattern reachable only inside a view branch must not be pruned by the request filter.
                     viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
@@ -2597,6 +2608,7 @@ public class EsqlSession {
                     preAnalysis,
                     executionInfo,
                     trackUnmappedFieldIndices,
+                    flattenedKeys,
                     r,
                     // A pattern reachable only inside a view branch must not be pruned by the request filter.
                     viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
@@ -2613,6 +2625,7 @@ public class EsqlSession {
                             preAnalysis,
                             executionInfo,
                             trackUnmappedFieldIndices,
+                            flattenedKeys,
                             r,
                             requestFilter,
                             ll
@@ -2643,6 +2656,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
+        @Nullable Set<String> flattenedKeys,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -2672,6 +2686,7 @@ public class EsqlSession {
                 preAnalysis.hasTimeSeriesAggregation(),
                 preAnalysis.needsAnalyzerGroups(),
                 trackUnmappedFieldIndices,
+                flattenedKeys,
                 indicesExpressionGrouper,
                 planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -2688,6 +2703,7 @@ public class EsqlSession {
                             false,
                             preAnalysis.needsAnalyzerGroups(),
                             trackUnmappedFieldIndices,
+                            flattenedKeys,
                             indicesExpressionGrouper,
                             planningCpu.meteredCpu(retryListener)
                         );
@@ -2745,6 +2761,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
+        @Nullable Set<String> flattenedKeys,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -2763,6 +2780,7 @@ public class EsqlSession {
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
+            flattenedKeys,
             null,
             result.indexViewOrigins(),
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, indexResolution) -> {
@@ -2782,6 +2800,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
+        @Nullable Set<String> flattenedKeys,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
@@ -2802,6 +2821,7 @@ public class EsqlSession {
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
+            flattenedKeys,
             routingInfoCapture,
             result.indexViewOrigins(),
             planningCpu.meteredCpu(ActionListener.wrap(indexResolution -> {
@@ -2824,6 +2844,7 @@ public class EsqlSession {
                         false,
                         preAnalysis.needsAnalyzerGroups(),
                         trackUnmappedFieldIndices,
+                        flattenedKeys,
                         null,
                         result.indexViewOrigins(),
                         planningCpu.meteredCpu(retryListener)

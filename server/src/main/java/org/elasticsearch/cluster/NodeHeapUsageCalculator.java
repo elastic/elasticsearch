@@ -59,7 +59,7 @@ public final class NodeHeapUsageCalculator {
         final Map<DiscoveryNode, NodeHeapUsageComponents> nodeHeapUsageComponentsByNode = Maps.newHashMapWithExpectedSize(
             clusterState.getRoutingNodes().size()
         );
-        long maxPostingsHeapUsage = 0L;
+        long maxIndexingNodePostingsHeapUsage = 0L;
         for (RoutingNode routingNode : clusterState.getRoutingNodes()) {
             final DiscoveryNode discoveryNode = routingNode.node();
             if (isIndexingNode(discoveryNode) == false && isSearchNode(discoveryNode) == false) {
@@ -68,11 +68,14 @@ public final class NodeHeapUsageCalculator {
             final NodeHeapUsageComponents nodeHeapUsageComponents = componentsForActiveShards(routingNode, shardHeapUsageEstimates);
             nodeHeapUsageComponentsByNode.put(discoveryNode, nodeHeapUsageComponents);
             if (isIndexingNode(discoveryNode)) {
-                maxPostingsHeapUsage = Math.max(maxPostingsHeapUsage, nodeHeapUsageComponents.postingsHeapUsage);
+                maxIndexingNodePostingsHeapUsage = Math.max(
+                    maxIndexingNodePostingsHeapUsage,
+                    nodeHeapUsageComponents.postingsHeapUsage
+                );
             }
         }
 
-        final long postingsHeapUsageForTotal = maxPostingsHeapUsage;
+        final long postingsHeapUsageForTotal = maxIndexingNodePostingsHeapUsage;
         final Map<String, NodeHeapEstimates> nodeHeapEstimates = nodeHeapUsageComponentsByNode.entrySet()
             .stream()
             .collect(

@@ -77,7 +77,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -112,7 +111,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
@@ -250,7 +248,6 @@ public class BulkOperationTests extends ESTestCase {
                 )
                 .build()
         )
-        .putCompatibilityVersions("node", TransportVersion.current(), Map.of())
         .build();
 
     private final AtomicInteger obtainedBatchPages = new AtomicInteger();
@@ -956,48 +953,6 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed(), emptyArray());
         assertThat(failedItem.getFailure().getFailureStoreCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getFailureStoreCause().getMessage(), is(equalTo("failure store test failure")));
-        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
-    }
-
-    /**
-     * Until every node in the cluster can read {@link BulkItemResponse.Failure#getFailureStoreCause()}, a failure store failure is still
-     * added to the original cause as a suppressed exception.
-     */
-    public void testFailureStoreShardFailureOnMixedVersionClusterSuppressesFailureStoreCause() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest(fsDataStreamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
-        bulkRequest.add(new IndexRequest(fsDataStreamName).id("3").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
-
-        NodeClient client = getNodeClient(
-            shardSpecificResponse(
-                Map.of(
-                    new ShardId(ds2BackingIndex1.getIndex(), 0),
-                    failWithException(() -> new MapperException("root cause")),
-                    new ShardId(ds2FailureStore1.getIndex(), 0),
-                    failWithException(() -> new MapperException("failure store test failure"))
-                )
-            )
-        );
-        ClusterState mixedVersionState = ClusterState.builder(clusterState)
-            .putCompatibilityVersions(
-                "old-node",
-                TransportVersionUtils.randomVersionNotSupporting(BulkItemResponse.Failure.FAILURE_STORE_CAUSE),
-                Map.of()
-            )
-            .build();
-
-        BulkResponse bulkItemResponses = safeAwait(
-            l -> newBulkOperation(client, bulkRequest, mixedVersionState, mockObserver(mixedVersionState), l).run()
-        );
-        assertThat(bulkItemResponses.hasFailures(), is(true));
-        BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
-            .filter(BulkItemResponse::isFailed)
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Could not find redirected item"));
-        assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("root cause")));
-        assertThat(failedItem.getFailure().getFailureStoreCause(), is(nullValue()));
-        assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(equalTo(1)));
-        assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("failure store test failure")));
         assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 

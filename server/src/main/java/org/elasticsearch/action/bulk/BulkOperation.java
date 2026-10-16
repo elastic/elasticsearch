@@ -112,7 +112,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
-    private final boolean clusterSupportsFailureStoreCause;
     @Nullable
     private final BatchModeRouter router;
 
@@ -199,10 +198,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
-        // the minimum transport version never decreases, so checking it once per operation is enough
-        this.clusterSupportsFailureStoreCause = clusterService.state()
-            .getMinTransportVersion()
-            .supports(BulkItemResponse.Failure.FAILURE_STORE_CAUSE);
         this.router = BatchModeRouter.create(
             bulkRequest,
             ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService),
@@ -1028,17 +1023,15 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     /**
      * Records that handling an already failed document with the failure store also failed. The cause of the original failure may be
-     * shared by every item of a failed shard bulk, so adding to it once per item grows the response quadratically (see #157859). Only
-     * fall back to that when some node in the cluster cannot read {@link BulkItemResponse.Failure#getFailureStoreCause()}.
+     * shared by every item of a failed shard bulk, so adding to it once per item grows the response quadratically (see #157859). Older
+     * nodes receive it as a suppressed exception of the cause, see {@link BulkItemResponse.Failure#writeTo}.
      */
     private void addFailureStoreFailure(
         BulkItemResponse.Failure failure,
         Exception failureStoreException,
         IndexDocFailureStoreStatus failureStoreStatus
     ) {
-        if (clusterSupportsFailureStoreCause == false) {
-            failure.getCause().addSuppressed(failureStoreException);
-        } else if (failure.getFailureStoreCause() == null) {
+        if (failure.getFailureStoreCause() == null) {
             failure.setFailureStoreCause(failureStoreException);
         } else {
             failure.getFailureStoreCause().addSuppressed(failureStoreException);

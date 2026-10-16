@@ -219,14 +219,20 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            boolean supportsFailureStoreCause = out.getTransportVersion().supports(FAILURE_STORE_CAUSE);
             out.writeString(index);
             out.writeOptionalString(id);
-            out.writeException(cause);
+            // older nodes expect the failure store cause as a suppressed exception of the cause
+            ElasticsearchException.writeException(
+                cause,
+                out,
+                supportsFailureStoreCause ? ElasticsearchException.NO_ADDITIONAL_SUPPRESSED : additionalSuppressed()
+            );
             out.writeZLong(seqNo);
             out.writeVLong(term);
             out.writeBoolean(aborted);
             failureStoreStatus.writeTo(out);
-            if (out.getTransportVersion().supports(FAILURE_STORE_CAUSE)) {
+            if (supportsFailureStoreCause) {
                 out.writeOptionalException(failureStoreCause);
             }
         }

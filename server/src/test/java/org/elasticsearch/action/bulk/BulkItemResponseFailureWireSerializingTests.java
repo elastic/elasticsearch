@@ -127,14 +127,25 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
         return new FailureWrapper(mutated);
     }
 
-    public void testFailureStoreCauseIsDroppedForOlderVersions() throws IOException {
+    public void testFailureStoreCauseIsSuppressedForOlderVersions() throws IOException {
         Failure failure = randomFailure();
-        failure.setFailureStoreCause(randomException());
+        Exception failureStoreCause = randomException();
+        failure.setFailureStoreCause(failureStoreCause);
+        if (randomBoolean()) {
+            failure.getCause().addSuppressed(randomException());
+        }
+        int originalSuppressedCount = failure.getCause().getSuppressed().length;
         TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(Failure.FAILURE_STORE_CAUSE);
 
         Failure copy = copyInstance(new FailureWrapper(failure), version).failure();
 
         assertNull(copy.getFailureStoreCause());
+        Throwable[] copySuppressed = copy.getCause().getSuppressed();
+        assertEquals(originalSuppressedCount + 1, copySuppressed.length);
+        Throwable lastSuppressed = copySuppressed[copySuppressed.length - 1];
+        assertEquals(failureStoreCause.getClass(), lastSuppressed.getClass());
+        assertEquals(failureStoreCause.getMessage(), lastSuppressed.getMessage());
+        assertEquals(originalSuppressedCount, failure.getCause().getSuppressed().length);
         failure.setFailureStoreCause(null);
         assertTrue(FailureWrapper.failuresEqual(failure, copy));
     }

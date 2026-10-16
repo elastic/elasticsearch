@@ -222,9 +222,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
   method: testCreateAndRestorePartialSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/157256
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {yaml=search/395_binary_doc_values_search/Test keyword range uses indexed byte ordering for binary doc values}
-  issue: https://github.com/elastic/elasticsearch/issues/157314
 - class: org.elasticsearch.xpack.inference.services.ai21.Ai21ServiceTests
   method: testUnifiedCompletionInfer
   issue: https://github.com/elastic/elasticsearch/issues/157322
@@ -546,3 +543,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162245
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/162282
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecPrometheusK8sDeltaIT
+  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/162319

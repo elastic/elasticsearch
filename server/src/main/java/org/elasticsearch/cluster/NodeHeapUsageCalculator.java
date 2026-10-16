@@ -18,6 +18,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -67,10 +68,7 @@ public final class NodeHeapUsageCalculator {
             final NodeHeapUsageComponents nodeHeapUsageComponents = componentsForActiveShards(routingNode, shardHeapUsageEstimates);
             nodeHeapUsageComponentsByNode.put(discoveryNode, nodeHeapUsageComponents);
             if (isIndexingNode(discoveryNode)) {
-                maxIndexingNodePostingsHeapUsage = Math.max(
-                    maxIndexingNodePostingsHeapUsage,
-                    nodeHeapUsageComponents.postingsHeapUsage
-                );
+                maxIndexingNodePostingsHeapUsage = Math.max(maxIndexingNodePostingsHeapUsage, nodeHeapUsageComponents.postingsHeapUsage);
             }
         }
 

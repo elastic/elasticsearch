@@ -598,6 +598,20 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         }
     }
 
+    public void testColumnOfViewBodyNamedLikeUnmappedFieldsIsNotTheQuerys() {
+        // Only the view's output counts as a column of the query; what its body had along the way does not.
+        LogicalPlan plan = test().addView("v", "FROM test | EVAL _unmapped_fields = 1 | KEEP emp_no")
+            .statement(setUnmappedLoadAll("FROM test, v"));
+        assertThat(relationsWithUnmappedFields(plan), hasSize(1));
+    }
+
+    public void testColumnOfViewNamedLikeUnmappedFieldsIsTheQuerys() {
+        LogicalPlan plan = test().addView("v", "FROM test | EVAL _unmapped_fields = 1 | KEEP emp_no, _unmapped_fields")
+            .statement(setUnmappedLoadAll("FROM test, v"));
+        assertThat(relationsWithUnmappedFields(plan), empty());
+        assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+    }
+
     public void testViewInsideUserSubqueryBesideIndexKeepsTheNullColumn() {
         LogicalPlan plan = test().addView("v", "FROM test")
             .statement(setUnmappedLoadAll("FROM test, (FROM v | WHERE emp_no > 1), (FROM v | WHERE emp_no < 0)"));

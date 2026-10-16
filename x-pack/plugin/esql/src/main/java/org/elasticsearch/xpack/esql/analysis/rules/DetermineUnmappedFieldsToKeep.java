@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.keepExistingUnsupportedAttributes;
@@ -97,7 +98,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan.resolved() == false) {
             return plan;
         }
-        if (plan.anyMatch(p -> p.output().stream().anyMatch(a -> a.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)))) {
+        if (hasColumnNamedLikeUnmappedFields(plan)) {
             // Warn even if no unmapped field could have been returned anyway, e.g. after an exact KEEP: the column of that name is
             // then the query's own, which is not what a user reading its name expects.
             context.deferredHeaderWarnings().add(UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
@@ -114,11 +115,42 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         } else {
             // Project pass before merge finish keeps _unmapped_fields on branch Projects. The pass after
             // picks it up on Projects above the merge, whose child output only includes the column after refresh.
-            result = annotate(plan, pattern).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields)
-                .transformUp(MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields)
-                .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+            LogicalPlan annotated = annotate(plan, pattern);
+            result = transformOutsideViews(annotated, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+            result = transformOutsideViews(result, MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields);
+            result = transformOutsideViews(result, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         }
         return result;
+    }
+
+    /**
+     * Whether the query has a column named like {@code _unmapped_fields} of its own, at any node. A view contributes the column it
+     * outputs, not whatever its body had along the way: the body is not entered, as the setting does not reach into a view.
+     */
+    private static boolean hasColumnNamedLikeUnmappedFields(LogicalPlan plan) {
+        if (plan.output().stream().anyMatch(a -> a.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME))) {
+            return true;
+        }
+        List<LogicalPlan> children = plan.children();
+        for (int i = 0; i < children.size(); i++) {
+            LogicalPlan child = children.get(i);
+            boolean found = ResolveUnmapped.isViewBody(plan, i)
+                ? child.output().stream().anyMatch(a -> a.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME))
+                : hasColumnNamedLikeUnmappedFields(child);
+            if (found) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@code rule} on every node of {@code type} except those inside a view body; see {@link ResolveUnmapped#isViewBody}. */
+    private static <T extends LogicalPlan> LogicalPlan transformOutsideViews(
+        LogicalPlan plan,
+        Class<T> type,
+        Function<T, LogicalPlan> rule
+    ) {
+        return plan.transformUpSkipBranch(ResolveUnmapped::isViewBody, p -> type.isInstance(p) ? rule.apply(type.cast(p)) : p);
     }
 
     /**
@@ -185,7 +217,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
                 UnmappedFieldsPattern branchPattern = computeUnmappedFieldsToKeep(child).intersect(pattern);
                 if (merge instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
                     // A view is a virtual index with no _source of its own, and the setting ends at its boundary: nothing inside is
-                    // stamped, and the view's output has a null _unmapped_fields where it could have had one.
+                    // stamped, and the view's output has a null _unmapped_fields where it could have had one. Whether it could have
+                    // is read off the body's top (an exact KEEP or a STATS rule it out); nothing in the body is changed.
                     newChildren.add(branchPattern.isNone() ? child : padNullUnmappedFields(child));
                     continue;
                 }

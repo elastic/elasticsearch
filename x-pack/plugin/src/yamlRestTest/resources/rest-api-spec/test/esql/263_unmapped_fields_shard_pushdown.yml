@@ -1,0 +1,298 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, contains, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ unmapped_fields_shard_pushdown ]
+      reason: "A filter over a field that may be unmapped is pushed to the shards that map it"
+  - do:
+      indices.create:
+        index: mapped
+        body:
+          mappings:
+            properties:
+              k:
+                type: keyword
+  - do:
+      indices.create:
+        index: unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              other:
+                type: keyword
+  - do:
+      indices.create:
+        index: strict
+        body:
+          mappings:
+            dynamic: strict
+            properties:
+              other:
+                type: keyword
+  - do:
+      indices.create:
+        index: normalized
+        body:
+          settings:
+            analysis:
+              normalizer:
+                lowercase:
+                  type: custom
+                  filter: [ lowercase ]
+          mappings:
+            properties:
+              k:
+                type: keyword
+                normalizer: lowercase
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "mapped", "_id": "m1" } }
+          - { "k": "a" }
+          - { "index": { "_index": "mapped", "_id": "m2" } }
+          - { "k": "b" }
+          - { "index": { "_index": "mapped", "_id": "m3" } }
+          - { }
+          - { "index": { "_index": "unmapped", "_id": "s1" } }
+          - { "k": "a" }
+          - { "index": { "_index": "unmapped", "_id": "s2" } }
+          - { "k": "c" }
+          - { "index": { "_index": "unmapped", "_id": "s3" } }
+          - { "other": "x" }
+          - { "index": { "_index": "normalized", "_id": "n1" } }
+          - { "k": "A" }
+          - { "index": { "_index": "strict", "_id": "t1" } }
+          - { "other": "y" }
+
+---
+'equality reads every kind of shard':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k == "a" | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1", "a" ], [ "s1", "a" ] ] }
+
+---
+'range reads every kind of shard':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k > "a" | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m2", "b" ], [ "s2", "c" ] ] }
+
+---
+'is null reads every kind of shard':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k IS NULL | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m3" ], [ "s3" ], [ "t1" ] ] }
+
+---
+'in reads every kind of shard':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k IN ("b", "c") | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m2" ], [ "s2" ] ] }
+
+---
+'the filter is pushed to the shard that maps the field':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict | WHERE k == "a" | STATS c = COUNT(*) | LIMIT 1'
+  - match: { values: [ [ 2 ] ] }
+  # The shard that maps k finds its one match, the shard that cannot hold k finds nothing, and only the shard that holds k in
+  # unmapped reads every document to check it
+  - match: { documents_found: 4 }
+
+---
+'a shard whose field answers differently checks every document':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,normalized METADATA _id | WHERE k == "a" | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1", "a" ], [ "n1", "a" ], [ "s1", "a" ] ] }
+
+---
+'a filter is pushed to the shards that read a key or a keyword':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A name under a flattened field is a keyword field of its own"
+  - do:
+      indices.create:
+        index: key
+        body:
+          mappings:
+            properties:
+              attrs:
+                type: flattened
+  - do:
+      indices.create:
+        index: keyword
+        body:
+          mappings:
+            properties:
+              attrs:
+                properties:
+                  bar:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "key" } }
+          - { "attrs": { "bar": "a" } }
+          - { "index": { "_index": "key" } }
+          - { "attrs": { "bar": "b" } }
+          - { "index": { "_index": "keyword" } }
+          - { "attrs": { "bar": "a" } }
+          - { "index": { "_index": "keyword" } }
+          - { "attrs": { "bar": "b" } }
+          - { "index": { "_index": "unmapped" } }
+          - { "attrs": { "bar": "a" } }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM key,keyword,unmapped | WHERE attrs.bar == "a" | STATS c = COUNT(*) | LIMIT 1'
+  - match: { values: [ [ 3 ] ] }
+  # key and keyword each find their one match, only unmapped reads its documents to check them
+  - match: { documents_found: 6 }
+
+---
+'a filter pushed to each shard scores nothing':
+  - do:
+      indices.create:
+        index: scored_mapped
+        body:
+          mappings:
+            properties:
+              msg:
+                type: text
+              k:
+                type: keyword
+  - do:
+      indices.create:
+        index: scored_unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              msg:
+                type: text
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "scored_mapped", "_id": "s1" } }
+          - { "msg": "x", "k": "a" }
+          - { "index": { "_index": "scored_unmapped", "_id": "s2" } }
+          - { "msg": "x", "k": "a" }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM scored_mapped, scored_unmapped METADATA _index, _score | WHERE MATCH(msg, "x") AND k == "a" | EVAL score = _score | KEEP _index, score | SORT _index | LIMIT 10'
+  - match: { values.0.0: "scored_mapped" }
+  - match: { values.1.0: "scored_unmapped" }
+  - set: { values.1.1: unmapped_score }
+  - match: { values.0.1: $unmapped_score }
+
+---
+'a shard runs the filter on the container of its unmapped fields':
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ unmapped_fields_shard_pushdown ]
+      reason: "the flattened _unmapped container of a columnar index"
+  - do:
+      indices.create:
+        index: sink
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+            number_of_shards: 1
+          mappings:
+            properties:
+              other:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "sink", "_id": "c1" } }
+          - { "k": "a", "other": "x" }
+          - { "index": { "_index": "sink", "_id": "c2" } }
+          - { "k": "b", "other": "x" }
+          - { "index": { "_index": "sink", "_id": "c3" } }
+          - { "other": "x" }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped, sink METADATA _id | WHERE k == "a" | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "c1", "a" ], [ "m1", "a" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM sink | WHERE k == "a" | STATS c = COUNT(*) | LIMIT 1'
+  - match: { values: [ [ 1 ] ] }
+  # the container answers the filter, so the shard finds only the matching document
+  - match: { documents_found: 1 }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM sink METADATA _id | WHERE k LIKE "b*" | KEEP _id | LIMIT 10'
+  - match: { values: [ [ "c2" ] ] }
+  # only load reads unmapped fields, from the container as from _source
+  - do:
+      esql.query:
+        body:
+          query: 'FROM mapped, sink METADATA _id | WHERE k == "a" | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1", "a" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; FROM sink METADATA _id | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "c1", null ], [ "c2", null ], [ "c3", null ] ] }
+  - do:
+      indices.create:
+        index: numbers
+        body:
+          mappings:
+            properties:
+              k:
+                type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "numbers", "_id": "n1" } }
+          - { "k": 3 }
+          - { "index": { "_index": "sink", "_id": "c4" } }
+          - { "k": "2", "other": "x" }
+  # the container is read under a column of another type, and a cast reads what it can
+  - do:
+      allowed_warnings_regex:
+        - ".*evaluation of .* failed, treating result as null.*"
+        - ".*Cannot parse number.*"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM numbers, sink METADATA _id | EVAL n = k::long | WHERE n > 1 | KEEP _id, n | SORT _id | LIMIT 10'
+  - match: { values: [ [ "c4", 2 ], [ "n1", 3 ] ] }
+

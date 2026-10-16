@@ -246,7 +246,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         );
         final var calculated = NodeHeapUsageCalculator.calculateForRoutingNodes(clusterState, nonShardHeapUsage, shardHeapUsageEstimates);
         lastMaxTotalPostingsInMemoryBytes = calculated.maxPostingsHeapUsage(); // Tracked for testing purposes
-        return new HashMap<>(calculated.nodeHeapEstimates());
+        return calculated.nodeHeapEstimates();
     }
 
     /**

@@ -58,10 +58,9 @@ public sealed interface BlobFile extends Writeable permits BccBlobFile, MergeBlo
         if (MergeBlobFile.startsWithBlobPrefix(blobName)) {
             return new MergeBlobFile(blobName, primaryTerm);
         } else if (BccBlobFile.startsWithBlobPrefix(blobName)) {
-            var generation = BccBlobFile.parseGenerationFromBlobName(blobName);
-            return new BccBlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, generation));
+            return new BccBlobFile(blobName, primaryTerm);
         } else {
-            throw new IllegalArgumentException("unrecognized blob name [" + blobName + "]");
+            throw new IllegalArgumentException("unrecognized blob name [" + blobName + "] with primary term [" + primaryTerm + ']');
         }
     }
 }

@@ -22,6 +22,22 @@ public record BccBlobFile(String blobName, PrimaryTermAndGeneration termAndGener
             : "generation mismatch: " + termAndGeneration + " vs " + blobName;
     }
 
+    /// Creates a blob from the primary term of its container and its name, the generation being deduced from the name.
+    ///
+    /// @param blobName    the name of the blob, which must start with [#PREFIX]
+    /// @param primaryTerm the primary term of the container the blob is stored in
+    /// @throws IllegalArgumentException if the generation in the blob name is not a number
+    public BccBlobFile(String blobName, long primaryTerm) {
+        this(blobName, new PrimaryTermAndGeneration(primaryTerm, parseGenerationFromBlobName(blobName)));
+    }
+
+    /// Creates a blob from the primary term of its container and its generation, the name being deduced from the generation.
+    ///
+    /// @param termAndGeneration the primary term of the container the blob is stored in and the generation of the batched compound commit
+    public BccBlobFile(PrimaryTermAndGeneration termAndGeneration) {
+        this(blobNameFromGeneration(termAndGeneration.generation()), termAndGeneration);
+    }
+
     @Override
     public long primaryTerm() {
         return termAndGeneration.primaryTerm();

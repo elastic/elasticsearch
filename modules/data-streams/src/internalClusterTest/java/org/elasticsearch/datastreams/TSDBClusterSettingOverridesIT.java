@@ -63,8 +63,8 @@ public class TSDBClusterSettingOverridesIT extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put(DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL.getKey(), "10m")
-            .put(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID.getKey(), false)
-            .put(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED.getKey(), false)
+            .put(TimeSeriesIndexSettingsProvider.SUPPORT_SYNTHETIC_ID.getKey(), false)
+            .put(TimeSeriesIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED.getKey(), false)
             .build();
     }
 

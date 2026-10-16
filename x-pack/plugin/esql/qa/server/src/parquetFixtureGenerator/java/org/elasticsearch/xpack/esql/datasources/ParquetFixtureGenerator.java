@@ -327,9 +327,27 @@ public final class ParquetFixtureGenerator {
             case "double", "scaled_float" -> Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.DOUBLE).named(col.name());
             case "float", "half_float" -> Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.FLOAT).named(col.name());
             case "boolean" -> Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(col.name());
+            // uint32 elements are physical INT32 carrying the unsigned annotation, exactly as the scalar type is:
+            // ESQL widens them to LONG because an unsigned 32-bit value can exceed Integer.MAX_VALUE.
+            case "uint32" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.intType(32, false))
+                .named(col.name());
             case "date" -> Types.optionalList()
                 .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+                .named(col.name());
+            case "time_millis" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+                .named(col.name());
+            case "time_micros" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+                .named(col.name());
+            case "time_nanos" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
                 .named(col.name());
             case "text", "txt" -> Types.optionalList()
                 .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
@@ -357,6 +375,14 @@ public final class ParquetFixtureGenerator {
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS));
             case "date_nanos" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
+            // TIME, the time-of-day annotation: MILLIS is physically an INT32, MICROS and NANOS INT64, which is
+            // the Parquet spec's own pairing and what Arrow's time32/time64 produce.
+            case "time_millis" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS));
+            case "time_micros" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS));
+            case "time_nanos" -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
             case "text", "txt" -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType());
             default -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY);
         };
@@ -397,10 +423,14 @@ public final class ParquetFixtureGenerator {
     private static void appendListElement(Group listElement, String type, Object elem) {
         switch (type) {
             case "integer", "short", "byte" -> listElement.append("element", ((Number) elem).intValue());
+            // The fixture parser reads a uint32 cell as a Long; intValue() keeps the low 32 bits, which is the
+            // unsigned value's INT32 bit pattern -- what the annotation says to store.
+            case "uint32" -> listElement.append("element", ((Number) elem).intValue());
             case "long" -> listElement.append("element", ((Number) elem).longValue());
             case "double", "scaled_float", "float", "half_float" -> listElement.append("element", ((Number) elem).doubleValue());
             case "boolean" -> listElement.append("element", Boolean.TRUE.equals(elem));
-            case "date" -> listElement.append("element", ((Number) elem).longValue());
+            case "date", "time_micros", "time_nanos" -> listElement.append("element", ((Number) elem).longValue());
+            case "time_millis" -> listElement.append("element", ((Number) elem).intValue());
             default -> listElement.append("element", elem.toString());
         }
     }
@@ -419,7 +449,9 @@ public final class ParquetFixtureGenerator {
                 case "double", "scaled_float" -> g.add(leafName, ((Number) value).doubleValue());
                 case "float", "half_float" -> g.add(leafName, ((Number) value).floatValue());
                 case "boolean" -> g.add(leafName, Boolean.TRUE.equals(value));
-                case "date", "date_nanos" -> g.add(leafName, ((Number) value).longValue());
+                case "date", "date_nanos", "time_micros", "time_nanos" -> g.add(leafName, ((Number) value).longValue());
+                // TIME(MILLIS) is the one temporal annotation on a 32-bit physical column.
+                case "time_millis" -> g.add(leafName, ((Number) value).intValue());
                 case "ip" -> g.add(leafName, value.toString());
                 default -> g.add(leafName, value.toString());
             }

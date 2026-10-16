@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
@@ -29,6 +30,14 @@ public class ExternalDistributedClusters {
     private static final String ENCRYPTION_PASSWORD = "esql-test-encryption-password";
 
     static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
+        return testCluster(s3EndpointSupplier, spec -> {});
+    }
+
+    /**
+     * As {@link #testCluster(Supplier)}, with {@code extra} applied last so one suite can add or override a
+     * setting without changing the configuration the other suites on this cluster share.
+     */
+    static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier, LocalClusterConfigProvider extra) {
         return Clusters.testCluster(spec -> {
             // This suite force-enables every storage backend / format flag so its external tests run even in
             // release builds: file:// and http(s):// scheme registration depends on their sub-flags (otherwise
@@ -67,6 +76,7 @@ public class ExternalDistributedClusters {
             spec.keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID);
             spec.jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED");
             spec.jvmArg("-Darrow.allocation.manager.type=Unsafe");
+            extra.apply(spec);
         });
     }
 }

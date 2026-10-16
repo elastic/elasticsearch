@@ -64,6 +64,117 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNull(response.get("field2.field3"));
     }
 
+    /**
+     * {@code +nested} is the complement of {@code -nested}: it keeps only the sub-fields that sit under a nested object, and the parent
+     * synthesis then restores the nested objects themselves, so the whole nested hierarchy (including a nested inside a nested) comes
+     * back and nothing else does. This is what lets a caller learn which fields are nested without pulling the full mapping.
+     */
+    public void testIncludeOnlyNestedFields() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "plain_kw" : { "type" : "keyword" },
+                "n" : {
+                  "type" : "nested",
+                  "properties" : {
+                    "name" : { "type" : "keyword" },
+                    "deep" : {
+                      "type" : "nested",
+                      "properties" : { "x" : { "type" : "keyword" } }
+                    }
+                  }
+                },
+                "flat" : { "type" : "flattened" },
+                "obj" : {
+                  "properties" : { "child" : { "type" : "keyword" } }
+                }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            new String[] { "+nested" },
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+        // Nested leaves are kept, and both nested objects are surfaced (via parent synthesis) with type "nested".
+        assertNotNull(response.get("n.name"));
+        assertNotNull(response.get("n.deep.x"));
+        assertEquals("nested", response.get("n").type());
+        assertEquals("nested", response.get("n.deep").type());
+        // Everything outside a nested object is dropped, including plain objects, flattened fields and metadata.
+        assertNull(response.get("plain_kw"));
+        assertNull(response.get("flat"));
+        assertNull(response.get("obj"));
+        assertNull(response.get("obj.child"));
+        assertNull(response.get("_index"));
+    }
+
+    /**
+     * {@code +flattened} keeps only the flattened fields. A flattened field is a single mapped field whose contents are not mapped as
+     * individual sub-fields, so it comes back as one entry with no hierarchy to synthesize - which is exactly what a caller needs to
+     * know that it must not treat a flattened field's dotted {@code _source} keys as unmapped.
+     */
+    public void testIncludeOnlyFlattenedFields() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "plain_kw" : { "type" : "keyword" },
+                "n" : {
+                  "type" : "nested",
+                  "properties" : { "name" : { "type" : "keyword" } }
+                },
+                "flat1" : { "type" : "flattened" },
+                "flat2" : { "type" : "flattened" }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            new String[] { "+flattened" },
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+        assertEquals("flattened", response.get("flat1").type());
+        assertEquals("flattened", response.get("flat2").type());
+        assertNull(response.get("plain_kw"));
+        assertNull(response.get("n"));
+        assertNull(response.get("n.name"));
+        assertNull(response.get("_index"));
+    }
+
+    /** An unrecognised filter is rejected rather than silently ignored, so a typo like {@code +flatened} fails fast. */
+    public void testUnknownFilterIsRejected() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : { "field1" : { "type" : "keyword" } } } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FieldCapabilitiesFetcher.retrieveFieldCaps(
+                sec,
+                s -> true,
+                new String[] { "+flatened" },
+                Strings.EMPTY_ARRAY,
+                FieldPredicate.ACCEPT_ALL,
+                getMockIndexShard(),
+                true
+            )
+        );
+        assertEquals("Unknown field caps filter [+flatened]", e.getMessage());
+    }
+
     public void testMetadataFilters() throws IOException {
         MapperService mapperService = createMapperService("""
             { "_doc" : {

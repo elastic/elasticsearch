@@ -25,27 +25,19 @@ These connectors are written in Python and the source code is available in the [
 
 ## Setup modes [setup-modes]
 
-You can set up content connectors in two ways. The availability of each setup mode is indicated on the interface of your {{kib}} **Content connectors** page. 
+Use [self-managed connectors](self-managed-connectors.md) on {{es-serverless}} projects and Elastic **9.0+** deployments. **Elastic managed** connectors are not available in those environments.
+
+The availability of each option is also indicated on your {{kib}} **Content connectors** page. The following table compares self-managed connectors with the discontinued Elastic managed option.
 
 | | **[Self-managed](self-managed-connectors.md)** | **Elastic managed** |
 |---|---|---|
-| **Infrastructure** | You deploy the connector service | Elastic hosts it for you |
-| **Availability** | Any Elastic environment (including {{es-serverless}} projects) | {{ech}} only (Elastic 8.5–8.18), for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md) in supported {{kib}} workflows |
-| **Can send data to** | Any {{es}} instance | The {{ech}} deployment the connector runs in only |
+| **Infrastructure** | You deploy the connector service | Elastic hosted the connector service for you |
+| **Availability** | Any Elastic environment (including {{es-serverless}} projects) | Not available (discontinued in Elastic **9.0.0**) |
+| **Can send data to** | Any {{es}} instance | The {{ech}} deployment the connector ran in only |
 | **Customization** | Supported | Not supported |
 
-::::{note} Elastic managed connectors on {{es-serverless}}
-```{applies_to}
-serverless: ga
-```
-{{es-serverless}} projects support **self-managed** content connectors only. Elastic does not host the connector service in your project.
-::::
-
-::::{important} Elastic managed connectors in Elastic 9.0+
-```{applies_to}
-stack: ga 9.0
-```
-Elastic managed connectors were discontinued in Elastic **9.0.0** with Enterprise Search. Use [self-managed connectors](self-managed-connectors.md). Refer to [Connector release notes](release-notes.md).
+::::{note}
+Elastic managed connectors were removed in Elastic **9.0.0** with Enterprise Search. On {{es-serverless}} projects and Elastic **9.0+** deployments, run the connector service yourself and use [self-managed connectors](self-managed-connectors.md). Refer to [Connector release notes](release-notes.md).
 ::::
 
 ## Available connectors

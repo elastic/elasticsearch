@@ -7,7 +7,7 @@ mapped_pages:
 # KQL syntax reference [kuery-query]
 
 :::{note}
-This page is the syntax reference for {{kib}} Query Language (KQL). To learn what KQL is, refer to [KQL](docs-content://explore-analyze/query-filter/languages/kql.md) in **Explore and analyze**.
+This page is the syntax reference for {{kib}} Query Language (KQL). To learn what KQL is and where to use it, refer to [{{kib}} Query Language (KQL)](docs-content://explore-analyze/query-filter/languages/kql.md) in **Explore and analyze**.
 :::
 
 
@@ -75,6 +75,8 @@ To search for an inclusive range, combine multiple range queries. For example, t
 ```yaml
 http.response.bytes > 10000 and http.response.bytes <= 20000
 ```
+
+On multi-value fields, KQL tests each condition against every value in the array. `number > 300 AND number < 400` matches `"number": [500, 10]`. 500 matches the first condition and 10 matches the second. If one value must satisfy every condition, use [Query DSL](/reference/query-languages/query-dsl/query-dsl-range-query.md).
 
 You can also use range syntax for string values, IP addresses, and timestamps. For example, to search for documents earlier than two weeks ago, use the following syntax:
 

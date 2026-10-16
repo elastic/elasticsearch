@@ -570,6 +570,61 @@ text_state_nonexistent  | nonexistent-1  | null
 text_state_unmapped     | unmapped-1     | null
 ;
 
+// A fully unmapped field loads as keyword, so match requires the exact value: "Connected" alone matches nothing,
+// although analyzed text would match the "Connected to ..." rows.
+matchOnFullyUnmappedKeywordUnderLoad
+required_capability: optional_fields_v5
+required_capability: match_function
+required_capability: fn_match_unmapped_fields_pushdown_fix
+
+SET unmapped_fields="load"\;
+FROM no_mapping_sample_data
+| WHERE MATCH(message, "Connection error?") OR MATCH(message, "Connected")
+| KEEP message
+;
+
+message:keyword
+Connection error?
+Connection error?
+Connection error?
+;
+
+matchOperatorOnFullyUnmappedKeywordUnderLoad
+required_capability: optional_fields_v5
+required_capability: match_operator_colon
+required_capability: fn_match_unmapped_fields_pushdown_fix
+
+SET unmapped_fields="load"\;
+FROM no_mapping_sample_data
+| WHERE message:"Connection error?"
+| KEEP message
+;
+
+message:keyword
+Connection error?
+Connection error?
+Connection error?
+;
+
+matchPhraseOnFullyUnmappedFieldAsTextUnderLoad
+required_capability: optional_fields_v5
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_unmapped_fields_pushdown_fix
+
+SET unmapped_fields="load"\;
+FROM no_mapping_sample_data
+| EVAL t = TO_TEXT(message)
+| WHERE MATCH_PHRASE(t, "connected to")
+| KEEP message
+| SORT message
+;
+
+message:keyword
+Connected to 10.1.0.1!
+Connected to 10.1.0.2!
+Connected to 10.1.0.3!
+;
+
 renameTextMappedUnmappedAndNonExistentUnderLoad
 required_capability: optional_fields_warn_non_loadable_punk_combined
 

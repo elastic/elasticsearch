@@ -217,10 +217,10 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         final int length = value.length();
         final long newOffset = lastOffset + length;
         try {
-            bytes.ensureCapacity(newOffset);
             if (value.hasArray()) {
                 bytes.append(value.array(), value.arrayOffset(), length);
             } else {
+                bytes.ensureCapacity(newOffset);
                 var iterator = value.iterator();
                 BytesRef chunk;
                 while ((chunk = iterator.next()) != null) {

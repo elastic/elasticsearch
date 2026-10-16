@@ -252,7 +252,8 @@ public class BytesRefArrayTests extends ESTestCase {
     public void testAppendBytesReferenceAllocationsIndependentOfChunking() {
         for (int length : new int[] { 100, PageCacheRecycler.BYTE_PAGE_SIZE, 10 * PageCacheRecycler.BYTE_PAGE_SIZE + 1 }) {
             byte[] data = randomByteArrayOfLength(length);
-            assertEquals(appendAndCountAllocations(data, length), appendAndCountAllocations(data, between(1, 8)));
+            // Compare large and small chunks through the iterator path.
+            assertEquals(appendAndCountAllocations(data, length / 2), appendAndCountAllocations(data, between(1, 8)));
         }
     }
 

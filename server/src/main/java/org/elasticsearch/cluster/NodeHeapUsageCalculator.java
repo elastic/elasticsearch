@@ -119,8 +119,8 @@ public final class NodeHeapUsageCalculator {
     /**
      *
      * Produces a {@link NodeHeapEstimates} object for a given node.
-     * If an indexing node, shard and index heap, non-shard heap, and {@code postingsHeapUsageForTotal} are included.
-     * If a search node, shard heap only is returned,
+     * If this is an indexing node, shard and index heap, non-shard heap, and {@code postingsHeapUsageForTotal} are included.
+     * If this is a search node, only shard heap is returned
      */
     private static NodeHeapEstimates nodeHeapEstimate(
         DiscoveryNode discoveryNode,

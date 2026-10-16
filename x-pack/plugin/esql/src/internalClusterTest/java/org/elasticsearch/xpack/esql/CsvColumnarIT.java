@@ -170,9 +170,17 @@ public class CsvColumnarIT extends CsvIT {
         "unmapped_multi_stored_mixed",
         "unmapped_array_data",
         "unmapped_object_data",
+        // mv_expand_unmapped is dynamic:false and read for the tags and deep.items leaves its mapping does not declare, which strict
+        // columnar drops at ingest; mv_expand_mapped only exists to be read alongside it.
+        "mv_expand_mapped",
+        "mv_expand_unmapped",
         // Both are dynamic:false and are read for the fields their mapping does not declare, which strict columnar drops at ingest.
         "flattened_paths_mapped",
         "flattened_paths_unmapped",
+        // dynamic:false and read for the leaves its mapping does not declare, which strict columnar drops at ingest.
+        "unmapped_compound_outputs",
+        // Same again: every field but id is unmapped, so strict columnar drops it at ingest.
+        "unmapped_compound_inputs",
         "synthetic_source_partial_mapping",
         // unmapped_source_* family: dynamic:false with only id mapped; everything else lives in
         // _source / _ignored_source, which strict columnar drops at ingest. unmapped_source_disabled

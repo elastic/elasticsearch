@@ -25,8 +25,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Flow;
-import java.util.concurrent.SubmissionPublisher;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -111,16 +109,21 @@ public class MistralUnifiedChatCompletionResponseHandlerTests extends ESTestCase
     }
 
     public void testStreamingFinishReasonErrorKeepsCraftedException() throws Exception {
-        var sse =
-            """
-                data: {"id":"c","object":"chat.completion.chunk","model":"mistral-reasoning-test","choices":[{"index":0,"delta":{"content":"partial"},"finish_reason":"error"}]}
+        var chunkJson = "{\"id\":\"c\",\"object\":\"chat.completion.chunk\",\"model\":\"mistral-reasoning-test\","
+            + "\"choices\":[{\"index\":0,\"delta\":{\"content\":\"partial\"},\"finish_reason\":\"error\"}]}";
+        var sse = ("data: " + chunkJson + "\n\ndata: [DONE]\n\n").getBytes(StandardCharsets.UTF_8);
 
-                data: [DONE]
+        var upstreamSubscriber = new AtomicReference<Flow.Subscriber<? super HttpResult>>();
+        Flow.Publisher<HttpResult> publisher = subscriber -> {
+            upstreamSubscriber.set(subscriber);
+            subscriber.onSubscribe(new Flow.Subscription() {
+                @Override
+                public void request(long n) {}
 
-                """
-                .getBytes(StandardCharsets.UTF_8);
-
-        var publisher = new SubmissionPublisher<HttpResult>();
+                @Override
+                public void cancel() {}
+            });
+        };
         var results = responseHandler.parseResult(mockRequest(), publisher);
 
         var error = new AtomicReference<Throwable>();
@@ -145,13 +148,8 @@ public class MistralUnifiedChatCompletionResponseHandlerTests extends ESTestCase
             }
         });
 
-        publisher.submit(new HttpResult(mockErrorResponse(200), sse));
-        publisher.close();
-
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-        while (error.get() == null && completed.get() == false && System.nanoTime() < deadline) {
-            Thread.sleep(10);
-        }
+        upstreamSubscriber.get().onNext(new HttpResult(mockErrorResponse(200), sse));
+        upstreamSubscriber.get().onComplete();
 
         assertThat(completed.get(), is(false));
         assertThat(error.get(), instanceOf(UnifiedChatCompletionException.class));

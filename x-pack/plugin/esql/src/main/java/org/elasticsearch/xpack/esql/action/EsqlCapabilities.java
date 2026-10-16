@@ -1686,6 +1686,14 @@ public class EsqlCapabilities {
          */
         VIEWS_TELEMETRY,
         /**
+         * The caller's query settings stop at view boundaries: {@code unmapped_fields} no longer
+         * reaches inside view bodies — an outer reference to a column a view does not surface answers null at the
+         * view's output instead of loading from the view's source {@code _source}, and a reference written inside a
+         * view body fails resolution as it would without the setting. Wildcards inside a view body no longer match
+         * views or datasets, whatever the caller's {@code wildcards_match_views}/{@code wildcards_match_datasets} say.
+         */
+        SETTINGS_SCOPED_AT_VIEW_BOUNDARIES,
+        /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
         VIEWS_DEDUPLICATION_BUGFIX,

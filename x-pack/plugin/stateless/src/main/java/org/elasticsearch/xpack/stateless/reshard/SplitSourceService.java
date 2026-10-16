@@ -490,7 +490,8 @@ public class SplitSourceService {
             HANDOFF_SUCCESS,
             SOURCE_PRIMARY_ADVANCED,
             TARGET_PRIMARY_ADVANCED,
-            INDEX_DELETED
+            INDEX_DELETED,
+            SPLIT_ABANDONED
         }
 
         private static final class Decision {
@@ -568,6 +569,11 @@ public class SplitSourceService {
                                 logger.debug("Index [{}] was deleted while waiting for handoff", targetShardId.getIndex());
                                 listener.onFailure(new IndexNotFoundException(targetShardId.getIndex()));
                             }
+                            case SPLIT_ABANDONED -> {
+                                String message = format("%s split is no longer in progress, handoff abandoned", targetShardId);
+                                logger.debug(message);
+                                listener.onFailure(new StaleSplitRequestException(message));
+                            }
                         }
                     }
 
@@ -600,6 +606,17 @@ public class SplitSourceService {
 
             IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
 
+            // A restore over the index replaces its metadata, which drops the resharding metadata and may also drop the target shard
+            // (and the primary term we would look up below). The handoff can then never succeed, and waiting for a primary term to
+            // advance would hold the permits indefinitely.
+            if (reshardingMetadata == null
+                || reshardingMetadata.isSplit() == false
+                || targetShardId.getId() >= indexMetadata.getNumberOfShards()
+                || sourceShardId.getId() >= indexMetadata.getNumberOfShards()) {
+                decision.outcome = Outcome.SPLIT_ABANDONED;
+                return true;
+            }
+
             long currentTargetPrimary = indexMetadata.primaryTerm(targetShardId.getId());
             long currentSourcePrimary = indexMetadata.primaryTerm(sourceShardId.getId());
 
@@ -626,11 +643,12 @@ public class SplitSourceService {
     }
 
     /**
-     * This cluster state observer waits for cluster state to converge to one of 4 states
+     * This cluster state observer waits for cluster state to converge to one of 5 states
      * - target shard in HANDOFF state  (indicates a successful handoff)
      * - source primary term advanced   (indicates handoff unsuccessful)
      * - target primary term advanced   (indicates handoff unsuccessful)
      * - index deleted                  (indicates handoff unsuccessful)
+     * - split no longer in progress    (indicates handoff unsuccessful, e.g. a restore over the index discarded the split)
      * @param targetShardId       target shard id
      * @param sourceShardId       source shard id
      * @param targetPrimaryTerm   target shard primary term
@@ -658,7 +676,11 @@ public class SplitSourceService {
 
         var indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
         var reshardingMetadata = indexMetadata.getReshardingMetadata();
-        assert reshardingMetadata != null && reshardingMetadata.isSplit() : "Unexpected resharding state";
+        if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
+            // The split was discarded while the source was preparing for handoff, e.g. by a restore over the index. Callers fail the
+            // handoff, which releases their permits.
+            throw new StaleSplitRequestException("%s split is no longer in progress", targetShardId);
+        }
         int sourceShardIndex = reshardingMetadata.getSplit().sourceShard(targetShardId.getId());
 
         return new ShardId(index, sourceShardIndex);

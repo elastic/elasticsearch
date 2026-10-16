@@ -7,37 +7,63 @@
 
 package org.elasticsearch.xpack.stateless.reshard;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
+import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.elasticsearch.cluster.routing.IndexRoutingTestHelper.makeIdThatRoutesToShard;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.postSplitRouting;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestCase {
     public void testShardSnapshotIsFailedWhenReshardingMetadataIsPresent() {
@@ -480,6 +506,437 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         );
     }
 
+    // Restoring over an open index while it is actively being resharded used to be rejected outright. The restore now discards the
+    // resharding metadata and the extra target shards along with everything else, the same as any other in-place restore to a
+    // different shard count. IndicesClusterStateService#isRestoreHistoryUuidTransition tears down and recreates every shard of the
+    // index, which safely unwinds the in-progress split too. The tests below hold the split's target shards in each of the states they
+    // pass through before they are done, since the in-flight work that has to be abandoned differs in each.
+
+    /**
+     * Restores while the targets are still cloning from their sources. Unlike the other variants, the restore is not held back until the
+     * clone is finished: it is submitted as soon as the resharding metadata appears, so it races with the copy that is in progress.
+     */
+    public void testRestoreOverOpenIndexWhileResharding_targetsInClone() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.CLONE, false, false);
+    }
+
+    /**
+     * Restores while every source shard is handing off to its target. The source has stopped indexing (it holds all of its operation
+     * permits) and is waiting for the cluster state to show the target in HANDOFF, which does not happen because the target's request
+     * to move to HANDOFF is held back. The source's handoff must be abandoned, and its permits released, when the restore replaces the
+     * index.
+     */
+    public void testRestoreOverOpenIndexWhileResharding_handoffInFlight() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.CLONE, true, false);
+    }
+
+    /** Restores once all targets have received the handoff and are in the HANDOFF state, before they move to SPLIT. */
+    public void testRestoreOverOpenIndexWhileResharding_targetsInHandoff() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.HANDOFF, true, false);
+    }
+
+    /** Restores once the handoff is complete and the targets are in the split state, waiting to be marked as done. */
+    public void testRestoreOverOpenIndexWhileResharding_targetsInSplit() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.SPLIT, true, false);
+    }
+
+    /**
+     * As {@link #testRestoreOverOpenIndexWhileResharding_handoffInFlight}, but the source and the target are on different nodes, so the
+     * handoff request and the target's state change requests cross the network, and each node has to clean up its own side of the split.
+     */
+    public void testRestoreOverOpenIndexWhileResharding_onSeparateNodes_handoffInFlight() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.CLONE, true, true);
+    }
+
+    /** As {@link #testRestoreOverOpenIndexWhileResharding_targetsInHandoff}, but the source and the target are on different nodes. */
+    public void testRestoreOverOpenIndexWhileResharding_onSeparateNodes_targetsInHandoff() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.HANDOFF, true, true);
+    }
+
+    /** As {@link #testRestoreOverOpenIndexWhileResharding_targetsInSplit}, but the source and the target are on different nodes. */
+    public void testRestoreOverOpenIndexWhileResharding_onSeparateNodes_targetsInSplit() throws Exception {
+        restoreOverOpenIndexWhileResharding(IndexReshardingState.Split.TargetShardState.SPLIT, true, true);
+    }
+
+    /**
+     * Restores once every target is done, while the sources have not started their cleanup: each source's request to move to
+     * READY_FOR_CLEANUP is held back.
+     */
+    public void testRestoreOverOpenIndexWhileResharding_sourceCleanupNotStarted() throws Exception {
+        restoreOverOpenIndexDuringSourceCleanup(IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP);
+    }
+
+    /**
+     * Restores once every target is done and the sources have deleted the documents they no longer own, while each source's request
+     * to move to DONE is held back, so that the source is still in READY_FOR_CLEANUP.
+     */
+    public void testRestoreOverOpenIndexWhileResharding_sourceCleanupComplete() throws Exception {
+        restoreOverOpenIndexDuringSourceCleanup(IndexReshardingState.Split.SourceShardState.DONE);
+    }
+
+    /**
+     * Starts a split, holds its target shards in {@code heldState}, restores the pre-split snapshot over the index, and verifies that the
+     * restore succeeds and that the abandoned split leaves nothing behind.
+     * <p>
+     * A target shard is held in a state by blocking, on the target's node, the request that would move it to the following state.
+     *
+     * @param heldState         the state the targets are held in
+     * @param awaitHeldRequests whether to wait until every target's request to leave {@code heldState} has been held back before
+     *                          restoring. If not, the restore races with whatever the targets are doing in that state.
+     * @param targetOnSeparateNode whether the target shard is on a different index node than its source. That limits the index to a
+     *                          single shard, so that the one target shard is the only one that can be placed on the second node.
+     */
+    private void restoreOverOpenIndexWhileResharding(
+        IndexReshardingState.Split.TargetShardState heldState,
+        boolean awaitHeldRequests,
+        boolean targetOnSeparateNode
+    ) throws Exception {
+        final IndexReshardingState.Split.TargetShardState blockedTransition = switch (heldState) {
+            case CLONE -> IndexReshardingState.Split.TargetShardState.HANDOFF;
+            case HANDOFF -> IndexReshardingState.Split.TargetShardState.SPLIT;
+            case SPLIT -> IndexReshardingState.Split.TargetShardState.DONE;
+            case DONE -> throw new AssertionError("a split cannot be held in " + heldState);
+        };
+
+        // The master must be a different node from the one holding the shards. A state change request sent to the local master is
+        // executed directly instead of being sent over the transport, which would bypass the send behavior used below to hold it.
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        // The node the target shard is on, which is where its state change requests are sent from and so where they are held
+        var targetNode = indexNode;
+        final int shards;
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        if (targetOnSeparateNode) {
+            // Allowing a single shard per node keeps the target off the source's node. After the split there are two shards (and two
+            // replicas), so there need to be two search nodes for the index to be green.
+            startSearchNodes(2);
+            ensureStableCluster(4);
+            createRepository("test-repo", "fs");
+            shards = 1;
+            createIndex(
+                indexName,
+                indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+            );
+            ensureGreen(indexName);
+            // The source must stay where it is when the second index node joins
+            updateClusterSettings(
+                Settings.builder()
+                    .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            );
+            targetNode = startIndexNode();
+            ensureStableCluster(5);
+        } else {
+            startSearchNode();
+            ensureStableCluster(3);
+            createRepository("test-repo", "fs");
+            // Each held request occupies a thread until it is released. Keep the number of targets low enough that all of them can be
+            // held at once, since a request that can't get a thread would never be seen to be held.
+            shards = between(1, 3);
+            // Need at least one search replica so the restored index is searchable.
+            createIndex(indexName, shards, 1);
+        }
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+
+        // Snapshot before resharding starts, so we have something with the pre-split shard count to restore back to.
+        var preSplitSnapshotName = indexName + "-pre-split-snap";
+        var preSplitSnapshot = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertEquals(SnapshotState.SUCCESS, preSplitSnapshot.getSnapshotInfo().state());
+
+        var index = resolveIndex(indexName);
+
+        // Block the transition out of heldState so that the targets stay in it, with the resharding metadata still present, until the
+        // restore has been applied. The count of blocked requests lets the test know when every target has reached that point.
+        var latch = new CountDownLatch(1);
+        var blockedRequests = new AtomicInteger();
+        MockTransportService targetTransportService = MockTransportService.getInstance(targetNode);
+        targetTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            try {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                    TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                    if (actualRequest instanceof SplitStateRequest splitStateRequest
+                        && splitStateRequest.getNewTargetShardState() == blockedTransition
+                        && latch.getCount() > 0) {
+                        blockedRequests.incrementAndGet();
+                        latch.await();
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet();
+
+        awaitClusterState(indexNode, state -> state.metadata().projectFor(index).index(indexName).getReshardingMetadata() != null);
+        final int targetShards = clusterService().state()
+            .metadata()
+            .projectFor(index)
+            .index(indexName)
+            .getReshardingMetadata()
+            .getSplit()
+            .targetStates()
+            .toList()
+            .size();
+        if (targetOnSeparateNode) {
+            // Guard the premise of the test: the source and the target are on different nodes
+            final var finalTargetNode = targetNode;
+            awaitClusterState(indexNode, state -> {
+                final var shardRoutingTable = state.routingTable(ProjectId.DEFAULT).index(index).shard(1);
+                return shardRoutingTable != null
+                    && shardRoutingTable.primaryShard().currentNodeId() != null
+                    && state.nodes().get(shardRoutingTable.primaryShard().currentNodeId()).getName().equals(finalTargetNode);
+            });
+            assertNotEquals(indexNode, targetNode);
+        }
+
+        // Cluster state listeners of the abandoned split, such as the source's handoff observer, must cope with the restored state.
+        // An exception from one of them is only logged by the cluster applier, so look for that.
+        try (var mockLog = MockLog.capture(ClusterApplierService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "cluster state listener failed",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to notify ClusterStateListener"
+                )
+            );
+            try {
+                if (awaitHeldRequests) {
+                    // Wait until every target is held, in the cluster state and at the blocked request, before restoring.
+                    awaitClusterState(
+                        indexNode,
+                        state -> state.metadata()
+                            .projectFor(index)
+                            .index(indexName)
+                            .getReshardingMetadata()
+                            .getSplit()
+                            .targetStates()
+                            .allMatch(targetState -> targetState == heldState)
+                    );
+                    assertBusy(() -> assertEquals(targetShards, blockedRequests.get()));
+                }
+
+                // Restore over the open, actively-resharding index, back to its pre-split shard count.
+                var restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName).indices(indexName)
+                    .restoreOverExisting(true)
+                    .waitForCompletion(true);
+                var restoreResponse = client().execute(TransportRestoreSnapshotAction.TYPE, restoreRequest).actionGet();
+
+                assertEquals(shards, restoreResponse.getRestoreInfo().totalShards());
+                assertEquals(shards, restoreResponse.getRestoreInfo().successfulShards());
+                assertEquals(0, restoreResponse.getRestoreInfo().failedShards());
+            } finally {
+                // The held requests are only released after the restore, so that they reach the master as stale requests from shards
+                // that no longer exist.
+                latch.countDown();
+            }
+
+            assertRestoredAndAbandonedSplitCleanedUp(indexName, shards, numDocs, indexNode, targetNode);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * Verifies that the index was restored to {@code shards} shards without any resharding metadata, still has all its documents, and
+     * that the abandoned split left no state behind in the split services of any of {@code indexNodes}.
+     */
+    private void assertRestoredAndAbandonedSplitCleanedUp(String indexName, int shards, int numDocs, String... indexNodes)
+        throws Exception {
+        ensureGreen(indexName);
+
+        var restoredMetadata = clusterService().state().metadata().indexMetadata(resolveIndex(indexName));
+        assertEquals(shards, restoredMetadata.getNumberOfShards());
+        assertNull(restoredMetadata.getReshardingMetadata());
+
+        assertResponse(
+            prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true).setAllowPartialSearchResults(false),
+            searchResponse -> assertEquals(numDocs, searchResponse.getHits().getTotalHits().value())
+        );
+
+        // The abandoned split must leave no state behind on either service, or it leaks memory.
+        for (String indexNode : new LinkedHashSet<>(Arrays.asList(indexNodes))) {
+            final var splitTargetService = internalCluster().getInstance(SplitTargetService.class, indexNode);
+            final var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+            assertBusy(() -> {
+                assertThat("Split target state left behind on " + indexNode, splitTargetService.getShardsWithOngoingSplits(), empty());
+                assertThat("Split source state left behind on " + indexNode, splitSourceService.getShardsWithActiveSplitState(), empty());
+            });
+        }
+    }
+
+    /**
+     * Starts a split, lets every target finish, holds the sources' request to leave their cleanup stage at {@code heldTransition}, and
+     * restores the pre-split snapshot over the index. The restore must succeed and leave nothing of the split behind, in particular
+     * not the sources' cleanup, which is by then waiting for, or has sent, a state change request for a source that no longer exists.
+     *
+     * @param heldTransition the source state whose request is held back: READY_FOR_CLEANUP (cleanup not started) or DONE (cleanup of
+     *                       unowned documents complete)
+     */
+    private void restoreOverOpenIndexDuringSourceCleanup(IndexReshardingState.Split.SourceShardState heldTransition) throws Exception {
+        // As elsewhere, the master is a separate node so that the state change requests go over the transport, where they are held.
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        createRepository("test-repo", "fs");
+
+        final int shards = between(1, 3);
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, shards, 1);
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+
+        var preSplitSnapshotName = indexName + "-pre-split-snap";
+        var preSplitSnapshot = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertEquals(SnapshotState.SUCCESS, preSplitSnapshot.getSnapshotInfo().state());
+
+        var index = resolveIndex(indexName);
+
+        var latch = new CountDownLatch(1);
+        var blockedRequests = new AtomicInteger();
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            try {
+                if (TransportUpdateSplitSourceShardStateAction.TYPE.name().equals(action)) {
+                    TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                    if (actualRequest instanceof TransportUpdateSplitSourceShardStateAction.Request sourceStateRequest
+                        && sourceStateRequest.getState() == heldTransition
+                        && latch.getCount() > 0) {
+                        blockedRequests.incrementAndGet();
+                        latch.await();
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        try (var mockLog = MockLog.capture(ClusterApplierService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "cluster state listener failed",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to notify ClusterStateListener"
+                )
+            );
+
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            try {
+                // Every target finishes, and then every source reaches the held request
+                awaitClusterState(indexNode, state -> {
+                    var resharding = state.metadata().projectFor(index).index(indexName).getReshardingMetadata();
+                    return resharding != null
+                        && resharding.getSplit().targetStates().allMatch(t -> t == IndexReshardingState.Split.TargetShardState.DONE);
+                });
+                assertBusy(() -> assertEquals(shards, blockedRequests.get()));
+
+                var restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName).indices(indexName)
+                    .restoreOverExisting(true)
+                    .waitForCompletion(true);
+                var restoreResponse = client().execute(TransportRestoreSnapshotAction.TYPE, restoreRequest).actionGet();
+                assertEquals(shards, restoreResponse.getRestoreInfo().totalShards());
+                assertEquals(shards, restoreResponse.getRestoreInfo().successfulShards());
+                assertEquals(0, restoreResponse.getRestoreInfo().failedShards());
+            } finally {
+                // Released only after the restore, so that the held requests reach the master as stale requests from sources that
+                // no longer exist.
+                latch.countDown();
+            }
+
+            assertRestoredAndAbandonedSplitCleanedUp(indexName, shards, numDocs, indexNode);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * Restores while the source shards are in the middle of preparing for the handoff: they hold all of their operation permits and are
+     * flushing, which is held back. The restore is submitted and applied while the flush is stuck, and only then is the flush released,
+     * so that the source finds its shard closed (and the index replaced) when it resumes.
+     */
+    public void testRestoreOverOpenIndexWhileSourceIsFlushingWithPermitsHeld() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        createRepository("test-repo", "fs");
+
+        final int shards = between(1, 3);
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, shards, 1);
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+
+        var preSplitSnapshotName = indexName + "-pre-split-snap";
+        var preSplitSnapshot = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertEquals(SnapshotState.SUCCESS, preSplitSnapshot.getSnapshotInfo().state());
+
+        var index = resolveIndex(indexName);
+        var plugin = findPlugin(indexNode, CustomSnapshotCommitSupplierPlugin.class);
+        var releaseFlush = new CountDownLatch(1);
+        plugin.holdFlushWhileOperationsAreBlocked.set(releaseFlush);
+
+        try (var mockLog = MockLog.capture(ClusterApplierService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "cluster state listener failed",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to notify ClusterStateListener"
+                )
+            );
+
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            // At least one source has acquired all of its permits and is stuck in the flush that follows
+            assertBusy(() -> assertThat(plugin.heldFlushes.get(), greaterThan(0)));
+
+            // Submit the restore without waiting for it: closing the old shards waits for the stuck flush, so it cannot complete yet.
+            var restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", preSplitSnapshotName).indices(indexName)
+                .restoreOverExisting(true)
+                .waitForCompletion(true);
+            var restore = client().execute(TransportRestoreSnapshotAction.TYPE, restoreRequest);
+            awaitClusterState(indexNode, state -> {
+                var metadata = state.metadata().projectFor(index).index(indexName);
+                return metadata.getReshardingMetadata() == null && metadata.getNumberOfShards() == shards;
+            });
+            assertFalse("the restore cannot complete while the old shards cannot close", restore.isDone());
+
+            releaseFlush.countDown();
+            var restoreResponse = restore.actionGet();
+            assertEquals(shards, restoreResponse.getRestoreInfo().totalShards());
+            assertEquals(shards, restoreResponse.getRestoreInfo().successfulShards());
+            assertEquals(0, restoreResponse.getRestoreInfo().failedShards());
+
+            assertRestoredAndAbandonedSplitCleanedUp(indexName, shards, numDocs, indexNode);
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            releaseFlush.countDown();
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
@@ -502,8 +959,63 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         AtomicReference<CountDownLatch> blockCommitAcquireForSnapshot = new AtomicReference<>();
         AtomicReference<Semaphore> limitCommitAcquireForSnapshot = new AtomicReference<>();
 
+        /**
+         * When set, a flush of a shard that has had all of its operation permits acquired, as a split source does while preparing for
+         * handoff, is held until the latch is released.
+         */
+        final AtomicReference<CountDownLatch> holdFlushWhileOperationsAreBlocked = new AtomicReference<>();
+        final AtomicInteger heldFlushes = new AtomicInteger();
+
         public CustomSnapshotCommitSupplierPlugin(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        protected IndexEngine newIndexEngine(
+            EngineConfig engineConfig,
+            TranslogReplicator translogReplicator,
+            Function<String, BlobContainer> translogBlobContainer,
+            StatelessCommitService statelessCommitService,
+            HollowShardsService hollowShardsService,
+            SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
+            RefreshManagerService refreshManagerService,
+            ReshardIndexService reshardIndexService,
+            DocumentParsingProvider documentParsingProvider,
+            IndexEngine.EngineMetrics engineMetrics,
+            IndexEngineDynamicSettings indexEngineDynamicSettings
+        ) {
+            return new IndexEngine(
+                engineConfig,
+                translogReplicator,
+                translogBlobContainer,
+                statelessCommitService,
+                hollowShardsService,
+                sharedBlobCacheWarmingService,
+                refreshManagerService,
+                reshardIndexService,
+                statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
+                documentParsingProvider,
+                engineMetrics,
+                indexEngineDynamicSettings,
+                shardId -> {
+                    final var indexShard = getIndicesService().getShardOrNull(shardId);
+                    return indexShard == null || indexShard.routingEntry().relocating();
+                },
+                statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
+            ) {
+                @Override
+                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
+                    final var release = holdFlushWhileOperationsAreBlocked.get();
+                    if (release != null) {
+                        final var indexShard = getIndicesService().getShardOrNull(engineConfig.getShardId());
+                        if (indexShard != null && indexShard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED) {
+                            heldFlushes.incrementAndGet();
+                            ESTestCase.safeAwait(release);
+                        }
+                    }
+                    super.flushHoldingLock(force, waitIfOngoing, listener);
+                }
+            };
         }
 
         @Override

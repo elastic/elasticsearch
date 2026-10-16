@@ -1331,6 +1331,42 @@ emp_no:integer | full_name:keyword
 10014          | Berni Genin
 ;
 
+matchOnMvMinOfKeyword
+required_capability: match_function
+required_capability: fn_match_fused_field_load_fix
+
+// MV_MIN is fused into the field load on the data node; that load has no indexed Lucene field behind it, so the
+// match still has to run at runtime
+FROM employees
+| WHERE emp_no <= 10025 AND match(MV_MIN(job_positions), "Accountant")
+| SORT emp_no
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10001          | [Accountant, Senior Python Developer]
+10012          | [Accountant, Head Human Resources]
+10016          | [Accountant, Purchase Manager, Python Developer, Reporting Analyst]
+10023          | [Accountant, Purchase Manager, Support Engineer]
+10025          | Accountant
+;
+
+matchOnMvMinOfKeywordNotAlwaysSmallest
+required_capability: match_function
+required_capability: fn_match_fused_field_load_fix
+
+// 10012, 10014 and 10017 also hold Head Human Resources, but a smaller value is their MV_MIN, so they don't match
+FROM employees
+| WHERE emp_no <= 10025 AND match(MV_MIN(job_positions), "Head Human Resources")
+| SORT emp_no
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+10015          | [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer]
+;
+
 matchOnRuntimeKeywordWithRow
 
 required_capability: match_function
@@ -1620,6 +1656,21 @@ FROM employees
 emp_no:integer | x:integer
 10002          | 20002
 10005          | 20005
+;
+
+matchOnLengthOfKeyword
+required_capability: match_function
+required_capability: fn_match_fused_field_load_fix
+
+// LENGTH is fused into the field load on the data node, like MV_MIN in matchOnMvMinOfKeyword
+FROM employees
+| WHERE emp_no < 10010 AND match(LENGTH(first_name), 5)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10003          | Parto
 ;
 
 matchOnRuntimeIntegerWithRow
@@ -2480,6 +2531,39 @@ ROW content = to_text(["the Fox jumped", "the fox jumped"], {"analyzer": "whites
 
 content:text
 the Fox jumped
+;
+
+matchOnRuntimeTextWithWhitespaceAnalyzerInStatsWhere
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fn_match_stats_where_analyzer_fix
+
+// the aggregate filter has to honor the declared values analyzer too: whitespace does not lowercase, so only one
+// row counts; the standard analyzer would count both. The unfiltered total keeps the filter on the aggregate.
+ROW content = to_text(["the Fox jumped", "the fox jumped"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| STATS c = COUNT(*) WHERE match(content, "Fox"), total = COUNT(*)
+;
+
+c:long | total:long
+1      | 2
+;
+
+matchOnRuntimeTextWithWhitespaceAnalyzerInGroupedStatsWhere
+required_capability: match_function
+required_capability: fn_to_text_analyzer
+required_capability: fn_match_stats_where_analyzer_fix
+
+ROW content = to_text(["the Fox jumped", "the fox jumped", "a Fox ran"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| EVAL initial = SUBSTRING(content, 1, 1)
+| STATS c = COUNT(*) WHERE match(content, "Fox") BY initial
+| SORT initial
+;
+
+c:long | initial:keyword
+1      | a
+1      | t
 ;
 
 matchOnRuntimeTextAfterForkHonorsValuesAnalyzer

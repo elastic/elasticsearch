@@ -1439,4 +1439,16 @@ public class ThreadContextTests extends ESTestCase {
         threadContext.putTransient("null-transient", null);
         assertThat(threadContext.estimatedRequestContextBytes(), greaterThanOrEqualTo(emptyContextBytes));
     }
+
+    public void testEstimatedRequestContextBytesToleratesFailingAccountable() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("header", randomAlphaOfLengthBetween(10, 100));
+        final long headerBytes = threadContext.estimatedRequestContextBytes();
+        final long healthyBytes = randomLongBetween(1, 1 << 20);
+        threadContext.putTransient("failing", (Accountable) () -> { throw new IllegalStateException("cannot size this value"); });
+        threadContext.putTransient("healthy", (Accountable) () -> healthyBytes);
+
+        // a value that cannot report its size counts as zero and does not discard what the other values contribute
+        assertThat(threadContext.estimatedRequestContextBytes(), equalTo(headerBytes + healthyBytes));
+    }
 }

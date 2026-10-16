@@ -929,7 +929,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     private static final String maxPlanNodesViewsError =
         "ES|QL query exceeded the maximum plan size allowed (500 nodes) after expanding views";
 
-    public void testMaxExpandedSizeWithDeepView() {
+    public void testMaxExpandedAstWithDeepView() {
         addView("long_view", "FROM emp" + pipes(300));
         // This query is spot on the limit, so it should pass
         String q = "FROM long_view" + pipes(200);
@@ -938,16 +938,36 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         expectThrows(VerificationException.class, startsWith(maxPlanNodesViewsError), () -> replaceViews(query(q + pipes(1))));
     }
 
+    public void testMetadataIgnoredInMaxExpandedAst() {
+        addView("view", "FROM emp" + pipes(500));
+        replaceViews(query("FROM view"));
+        replaceViews(query("FROM view METADATA _index"));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM view METADATA _index" + pipes(1)))
+        );
+
+    }
+
+    public void testUnionAllIgnoredInMaxExpandedAst() {
+        addView("view1", "FROM emp" + pipes(250));
+        addView("view2", "FROM emp" + pipes(250));
+        replaceViews(query("FROM view1, (FROM view2)"));
+        replaceViews(query("FROM view*"));
+        expectThrows(VerificationException.class, startsWith(maxPlanNodesViewsError), () -> replaceViews(query("FROM view*" + pipes(1))));
+    }
+
     /**
      * The limit only applies to queries that expand views or IN subqueries. A FORK repeats its upstream plan in every branch, so this
      * query has more than the maximum number of nodes, but nothing is expanded.
      */
-    public void testMaxExpandedSizeDoesNotApplyWithoutViewsOrSubqueries() {
+    public void testMaxExpandedAstDoesNotApplyWithoutViewsOrSubqueries() {
         addView("some_view", "FROM emp");
         replaceViews(query("FROM emp" + pipes(400) + " | FORK (WHERE a > 0) (WHERE a > 1)"));
     }
 
-    public void testMaxExpandedSizeWithNestedDeepViews() {
+    public void testMaxExpandedAstWithNestedDeepViews() {
         addView("view_c", "FROM emp" + pipes(100));
         addView("view_b", "FROM view_c" + pipes(100));
         addView("view_a", "FROM view_b" + pipes(100));
@@ -960,7 +980,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testMaxExpandedSizeWithDeepSubqueriesAndViews() {
+    public void testMaxExpandedAstWithDeepSubqueriesAndViews() {
         addView("long_view", "FROM emp" + pipes(300));
         // This query is spot on the limit, so it should pass
         replaceViews(query("FROM emp1, (FROM long_view" + pipes(100) + ")" + pipes(100)));
@@ -987,7 +1007,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testMaxExpandedSizeWithDeepInSubqueriesAndViews() {
+    public void testMaxExpandedAstWithDeepInSubqueriesAndViews() {
         addView("long_view", "FROM emp" + pipes(300));
         replaceViews(query("FROM emp1 | WHERE x IN (FROM long_view" + pipes(199) + ")"));
         expectThrows(VerificationException.class, () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM long_view" + pipes(200) + ")")));
@@ -1020,7 +1040,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testMaxExpandedSizeWithDeepMarkInSubqueries() {
+    public void testMaxExpandedAstWithDeepMarkInSubqueries() {
         addView("long_view", "FROM emp" + pipes(300));
         // MarkJoin creates extra nodes on top of a subquery, so there's a small deviation on the heuristic that counts the num of nodes
         String first = "FROM emp1 | WHERE x IN (FROM long_view %s) OR y IN (FROM emp2)";
@@ -1040,7 +1060,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testMaxExpandedSizeWithDeepInSubqueries() {
+    public void testMaxExpandedAstWithDeepInSubqueries() {
         // The WHERE holding the subquery counts as one command, and the subquery as 300 below it
         addView("view_with_in_subquery", "FROM emp | WHERE x IN (FROM emp2" + pipes(300) + ")");
         replaceViews(query("FROM view_with_in_subquery" + pipes(199)));
@@ -1054,7 +1074,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     /**
      * The pipes of sibling views are all added up
      */
-    public void testMaxExpandedSizeWithSiblingViews() {
+    public void testMaxExpandedAstWithSiblingViews() {
         addView("view_a", "FROM emp" + pipes(100));
         addView("view_b", "FROM emp" + pipes(100));
         addView("view_c", "FROM emp" + pipes(100));
@@ -1072,7 +1092,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testMaxExpandedSizeWithViewAndFork() {
+    public void testMaxExpandedAstWithViewAndFork() {
         addView("long_view", "FROM emp" + pipes(100));
         // Fork duplicates the full query for both branches so we need to be careful to count after that duplication
         String fork = " | FORK (WHERE a > 0 | WHERE a > 1 | WHERE a > 2) (WHERE a > 3)";
@@ -1096,7 +1116,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testMaxExpandedSizeWithExponentialViewsAndSubqueries() {
+    public void testMaxExpandedAstWithExponentialViewsAndSubqueries() {
         int maxDepth = 50;
         for (int k = 1; k <= maxDepth; k++) {
             addView("growing_view_" + k, "FROM emp" + pipes(k));
@@ -1109,8 +1129,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testMaxExpandedSizeDoesNotApplyWithoutViews() {
-        // far over MAX_EXPANDED_SIZE in expression nodes, but no view is involved so nothing is checked
+    public void testMaxExpandedAstDoesNotApplyWithoutViews() {
+        // far over MAX_QUERY_AST_SIZE in expression nodes, but no view is involved so nothing is checked
         replaceViews(query("FROM emp | EVAL y = COALESCE(" + String.join(", ", Collections.nCopies(20_000, "a")) + ")"));
     }
 
@@ -1122,14 +1142,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         return query.toString();
     }
 
-    public void testMaxExpandedSizeIsConfigurable() {
+    public void testMaxExpandedAstIsConfigurable() {
         addView("long_view", "FROM emp" + pipes(10));
         // 5 pipes in the query plus 10 in the view
-        replaceViewsWithMaxExpandedSize(query("FROM long_view" + pipes(5)), 15);
+        replaceViewsWithMaxExpandedAst(query("FROM long_view" + pipes(5)), 15);
         expectThrows(
             VerificationException.class,
             startsWith("ES|QL query exceeded the maximum plan size allowed (14 nodes) after expanding views"),
-            () -> replaceViewsWithMaxExpandedSize(query("FROM long_view" + pipes(5)), 14)
+            () -> replaceViewsWithMaxExpandedAst(query("FROM long_view" + pipes(5)), 14)
         );
     }
 
@@ -3074,7 +3094,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         return COMPACTION.apply(replaceViewsWithoutCompaction(plan, resolver));
     }
 
-    private LogicalPlan replaceViewsWithMaxExpandedSize(LogicalPlan plan, int maxExpandedSize) {
+    private LogicalPlan replaceViewsWithMaxExpandedAst(LogicalPlan plan, int maxExpandedSize) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
         viewResolver.replaceViews(plan, null, true, this::parse, false, maxExpandedSize, future);
         return COMPACTION.apply(future.actionGet().plan());

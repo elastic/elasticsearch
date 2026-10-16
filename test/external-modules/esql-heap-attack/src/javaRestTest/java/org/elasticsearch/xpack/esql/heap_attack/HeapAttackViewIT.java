@@ -54,7 +54,7 @@ public class HeapAttackViewIT extends HeapAttackTestCase {
     }
 
     /**
-     * Wide expressions in a tree of distinct views that stays below {@code ViewResolver.MAX_EXPANDED_SIZE} plan nodes, so it is not
+     * Wide expressions in a tree of distinct views that stays below {@code ViewResolver.MAX_QUERY_AST_SIZE} plan nodes, so it is not
      * rejected by the plan size check. It is rejected later, by the branch limit, before the expanded plan can use much heap.
      * Expression nodes do not count towards the plan size.
      */

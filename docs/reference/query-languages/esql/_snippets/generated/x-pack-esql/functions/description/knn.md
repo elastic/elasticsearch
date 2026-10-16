@@ -17,13 +17,15 @@ such as [`disk_bbq`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk)
   It doesn't build a vector index.
 - It supports only the `similarity`, `similarity_function`, and `boost` options. It ignores other options,
   such as `k`, `min_candidates`, and `visit_percentage`.
-- The `similarity_function` option sets the similarity metric. The default is `cosine`. The other values are
-  `dot_product`, `l2_norm`, and `max_inner_product`.
+- The `similarity_function` option sets the similarity metric. The accepted values are
+  `cosine`, `dot_product`, `l2_norm`, and `max_inner_product`. If not set, the similarity metric is inferred from the inference
+  endpoint used to produce the dense_vector expression or query vector, when applicable. If both use different inference
+  endpoints, their similarity metrics must match. If the metric cannot be inferred, it defaults to cosine.
 - If you set `similarity`, it keeps only rows that are at least as similar to the query vector as the threshold.
 - If you request `METADATA _score`, it generates a relevance score for each row. Scores range from 0 to 1,
   except with `max_inner_product` or a `boost` other than 1.
-- With `dot_product`, every vector must be unit length. Rows whose vectors aren't unit length, or whose vectors
-  have a different number of dimensions from the query vector, are excluded with a warning.
+- Rows whose vectors differ in the number of dimensions from the query vector are filtered out, and a warning is generated.
+- With `dot_product`, every vector must be unit length. Rows whose vectors aren't unit length are filtered out, and a warning is generated.
 - To get the k nearest vectors, sort and limit the results explicitly, for example `SORT _score DESC | LIMIT 10`.
 :::
 

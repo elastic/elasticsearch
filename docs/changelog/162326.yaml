@@ -10,8 +10,7 @@ deprecation:
     applied until they are replaced; the others have no effect.
   impact: |-
     Using a `telemetry.agent.*` setting emits a deprecation warning, and the deprecation info API
-    lists the settings in use. Replace each one with its replacement from the telemetry settings
-    reference, or remove it.
+    lists the settings in use together with their replacements. Replace each one, or remove it.
   title: Deprecate the `telemetry.agent.*` settings
 issues: []
 pr: 162326

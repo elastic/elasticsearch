@@ -30,10 +30,11 @@ When using a secret token to authenticate with the APM server, you must add it t
 then enter the token when prompted. If you are using API keys, change the keystore key name to `telemetry.api_key`.
 
 All APM settings live under `telemetry`. Tracing related settings go under `telemetry.tracing` and export
-related settings go under `telemetry.export`. See the [telemetry settings reference][settings] for the full list.
+related settings go under `telemetry.export`. See [OtelSdkSettings][settings] and [APMAgentSettings][agent-settings]
+for the full list.
 
 The `telemetry.agent.*` settings configured the removed Elastic APM Java agent and are deprecated. The
-reference lists their replacements.
+deprecation info API lists their replacements.
 
 For settings that can be changed dynamically, you can use the cluster
 settings REST API. For example, to change the maximum span depth:
@@ -129,4 +130,5 @@ explicitly opening a scope via the `Tracer`.
 [thread-context]: ./server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java
 [w3c]: https://www.w3.org/TR/trace-context/
 [tracing]: ./server/src/main/java/org/elasticsearch/telemetry
-[settings]: https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/telemetry-settings
+[settings]: ./modules/apm/src/main/java/org/elasticsearch/telemetry/apm/internal/export/otelsdk/OtelSdkSettings.java
+[agent-settings]: ./modules/apm/src/main/java/org/elasticsearch/telemetry/apm/internal/APMAgentSettings.java

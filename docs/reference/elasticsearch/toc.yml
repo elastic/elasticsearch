@@ -40,7 +40,6 @@ toc:
           - file: configuration-reference/fs-repository-settings.md
           - file: configuration-reference/url-repository-settings.md
           - file: configuration-reference/source-repository-settings.md
-      - file: configuration-reference/telemetry-settings.md
       - file: configuration-reference/transforms-settings.md
       - file: configuration-reference/thread-pool-settings.md
       - file: configuration-reference/watcher-settings.md

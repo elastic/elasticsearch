@@ -799,6 +799,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             assertEquals("reportShardRestoring of every restore entry", expected, reported);
         }
     }
+
     /**
 
     protected static ClusterState masterClusterState() {

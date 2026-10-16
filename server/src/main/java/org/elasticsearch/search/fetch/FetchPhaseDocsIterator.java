@@ -23,7 +23,9 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -77,6 +79,23 @@ abstract class FetchPhaseDocsIterator {
      * @param docsInLeaf the reader-specific docids to be fetched in this leaf reader
      */
     protected abstract void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException;
+
+    /** Called once before the first {@link #setNextReader} with the segments, in reading order, and their documents. */
+    protected void announce(List<LeafReaderContext> leaves, List<int[]> docsInLeaves) throws IOException {}
+
+    /** Groups {@code docs}, sorted by doc id, by segment and {@link #announce}s them. */
+    final void announceAll(IndexReader indexReader, DocIdToIndex[] docs) throws IOException {
+        List<LeafReaderContext> leaves = new ArrayList<>();
+        List<int[]> docsInLeaves = new ArrayList<>();
+        for (int i = 0; i < docs.length;) {
+            LeafReaderContext leaf = indexReader.leaves().get(ReaderUtil.subIndex(docs[i].docId, indexReader.leaves()));
+            int end = endReaderIdx(leaf, i, docs);
+            leaves.add(leaf);
+            docsInLeaves.add(docIdsInLeaf(i, end, docs, leaf.docBase));
+            i = end;
+        }
+        announce(leaves, docsInLeaves);
+    }
 
     /**
      * Called for each document within a leaf reader.
@@ -146,6 +165,7 @@ abstract class FetchPhaseDocsIterator {
             int[] docsInLeaf = docIdsInLeaf(0, endReaderIdx, docs, ctx.docBase);
 
             try {
+                announceAll(indexReader, docs);
                 setNextReader(ctx, docsInLeaf);
             } catch (ContextIndexSearcher.TimeExceededException e) {
                 SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);

@@ -287,6 +287,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    /** The document and doc-values column pairs a fetch prefetches at once; {@code 0} disables it. */
+    public static final Setting<Integer> FETCH_PHASE_DOC_VALUES_PREFETCH_BUDGET = Setting.intSetting(
+        "search.fetch_phase_doc_values_prefetch_budget",
+        0,
+        0,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /** The bytes the store fetches at once on a cold read, which doc-values prefetch counts in. */
+    public static final Setting<ByteSizeValue> DOC_VALUES_PREFETCH_READ_UNIT = Setting.byteSizeSetting(
+        "search.doc_values_prefetch.read_unit",
+        ByteSizeValue.ofKb(4),
+        ByteSizeValue.ofKb(4),
+        ByteSizeValue.ofGb(1),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final Setting<ByteSizeValue> FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES = Setting.byteSizeSetting(
         "search.fetch_phase_chunked_target_chunk_bytes",
         ByteSizeValue.of(1, ByteSizeUnit.MB),

@@ -116,10 +116,12 @@ You can set the following API key service settings in `elasticsearch.yml`.
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Set to `false` to disable the built-in API key service. Defaults to `true`.
 
 `xpack.security.authc.api_key.cache.ttl`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The time-to-live for cached API key entries. A API key id and a hash of its API key are cached for this period of time. Specify the time period using the standard {{es}} [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `1d`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The time-to-live for cached API key entries. An API key id and a hash of its API key are cached for this period of time. Specify the time period using the standard {{es}} [time units](/reference/elasticsearch/rest-apis/api-conventions.md#time-units). Defaults to `1d`. Setting it to `0` also disables the API key document cache.
+
+    {applies_to}`stack: ga 9.6` Only API keys whose credentials are hashed with a computationally expensive algorithm, such as PBKDF2 or bcrypt, are cached. API keys hashed with `ssha256`, the default for `xpack.security.authc.api_key.hashing.algorithm`, are verified directly, because that is as fast as verifying a cached hash.
 
 `xpack.security.authc.api_key.cache.max_keys`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum number of API key entries that can live in the cache at any given time. Defaults to 10,000.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum number of API key entries that can live in the cache at any given time. The API key document cache has the same limit. Defaults to 25,000.
 
 `xpack.security.authc.api_key.cache.hash_algo`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), Expert) The hashing algorithm that is used for the in-memory cached API key credentials. For possible values, see [Table 1, Cache hash algorithms](#cache-hash-algo). Defaults to `ssha256`.

@@ -13,13 +13,14 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
-import java.util.function.IntSupplier;
 
 /// Computes how long search shard recovery should await offline warming (internal replicated-files path only), see
 /// [#searchRecoveryTimeout].
@@ -27,7 +28,7 @@ public class SearchRecoveryTimeoutCalculationService {
 
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
-    private final IntSupplier maxConcurrentRelocationRecoveriesSupplier;
+    private volatile int maxConcurrentRelocationRecoveries;
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingNonRelocationTimeout;
@@ -40,11 +41,15 @@ public class SearchRecoveryTimeoutCalculationService {
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
         ClusterSettings clusterSettings,
-        IntSupplier maxConcurrentRelocationRecoveriesSupplier
+        ByteSizeValue maxHeap
     ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
-        this.maxConcurrentRelocationRecoveriesSupplier = maxConcurrentRelocationRecoveriesSupplier;
+        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
+            clusterSettings,
+            maxHeap,
+            limits -> this.maxConcurrentRelocationRecoveries = limits.maxConcurrentRelocationRecoveries()
+        );
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             value -> this.searchRecoveryWarmingRelocationWithShutdownTimeout = value
@@ -186,13 +191,10 @@ public class SearchRecoveryTimeoutCalculationService {
         final int relocationsFromSourceToTarget = Math.max(1, countRelocationsBetween(state, sourceNodeId, targetNodeId));
         final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
 
-        final int maxConcurrentRelocations = maxConcurrentRelocationRecoveriesSupplier.getAsInt();
-        assert maxConcurrentRelocations > 0 : "max concurrent relocation recoveries must be positive but was " + maxConcurrentRelocations;
-
         // Share the target's cap between shutting-down sources, preserving fractional shares below one slot.
         final double concurrentRelocations = Math.min(
             relocationsFromSourceToTarget,
-            (double) maxConcurrentRelocations * relocationsFromSourceToTarget / allRelocationsToTarget
+            (double) maxConcurrentRelocationRecoveries * relocationsFromSourceToTarget / allRelocationsToTarget
         );
 
         final double timeoutMs;

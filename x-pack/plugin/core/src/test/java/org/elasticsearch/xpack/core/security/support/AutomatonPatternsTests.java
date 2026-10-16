@@ -96,8 +96,7 @@ public class AutomatonPatternsTests extends ESTestCase {
                 TransportClusterSearchShardsAction.TYPE.name(),
                 TransportSearchShardsAction.TYPE.name(),
                 TransportResolveClusterAction.NAME,
-                "indices:data/read/esql",
-                "indices:data/read/esql/compute"
+                "indices:data/read/esql"
             )
         );
     }

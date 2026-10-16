@@ -9,19 +9,18 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.UntypedActionRequest;
-import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -31,54 +30,76 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 
 /**
- * A {@link DriverRunner} that executes {@link Driver} with a child task so that we can retrieve the progress with the Task API.
+ * Runs a list of {@link Driver}s to completion, each as a child task of the parent task so that progress can be retrieved
+ * and cancellation with the Task API.
  */
 public class DriverTaskRunner {
     public static final String ACTION_NAME = "indices:data/read/esql/compute";
-    private final TransportService transportService;
-    private final Executor searchExecutor;
+    private final TaskManager taskManager;
+    private final ThreadContext threadContext;
+    private final Transport.Connection localConnection;
 
-    public DriverTaskRunner(TransportService transportService, Executor searchExecutor) {
-        this.transportService = transportService;
-        this.searchExecutor = searchExecutor;
-        transportService.registerRequestHandler(
-            ACTION_NAME,
-            searchExecutor,
-            DriverRequest::new,
-            new DriverRequestHandler(transportService)
-        );
+    public DriverTaskRunner(TransportService transportService) {
+        this.taskManager = transportService.getTaskManager();
+        this.threadContext = transportService.getThreadPool().getThreadContext();
+        this.localConnection = transportService.getLocalNodeConnection();
+
     }
 
     public void executeDrivers(Task parentTask, List<Driver> drivers, Executor workerExecutor, ActionListener<Void> listener) {
-        var runner = new DriverRunner(transportService.getThreadPool().getThreadContext()) {
+        final TaskId parentTaskId = new TaskId(taskManager.getNodeId(), parentTask.getId());
+        if (drivers.size() == 1) {
+            startDriver(parentTaskId, drivers.getFirst(), workerExecutor, listener);
+            return;
+        }
+        DriverRunner runner = new DriverRunner(threadContext) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
-                transportService.sendChildRequest(
-                    transportService.getLocalNode(),
-                    ACTION_NAME,
-                    new DriverRequest(driver, workerExecutor),
-                    parentTask,
-                    TransportRequestOptions.EMPTY,
-                    TransportResponseHandler.empty(
-                        searchExecutor,
-                        // The TransportResponseHandler can be notified while the Driver is still running during node shutdown
-                        // or the Driver hasn't started when the parent task is canceled. In such cases, we should abort
-                        // the Driver and wait for it to finish.
-                        ActionListener.wrap(driverListener::onResponse, e -> driver.abort(e, driverListener))
-                    )
-                );
+                startDriver(parentTaskId, driver, workerExecutor, driverListener);
             }
         };
         runner.runToCompletion(drivers, listener);
     }
 
-    private static class DriverRequest extends UntypedActionRequest implements CompositeIndicesRequest {
-        private final Driver driver;
-        private final Executor executor;
+    private void startDriver(TaskId parentTaskId, Driver driver, Executor workerExecutor, ActionListener<Void> driverListener) {
+        final ActionListener<Void> listener = ContextPreservingActionListener.wrapPreservingContext(driverListener, threadContext);
+        try (var ignored = threadContext.newTraceContext()) {
+            final Releasable finishTask;
+            try {
+                finishTask = registerTask(parentTaskId, driver);
+            } catch (Exception e) {
+                driver.abort(e, listener);
+                return;
+            }
+            Driver.start(
+                threadContext,
+                workerExecutor,
+                driver,
+                Driver.DEFAULT_MAX_ITERATIONS,
+                ActionListener.releaseBefore(finishTask, listener)
+            );
+        }
+    }
 
-        DriverRequest(Driver driver, Executor executor) {
+    private Releasable registerTask(TaskId parentTaskId, Driver driver) {
+        final Releasable unregisterChildNode = taskManager.registerChildConnection(parentTaskId.getId(), localConnection);
+        final DriverRequest request = new DriverRequest(driver);
+        request.setParentTask(parentTaskId);
+        final Task task;
+        try {
+            task = taskManager.register("transport", ACTION_NAME, request);
+        } catch (Exception e) {
+            Releasables.closeWhileHandlingException(unregisterChildNode);
+            throw e;
+        }
+        return Releasables.wrap(unregisterChildNode, () -> taskManager.unregister(task));
+    }
+
+    private static class DriverRequest extends UntypedActionRequest {
+        private final Driver driver;
+
+        DriverRequest(Driver driver) {
             this.driver = driver;
-            this.executor = executor;
         }
 
         DriverRequest(StreamInput in) {
@@ -118,20 +139,6 @@ public class DriverTaskRunner {
                     return driver.status();
                 }
             };
-        }
-    }
-
-    private record DriverRequestHandler(TransportService transportService) implements TransportRequestHandler<DriverRequest> {
-        @Override
-        public void messageReceived(DriverRequest request, TransportChannel channel, Task task) {
-            var listener = new ChannelActionListener<ActionResponse.Empty>(channel);
-            Driver.start(
-                transportService.getThreadPool().getThreadContext(),
-                request.executor,
-                request.driver,
-                Driver.DEFAULT_MAX_ITERATIONS,
-                listener.map(unused -> ActionResponse.Empty.INSTANCE)
-            );
         }
     }
 }

@@ -1031,12 +1031,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         Exception failureStoreException,
         IndexDocFailureStoreStatus failureStoreStatus
     ) {
+        assert failure.getFailureStoreCause() == null : "Document already has a failure store failure recorded";
         if (failure.getFailureStoreCause() == null) {
             failure.setFailureStoreCause(failureStoreException);
-        } else {
-            failure.getFailureStoreCause().addSuppressed(failureStoreException);
+            failure.setFailureStoreStatus(failureStoreStatus);
         }
-        failure.setFailureStoreStatus(failureStoreStatus);
     }
 
     /**

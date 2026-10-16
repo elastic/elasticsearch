@@ -12,6 +12,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.Arrays;
 import java.util.List;
@@ -385,6 +386,7 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
      */
     public void testLoadFlattenedSubfieldRetriesAndErrorsWhileDefaultNullifySucceed() {
         assumeTrue("requires nullify + load", nullifyEnabled() && loadEnabled());
+        assumeFalse("without flattened subfields", EsqlPlugin.FLATTENED_SUBFIELDS_FEATURE_FLAG.isEnabled());
         createIndex(
             "test1",
             "{ \"properties\": { \"k\": { \"type\": \"integer\" }, "
@@ -417,6 +419,38 @@ public class AnalyzeRetryRequestFilterIT extends AbstractEsqlIntegTestCase {
             e.getMessage(),
             containsString("Loading subfield [labels.env] when parent [labels] is of flattened field type is not supported")
         );
+    }
+
+    /**
+     * labels.env is a real keyword in test1, and its parent labels is a flattened field in test2, so in test2 labels.env is the env
+     * key of labels: a keyword too. Every mode resolves it on the first pass and reads it from both indices.
+     */
+    public void testFlattenedSubfieldIsAKeyInEveryMode() {
+        assumeTrue("requires nullify + load", nullifyEnabled() && loadEnabled());
+        assumeTrue("requires flattened subfields", EsqlPlugin.FLATTENED_SUBFIELDS_FEATURE_FLAG.isEnabled());
+        createIndex(
+            "test1",
+            "{ \"properties\": { \"k\": { \"type\": \"integer\" }, "
+                + "\"labels\": { \"type\": \"object\", \"properties\": { \"env\": { \"type\": \"keyword\" } } } } }"
+        );
+        createIndex("test2", "{ \"properties\": { \"k\": { \"type\": \"integer\" }, \"labels\": { \"type\": \"flattened\" } } }");
+        indexJson("test1", "a", "{ \"k\": 1, \"labels\": { \"env\": \"prod\" } }");
+        indexJson("test2", "b", "{ \"k\": 2, \"labels\": { \"env\": \"dev\", \"other\": \"x\" } }");
+        refresh("test1", "test2");
+
+        String body = "FROM test1,test2 | KEEP k, labels.env | SORT k";
+        QueryBuilder filter = QueryBuilders.existsQuery("k"); // present so the retry path is active; matches both indices, prunes nothing
+
+        List<List<Object>> expectedValues = List.of(Arrays.asList(1, "prod"), Arrays.asList(2, "dev"));
+
+        for (String mode : Arrays.asList(null, "nullify", "load")) {
+            try (var response = runFiltered(mode, body, filter)) {
+                assertThat(response.isPartial(), equalTo(false));
+                assertColumnNames(response.columns(), List.of("k", "labels.env"));
+                assertColumnTypes(response.columns(), List.of("integer", "keyword"));
+                assertThat(getValuesList(response), equalTo(expectedValues));
+            }
+        }
     }
 
     private static boolean nullifyEnabled() {

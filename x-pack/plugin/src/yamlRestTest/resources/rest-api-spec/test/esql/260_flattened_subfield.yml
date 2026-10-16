@@ -7,7 +7,7 @@ setup:
           path: /_query
           parameters: []
           capabilities: [ optional_fields_v5, flattened_datatype ]
-      reason: "Loading a subfield a flattened field must fail when unmapped_fields=load"
+      reason: "Loading a subfield of a flattened field when unmapped_fields=load"
   - do:
       indices.create:
         index: index1
@@ -60,6 +60,13 @@ setup:
 
 ---
 'loading subfield of flattened 1':
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
   - do:
       catch: bad_request
       esql.query:
@@ -73,6 +80,13 @@ setup:
 
 ---
 'loading subfield of flattened 2':
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
   - do:
       catch: bad_request
       esql.query:
@@ -86,6 +100,13 @@ setup:
 
 ---
 'loading subfield of flattened 3':
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
   - do:
       catch: bad_request
       esql.query:
@@ -99,6 +120,13 @@ setup:
 
 ---
 'loading from two indices with different mappings 1':
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
   - do:
       catch: bad_request
       esql.query:
@@ -114,6 +142,13 @@ setup:
 
 ---
 'loading from two indices with different mappings 2':
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
   - do:
       catch: bad_request
       esql.query:
@@ -128,6 +163,13 @@ setup:
 
 ---
 'loading from two indices with different mappings 3':
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
   - do:
       catch: bad_request
       esql.query:
@@ -143,6 +185,13 @@ setup:
 
 ---
 'loading from index*':
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
   - do:
       catch: bad_request
       esql.query:
@@ -155,6 +204,13 @@ setup:
 
 ---
 'loading from index with many-dotted field names':
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
   - do:
       catch: bad_request
       esql.query:
@@ -170,3 +226,146 @@ setup:
   - contains: { error.reason: 'line 1:92: Loading subfield [foo....] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
   - contains: { error.reason: 'line 1:103: Loading subfield [foo.*] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
   - contains: { error.reason: 'line 1:112: Loading subfield [bar.baz.a] when parent [bar.baz] is of flattened field type is not supported with unmapped_fields="load"' }
+
+---
+'loading subfield of flattened 1 reads the key':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
+  - do:
+      esql.query:
+        body:
+          # [foo] is flattened in index1
+          query: 'SET unmapped_fields="load"; FROM index1 | KEEP foo.a | LIMIT 10'
+  - match: { columns: [ { name: foo.a, type: keyword } ] }
+  - match: { values: [ ] }
+
+---
+'loading subfield of flattened 2 reads the key':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
+  - do:
+      esql.query:
+        body:
+          # [foo] is flattened in index1
+          query: 'SET unmapped_fields="load"; FROM index1 | KEEP foo.bar.baz | LIMIT 10'
+  - match: { columns: [ { name: foo.bar.baz, type: keyword } ] }
+  - match: { values: [ ] }
+
+---
+'loading subfield of flattened 3 reads the key':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
+  - do:
+      esql.query:
+        body:
+          # [foo.bar] is flattened in index2
+          query: 'SET unmapped_fields="load"; FROM index2 | WHERE foo.bar.subfield == "something" | KEEP foo.bar.subfield | LIMIT 10'
+  - match: { columns: [ { name: foo.bar.subfield, type: keyword } ] }
+  - match: { values: [ ] }
+
+---
+'loading from two indices with different mappings 1 reads the key':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
+  - do:
+      esql.query:
+        body:
+          # [foo] is flattened in index1
+          # [foo] is keyword in index3
+          query: 'SET unmapped_fields="load"; FROM index1,index3 | EVAL x = TO_STRING(foo.a), y = TO_STRING(foo.b.c.d) | KEEP x, y | LIMIT 10'
+  - match: { columns: [ { name: x, type: keyword }, { name: y, type: keyword } ] }
+  - match: { values: [ ] }
+
+---
+'loading from two indices with different mappings 2 reads the key':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
+  - do:
+      esql.query:
+        body:
+          # [foo] is flattened in index1
+          # [foo.bar] is keyword in index4
+          query: 'SET unmapped_fields="load"; FROM index1,index4 | WHERE foo.bar == "something" | KEEP foo.bar | LIMIT 10'
+  - match: { columns: [ { name: foo.bar, type: keyword } ] }
+  - match: { values: [ ] }
+
+---
+'loading from two indices with different mappings 3 reads the key':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
+  - do:
+      esql.query:
+        body:
+          # [foo] is flattened in index1
+          # [foo.bar] is keyword in index4
+          query: 'SET unmapped_fields="load"; FROM index1,index4 | WHERE foo.bar.baz == "something else" | KEEP foo.bar, foo.bar.baz | LIMIT 10'
+  - match: { columns: [ { name: foo.bar, type: keyword }, { name: foo.bar.baz, type: keyword } ] }
+  - match: { values: [ ] }
+
+---
+'loading from index* reads the key':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM index* metadata _source | KEEP `foo.*.*.*.*.*.` | LIMIT 10'
+  - match: { columns: [ { name: "foo.*.*.*.*.*.", type: keyword } ] }
+  - match: { values: [ ] }
+
+---
+'loading from index with many-dotted field names reads the key':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A subfield of a flattened field is a keyword field of its own"
+  - do:
+      esql.query:
+        body:
+          # [foo] is flattened in index5
+          # [bar].[baz] is flattened in index5
+          query: 'SET unmapped_fields="load"; FROM index5 metadata _index, _source | KEEP `foo..`, `foo...`, `foo....`, `foo.*`, `bar.baz.a` | LIMIT 10'
+  - match: { columns.0: { name: "foo..", type: keyword } }
+  - match: { columns.1: { name: "foo...", type: keyword } }
+  - match: { columns.2: { name: "foo....", type: keyword } }
+  - match: { columns.3: { name: "foo.*", type: keyword } }
+  - match: { columns.4: { name: bar.baz.a, type: keyword } }
+  - match: { values: [ ] }

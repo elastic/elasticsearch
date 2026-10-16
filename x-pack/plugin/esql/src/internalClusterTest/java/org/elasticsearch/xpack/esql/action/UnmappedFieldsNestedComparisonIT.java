@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.List;
 import java.util.Map;
@@ -105,9 +106,12 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
      * <li>nestedNoField: nested parent that declares no subfields at all. Must always equal noField: nothing is
      *     declared, so it is plain unmapped loading.</li>
      * <li>noField: the same leaf simply not mapped on the special index.</li>
-     * <li>flattened: the Verifier rejects loading the sub-key, so cells that would load it error instead.
-     *     Under {@code LOAD_ALL} + {@code KEEP *} nothing references it, and discovery does not surface it either: the sub-key
-     *     is part of the value of the mapped {@code flattened} field, so the index that maps it returns null.</li>
+     * <li>flattened: the sub-key is a keyword field of its own, the key of {@code item}, in every mode, so the index that maps
+     *     {@code item} as {@code flattened} reads it whenever the query names it or another index maps it.
+     *     Under {@code LOAD_ALL} + {@code KEEP *} with no mapping nothing references it, and discovery does not surface it either:
+     *     the sub-key is part of the value of the mapped {@code flattened} field, so the index that maps it returns null.
+     *     Without {@link EsqlPlugin#FLATTENED_SUBFIELDS_FEATURE_FLAG} the cells marked {@code key(...)} give the result in
+     *     parentheses: the Verifier rejects loading the sub-key, and {@code nullify} makes it null.</li>
      * </ul>
      */
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -115,26 +119,33 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
         return List.of(
             // mode, mapping, KEEP, nested, nestedNoField, unsupported, noField, flattened
             cell("nullify", "unmapped_both", "*", ABSENT, ABSENT, ABSENT, ABSENT, ABSENT),
-            cell("nullify", "unmapped_both", "x", NULL, NULL, NULL, NULL, NULL),
-            cell("nullify", "mapped_both", "*", NULL, NULL, NULL, NULL, NULL),
-            cell("nullify", "mapped_both", "x", NULL, NULL, NULL, NULL, NULL),
+            cell("nullify", "unmapped_both", "x", NULL, NULL, NULL, NULL, key(NULL)),
+            cell("nullify", "mapped_both", "*", NULL, NULL, NULL, NULL, key(NULL)),
+            cell("nullify", "mapped_both", "x", NULL, NULL, NULL, NULL, key(NULL)),
             cell("nullify", "mapped_only_special", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
-            cell("nullify", "mapped_only_special", "x", NULL, NULL, NULL, NULL, NULL),
+            cell("nullify", "mapped_only_special", "x", NULL, NULL, NULL, NULL, key(NULL)),
 
             cell("load", "unmapped_both", "*", ABSENT, ABSENT, ABSENT, ABSENT, ABSENT),
-            cell("load", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, VERIFIER_ERROR),
-            cell("load", "mapped_both", "*", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load", "mapped_both", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, key(VERIFIER_ERROR)),
+            cell("load", "mapped_both", "*", NULL, LOADED, NULL, LOADED, key(VERIFIER_ERROR)),
+            cell("load", "mapped_both", "x", NULL, LOADED, NULL, LOADED, key(VERIFIER_ERROR)),
             cell("load", "mapped_only_special", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
-            cell("load", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, key(VERIFIER_ERROR)),
 
             cell("load_all", "unmapped_both", "*", LOADED, LOADED, LOADED, LOADED, NULL),
-            cell("load_all", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, VERIFIER_ERROR),
-            cell("load_all", "mapped_both", "*", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load_all", "mapped_both", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
+            cell("load_all", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, key(VERIFIER_ERROR)),
+            cell("load_all", "mapped_both", "*", NULL, LOADED, NULL, LOADED, key(VERIFIER_ERROR)),
+            cell("load_all", "mapped_both", "x", NULL, LOADED, NULL, LOADED, key(VERIFIER_ERROR)),
             cell("load_all", "mapped_only_special", "*", NULL, LOADED, NULL, LOADED, NULL),
-            cell("load_all", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR)
+            cell("load_all", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, key(VERIFIER_ERROR))
         );
+    }
+
+    /**
+     * The sub-key reads as a key of the {@code flattened} field, or {@code withoutFlattenedSubfields} when the feature is disabled.
+     */
+    private static Presence key(Presence withoutFlattenedSubfields) {
+        return EsqlPlugin.FLATTENED_SUBFIELDS_FEATURE_FLAG.isEnabled() ? LOADED : withoutFlattenedSubfields;
     }
 
     private static Object[] cell(

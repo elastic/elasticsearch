@@ -134,6 +134,45 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         };
     }
 
+    /**
+     * Reads of the returned directory do not claim the missing cache ranges on the reading thread. They queue a task on the shard read
+     * pool that claims them when it runs. If a region 0 prewarm has claimed and filled a range by then, the task has nothing left to
+     * fetch and the read completes from the prewarm's fill.
+     * <p>
+     * When the task does claim a range, it must also fetch and fill it in that same task, so that a read queues on the shard read pool
+     * only once. This holds because the blob reader fetches in-thread ({@code DIRECT}) and the cache service fills claimed ranges
+     * inline (its io executor is {@code DIRECT}). If either dispatched to the shard read pool, the read would queue a second time
+     * behind the other tasks in that pool. Nothing enforces this except
+     * {@code SharedBlobCacheWarmingServiceTests#testColdBccHeaderReadRunsAsOneShardReadTaskPerBlob}.
+     */
+    @Override
+    public IndexBlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
+        return new IndexBlobStoreCacheDirectory(
+            cacheService,
+            shardId,
+            totalBytesReadFromObjectStore,
+            totalBytesWarmedFromObjectStore,
+            blobContainer.get()
+        ) {
+            @Override
+            protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                return createCacheBlobReader(
+                    fileName,
+                    getBlobContainer(blobFile.primaryTerm()),
+                    blobFile.blobName(),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    totalBytesWarmedFromObjectStore,
+                    BlobCacheMetrics.CachePopulationReason.Warming
+                );
+            }
+
+            @Override
+            protected Executor claimExecutor() {
+                return getCacheService().getShardReadThreadPoolExecutor();
+            }
+        };
+    }
+
     public static IndexBlobStoreCacheDirectory unwrapDirectory(final Directory directory) {
         Directory dir = directory;
         while (dir != null) {

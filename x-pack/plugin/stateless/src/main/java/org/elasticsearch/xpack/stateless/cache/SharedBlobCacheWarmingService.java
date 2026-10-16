@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -90,6 +89,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
@@ -456,7 +456,6 @@ public class SharedBlobCacheWarmingService {
     private volatile double idLookupPrewarmRatio;
     private volatile long maxUploadPrewarmSize;
     private volatile int warmByteRangePerFileConcurrency;
-    private final WarmingRatioProvider warmingRatioProvider;
     private final SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
 
     public SharedBlobCacheWarmingService(
@@ -464,12 +463,10 @@ public class SharedBlobCacheWarmingService {
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         ClusterSettings clusterSettings,
-        WarmingRatioProvider warmingRatioProvider,
         SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
     ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
-        this.warmingRatioProvider = warmingRatioProvider;
         this.fetchExecutor = threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL);
         this.uploadPrewarmFetchExecutor = threadPool.executor(StatelessPlugin.UPLOAD_PREWARM_THREAD_POOL);
 
@@ -792,7 +789,7 @@ public class SharedBlobCacheWarmingService {
         BlobStoreCacheDirectory directory,
         ActionListener<Void> listener
     ) {
-        warmCache(type, indexShard, commit, directory, null, false, listener);
+        warmCache(type, indexShard, commit, directory, null, null, false, listener);
     }
 
     public void warmCacheForShardRecoveryOrUnhollowing(
@@ -803,7 +800,7 @@ public class SharedBlobCacheWarmingService {
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
-        warmCache(type, indexShard, commit, directory, null, preWarmForIdLookup, listener);
+        warmCache(type, indexShard, commit, directory, null, null, preWarmForIdLookup, listener);
     }
 
     /**
@@ -815,16 +812,17 @@ public class SharedBlobCacheWarmingService {
      * Notice that this may synchronously invoke the listener.
      */
     public void warmCacheForSearchShardRecovery(
-        ClusterState clusterState,
+        Supplier<ClusterState> clusterStateSupplier,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
+        WarmingRatioProvider warmingRatioProvider,
         @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
         ActionListener<Void> resumeRecoveryListener
     ) {
         final long totalBytesToWarm = totalBytesToWarm(endTargetsToWarm);
         final SearchRecoveryTimeout plan = endTargetsToWarm != null
-            ? searchRecoveryTimeoutCalculationService.searchRecoveryTimeout(clusterState, indexShard, totalBytesToWarm)
+            ? searchRecoveryTimeoutCalculationService.searchRecoveryTimeout(clusterStateSupplier.get(), indexShard, totalBytesToWarm)
             : SearchRecoveryTimeout.skip();
         if (plan.awaitWarming()) {
             assert endTargetsToWarm != null;
@@ -833,6 +831,7 @@ public class SharedBlobCacheWarmingService {
                 indexShard,
                 commit,
                 directory,
+                warmingRatioProvider,
                 endTargetsToWarm,
                 false,
                 searchRecoveryWarmingListener(
@@ -845,7 +844,16 @@ public class SharedBlobCacheWarmingService {
                 )
             );
         } else {
-            warmCacheAndTimeIt(Type.SEARCH, indexShard, commit, directory, endTargetsToWarm, false, ActionListener.noop());
+            warmCacheAndTimeIt(
+                Type.SEARCH,
+                indexShard,
+                commit,
+                directory,
+                warmingRatioProvider,
+                endTargetsToWarm,
+                false,
+                ActionListener.noop()
+            );
             searchRecoveryWaitDurationMetric.record(
                 0.0,
                 Map.of(SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY, SearchRecoveryWaitOutcome.NO_WAIT.name())
@@ -860,6 +868,7 @@ public class SharedBlobCacheWarmingService {
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
+        WarmingRatioProvider warmingRatioProvider,
         @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
@@ -869,6 +878,7 @@ public class SharedBlobCacheWarmingService {
             indexShard,
             commit,
             directory,
+            warmingRatioProvider,
             endTargetsToWarm,
             preWarmForIdLookup,
             timeSearchRecoveryWarming(threadPool.relativeTimeInMillis(), listener)
@@ -891,10 +901,12 @@ public class SharedBlobCacheWarmingService {
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
+        @Nullable WarmingRatioProvider warmingRatioProvider,
         @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
+        assert type != Type.SEARCH || warmingRatioProvider != null : "warmingRatioProvider must not be null in search shard recovery path";
         ShardId shardId = indexShard.shardId();
         Store store = indexShard.store();
         if (store.isClosing() || store.tryIncRef() == false) {
@@ -930,7 +942,7 @@ public class SharedBlobCacheWarmingService {
                                                 .compoundCommit()
                                                 .getTimestampFieldValueRange()
                                         );
-                                        var offset = byteRangeToWarmForCC(referencedCompoundCommit, resolvedTs).end();
+                                        var offset = byteRangeToWarmForCC(warmingRatioProvider, referencedCompoundCommit, resolvedTs).end();
                                         // blobSize is 0 as a sentinel until the bccBlobSizeConsumer fills it in;
                                         // We use unknown timestamps here: timestamps are only relevant when the cache boost preference
                                         // feature is enabled, which requires internal files replicated content for search shards.
@@ -1167,6 +1179,7 @@ public class SharedBlobCacheWarmingService {
     }
 
     public ByteRange byteRangeToWarmForCC(
+        WarmingRatioProvider warmingRatioProvider,
         ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC,
         long resolvedCCTimestampMillis
     ) {
@@ -1188,13 +1201,14 @@ public class SharedBlobCacheWarmingService {
     }
 
     public WarmTarget computeWarmTarget(
+        WarmingRatioProvider warmingRatioProvider,
         ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC,
         BlobStoreCacheDirectory directory
     ) {
         long ccTimestamp = directory.resolveRegionTimestampMillis(
             referencedCC.statelessCompoundCommitReference().compoundCommit().getTimestampFieldValueRange()
         );
-        long endOffset = byteRangeToWarmForCC(referencedCC, ccTimestamp).end();
+        long endOffset = byteRangeToWarmForCC(warmingRatioProvider, referencedCC, ccTimestamp).end();
         return new WarmTarget(endOffset, 0L, ccTimestamp);
     }
 
@@ -1746,7 +1760,7 @@ public class SharedBlobCacheWarmingService {
         protected abstract void onWarmingSuccess(long duration);
 
         protected void onWarmingFailed(Exception e) {
-            Supplier<String> logMessage = () -> Strings.format(
+            org.apache.logging.log4j.util.Supplier<String> logMessage = () -> Strings.format(
                 "%s %s warming failed with message %s",
                 warmingRun.shardId(),
                 warmingRun.type(),

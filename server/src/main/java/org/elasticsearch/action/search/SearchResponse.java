@@ -494,6 +494,24 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.queryPhaseAggregationBreakerBytes = queryPhaseAggregationBreakerBytes;
     }
 
+    boolean hasCoordinatorFetchCharge() {
+        return coordinatorFetchCharge != null;
+    }
+
+    /**
+     * Hands the coordinating node's fetch charge for the hits to a caller that keeps the hits alive past this response.
+     * The sections hand their charge to the response when it is built (see
+     * {@link SearchResponseSections#transferCoordinatorFetchCharge()}), so from then on it can only be taken from here.
+     *
+     * @return the charge, or {@code null} if there is none
+     */
+    @Nullable
+    Releasable transferCoordinatorFetchCharge() {
+        Releasable charge = coordinatorFetchCharge;
+        coordinatorFetchCharge = null;
+        return charge;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();

@@ -177,10 +177,20 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
         assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(RuntimeSearchTextWithLuceneQueryEvaluator.Factory.class));
     }
 
-    public void testTextWithNonStandardValuesAnalyzerUsesLuceneQueryEvaluator() {
-        // The fast matcher cannot express the position gaps a stopword-removing analyzer leaves behind.
-        MatchPhrase matchPhrase = runtimeMatchPhraseOnToText("stop", "brown fox", null);
+    public void testAQueryWhoseTermsLeaveAGapUsesLuceneQueryEvaluator() {
+        // The stopword between them leaves the query's terms two positions apart, which the fast matcher asks for
+        // adjacent and cannot express.
+        MatchPhrase matchPhrase = runtimeMatchPhraseOnToText("stop", "brown the fox", null);
         assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(RuntimeSearchTextWithLuceneQueryEvaluator.Factory.class));
+    }
+
+    /**
+     * The same analyzer, and a query it drops nothing from: its terms sit one to a position, so the fast matcher
+     * asks for exactly what a query over an index of the values would.
+     */
+    public void testAQueryTheAnalyzerDropsNothingFromKeepsTheFastEvaluator() {
+        MatchPhrase matchPhrase = runtimeMatchPhraseOnToText("stop", "brown fox", null);
+        assertThat(matchPhrase.toEvaluator(toEvaluator()), instanceOf(RuntimeSearchTextEvaluator.Factory.class));
     }
 
     public void testTextWithExplicitStandardValuesAnalyzerUsesOptimizedEvaluator() {

@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -347,5 +348,43 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
             "18446744073709551615"
         ).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));
+    }
+
+    public void testDocValueReadEstimators() throws IOException {
+        UnsignedLongDocValuesField field = new UnsignedLongDocValuesField(longDocValues(1, 2, 3), "test");
+        field.setNextDocId(0);
+        assertEquals(24, UnsignedLongAllocationEstimators.boxedLongBytes((UnsignedLongScriptDocValues) field.toScriptDocValues(), 0));
+        long list = 32 + ((16 + 8 * 3 + 7) & ~7L);
+        assertEquals(list + 24 * 3, UnsignedLongAllocationEstimators.longValuesBytes(field));
+        assertEquals(list + 48 * 3, UnsignedLongAllocationEstimators.bigIntegersBytes(field));
+
+        // An empty field returns the shared empty list, which costs nothing.
+        UnsignedLongDocValuesField empty = new UnsignedLongDocValuesField(longDocValues(), "test");
+        empty.setNextDocId(0);
+        assertEquals(0, UnsignedLongAllocationEstimators.longValuesBytes(empty));
+        assertEquals(0, UnsignedLongAllocationEstimators.bigIntegersBytes(empty));
+    }
+
+    /** Numeric doc values over one document holding {@code values}. */
+    private static SortedNumericLongValues longDocValues(long... values) {
+        return new SortedNumericLongValues(null) {
+            private int next;
+
+            @Override
+            public boolean advanceExact(int doc) {
+                next = 0;
+                return doc == 0 && values.length > 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.length;
+            }
+
+            @Override
+            public long nextValue() {
+                return values[next++];
+            }
+        };
     }
 }

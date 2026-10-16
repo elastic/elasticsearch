@@ -35,7 +35,8 @@ public interface BinaryDocValuesQueries {
     /** The implementation for {@code format}, shared rather than built per call. */
     static BinaryDocValuesQueries forFormat(BinaryDocValuesFormat format) {
         return switch (format) {
-            case COLUMNAR_PAYLOAD, PLAIN -> ColumnarBinaryDocValuesQueries.INSTANCE;
+            case COLUMNAR_PAYLOAD -> ColumnarBinaryDocValuesQueries.PAYLOAD;
+            case PLAIN -> ColumnarBinaryDocValuesQueries.SINGLE_VALUED;
             case SEPARATE_COUNT, ARRAY_ORDER_INLINE_NULL -> ScanningBinaryDocValuesQueries.forFormat(format);
         };
     }
@@ -59,7 +60,7 @@ public interface BinaryDocValuesQueries {
     Query caseInsensitiveTerm(String field, String value);
 
     /** Documents holding a value the wildcard pattern accepts. */
-    Query wildcard(String field, String pattern, boolean caseInsensitive);
+    Query wildcard(String field, String pattern, boolean caseInsensitive, @Nullable CircuitBreaker breaker);
 
     /**
      * Documents holding a value {@code automaton} accepts, for a caller that has already decided what its pattern means.

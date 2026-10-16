@@ -404,6 +404,15 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * How an internal doc-values field this mapper writes under its own path, such as {@code <field>.input}, is written as a
+     * ColumNAR string column, or {@code null} when it is not one. Such a field has no mapper of its own, so its owner answers.
+     */
+    @Nullable
+    public StringColumnOptions internalColumnarStringOptions(String fieldName) {
+        return null;
+    }
+
+    /**
      * Returns {@code true} for metadata field mappers ({@link MetadataFieldMapper} subclasses),
      * {@code false} for all user-defined data field mappers. Used by {@link #supportsColumnarParse}
      * to skip the index-mode and legacy-version gates, which are data-field concerns only.
@@ -1069,7 +1078,7 @@ public abstract class FieldMapper extends Mapper {
                             updateSyntheticSourceCompatibleKeywordField(incomingBuilder);
                         }
                     } else {
-                        MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
+                        MapperMergeContext childContext = mergeContext.withUnlimitedParseFieldLimitsBudget();
                         Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, childContext);
                         fieldBuilders.put(entry.getKey(), (FieldMapper.Builder) merged);
                     }

@@ -1045,22 +1045,15 @@ public final class IngestDocument {
         return template.newInstance(templateModel).execute();
     }
 
-    /**
-     * Get source and metadata map
-     */
-    public Map<String, Object> getSourceAndMetadata() {
-        return ctxMap;
-    }
-
     /*
-     * This returns the same information as getSourceAndMetadata(), but in an unmodifiable map that is safe to send into a script that is
+     * This returns the same information as getCtxMap(), but in an unmodifiable map that is safe to send into a script that is
      * not supposed to be modifying the data. If an attempt is made to modify this Map, or a Map, List, or Set nested within it, an
      * UnsupportedOperationException is thrown. If an attempt is made to modify a byte[] within this Map, the attempt succeeds, but the
      * results are not reflected on this IngestDocument. If a user has put any other mutable Object into the IngestDocument, this method
      * makes no attempt to make it immutable. This method just protects users against accidentally modifying the most common types of
      * Objects found in IngestDocuments.
      */
-    public Map<String, Object> getUnmodifiableSourceAndMetadata() {
+    public Map<String, Object> getUnmodifiableCtxMap() {
         return new UnmodifiableIngestData(ctxMap);
     }
 

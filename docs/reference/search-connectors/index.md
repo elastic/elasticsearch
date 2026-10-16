@@ -25,15 +25,15 @@ These connectors are written in Python and the source code is available in the [
 
 ## Setup modes [setup-modes]
 
-Use [self-managed connectors](self-managed-connectors.md) on {{es-serverless}} projects and Elastic **9.0+** deployments. **Elastic managed** connectors are not available in those environments.
+Use [self-managed connectors](self-managed-connectors.md) to set up content connectors. They are available in any Elastic environment, including {{es-serverless}} projects and Elastic 9.x deployments.
 
-The availability of each option is also indicated on your {{kib}} **Content connectors** page. The following table compares self-managed connectors with the discontinued Elastic managed option.
+The availability of each setup mode is indicated on the interface of your {{kib}} **Content connectors** page.
 
 | | **[Self-managed](self-managed-connectors.md)** | **Elastic managed** |
 |---|---|---|
-| **Infrastructure** | You deploy the connector service | Elastic hosted the connector service for you |
-| **Availability** | Any Elastic environment (including {{es-serverless}} projects) | Not available (discontinued in Elastic **9.0.0**) |
-| **Can send data to** | Any {{es}} instance | The {{ech}} deployment the connector ran in only |
+| **Infrastructure** | You deploy the connector service | Elastic hosted it for you |
+| **Availability** | Any Elastic environment | {{ech}} on Elastic 8.x only (8.5.0 and later). Not available in Elastic 9.0+ or on {{es-serverless}}. |
+| **Can send data to** | Any {{es}} instance | The deployment the connector ran in only |
 | **Customization** | Supported | Not supported |
 
 ::::{note}

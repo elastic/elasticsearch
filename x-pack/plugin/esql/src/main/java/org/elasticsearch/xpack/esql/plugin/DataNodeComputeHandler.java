@@ -1128,8 +1128,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 sessionId,
                 e
             );
-            exchangeService.finishSinkHandler(sessionId, e);
-            listener.onFailure(e);
+            failWithoutStarting(request, listener, e);
             return;
         }
         if (task.isCancelled()) {

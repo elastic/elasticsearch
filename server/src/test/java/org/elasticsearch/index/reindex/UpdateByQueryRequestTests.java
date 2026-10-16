@@ -150,6 +150,19 @@ public class UpdateByQueryRequestTests extends AbstractBulkByPaginatedSearchRequ
         );
     }
 
+    /** Many small params that add up past the limit are cut wherever the limit falls, including inside a key, value or separator. */
+    public void testDescriptionTruncatesManySmallScriptParams() {
+        Map<String, Object> params = new LinkedHashMap<>();
+        for (int i = 0; i < 100; i++) {
+            params.put(randomAlphaOfLength(between(1, 10)) + i, List.of(i, "value" + i));
+        }
+        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "return", params);
+
+        String description = new UpdateByQueryRequest("index").setScript(script).getDescription();
+
+        assertThat(renderedParams(description), equalTo(params.toString().substring(0, MAX_DESCRIPTION_PARAMS_LENGTH) + "...}"));
+    }
+
     /** Params that are exactly as long as the limit are kept in full, without the truncation marker. */
     public void testDescriptionDoesNotMarkParamsThatExactlyFit() {
         String message = "x".repeat(MAX_DESCRIPTION_PARAMS_LENGTH - "{message=}".length());

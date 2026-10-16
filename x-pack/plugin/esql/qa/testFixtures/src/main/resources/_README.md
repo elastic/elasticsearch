@@ -191,6 +191,12 @@ that does not support it.
 
 Each CSV-SPEC test has to also assert all the expected warnings.
 
+Prefer `warning:` over `warningRegex:` whenever the warning text is stable. `warning:` requires exactly the listed
+warnings to be returned, so the test fails if an expected warning is lost. `warningRegex:` only requires that every
+returned warning matches one of the patterns: a test with `warningRegex:` lines still passes when no warning is
+returned at all, so it cannot detect missing warnings. Use `warningRegex:` only when part of the text varies between
+runs, and be aware of that weaker guarantee.
+
 Warnings can be specified as plain text or as a regular expression (but a single test cannot have a mix of both).
 Each warning has to be specified on a single row, between the query and the result, prefixed by `warning:` or `warningRegex:`.
 If multiple warnings are defined, the order is not relevant.

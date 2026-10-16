@@ -169,6 +169,9 @@ If you write or modify ES|QL csv-spec, rest, or yaml tests, read the javadoc for
 `EsqlCapabilities.Cap` and `FunctionDefinition.Builder#capabilities` before proceeding.
 They describe two separate capability mechanisms and the rule for choosing between them.
 
+In csv-spec tests, prefer `warning:` over `warningRegex:`: `warningRegex:` does not fail when the warning is
+missing. See the "Warnings" section of `x-pack/plugin/esql/qa/testFixtures/src/main/resources/_README.md`.
+
 `knn` csv-spec tests must not assert an exact top-k table. `knn` is approximate
 and `LIMIT` is pushed to `k`, so membership is not unique. Pin results with a
 filter on a uniquely nearest document, or assert counts / `{any}`. See

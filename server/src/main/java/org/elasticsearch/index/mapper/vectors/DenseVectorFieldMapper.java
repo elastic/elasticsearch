@@ -1728,6 +1728,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return onDiskMerge;
         }
 
+        /** whether searches rescore from disk rather than from the page cache (the {@code on_disk_rescore} option) */
+        public boolean isOnDiskRescore() {
+            return false;
+        }
+
         abstract KnnVectorsFormat getVectorsFormat(
             ElementType elementType,
             ExecutorService mergingExecutorService,
@@ -2365,7 +2370,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ExecutorService quantizerExecutorService
         ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
-            return new ES94ScalarQuantizedVectorsFormat(elementType, 7, false, onDiskMerge);
+            return new ES94ScalarQuantizedVectorsFormat(elementType, 7);
         }
 
         @Override
@@ -2414,7 +2419,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int numMergeWorkers,
             ExecutorService quantizerExecutorService
         ) {
-            return new ES93FlatVectorFormat(elementType, onDiskMerge);
+            return new ES93FlatVectorFormat(elementType);
         }
 
         @Override
@@ -2484,11 +2489,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 efConstruction,
                 elementType,
                 4,
-                onDiskRescore,
                 numMergeWorkers,
                 mergingExecutorService,
-                flatIndexThreshold,
-                onDiskMerge
+                flatIndexThreshold
             );
         }
 
@@ -2530,6 +2533,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isFlat() {
             return false;
+        }
+
+        @Override
+        public boolean isOnDiskRescore() {
+            return onDiskRescore;
         }
 
         public int flatIndexThreshold() {
@@ -2586,7 +2594,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ExecutorService quantizerExecutorService
         ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
-            return new ES94ScalarQuantizedVectorsFormat(elementType, 4, false, onDiskMerge);
+            return new ES94ScalarQuantizedVectorsFormat(elementType, 4);
         }
 
         @Override
@@ -2681,11 +2689,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 efConstruction,
                 elementType,
                 7,
-                onDiskRescore,
                 numMergeWorkers,
                 mergingExecutorService,
-                flatIndexThreshold,
-                onDiskMerge
+                flatIndexThreshold
             );
         }
 
@@ -2737,6 +2743,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public int efConstruction() {
             return efConstruction;
+        }
+
+        @Override
+        public boolean isOnDiskRescore() {
+            return onDiskRescore;
         }
 
         public int flatIndexThreshold() {
@@ -2800,15 +2811,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int numMergeWorkers,
             ExecutorService quantizerExecutorService
         ) {
-            return new ES93HnswVectorsFormat(
-                m,
-                efConstruction,
-                elementType,
-                numMergeWorkers,
-                mergingExecutorService,
-                flatIndexThreshold,
-                onDiskMerge
-            );
+            return new ES93HnswVectorsFormat(m, efConstruction, elementType, numMergeWorkers, mergingExecutorService, flatIndexThreshold);
         }
 
         @Override
@@ -2914,11 +2917,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 m,
                 efConstruction,
                 elementType,
-                onDiskRescore,
                 numMergeWorkers,
                 mergingExecutorService,
-                flatIndexThreshold,
-                onDiskMerge
+                flatIndexThreshold
             );
         }
 
@@ -2945,6 +2946,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isFlat() {
             return false;
+        }
+
+        @Override
+        public boolean isOnDiskRescore() {
+            return onDiskRescore;
         }
 
         public int flatIndexThreshold() {
@@ -2994,7 +3000,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ExecutorService quantizerExecutorService
         ) {
             assert elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16;
-            return new ES93BinaryQuantizedVectorsFormat(elementType, false, onDiskMerge);
+            return new ES93BinaryQuantizedVectorsFormat(elementType);
         }
 
         @Override
@@ -3146,15 +3152,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         clusterSize,
                         ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
-                        onDiskRescore,
                         mergingExecutorService,
                         numMergeWorkers,
                         quantizerExecutorService,
                         flatIndexThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        IvfMergeConfigResolver.useCodecDefault(),
-                        onDiskMerge
+                        IvfMergeConfigResolver.useCodecDefault()
                     );
                 } else {
                     IvfMergeConfigResolver mergeConfigResolver = autoCalibrate()
@@ -3165,7 +3169,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         clusterSize,
                         ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
-                        onDiskRescore,
                         mergingExecutorService,
                         numMergeWorkers,
                         doPrecondition,
@@ -3173,8 +3176,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         flatIndexThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        mergeConfigResolver,
-                        onDiskMerge
+                        mergeConfigResolver
                     );
                 }
             } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE)) {
@@ -3186,15 +3188,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     clusterSize,
                     ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
-                    onDiskRescore,
                     mergingExecutorService,
                     numMergeWorkers,
                     doPrecondition,
                     ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                     flatIndexThreshold,
                     IvfFlushConfigSource.empty(),
-                    mergeConfigResolver,
-                    onDiskMerge
+                    mergeConfigResolver
                 );
             } else {
                 return new ES940DiskBBQVectorsFormat(
@@ -3202,14 +3202,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     clusterSize,
                     ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
-                    onDiskRescore,
                     mergingExecutorService,
                     numMergeWorkers,
                     doPrecondition,
                     ES940DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                     flatIndexThreshold,
-                    ES940DiskBBQVectorsFormat.VERSION_CURRENT,
-                    onDiskMerge
+                    ES940DiskBBQVectorsFormat.VERSION_CURRENT
                 );
             }
         }
@@ -3291,6 +3289,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return defaultVisitPercentage;
         }
 
+        @Override
         public boolean isOnDiskRescore() {
             return onDiskRescore;
         }
@@ -4423,8 +4422,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     elementType,
                     maxMergingWorkers,
                     mergingExecutorService,
-                    -1,
-                    false
+                    -1
                 );
             };
         } else {

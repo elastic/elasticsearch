@@ -82,7 +82,6 @@ public final class ESNextRescoreOversampleTestFixture {
                 vpc,
                 ESNextDiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 false,
@@ -90,8 +89,7 @@ public final class ESNextRescoreOversampleTestFixture {
                 defaultFlatThreshold(vpc),
                 null,
                 flushConfig,
-                mergeResolver,
-                false
+                mergeResolver
             )
         );
     }

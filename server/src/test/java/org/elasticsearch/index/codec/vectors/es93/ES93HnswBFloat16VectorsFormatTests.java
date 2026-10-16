@@ -43,8 +43,7 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            random().nextInt(1, 20),
-            false
+            random().nextInt(1, 20)
         );
     }
 
@@ -56,8 +55,7 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            random().nextInt(1, 20),
-            false
+            random().nextInt(1, 20)
         );
     }
 
@@ -69,8 +67,7 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             numMergeWorkers,
             service,
-            random().nextInt(1, 20),
-            false
+            random().nextInt(1, 20)
         );
     }
 
@@ -87,8 +84,7 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             numMergeWorkers,
             service,
-            hnswGraphThreshold,
-            false
+            hnswGraphThreshold
         );
     }
 
@@ -122,7 +118,7 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             Locale.ROOT,
             expected,
             hnswGraphThreshold,
-            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s, useDirectIO=false, onDiskMerge=false)"
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)"
         );
         expected = format(
             Locale.ROOT,
@@ -146,8 +142,7 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            0,
-            false
+            0
         );
         IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory()) {

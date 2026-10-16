@@ -115,7 +115,6 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                     vectorPerCluster,
                     random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                     DenseVectorFieldMapper.ElementType.FLOAT,
-                    false,
                     null,
                     1,
                     false,
@@ -130,7 +129,6 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                     vectorPerCluster,
                     random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                     DenseVectorFieldMapper.ElementType.FLOAT,
-                    false,
                     null,
                     1,
                     true,
@@ -146,7 +144,6 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                     vectorPerCluster,
                     random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
                     DenseVectorFieldMapper.ElementType.FLOAT,
-                    false,
                     null,
                     1,
                     false,
@@ -208,14 +205,12 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                 64,
                 2,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 0,
-                ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4,
-                false
+                ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
             )
         );
         expectThrows(
@@ -225,14 +220,12 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                 64,
                 2,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 0,
-                ES940DiskBBQVectorsFormat.VERSION_CURRENT,
-                false
+                ES940DiskBBQVectorsFormat.VERSION_CURRENT
             )
         );
         expectThrows(
@@ -242,14 +235,12 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                 64,
                 2,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 0,
-                ES940DiskBBQVectorsFormat.VERSION_START,
-                false
+                ES940DiskBBQVectorsFormat.VERSION_START
             )
         );
         expectThrows(
@@ -259,32 +250,12 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                 64,
                 2,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                 0,
-                ES940DiskBBQVectorsFormat.VERSION_CURRENT,
-                false
-            )
-        );
-        // the on_disk_merge flag needs a version that records it in the meta
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new ES940DiskBBQVectorsFormat(
-                ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                64,
-                2,
-                DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
-                null,
-                1,
-                false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                0,
-                ES940DiskBBQVectorsFormat.VERSION_PACKED_INT2,
-                true
+                ES940DiskBBQVectorsFormat.VERSION_CURRENT
             )
         );
     }
@@ -320,14 +291,12 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
             64,
             2,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            false,
             null,
             1,
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             0,
-            ES940DiskBBQVectorsFormat.VERSION_PACKED_INT2,
-            false
+            ES940DiskBBQVectorsFormat.VERSION_PACKED_INT2
         );
         float[] vector = randomVector(random().nextInt(12, 500));
         IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(version3));

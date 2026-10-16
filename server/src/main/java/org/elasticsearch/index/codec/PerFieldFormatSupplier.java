@@ -32,6 +32,7 @@ import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
+import org.elasticsearch.index.codec.vectors.FieldKnnVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -182,8 +183,7 @@ public class PerFieldFormatSupplier {
             DenseVectorFieldMapper.ElementType.FLOAT,
             maxMergingWorkers,
             mergingExecutorService,
-            -1,
-            false
+            -1
         );
     }
 
@@ -252,6 +252,17 @@ public class PerFieldFormatSupplier {
             }
         }
         return knnVectorsFormat;
+    }
+
+    /**
+     * The format that writes {@code field}'s vectors. It is wrapped in a {@link FieldKnnVectorsFormat}, which names the field
+     * on every file it creates, so the directory can decide how to write each file from that field's mapping. The default
+     * format is returned unwrapped: all the fields without a format of their own write to the same files, so those files do
+     * not belong to any one field.
+     */
+    public KnnVectorsFormat getKnnVectorsFormatToWrite(String field) {
+        KnnVectorsFormat format = getKnnVectorsFormatForField(field);
+        return format == knnVectorsFormat ? format : new FieldKnnVectorsFormat(field, format);
     }
 
     public DocValuesFormat getDocValuesFormatForField(String field) {

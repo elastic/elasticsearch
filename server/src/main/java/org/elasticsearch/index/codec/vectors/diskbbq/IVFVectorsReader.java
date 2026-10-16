@@ -32,6 +32,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
@@ -116,13 +117,14 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     private final String clusterExtension;
     private final int versionDirectIo;
     private final int versionOnDiskMerge;
+    private final int versionNoDirectIo;
     private final float dynamicVisitRatio;
     protected int versionMeta = -1;
 
     @SuppressWarnings("this-escape")
     protected IVFVectorsReader(
         SegmentReadState state,
-        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader,
+        IOFunction<String, FlatVectorsReader> loadReader,
         String codecName,
         String centroidExtension,
         String clusterExtension,
@@ -131,6 +133,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         int versionCurrent,
         int versionDirectIo,
         int versionOnDiskMerge,
+        int versionNoDirectIo,
         float dynamicVisitRatio
     ) throws IOException {
         this.state = state;
@@ -141,6 +144,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         this.clusterExtension = clusterExtension;
         this.versionDirectIo = versionDirectIo;
         this.versionOnDiskMerge = versionOnDiskMerge;
+        this.versionNoDirectIo = versionNoDirectIo;
         this.dynamicVisitRatio = dynamicVisitRatio;
         String meta = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
 
@@ -184,6 +188,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         this.clusterExtension = other.clusterExtension;
         this.versionDirectIo = other.versionDirectIo;
         this.versionOnDiskMerge = other.versionOnDiskMerge;
+        this.versionNoDirectIo = other.versionNoDirectIo;
         this.dynamicVisitRatio = other.dynamicVisitRatio;
         this.versionMeta = other.versionMeta;
         this.ivfCentroids = other.ivfCentroids;
@@ -247,7 +252,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         ChecksumIndexInput meta,
         int versionMeta,
         GenericFlatVectorReaders genericFields,
-        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
+        IOFunction<String, FlatVectorsReader> loadReader
     ) throws IOException {
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             final FieldInfo info = fieldInfos.fieldInfo(fieldNumber);
@@ -256,16 +261,28 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             }
 
             final String rawVectorFormat = meta.readString();
-            final boolean useDirectIOReads = versionMeta >= versionDirectIo && meta.readByte() == 1;
-            final boolean onDiskMerge = versionOnDiskMerge >= 0 && versionMeta >= versionOnDiskMerge && meta.readByte() == 1;
-            E fieldEntry = readField(meta, info, rawVectorFormat, useDirectIOReads);
-            genericFields.loadField(fieldNumber, fieldEntry, onDiskMerge, loadReader);
+            skipDirectIOFlags(meta, versionMeta);
+            E fieldEntry = readField(meta, info, rawVectorFormat);
+            genericFields.loadField(fieldNumber, fieldEntry.rawVectorFormatName(), loadReader);
 
             fields.put(info.number, fieldEntry);
         }
     }
 
-    private E readField(IndexInput input, FieldInfo info, String rawVectorFormat, boolean useDirectIOReads) throws IOException {
+    /** Reads past the direct I/O options a field records in a meta written before {@code versionNoDirectIo}. */
+    private void skipDirectIOFlags(IndexInput meta, int versionMeta) throws IOException {
+        if (versionMeta >= versionNoDirectIo) {
+            return;
+        }
+        if (versionMeta >= versionDirectIo) {
+            meta.readByte();
+        }
+        if (versionOnDiskMerge >= 0 && versionMeta >= versionOnDiskMerge) {
+            meta.readByte();
+        }
+    }
+
+    private E readField(IndexInput input, FieldInfo info, String rawVectorFormat) throws IOException {
         final VectorEncoding vectorEncoding = readVectorEncoding(input);
         final VectorSimilarityFunction similarityFunction = readSimilarityFunction(input);
         if (similarityFunction != info.getVectorSimilarityFunction()) {
@@ -294,7 +311,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         return doReadField(
             input,
             rawVectorFormat,
-            useDirectIOReads,
             similarityFunction,
             vectorEncoding,
             numCentroids,
@@ -310,7 +326,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     protected abstract E doReadField(
         IndexInput input,
         String rawVectorFormat,
-        boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
         int numCentroids,
@@ -638,9 +653,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         IOUtils.close(closeables);
     }
 
-    protected static class FieldEntry implements GenericFlatVectorReaders.Field {
+    protected static class FieldEntry {
         protected final String rawVectorFormatName;
-        protected final boolean useDirectIOReads;
         protected final VectorSimilarityFunction similarityFunction;
         protected final VectorEncoding vectorEncoding;
         protected final int numCentroids;
@@ -654,7 +668,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
         public FieldEntry(
             String rawVectorFormatName,
-            boolean useDirectIOReads,
             VectorSimilarityFunction similarityFunction,
             VectorEncoding vectorEncoding,
             int numCentroids,
@@ -667,7 +680,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             int bulkSize
         ) {
             this.rawVectorFormatName = rawVectorFormatName;
-            this.useDirectIOReads = useDirectIOReads;
             this.similarityFunction = similarityFunction;
             this.vectorEncoding = vectorEncoding;
             this.numCentroids = numCentroids;
@@ -680,14 +692,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             this.bulkSize = bulkSize;
         }
 
-        @Override
         public String rawVectorFormatName() {
             return rawVectorFormatName;
-        }
-
-        @Override
-        public boolean useDirectIOReads() {
-            return useDirectIOReads;
         }
 
         public int numCentroids() {

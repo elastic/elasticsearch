@@ -27,37 +27,38 @@ import java.util.List;
 class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
 
     private final String rawVectorFormatName;
-    private final boolean useDirectIOReads;
-    private final boolean onDiskMerge;
     private final FlatVectorsWriter rawVectorWriter;
     private final IndexOutput metaOut;
     private final List<Integer> fieldNumbers = new ArrayList<>();
+    private final int writeVersion;
 
     @SuppressWarnings("this-escape")
     ES93GenericFlatVectorsWriter(
         GenericFormatMetaInformation metaInfo,
         String rawVectorsFormatName,
-        boolean useDirectIOReads,
-        boolean onDiskMerge,
         SegmentWriteState state,
         FlatVectorsWriter rawWriter
     ) throws IOException {
+        this(metaInfo, rawVectorsFormatName, state, rawWriter, metaInfo.versionCurrent());
+    }
+
+    /** Writes the meta as {@code writeVersion} lays it out, so tests can write segments of earlier versions. */
+    ES93GenericFlatVectorsWriter(
+        GenericFormatMetaInformation metaInfo,
+        String rawVectorsFormatName,
+        SegmentWriteState state,
+        FlatVectorsWriter rawWriter,
+        int writeVersion
+    ) throws IOException {
         super(rawWriter.getFlatVectorScorer());
         this.rawVectorFormatName = rawVectorsFormatName;
-        this.useDirectIOReads = useDirectIOReads;
-        this.onDiskMerge = onDiskMerge;
         this.rawVectorWriter = rawWriter;
+        this.writeVersion = writeVersion;
 
         final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaInfo.extension());
         try {
             this.metaOut = state.directory.createOutput(metaFileName, state.context);
-            CodecUtil.writeIndexHeader(
-                metaOut,
-                metaInfo.codecName(),
-                metaInfo.versionCurrent(),
-                state.segmentInfo.getId(),
-                state.segmentSuffix
-            );
+            CodecUtil.writeIndexHeader(metaOut, metaInfo.codecName(), writeVersion, state.segmentInfo.getId(), state.segmentSuffix);
         } catch (Throwable t) {
             IOUtils.closeWhileHandlingException(this);
             throw t;
@@ -89,8 +90,13 @@ class ES93GenericFlatVectorsWriter extends FlatVectorsWriter {
     private void writeMeta(int field) throws IOException {
         metaOut.writeInt(field);
         metaOut.writeString(rawVectorFormatName);
-        metaOut.writeByte(useDirectIOReads ? (byte) 1 : 0);
-        metaOut.writeByte(onDiskMerge ? (byte) 1 : 0);
+        // versions that record the direct I/O options write them as off; readers skip them
+        if (writeVersion < ES93GenericFlatVectorsFormat.VERSION_NO_DIRECT_IO) {
+            metaOut.writeByte((byte) 0);
+            if (writeVersion >= ES93GenericFlatVectorsFormat.VERSION_ON_DISK_MERGE) {
+                metaOut.writeByte((byte) 0);
+            }
+        }
     }
 
     @Override

@@ -70,7 +70,7 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseQuantized
     @Override
     protected Codec getCodec() {
         if (format == null) {
-            format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, random().nextBoolean(), false);
+            format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16);
         }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
@@ -175,7 +175,7 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseQuantized
         expected = format(
             Locale.ROOT,
             expected,
-            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s, useDirectIO=false, onDiskMerge=false)",
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)",
             "ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=ES93GenericFlatVectorScorer(delegate={}))"
         );
         expected = format(
@@ -189,7 +189,7 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseQuantized
         String memSegScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())");
         String nativeScorer = expected.replaceAll("\\{}", "PanamaFlatVectorScorer()");
 
-        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, false, false);
+        KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16);
         assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer, nativeScorer)));
     }
 

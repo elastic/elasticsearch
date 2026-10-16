@@ -51,7 +51,7 @@ public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVecto
     protected Codec getCodec() {
         if (format == null) {
             int bits = randomFrom(1, 2, 4, 7);
-            format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, bits, false, false);
+            format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, bits);
         }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
@@ -61,12 +61,12 @@ public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVecto
     }
 
     public void testToString() {
-        var format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, 4, false, false);
+        var format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, 4);
         String expected = "ES94ScalarQuantizedVectorsFormat(name=ES94ScalarQuantizedVectorsFormat, encoding=PACKED_NIBBLE, "
             + "flatVectorScorer="
             + ES94ScalarQuantizedVectorsFormat.flatVectorScorer
             + ", rawVectorFormat="
-            + new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false, false)
+            + new ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT)
             + ")";
         assertThat(format.toString(), is(expected));
     }
@@ -109,10 +109,7 @@ public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVecto
             try (IndexReader reader = DirectoryReader.open(w)) {
                 LeafReader r = getOnlyLeafReader(reader);
                 assumeTrue("needs the codec's own reader", r instanceof CodecReader);
-                KnnVectorsReader knnVectorsReader = ((CodecReader) r).getVectorReader();
-                if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                    knnVectorsReader = fieldsReader.getFieldReader("f");
-                }
+                KnnVectorsReader knnVectorsReader = ((CodecReader) r).getVectorReader().unwrapReaderForField("f");
                 assertThat(knnVectorsReader.getFloatVectorValues("f"), instanceOf(QuantizedAndRawFloatVectorValues.class));
                 KnnVectorsReader mergeInstance = knnVectorsReader.getMergeInstance();
                 try {

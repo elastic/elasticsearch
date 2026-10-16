@@ -81,7 +81,6 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
                     random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                     random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                     DenseVectorFieldMapper.ElementType.BYTE,
-                    false,
                     null,
                     1,
                     false,
@@ -94,7 +93,6 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
                     random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
                     random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                     DenseVectorFieldMapper.ElementType.BYTE,
-                    false,
                     null,
                     1,
                     true,
@@ -108,7 +106,6 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
                     random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                     random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
                     DenseVectorFieldMapper.ElementType.BYTE,
-                    false,
                     null,
                     1,
                     false,
@@ -162,7 +159,6 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
             MIN_VECTORS_PER_CLUSTER * 4,
             MIN_CENTROIDS_PER_PARENT_CLUSTER,
             DenseVectorFieldMapper.ElementType.BYTE,
-            false,
             null,
             1,
             false,
@@ -170,8 +166,7 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
             MIN_VECTORS_PER_CLUSTER * 4,
             null,
             IvfFlushConfigSource.empty(),
-            verifying,
-            false
+            verifying
         );
         IndexWriterConfig iwc = new IndexWriterConfig();
         iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(autoCalibrateFormat));
@@ -208,7 +203,6 @@ public class ESNextDiskBBQByteVectorsFormatTests extends BaseByteKnnVectorsForma
             vectorPerCluster,
             random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
             DenseVectorFieldMapper.ElementType.BYTE,
-            false,
             null,
             1,
             false,

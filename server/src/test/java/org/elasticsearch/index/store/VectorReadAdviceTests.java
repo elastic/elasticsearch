@@ -17,6 +17,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.DataAccessHint;
@@ -46,6 +48,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /** The hints each vectors file is opened and written with, and the advice the directory derives for search. */
 public class VectorReadAdviceTests extends MapperServiceTestCase {
+
+    private static final VectorFieldHint FIELD = new VectorFieldHint("field");
 
     private static final Optional<ReadAdvice> UNADVISED = Optional.of(Constants.DEFAULT_READADVICE);
 
@@ -77,6 +81,42 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
      */
     public void testAMergeSaysHowItReadsAndWritesEachFile() throws IOException {
         assumeTrue("nothing reads the raw vectors at random", each.walkedByGraph() || each.rescoresFromRaw());
+        List<String> failures = new ArrayList<>();
+        merge(true, (sourceFiles, opens, creates, flushCreates) -> checkMerge(each, sourceFiles, opens, creates, flushCreates, failures));
+        assertThat(failures, empty());
+    }
+
+    /**
+     * A merge of segments no search has opened opens their readers itself. Lucene hands those readers to the searches that
+     * follow, so their own files are opened for searches, and the merge streams the raw vectors through opens of its own.
+     */
+    public void testAMergeOfSegmentsNoSearchOpened() throws IOException {
+        assumeTrue("nothing reads the raw vectors at random", each.walkedByGraph() || each.rescoresFromRaw());
+        List<String> failures = new ArrayList<>();
+        merge(false, (sourceFiles, opens, creates, flushCreates) -> {
+            checkMerge(each, sourceFiles, opens, creates, flushCreates, failures);
+            for (Open open : opens) {
+                if (open.isRawVectors()
+                    && sourceFiles.contains(open.name())
+                    && open.context().context() == IOContext.Context.MERGE
+                    && open.context().hints().contains(DataAccessHint.SEQUENTIAL) == false) {
+                    failures.add(each + ": the reader of " + open.name() + " was opened for the merge: " + open.context());
+                }
+            }
+        });
+        assertThat(failures, empty());
+    }
+
+    /** What a merge of two segments opened and created, after the flushes. */
+    private interface MergeCheck {
+        void check(Set<String> sourceFiles, List<Open> opens, List<Open> creates, List<Open> flushCreates);
+    }
+
+    /**
+     * Writes two segments and merges them, either after a search opened them, so the merge reads through the readers
+     * searches use, or with no search, so the merge opens their readers itself.
+     */
+    private void merge(boolean searched, MergeCheck check) throws IOException {
         List<Open> opens = new CopyOnWriteArrayList<>();
         List<Open> creates = new CopyOnWriteArrayList<>();
         List<Open> flushCreates = new ArrayList<>();
@@ -85,10 +125,20 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
             IndexWriterConfig iwc = new IndexWriterConfig().setCodec(each.codec(this)).setUseCompoundFile(false);
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 indexTwoSegments(writer);
-                // a search holds the segments open, so the merge reads through the readers searches use
-                try (DirectoryReader reader = DirectoryReader.open(writer)) {
-                    for (LeafReaderContext leaf : reader.leaves()) {
-                        sourceFiles.addAll(((SegmentReader) leaf.reader()).getSegmentInfo().files());
+                if (searched) {
+                    try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                        for (LeafReaderContext leaf : reader.leaves()) {
+                            sourceFiles.addAll(((SegmentReader) leaf.reader()).getSegmentInfo().files());
+                        }
+                        flushCreates.addAll(creates);
+                        opens.clear();
+                        creates.clear();
+                        writer.forceMerge(1);
+                    }
+                } else {
+                    writer.commit();
+                    for (SegmentCommitInfo info : SegmentInfos.readLatestCommit(dir)) {
+                        sourceFiles.addAll(info.files());
                     }
                     flushCreates.addAll(creates);
                     opens.clear();
@@ -97,9 +147,43 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
                 }
             }
         }
-        List<String> failures = new ArrayList<>();
-        checkMerge(each, sourceFiles, opens, creates, flushCreates, failures);
-        assertThat(failures, empty());
+        check.check(sourceFiles, opens, creates, flushCreates);
+    }
+
+    /**
+     * Searches scan the raw vectors of a flat field, so they are reused, but a merge streams them: it opens the sources for
+     * itself and writes the merged file saying so, with the field, for the directory to read and write them with direct I/O.
+     */
+    public void testAFlatMergeStreamsItsRawVectors() throws IOException {
+        assertAFlatMergeStreamsItsRawVectors(true);
+    }
+
+    public void testAFlatMergeOfSegmentsNoSearchOpenedStreamsItsRawVectors() throws IOException {
+        assertAFlatMergeStreamsItsRawVectors(false);
+    }
+
+    private void assertAFlatMergeStreamsItsRawVectors(boolean searched) throws IOException {
+        assumeTrue("a flat field", each.walkedByGraph() == false && each.rescoresFromRaw() == false);
+        merge(searched, (sourceFiles, opens, creates, flushCreates) -> {
+            List<String> sourceRaw = sourceFiles.stream().filter(name -> name.endsWith(".vec")).sorted().toList();
+            assertThat(sourceRaw.size(), equalTo(2));
+            for (String raw : sourceRaw) {
+                assertTrue(
+                    "the merge streams " + raw + " through an open of its own: " + opens,
+                    opens.stream().anyMatch(o -> o.name().equals(raw) && streamsTheField(o.context()))
+                );
+            }
+            List<Open> merged = creates.stream().filter(Open::isRawVectors).toList();
+            assertThat(merged.size(), equalTo(1));
+            assertTrue("the merged raw vectors are streamed: " + merged, streamsTheField(merged.get(0).context()));
+            assertThat(merged.get(0).context().hints().contains(NoReuseHint.INSTANCE), equalTo(false));
+        });
+    }
+
+    private static boolean streamsTheField(IOContext context) {
+        return context.context() == IOContext.Context.MERGE
+            && context.hints().contains(DataAccessHint.SEQUENTIAL)
+            && context.hints().contains(FIELD);
     }
 
     private static void checkMerge(
@@ -128,6 +212,9 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
                 if (stream.context().hints().contains(NoReuseHint.INSTANCE) != noReuse) {
                     failures.add(each + ": the merge mapping of " + raw + " says " + stream.context().hints());
                 }
+                if (stream.context().hints().contains(FIELD) == false) {
+                    failures.add(each + ": the merge mapping of " + raw + " does not say which field it holds");
+                }
             }
         }
 
@@ -151,6 +238,10 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
             }
             var hints = created.context().hints();
             boolean streamed = hints.contains(NoReuseHint.INSTANCE) && hints.contains(DataAccessHint.SEQUENTIAL);
+            // a flush creates its writers before it knows the field infos, so only a merge can say the field
+            if (noReuse && created.context().context() == IOContext.Context.MERGE && hints.contains(FIELD) == false) {
+                failures.add(each + ": " + created.name() + " does not say which field it holds");
+            }
             if (streamed != noReuse || hints.contains(NoReuseHint.INSTANCE) != noReuse) {
                 failures.add(each + ": " + created.name() + " was written with " + hints);
             }
@@ -185,6 +276,9 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
         }
         if (hints.contains(NoReuseHint.INSTANCE) != open.name().contains("_ivfvec_")) {
             failures.add(each + ": " + open.name() + " says " + hints);
+        }
+        if (open.name().contains("_ivfvec_") && hints.contains(FIELD) == false) {
+            failures.add(each + ": " + open.name() + " does not say which field it holds");
         }
         if (created ? hints.contains(DataAccessHint.SEQUENTIAL) == false : open.context().hints(DataAccessHint.class).findAny().isEmpty()) {
             failures.add(each + ": " + open.name() + " does not say how it is " + (created ? "written" : "read") + ": " + hints);

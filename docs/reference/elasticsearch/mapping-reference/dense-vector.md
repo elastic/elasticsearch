@@ -608,10 +608,14 @@ $$$dense-vector-index-options$$$
 ::::
 
 `on_disk_rescore` {applies_to}`stack: preview 9.3` {applies_to}`serverless: unavailable`
-:   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. This setting only applies to newly-indexed vectors; after changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index. Defaults to `false`. Merges have their own option, `on_disk_merge`, below.
+:   (Optional, boolean) Only applicable to quantized HNSW and `bbq_disk` index types. When `true`, vector rescoring will read the raw vector data directly from disk, and will not copy it in memory. This can improve performance when vector data is larger than the amount of available RAM. Defaults to `false`.
+
+    {applies_to}`stack: preview 9.3-9.5` This setting only applies to newly-indexed vectors. After changing this setting, the vectors must be reindexed or force-merged to apply the new setting to the whole index.
+
+    {applies_to}`stack: preview 9.6+` Can be changed with a mapping update, which applies to segments opened after the change: new and merged segments, and every segment once the shard is reopened. Merges have their own option, `on_disk_merge`, below.
 
 `on_disk_merge` {applies_to}`stack: preview 9.6` {applies_to}`serverless: unavailable`
-:   (Optional, boolean) When `true`, direct I/O is used where possible while merging the field's vector data, so that a merge does not displace what searches keep in memory. Can be changed with a mapping update, which applies to later merges; a merge reads each source segment with the setting that segment was written with, so segments written before the change keep the old behavior until they are merged away. Defaults to `false`.
+:   (Optional, boolean) When `true`, merges read the raw vector data with direct I/O, and write it with direct I/O unless they build an HNSW graph from it, which reads it back, so that a merge does not displace what searches keep in memory. Can be changed with a mapping update, which applies to later merges. Defaults to `false`.
 
 `auto_calibrate` {applies_to}`stack: ga 9.5`
 :   (Optional, boolean) Only applicable to `bbq_disk`.

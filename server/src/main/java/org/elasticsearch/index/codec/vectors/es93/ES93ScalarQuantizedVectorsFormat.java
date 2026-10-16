@@ -74,19 +74,18 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private final boolean compress;
 
     public ES93ScalarQuantizedVectorsFormat() {
-        this(DenseVectorFieldMapper.ElementType.FLOAT, null, 7, false, false);
+        this(DenseVectorFieldMapper.ElementType.FLOAT, null, 7, false);
     }
 
     public ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
-        this(elementType, null, 7, false, false);
+        this(elementType, null, 7, false);
     }
 
     public ES93ScalarQuantizedVectorsFormat(
         DenseVectorFieldMapper.ElementType elementType,
         Float confidenceInterval,
         int bits,
-        boolean compress,
-        boolean useDirectIO
+        boolean compress
     ) {
         super(NAME);
         if (confidenceInterval != null
@@ -106,7 +105,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
         assert elementType != DenseVectorFieldMapper.ElementType.BIT : "BIT should not be used with scalar quantization";
 
-        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO, false);
+        this.rawVectorFormat = new ES93GenericFlatVectorsFormat(elementType);
         this.confidenceInterval = confidenceInterval;
         this.bits = (byte) bits;
         this.compress = compress;

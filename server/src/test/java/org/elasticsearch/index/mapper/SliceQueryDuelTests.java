@@ -15,11 +15,14 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -28,6 +31,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.CheckedFunction;
@@ -39,7 +43,14 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
+import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.elasticsearch.index.query.SpanNearQueryBuilder;
+import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.inference.WeightedTokensUtils;
 import org.junit.Before;
@@ -58,9 +69,12 @@ import static org.hamcrest.Matchers.not;
  * Proves that a slice index answers a query exactly as a plain index holding only that slice would.
  *
  * <p>The same documents are indexed twice: once into a slice index, where the terms carry the slice, and once per slice
- * into a plain index holding only that slice's documents. Every query is then built by the field type against both and
- * the matching documents compared. Nothing in the test knows about the prefix, which is the point: if a query shape
- * forgets it, the slice index returns nothing and the duel fails.
+ * into a plain index holding only that slice's documents. Every query is then built against both and the matching
+ * documents compared. Nothing in the test knows about the prefix, which is the point: if a query shape forgets it, the
+ * slice index returns nothing and the duel fails.
+ *
+ * <p>Queries are built both ways a search reaches a field: through the field type, which is where the slice is applied,
+ * and through the query builders, which is how a shape that goes around the field type shows up.
  */
 public class SliceQueryDuelTests extends MapperServiceTestCase {
 
@@ -91,9 +105,39 @@ public class SliceQueryDuelTests extends MapperServiceTestCase {
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
         return IndexAnalyzers.of(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.of(
+                "default",
+                new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
+                "synonyms",
+                new NamedAnalyzer("synonyms", AnalyzerScope.INDEX, new SynonymAnalyzer())
+            ),
             Map.of("uppercase", new NamedAnalyzer("uppercase", AnalyzerScope.INDEX, new UppercaseNormalizer()))
         );
+    }
+
+    /**
+     * Expands {@code fast} to {@code quick}, so that a search for it reaches a term it does not name. The terms of a
+     * synonym come from the analyzer rather than from the field type, which is the shape this pins down.
+     */
+    private static final class SynonymAnalyzer extends Analyzer {
+
+        private final SynonymMap synonyms;
+
+        SynonymAnalyzer() {
+            final SynonymMap.Builder builder = new SynonymMap.Builder(true);
+            builder.add(new CharsRef("fast"), new CharsRef("quick"), true);
+            try {
+                synonyms = builder.build();
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        @Override
+        protected TokenStreamComponents createComponents(String field) {
+            final Tokenizer tokenizer = new StandardTokenizer();
+            return new TokenStreamComponents(tokenizer, new SynonymGraphFilter(tokenizer, synonyms, true));
+        }
     }
 
     private static final class UppercaseNormalizer extends Analyzer {
@@ -116,7 +160,9 @@ public class SliceQueryDuelTests extends MapperServiceTestCase {
             b.startObject("kw").field("type", "keyword").endObject();
             b.startObject("norm").field("type", "keyword").field("normalizer", "uppercase").endObject();
             b.startObject("uni").field("type", "keyword").endObject();
-            b.startObject("body").field("type", "text").endObject();
+            b.startObject("body").field("type", "text").field("search_analyzer", "synonyms").endObject();
+            // Subfields of their own, which a phrase and a phrase prefix answer from instead of this field's postings.
+            b.startObject("rich").field("type", "text").field("index_phrases", true).startObject("index_prefixes").endObject().endObject();
             b.startObject("sv").field("type", "sparse_vector").endObject();
         }));
     }
@@ -195,6 +241,7 @@ public class SliceQueryDuelTests extends MapperServiceTestCase {
             // A value and a token outside ASCII: a term is bytes, so a shape that reasons in characters answers wrongly here.
             b.field("uni", "café-" + fields[1]);
             b.field("body", fields[2] + " café");
+            b.field("rich", fields[2]);
             // One feature every document shares and one that follows the keyword, so a slice-scoped query has to tell them apart.
             b.startObject("sv").field("shared", 1.0).field(fields[1], 2.0).endObject();
         }, mapperService.getIndexSettings().isSliceEnabled() ? fields[0] : null));
@@ -558,6 +605,95 @@ public class SliceQueryDuelTests extends MapperServiceTestCase {
     /** The corpus has to distinguish the slices for the normalized field too, not only report nothing everywhere. */
     public void testTheNormalizedFieldMatchesSomething() throws IOException {
         assertThat(searchSliced("tenant-a", context -> context.getFieldType("norm").termQuery("alpha", context)), equalTo(List.of("a1")));
+    }
+
+    public void testMatchQuery() throws IOException {
+        duel("match", context -> new MatchQueryBuilder("body", "quick brown").toQuery(context));
+        duelAcross("match", List.of("tenant-a", "tenant-b"), context -> new MatchQueryBuilder("body", "quick brown").toQuery(context));
+        duelAcrossEverySlice("match", context -> new MatchQueryBuilder("body", "quick brown").toQuery(context));
+    }
+
+    public void testMatchPhraseQuery() throws IOException {
+        duel("match_phrase", context -> new MatchPhraseQueryBuilder("body", "quick brown").toQuery(context));
+        // Answered by the shingle subfield, whose terms carry the slice as well.
+        duel("match_phrase on index_phrases", context -> new MatchPhraseQueryBuilder("rich", "quick brown").toQuery(context));
+        duel("match_phrase reversed", context -> new MatchPhraseQueryBuilder("body", "brown quick").toQuery(context));
+        duel("match_phrase with slop", context -> new MatchPhraseQueryBuilder("body", "quick fox").slop(2).toQuery(context));
+        duelAcross(
+            "match_phrase",
+            List.of("tenant-a", "tenant-b"),
+            context -> new MatchPhraseQueryBuilder("body", "quick brown").toQuery(context)
+        );
+    }
+
+    public void testMatchPhrasePrefixQuery() throws IOException {
+        duel("match_phrase_prefix", context -> new MatchPhrasePrefixQueryBuilder("body", "quick bro").toQuery(context));
+        duel("match_phrase_prefix one token", context -> new MatchPhrasePrefixQueryBuilder("body", "bro").toQuery(context));
+        // Answered by the prefix subfield: a span over it for several tokens, one lookup for a single one.
+        duel("match_phrase_prefix on index_prefixes", context -> new MatchPhrasePrefixQueryBuilder("rich", "quick bro").toQuery(context));
+        duel(
+            "match_phrase_prefix on index_prefixes, one token",
+            context -> new MatchPhrasePrefixQueryBuilder("rich", "bro").toQuery(context)
+        );
+        duelAcross(
+            "match_phrase_prefix",
+            List.of("tenant-a", "tenant-b"),
+            context -> new MatchPhrasePrefixQueryBuilder("body", "quick bro").toQuery(context)
+        );
+        // Several slices of a span, which stay a span so that one can hold the others.
+        duelAcross(
+            "match_phrase_prefix on index_prefixes",
+            List.of("tenant-a", "tenant-b"),
+            context -> new MatchPhrasePrefixQueryBuilder("rich", "quick bro").toQuery(context)
+        );
+    }
+
+    public void testAPhraseOnTheQueryStringParser() throws IOException {
+        duel("query_string phrase", context -> new QueryStringQueryBuilder("body:\"quick brown\"").toQuery(context));
+        duel("simple_query_string phrase", context -> new SimpleQueryStringBuilder("\"quick brown\"").field("body").toQuery(context));
+    }
+
+    /** A synonym names a term the search did not, and it comes from the analyzer rather than from the field type. */
+    public void testASynonymIsAskedForUnderItsSlice() throws IOException {
+        duel("match on a synonym", context -> new MatchQueryBuilder("body", "fast").toQuery(context));
+        duel("phrase on a synonym", context -> new MatchPhraseQueryBuilder("body", "fast brown").toQuery(context));
+        duelAcross(
+            "match on a synonym",
+            List.of("tenant-a", "tenant-b"),
+            context -> new MatchQueryBuilder("body", "fast").toQuery(context)
+        );
+        // Every slice at once asks for any slice's copy of each synonym, which is a shape an automaton can express.
+        duelAcrossEverySlice("match on a synonym", context -> new MatchQueryBuilder("body", "fast").toQuery(context));
+    }
+
+    public void testSpanTermQuery() throws IOException {
+        duel("span_term", context -> new SpanTermQueryBuilder("body", "brown").toQuery(context));
+        duel(
+            "span_near",
+            context -> new SpanNearQueryBuilder(new SpanTermQueryBuilder("body", "quick"), 1).addClause(
+                new SpanTermQueryBuilder("body", "brown")
+            ).toQuery(context)
+        );
+    }
+
+    /** A phrase names the terms it matches, so there is no form of it that reaches every slice at once. */
+    public void testAPhraseOverEverySliceIsDeclined() throws IOException {
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> searchSliced(SliceIndexing.SLICE_ALL, context -> new MatchPhraseQueryBuilder("body", "quick brown").toQuery(context))
+        );
+        assertThat(e.getMessage(), containsString("names the terms it matches"));
+    }
+
+    /** A span matches one term at a time and cannot be spread over several slices either. */
+    public void testASpanOverSeveralSlicesIsDeclined() throws IOException {
+        for (String slices : List.of("tenant-a,tenant-b", SliceIndexing.SLICE_ALL)) {
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> searchSliced(slices, context -> new SpanTermQueryBuilder("body", "brown").toQuery(context))
+            );
+            assertThat(e.getMessage(), containsString("must be scoped to a single slice"));
+        }
     }
 
     /**

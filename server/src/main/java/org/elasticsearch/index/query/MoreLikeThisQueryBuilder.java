@@ -36,6 +36,7 @@ import org.elasticsearch.common.lucene.search.XMoreLikeThis;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
@@ -860,6 +861,13 @@ public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQuery
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        if (context.getIndexSettings().isSliceEnabled()) {
+            // The terms come from analysing text rather than from a field type, so they carry no slice, and a slice
+            // index holds no term without one.
+            throw new IllegalArgumentException(
+                "[" + NAME + "] is not supported on an index with [" + IndexSettings.SLICE_ENABLED.getKey() + "] set"
+            );
+        }
         Item[] likeItems = new Item[this.likeItems.length];
         for (int i = 0; i < likeItems.length; i++) {
             likeItems[i] = new Item(this.likeItems[i]);

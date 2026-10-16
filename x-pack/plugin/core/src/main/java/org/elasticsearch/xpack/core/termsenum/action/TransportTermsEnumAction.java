@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -389,6 +390,17 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 }
                 final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
                 final IndexShard indexShard = indexService.getShard(shardId.getId());
+                if (indexShard.indexSettings().isSliceEnabled()) {
+                    // This walks the terms dictionary itself, where a slice index spells a term with the slice it
+                    // belongs to in front of it, and the request names no slice to walk.
+                    throw new IllegalArgumentException(
+                        "[terms_enum] is not supported on index ["
+                            + shardId.getIndexName()
+                            + "], which has ["
+                            + IndexSettings.SLICE_ENABLED.getKey()
+                            + "] set"
+                    );
+                }
 
                 Engine.Searcher searcher = indexShard.acquireSearcher(Engine.SEARCH_SOURCE);
                 openedResources.add(searcher);

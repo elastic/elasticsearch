@@ -315,7 +315,7 @@ Segments containing fewer than 10,000 vectors after merging are not calibrated. 
 stack: ga 9.6
 ```
 
-You can turn auto-calibration on or off on an existing `bbq_disk` field with the [update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping). Existing segments are not rewritten, so the new value applies from the next merge:
+You can turn auto-calibration on or off on an existing `bbq_disk` field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping). Existing segments are not rewritten, so the new value applies from the next merge:
 
 - **Turning it on**: later merges that produce at least 10,000 vectors are calibrated. Segments written before the change are calibrated when they are merged.
 - **Turning it off**: later merges use the codec default encoding. When you search, segments are scored using the `bits` and `rescore_vector.oversample` values from the mapping instead of their calibrated values. Preconditioning is the exception. It is a property of how each segment was written, so a segment that calibration preconditioned continues to be searched that way.

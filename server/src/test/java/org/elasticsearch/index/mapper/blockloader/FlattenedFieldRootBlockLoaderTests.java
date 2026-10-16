@@ -111,12 +111,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         if (nullValue != null) {
             value = applyFlattenedNullValue(value, nullValue);
         }
-        ValuesMode mode;
-        if (params.indexMode() == IndexMode.LOGSDB) {
-            mode = ValuesMode.AS_IS_INLINE;
-        } else {
-            mode = ValuesMode.from(fieldMapping, params);
-        }
+        ValuesMode mode = ValuesMode.from(fieldMapping, params);
         var ignoreAboveRaw = fieldMapping.get("ignore_above");
         int ignoreAbove = (ignoreAboveRaw instanceof Number n && params.indexMode().isStrictColumnar() == false)
             ? n.intValue()
@@ -145,6 +140,14 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
 
         static ValuesMode from(Map<String, Object> fieldMapping, Params params) {
             var configuredValue = fieldMapping.get("preserve_leaf_arrays");
+            if (params.indexMode() == IndexMode.LOGSDB) {
+                if ("lossy".equals(configuredValue)) {
+                    return ValuesMode.SORTED_UNIQUE;
+                } else {
+                    return ValuesMode.AS_IS_OFFSETS;
+                }
+            }
+
             boolean isExact = "exact".equals(configuredValue) || (configuredValue == null && params.indexMode().isStrictColumnar());
             if (isExact == false) {
                 return SORTED_UNIQUE;

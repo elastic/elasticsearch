@@ -860,6 +860,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testViewWithDeepSubquery() {
+        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+        addView("v1", "FROM logs | KEEP bytes");
+        String q = "FROM logs | WHERE bytes IN (FROM v1" + " | LIMIT 1".repeat(5_000) + ")";
+        // This should not throw a StackOverflow
+        replaceViews(query(q));
+    }
+
     public void testViewDepthExceeded() {
         addView("view1", "FROM emp");
         addView("view2", "FROM view1");

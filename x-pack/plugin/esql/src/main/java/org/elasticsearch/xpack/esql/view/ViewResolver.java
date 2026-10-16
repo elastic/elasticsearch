@@ -427,7 +427,7 @@ public class ViewResolver {
                 );
                 default -> planListener.onResponse(p);
             }
-        }, executor, listener);
+        }, listener);
     }
 
     private void replaceViewsMergePlan(

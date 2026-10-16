@@ -34,7 +34,9 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.tree.SourceTests.randomSource;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class NodeTests extends ESTestCase {
     public void testToStringNoChildren() {
@@ -230,6 +232,210 @@ public class NodeTests extends ESTestCase {
         assertEquals(node.children().size(), 0);
     }
 
+    // -----------------------------------------------------------------------
+    // Sync transformDown / transformDownSkipBranch / transformUp: these are implemented with an explicit
+    // heap-allocated stack (not JVM recursion) so that traversal depth is bounded by available heap rather
+    // than thread stack size. The tests below check behavioral equivalence with the old recursive semantics:
+    // identity preservation when nothing changes, correct visiting order, and no StackOverflowError on deep
+    // chains that would previously have overflowed.
+    // -----------------------------------------------------------------------
+
+    public void testTransformDownAppliesRuleToEveryNode() {
+        Dummy tree = dummy(dummy(dummy()), dummy());
+        List<String> visited = new ArrayList<>();
+        tree.transformDown(n -> {
+            visited.add(n.thing());
+            return n;
+        });
+        // pre-order: node, then each child depth-first, left to right
+        assertThat(visited, equalTo(List.of("thing", "thing", "thing", "thing")));
+    }
+
+    public void testTransformUpAppliesRuleToEveryNodePostOrder() {
+        NoChildren a = new NoChildren(randomSource(), "a");
+        NoChildren b = new NoChildren(randomSource(), "b");
+        ChildrenAreAProperty parent = new ChildrenAreAProperty(randomSource(), List.of(a, b), "parent");
+        List<String> visited = new ArrayList<>();
+        parent.transformUp(n -> {
+            visited.add(n.thing());
+            return n;
+        });
+        // post-order: children left to right, then the node itself
+        assertThat(visited, equalTo(List.of("a", "b", "parent")));
+    }
+
+    public void testTransformDownNoChangePreservesIdentity() {
+        Dummy tree = dummy(dummy(dummy()), dummy());
+        Dummy result = tree.transformDown(n -> n);
+        assertSame(tree, result);
+    }
+
+    public void testTransformUpNoChangePreservesIdentity() {
+        Dummy tree = dummy(dummy(dummy()), dummy());
+        Dummy result = tree.transformUp(n -> n);
+        assertSame(tree, result);
+    }
+
+    public void testTransformDownRulePreservesIdentityWhenResultIsOnlyEqual() {
+        // The rule returns a *new* instance that is equal to (but not the same as) the original — transformDown
+        // must keep the original instance, not the rule's new-but-equal one.
+        NoChildren original = new NoChildren(randomSource(), "same");
+        Dummy result = original.transformDown(n -> new NoChildren(n.source(), "same"));
+        assertSame(original, result);
+    }
+
+    public void testTransformUpDoesNotPreserveIdentityWhenResultIsOnlyEqual() {
+        // Asymmetric with transformDown by design: transformUp returns whatever the rule produces for the node
+        // itself, even if it is merely equal to the original, not the same instance.
+        NoChildren original = new NoChildren(randomSource(), "same");
+        NoChildren ruleResult = new NoChildren(original.source(), "same");
+        Dummy result = original.transformUp(n -> ruleResult);
+        assertSame(ruleResult, result);
+    }
+
+    public void testTransformDownOnlyRebuildsChangedSubtree() {
+        NoChildren untouchedLeaf = new NoChildren(randomSource(), "untouched");
+        Dummy untouchedSubtree = dummy(untouchedLeaf);
+        NoChildren toChange = new NoChildren(randomSource(), "change-me");
+        Dummy changedSubtree = dummy(toChange);
+        ChildrenAreAProperty root = new ChildrenAreAProperty(randomSource(), List.of(untouchedSubtree, changedSubtree), "root");
+
+        Dummy result = root.transformDown(
+            n -> n instanceof NoChildren nc && nc.thing().equals("change-me") ? new NoChildren(nc.source(), "changed") : n
+        );
+        assertSame(untouchedSubtree, result.children().get(0));
+        assertNotSame(changedSubtree, result.children().get(1));
+        assertThat(((NoChildren) result.children().get(1).children().get(0)).thing(), equalTo("changed"));
+    }
+
+    public void testTransformDownSkipBranchSkipsOnlyMarkedSubtree() {
+        NoChildren skippedChild = new NoChildren(randomSource(), "should-not-visit");
+        Dummy skippedBranch = dummy(skippedChild);
+        Dummy visitedBranch = dummy(dummy());
+        ChildrenAreAProperty root = new ChildrenAreAProperty(randomSource(), List.of(skippedBranch, visitedBranch), "root");
+
+        List<String> visited = new ArrayList<>();
+        root.transformDownSkipBranch((n, skipBranch) -> {
+            visited.add(n.thing());
+            if (n == skippedBranch) {
+                skipBranch.set(true);
+            }
+            return n;
+        });
+        // skippedBranch itself is visited (and triggers the skip) but its child never is; visitedBranch and its
+        // child are both visited normally.
+        assertThat(visited, equalTo(List.of("root", "thing", "thing", "thing")));
+        assertThat(visited, not(hasItem("should-not-visit")));
+    }
+
+    public void testTransformDownSkipBranchResetsFlagBetweenSiblings() {
+        // The skip flag must not leak past the branch it was set on: after skipping branch 1, branch 2's own
+        // descendants must still be visited normally. Branches are distinctly labeled (unlike plain dummy()
+        // trees, which are all structurally equal) so the visited sequence can only match by actually
+        // visiting the right nodes, not by two differently-ordered-but-equal subtrees happening to coincide.
+        NoChildren leaf1 = new NoChildren(randomSource(), "leaf1");
+        NoChildren leaf2 = new NoChildren(randomSource(), "leaf2");
+        ChildrenAreAProperty branch1 = new ChildrenAreAProperty(randomSource(), List.of(leaf1), "branch1");
+        ChildrenAreAProperty branch2 = new ChildrenAreAProperty(randomSource(), List.of(leaf2), "branch2");
+        ChildrenAreAProperty root = new ChildrenAreAProperty(randomSource(), List.of(branch1, branch2), "root");
+
+        List<String> visited = new ArrayList<>();
+        root.transformDownSkipBranch((n, skipBranch) -> {
+            visited.add(n.thing());
+            if (n.thing().equals("branch1")) {
+                skipBranch.set(true);
+            }
+            return n;
+        });
+        assertThat(visited, equalTo(List.of("root", "branch1", "branch2", "leaf2")));
+    }
+
+    public void testTransformDownSkipBranchReplacementIsNotDescendedInto() {
+        // When the rule both replaces a node and sets skipBranch, the replacement's own children must not be
+        // visited — this is how LetResolver relies on the method to avoid re-expanding substituted subtrees.
+        NoChildren replacementChild = new NoChildren(randomSource(), "replacement-child");
+        Dummy replacement = dummy(replacementChild);
+        NoChildren target = new NoChildren(randomSource(), "target");
+
+        List<String> visited = new ArrayList<>();
+        Dummy result = target.transformDownSkipBranch((n, skipBranch) -> {
+            visited.add(n.thing());
+            if (n == target) {
+                skipBranch.set(true);
+                return replacement;
+            }
+            return n;
+        });
+        assertSame(replacement, result);
+        assertThat(visited, equalTo(List.of("target")));
+    }
+
+    public void testDeepChainTransformDownDoesNotStackOverflow() {
+        int depth = 50_000;
+        Dummy node = dummy();
+        for (int i = 1; i < depth; i++) {
+            node = dummy(node);
+        }
+        int[] count = { 0 };
+        Dummy result = node.transformDown(n -> {
+            count[0]++;
+            return n;
+        });
+        assertThat(count[0], equalTo(depth));
+        assertSame(node, result);
+    }
+
+    public void testDeepChainTransformUpDoesNotStackOverflow() {
+        int depth = 50_000;
+        Dummy node = dummy();
+        for (int i = 1; i < depth; i++) {
+            node = dummy(node);
+        }
+        int[] count = { 0 };
+        Dummy result = node.transformUp(n -> {
+            count[0]++;
+            return n;
+        });
+        assertThat(count[0], equalTo(depth));
+        assertSame(node, result);
+    }
+
+    public void testDeepChainTransformDownSkipBranchDoesNotStackOverflow() {
+        int depth = 50_000;
+        Dummy node = dummy();
+        for (int i = 1; i < depth; i++) {
+            node = dummy(node);
+        }
+        int[] count = { 0 };
+        node.transformDownSkipBranch((n, skipBranch) -> {
+            count[0]++;
+            return n;
+        });
+        assertThat(count[0], equalTo(depth));
+    }
+
+    public void testDeepChainTransformDownRebuildsEveryLevelWhenChanged() {
+        // Forces replaceChildrenSameSize to run at every level on the way back up — exercises the heap stack's
+        // frame-merging path at depth, not just the no-op fast path.
+        int depth = 20_000;
+        Dummy node = dummy();
+        for (int i = 1; i < depth; i++) {
+            node = dummy(node);
+        }
+        Dummy result = node.transformDown(n -> new ChildrenAreAProperty(n.source(), n.children(), n.thing() + "!"));
+        int depthCheck = 0;
+        Dummy cur = result;
+        while (true) {
+            assertThat(cur.thing(), equalTo("thing!"));
+            if (cur.children().isEmpty()) {
+                break;
+            }
+            cur = cur.children().get(0);
+            depthCheck++;
+        }
+        assertThat(depthCheck, equalTo(depth - 1));
+    }
+
     public void testTransformDownAsyncNoChildren() throws InterruptedException {
         NoChildren node = new NoChildren(randomSource(), "original");
 
@@ -272,6 +478,84 @@ public class NodeTests extends ESTestCase {
         assertAsyncTransform(node, (n, listener) -> listener.onResponse(n), result -> assertSame(node, result));
     }
 
+    private static ChildrenAreAProperty deepChain(int depth) {
+        ChildrenAreAProperty node = new ChildrenAreAProperty(randomSource(), List.of(), "leaf");
+        for (int i = 0; i < depth; i++) {
+            node = new ChildrenAreAProperty(randomSource(), List.of(node), "n");
+        }
+        return node;
+    }
+
+    private static void assertLeafIs(Dummy chain, String expected) {
+        Dummy n = chain;
+        while (n.children().isEmpty() == false) {
+            n = n.children().get(0);
+        }
+        assertEquals(expected, n.thing());
+    }
+
+    /**
+     * Rules that complete synchronously must not grow the stack with the depth of the tree. The rule leaves the tree unchanged,
+     * because comparing a changed deep tree with the original is a recursive {@code equals} in {@link Dummy} itself.
+     */
+    public void testTransformDownAsyncDeepTreeSyncRule() throws InterruptedException {
+        Dummy chain = deepChain(100_000);
+        assertAsyncTransform(chain, (n, listener) -> listener.onResponse(n), result -> assertSame(chain, result));
+    }
+
+    /** Rules that complete on another thread must not grow the stack with the depth of the tree either. */
+    public void testTransformDownAsyncDeepTreeAsyncRule() throws InterruptedException {
+        Dummy chain = deepChain(100_000);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        chain.transformDown((Dummy n, ActionListener<Dummy> l) -> {
+            // Half of the nodes complete inline, the rest on another thread
+            if (randomBoolean()) {
+                l.onResponse(n);
+            } else {
+                new Thread(() -> l.onResponse(n)).start();
+            }
+        }, new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
+            assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
+            assertSame(chain, result);
+        }), latch));
+        assertTrue("timed out after 30s", latch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testTransformDownAsyncModifiedChain() throws InterruptedException {
+        assertAsyncTransform(deepChain(200), (n, listener) -> {
+            listener.onResponse(n.children().isEmpty() ? new NoChildren(n.source(), "changed") : n);
+        }, result -> assertLeafIs(result, "changed"));
+    }
+
+    public void testTransformDownAsyncRuleFailure() throws InterruptedException {
+        Dummy chain = deepChain(10);
+        CountDownLatch latch = new CountDownLatch(1);
+        chain.transformDown((Dummy n, ActionListener<Dummy> l) -> {
+            if (n.children().isEmpty()) {
+                l.onFailure(new IllegalStateException("boom"));
+            } else {
+                l.onResponse(n);
+            }
+        }, new LatchedActionListener<>(ActionListener.wrap(r -> fail("unexpected success"), e -> {
+            assertEquals(IllegalStateException.class, e.getClass());
+            assertEquals("boom", e.getMessage());
+        }), latch));
+        assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));
+    }
+
+    public void testTransformDownAsyncRuleThrows() throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        deepChain(3).transformDown(
+            (Dummy n, ActionListener<Dummy> l) -> { throw new IllegalStateException("thrown"); },
+            new LatchedActionListener<>(
+                ActionListener.wrap(r -> fail("unexpected success"), e -> assertEquals("thrown", e.getMessage())),
+                latch
+            )
+        );
+        assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));
+    }
+
     private void assertAsyncTransform(Dummy node, BiConsumer<? super Dummy, ActionListener<Dummy>> rule, Consumer<Dummy> assertions)
         throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
@@ -282,7 +566,7 @@ public class NodeTests extends ESTestCase {
             assertions.accept(result);
         }), latch);
 
-        node.transformDown(rule, Runnable::run, listener);
+        node.transformDown(rule, listener);
         assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));
     }
 

@@ -319,6 +319,15 @@ FROM books METADATA _score
 | WHERE _score > 1.5
 ```
 
+Within one `WHERE`, a condition on `_score` combined with `AND` sees the score from every search in
+that `WHERE`, wherever it appears. Here `_score > 1.5` sees the score from both `MATCH` functions:
+
+```esql
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings") AND _score > 1.5 AND MATCH(content, "English")
+```
+
 Anything that uses `_score` before the search runs sees the score from before it, which is 0.0 if no
 earlier search has scored. For example, a `WHERE` on `_score` before the expression is computed, which
 keeps no books here:

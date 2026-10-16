@@ -125,60 +125,41 @@ run_promcheck() {
   NO_COLOR=1 "$PROMCHECK_BIN" \
     --elasticsearch "$workspace" \
     --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
-    --verbose < "$BUNDLE" 2>&1 | tee "$log"
+    -o json < "$BUNDLE" | tee "$log"
   rc=${PIPESTATUS[0]}
   set -e
   (( rc == 0 || rc == 1 ))
 }
 
-# The promcheck summary of a run, or a failure when the run did not get as far as printing it. The verdict line
-# reads "<total> inspected: <ok> match, <fail> mismatch, <4xx> 4xx, <5xx> 5xx" with optional memos for errors,
-# filters, and flaky skips; the counts must add up to the total.
+# Read the typed summary; diagnostics stay on stderr and never enter the JSONL log.
 summary() {
-  awk '
-    /^[0-9]+ inspected/ {
-      line = $0
-      gsub(/,/, "", line)
-      n = split(line, f, /[ \t]+/)
-      total = f[1]
-      ok = fail = ""
-      err4 = err5 = err = skip = 0
-      for (i = 2; i <= n; i++) {
-        if (f[i] == "match") ok = f[i - 1]
-        else if (f[i] == "mismatch") fail = f[i - 1]
-        else if (f[i] == "4xx") err4 = f[i - 1]
-        else if (f[i] == "5xx") err5 = f[i - 1]
-        else if (f[i] == "error") err = f[i - 1]
-        else if (f[i] == "flaky") skip = f[i - 1]
-        else if (f[i] == "response-filtered") skip += f[i - 1]
-      }
-    }
-    END {
-      if (total !~ /^[0-9]+$/ || ok !~ /^[0-9]+$/ || fail !~ /^[0-9]+$/)
-        exit 1
-      err = err4 + err5 + err
-      if (total != ok + fail + err + skip)
-        exit 2
-      printf "ok=%d fail=%d err=%d skip=%d total=%d\n", ok, fail, err, skip, total
-    }
+  jq -ers '
+    map(select(.type == "summary")) |
+    if length != 1 then error("expected one summary") else .[0] end |
+    . as $s |
+    [.total, .inspected, .match, .mismatch, .es_4xx, .es_5xx, .error,
+     .request_filtered, .response_filtered, .flaky] |
+    if all(.[]; type == "number" and . >= 0 and . == floor) then $s
+    else error("invalid summary counts") end |
+    (.es_4xx + .es_5xx + .error) as $err |
+    (.flaky + .response_filtered) as $skip |
+    if .inspected != (.match + .mismatch + $err + $skip) or .total != (.inspected + .request_filtered)
+    then error("inconsistent summary counts") else
+    "ok=\(.match) fail=\(.mismatch) err=\($err) skip=\($skip) total=\(.inspected)" end
   ' "$1"
 }
 
-# Every query of a promcheck log as "<case>\t<status>\t<expression>", colour codes stripped.
+# Every executed query as "<case>\t<status>\t<expression>". Flatten whitespace
+# for the Markdown table while preserving literal backslashes in PromQL.
 outcomes() {
-  awk '
-    { gsub(/\033\[[0-9;]*m/, "") }
-    /^\[[0-9]+\] [A-Z]+/ { id = substr($1, 2, length($1) - 2); status[id] = $2; order[++n] = id; next }
-    n && /^[[:space:]]+expr:/ { e = $0; sub(/^[[:space:]]+expr:[[:space:]]*/, "", e); expr[order[n]] = e }
-    END { for (i = 1; i <= n; i++) printf "%s\t%s\t%s\n", order[i], status[order[i]], expr[order[i]] }
-  ' "$1"
+  jq -r 'select(.type == "query") | [.name, .status, (.query | gsub("[\t\r\n]"; " "))] | join("\t")' "$1"
 }
 
 # Queries that pass in one run and not the other, by case id: "<case>\t<before>\t<after>\t<expression>".
 changes() {
   awk -F'\t' '
     NR == FNR { before[$1] = $2; next }
-    ($1 in before) && ((before[$1] == "OK") != ($2 == "OK")) { printf "%s\t%s\t%s\t%s\n", $1, before[$1], $2, $3 }
+    ($1 in before) && ((before[$1] == "match") != ($2 == "match")) { printf "%s\t%s\t%s\t%s\n", $1, before[$1], $2, $3 }
   ' <(outcomes "$1") <(outcomes "$2") | sort -t "$(printf '\t')" -k1,1n
 }
 
@@ -189,8 +170,8 @@ render_changes() {
   local base="$1"
   local revision="$2"
   awk -F'\t' -v base="$base" -v revision="$revision" -v max="$MAX_ROWS" -v full="$CHANGES_LINK" '
-    function passing(s) { return s == "OK" }
-    function label(s) { return s == "OK" ? "PASS" : s == "ERR" ? "ERROR" : s }
+    function passing(s) { return s == "match" }
+    function label(s) { return s == "match" ? "PASS" : s == "error" ? "ERROR" : s == "mismatch" ? "FAIL" : s == "skipped" ? "SKIP" : s }
     # n + 0: a section with no rows never set its counter, which awk would print as "".
     function count(n, one, many) { return (n + 0) " " (n == 1 ? one : many) }
     # Inline code: pipes escaped for the table, a backtick in the query widens the fence.
@@ -276,8 +257,8 @@ changes "$CONTROL_LOG" "$TEST_LOG" > "$CHANGES_FILE"
 render_changes "$base" "$revision" | report > "$REPORT_FILE"
 
 # A query that passed on the merge base and changed is a regression.
-regressions=$(awk -F'\t' '$2 == "OK" { n++ } END { print n + 0 }' "$CHANGES_FILE")
-fixes=$(awk -F'\t' '$2 != "OK" { n++ } END { print n + 0 }' "$CHANGES_FILE")
+regressions=$(awk -F'\t' '$2 == "match" { n++ } END { print n + 0 }' "$CHANGES_FILE")
+fixes=$(awk -F'\t' '$2 != "match" { n++ } END { print n + 0 }' "$CHANGES_FILE")
 if (( regressions > 0 )); then
   annotate error "$(cat "$REPORT_FILE")"
 else

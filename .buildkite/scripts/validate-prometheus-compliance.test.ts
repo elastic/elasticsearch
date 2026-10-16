@@ -8,26 +8,22 @@ const SCRIPT = resolve(`${import.meta.dirname}/validate-prometheus-compliance.sh
 const CORPUS = "grafanalabs-top100";
 const VERSION = "0.9.5+prometheus-3.13.1";
 
-type Status = "OK" | "FAIL" | "ERR" | "SKIP";
+type Status = "match" | "mismatch" | "error" | "skipped";
 type Case = [id: string, status: Status, expr: string];
 
-/** A promcheck log as the script reads it: one block per case, then the verdict line. Statuses are coloured, as in CI. */
+/** JSONL records matching promcheck -o json, with the full expression. */
 function promcheckLog(cases: Case[]): string {
-  const blocks = cases.map(([id, status, expr]) => `\n[${id}] \x1b[32m\x1b[1m${status}\x1b[0m\n  expr:      ${expr}\n  notes:     ${expr}\n`);
-  const count = (s: Status) => cases.filter(([, status]) => status === s).length;
-  const errs = count("ERR");
-  // Spread errors over the memos so the summary parser meets each shape.
-  const e4 = Math.floor((errs + 2) / 3);
-  const e5 = Math.floor((errs + 1) / 3);
-  const ex = Math.floor(errs / 3);
-  const skip = count("SKIP");
-  return (
-    blocks.join("") +
-    `${cases.length} inspected: ${count("OK")} match, ${count("FAIL")} mismatch, ${e4} 4xx, ${e5} 5xx` +
-    (ex ? `, ${ex} error` : "") +
-    (skip ? `, ${skip} flaky` : "") +
-    "\n"
-  );
+  const count = (status: Status) => cases.filter(([, value]) => value === status).length;
+  const errors = count("error");
+  const rows = cases.map(([name, status, query]) => ({ type: "query", name, status, query }));
+  return [
+    { type: "build_info", version: VERSION },
+    ...rows,
+    { type: "summary", total: cases.length, inspected: cases.length,
+      match: count("match"), mismatch: count("mismatch"),
+      es_4xx: Math.floor((errors + 2) / 3), es_5xx: Math.floor((errors + 1) / 3),
+      error: Math.floor(errors / 3), request_filtered: 0, response_filtered: 0, flaky: count("skipped") },
+  ].map((row) => JSON.stringify(row)).join("\n") + "\n";
 }
 
 describe("validate-prometheus-compliance.sh", () => {
@@ -151,8 +147,8 @@ esac
   }
 
   const STABLE: Case[] = [
-    ["001", "OK", "up"],
-    ["002", "FAIL", "rate(http_requests_total[5m])"],
+    ["001", "match", "up"],
+    ["002", "mismatch", "rate(http_requests_total[5m])"],
   ];
 
   test("no change reports no regressions in one sentence, without a details block", () => {
@@ -165,8 +161,8 @@ esac
 
   test("a regression is reported without failing the job, listing only the regressions", () => {
     const r = run(STABLE, [
-      ["001", "FAIL", "up"],
-      ["002", "FAIL", "rate(http_requests_total[5m])"],
+      ["001", "mismatch", "up"],
+      ["002", "mismatch", "rate(http_requests_total[5m])"],
     ]);
     expect(r.status).toBe(0);
     expect(r.report).toContain("**Regression detected**\n\n1 regression, 0 fixes, 1 changed case\n");
@@ -178,8 +174,8 @@ esac
 
   test("fixes alone report no regressions and list only the fixes", () => {
     const r = run(STABLE, [
-      ["001", "OK", "up"],
-      ["002", "OK", "rate(http_requests_total[5m])"],
+      ["001", "match", "up"],
+      ["002", "match", "rate(http_requests_total[5m])"],
     ]);
     expect(r.status).toBe(0);
     expect(r.report).toContain("**No regressions**\n\n0 regressions, 1 fix, 1 changed case\n");
@@ -191,12 +187,12 @@ esac
   test("a flaky skip is a transition like any other", () => {
     const r = run(
       [
-        ["001", "OK", "up"],
-        ["002", "SKIP", "rate(http_requests_total[5m])"],
+        ["001", "match", "up"],
+        ["002", "skipped", "rate(http_requests_total[5m])"],
       ],
       [
-        ["001", "SKIP", "up"],
-        ["002", "OK", "rate(http_requests_total[5m])"],
+        ["001", "skipped", "up"],
+        ["002", "match", "rate(http_requests_total[5m])"],
       ]
     );
     expect(r.status).toBe(0);
@@ -207,18 +203,18 @@ esac
 
   test("error memos and flaky skips add up in the run summaries", () => {
     const r = run(STABLE, [
-      ["001", "OK", "up"],
-      ["002", "ERR", "a"],
-      ["003", "ERR", "b"],
-      ["004", "ERR", "c"],
-      ["005", "SKIP", "d"],
+      ["001", "match", "up"],
+      ["002", "error", "a"],
+      ["003", "error", "b"],
+      ["004", "error", "c"],
+      ["005", "skipped", "d"],
     ]);
     expect(r.status).toBe(0);
     expect(r.output).toContain("Merge base: ok=1 fail=1 err=0 skip=0 total=2");
     expect(r.output).toContain("PR: ok=1 fail=0 err=3 skip=1 total=5");
   });
 
-  test("the binary gets the checkout, the timeout in seconds, and verbose detail blocks", () => {
+  test("the binary gets the checkout, the timeout in seconds, and JSONL output", () => {
     const r = run(STABLE, STABLE);
     expect(r.status).toBe(0);
     const lines = r.args.trim().split("\n");
@@ -226,21 +222,21 @@ esac
     for (const args of lines) {
       expect(args).toContain("--elasticsearch ");
       expect(args).toContain("--elasticsearch-timeout 900s");
-      expect(args).toContain("--verbose");
+      expect(args).toContain("-o json");
     }
   });
 
   test("a regression next to a fix is reported even when the number of passing queries holds", () => {
     const r = run(
       [
-        ["001", "OK", "up"],
-        ["002", "FAIL", "rate(http_requests_total[5m])"],
-        ["003", "OK", "sum(x)"],
+        ["001", "match", "up"],
+        ["002", "mismatch", "rate(http_requests_total[5m])"],
+        ["003", "match", "sum(x)"],
       ],
       [
-        ["001", "OK", "up"],
-        ["002", "OK", "rate(http_requests_total[5m])"],
-        ["003", "ERR", "sum(x)"],
+        ["001", "match", "up"],
+        ["002", "match", "rate(http_requests_total[5m])"],
+        ["003", "error", "sum(x)"],
       ]
     );
     expect(r.status).toBe(0);
@@ -253,16 +249,16 @@ esac
   test("rows are sorted by case id within each section", () => {
     const r = run(
       [
-        ["010", "OK", "a"],
-        ["002", "OK", "b"],
-        ["007", "FAIL", "c"],
-        ["003", "FAIL", "d"],
+        ["010", "match", "a"],
+        ["002", "match", "b"],
+        ["007", "mismatch", "c"],
+        ["003", "mismatch", "d"],
       ],
       [
-        ["010", "FAIL", "a"],
-        ["002", "FAIL", "b"],
-        ["007", "OK", "c"],
-        ["003", "OK", "d"],
+        ["010", "mismatch", "a"],
+        ["002", "mismatch", "b"],
+        ["007", "match", "c"],
+        ["003", "match", "d"],
       ]
     );
     const rows = r.report.match(/^\| \d{3} \|/gm);
@@ -289,8 +285,8 @@ esac
 
   test("the same runs give the same report", () => {
     const tested: Case[] = [
-      ["001", "FAIL", "up"],
-      ["002", "OK", "rate(http_requests_total[5m])"],
+      ["001", "mismatch", "up"],
+      ["002", "match", "rate(http_requests_total[5m])"],
     ];
     expect(run(STABLE, tested).report).toBe(run(STABLE, tested).report);
   });
@@ -311,8 +307,8 @@ esac
 
   test("the PR comment meta-data carries the same report as the annotation", () => {
     const r = run(STABLE, [
-      ["001", "FAIL", "up"],
-      ["002", "FAIL", "rate(http_requests_total[5m])"],
+      ["001", "mismatch", "up"],
+      ["002", "mismatch", "rate(http_requests_total[5m])"],
     ]);
     // The start note annotates first; the final pair carries the report.
     const parts = r.agent.split(/^== .*$/m);
@@ -326,23 +322,31 @@ esac
   test("a pipe in a query is escaped and a backtick widens the code span", () => {
     const r = run(
       [
-        ["001", "OK", 'up{job=~"a|b"}'],
-        ["002", "OK", 'label_replace(up, "x", "`y`", "", "")'],
+        ["001", "match", 'up{job=~"a|b"}'],
+        ["002", "match", 'label_replace(up, "x", "`y`", "", "")'],
       ],
       [
-        ["001", "FAIL", 'up{job=~"a|b"}'],
-        ["002", "FAIL", 'label_replace(up, "x", "`y`", "", "")'],
+        ["001", "mismatch", 'up{job=~"a|b"}'],
+        ["002", "mismatch", 'label_replace(up, "x", "`y`", "", "")'],
       ]
     );
     expect(r.report).toContain('| 001 | `PASS -> FAIL` | `up{job=~"a\\|b"}` |');
     expect(r.report).toContain('| 002 | `PASS -> FAIL` | `` label_replace(up, "x", "`y`", "", "") `` |');
   });
 
+  test("JSON query escapes round-trip without doubling backslashes or making extra rows", () => {
+    const query = 'sum(\nup{job=~"a\\\\.b"})';
+    const r = run([["001", "match", query]], [["001", "mismatch", query]]);
+    expect(r.status).toBe(0);
+    expect(r.report).toContain(query.replace(/\n/g, " "));
+    expect(r.report.match(/^\| \d{3} \|/gm)).toHaveLength(1);
+  });
+
   test("more changes than the table holds link the full list as an artifact", () => {
     const ids = Array.from({ length: 52 }, (_, i) => String(i + 1).padStart(3, "0"));
     const r = run(
-      ids.map((id) => [id, "OK", `m${id}`] as Case),
-      ids.map((id) => [id, "FAIL", `m${id}`] as Case)
+      ids.map((id) => [id, "match", `m${id}`] as Case),
+      ids.map((id) => [id, "mismatch", `m${id}`] as Case)
     );
     expect(r.report.match(/^\| \d{3} \|/gm)).toHaveLength(50);
     expect(r.report).toContain(`_2 more in <a href="artifact://${join(dir, "tmp").slice(1)}/validate-prometheus-compliance-output/@${CORPUS}-changes.tsv">`);
@@ -350,7 +354,7 @@ esac
 
   test("a control run that crashes is reported as not compared without failing the job", () => {
     const r = run(STABLE, STABLE, { controlRc: 2 });
-    expect(r.status).toBe(0);
+    expect(r.status, r.output).toBe(0);
     expect(r.output).toContain("Not compared: The control run failed");
     expect(r.agent).toContain("== annotate --context ctx-validate-prometheus-compliance --style warning");
     expect(r.agent).toContain(
@@ -371,12 +375,12 @@ esac
   test("the report is ASCII only", () => {
     const r = run(
       [
-        ["001", "OK", "up"],
-        ["002", "FAIL", "rate(http_requests_total[5m])"],
+        ["001", "match", "up"],
+        ["002", "mismatch", "rate(http_requests_total[5m])"],
       ],
       [
-        ["001", "FAIL", "up"],
-        ["002", "OK", "rate(http_requests_total[5m])"],
+        ["001", "mismatch", "up"],
+        ["002", "match", "rate(http_requests_total[5m])"],
       ],
       { env: { BUILDKITE_BUILD_URL: "https://buildkite.com/elastic/elasticsearch-pull-request/builds/42", BUILDKITE_JOB_ID: "job-7" } }
     );

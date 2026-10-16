@@ -7,14 +7,19 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -43,6 +48,30 @@ public class StagedPlannerTests extends ESTestCase {
         .put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), 2)
         .put(QueryPragmas.SHUFFLE_AGG.getKey(), true)
         .build();
+    private static final Settings SHUFFLE_JOIN_SETTINGS = Settings.builder()
+        .put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), 2)
+        .put(QueryPragmas.SHUFFLE_JOIN.getKey(), true)
+        .build();
+    private static final Settings SHUFFLE_JOIN_AGG_SETTINGS = Settings.builder()
+        .put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), 2)
+        .put(QueryPragmas.SHUFFLE_AGG.getKey(), true)
+        .put(QueryPragmas.SHUFFLE_JOIN.getKey(), true)
+        .build();
+    private static final String LOOKUP_JOIN_QUERY = """
+        FROM test
+        | RENAME emp_no AS language_code
+        | LOOKUP JOIN languages_lookup ON language_code
+        | STATS c = COUNT(*) BY language_name
+        | SORT c DESC
+        | LIMIT 10
+        """;
+    private static final String SUBQUERY_JOIN_QUERY = """
+        FROM test
+        | LEFT OUTER JOIN (FROM test | STATS total = SUM(salary) BY emp_no) ON emp_no
+        | STATS s = SUM(total) BY first_name
+        | SORT first_name
+        | LIMIT 1000
+        """;
 
     public void testSplitAggregateStagesAndShardDriverPlan() {
         PhysicalPlan plan = distributedPlan("FROM test | STATS c = COUNT(*) BY first_name | SORT c DESC | LIMIT 10");
@@ -99,6 +128,48 @@ public class StagedPlannerTests extends ESTestCase {
         );
         assertEquals(ExchangeDistribution.GATHER, stagedPlan.edge("e0").distribution());
         assertEquals(ExchangeDistribution.HASH, stagedPlan.edge("e1").distribution());
+    }
+
+    public void testLookupJoinStagesAndLookupFilterStripping() {
+        PhysicalPlan plan = distributedPlan(LOOKUP_JOIN_QUERY, SHUFFLE_JOIN_AGG_SETTINGS, true);
+        MatchAllQueryBuilder requestFilter = new MatchAllQueryBuilder();
+        PhysicalPlan filteredPlan = plan.transformDown(FragmentExec.class, fragment -> fragment.withFilter(requestFilter));
+
+        StagedPlan stagedPlan = StagedPlanner.split(filteredPlan);
+
+        assertEquals(
+            List.of(StagePlacement.COORDINATOR, StagePlacement.WORKERS, StagePlacement.SHARDS, StagePlacement.SHARDS),
+            stagedPlan.stages().stream().map(Stage::placement).toList()
+        );
+        List<FragmentExec> fragments = stagedPlan.stages()
+            .stream()
+            .flatMap(stage -> stage.plan().collect(FragmentExec.class).stream())
+            .toList();
+        assertEquals(2, fragments.size());
+        for (FragmentExec fragment : fragments) {
+            EsRelation relation = fragment.fragment().collect(EsRelation.class).getFirst();
+            boolean lookupIndex = relation.indexProperties()
+                .values()
+                .stream()
+                .allMatch(properties -> properties.indexMode() == IndexMode.LOOKUP);
+            if (lookupIndex) {
+                assertNull(fragment.esFilter());
+            } else {
+                assertSame(requestFilter, fragment.esFilter());
+            }
+        }
+    }
+
+    public void testSubqueryJoinStagesIncludeSingleSubplanStage() {
+        assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+        PhysicalPlan plan = distributedPlan(SUBQUERY_JOIN_QUERY, SHUFFLE_JOIN_SETTINGS, false);
+
+        StagedPlan stagedPlan = StagedPlanner.split(plan);
+
+        assertEquals(1, stagedPlan.stages().stream().filter(stage -> stage.placement() == StagePlacement.COORDINATOR).count());
+        assertEquals(1, stagedPlan.stages().stream().filter(stage -> stage.placement() == StagePlacement.WORKERS).count());
+        assertEquals(2, stagedPlan.stages().stream().filter(stage -> stage.placement() == StagePlacement.SHARDS).count());
+        assertEquals(1, stagedPlan.stages().stream().filter(stage -> stage.placement() == StagePlacement.SINGLE).count());
     }
 
     public void testLookupFragmentDoesNotMakeRootStageShardsPlaced() {
@@ -230,7 +301,10 @@ public class StagedPlannerTests extends ESTestCase {
 
     private static PhysicalPlan distributedPlan(String query, Settings settings, boolean withLookup) {
         Configuration configuration = configuration(new QueryPragmas(settings), query);
-        var analyzerBuilder = analyzer().configuration(configuration).addIndex("test", "mapping-basic.json").addNoFieldsIndex();
+        var analyzerBuilder = analyzer().minimumTransportVersion(TransportVersion.current())
+            .configuration(configuration)
+            .addIndex("test", "mapping-basic.json")
+            .addNoFieldsIndex();
         if (withLookup) {
             analyzerBuilder.addLookupIndex(AnalyzerTestUtils.defaultLookupResolution().get("languages_lookup"));
         }

@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -77,6 +79,9 @@ final class StagedPlanner {
 
     static StagedPlan split(PhysicalPlan plan) {
         Set<PhysicalPlan> ignored = ignoredPlans(plan);
+        if (hasShuffle(plan)) {
+            plan = stripLookupFilters(plan, ignored);
+        }
         List<StageBuilder> stages = new ArrayList<>();
         List<Edge> edges = new ArrayList<>();
         StageBuilder root = new StageBuilder(0, true, null);
@@ -89,6 +94,40 @@ final class StagedPlanner {
         }
         validate(result, edges);
         return new StagedPlan(result, edges);
+    }
+
+    private static PhysicalPlan stripLookupFilters(PhysicalPlan plan, Set<PhysicalPlan> ignored) {
+        if (ignored.contains(plan)) {
+            return plan;
+        }
+        if (plan instanceof FragmentExec fragment) {
+            if (fragment.esFilter() == null || isLookupScan(fragment) == false) {
+                return fragment;
+            }
+            return new FragmentExec(fragment.source(), fragment.fragment(), null, fragment.estimatedRowSize(), fragment.isFromViewBranch());
+        }
+        List<PhysicalPlan> children = plan.children();
+        if (children.isEmpty()) {
+            return plan;
+        }
+        List<PhysicalPlan> rewrittenChildren = new ArrayList<>(children.size());
+        boolean changed = false;
+        for (PhysicalPlan child : children) {
+            PhysicalPlan rewrittenChild = stripLookupFilters(child, ignored);
+            rewrittenChildren.add(rewrittenChild);
+            changed |= rewrittenChild != child;
+        }
+        return changed ? plan.replaceChildren(rewrittenChildren) : plan;
+    }
+
+    private static boolean isLookupScan(FragmentExec fragment) {
+        List<EsRelation> relations = fragment.fragment().collect(EsRelation.class);
+        if (relations.size() != 1) {
+            return false;
+        }
+        var indexProperties = relations.getFirst().indexProperties();
+        return indexProperties.isEmpty() == false
+            && indexProperties.values().stream().allMatch(properties -> properties.indexMode() == IndexMode.LOOKUP);
     }
 
     /**

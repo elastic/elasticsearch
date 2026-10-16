@@ -45,6 +45,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
@@ -88,9 +89,10 @@ public class RestShardsAction extends AbstractCatAction {
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices).indicesOptions(IndicesOptions.strictExpandHidden());
 
         return channel -> {
+            final var cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             final var clusterStateFuture = new ListenableFuture<ClusterStateResponse>();
-            client.admin().cluster().state(clusterStateRequest, clusterStateFuture);
-            client.admin()
+            cancellableClient.admin().cluster().state(clusterStateRequest, clusterStateFuture);
+            cancellableClient.admin()
                 .indices()
                 .stats(
                     new IndicesStatsRequest().all().indices(indices).indicesOptions(IndicesOptions.strictExpandHidden()),

@@ -1157,7 +1157,8 @@ public class Security extends Plugin
             getClock(),
             client,
             systemIndices.getProfileIndexManager(),
-            realms
+            realms,
+            projectResolver
         );
         components.add(profileService);
 

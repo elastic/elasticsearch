@@ -28,7 +28,11 @@ import java.util.Map;
  */
 public final class SecurityQueryTemplateEvaluator {
 
-    /** The template variable that exposes the user's profile uid; see {@link #evaluateTemplate(String, ScriptService, User, String)}. */
+    /**
+     * The template variable that exposes the user's profile uid to inline templates; see
+     * {@link #evaluateTemplate(String, ScriptService, User, String)}. Stored scripts cannot use it: their body is not
+     * visible when deciding whether to resolve the uid, so it renders empty there.
+     */
     public static final String PROFILE_UID_TEMPLATE_VARIABLE = "_user.profile_uid";
 
     private SecurityQueryTemplateEvaluator() {}

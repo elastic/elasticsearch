@@ -37,6 +37,9 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -194,6 +197,7 @@ public class ProfileServiceTests extends ESTestCase {
     private Client client;
     private SecurityIndexManager profileIndex;
     private ProfileService profileService;
+    private final AtomicReference<ProjectId> projectId = new AtomicReference<>(Metadata.DEFAULT_PROJECT_ID);
     Function<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefLookup;
 
     @Before
@@ -219,7 +223,14 @@ public class ProfileServiceTests extends ESTestCase {
         Realms realms = mock(Realms.class);
         when(realms.getDomainConfig(anyString())).then(args -> new DomainConfig(args.getArgument(0), Set.of(), false, null));
         when(realms.getRealmRef(any(RealmConfig.RealmIdentifier.class))).then(args -> realmRefLookup.apply(args.getArgument(0)));
-        this.profileService = new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, realms);
+        this.profileService = new ProfileService(
+            Settings.EMPTY,
+            Clock.systemUTC(),
+            client,
+            profileIndex,
+            realms,
+            TestProjectResolvers.singleProject(projectId::get)
+        );
     }
 
     @After
@@ -511,7 +522,7 @@ public class ProfileServiceTests extends ESTestCase {
         assertThat(query, containsString("\"user_profile.user.realm.type\":{\"value\":\"" + creatorRealmType + "\""));
     }
 
-    public void testResolveProfileUidCachesOnlyFoundProfiles() {
+    public void testResolveProfileUidCachesHitsAndMissesPerProject() {
         final AtomicReference<SearchHits> hits = new AtomicReference<>(SearchHits.EMPTY_WITH_TOTAL_HITS);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -528,32 +539,38 @@ public class ProfileServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
 
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .user(new User("alice"))
-            .realmRef(new Authentication.RealmRef("realm_name_1", "realm_type_1", "node"))
-            .build(false);
+        final Authentication.RealmRef realm = new Authentication.RealmRef("realm_name_1", "realm_type_1", "node");
+        final Authentication alice = AuthenticationTestHelper.builder().user(new User("alice")).realmRef(realm).build(false);
+        final Authentication bob = AuthenticationTestHelper.builder().user(new User("bob")).realmRef(realm).build(false);
 
-        // No profile document: resolves to null and nothing is cached, so the profile is found as soon as it exists.
+        // No profile document: the miss is cached, so repeated requests share one search.
         for (int i = 0; i < 3; i++) {
             final PlainActionFuture<String> future = new PlainActionFuture<>();
-            profileService.resolve(authentication, future);
+            profileService.resolve(alice, future);
             assertThat(future.actionGet(), nullValue());
         }
-        verify(client, times(3)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+        verify(client, times(1)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
 
-        final SearchHit hit = SearchHit.unpooled(0, "profile_u_alice");
-        hit.sourceRef(new BytesArray(getSampleProfileDocumentSource("u_alice", "alice", List.of("role_a"), 1L)));
-        final SearchHits aliceHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+        final SearchHit hit = SearchHit.unpooled(0, "profile_u_bob");
+        hit.sourceRef(new BytesArray(getSampleProfileDocumentSource("u_bob", "bob", List.of("role_a"), 1L)));
+        final SearchHits bobHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
         try {
-            hits.set(aliceHits);
+            hits.set(bobHits);
             for (int i = 0; i < 3; i++) {
                 final PlainActionFuture<String> future = new PlainActionFuture<>();
-                profileService.resolve(authentication, future);
-                assertThat(future.actionGet(), equalTo("u_alice"));
+                profileService.resolve(bob, future);
+                assertThat(future.actionGet(), equalTo("u_bob"));
             }
-            verify(client, times(4)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+            verify(client, times(2)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+
+            // Profiles are per project, so the same subject in another project is looked up again.
+            projectId.set(ProjectId.fromId("other"));
+            final PlainActionFuture<String> future = new PlainActionFuture<>();
+            profileService.resolve(bob, future);
+            assertThat(future.actionGet(), equalTo("u_bob"));
+            verify(client, times(3)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
         } finally {
-            aliceHits.decRef();
+            bobHits.decRef();
         }
     }
 
@@ -596,7 +613,14 @@ public class ProfileServiceTests extends ESTestCase {
         final Subject subject = new Subject(AuthenticationTestHelper.randomUser(), AuthenticationTestHelper.randomRealmRef(true));
         Realms realms = mock(Realms.class);
         when(realms.getDomainConfig(anyString())).then(args -> new DomainConfig(args.getArgument(0), Set.of(), true, "suffix"));
-        final ProfileService service = new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, realms);
+        final ProfileService service = new ProfileService(
+            Settings.EMPTY,
+            Clock.systemUTC(),
+            client,
+            profileIndex,
+            realms,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
         final PlainActionFuture<Profile> future = new PlainActionFuture<>();
         service.maybeIncrementDifferentiatorAndCreateNewProfile(
             subject,
@@ -747,7 +771,9 @@ public class ProfileServiceTests extends ESTestCase {
                 return new DomainConfig(domainName, Set.of(), true, "suffix");
             }
         });
-        final ProfileService service = spy(new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, realms));
+        final ProfileService service = spy(
+            new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, realms, TestProjectResolvers.DEFAULT_PROJECT_ONLY)
+        );
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")

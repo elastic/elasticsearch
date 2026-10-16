@@ -15,13 +15,16 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.ClassRule;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -29,6 +32,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -87,6 +91,7 @@ public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .name("kibana-elastic-ai-memory-implicit-privileges-cluster")
+        .nodes(2)
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.ml.enabled", "false")
@@ -244,6 +249,10 @@ public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
         });
 
         final Request create = new Request("PUT", "/" + MEMORY_INDEX);
+        // One shard per node, so every search re-authorizes on a node other than the coordinating one.
+        create.setJsonEntity("""
+            { "settings": { "number_of_shards": 2, "number_of_replicas": 0, "index.routing.allocation.total_shards_per_node": 1 } }
+            """);
         // Creating a dot-prefixed index emits a deprecation warning that is irrelevant to this test.
         create.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(create));
@@ -335,9 +344,12 @@ public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
             """, scopes, space);
     }
 
+    /** Every document is also tagged with its id, giving {@code _terms_enum} a keyword field with one term per document. */
     private void indexDoc(String id, String body) throws Exception {
+        final Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, body, false);
+        source.put("tags", List.of(id));
         final Request request = new Request("PUT", "/" + MEMORY_INDEX + "/_create/" + id);
-        request.setJsonEntity(body);
+        request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().map(source)));
         assertOK(client().performRequest(request));
     }
 
@@ -394,6 +406,49 @@ public class ElasticAiMemoryImplicitPrivilegesIT extends ESRestTestCase {
         assertOK(esqlResponse);
         final List<List<Object>> esqlRows = ObjectPath.createFromResponse(esqlResponse).evaluate("values");
         assertVisibleIds(label + " via ES|QL", esqlRows.stream().map(row -> (String) row.get(0)).toList(), expectedIds);
+
+        assertVisibleIds(label + " via scroll", scrollIds(options), expectedIds);
+        // _terms_enum fails closed under DLS: terms are only listed when a role query rewrites to match_all.
+        assertThat("unexpected terms for " + label + " via _terms_enum", termsEnumTags(options), empty());
+    }
+
+    /** Pages two hits at a time, so most of the documents come back through the scroll handler rather than the initial search. */
+    private List<String> scrollIds(RequestOptions options) throws Exception {
+        final Request search = new Request("GET", "/" + MEMORY_INDEX + "/_search");
+        search.addParameter("scroll", "1m");
+        search.setJsonEntity("{ \"size\": 2 }");
+        search.setOptions(options);
+
+        final List<String> ids = new ArrayList<>();
+        ObjectPath page = ObjectPath.createFromResponse(client().performRequest(search));
+        String scrollId = page.evaluate("_scroll_id");
+        try {
+            while (true) {
+                final List<Map<String, Object>> hits = page.evaluate("hits.hits");
+                if (hits.isEmpty()) {
+                    break;
+                }
+                hits.forEach(hit -> ids.add((String) hit.get("_id")));
+                final Request next = new Request("POST", "/_search/scroll");
+                next.setJsonEntity(Strings.format("{ \"scroll\": \"1m\", \"scroll_id\": \"%s\" }", scrollId));
+                next.setOptions(options);
+                page = ObjectPath.createFromResponse(client().performRequest(next));
+                scrollId = page.evaluate("_scroll_id");
+            }
+        } finally {
+            final Request clear = new Request("DELETE", "/_search/scroll");
+            clear.setJsonEntity(Strings.format("{ \"scroll_id\": \"%s\" }", scrollId));
+            clear.setOptions(options);
+            client().performRequest(clear);
+        }
+        return ids;
+    }
+
+    private List<String> termsEnumTags(RequestOptions options) throws Exception {
+        final Request request = new Request("POST", "/" + MEMORY_INDEX + "/_terms_enum");
+        request.setJsonEntity("{ \"field\": \"tags\", \"size\": 100 }");
+        request.setOptions(options);
+        return ObjectPath.createFromResponse(client().performRequest(request)).evaluate("terms");
     }
 
     private static void assertVisibleIds(String engine, List<String> ids, List<String> expectedIds) {

@@ -130,7 +130,7 @@ public class DocumentPermissionsTests extends ESTestCase {
         assertThat(DocumentPermissions.allowAll().requiresProfileUid(), is(false));
         assertThat(DocumentPermissions.filteredBy(Set.of(plain)).requiresProfileUid(), is(false));
         assertThat(DocumentPermissions.filteredBy(Set.of(plain, templated)).requiresProfileUid(), is(true));
-        assertThat(DocumentPermissions.filteredBy(Set.of(stored)).requiresProfileUid(), is(true));
+        assertThat(DocumentPermissions.filteredBy(Set.of(stored)).requiresProfileUid(), is(false));
 
         // Limiting composes the flag from both sides.
         final DocumentPermissions plainOnly = DocumentPermissions.filteredBy(Set.of(plain));

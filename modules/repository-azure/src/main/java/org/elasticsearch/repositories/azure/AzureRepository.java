@@ -199,6 +199,20 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         );
 
         /**
+         * Maximum size of a blob that can be copied with a single Copy Blob request. Larger blobs are copied using
+         * parallel Put Block From URL when an executor is provided and the client is configured with a SAS token, which Put Block From
+         * URL needs to authorize the source. Azure allows up to 4000 MiB per block from URL. Blobs needing more than 50,000 parts, the
+         * Azure limit on blocks per blob, fall back to a serial copy.
+         */
+        static final Setting<ByteSizeValue> MAX_COPY_SIZE_BEFORE_MULTIPART_SETTING = Setting.byteSizeSetting(
+            "max_copy_size_before_multipart",
+            ByteSizeValue.of(100, ByteSizeUnit.MB),
+            ByteSizeValue.of(5, ByteSizeUnit.MB),
+            ByteSizeValue.of(4000, ByteSizeUnit.MB),
+            Property.NodeScope
+        );
+
+        /**
          * Access tier applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_DATA}.
          */
         static final Setting<String> DATA_ACCESS_TIER_SETTING = Setting.simpleString("data_access_tier");

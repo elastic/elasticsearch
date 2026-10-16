@@ -58,12 +58,14 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.CONTAINER_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.COPY_POLL_INTERVAL;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.LOCATION_MODE_SETTING;
+import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_COPY_SIZE_BEFORE_MULTIPART_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository.MULTIPART_UPLOAD_PART_SIZE_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ACCOUNT_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.ENDPOINT_SUFFIX_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.KEY_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.MAX_RETRIES_SETTING;
+import static org.elasticsearch.repositories.azure.AzureStorageSettings.SAS_TOKEN_SETTING;
 import static org.elasticsearch.repositories.azure.AzureStorageSettings.TIMEOUT_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -109,6 +111,25 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
 
     protected BlobContainer createBlobContainer(final int maxRetries) {
         return builder().withMaxRetries(maxRetries).build();
+    }
+
+    protected BlobContainer createBlobContainerWithSasToken(final int maxRetries) {
+        final String clientName = randomIdentifier();
+        return builder().withMaxRetries(maxRetries)
+            .withClientName(clientName)
+            .withSecureSettings(sasTokenSecureSettings(clientName))
+            .build();
+    }
+
+    protected static MockSecureSettings sasTokenSecureSettings(String clientName) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), ACCOUNT);
+        // The SDK expects a valid looking SAS token, the fixture does not validate it
+        secureSettings.setString(
+            SAS_TOKEN_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            "se=2021-07-20T13%3A21Z&sp=rwdl&sv=2018-11-09&sr=c&sig=random"
+        );
+        return secureSettings;
     }
 
     protected BlobContainer createBlobContainer(
@@ -229,6 +250,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                 .put(LOCATION_MODE_SETTING.getKey(), locationMode)
                 .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), maxSinglePartUploadSize())
                 .put(MULTIPART_UPLOAD_PART_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(uploadBlockSize()))
+                .put(MAX_COPY_SIZE_BEFORE_MULTIPART_SETTING.getKey(), ByteSizeValue.of(5, ByteSizeUnit.MB))
                 .put(COPY_POLL_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
                 .build()
         );

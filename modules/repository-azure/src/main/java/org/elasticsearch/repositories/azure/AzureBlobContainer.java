@@ -156,7 +156,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             purpose,
             azureSourceBlobContainer.buildKey(sourceBlobName),
             azureSourceBlobContainer.blobStore,
-            buildKey(blobName)
+            buildKey(blobName),
+            blobSize,
+            executor
         );
     }
 

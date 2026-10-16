@@ -47,7 +47,8 @@ import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
  * @param readCpuNanos Total CPU time format readers spent on producer threads (no IO wait), in nanoseconds.
  *                     Lucene contributes 0; only external-source operators populate this.
  * @param cpuNanos Total thread CPU time across all drivers (sum of per-driver {@link DriverProfile#cpuNanos()}).
- *                 Excludes time spent waiting for a core, GC pauses and time blocked inside an operator.
+ *                 Excludes time spent waiting for a core, GC pauses and time blocked inside an operator. Includes
+ *                 the thread CPU time operators used on other threads ({@link DriverContext#meteredCpu()}).
  * @param driverNanos Total time drivers held a thread (sum of per-driver {@link DriverProfile#driverNanos()}).
  *                    Includes time spent waiting for a core, GC pauses and time blocked inside an operator.
  * @param driverProfiles {@link DriverProfile}s from each driver. These are fairly cheap to build but

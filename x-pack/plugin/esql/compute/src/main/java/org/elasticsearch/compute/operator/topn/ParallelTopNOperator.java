@@ -159,7 +159,10 @@ public class ParallelTopNOperator implements Operator, Accountable {
         this.pendingTasks = new PendingTasks(() -> {
             allWorkersDone.onResponse(null);
             if (closed) {
-                releaseWorkers();
+                // Can run on the worker that finished last, after its own measurement closed.
+                try (Releasable cpu = driverContext.meteredCpu()) {
+                    releaseWorkers();
+                }
             }
             driverContext.removeAsyncAction();
         });
@@ -176,6 +179,7 @@ public class ParallelTopNOperator implements Operator, Accountable {
                 // Incremented here, not before execute(), so queued tasks don't block completion.
                 // Safe because `finish` draining the buffer with `processPagesWithCurrentThread` before calling `pendingTasks#finishTask`
                 pendingTasks.newTask();
+                Releasable cpu = driverContext.meteredCpu();
                 try {
                     Page page;
                     while ((page = in.pollPage()) != null) {
@@ -186,7 +190,8 @@ public class ParallelTopNOperator implements Operator, Accountable {
                         in.waitForReading().listener().addListener(ActionListener.running(() -> scheduleWorker(worker)));
                     }
                 } finally {
-                    pendingTasks.finishTask();
+                    // Count the CPU time first: the last task to finish removes the driver's async action.
+                    Releasables.close(cpu, pendingTasks::finishTask);
                 }
             }
 

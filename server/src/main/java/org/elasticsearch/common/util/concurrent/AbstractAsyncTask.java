@@ -9,6 +9,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -138,6 +139,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
             runInternal();
         } catch (Exception ex) {
             if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
+                ExceptionsHelper.logIfUnexpectedBug(ex);
                 // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
                 logger.warn(
                     () -> format("failed to run task %s - suppressing re-occurring exceptions unless the exception changes", toString()),

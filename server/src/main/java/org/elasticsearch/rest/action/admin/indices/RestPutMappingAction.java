@@ -14,6 +14,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
@@ -38,6 +42,26 @@ public class RestPutMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in put mapping request is deprecated. "
         + "Use typeless api instead";
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutMappingAction.class);
+
+    /**
+     * Soft limit on the size of the body of a put mapping request, to protect against running out of memory
+     * when handling many large concurrent requests. This only exists in 8.19; later versions handle large mappings
+     * differently and will not accept this setting, so it is marked as deprecated.
+     */
+    public static final Setting<ByteSizeValue> MAX_MAPPING_REQUEST_SIZE_SETTING = Setting.byteSizeSetting(
+        "indices.mapping.max_request_size",
+        ByteSizeValue.ofMb(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic,
+        Setting.Property.Deprecated
+    );
+
+    private volatile ByteSizeValue maxRequestSize;
+
+    public RestPutMappingAction(Settings settings, ClusterSettings clusterSettings) {
+        this.maxRequestSize = MAX_MAPPING_REQUEST_SIZE_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(MAX_MAPPING_REQUEST_SIZE_SETTING, v -> this.maxRequestSize = v);
+    }
 
     @Override
     public List<Route> routes() {
@@ -92,6 +116,17 @@ public class RestPutMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.hasContent() && request.content().length() > maxRequestSize.getBytes()) {
+            throw new IllegalArgumentException(
+                "mappings update request is too large: ["
+                    + ByteSizeValue.ofBytes(request.content().length())
+                    + "] exceeds the limit of ["
+                    + maxRequestSize
+                    + "] set by ["
+                    + MAX_MAPPING_REQUEST_SIZE_SETTING.getKey()
+                    + "]"
+            );
+        }
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         PutMappingRequest putMappingRequest = new PutMappingRequest(indices);
 

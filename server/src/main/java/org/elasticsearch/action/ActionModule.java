@@ -901,7 +901,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSimulateIngestAction());
         registerHandler.accept(new RestSimulateTemplateAction());
 
-        registerHandler.accept(new RestPutMappingAction());
+        registerHandler.accept(new RestPutMappingAction(settings, clusterSettings));
         registerHandler.accept(new RestGetMappingAction());
         registerHandler.accept(new RestGetFieldMappingAction());
 

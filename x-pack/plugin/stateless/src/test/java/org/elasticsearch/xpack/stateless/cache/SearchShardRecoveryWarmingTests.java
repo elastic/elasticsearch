@@ -164,15 +164,15 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             threadPool,
             telemetryProvider,
             clusterSettings,
-            new DefaultWarmingRatioProviderFactory().create(clusterSettings),
             new SearchRecoveryTimeoutCalculationService(cacheService, threadPool, clusterSettings, ByteSizeValue.ZERO)
         ) {
             @Override
             protected void warmCache(
-                SharedBlobCacheWarmingService.Type type,
+                Type type,
                 IndexShard indexShard,
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
+                WarmingRatioProvider warmingRatioProvider,
                 @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                 boolean preWarmForIdLookup,
                 ActionListener<Void> listener
@@ -231,7 +231,15 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ClusterState state = clusterStateOneSearchReplica("idx", STARTED);
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().getFirst();
-            service.warmCacheForSearchShardRecovery(() -> state, mockIndexShard(self), null, null, null, resume);
+            service.warmCacheForSearchShardRecovery(
+                () -> state,
+                mockIndexShard(self),
+                null,
+                null,
+                mock(WarmingRatioProvider.class),
+                null,
+                resume
+            );
             // recovery is resumed
             assertTrue(resume.isDone());
             // make sure warming started running
@@ -293,6 +301,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockIndexShard(self),
                 null,
                 mockDirectory(),
+                mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
                 resume
             );
@@ -348,6 +357,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockIndexShard(self),
                 null,
                 null,
+                mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
                 resume
             );
@@ -412,6 +422,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockIndexShard(self),
                 null,
                 mockDirectory(),
+                mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L, 1L)),
                 resume
             );

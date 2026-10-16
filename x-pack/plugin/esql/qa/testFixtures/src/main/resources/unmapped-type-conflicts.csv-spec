@@ -669,9 +669,7 @@ c:long | last_name:keyword
 // employees_no_gender doesn't have the gender field in its mappings, so its values are null.
 // employees_gender_text has gender mapped as a TEXT field.
 typeConflictPartiallyUnmappedTextFieldNotLoaded
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -679,7 +677,7 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 | SORT emp_no, _index
 | LIMIT 6
 ;
-warning:Field [gender] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [gender] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
 
 emp_no:integer | gender:text           | _index:keyword
 10001          | M                     | employees_gender_text
@@ -692,9 +690,7 @@ emp_no:integer | gender:text           | _index:keyword
 
 
 typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -703,7 +699,7 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 | LIMIT 6
 ;
 
-warning:Field [gender] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [gender] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
 emp_no:integer | gender:text           | _index:keyword
 10001          | M                     | employees_gender_text
 10001          | null                  | employees_no_gender
@@ -3296,16 +3292,14 @@ addresses_no_continent  | Tokyo             | Milky Way
 // Same as above, but using addresses_text where galaxy is mapped as text (non-keyword).
 // Without a cast, galaxy is a regular text field: values from addresses_text, null from addresses_no_continent.
 deeplyNestedNonKeywordSubfieldUnderPartiallyUnmappedParentNotCast
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
 FROM addresses_text, addresses_no_continent METADATA _index
 | KEEP _index, city.country.continent.planet.galaxy
 | SORT _index
 ;
-warning:Field [city.country.continent.planet.galaxy] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [city.country.continent.planet.galaxy] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
 
 _index:keyword           | city.country.continent.planet.galaxy:text
 addresses_no_continent   | null
@@ -3320,16 +3314,14 @@ addresses_text           | Milky Way
 // Without a cast, it's a regular field: values from addresses_text, null from addresses_no_continent.
 // Note: city.name has a type conflict (keyword vs text) across these indices, so we avoid referencing it.
 deeplyNestedNonKeywordSubfieldPartiallyUnmappedNotCast
-required_capability: optional_fields_v5
-required_capability: optional_fields_fix_load_partially_mapped
-required_capability: optional_fields_warn_non_loadable_punk
+required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="load"\;
 FROM addresses_text, addresses_no_continent METADATA _index
 | KEEP _index, city.country.continent.name
 | SORT _index
 ;
-warning:Field [city.country.continent.name] of type [text] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+warning:Field [city.country.continent.name] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
 ignoreOrder:true
 
 _index:keyword           | city.country.continent.name:text

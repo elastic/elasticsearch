@@ -354,6 +354,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
 
         /**
+         * Emit a single, shorter warning for all partially unmapped fields from {@link #OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK},
+         * listing a bounded number of field names, instead of one warning per field.
+         * See https://github.com/elastic/elasticsearch/issues/161968.
+         */
+        OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK_COMBINED,
+
+        /**
          * With {@code unmapped_fields="nullify"} or {@code "load"}, a {@code DROP} wildcard that matches no field is a no-op
          * instead of failing with "No matches found for pattern".
          * See https://github.com/elastic/elasticsearch/issues/143226
@@ -3629,6 +3636,13 @@ public class EsqlCapabilities {
          * gate the external csv-spec tests asserting the {@code null}, which such nodes still fail.
          */
         FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
+
+        /**
+         * {@code TS} no longer drops rows that only have values for aggregated inputs that aren't mapped as metrics, such as
+         * converted metrics ({@code metric::double}) or values computed in an {@code EVAL}. Older nodes returned {@code null}
+         * for these aggregations when another metric was aggregated in the same {@code STATS}.
+         */
+        FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

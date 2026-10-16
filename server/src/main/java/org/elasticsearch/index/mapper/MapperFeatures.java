@@ -137,6 +137,9 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
     public static final NodeFeature PUT_MAPPING_NO_TYPES_CHECK = new NodeFeature("indices.put_mapping.no_types_check");
+    public static final NodeFeature MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX = new NodeFeature(
+        "mapper.multi_valued_binary_index_sort_sparse_fix"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -173,6 +176,7 @@ public class MapperFeatures implements FeatureSpecification {
             IVF_FORMAT_CLUSTER_FEATURE,
             IVF_NESTED_SUPPORT,
             BBQ_DISK_SUPPORT,
+            DISK_BBQ_STABLE_FORMAT_SELECTION,
             SEARCH_LOAD_PER_SHARD,
             SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
             PATTERN_TEXT,
@@ -233,7 +237,7 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
             DOC_VALUES_NULLABILITY,
             PUT_MAPPING_NO_TYPES_CHECK,
-            DISK_BBQ_STABLE_FORMAT_SELECTION
+            MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX
         );
     }
 }

@@ -11,6 +11,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -43,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -383,7 +387,12 @@ public final class SplitDiscoveryPhase {
         ExternalPlanningIo planningIo = ExternalPlanningIo.current();
         PhysicalPlan resolved;
         try (Releasable ignored = ExternalPlanningIo.activate(planningIo)) {
-            resolved = resolveRecursive(plan, seedFilters, seedRowLimit, traversal);
+            resolved = resolveRecursive(
+                plan,
+                seedFilters,
+                seedRowLimit,
+                (exec, filters, limit) -> resolveExternalSource(exec, filters, limit, traversal)
+            );
         }
         return new Result(
             resolved,
@@ -510,14 +519,27 @@ public final class SplitDiscoveryPhase {
         ActionListener.run(listener, l -> {
             ScanStats stats = new ScanStats();
             ExternalPlanningIo planningIo = ExternalPlanningIo.current();
-            resolveRecursiveAsync(
-                plan,
-                seedFilters,
-                seedRowLimit,
+            // Walk the plan synchronously and only go async per source: a listener per plan node grows the stack with
+            // plan depth whenever discovery completes inline, which overflowed the search thread on deep plans.
+            List<PendingSource> pending = new ArrayList<>();
+            resolveRecursive(plan, seedFilters, seedRowLimit, (exec, filters, rowLimit) -> {
+                pending.add(new PendingSource(exec, filters, rowLimit));
+                return exec;
+            });
+            List<PhysicalPlan> resolvedSources = new ArrayList<>(pending.size());
+            resolveSourcesAsync(
+                pending,
+                resolvedSources,
                 new Traversal(sourceFactories, maxRecordBytes, stats, isCancelled, listingMemory, taskConcurrency, minTransportVersion),
                 wrapPlanningIo(executor, planningIo),
-                l.map(
-                    resolved -> new Result(
+                l.map(ignored -> {
+                    Iterator<PhysicalPlan> next = resolvedSources.iterator();
+                    PhysicalPlan resolved = resolveRecursive(plan, seedFilters, seedRowLimit, (exec, filters, rowLimit) -> {
+                        assert next.hasNext() : "split discovery substituted more sources than it resolved";
+                        return next.next();
+                    });
+                    assert next.hasNext() == false : "split discovery substituted fewer sources than it resolved";
+                    return new Result(
                         resolved,
                         stats.filesScanned,
                         stats.splitsScanned,
@@ -525,10 +547,46 @@ public final class SplitDiscoveryPhase {
                         stats.cpuNanos,
                         List.copyOf(stats.warnings),
                         stats.splitDiscoveryProbes
-                    )
-                )
+                    );
+                })
             );
         });
+    }
+
+    /**
+     * Resolves one {@link ExternalSourceExec} given the filters and row demand reaching it. Lets the sync walk be
+     * shared: sync discovery resolves in place, async discovery collects first and substitutes the results after.
+     */
+    @FunctionalInterface
+    private interface SourceResolver {
+        PhysicalPlan resolve(ExternalSourceExec exec, List<Expression> ancestorFilters, int rowLimit);
+    }
+
+    private record PendingSource(ExternalSourceExec exec, List<Expression> ancestorFilters, int rowLimit) {}
+
+    /**
+     * Resolves {@code pending} in plan order, appending each result to {@code resolved}, and stops at the first failure.
+     * {@link ThrottledIterator} with one permit loops rather than recurses when a source completes inline, so the stack
+     * doesn't grow with the number of sources; one at a time also keeps the shared {@link ScanStats} single-writer.
+     */
+    private static void resolveSourcesAsync(
+        List<PendingSource> pending,
+        List<PhysicalPlan> resolved,
+        Traversal traversal,
+        Executor executor,
+        ActionListener<Void> listener
+    ) {
+        try (RefCountingListener listeners = new RefCountingListener(listener)) {
+            ThrottledIterator.run(
+                Iterators.failFast(pending.iterator(), listeners::isFailing),
+                (release, source) -> ActionListener.run(
+                    ActionListener.releaseAfter(listeners.<PhysicalPlan>acquire(resolved::add), release),
+                    l -> resolveExternalSourceAsync(source.exec(), source.ancestorFilters(), source.rowLimit(), traversal, executor, l)
+                ),
+                1,
+                () -> {}
+            );
+        }
     }
 
     /**
@@ -562,93 +620,14 @@ public final class SplitDiscoveryPhase {
         TransportVersion minTransportVersion
     ) {}
 
-    private static void resolveRecursiveAsync(
+    private static PhysicalPlan resolveRecursive(
         PhysicalPlan plan,
         List<Expression> ancestorFilters,
         int rowLimit,
-        Traversal traversal,
-        Executor executor,
-        ActionListener<PhysicalPlan> listener
+        SourceResolver sourceResolver
     ) {
         if (plan instanceof ExternalSourceExec exec) {
-            resolveExternalSourceAsync(exec, ancestorFilters, rowLimit, traversal, executor, listener);
-            return;
-        }
-
-        List<Expression> filtersForChildren = PartitionPruningRule.rowPreserving(plan) ? ancestorFilters : List.of();
-        if (plan instanceof FilterExec filterExec) {
-            List<Expression> extended = new ArrayList<>(filtersForChildren);
-            for (Expression conjunction : splitAnd(filterExec.condition())) {
-                extended.add(conjunction);
-            }
-            filtersForChildren = List.copyOf(extended);
-        }
-
-        List<PhysicalPlan> children = plan.children();
-        if (children.isEmpty()) {
-            listener.onResponse(plan);
-            return;
-        }
-
-        resolveChildrenAsync(
-            plan,
-            children,
-            0,
-            new ArrayList<>(children.size()),
-            filtersForChildren,
-            FormatReader.NO_LIMIT,
-            traversal,
-            executor,
-            listener
-        );
-    }
-
-    private static void resolveChildrenAsync(
-        PhysicalPlan plan,
-        List<PhysicalPlan> children,
-        int index,
-        List<PhysicalPlan> newChildren,
-        List<Expression> filtersForChildren,
-        int rowLimit,
-        Traversal traversal,
-        Executor executor,
-        ActionListener<PhysicalPlan> listener
-    ) {
-        if (index >= children.size()) {
-            boolean changed = false;
-            for (int i = 0; i < children.size(); i++) {
-                if (newChildren.get(i) != children.get(i)) {
-                    changed = true;
-                    break;
-                }
-            }
-            if (changed == false) {
-                listener.onResponse(plan);
-                return;
-            }
-            if (plan instanceof UnaryExec unary && newChildren.size() == 1) {
-                listener.onResponse(unary.replaceChild(newChildren.get(0)));
-                return;
-            }
-            listener.onResponse(plan.replaceChildren(newChildren));
-            return;
-        }
-        resolveRecursiveAsync(
-            children.get(index),
-            filtersForChildren,
-            rowLimit,
-            traversal,
-            executor,
-            listener.delegateFailureAndWrap((l, resolved) -> {
-                newChildren.add(resolved);
-                resolveChildrenAsync(plan, children, index + 1, newChildren, filtersForChildren, rowLimit, traversal, executor, l);
-            })
-        );
-    }
-
-    private static PhysicalPlan resolveRecursive(PhysicalPlan plan, List<Expression> ancestorFilters, int rowLimit, Traversal traversal) {
-        if (plan instanceof ExternalSourceExec exec) {
-            return resolveExternalSource(exec, ancestorFilters, rowLimit, traversal);
+            return sourceResolver.resolve(exec, ancestorFilters, rowLimit);
         }
 
         List<Expression> filtersForChildren = PartitionPruningRule.rowPreserving(plan) ? ancestorFilters : List.of();
@@ -665,10 +644,12 @@ public final class SplitDiscoveryPhase {
             return plan;
         }
 
+        // A plain loop, not a stream: this recursion is one level per plan node, and stream pipelines add ~12 frames
+        // per level, enough for a ~500-command query to overflow the stack.
         boolean changed = false;
         List<PhysicalPlan> newChildren = new ArrayList<>(children.size());
         for (PhysicalPlan child : children) {
-            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, FormatReader.NO_LIMIT, traversal);
+            PhysicalPlan resolved = resolveRecursive(child, filtersForChildren, FormatReader.NO_LIMIT, sourceResolver);
             if (resolved != child) {
                 changed = true;
             }

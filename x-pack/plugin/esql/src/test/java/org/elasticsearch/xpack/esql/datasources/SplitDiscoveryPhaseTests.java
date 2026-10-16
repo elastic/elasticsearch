@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
@@ -48,9 +49,12 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.time.Instant;
@@ -64,6 +68,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 
 public class SplitDiscoveryPhaseTests extends ESTestCase {
 
@@ -1173,6 +1181,136 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         assertEquals(sync.filesScanned(), async.filesScanned());
         assertEquals(FileList.EMPTY, ((ExternalSourceExec) async.plan()).fileList());
         assertEquals(((ExternalSourceExec) sync.plan()).fileList(), ((ExternalSourceExec) async.plan()).fileList());
+    }
+
+    /**
+     * Async discovery must not grow the stack with plan depth. A provider that completes inline is the worst case: a
+     * listener per plan node keeps every level on the stack, and a few hundred chained commands were enough to overflow
+     * a 1 MB search thread and halt the node. Compares stack depths rather than provoking an overflow, because the depth
+     * at which a thread overflows varies with JIT state.
+     */
+    public void testAsyncDiscoveryStackDepthDoesNotGrowWithPlanDepth() {
+        int[] shallow = asyncDiscoveryStackDepths(deepPlan(1));
+        int[] deep = asyncDiscoveryStackDepths(deepPlan(500));
+        assertThat("stack depth when discovery reaches the provider", deep[0] - shallow[0], lessThan(10));
+        assertThat("stack depth when discovery completes", deep[1] - shallow[1], lessThan(10));
+    }
+
+    /**
+     * Async discovery must not grow the stack with the number of sources either. Sources are resolved one after another,
+     * so a chain that nests a listener per source grows the stack the same way when every source completes inline.
+     */
+    public void testAsyncDiscoveryStackDepthDoesNotGrowWithSourceCount() {
+        int[] narrow = asyncDiscoveryStackDepths(widePlan(1));
+        int[] wide = asyncDiscoveryStackDepths(widePlan(500));
+        assertThat("stack depth when discovery reaches the provider", wide[0] - narrow[0], lessThan(10));
+        assertThat("stack depth when discovery completes", wide[1] - narrow[1], lessThan(10));
+    }
+
+    /** Async discovery fails with the first failing source and doesn't go on to discover the rest. */
+    public void testAsyncDiscoveryStopsAtTheFirstFailure() {
+        AtomicLong calls = new AtomicLong();
+        SplitProvider failing = context -> {
+            calls.incrementAndGet();
+            throw new IllegalStateException("boom");
+        };
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            widePlan(3),
+            Map.of("parquet", testFactory(failing)),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+        assertThat(e.getMessage(), containsString("failed to discover splits for external source"));
+        assertEquals(1, calls.get());
+    }
+
+    /**
+     * A node whose children only partly change keeps every child, in order: the resolved source and the untouched
+     * sibling alike.
+     */
+    public void testDiscoveryKeepsUnchangedSiblings() {
+        ExternalSourceExec source = createExternalSourceExec(createFileList(3), "parquet");
+        LocalSourceExec sibling = new LocalSourceExec(SRC, source.output(), EmptyLocalSupplier.EMPTY);
+        MergeExec plan = new MergeExec(SRC, List.of(source, sibling), source.output(), MergeExec.Kind.UNION);
+        SplitDiscoveryResult fixed = new SplitDiscoveryResult(List.of(), 0, true, 0L);
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(new FixedSplitProvider(fixed)));
+
+        PhysicalPlan sync = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
+            plan,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        ).plan();
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            plan,
+            factories,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            future
+        );
+        PhysicalPlan async = future.actionGet(30, TimeUnit.SECONDS).plan();
+
+        for (PhysicalPlan resolved : List.of(sync, async)) {
+            List<PhysicalPlan> children = resolved.children();
+            assertThat(children, hasSize(2));
+            assertEquals(FileList.EMPTY, ((ExternalSourceExec) children.get(0)).fileList());
+            assertSame(sibling, children.get(1));
+        }
+    }
+
+    /** One source under {@code depth} {@link LimitExec}s. */
+    private static PhysicalPlan deepPlan(int depth) {
+        PhysicalPlan plan = createExternalSourceExec(createFileList(3), "parquet");
+        for (int i = 0; i < depth; i++) {
+            plan = new LimitExec(SRC, plan, new Literal(SRC, 10, DataType.INTEGER), null);
+        }
+        return plan;
+    }
+
+    /** {@code width} sources side by side under one {@link MergeExec}. */
+    private static PhysicalPlan widePlan(int width) {
+        List<PhysicalPlan> sources = new ArrayList<>(width);
+        for (int i = 0; i < width; i++) {
+            sources.add(createExternalSourceExec(createFileList(3), "parquet"));
+        }
+        return new MergeExec(SRC, sources, sources.get(0).output(), MergeExec.Kind.UNION);
+    }
+
+    /**
+     * Runs async discovery inline over {@code plan} and returns the deepest stack seen by the provider and the stack depth
+     * seen by the completion listener. Checks that every source was resolved.
+     */
+    private static int[] asyncDiscoveryStackDepths(PhysicalPlan plan) {
+        int[] depths = new int[2];
+        SplitDiscoveryResult fixed = new SplitDiscoveryResult(List.of(), 0, true, 0L);
+        SplitProvider recordingDepth = context -> {
+            depths[0] = Math.max(depths[0], stackDepth());
+            return fixed;
+        };
+        PlainActionFuture<SplitDiscoveryPhase.Result> future = new PlainActionFuture<>();
+        SplitDiscoveryPhase.resolveExternalSplitsWithStatsAsync(
+            plan,
+            Map.of("parquet", testFactory(recordingDepth)),
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            List.of(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ActionListener.runBefore(future, () -> depths[1] = stackDepth())
+        );
+        PhysicalPlan resolved = future.actionGet(30, TimeUnit.SECONDS).plan();
+        resolved.forEachDown(ExternalSourceExec.class, exec -> assertEquals(FileList.EMPTY, exec.fileList()));
+        return depths;
+    }
+
+    private static int stackDepth() {
+        return StackWalker.getInstance().walk(frames -> (int) frames.count());
     }
 
     public void testSyncDiscoveryPreservesFoldedStatistics() {

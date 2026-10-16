@@ -418,9 +418,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testPeerRecovery
   issue: https://github.com/elastic/elasticsearch/issues/161463
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testManyDissectFromRow
-  issue: https://github.com/elastic/elasticsearch/issues/161465
 - class: org.elasticsearch.xpack.ml.action.datafeed.DatafeedEsqlGatesTests
   method: testValidateDatafeedCreateEsqlDatafeedOnUpgradedClusterShouldSucceed
   issue: https://github.com/elastic/elasticsearch/issues/161484

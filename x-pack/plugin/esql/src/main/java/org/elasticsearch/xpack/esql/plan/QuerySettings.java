@@ -162,6 +162,10 @@ public final class QuerySettings {
         )
         .withDefault(UnmappedResolution.DEFAULT)
         .withClusterDefault()
+        .withTelemetryLabels(
+            Arrays.stream(UnmappedResolution.values()).map(UnmappedResolution::settingValue).toList(),
+            UnmappedResolution::settingValue
+        )
         .build();
 
     @Param(
@@ -265,6 +269,12 @@ public final class QuerySettings {
         .withAliasAtRoot()
         .withReconciler((previous, current) -> new ApproximationSettings.Builder(false).merge(previous).merge(current).build())
         .withClusterDefault("false")
+        .withTelemetryLabels(List.of("false", "true", "map"), value -> {
+            if (ApproximationSettings.isOn(value) == false) {
+                return "false";
+            }
+            return ApproximationSettings.DEFAULT.equals(value) ? "true" : "map";
+        })
         .streamFormat((out, value) -> value.writeTo(out), ApproximationSettings::new)
         .build();
 
@@ -473,7 +483,7 @@ public final class QuerySettings {
      * above is only the fold, without those overrides.
      *
      * @param licenseState the license of the cluster, which decides what an operator's default for approximation means
-     * @param loadAllMaxFields the limit on the fields {@code unmapped_fields="LOAD_ALL"} discovers
+     * @param loadAllMaxFields the value of {@code esql.query.unmapped_fields.load_all_max_fields}; only {@code 0} has an effect
      */
     public static ResolvedSettings resolve(
         Settings clusterState,
@@ -524,7 +534,7 @@ public final class QuerySettings {
     }
 
     /**
-     * A limit of {@code 0} on the fields {@code LOAD_ALL} discovers makes {@code LOAD_ALL} discover nothing, which is what
+     * A {@code load_all_max_fields} of {@code 0} makes {@code LOAD_ALL} discover nothing, which is what
      * {@code LOAD} is. Resolve it to {@code LOAD} then, so that every phase of the query sees {@code LOAD}: no
      * {@code _unmapped_fields} column is planned and shipped from the data nodes only to be dropped, and the restrictions
      * that only {@code LOAD_ALL} has do not apply.

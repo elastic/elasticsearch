@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -320,11 +321,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return aliasFilterMap;
     }
 
+    /**
+     * Validates the slice/routing combination of a search request. A {@code _slice} is accepted even when none of the targeted
+     * indices is slice-enabled: indices without slices hold no document of any slice, so they contribute no hits.
+     */
     static String validateAndResolveSearchSliceRouting(
         SearchRequest searchRequest,
         Map<Index, IndexMetadata> concreteLocalIndicesMetadata,
-        String[] requestedIndices,
-        boolean hasRemoteIndices
+        String[] requestedIndices
     ) {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
             return null;
@@ -343,8 +347,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest.routing(),
             requestedSlice,
             "search request",
-            target,
-            hasRemoteIndices
+            target
         );
         return requestedSlice;
     }
@@ -1905,12 +1908,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // No user preference defined in search request - apply cluster service default
             searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
         }
-        validateAndResolveSearchSliceRouting(
-            searchRequest,
-            resolvedIndices.getConcreteLocalIndicesMetadata(),
-            searchRequest.indices(),
-            remoteShardIterators.isEmpty() == false
-        );
+        validateAndResolveSearchSliceRouting(searchRequest, resolvedIndices.getConcreteLocalIndicesMetadata(), searchRequest.indices());
 
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
@@ -2600,6 +2598,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
 
                 OriginalIndices finalIndices = new OriginalIndices(new String[] { shardId.getIndexName() }, indicesOptions);
+                final IndexMetadata indexMetadata = projectState.metadata().index(shardId.getIndex());
+                // A deleted index has no target nodes, so this iterator is never sent and IRRELEVANT is never serialized.
+                final SplitShardCountSummary splitShardCountSummary = indexMetadata == null
+                    ? SplitShardCountSummary.IRRELEVANT
+                    : SplitShardCountSummary.forSearch(indexMetadata, shardId.id());
                 iterators.add(
                     new SearchShardIterator(
                         localClusterAlias,
@@ -2616,10 +2619,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // In context of PIT the searcher is reused or can be recreated only in read-only scenarios.
                         // If a searcher is reused, this value won't be used
                         // (it was calculated and used when PIT was created).
-                        // If the searcher is recreated, which will happen when PITs are relocatable, then we should supply
-                        // the same summary when recreating the search that was first used in order to produce the same
-                        // filtering decision. See ES-13264 for the work needed when relocatable PITs land.
-                        SplitShardCountSummary.UNSET
+                        // If the search is recreated via PIT relocation, the summary is supplied through OpenPITReshardingState.
+                        splitShardCountSummary
                     )
                 );
             }
@@ -2688,15 +2689,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // optimization: mostly we do not have any blocks so there's no point in the expensive per-index checking
         boolean hasIndexBlocks = projectState.blocks().indices(projectState.projectId()).isEmpty() == false;
         if (hasIndexBlocks) {
-            return Arrays.stream(concreteIndices)
-                .filter(
-                    index -> projectState.blocks()
-                        .hasIndexBlock(projectState.projectId(), index, IndexMetadata.INDEX_REFRESH_BLOCK) == false
-                )
-                .toArray(String[]::new);
+            return Arrays.stream(concreteIndices).filter(index -> isBlockedForSearch(projectState, index) == false).toArray(String[]::new);
         }
         return concreteIndices;
 
+    }
+
+    /**
+     * The master removes {@link IndexMetadata#INDEX_REFRESH_BLOCK} once the index is {@link IndexRoutingTable#readyForSearch()}, but it
+     * applies that cluster state after the other nodes do. A {@code refresh=true} write can therefore return before this node sees the
+     * block removed, so the block alone must not hide an index whose search shards are already active.
+     */
+    private static boolean isBlockedForSearch(ProjectState projectState, String index) {
+        if (projectState.blocks().hasIndexBlock(projectState.projectId(), index, IndexMetadata.INDEX_REFRESH_BLOCK) == false) {
+            return false;
+        }
+        IndexRoutingTable indexRoutingTable = projectState.routingTable().index(index);
+        return indexRoutingTable == null || indexRoutingTable.readyForSearch() == false;
     }
 
     private static class SearchTelemetryListener extends DelegatingActionListener<SearchResponse, SearchResponse> {

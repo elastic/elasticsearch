@@ -14,5 +14,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
  * The exact implementation is provided via SPI. If none is provided, {@link DefaultWarmingRatioProviderFactory} is used.
  */
 public interface WarmingRatioProviderFactory {
+    /**
+     * Invoked once per search shard recovery; implementations must not register settings consumers.
+     * Read the current setting values instead.
+     */
     WarmingRatioProvider create(ClusterSettings clusterSettings);
 }

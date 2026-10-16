@@ -81,10 +81,6 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         assertThat(preLaneCopy.getShardSearchLaneRequirements(), equalTo(Map.of()));
     }
 
-    private static double randomWriteLoadProportion() {
-        return randomDoubleBetween(0.0, 1.0, true);
-    }
-
     @Override
     protected Writeable.Reader<ClusterInfo> instanceReader() {
         return ClusterInfo::new;
@@ -195,7 +191,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             final NodeHeapMetrics nodeHeapMetrics = new NodeHeapMetrics(
                 randomAlphaOfLength(4),
                 maxHeapSize,
-                new NodeHeapEstimates(totalHeapUsage, randomLongBetween(0, totalHeapUsage))
+                new NodeHeapEstimates(totalHeapUsage, randomLongBetween(0, totalHeapUsage), randomNonNegativeLong())
             );
             nodeHeapUsage.put(key, nodeHeapMetrics);
         }

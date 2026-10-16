@@ -294,7 +294,7 @@ required_capability: match_operator_colon
 required_capability: qstr_function
 
 from employees 
-| where job_positions:"Data Scientist" and qstr("job_positions: (Support Engineer) and gender: F")
+| where job_positions:"Data Scientist" and qstr("job_positions: (Support Engineer) OR gender: F")
 | keep emp_no, first_name, last_name;
 ignoreOrder:true
 
@@ -1165,6 +1165,26 @@ FROM employees
 emp_no:integer | full_name:keyword
 10006          | Anneke Preusig
 10014          | Berni Genin
+;
+
+matchOnMvMinOfKeyword
+required_capability: match_operator_colon
+required_capability: fn_match_fused_field_load_fix
+
+// MV_MIN is fused into the field load on the data node; that load has no indexed Lucene field behind it, so the
+// match still has to run at runtime
+FROM employees
+| WHERE emp_no <= 10025 AND MV_MIN(job_positions):"Accountant"
+| SORT emp_no
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10001          | [Accountant, Senior Python Developer]
+10012          | [Accountant, Head Human Resources]
+10016          | [Accountant, Purchase Manager, Python Developer, Reporting Analyst]
+10023          | [Accountant, Purchase Manager, Support Engineer]
+10025          | Accountant
 ;
 
 matchOnRuntimeKeywordWithRow

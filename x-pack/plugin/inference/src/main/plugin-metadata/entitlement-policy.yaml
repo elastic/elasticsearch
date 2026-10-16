@@ -4,6 +4,14 @@ oauth2.oidc.sdk:
 com.google.api.client:
   - set_https_connection_properties
   - outbound_network
+org.apache.httpcomponents.httpclient:
+  - outbound_network
+  - manage_threads
+org.apache.httpcomponents.httpcore.nio:
+  - outbound_network
+  - manage_threads
+org.apache.httpcomponents.httpasyncclient:
+  - manage_threads
 software.amazon.awssdk.utils:
   - manage_threads
   - outbound_network

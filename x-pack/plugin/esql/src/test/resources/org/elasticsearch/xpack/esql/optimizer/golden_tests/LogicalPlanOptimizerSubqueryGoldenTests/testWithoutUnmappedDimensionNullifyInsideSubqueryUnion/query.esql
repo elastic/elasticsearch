@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify";
+FROM employees, (TS k8s | STATS max_cost = MAX(network.cost) BY WITHOUT(missing_dimension))
+| KEEP emp_no, max_cost, _timeseries

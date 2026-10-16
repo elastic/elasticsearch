@@ -18,6 +18,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.hamcrest.Matcher;
@@ -677,6 +678,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
      * {@code foo} is flattened in only one index.
      */
     public void testLoadSetInsideViewRejectsFlattenedSubfield() {
+        assumeFalse("without flattened subfields", EsqlPlugin.FLATTENED_SUBFIELDS_FEATURE_FLAG.isEnabled());
         assertAcked(indicesAdmin().prepareCreate("flat_a").setMapping("""
             {"dynamic": false, "properties": {"id": {"type": "integer"}, "foo": {"type": "flattened"}}}
             """));
@@ -698,6 +700,49 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             expectThrows(VerificationException.class, containsString(error), () -> run("SET unmapped_fields=\"load\"; " + body).close());
             assertAcked(createView(viewName, "SET unmapped_fields=\"load\"; " + body));
             expectThrows(VerificationException.class, containsString(error), () -> run("FROM " + viewName).close());
+        }
+    }
+
+    /**
+     * A key of a flattened field is a keyword field, so a view that SETs {@code load} reads it as the query does. {@code foo} is
+     * flattened in {@code flat_a}, {@code foo.bar} is a keyword in {@code flat_b} and {@code flat_c} maps neither.
+     */
+    public void testLoadSetInsideViewReadsFlattenedKeys() {
+        assumeTrue("requires flattened subfields", EsqlPlugin.FLATTENED_SUBFIELDS_FEATURE_FLAG.isEnabled());
+        assertAcked(indicesAdmin().prepareCreate("flat_a").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}, "foo": {"type": "flattened"}}}
+            """));
+        assertAcked(indicesAdmin().prepareCreate("flat_b").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}, "foo.bar": {"type": "keyword"}}}
+            """));
+        assertAcked(indicesAdmin().prepareCreate("flat_c").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}}}
+            """));
+        prepareIndex("flat_a").setSource("id", 1, "foo", Map.of("a", "x", "bar", "x"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        prepareIndex("flat_b").setSource("id", 2, "foo", Map.of("bar", "x")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("flat_c").setSource("id", 3, "foo", Map.of("a", "y")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        List<String> bodies = List.of(
+            "FROM flat_a | KEEP foo.a",
+            "FROM flat_a, flat_b | WHERE foo.bar == \"x\" | KEEP id | SORT id",
+            "FROM flat_a, flat_c | KEEP id, foo.a | SORT id"
+        );
+        List<List<List<Object>>> expected = List.of(
+            List.of(List.of("x")),
+            List.of(List.of(1), List.of(2)),
+            List.of(List.of(1, "x"), List.of(3, "y"))
+        );
+        for (int i = 0; i < bodies.size(); i++) {
+            String body = "SET unmapped_fields=\"load\"; " + bodies.get(i);
+            try (var resp = run(body)) {
+                assertThat(body, getValuesList(resp), equalTo(expected.get(i)));
+            }
+            String viewName = "flat_keys_view_" + i;
+            assertAcked(createView(viewName, body));
+            try (var resp = run("FROM " + viewName)) {
+                assertThat(viewName, getValuesList(resp), equalTo(expected.get(i)));
+            }
         }
     }
 

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -26,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -85,7 +87,7 @@ public class FlattenedConflictsIT extends ESRestTestCase {
      * {@code features.topic_id} is {@code integer} (element type INT) in one
      * index and a sub-key of a {@code flattened} field in another.
      * With an explicit {@code ::long} cast the coordinator resolves the union
-     * but the converter must be applied on both the integer and flattened shards.
+     * and the converter is applied on both the integer and flattened shards.
      */
     public void testIntegerVsFlattenedWithCast() throws Exception {
         testIntegerVsFlattenedWithCast(nodeNames.get(0), nodeNames.get(1));
@@ -114,14 +116,32 @@ public class FlattenedConflictsIT extends ESRestTestCase {
         refresh("idx_date");
         refresh("idx_flat_date");
 
-        // The flattened sub-key is not in the real mapping so the data node treats it
-        // as absent — only the 5 docs from the date index contribute.
-        List<List<Object>> values = esql("""
+        if (flattenedKeys() == false) {
+            // The flattened sub-key is not in the real mapping so the data node treats it
+            // as absent — only the 5 docs from the date index contribute.
+            List<List<Object>> values = esql("""
+                FROM idx_date, idx_flat_date
+                | STATS c = COUNT(metadata.time)
+                """);
+            assertThat(values.size(), equalTo(1));
+            assertThat(values.get(0).get(0), equalTo(5));
+            return;
+        }
+
+        // The flattened sub-key is a keyword, so without a cast the field is a date in one index and a keyword in the other
+        ResponseException e = expectThrows(ResponseException.class, () -> esql("""
             FROM idx_date, idx_flat_date
             | STATS c = COUNT(metadata.time)
+            """));
+        assertThat(e.getMessage(), containsString("Cannot use field [metadata.time] due to ambiguities"));
+
+        // With a cast every index converts its own value
+        List<List<Object>> values = esql("""
+            FROM idx_date, idx_flat_date
+            | STATS c = COUNT(metadata.time::datetime)
             """);
         assertThat(values.size(), equalTo(1));
-        assertThat(values.get(0).get(0), equalTo(5));
+        assertThat(values.get(0).get(0), equalTo(10));
     }
 
     public void testIntegerVsFlattenedWithCast(String node1, String node2) throws Exception {
@@ -142,13 +162,18 @@ public class FlattenedConflictsIT extends ESRestTestCase {
         refresh("idx_obj_int");
         refresh("idx_flat_int");
 
-        // int sum: 1+2+...+10 = 55; flattened sub-key treated as absent.
+        // int sum: 1+2+...+10 = 55, plus the flattened sub-keys converted to long: 10+20+...+50 = 150.
+        // Without flattened keys the flattened sub-key is treated as absent.
         List<List<Object>> values = esql("""
             FROM idx_obj_int, idx_flat_int
             | STATS s = SUM(features.topic_id::long)
             """);
         assertThat(values.size(), equalTo(1));
-        assertThat(values.get(0).get(0), equalTo(55));
+        assertThat(values.get(0).get(0), equalTo(flattenedKeys() ? 205 : 55));
+    }
+
+    private static boolean flattenedKeys() throws IOException {
+        return clusterHasCapability("POST", "/_query", List.of(), List.of("flattened_subfields")).orElse(false);
     }
 
     private void createIndexPinned(String name, String mapping, String node) throws IOException {

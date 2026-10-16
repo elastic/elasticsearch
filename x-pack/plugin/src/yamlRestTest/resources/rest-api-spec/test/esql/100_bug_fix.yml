@@ -77,7 +77,15 @@
 "unsupported and invalid mapped fields":
   - requires:
       cluster_features: ["gte_v8.13.0"]
+      test_runner_features: [ capabilities ]
       reason: "fixes in 8.13 or later"
+  - skip:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A name is mapped only where it is a leaf"
   - do:
       indices.create:
         index: index1
@@ -140,6 +148,81 @@
   - match: { values.1.1: null }
   - match: { values.1.2: index2 }
   - match: { values.2.0: null }
+  - match: { values.2.1: null }
+  - match: { values.2.2: index1 }
+
+---
+"unsupported and invalid mapped fields with flattened subfields":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_subfields ]
+      reason: "A name is mapped only where it is a leaf"
+  - do:
+      indices.create:
+        index: index1
+        body:
+          mappings:
+            properties:
+              http:
+                properties:
+                  headers:
+                    type: flattened
+  - do:
+      indices.create:
+        index: index2
+        body:
+          mappings:
+            properties:
+              http:
+                properties:
+                  headers:
+                    properties:
+                      location:
+                        type: keyword
+  - do:
+      indices.create:
+        index: index3
+        body:
+          mappings:
+            properties:
+              http:
+                properties:
+                  headers:
+                    properties:
+                      location:
+                        type: text
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "index1" } }
+          - { "http.headers": { "location": "RO","code": 123 } }
+          - { "index": { "_index": "index2" } }
+          - { "http.headers.location": "US" }
+          - { "index": { "_index": "index3" } }
+          - { "http.headers.location": "CN" }
+  - do:
+      esql.query:
+        body:
+          query: 'from index* metadata _index | limit 5 | sort _index desc'
+  - match: { columns.0.name: http.headers }
+  - match: { columns.0.type: flattened }
+  - match: { columns.1.name: http.headers.location }
+  - match: { columns.1.type: unsupported }
+  - match: { columns.2.name: _index }
+  - match: { columns.2.type: keyword }
+  - length: { values: 3 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: null }
+  - match: { values.0.2: index3 }
+  - match: { values.1.0: null }
+  - match: { values.1.1: null }
+  - match: { values.1.2: index2 }
+  - match: { values.2.0: { code: "123", location: "RO" } }
   - match: { values.2.1: null }
   - match: { values.2.2: index1 }
 

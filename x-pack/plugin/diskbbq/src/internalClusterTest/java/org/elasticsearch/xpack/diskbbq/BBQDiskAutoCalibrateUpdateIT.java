@@ -142,7 +142,6 @@ public class BBQDiskAutoCalibrateUpdateIT extends ESIntegTestCase {
      * calibrated under a different profile, so segments with different persisted quantization and oversample coexist in one shard
      * and every one of them must still be searched correctly.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/162149")
     public void testRecallSurvivesSwitchingBetweenProfiles() throws Exception {
         final int batch = 3500;
         createIndexWithAutoCalibrate("quality");

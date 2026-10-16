@@ -536,3 +536,5 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162240
 - class: org.elasticsearch.search.heappressure.FuzzyHighlightHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/149983
+- class: org.elasticsearch.xpack.esql.datasource.s3.S3StorageObjectAsyncTests
+  issue: https://github.com/elastic/elasticsearch/issues/162263

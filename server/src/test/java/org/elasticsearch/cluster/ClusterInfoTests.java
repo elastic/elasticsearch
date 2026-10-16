@@ -92,10 +92,6 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         assertThat(preSearchLoadCopy.getShardSearchLoads(), equalTo(Map.of()));
     }
 
-    private static double randomWriteLoadProportion() {
-        return randomDoubleBetween(0.0, 1.0, true);
-    }
-
     @Override
     protected Writeable.Reader<ClusterInfo> instanceReader() {
         return ClusterInfo::new;

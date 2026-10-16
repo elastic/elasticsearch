@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 
-import java.util.Arrays;
 import java.util.Set;
 
 public interface GetBuiltinPrivilegesResponseTranslator {
@@ -28,11 +27,7 @@ public interface GetBuiltinPrivilegesResponseTranslator {
     class Default implements GetBuiltinPrivilegesResponseTranslator {
 
         public GetBuiltinPrivilegesResponse translate(GetBuiltinPrivilegesResponse response) {
-            return new GetBuiltinPrivilegesResponse(
-                Arrays.stream(response.getClusterPrivileges()).filter(name -> BOOST_CLUSTER_PRIVILEGES.contains(name) == false).toList(),
-                Arrays.asList(response.getIndexPrivileges()),
-                Arrays.asList(response.getRemoteClusterPrivileges())
-            );
+            return response;
         }
     }
 }

@@ -45,7 +45,7 @@ public final class AutoPrefilteringScope implements Releasable {
     public record ScopedPrefilter(QueryBuilder query, @Nullable NestedObjectMapper nestedLevel) {}
 
     /** Marker frame (compared by identity) pushed by {@link #suspend()}. */
-    private static final List<ScopedPrefilter> SUSPENDED = new ArrayList<>();
+    private static final List<ScopedPrefilter> SUSPENDED = new ArrayList<>(0);
 
     private final Deque<List<ScopedPrefilter>> prefiltersStack = new LinkedList<>();
 

@@ -1091,14 +1091,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 () -> clusterService.getClusterApplierService()
                     .runOnApplierThread("create shard " + shardRouting, Priority.NORMAL, currentState -> {
-                        // This lock-retry task must run under the same lock as handleRecoveryFailure/FailedShardHandler (which run on
-                        // the generic pool), otherwise a recovery failure can race the window between this task (re-)creating the shard
-                        // and the listener observing that, e.g. mutating pendingShardCreations or removing the shard for this
-                        // shardId concurrently, leaving this task to act on stale state once it resumes.
-                        // Synchronizing here is cheap: the shard lock is attempted without waiting, so this task never holds the lock
-                        // for long, and since it already runs on the applier thread, it doesn't delay cluster-state application beyond
-                        // what applyClusterState (also synchronized, and running on that same thread) already does.
-                        // See https://github.com/elastic/elasticsearch/pull/160891#discussion_r4185920821
+                        // Hold this service's lock so that handleRecoveryFailure / FailedShardHandler (which holds the same lock and run on
+                        // the generic pool) cannot fail and remove the shard between this task creating it and the creation listener
+                        // completing. It then avoids an older attempt clobbering the state of a newer recovery retry. This is cheap: this
+                        // task never waits on the shard lock while holding the monitor, and it's already on the applier thread, it does not
+                        // delay cluster state application any more than applyClusterState (also synchronized, on the same thread) already
+                        // does.
                         synchronized (this) {
                             assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
                             final var pendingShardCreation = pendingShardCreations.get(shardRouting.shardId());

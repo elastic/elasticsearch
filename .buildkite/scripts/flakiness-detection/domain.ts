@@ -246,7 +246,10 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
 /**
  * PR labels that make flakiness detection blocking. A team opts in by adding its GitHub label here.
  */
-export const BLOCKING_LABELS: readonly string[] = ["Team:Core/Infra"];
+export const BLOCKING_LABELS: readonly string[] = [
+  "Team:Core/Infra",
+  "Team:Distributed",
+];
 
 /**
  * The exit code the analyze step uses to report proven flakiness, and the only one never-fail.sh

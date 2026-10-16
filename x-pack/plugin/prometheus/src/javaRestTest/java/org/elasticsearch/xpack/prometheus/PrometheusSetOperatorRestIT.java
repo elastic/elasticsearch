@@ -14,9 +14,11 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.prometheus.PromqlResponseSeries.of;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -155,5 +157,47 @@ public class PrometheusSetOperatorRestIT extends AbstractPrometheusRestIT {
         }
 
         ingestTestData(writeRequestBuilder.build());
+    }
+
+    // --- tx/rx dataset (labels __name__, host, cluster; a 10/2 prod, b 30/3 prod, c 12/4 qa) ---
+
+    private static final Instant TX_RX_TIME = Instant.parse("2024-05-10T00:00:00Z");
+
+    /** A closed branch (`by`) and a packed branch (raw selector) have different label sets: nothing dedups. */
+    public void testInstantOrUnionOfClosedAndPackedBranches() throws Exception {
+        ingestTestDataUsingRemoteWrite(TX_RX_TIME);
+        PromqlResponseSeries prod = new PromqlResponseSeries(Map.of("cluster", "prod"), 40.0);
+        PromqlResponseSeries qa = new PromqlResponseSeries(Map.of("cluster", "qa"), 12.0);
+        assertThat(
+            txRxInstant("sum by (cluster) (tx) or rx"),
+            containsInAnyOrder(prod, qa, txRx("a", "prod", 2), txRx("b", "prod", 3), txRx("c", "qa", 4))
+        );
+        assertThat(metricNames("sum by (cluster) (tx) or rx"), equalTo(List.of("rx", "rx", "rx")));
+        assertThat(
+            txRxInstant("rx or sum by (cluster) (tx)"),
+            containsInAnyOrder(txRx("a", "prod", 2), txRx("b", "prod", 3), txRx("c", "qa", 4), prod, qa)
+        );
+        assertThat(
+            txRxInstant("sum by (host) (tx) or sum by (host) (rx)"),
+            containsInAnyOrder(of("host", "a", 10.0), of("host", "b", 30.0), of("host", "c", 12.0))
+        );
+    }
+
+    private List<PromqlResponseSeries> txRxInstant(String query) throws Exception {
+        return PromqlResponseSeries.ofInstant(executeInstantQuery(query, TX_RX_TIME.toString()));
+    }
+
+    /** The sorted {@code __name__} values of the result series; series without a name contribute nothing. */
+    private List<String> metricNames(String query) throws Exception {
+        List<Map<String, Object>> results = executeInstantQuery(query, TX_RX_TIME.toString()).evaluate("data.result");
+        return results.stream().map(r -> {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metric = (Map<String, Object>) r.get("metric");
+            return (String) metric.get("__name__");
+        }).filter(java.util.Objects::nonNull).sorted().toList();
+    }
+
+    private static PromqlResponseSeries txRx(String host, String cluster, double value) {
+        return new PromqlResponseSeries(Map.of("host", host, "cluster", cluster), value);
     }
 }

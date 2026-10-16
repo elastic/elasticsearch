@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -70,9 +71,11 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryResultContext;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -117,6 +120,20 @@ public class EsqlSessionTests extends ESTestCase {
         SemiJoin semiJoin = new SemiJoin(EMPTY, left, right, List.of(leftKey), List.of(rightKey));
         processed.clear();
         assertSame(semiJoin, EsqlSession.findFirstSubPlanJoin(semiJoin, processed));
+    }
+
+    public void testFindFirstSubPlanJoinSkipsEligibleDistributedSubqueryJoin() {
+        ReferenceAttribute key = new ReferenceAttribute(EMPTY, "key", DataType.LONG);
+        EsRelation left = new EsRelation(EMPTY, "left", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of(key));
+        EsRelation right = new EsRelation(EMPTY, "right", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of(key));
+        SubqueryLookupJoin join = new SubqueryLookupJoin(EMPTY, left, right, List.of(key));
+        Set<LocalRelation> processed = Collections.newSetFromMap(new IdentityHashMap<>());
+        Mapper shuffleMapper = new Mapper(true);
+        Mapper broadcastMapper = new Mapper();
+
+        assertNull(EsqlSession.findFirstSubPlanJoin(join, processed, shuffleMapper::shouldDistribute));
+        assertSame(join, EsqlSession.findFirstSubPlanJoin(join, processed, broadcastMapper::shouldDistribute));
+        assertSame(join, EsqlSession.findFirstSubPlanJoin(join, processed));
     }
 
     public void testReplaceSubPlanResultMemoizesSharedJoinNode() {

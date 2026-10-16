@@ -44,7 +44,10 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.MaterializedLookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
+import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -57,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.ShuffleExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -64,6 +68,8 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * <p>This class is part of the planner</p>
@@ -75,8 +81,59 @@ import java.util.List;
  */
 public class Mapper {
 
+    private static final Set<DataType> DISTRIBUTED_JOIN_KEY_TYPES = Set.of(
+        DataType.KEYWORD,
+        DataType.LONG,
+        DataType.INTEGER,
+        DataType.DATETIME,
+        DataType.IP,
+        DataType.BOOLEAN
+    );
+
+    private final boolean shuffleJoin;
+
     /* Used to add inner join semantics atop of left join operator. */
     public static final String JOIN_MARKER_PREFIX = Attribute.rawTemporaryName("_join_marker");
+
+    public Mapper() {
+        this(false);
+    }
+
+    /**
+     * Creates a mapper that can rewrite eligible joins into partitioned exchanges.
+     */
+    public Mapper(boolean shuffleJoin) {
+        this.shuffleJoin = shuffleJoin;
+    }
+
+    /**
+     * Checks whether a logical join can be mapped to matching hash exchanges.
+     */
+    public boolean shouldDistribute(Join join) {
+        return shuffleJoin && distributedJoinEligible(join) && mapInner(join.left()) instanceof FragmentExec;
+    }
+
+    static boolean distributedJoinEligible(Join join) {
+        JoinConfig config = join.config();
+        if (config.joinOnConditions() != null || config.leftFields().size() != config.rightFields().size()) {
+            return false;
+        }
+        for (int i = 0; i < config.leftFields().size(); i++) {
+            DataType leftType = config.leftFields().get(i).dataType();
+            if (leftType != config.rightFields().get(i).dataType() || DISTRIBUTED_JOIN_KEY_TYPES.contains(leftType) == false) {
+                return false;
+            }
+        }
+        if (join.config().type() != JoinTypes.LEFT
+            && (join instanceof SubqueryLookupJoin == false || join.config().type() != JoinTypes.INNER)) {
+            return false;
+        }
+        if (join instanceof SubqueryLookupJoin) {
+            return (join.executesOn() == ExecuteLocation.ANY || join.executesOn() == ExecuteLocation.COORDINATOR)
+                && join.right().anyMatch(p -> p instanceof MergePlan) == false;
+        }
+        return join.executesOn() == ExecuteLocation.ANY && isIndexModeLookup(join.right());
+    }
 
     /** Fresh synthetic INTEGER lookup-ordinal attribute, see {@link #JOIN_MARKER_PREFIX}. */
     public static ReferenceAttribute newJoinMarker(Source source) {
@@ -268,6 +325,11 @@ public class Mapper {
     }
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
+        if (bp instanceof Join join && shouldDistribute(join)) {
+            PhysicalPlan left = mapInner(join.left());
+            PhysicalPlan right = join instanceof SubqueryLookupJoin ? mapInner(join.right()) : new FragmentExec(lookupScan(join.right()));
+            return distributedJoin(join, left, right);
+        }
         if (bp instanceof InnerJoin innerJoin) {
             PhysicalPlan left = mapInner(bp.left());
             PhysicalPlan right = mapInner(bp.right());
@@ -356,16 +418,50 @@ public class Mapper {
         return MapperUtils.unsupported(bp);
     }
 
+    private static LogicalPlan lookupScan(LogicalPlan plan) {
+        return plan.transformDown(
+            EsRelation.class,
+            relation -> new EsRelation(
+                relation.source(),
+                relation.indexPattern(),
+                IndexMode.STANDARD,
+                Map.of("", List.of(relation.indexPattern())),
+                relation.concreteIndices(),
+                relation.indexProperties(),
+                relation.output()
+            )
+        );
+    }
+
+    private PhysicalPlan distributedJoin(Join join, PhysicalPlan left, PhysicalPlan right) {
+        Source source = join.source();
+        List<Attribute> leftFields = join.config().leftFields();
+        List<Attribute> rightFields = join.config().rightFields();
+        List<Attribute> addedFields = new ArrayList<>(join.rightOutputFields());
+        ReferenceAttribute marker = null;
+        if (join.config().type() == JoinTypes.INNER) {
+            marker = newJoinMarker(source);
+            addedFields.add(marker);
+        }
+
+        left = new ShuffleExchangeExec(source, List.of(), false, ExchangeDistribution.HASH, leftFields, left);
+        right = new ShuffleExchangeExec(source, List.of(), false, ExchangeDistribution.HASH, rightFields, right);
+        PhysicalPlan mapped = new DistributedHashJoinExec(source, left, right, leftFields, rightFields, addedFields);
+        if (marker != null) {
+            mapped = new ProjectExec(source, new FilterExec(source, mapped, new IsNotNull(source, marker)), join.output());
+        }
+        return new ShuffleExchangeExec(source, List.of(), false, ExchangeDistribution.GATHER, List.of(), mapped);
+    }
+
     private static boolean isIndexModeLookup(FragmentExec fragment) {
-        // we support 2 cases:
-        // EsRelation in index_mode=lookup
-        boolean isIndexModeLookup = fragment.fragment() instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
-        // or Filter(EsRelation) in index_mode=lookup
-        isIndexModeLookup = isIndexModeLookup
-            || fragment.fragment() instanceof Filter filter
-                && filter.child() instanceof EsRelation relation
-                && relation.indexMode() == IndexMode.LOOKUP;
-        return isIndexModeLookup;
+        return isIndexModeLookup(fragment.fragment());
+    }
+
+    private static boolean isIndexModeLookup(LogicalPlan plan) {
+        if (plan instanceof EsRelation relation) {
+            return relation.indexMode() == IndexMode.LOOKUP;
+        }
+        return plan instanceof Filter filter && filter.child() instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
     }
 
     private PhysicalPlan mapMergePlan(MergePlan merge) {

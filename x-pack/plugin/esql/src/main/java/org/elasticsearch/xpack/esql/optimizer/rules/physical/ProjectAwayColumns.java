@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ShuffleExchangeExec;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
@@ -42,6 +43,9 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
     @Override
     public PhysicalPlan apply(PhysicalPlan plan) {
+        if (plan.anyMatch(ShuffleExchangeExec.class::isInstance)) {
+            return plan;
+        }
         return apply(plan, false);
     }
 

@@ -153,6 +153,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.ExpandUnmappedFieldsPostProcessor;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.plugin.ShuffleGate;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -179,6 +180,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
@@ -269,6 +271,7 @@ public class EsqlSession {
     private final PreMapper preMapper;
 
     private final Mapper mapper;
+    private volatile Mapper queryMapper;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -1034,6 +1037,9 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
+        queryMapper = configuration.pragmas().shuffleJoin() && ShuffleGate.allowed(configuration, optimizedPlan)
+            ? new Mapper(true)
+            : mapper;
         Set<LocalRelation> subPlansResults = Collections.newSetFromMap(new IdentityHashMap<>());
         var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
 
@@ -1254,7 +1260,12 @@ public class EsqlSession {
         // Find the first (bottom-up) sub-plan join or InlineJoin that needs sub-plan execution.
         // Processing bottom-up ensures inner subplans (e.g. INLINE STATS inside IN subquery)
         // are resolved before outer ones that depend on them.
-        LogicalPlan firstJoin = findFirstSubPlanJoin(mainPlan, subPlansResults);
+        Mapper currentMapper = queryMapper;
+        LogicalPlan firstJoin = findFirstSubPlanJoin(
+            mainPlan,
+            subPlansResults,
+            subqueryJoin -> currentMapper != null && currentMapper.shouldDistribute(subqueryJoin)
+        );
 
         if (firstJoin instanceof SubPlanJoin subPlanJoin) {
             LogicalPlan subPlan = subPlanJoin.right();
@@ -1320,6 +1331,10 @@ public class EsqlSession {
      * Returns the join node itself, or null if none found.
      */
     static LogicalPlan findFirstSubPlanJoin(LogicalPlan plan, Set<LocalRelation> subPlansResults) {
+        return findFirstSubPlanJoin(plan, subPlansResults, join -> false);
+    }
+
+    static LogicalPlan findFirstSubPlanJoin(LogicalPlan plan, Set<LocalRelation> subPlansResults, Predicate<SubqueryLookupJoin> skip) {
         Holder<LogicalPlan> result = new Holder<>();
         // Evaluate the right hand side of a SubPlanJoin or InlineJoin, unless it is a LocalRelation registered in subPlansResults
         // already
@@ -1329,6 +1344,9 @@ public class EsqlSession {
             }
             // The plan is processed bottom up, so inner sub-plans are selected before their parents.
             if (p instanceof SubPlanJoin subPlanJoin) {
+                if (subPlanJoin instanceof SubqueryLookupJoin subqueryLookupJoin && skip.test(subqueryLookupJoin)) {
+                    return;
+                }
                 if (subPlanJoin.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
                     return; // already processed
                 }
@@ -2977,12 +2995,19 @@ public class EsqlSession {
         }));
     }
 
-    private PhysicalPlan physicalPlan(Versioned<LogicalPlan> optimizedPlan) {
+    private PhysicalPlan physicalPlan(Versioned<LogicalPlan> optimizedPlan, Configuration configuration) {
         LogicalPlan logicalPlan = optimizedPlan.inner();
         if (logicalPlan.optimized() == false) {
             throw new IllegalStateException("Expected optimized plan");
         }
-        PhysicalPlan plan = mapper.map(optimizedPlan);
+        Mapper currentMapper = queryMapper;
+        if (currentMapper == null) {
+            currentMapper = configuration.pragmas().shuffleJoin() && ShuffleGate.allowed(configuration, logicalPlan)
+                ? new Mapper(true)
+                : mapper;
+            queryMapper = currentMapper;
+        }
+        PhysicalPlan plan = currentMapper.map(optimizedPlan);
         LOGGER.debug("Physical plan:\n{}", plan);
         return plan;
     }
@@ -2994,7 +3019,10 @@ public class EsqlSession {
     ) {
         long start = planTimeProfile == null ? 0L : System.nanoTime();
         var plan = physicalPlanOptimizer.optimize(
-            physicalPlan(new Versioned<>(optimizedPlan, physicalPlanOptimizer.context().minimumVersion()))
+            physicalPlan(
+                new Versioned<>(optimizedPlan, physicalPlanOptimizer.context().minimumVersion()),
+                physicalPlanOptimizer.context().configuration()
+            )
         );
         if (planTimeProfile != null) {
             planTimeProfile.addPhysicalOptimizationPlanTime(System.nanoTime() - start);

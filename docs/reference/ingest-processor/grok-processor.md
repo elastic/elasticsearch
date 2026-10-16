@@ -117,72 +117,7 @@ You can add your own patterns to a processor definition under the `pattern_defin
 
 Sometimes one pattern is not enough to capture the potential structure of a field. Let’s assume we want to match all messages that contain your favorite pet breeds of either cats or dogs. One way to accomplish this is to provide two distinct patterns that can be matched, instead of one really complicated expression capturing the same `or` behavior.
 
-### How pattern selection works
-
-{{es}} combines all patterns into a single regular expression. This means the winning pattern is **not always the first pattern in the list**. It is the pattern that matches **leftmost** in the input string. When two patterns match at the same position, list order is used as a tiebreaker.
-
-This differs from Logstash’s Grok filter, which evaluates patterns iteratively and returns the first pattern in the list that matches (controlled by the `break_on_match` setting).
-
-**Practical implication:** broad patterns like `%{GREEDYDATA}` can match earlier in the string than a more specific pattern listed before it, causing the broad pattern to win. For example:
-
-```console
-POST _ingest/pipeline/_simulate
-{
-  "docs": [
-    { "_source": { "message": "something some=1234567890" } }
-  ],
-  "pipeline": {
-    "processors": [
-      {
-        "grok": {
-          "field": "message",
-          "patterns": [
-            "some=%{NUMBER:some.number}",
-            "%{GREEDYDATA:event.original}"
-          ]
-        }
-      }
-    ]
-  }
-}
-```
-% NOTCONSOLE
-
-Even though `some=%{NUMBER:some.number}` is listed first, `%{GREEDYDATA:event.original}` wins because it matches starting at position 0 (the beginning of the string), while the first pattern only matches starting at position 10. The result is that `event.original` is populated rather than `some.number`.
-
-To avoid this, use the `if` condition on separate processors to explicitly control which pattern applies, rather than relying on list order:
-
-```console
-POST _ingest/pipeline/_simulate
-{
-  "docs": [
-    { "_source": { "message": "something some=1234567890" } }
-  ],
-  "pipeline": {
-    "processors": [
-      {
-        "grok": {
-          "if": "ctx.message.contains('some=')",
-          "field": "message",
-          "patterns": ["some=%{NUMBER:some.number}"],
-          "ignore_failure": true
-        }
-      },
-      {
-        "grok": {
-          "if": "!ctx.message.contains('some=')",
-          "field": "message",
-          "patterns": ["%{GREEDYDATA:event.original}"],
-          "ignore_failure": true
-        }
-      }
-    ]
-  }
-}
-```
-% NOTCONSOLE
-
-Here is a standard example of multiple pattern matching executed against the simulate API:
+Here is an example of such a configuration executed against the simulate API:
 
 ```console
 POST _ingest/pipeline/_simulate
@@ -292,12 +227,40 @@ POST _ingest/pipeline/_simulate
 ```
 % TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
 
-In the above response, you can see that the index of the pattern that matched was `"1"`. This is to say that it was the second pattern in `patterns` (index starts at zero).
-:::{note}
-This index reflects which pattern won, which is not necessarily the first pattern listed. {{es}} selects the leftmost match across all patterns. Refer to [How pattern selection works](#how-pattern-selection-works).
-:::
+In the above response, you can see that the index of the pattern that matched was `"1"`. This is to say that it was the second (index starts at zero) pattern in `patterns` to match.
 
 This trace metadata enables debugging which of the patterns matched. This information is stored in the ingest metadata and will not be indexed.
+
+### Which pattern matches
+
+When you provide multiple patterns, the processor does not necessarily use the first pattern in the list that matches. {{es}} combines the patterns into a single regular expression, so the pattern that matches leftmost in the input string wins. List order only breaks ties between patterns that match at the same position.
+
+For example, `%{GREEDYDATA:event.original}` matches from the start of the string, so it wins even though `some=%{NUMBER:some.number}` is listed first:
+
+```console
+POST _ingest/pipeline/_simulate
+{
+  "docs": [
+    { "_source": { "message": "something some=1234567890" } }
+  ],
+  "pipeline": {
+    "processors": [
+      {
+        "grok": {
+          "field": "message",
+          "patterns": [
+            "some=%{NUMBER:some.number}",
+            "%{GREEDYDATA:event.original}"
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+% NOTCONSOLE
+
+The `some=%{NUMBER:some.number}` pattern only matches from position 10, so the result populates `event.original` and not `some.number`.
 
 
 ## Validating input without extracting fields [validate-only]

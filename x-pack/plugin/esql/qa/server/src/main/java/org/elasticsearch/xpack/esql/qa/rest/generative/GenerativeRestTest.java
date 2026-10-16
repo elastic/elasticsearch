@@ -282,6 +282,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // https://github.com/elastic/elasticsearch/issues/159298
         "Invalid types \\[DATETIME, NULL\\] If you see this error, there is a bug in DateDiff\\.resolveType\\(\\)",
 
+        // https://github.com/elastic/elasticsearch/issues/162181
+        "Unsupported field type \\[NULL\\]\\. If you're seeing this, there.s a bug in DateExtract\\.resolveType",
+
         // Queries can time out in the test cluster (e.g. ip_location on non-IP values, wide
         // inline-stats schemas, CHANGE_POINT + LOOKUP JOIN). The timeout itself is a test
         // infrastructure limit; the query was valid ES|QL.
@@ -669,7 +672,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isEvalInlineStatsAggregateBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkAttributesInSubplansBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isEvalInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isFillNullUnmappedFieldsPatternBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isFillNullUnmappedFieldsPatternBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isRangeWithinNullRangeBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isUnionAllUnresolvedKeepWildcardBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message regex patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -1415,6 +1420,38 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             + " to class org\\.elasticsearch\\.compute\\.data\\.\\w+Block.*",
         Pattern.DOTALL
     );
+
+    private static final Pattern RANGE_WITHIN_FUNCTION_PATTERN = Pattern.compile("(?i)\\bRANGE_WITHIN\\s*\\(");
+
+    /**
+     * {@code RANGE_WITHIN} picks the datetime point evaluator when its range argument is {@code NULL}-typed (e.g.
+     * {@code COALESCE} over an unmapped field), which then fails to read a {@code double} point block as a {@code LongBlock}.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/162183">#162183</a>.
+     */
+    static boolean isRangeWithinNullRangeBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return COMPUTE_BLOCK_CLASS_CAST_PATTERN.matcher(errorMessage).matches() && RANGE_WITHIN_FUNCTION_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern UNRESOLVED_OBJECT_PATTERN = Pattern.compile(
+        ".*Invalid call to attribute on an unresolved object \\?.*",
+        Pattern.DOTALL
+    );
+    private static final Pattern KEEP_WILDCARD_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*KEEP\\b[^|]*\\*");
+
+    /**
+     * {@code ResolveUnionTypesInUnionAll.replaceConvertFunctions} asks an unresolved wildcard {@code KEEP} for its output when a
+     * {@code UnionAll} (subquery or multi-dataset {@code FROM}) pushed a conversion down.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/162184">#162184</a>.
+     */
+    static boolean isUnionAllUnresolvedKeepWildcardBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return UNRESOLVED_OBJECT_PATTERN.matcher(errorMessage).matches() && KEEP_WILDCARD_COMMAND_PATTERN.matcher(query).find();
+    }
 
     private static final Pattern FORK_WITH_SORT_BRANCH_PATTERN = Pattern.compile(
         "(?is)\\bFORK\\b.*\\bSORT\\b.*\\|\\s*WHERE\\s+_fork\\s*=="

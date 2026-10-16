@@ -309,7 +309,8 @@ public class PayloadColumnMergeTests extends ESTestCase {
             options.summary(),
             randomFrom(ChunkCodec.values()),
             options.sizes(),
-            options.singleValued()
+            options.singleValued(),
+            options.enableSkipIndex()
         );
     }
 

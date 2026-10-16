@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -19,7 +20,6 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
@@ -312,15 +312,28 @@ public class SearchContextStats implements SearchStats {
     public Object min(FieldName field) {
         final var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         final MappedFieldType fieldType = stat.config.fieldType;
-        if (fieldType instanceof DateFieldType == false) {
+        if (fieldType == null || fieldType.pointReaderIfPossible() == null) {
             return null;
         }
         if (stat.min == null) {
-            final Long[] result = new Long[] { null };
+            final Object[] result = new Object[] { null };
             doWithFieldLeafReaders(field.string(), (ctxFieldType, reader) -> {
-                final Long minValue = ctxFieldType.indexType().hasDocValuesSkipper()
-                    ? docValuesSkipperMinValue(reader, field.string())
-                    : pointMinValue(reader, field.string());
+                Object minValue = null;
+                if (ctxFieldType.indexType().hasDocValuesSkipper() && ctxFieldType instanceof DateFieldType) {
+                    minValue = docValuesSkipperMinValue(reader, field.string());
+                } else {
+                    byte[] minPacked = PointValues.getMinPackedValue(reader, field.string());
+                    if (minPacked != null) {
+                        if (ctxFieldType instanceof DateFieldType) {
+                            minValue = LongPoint.decodeDimension(minPacked, 0);
+                        } else {
+                            var pointReader = ctxFieldType.pointReaderIfPossible();
+                            if (pointReader != null) {
+                                minValue = pointReader.apply(minPacked);
+                            }
+                        }
+                    }
+                }
                 result[0] = nullableMin(result[0], minValue);
                 return true;
             });
@@ -333,15 +346,28 @@ public class SearchContextStats implements SearchStats {
     public Object max(FieldName field) {
         final var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         final MappedFieldType fieldType = stat.config.fieldType;
-        if (fieldType instanceof DateFieldType == false) {
+        if (fieldType == null || fieldType.pointReaderIfPossible() == null) {
             return null;
         }
         if (stat.max == null) {
-            final Long[] result = new Long[] { null };
+            final Object[] result = new Object[] { null };
             doWithFieldLeafReaders(field.string(), (ctxFieldType, reader) -> {
-                final Long maxValue = ctxFieldType.indexType().hasDocValuesSkipper()
-                    ? docValuesSkipperMaxValue(reader, field.string())
-                    : pointMaxValue(reader, field.string());
+                Object maxValue = null;
+                if (ctxFieldType.indexType().hasDocValuesSkipper() && ctxFieldType instanceof DateFieldType) {
+                    maxValue = docValuesSkipperMaxValue(reader, field.string());
+                } else {
+                    byte[] maxPacked = PointValues.getMaxPackedValue(reader, field.string());
+                    if (maxPacked != null) {
+                        if (ctxFieldType instanceof DateFieldType) {
+                            maxValue = LongPoint.decodeDimension(maxPacked, 0);
+                        } else {
+                            var pointReader = ctxFieldType.pointReaderIfPossible();
+                            if (pointReader != null) {
+                                maxValue = pointReader.apply(maxPacked);
+                            }
+                        }
+                    }
+                }
                 result[0] = nullableMax(result[0], maxValue);
                 return true;
             });
@@ -350,16 +376,24 @@ public class SearchContextStats implements SearchStats {
         return stat.max;
     }
 
-    private static Long nullableMin(final Long a, final Long b) {
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static Object nullableMin(final Object a, final Object b) {
         if (a == null) return b;
         if (b == null) return a;
-        return Math.min(a, b);
+        if (a instanceof Comparable compA && b instanceof Comparable compB) {
+            return compA.compareTo(compB) <= 0 ? compA : compB;
+        }
+        return a;
     }
 
-    private static Long nullableMax(final Long a, final Long b) {
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static Object nullableMax(final Object a, final Object b) {
         if (a == null) return b;
         if (b == null) return a;
-        return Math.max(a, b);
+        if (a instanceof Comparable compA && b instanceof Comparable compB) {
+            return compA.compareTo(compB) >= 0 ? compA : compB;
+        }
+        return a;
     }
 
     // TODO: replace these helpers with a unified Lucene min/max API once https://github.com/apache/lucene/issues/15740 is resolved
@@ -371,16 +405,6 @@ public class SearchContextStats implements SearchStats {
     private static Long docValuesSkipperMaxValue(final LeafReader reader, final String field) throws IOException {
         long value = DocValuesSkipper.globalMaxValue(reader, field);
         return (value == Long.MAX_VALUE || value == Long.MIN_VALUE) ? null : value;
-    }
-
-    private static Long pointMinValue(final LeafReader reader, final String field) throws IOException {
-        final byte[] minPackedValue = PointValues.getMinPackedValue(reader, field);
-        return (minPackedValue != null && minPackedValue.length == 8) ? NumericUtils.sortableBytesToLong(minPackedValue, 0) : null;
-    }
-
-    private static Long pointMaxValue(final LeafReader reader, final String field) throws IOException {
-        final byte[] maxPackedValue = PointValues.getMaxPackedValue(reader, field);
-        return (maxPackedValue != null && maxPackedValue.length == 8) ? NumericUtils.sortableBytesToLong(maxPackedValue, 0) : null;
     }
 
     @Override

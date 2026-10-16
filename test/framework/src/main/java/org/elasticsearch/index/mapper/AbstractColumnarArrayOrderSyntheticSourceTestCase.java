@@ -16,7 +16,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,12 +41,17 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
      */
     protected abstract String fieldTypeName();
 
+    /**
+     * A columnar index created just before {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG}, so it writes the document-order layout
+     * under test rather than the ColumNAR codec's payload.
+     */
     protected MapperService columnarMapperService() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false)
-            .build();
-        return createMapperService(settings, mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG),
+            settings,
+            mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject())
+        );
     }
 
     protected DocumentMapper columnarMapper() throws IOException {

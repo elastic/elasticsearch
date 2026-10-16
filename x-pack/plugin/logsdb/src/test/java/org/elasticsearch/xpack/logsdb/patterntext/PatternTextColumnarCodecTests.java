@@ -40,10 +40,7 @@ public class PatternTextColumnarCodecTests extends ESSingleNodeTestCase {
     }
 
     private static Settings columnarSettings(final IndexMode mode) {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), mode)
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), mode).build();
     }
 
     public void testPatternTextFieldFlushes() {

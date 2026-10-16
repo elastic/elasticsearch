@@ -15,11 +15,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,19 +37,21 @@ import java.util.List;
  *
  * <p>This is the layout a strictly columnar index uses <em>without</em> the ColumNAR codec. The codec stores the same
  * fields as a payload that hands its values back in the order they were written; that path is covered separately by
- * {@code KeywordColumnarPayloadFieldDataTests}. Since the codec is on by default, it is turned off here so these tests
- * keep exercising the sorting layout they were written for.
+ * {@code KeywordColumnarPayloadFieldDataTests}. Since the codec is used by every columnar index created from
+ * {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG}, the index here is created just before that version so these
+ * tests keep exercising the sorting layout they were written for.
  */
 public abstract class AbstractColumnarArrayOrderFieldDataTestCase extends MapperServiceTestCase {
 
     protected abstract String fieldTypeName();
 
     private MapperService columnarMapperService() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false)
-            .build();
-        return createMapperService(settings, mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG),
+            settings,
+            mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject())
+        );
     }
 
     /**

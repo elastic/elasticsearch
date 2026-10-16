@@ -527,7 +527,6 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
     private static Settings columnarCodecSettings() {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
             .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .build();
     }

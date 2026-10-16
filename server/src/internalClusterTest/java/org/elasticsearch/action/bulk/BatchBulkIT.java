@@ -2857,15 +2857,10 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                        .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
         ensureGreen(index);
-        // The cluster kill switch overrules the request setting, and an index that came back without the codec
-        // would read back the same on both paths while saying nothing about the format this test is here for.
-        final Settings created = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index).get().getIndexToSettings().get(index);
-        assumeTrue("columnar codec is disabled for [" + index + "]", IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(created));
     }
 
     /**

@@ -18,6 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -82,12 +85,15 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
         }
 
         Settings settings() {
-            // Named on every layout rather than left to the default, so that the two layouts the stock codec
-            // writes are still written now that the ColumNAR codec is the default.
-            return Settings.builder()
-                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), codec)
-                .build();
+            return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        }
+
+        /**
+         * Every columnar index created from {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG} uses the ColumNAR codec, so
+         * the two layouts the stock codec writes are reached through an index created just before that version.
+         */
+        IndexVersion indexVersion() {
+            return codec ? IndexVersion.current() : IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
         }
     }
 
@@ -361,7 +367,7 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
 
     /** The mapping that reaches {@code layout}, with or without an inverted index to answer queries from. */
     protected MapperService mapperService(Layout layout, boolean indexed) throws IOException {
-        return createMapperService(layout.settings(), mapping(b -> {
+        return createMapperService(layout.indexVersion(), layout.settings(), mapping(b -> {
             b.startObject(FIELD).field("type", fieldTypeName());
             if (indexed == false) {
                 b.field("index", false);

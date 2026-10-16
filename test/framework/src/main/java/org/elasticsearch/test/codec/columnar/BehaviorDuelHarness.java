@@ -267,8 +267,8 @@ public final class BehaviorDuelHarness {
             + config.layoutLabel()
             + "] mode ["
             + indexSettings.getMode()
-            + "] index.columnar_codec.enabled ["
-            + indexSettings.getSettings().getAsBoolean(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false)
+            + "] index version created ["
+            + indexSettings.getIndexVersionCreated()
             + "] useColumnarCodec ["
             + usesColumnar
             + "] expected format ["

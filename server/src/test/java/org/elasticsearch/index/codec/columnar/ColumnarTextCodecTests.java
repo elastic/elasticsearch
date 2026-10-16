@@ -12,15 +12,18 @@ package org.elasticsearch.index.codec.columnar;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -38,6 +41,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
 
     private static final String INDEX = "columnar-text-index";
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // Need to set IndexVersion version of baseline ES819 index.
+        return false;
+    }
+
     private static final String FIELD = "body";
 
     public void testTextIsStoredByTheCodec() throws IOException {
@@ -119,11 +129,19 @@ public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
             .get();
     }
 
+    /**
+     * A strictly columnar index, created just before {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG} when it should not use
+     * the codec, since every columnar index created from that version does.
+     */
     private static Settings columnarSettings(IndexMode mode, boolean codecEnabled) {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), mode)
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), codecEnabled)
-            .build();
+        final Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode);
+        if (codecEnabled == false) {
+            settings.put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
+            );
+        }
+        return settings.build();
     }
 
     /** The doc-values format the field's values were actually written with. */

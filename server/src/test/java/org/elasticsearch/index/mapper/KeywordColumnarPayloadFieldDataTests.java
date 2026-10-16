@@ -36,10 +36,7 @@ public class KeywordColumnarPayloadFieldDataTests extends MapperServiceTestCase 
 
     @Override
     protected Settings getIndexSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testValuesComeBackInTheOrderTheyWereWritten() throws IOException {

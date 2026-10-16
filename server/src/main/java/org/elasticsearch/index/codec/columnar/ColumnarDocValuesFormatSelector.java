@@ -19,7 +19,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 
 /**
- * Decides whether an index is eligible for the ColumNAR doc values codec, based on index settings and index
+ * Decides whether an index is eligible for the ColumNAR doc values codec, based on its index mode and index
  * version. The per-field decision of which fields use the codec is made by the caller.
  */
 public final class ColumnarDocValuesFormatSelector {
@@ -57,7 +57,6 @@ public final class ColumnarDocValuesFormatSelector {
      */
     public static boolean useColumnarCodec(final IndexSettings indexSettings) {
         return indexSettings.getMode().isStrictColumnar()
-            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
-            && indexSettings.isColumnarCodecEnabled();
+            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
     }
 }

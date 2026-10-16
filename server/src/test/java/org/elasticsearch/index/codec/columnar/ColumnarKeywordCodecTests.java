@@ -12,20 +12,23 @@ package org.elasticsearch.index.codec.columnar;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -38,18 +41,16 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
 
     private static final String INDEX = "columnar-index";
 
-    public void testColumnarCodecSettingIsSetOnColumnarIndex() {
-        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        final IndexService indexService = createIndex(INDEX, columnarSettings(mode), "@timestamp", "type=date", "kw", "type=keyword");
-        assertTrue("mode=" + mode, indexService.getIndexSettings().isColumnarCodecEnabled());
-
-        final GetSettingsResponse settings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, INDEX).get();
-        assertEquals("true", settings.getSetting(INDEX, IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey()));
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // Need to set IndexVersion version of baseline ES819 index.
+        return false;
     }
 
     public void testKeywordRoundTripsThroughColumnarCodec() throws IOException {
@@ -145,6 +146,44 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             assertEquals(arrays.get(i), plain.get("kw"), codec.get("kw"));
             assertEquals(arrays.get(i) + " field presence", plain.containsKey("kw"), codec.containsKey("kw"));
         }
+    }
+
+    /**
+     * Collapse groups on the keyword's values whichever framing each index wrote them in, so a search over an index created before
+     * the codec and one created with it collapses across both, as a data stream does across a rollover after an upgrade.
+     */
+    public void testCollapseAcrossIndicesWithAndWithoutTheCodec() throws IOException {
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final String withoutCodec = INDEX + "-no-codec";
+        final String withCodec = INDEX + "-codec";
+        createIndex(withoutCodec, columnarSettings(mode, false), "@timestamp", "type=date", "kw", "type=keyword");
+        createIndex(withCodec, columnarSettings(mode, true), "@timestamp", "type=date", "kw", "type=keyword");
+
+        indexKeyword(withoutCodec, "2024-06-01T10:00:00Z", "\"host-a\"");
+        indexKeyword(withoutCodec, "2024-06-01T10:01:00Z", "[null, \"host-a\"]");
+        indexKeyword(withoutCodec, "2024-06-01T10:02:00Z", "\"host-b\"");
+        indexKeyword(withCodec, "2024-06-01T10:03:00Z", "[\"host-a\", null]");
+        indexKeyword(withCodec, "2024-06-01T10:04:00Z", "\"host-c\"");
+        indicesAdmin().prepareRefresh(withoutCodec, withCodec).get();
+
+        assertKeywordFieldUsesColumnarFormat(withCodec);
+        assertKeywordFieldAvoidsColumnarFormat(withoutCodec);
+
+        assertResponse(
+            client().prepareSearch(withoutCodec, withCodec)
+                .setCollapse(new CollapseBuilder("kw"))
+                .addSort("@timestamp", SortOrder.ASC)
+                .setSize(10),
+            response -> {
+                assertHitCount(response, 5);
+                final List<Object> groups = Arrays.stream(response.getHits().getHits()).map(hit -> hit.field("kw").getValue()).toList();
+                assertEquals(List.of("host-a", "host-b", "host-c"), groups);
+            }
+        );
+    }
+
+    private void indexKeyword(String index, String timestamp, String kw) {
+        prepareIndex(index).setSource("{\"@timestamp\":\"" + timestamp + "\",\"kw\":" + kw + "}", XContentType.JSON).get();
     }
 
     /**
@@ -446,11 +485,19 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         return columnarSettings(mode, true);
     }
 
+    /**
+     * A strictly columnar index, created just before {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG} when it should not use
+     * the codec, since every columnar index created from that version does.
+     */
     private static Settings columnarSettings(IndexMode mode, boolean codecEnabled) {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), mode)
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), codecEnabled)
-            .build();
+        final Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode);
+        if (codecEnabled == false) {
+            settings.put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
+            );
+        }
+        return settings.build();
     }
 
     private void assertKeywordFieldUsesColumnarFormat(String index) throws IOException {

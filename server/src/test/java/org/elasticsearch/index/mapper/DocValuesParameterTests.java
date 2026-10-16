@@ -708,11 +708,10 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * being thrown out.
      */
     public void testOnFailureIgnoreAcceptsDocumentInsteadOfThrowing() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false)
-            .build();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        // Created before the ColumNAR codec, so the field writes its doc values without the codec's payload framing.
         DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG),
             settings,
             fieldMapping(
                 b -> b.field("type", "keyword")

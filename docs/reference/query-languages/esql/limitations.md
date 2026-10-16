@@ -312,10 +312,10 @@ FROM books
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 `KNN` on a `dense_vector` expression requires all nodes in the cluster to be on version 9.6 or later.
-During a rolling upgrade, a node on an older version receives a request it cannot handle and returns a 4xx
-error. Similarly, when using cross-cluster search (CCS), a remote cluster running a version earlier than 9.6
-rejects `KNN` on an expression. To avoid this, ensure all participating nodes and remote clusters are
-upgraded before sending queries that use `KNN` on an expression.
+During a rolling upgrade, or when using cross-cluster search (CCS) with a remote cluster on a version earlier than 9.6,
+the coordinator rejects the query before it runs with the error: KNN over a non-index-mapped field or expression
+is not supported on every participating node. To avoid this, ensure all participating nodes and remote clusters are
+upgraded before sending queries that use KNN on an expression.
 
 ### Scoring for a runtime search [esql-limitations-full-text-search-scoring]
 

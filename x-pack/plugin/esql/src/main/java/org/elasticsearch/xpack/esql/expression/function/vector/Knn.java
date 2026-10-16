@@ -139,13 +139,15 @@ public class Knn extends SingleFieldFullTextFunction
               It doesn't build a vector index.
             - It supports only the `similarity`, `similarity_function`, and `boost` options. It ignores other options,
               such as `k`, `min_candidates`, and `visit_percentage`.
-            - The `similarity_function` option sets the similarity metric. The default is `cosine`. The other values are
-              `dot_product`, `l2_norm`, and `max_inner_product`.
+            - The `similarity_function` option sets the similarity metric. The accepted values are
+              `cosine`, `dot_product`, `l2_norm`, and `max_inner_product`. If not set, the similarity metric is inferred from the inference
+              endpoint used to produce the dense_vector expression or query vector, when applicable. If both use different inference
+              endpoints, their similarity metrics must match. If the metric cannot be inferred, it defaults to cosine.
             - If you set `similarity`, it keeps only rows that are at least as similar to the query vector as the threshold.
             - If you request `METADATA _score`, it generates a relevance score for each row. Scores range from 0 to 1,
               except with `max_inner_product` or a `boost` other than 1.
-            - With `dot_product`, every vector must be unit length. Rows whose vectors aren't unit length, or whose vectors
-              have a different number of dimensions from the query vector, are excluded with a warning.
+            - Rows whose vectors differ in the number of dimensions from the query vector are filtered out, and a warning is generated.
+            - With `dot_product`, every vector must be unit length. Rows whose vectors aren't unit length are filtered out, and a warning is generated.
             - To get the k nearest vectors, sort and limit the results explicitly, for example `SORT _score DESC | LIMIT 10`.
             :::
 
@@ -231,9 +233,9 @@ public class Knn extends SingleFieldFullTextFunction
                     type = "keyword",
                     valueHint = { "cosine" },
                     description = "The similarity metric to use when `KNN` runs on a `dense_vector` expression "
-                        + "(rather than an indexed field). The indexed field's mapping determines the metric; "
-                        + "this option is ignored for indexed fields. "
-                        + "Accepted values: `cosine` (default), `dot_product`, `l2_norm`, `max_inner_product`.",
+                        + "(rather than an indexed field). See the function description for more details about the default value. "
+                        + "This option is rejected when used with an indexed `dense_vector` field, where the field's mapping determines the metric. "
+                        + "Accepted values: `cosine`, `dot_product`, `l2_norm`, `max_inner_product`.",
                     applies_to = """
                         {"stack": "preview 9.6.0", "serverless": "preview"}"""
                 ), },

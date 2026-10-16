@@ -216,9 +216,9 @@ help, because the result is still not an index-mapped field. To filter on an ext
 behind the extracted value, so the match is evaluated at runtime, row by row, rather than pushed to the index.
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
-`KNN` can also be used on values extracted from a `FIELD_EXTRACT` expression, by first converting the keyword column into a `dense_vector` column
-using `TO_DENSE_VECTOR` function or `DENSE_VECTOR` command.
-In this case, `KNN` performs an exact search over every row instead of an approximate search.
+`KNN` can also be used on values extracted from a `FIELD_EXTRACT` expression, by using a valid conversion from keyword
+to dense_vector, such as the TO_DENSE_VECTOR function to cast a hex-encoded byte vector, or the DENSE_VECTOR command
+to generate embeddings from the extracted keyword field.
 
 ## Related resources [esql-flattened-fields-related]
 

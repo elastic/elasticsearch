@@ -46,6 +46,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -1089,6 +1090,430 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
             assertSilentlyEmpty(restClient.performRequest(new Request("GET", "/" + CLOSED_INDEX_PATTERN + "/_search")));
         } finally {
             assertAcked(indicesAdmin().prepareDelete(CLOSED_INDEX));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Restores that ask for ShardRestoringException (reportShardRestoring = true)
+    //
+    // Flag-on versions of the write-path and broadcast tests above, whose restores use the REST API and so never ask for it. Requests are
+    // sent from a data node, which is not the master (the suite has a dedicated master), so each test also covers the flag reaching a node
+    // that did not start the restore.
+    // -------------------------------------------------------------------------
+
+    /**
+     * {@code POST /{index}/_doc} fails immediately with {@link ShardRestoringException} (HTTP 403) instead of waiting for the primary until
+     * the request timeout expires. A long timeout shows that it does not wait.
+     */
+    public void testIndexDocWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            ShardRestoringException e = expectThrows(
+                ShardRestoringException.class,
+                internalCluster().dataNodeClient().prepareIndex(INDEX).setSource("field", "value").setTimeout(TEST_REQUEST_TIMEOUT)
+            );
+            assertForbiddenShardRestoring(e, restoreUuid);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /{index}/_create/{id}} fails immediately with {@link ShardRestoringException} (HTTP 403).
+     */
+    public void testCreateDocWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            ShardRestoringException e = expectThrows(
+                ShardRestoringException.class,
+                internalCluster().dataNodeClient()
+                    .prepareIndex(INDEX)
+                    .setId("new-create-id")
+                    .setSource("field", "value")
+                    .setOpType(DocWriteRequest.OpType.CREATE)
+                    .setTimeout(TEST_REQUEST_TIMEOUT)
+            );
+            assertForbiddenShardRestoring(e, restoreUuid);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code DELETE /{index}/_doc/{id}} fails immediately with {@link ShardRestoringException} (HTTP 403).
+     */
+    public void testDeleteDocWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            ShardRestoringException e = expectThrows(
+                ShardRestoringException.class,
+                internalCluster().dataNodeClient().prepareDelete(INDEX, DOC_ID).setTimeout(TEST_REQUEST_TIMEOUT)
+            );
+            assertForbiddenShardRestoring(e, restoreUuid);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /{index}/_update/{id}} waits for {@code ?timeout} like it does without the flag, and then fails with
+     * {@link ShardRestoringException} (HTTP 403) instead of {@link UnavailableShardsException}.
+     */
+    public void testUpdateDocWhileRestoringReportingShardRestoringReturnsForbiddenAfterTimeout() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            ShardRestoringException e = expectThrows(
+                ShardRestoringException.class,
+                internalCluster().dataNodeClient()
+                    .prepareUpdate(INDEX, DOC_ID)
+                    .setDoc("field", "new-value")
+                    .setTimeout(TimeValue.timeValueMillis(100))
+            );
+            assertForbiddenShardRestoring(e, restoreUuid);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /_bulk} keeps its HTTP 200 envelope, and each item (index, create and delete) fails immediately with
+     * {@link ShardRestoringException} (status 403) instead of {@link UnavailableShardsException}. A long timeout shows that it does not
+     * wait.
+     */
+    public void testBulkWhileRestoringReportingShardRestoringReturnsPerItemForbidden() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            final var client = internalCluster().dataNodeClient();
+            BulkResponse bulk = client.prepareBulk()
+                .add(client.prepareIndex(INDEX).setId("new1").setSource("field", "value"))
+                .add(client.prepareIndex(INDEX).setId("new2").setSource("field", "value").setOpType(DocWriteRequest.OpType.CREATE))
+                .add(client.prepareDelete(INDEX, DOC_ID))
+                .setTimeout(TEST_REQUEST_TIMEOUT)
+                .get();
+
+            assertThat(bulk.hasFailures(), equalTo(true));
+            assertThat(bulk.getItems().length, equalTo(3));
+            for (BulkItemResponse item : bulk) {
+                assertThat(item.isFailed(), equalTo(true));
+                assertThat(item.getFailure().getStatus(), equalTo(RestStatus.FORBIDDEN));
+                final Throwable cause = ExceptionsHelper.unwrapCause(item.getFailure().getCause());
+                assertThat(cause, instanceOf(ShardRestoringException.class));
+                assertReportsShardRestoring((ShardRestoringException) cause, INDEX, restoreUuid);
+            }
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /{index}/_refresh} is unchanged by the flag: it swallows the exception and {@code _shards.failed} stays 0.
+     */
+    public void testRefreshWhileRestoringReportingShardRestoringSwallowsExceptionAndReportsNoFailedShards() throws Exception {
+        blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            assertThat(
+                internalCluster().dataNodeClient()
+                    .admin()
+                    .indices()
+                    .prepareRefresh(INDEX)
+                    .setTimeout(TimeValue.timeValueMillis(100))
+                    .get()
+                    .getFailedShards(),
+                equalTo(0)
+            );
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /{index}/_flush} is unchanged by the flag: it swallows the exception and {@code _shards.failed} stays 0.
+     */
+    public void testFlushWhileRestoringReportingShardRestoringSwallowsExceptionAndReportsNoFailedShards() throws Exception {
+        blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            assertThat(
+                internalCluster().dataNodeClient()
+                    .admin()
+                    .indices()
+                    .prepareFlush(INDEX)
+                    .setTimeout(TimeValue.timeValueMillis(100))
+                    .get()
+                    .getFailedShards(),
+                equalTo(0)
+            );
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /{index}/_forcemerge} is unchanged by the flag: it swallows the exception and {@code _shards.failed} stays 0.
+     */
+    public void testForceMergeWhileRestoringReportingShardRestoringSwallowsExceptionAndReportsNoFailedShards() throws Exception {
+        blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            assertThat(internalCluster().dataNodeClient().admin().indices().prepareForceMerge(INDEX).get().getFailedShards(), equalTo(0));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * What a REST caller sees for the update paths without the flag: {@code POST /{index}/_update/{id}} fails with HTTP 503
+     * {@code unavailable_shards_exception} after its timeout, and an update inside {@code POST /_bulk} keeps the HTTP 200 envelope with a
+     * 503 for the item.
+     */
+    public void testUpdateOverRestWhileRestoringReturnsServiceUnavailable() throws Exception {
+        blockAndStartRestore(REPO, SNAPSHOT, INDEX);
+        try (RestClient restClient = createRestClient(dataNodeName())) {
+            final ResponseException e = expectThrows(ResponseException.class, () -> restClient.performRequest(updateRequest()));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.SERVICE_UNAVAILABLE.getStatus()));
+            final ObjectPath error = ObjectPath.createFromResponse(e.getResponse());
+            assertThat(error.evaluate("status"), equalTo(RestStatus.SERVICE_UNAVAILABLE.getStatus()));
+            assertThat(error.evaluate("error.type"), equalTo("unavailable_shards_exception"));
+
+            final ObjectPath bulk = ObjectPath.createFromResponse(performOk(restClient, bulkUpdateRequest()));
+            assertThat(bulk.evaluate("errors"), equalTo(true));
+            assertThat(bulk.evaluate("items.0.update.status"), equalTo(RestStatus.SERVICE_UNAVAILABLE.getStatus()));
+            assertThat(bulk.evaluate("items.0.update.error.type"), equalTo("unavailable_shards_exception"));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * What a REST caller sees for the update paths with the flag: {@code POST /{index}/_update/{id}} fails with HTTP 403
+     * {@code shard_restoring_exception} after its timeout, and an update inside {@code POST /_bulk} keeps the HTTP 200 envelope with a 403
+     * for the item.
+     */
+    public void testUpdateOverRestWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try (RestClient restClient = createRestClient(dataNodeName())) {
+            final ResponseException e = expectThrows(ResponseException.class, () -> restClient.performRequest(updateRequest()));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.FORBIDDEN.getStatus()));
+            final ObjectPath error = ObjectPath.createFromResponse(e.getResponse());
+            assertThat(error.evaluate("status"), equalTo(RestStatus.FORBIDDEN.getStatus()));
+            assertThat(error.evaluate("error.type"), equalTo("shard_restoring_exception"));
+            assertThat(error.evaluate("error.index"), equalTo(INDEX));
+            assertThat(error.evaluate("error.recovery_id"), equalTo(restoreUuid));
+
+            final ObjectPath bulk = ObjectPath.createFromResponse(performOk(restClient, bulkUpdateRequest()));
+            assertThat(bulk.evaluate("errors"), equalTo(true));
+            assertThat(bulk.evaluate("items.0.update.status"), equalTo(RestStatus.FORBIDDEN.getStatus()));
+            assertThat(bulk.evaluate("items.0.update.error.type"), equalTo("shard_restoring_exception"));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code PUT /{index}/_doc/{id}}, which indexes with an explicit id, retries until the request timeout elapses without the flag, then
+     * returns {@link UnavailableShardsException} (HTTP 503).
+     */
+    public void testIndexDocWithIdWhileRestoringReturnsServiceUnavailable() throws Exception {
+        blockAndStartRestore(REPO, SNAPSHOT, INDEX);
+        try {
+            UnavailableShardsException e = expectThrows(
+                UnavailableShardsException.class,
+                client().prepareIndex(INDEX).setId("new-id").setSource("field", "value").setTimeout(TimeValue.timeValueMillis(100))
+            );
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code PUT /{index}/_doc/{id}} fails immediately with {@link ShardRestoringException} (HTTP 403) when the restore reports shard
+     * restoring.
+     */
+    public void testIndexDocWithIdWhileRestoringReportingShardRestoringReturnsForbidden() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            ShardRestoringException e = expectThrows(
+                ShardRestoringException.class,
+                internalCluster().dataNodeClient()
+                    .prepareIndex(INDEX)
+                    .setId("new-id")
+                    .setSource("field", "value")
+                    .setTimeout(TEST_REQUEST_TIMEOUT)
+            );
+            assertForbiddenShardRestoring(e, restoreUuid);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /_bulk} with index, create and delete items keeps its HTTP 200 envelope, and each item has status 503 and type
+     * {@code unavailable_shards_exception} once the timeout expires.
+     */
+    public void testBulkOverRestWhileRestoringReturnsPerItemServiceUnavailable() throws Exception {
+        blockAndStartRestore(REPO, SNAPSHOT, INDEX);
+        try (RestClient restClient = createRestClient(dataNodeName())) {
+            final ObjectPath bulk = ObjectPath.createFromResponse(performOk(restClient, bulkRequest()));
+            assertThat(bulk.evaluate("errors"), equalTo(true));
+            for (String item : List.of("items.0.index", "items.1.create", "items.2.delete")) {
+                assertThat(item, bulk.evaluate(item + ".status"), equalTo(RestStatus.SERVICE_UNAVAILABLE.getStatus()));
+                assertThat(item, bulk.evaluate(item + ".error.type"), equalTo("unavailable_shards_exception"));
+            }
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /_bulk} with index, create and delete items keeps its HTTP 200 envelope, and each item has status 403 and type
+     * {@code shard_restoring_exception} when the restore reports shard restoring.
+     */
+    public void testBulkOverRestWhileRestoringReportingShardRestoringReturnsPerItemForbidden() throws Exception {
+        blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try (RestClient restClient = createRestClient(dataNodeName())) {
+            final ObjectPath bulk = ObjectPath.createFromResponse(performOk(restClient, bulkRequest()));
+            assertThat(bulk.evaluate("errors"), equalTo(true));
+            for (String item : List.of("items.0.index", "items.1.create", "items.2.delete")) {
+                assertThat(item, bulk.evaluate(item + ".status"), equalTo(RestStatus.FORBIDDEN.getStatus()));
+                assertThat(item, bulk.evaluate(item + ".error.type"), equalTo("shard_restoring_exception"));
+            }
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    private static Request bulkRequest() {
+        final Request request = new Request("POST", "/_bulk");
+        request.addParameter("timeout", "100ms");
+        request.setJsonEntity(
+            "{\"index\": {\"_index\": \""
+                + INDEX
+                + "\", \"_id\": \"1\"}}\n{\"field\": \"value\"}\n"
+                + "{\"create\": {\"_index\": \""
+                + INDEX
+                + "\", \"_id\": \"2\"}}\n{\"field\": \"value\"}\n"
+                + "{\"delete\": {\"_index\": \""
+                + INDEX
+                + "\", \"_id\": \"3\"}}\n"
+        );
+        return request;
+    }
+
+    private static Request updateRequest() {
+        final Request request = new Request("POST", "/" + INDEX + "/_update/" + DOC_ID);
+        request.addParameter("timeout", "100ms");
+        request.setJsonEntity("{\"doc\": {\"field\": \"new-value\"}}");
+        return request;
+    }
+
+    private static Request bulkUpdateRequest() {
+        final Request request = new Request("POST", "/_bulk");
+        request.addParameter("timeout", "100ms");
+        request.setJsonEntity(
+            "{\"update\": {\"_index\": \"" + INDEX + "\", \"_id\": \"" + DOC_ID + "\"}}\n{\"doc\": {\"field\": \"new-value\"}}\n"
+        );
+        return request;
+    }
+
+    private static Response performOk(RestClient restClient, Request request) throws IOException {
+        final Response response = restClient.performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        return response;
+    }
+
+    /**
+     * The name of the data node, which is not the master because the suite has a dedicated master.
+     */
+    private String dataNodeName() {
+        return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .nodes()
+            .getDataNodes()
+            .values()
+            .iterator()
+            .next()
+            .getName();
+    }
+
+    private static void assertForbiddenShardRestoring(ShardRestoringException e, String restoreUuid) {
+        assertReportsShardRestoring(e, INDEX, restoreUuid);
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+    }
+
+    /**
+     * {@code POST /{index}/_close} of an index that is being restored is rejected up front, before any shard is asked to verify, so it
+     * never reaches the shards and fails with HTTP 400 {@link IllegalArgumentException}.
+     */
+    public void testCloseWhileRestoringIsRejected() throws Exception {
+        blockAndStartRestore(REPO, SNAPSHOT, INDEX);
+        try {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareClose(INDEX));
+            assertThat(e.getMessage(), containsString("Cannot close indices that are being restored"));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code POST /{index}/_close} is rejected the same way when the restore reports shard restoring: the flag does not change it.
+     */
+    public void testCloseWhileRestoringReportingShardRestoringIsRejected() throws Exception {
+        blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                internalCluster().dataNodeClient().admin().indices().prepareClose(INDEX)
+            );
+            assertThat(e.getMessage(), containsString("Cannot close indices that are being restored"));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code PUT /{index}/_block/write} is not acknowledged, and the shard failure in the response is {@link UnavailableShardsException}
+     * (status 503) once its timeout expires, because the shard-level verification waits for the inactive primary.
+     */
+    public void testAddBlockWhileRestoringReportsUnavailableShardAfterTimeout() throws Exception {
+        blockAndStartRestore(REPO, SNAPSHOT, INDEX);
+        try {
+            final var response = indicesAdmin().prepareAddBlock(IndexMetadata.APIBlock.WRITE, INDEX)
+                .setTimeout(TimeValue.timeValueMillis(100))
+                .get();
+
+            assertThat(response.isAcknowledged(), equalTo(false));
+            final var failure = response.getIndices().getFirst().getShards()[0].getFailures()[0];
+            assertThat(failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            assertThat(ExceptionsHelper.unwrapCause(failure.getCause()), instanceOf(UnavailableShardsException.class));
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
+        }
+    }
+
+    /**
+     * {@code PUT /{index}/_block/write} is not acknowledged when its shard verification fails. When the restore reports shard restoring,
+     * the shard failure in the response is a {@link ShardRestoringException} (status 403) straight away, rather than
+     * {@link UnavailableShardsException} (status 503) after the timeout. As without the flag, the failed call is not rolled back.
+     */
+    public void testAddBlockWhileRestoringReportingShardRestoringReportsForbiddenShardFailure() throws Exception {
+        final String restoreUuid = blockAndStartRestoreReportingShardRestoring(REPO, SNAPSHOT, INDEX);
+        try {
+            // a long timeout shows that the verification does not wait for the primary
+            final var response = internalCluster().dataNodeClient()
+                .admin()
+                .indices()
+                .prepareAddBlock(IndexMetadata.APIBlock.WRITE, INDEX)
+                .setTimeout(TEST_REQUEST_TIMEOUT)
+                .get();
+
+            assertThat(response.isAcknowledged(), equalTo(false));
+            final var failure = response.getIndices().getFirst().getShards()[0].getFailures()[0];
+            assertThat(failure.status(), equalTo(RestStatus.FORBIDDEN));
+            final Throwable cause = ExceptionsHelper.unwrapCause(failure.getCause());
+            assertThat(cause, instanceOf(ShardRestoringException.class));
+            assertReportsShardRestoring((ShardRestoringException) cause, INDEX, restoreUuid);
+        } finally {
+            unblockAndDeleteRestoringIndex(REPO, INDEX);
         }
     }
 

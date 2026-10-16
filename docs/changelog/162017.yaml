@@ -2,5 +2,5 @@ area: Data streams
 issues:
  - 157859
 pr: 162017
-summary: "Failure-store failures yield O(N²) message sizes [#157859]"
+summary: "Avoid quadratic failed response size when failure store redirects fail"
 type: bug

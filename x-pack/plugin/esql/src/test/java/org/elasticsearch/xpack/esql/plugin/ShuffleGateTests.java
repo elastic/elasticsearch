@@ -15,11 +15,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -64,9 +67,26 @@ public class ShuffleGateTests extends ESTestCase {
         assertTrue(ShuffleGate.allowed(ENABLED, relation));
         assertFalse(ShuffleGate.allowed(ENABLED, fork));
         assertFalse(ShuffleGate.allowed(ENABLED, union));
-        assertFalse(ShuffleGate.allowed(ENABLED, external));
+        assertTrue(ShuffleGate.allowed(ENABLED, external));
+        assertFalse(ShuffleGate.allowed(ENABLED, new UnionAll(Source.EMPTY, List.of(externalRelation(), externalRelation()), List.of())));
         assertFalse(ShuffleGate.allowed(ENABLED, timeSeries));
         assertFalse(ShuffleGate.allowed(ENABLED, crossCluster));
+    }
+
+    public void testLogicalGateAllowsJoinsBetweenExternalSources() {
+        LogicalPlan join = new Join(
+            Source.EMPTY,
+            externalRelation(),
+            externalRelation(),
+            JoinTypes.LEFT,
+            List.of(),
+            List.of(),
+            null,
+            ExecuteLocation.ANY
+        );
+
+        assertTrue(ShuffleGate.allowed(ENABLED, join));
+        assertTrue(ShuffleGate.allowed(ENABLED, new FragmentExec(join)));
     }
 
     public void testPhysicalGateRejectsUnsupportedShapes() {
@@ -88,7 +108,8 @@ public class ShuffleGateTests extends ESTestCase {
 
         assertTrue(ShuffleGate.allowed(ENABLED, fragment));
         assertFalse(ShuffleGate.allowed(ENABLED, merge));
-        assertFalse(ShuffleGate.allowed(ENABLED, externalSource));
+        assertTrue(ShuffleGate.allowed(ENABLED, externalSource));
+        assertTrue(ShuffleGate.allowed(ENABLED, new FragmentExec(externalRelation())));
         assertFalse(ShuffleGate.allowed(ENABLED, unsupportedFragment));
     }
 

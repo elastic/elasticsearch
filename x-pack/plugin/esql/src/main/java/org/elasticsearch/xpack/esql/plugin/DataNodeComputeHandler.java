@@ -1141,6 +1141,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             planTimeProfile = new PlanTimeProfile();
         }
 
+        if (request.stageWiring() != null && StagedPlanner.isExternalSourceStage(request.plan())) {
+            handleExternalSourceRequest(request, (CancellableTask) task, listener, planTimeProfile);
+            return;
+        }
+
         if (request.externalSplits().isEmpty() == false && request.shards().isEmpty()) {
             handleExternalSourceRequest(request, (CancellableTask) task, listener, planTimeProfile);
             return;
@@ -1362,7 +1367,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             failWithoutStarting(request, listener, Federation.notAvailableException());
             return;
         }
-        if (request.plan() instanceof ExchangeSinkExec == false) {
+        boolean staged = request.stageWiring() != null;
+        if (staged == false && request.plan() instanceof ExchangeSinkExec == false) {
             failWithoutStarting(
                 request,
                 listener,
@@ -1370,7 +1376,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             );
             return;
         }
-        ExchangeSinkExec sinkExec = (ExchangeSinkExec) request.plan();
+        if (staged && request.plan() instanceof StageSinkExec == false) {
+            failWithoutStarting(
+                request,
+                listener,
+                new IllegalStateException("expected stage sink for external compute; got " + request.plan())
+            );
+            return;
+        }
         Configuration configuration = request.configuration();
         final String sessionId = request.sessionId();
         EsqlFlags flags = computeService.createFlags();
@@ -1385,12 +1398,23 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             flags,
             configuration,
             configuration.newFoldContext(),
-            sinkExec,
+            request.plan(),
             SearchStats.EMPTY,
             computeService.formatReaderRegistry(),
             request.externalSplits(),
             planTimeProfile
         );
+        if (staged) {
+            stageComputeHandler.runStage(
+                task,
+                request,
+                planWithSplits,
+                null,
+                EmptyIndexedByShardId.instance(),
+                listener.map(profiles -> new DataNodeComputeResponse(profiles, Map.of()))
+            );
+            return;
+        }
 
         try (
             ComputeListener computeListener = new ComputeListener(

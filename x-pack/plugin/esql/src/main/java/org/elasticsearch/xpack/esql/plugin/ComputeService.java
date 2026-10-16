@@ -1473,6 +1473,7 @@ public class ComputeService {
                 rootTask,
                 flags,
                 resolvedPlan,
+                distributionResult,
                 configuration,
                 foldContext,
                 execInfo,

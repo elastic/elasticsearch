@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -34,7 +32,6 @@ public final class ShuffleGate {
         return configuration.pragmas().shuffleEnabled()
             && plan.anyMatch(
                 node -> node instanceof MergeExec
-                    || node instanceof ExternalSourceExec
                     || node instanceof FragmentExec fragment && fragment.fragment().anyMatch(ShuffleGate::unsupportedLogicalNode)
             ) == false;
     }
@@ -42,9 +39,9 @@ public final class ShuffleGate {
     private static boolean unsupportedLogicalNode(LogicalPlan plan) {
         return plan instanceof Fork
             || plan instanceof MergePlan
-            || plan instanceof ExternalRelation
             || plan instanceof TimeSeriesAggregate
             || plan instanceof EsRelation relation
                 && relation.concreteIndices().keySet().stream().anyMatch(alias -> alias.isEmpty() == false);
     }
+
 }

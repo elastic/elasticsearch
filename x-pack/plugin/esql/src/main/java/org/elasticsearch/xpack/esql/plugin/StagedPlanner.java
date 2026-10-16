@@ -12,10 +12,12 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.physical.StageSourceExec;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -75,6 +78,30 @@ final class StagedPlanner {
 
     static boolean hasShuffle(PhysicalPlan plan) {
         return plan.anyMatch(ShuffleExchangeExec.class::isInstance);
+    }
+
+    static boolean isExternalSourceStage(PhysicalPlan plan) {
+        return containsExternalSource(plan, ignoredPlans(plan));
+    }
+
+    static String externalSourcePath(PhysicalPlan plan) {
+        Set<PhysicalPlan> ignored = ignoredPlans(plan);
+        Set<String> sourcePaths = new LinkedHashSet<>();
+        plan.collect(ExternalSourceExec.class)
+            .stream()
+            .filter(source -> ignored.contains(source) == false)
+            .map(ExternalSourceExec::sourcePath)
+            .forEach(sourcePaths::add);
+        plan.collect(FragmentExec.class)
+            .stream()
+            .filter(fragment -> ignored.contains(fragment) == false)
+            .forEach(
+                fragment -> fragment.fragment().collect(ExternalRelation.class).forEach(relation -> sourcePaths.add(relation.sourcePath()))
+            );
+        if (sourcePaths.size() != 1) {
+            throw new IllegalStateException("bug: expected one external source path in stage but found [" + sourcePaths.size() + "]");
+        }
+        return sourcePaths.iterator().next();
     }
 
     static StagedPlan split(PhysicalPlan plan) {
@@ -226,6 +253,9 @@ final class StagedPlanner {
         if (fragments.isEmpty() == false) {
             return StagePlacement.SHARDS;
         }
+        if (containsExternalSource(stage.plan, ignored)) {
+            return StagePlacement.SHARDS;
+        }
         if (stage.root) {
             return StagePlacement.COORDINATOR;
         }
@@ -235,6 +265,16 @@ final class StagedPlanner {
             }
         }
         return StagePlacement.SINGLE;
+    }
+
+    private static boolean containsExternalSource(PhysicalPlan plan, Set<PhysicalPlan> ignored) {
+        if (plan.collect(ExternalSourceExec.class).stream().anyMatch(source -> ignored.contains(source) == false)) {
+            return true;
+        }
+        return plan.collect(FragmentExec.class)
+            .stream()
+            .filter(fragment -> ignored.contains(fragment) == false)
+            .anyMatch(fragment -> fragment.fragment().anyMatch(ExternalRelation.class::isInstance));
     }
 
     private static void validate(List<Stage> stages, List<Edge> edges) {

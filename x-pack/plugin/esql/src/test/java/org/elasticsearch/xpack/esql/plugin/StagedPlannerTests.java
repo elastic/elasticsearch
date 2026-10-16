@@ -17,9 +17,14 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -38,6 +43,7 @@ import org.elasticsearch.xpack.esql.plugin.StagedPlanner.StagedPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -113,6 +119,29 @@ public class StagedPlannerTests extends ESTestCase {
         assertTrue(dataPlan.isIntermediateAgg());
         assertEquals(shardsPlan.output(), nodeInput.output());
         assertTrue(nodeInput.isIntermediateAgg());
+    }
+
+    public void testExternalSourceStageIsRoutedBySplits() {
+        Attribute key = new ReferenceAttribute(Source.EMPTY, "key", DataType.KEYWORD);
+        String path = "s3://bucket/events/*.parquet";
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            path,
+            new SimpleSourceMetadata(List.of(key), "parquet", path),
+            List.of(key),
+            FileList.UNRESOLVED,
+            Map.of()
+        );
+
+        StagedPlan stagedPlan = StagedPlanner.split(
+            exchange(ExchangeDistribution.GATHER, exchange(ExchangeDistribution.HASH, new FragmentExec(relation)))
+        );
+        Stage externalStage = stagedPlan.stages().get(2);
+
+        assertEquals(StagePlacement.SHARDS, externalStage.placement());
+        assertTrue(StagedPlanner.isExternalSourceStage(externalStage.plan()));
+        assertEquals(path, StagedPlanner.externalSourcePath(externalStage.plan()));
+        assertFalse(StagedPlanner.isExternalSourceStage(stagedPlan.root().plan()));
     }
 
     public void testSplitSingleAggregationPlacesInitialAggregationOnWorkers() {

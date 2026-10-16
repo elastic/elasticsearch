@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Page;
@@ -37,6 +38,9 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -98,6 +102,7 @@ final class StageScheduler {
         CancellableTask rootTask,
         EsqlFlags flags,
         PhysicalPlan resolvedPlan,
+        ComputeService.ExternalDistributionResult externalDistributionResult,
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
@@ -137,10 +142,21 @@ final class StageScheduler {
                 throw new IllegalStateException("bug: shuffle root stage must run on the coordinator");
             }
             Map<Integer, ShardStageInfo> shardStageInfos = shardStageInfos(stagedPlan);
+            Map<Integer, Map<DiscoveryNode, List<ExternalSplit>>> externalSplitsByStage = externalSplitsByStage(
+                stagedPlan,
+                externalDistributionResult
+            );
             List<String> sharedIndices = sharedOriginalIndices(shardStageInfos);
             resolveShardStages(rootTask, flags, configuration, shardStageInfos, ActionListener.wrap(resolvedShards -> {
                 try {
-                    Topology topology = buildTopology(stagedPlan, shardStageInfos, resolvedShards, sharedIndices, configuration);
+                    Topology topology = buildTopology(
+                        stagedPlan,
+                        shardStageInfos,
+                        resolvedShards,
+                        externalSplitsByStage,
+                        sharedIndices,
+                        configuration
+                    );
                     logTopology(stagedPlan, topology);
                     openExchangeSinks(stagedPlan, topology, rootSessionId, configuration, ActionListener.wrap(ignored -> {
                         try {
@@ -151,6 +167,7 @@ final class StageScheduler {
                                 stagedPlan,
                                 topology,
                                 shardStageInfos,
+                                externalSplitsByStage,
                                 resolvedPlan,
                                 configuration,
                                 foldContext,
@@ -179,6 +196,9 @@ final class StageScheduler {
             if (stage.placement() != StagedPlanner.StagePlacement.SHARDS) {
                 continue;
             }
+            if (StagedPlanner.isExternalSourceStage(stage.plan())) {
+                continue;
+            }
             if ((stage.plan() instanceof StageSinkExec) == false) {
                 throw new IllegalStateException("bug: expected SHARDS stage sink but got [" + stage.plan() + "]");
             }
@@ -203,6 +223,125 @@ final class StageScheduler {
             result.put(stage.id(), new ShardStageInfo(stageFragment, Set.copyOf(concreteIndexNames), originalIndices, lookupScan));
         }
         return Map.copyOf(result);
+    }
+
+    private Map<Integer, Map<DiscoveryNode, List<ExternalSplit>>> externalSplitsByStage(
+        StagedPlanner.StagedPlan stagedPlan,
+        ComputeService.ExternalDistributionResult externalDistributionResult
+    ) {
+        List<StagedPlanner.Stage> externalStages = stagedPlan.stages()
+            .stream()
+            .filter(stage -> stage.placement() == StagedPlanner.StagePlacement.SHARDS && StagedPlanner.isExternalSourceStage(stage.plan()))
+            .toList();
+        if (externalStages.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, List<ExternalSplit>> nodeAssignments;
+        ExternalDistributionPlan distributionPlan = externalDistributionResult.distributionPlan();
+        if (distributionPlan != null && distributionPlan.distributed()) {
+            if (distributionPlan.nodeAssignments().isEmpty()) {
+                throw new IllegalStateException("bug: distributed external source plan has no node assignments");
+            }
+            nodeAssignments = distributionPlan.nodeAssignments();
+        } else {
+            nodeAssignments = Map.of(clusterService.localNode().getId(), externalDistributionResult.coordinatorSplits());
+        }
+
+        List<String> sourcePaths = externalStages.stream().map(stage -> StagedPlanner.externalSourcePath(stage.plan())).toList();
+        Map<String, Map<String, List<ExternalSplit>>> assignmentsBySource = splitAssignmentsBySource(nodeAssignments, sourcePaths);
+        Map<Integer, Map<DiscoveryNode, List<ExternalSplit>>> result = new LinkedHashMap<>();
+        for (StagedPlanner.Stage stage : externalStages) {
+            String sourcePath = StagedPlanner.externalSourcePath(stage.plan());
+            Map<DiscoveryNode, List<ExternalSplit>> assignments = new LinkedHashMap<>();
+            for (Map.Entry<String, List<ExternalSplit>> entry : assignmentsBySource.get(sourcePath).entrySet()) {
+                DiscoveryNode node = clusterService.state().nodes().get(entry.getKey());
+                if (node == null || node.canContainData() == false) {
+                    throw new IllegalStateException("external source assignment refers to unavailable data node [" + entry.getKey() + "]");
+                }
+                assignments.put(node, entry.getValue());
+            }
+            if (assignments.isEmpty()) {
+                assignments.put(clusterService.localNode(), List.of());
+            }
+            result.put(stage.id(), Map.copyOf(assignments));
+        }
+        return Map.copyOf(result);
+    }
+
+    static Map<String, Map<String, List<ExternalSplit>>> splitAssignmentsBySource(
+        Map<String, List<ExternalSplit>> nodeAssignments,
+        List<String> sourcePaths
+    ) {
+        Map<String, Map<String, List<ExternalSplit>>> assignmentsBySource = new LinkedHashMap<>();
+        for (String sourcePath : sourcePaths) {
+            if (assignmentsBySource.putIfAbsent(sourcePath, new LinkedHashMap<>()) != null) {
+                throw new IllegalStateException("bug: multiple external source stages use the same source path");
+            }
+        }
+        for (Map.Entry<String, List<ExternalSplit>> nodeAssignment : nodeAssignments.entrySet()) {
+            for (ExternalSplit split : nodeAssignment.getValue()) {
+                addSplitAssignment(assignmentsBySource, sourcePaths, nodeAssignment.getKey(), split);
+            }
+        }
+
+        Map<String, Map<String, List<ExternalSplit>>> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, List<ExternalSplit>>> sourceAssignment : assignmentsBySource.entrySet()) {
+            Map<String, List<ExternalSplit>> nodeSplits = new LinkedHashMap<>();
+            for (Map.Entry<String, List<ExternalSplit>> nodeAssignment : sourceAssignment.getValue().entrySet()) {
+                nodeSplits.put(nodeAssignment.getKey(), List.copyOf(nodeAssignment.getValue()));
+            }
+            result.put(sourceAssignment.getKey(), Map.copyOf(nodeSplits));
+        }
+        return Map.copyOf(result);
+    }
+
+    private static void addSplitAssignment(
+        Map<String, Map<String, List<ExternalSplit>>> assignmentsBySource,
+        List<String> sourcePaths,
+        String nodeId,
+        ExternalSplit split
+    ) {
+        if (split instanceof CoalescedSplit coalescedSplit) {
+            List<ExternalSplit> children = CoalescedSplit.flatten(coalescedSplit.children());
+            Map<String, List<ExternalSplit>> childrenBySource = new LinkedHashMap<>();
+            for (ExternalSplit child : children) {
+                String sourcePath = sourcePathForSplit(child, sourcePaths);
+                childrenBySource.computeIfAbsent(sourcePath, ignored -> new ArrayList<>()).add(child);
+            }
+            for (Map.Entry<String, List<ExternalSplit>> sourceChildren : childrenBySource.entrySet()) {
+                ExternalSplit assignedSplit = childrenBySource.size() == 1
+                    ? coalescedSplit
+                    : new CoalescedSplit(coalescedSplit.sourceType(), sourceChildren.getValue());
+                assignmentsBySource.get(sourceChildren.getKey()).computeIfAbsent(nodeId, ignored -> new ArrayList<>()).add(assignedSplit);
+            }
+            return;
+        }
+        String sourcePath = sourcePathForSplit(split, sourcePaths);
+        assignmentsBySource.get(sourcePath).computeIfAbsent(nodeId, ignored -> new ArrayList<>()).add(split);
+    }
+
+    private static String sourcePathForSplit(ExternalSplit split, List<String> sourcePaths) {
+        if (split instanceof FileSplit fileSplit) {
+            String filePath = fileSplit.path().toString();
+            String matchedSourcePath = null;
+            for (String sourcePath : sourcePaths) {
+                if (Regex.simpleMatch(sourcePath, filePath)) {
+                    if (matchedSourcePath != null) {
+                        throw new IllegalStateException("bug: external split matches multiple external source stages");
+                    }
+                    matchedSourcePath = sourcePath;
+                }
+            }
+            if (matchedSourcePath == null) {
+                throw new IllegalStateException("bug: external split does not match an external source stage");
+            }
+            return matchedSourcePath;
+        }
+        if (sourcePaths.size() == 1) {
+            return sourcePaths.getFirst();
+        }
+        throw new IllegalStateException("multiple external source stages require file-based splits");
     }
 
     private static List<String> sharedOriginalIndices(Map<Integer, ShardStageInfo> shardStageInfos) {
@@ -264,6 +403,7 @@ final class StageScheduler {
         StagedPlanner.StagedPlan stagedPlan,
         Map<Integer, ShardStageInfo> shardStageInfos,
         Map<Integer, Map<DiscoveryNode, DataNodeComputeHandler.NodeShards>> resolvedShards,
+        Map<Integer, Map<DiscoveryNode, List<ExternalSplit>>> externalSplitsByStage,
         List<String> sharedIndices,
         Configuration configuration
     ) {
@@ -290,6 +430,14 @@ final class StageScheduler {
                     yield 1;
                 }
                 case SHARDS -> {
+                    Map<DiscoveryNode, List<ExternalSplit>> externalSplits = externalSplitsByStage.get(stage.id());
+                    if (externalSplits != null) {
+                        int lane = 0;
+                        for (DiscoveryNode node : sortedNodes(externalSplits.keySet())) {
+                            lanesByNode.put(node, List.of(lane++));
+                        }
+                        yield lane;
+                    }
                     stageShards = resolvedShards.get(stage.id());
                     if (stageShards == null) {
                         throw new IllegalStateException("missing static shard resolution for stage [" + stage.id() + "]");
@@ -408,6 +556,7 @@ final class StageScheduler {
         StagedPlanner.StagedPlan stagedPlan,
         Topology topology,
         Map<Integer, ShardStageInfo> shardStageInfos,
+        Map<Integer, Map<DiscoveryNode, List<ExternalSplit>>> externalSplitsByStage,
         PhysicalPlan resolvedPlan,
         Configuration configuration,
         FoldContext foldContext,
@@ -468,16 +617,23 @@ final class StageScheduler {
                 Map<Index, AliasFilter> aliasFilters = Map.of();
                 String[] indices = topology.sharedIndices().toArray(String[]::new);
                 IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+                List<ExternalSplit> externalSplits = List.of();
                 if (stage.placement() == StagedPlanner.StagePlacement.SHARDS) {
-                    ShardStageInfo shardStageInfo = shardStageInfos.get(stage.id());
-                    DataNodeComputeHandler.NodeShards nodeShards = location.nodeShards().get(node);
-                    if (shardStageInfo == null || nodeShards == null) {
-                        throw new IllegalStateException("missing shard request data for stage [" + stage.id() + "]");
+                    Map<DiscoveryNode, List<ExternalSplit>> stageExternalSplits = externalSplitsByStage.get(stage.id());
+                    if (stageExternalSplits != null) {
+                        externalSplits = stageExternalSplits.getOrDefault(node, List.of());
+                        indices = new String[0];
+                    } else {
+                        ShardStageInfo shardStageInfo = shardStageInfos.get(stage.id());
+                        DataNodeComputeHandler.NodeShards nodeShards = location.nodeShards().get(node);
+                        if (shardStageInfo == null || nodeShards == null) {
+                            throw new IllegalStateException("missing shard request data for stage [" + stage.id() + "]");
+                        }
+                        shards = nodeShards.shards();
+                        aliasFilters = nodeShards.aliasFilters();
+                        indices = shardStageInfo.originalIndices().indices();
+                        indicesOptions = shardStageInfo.originalIndices().indicesOptions();
                     }
-                    shards = nodeShards.shards();
-                    aliasFilters = nodeShards.aliasFilters();
-                    indices = shardStageInfo.originalIndices().indices();
-                    indicesOptions = shardStageInfo.originalIndices().indicesOptions();
                 }
                 DataNodeRequest request = new DataNodeRequest(
                     computeService.newChildSession(rootSessionId),
@@ -492,7 +648,7 @@ final class StageScheduler {
                     false,
                     false,
                     false,
-                    List.of(),
+                    externalSplits,
                     wiring
                 );
                 ActionListener<DriverCompletionInfo> stageListener = computeListener.acquireCompute();

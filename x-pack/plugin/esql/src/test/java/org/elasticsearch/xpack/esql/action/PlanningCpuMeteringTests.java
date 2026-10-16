@@ -145,7 +145,7 @@ public class PlanningCpuMeteringTests extends ESTestCase {
             PlainActionFuture<Boolean> meteredAtCompletion = new PlainActionFuture<>();
             tracker.meteredCpu(
                 () -> resolver.resolveViews(
-                    new EsqlResolveViewAction.Request(TEST_REQUEST_TIMEOUT, false),
+                    new EsqlResolveViewAction.Request(TEST_REQUEST_TIMEOUT, false, false),
                     meteredAtCompletion.map(response -> tracker.isMeteringCurrentThread())
                 )
             );

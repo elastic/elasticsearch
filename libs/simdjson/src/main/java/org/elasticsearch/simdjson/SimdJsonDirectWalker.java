@@ -128,13 +128,21 @@ public final class SimdJsonDirectWalker {
 
         if (buffer[bitIndexes.peek()] == '}') {
             bitIndexes.advance();
+            checkNoTrailingContent(buffer, bitIndexes);
             freezeAfterFirstDoc();
             return;
         }
 
         currentDepth = 0;
         walkObject(buffer, bitIndexes, handler);
+        checkNoTrailingContent(buffer, bitIndexes);
         freezeAfterFirstDoc();
+    }
+
+    private static void checkNoTrailingContent(byte[] buffer, BitIndexes bitIndexes) {
+        if (bitIndexes.isEnd() == false) {
+            throw new JsonParsingException("Unexpected content after end of document: '" + (char) buffer[bitIndexes.peek()] + "'");
+        }
     }
 
     private void freezeAfterFirstDoc() {

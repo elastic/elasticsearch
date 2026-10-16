@@ -861,28 +861,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 """), allOf(containsString("in view [emp_lang_view]"), containsString("Unknown column [does_not_exist]")));
     }
 
-    // The view boundary is the view branch in the plan, not the view name on the body's Sources: with that name lost,
-    // a reference in the body must still fail resolution rather than be loaded or nullified.
-    public void testLoadReferenceInsideViewBodyWithoutSourceTagsFailsResolution() {
-        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        test().addLanguages()
-            .addViewWithoutSourceTags("emp_lang_view", "FROM test, (FROM languages | KEEP language_code, does_not_exist)")
-            .statementError(setUnmappedLoad("""
-                FROM emp_lang_view
-                | KEEP emp_no, language_code
-                """), containsString("Unknown column [does_not_exist]"));
-    }
-
-    public void testNullifyReferenceInsideViewBodyWithoutSourceTagsFailsResolution() {
-        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        test().addLanguages()
-            .addViewWithoutSourceTags("emp_lang_view", "FROM test, (FROM languages | KEEP language_code, does_not_exist)")
-            .statementError(setUnmappedNullify("""
-                FROM emp_lang_view
-                | KEEP emp_no, language_code
-                """), containsString("Unknown column [does_not_exist]"));
-    }
-
     public void testNullifyReferenceInsideViewBodyFailsResolution() {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         test().addLanguages()

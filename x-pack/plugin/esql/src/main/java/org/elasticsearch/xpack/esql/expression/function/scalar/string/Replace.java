@@ -153,6 +153,14 @@ public class Replace extends EsqlScalarFunction {
      * Executes a Replace without surpassing the memory limit.
      */
     private static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
+        try {
+            return doReplace(strBytesRef, regex, newStrBytesRef);
+        } catch (StackOverflowError e) {
+            throw new IllegalArgumentException("Pattern nesting is too deep to evaluate", e);
+        }
+    }
+
+    private static BytesRef doReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
         String str = strBytesRef.utf8ToString();
         Matcher m = regex.matcher(str);
         if (false == m.find()) {
@@ -210,13 +218,14 @@ public class Replace extends EsqlScalarFunction {
                 Pattern regexPattern;
                 try {
                     regexPattern = Pattern.compile(regexString);
-                } catch (PatternSyntaxException pse) {
-                    // TODO this is not right (inconsistent). See also https://github.com/elastic/elasticsearch/issues/100038
-                    // this should generate a header warning and return null (as do the rest of this functionality in evaluators),
-                    // but for the moment we let the exception through
-                    throw pse;
+                } catch (PatternSyntaxException | StackOverflowError e) {
+                    // warnExceptions only wraps process(), so throwing here would fail the query.
+                    // Fall through to the per-row evaluator, which turns these into a warning and null.
+                    regexPattern = null;
                 }
-                return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, newStrEval);
+                if (regexPattern != null) {
+                    return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, newStrEval);
+                }
             }
         }
 

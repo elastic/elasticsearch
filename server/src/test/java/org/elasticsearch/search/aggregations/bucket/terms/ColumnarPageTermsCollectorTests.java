@@ -115,7 +115,8 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
     /** A column that repeats a lot is read as dictionary pages. */
     public void testFewTermsOverSeveralPages() throws IOException {
         final String[] vocabulary = { "alpha", "bravo", "charlie", "delta", "echo" };
-        final String[] docs = new String[ColumnarPageTermsCollector.PAGE_DOCS * 2 + randomIntBetween(1, 1000)];
+        // The last page needs enough documents to repeat; one of a few documents is flat.
+        final String[] docs = new String[ColumnarPageTermsCollector.PAGE_DOCS * 2 + randomIntBetween(100, 1000)];
         for (int i = 0; i < docs.length; i++) {
             docs[i] = vocabulary[randomIntBetween(0, vocabulary.length - 1)];
         }

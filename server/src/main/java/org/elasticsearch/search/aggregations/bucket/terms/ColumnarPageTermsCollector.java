@@ -39,14 +39,17 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
         /** Adds {@code docCount} documents to the bucket of {@code term}. */
         void count(BytesRef term, long docCount);
 
-        /** Charged before the reader's page storage grows. The reader belongs to one leaf; see {@link LeafBudget}. */
+        /** What the leaf's reader charges its page storage to. The reader belongs to one leaf; see {@link LeafBudget}. */
         PageBudget budget();
 
-        /** The arrays a page is read through. */
+        /** The arrays a page is read through, which live as long as the aggregation. */
         Scratch scratch();
     }
 
-    /** The arrays a page is read through, held for the whole aggregation. Their growth is charged once, to the budget. */
+    /**
+     * The arrays a page is read through, held for the whole aggregation. Their growth is charged to the aggregation's
+     * request breaker through the budget given here, and stays charged until the aggregation closes.
+     */
     static final class Scratch {
         private final PageBudget budget;
         private int[] docs;
@@ -136,7 +139,7 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
     @Override
     public void collect(DocIdStream stream) throws IOException {
         final int[] docs = target.scratch().docs();
-        // Zero means the stream is empty. Its doc IDs arrive in order, which the column needs.
+        // Zero means no doc IDs remain. They arrive in order, which the column needs.
         for (int count = stream.intoArray(docs); count > 0; count = stream.intoArray(docs)) {
             // A page the column declines is read a document at a time.
             if (reader.readBlock(docs, 0, count, sink, target.budget()) == false) {

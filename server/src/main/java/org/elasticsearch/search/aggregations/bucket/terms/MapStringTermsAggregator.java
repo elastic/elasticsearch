@@ -234,7 +234,10 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             CollectConsumer consumer
         ) throws IOException;
 
-        /** As above. When {@code pages} is not null, a columnar field may be counted a page at a time into it. */
+        /**
+         * Like the method above. When {@code pages} is not null, a columnar field with one value a document may be counted
+         * a page at a time into it.
+         */
         default LeafBucketCollector getLeafCollector(
             IncludeExclude.StringFilter includeExclude,
             LeafReaderContext ctx,

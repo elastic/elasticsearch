@@ -38,6 +38,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StageSinkExec;
@@ -185,13 +187,20 @@ final class StageScheduler {
             Map<String, OriginalIndices> concreteByCluster = ComputeService.getIndices(stageFragment, EsRelation::concreteIndices);
             Map<String, OriginalIndices> originalByCluster = ComputeService.getIndices(stageFragment, EsRelation::originalIndices);
             OriginalIndices concreteIndices = concreteByCluster.get(ComputeService.LOCAL_CLUSTER);
-            OriginalIndices originalIndices = originalByCluster.get(ComputeService.LOCAL_CLUSTER);
+            EsRelation lookupRelation = stageFragment instanceof FragmentExec fragment ? StagedPlanner.lookupScanRelation(fragment) : null;
+            boolean lookupScan = lookupRelation != null;
+            OriginalIndices originalIndices = lookupScan
+                ? new OriginalIndices(
+                    new String[] { lookupRelation.indexPattern() },
+                    IndicesOptions.strictSingleIndexNoExpandForbidClosed()
+                )
+                : originalByCluster.get(ComputeService.LOCAL_CLUSTER);
             if (concreteIndices == null || originalIndices == null) {
                 throw new IllegalStateException("bug: SHARDS stage [" + stage.id() + "] has no local index expressions");
             }
             Set<String> concreteIndexNames = new HashSet<>();
             Collections.addAll(concreteIndexNames, concreteIndices.indices());
-            result.put(stage.id(), new ShardStageInfo(stageFragment, Set.copyOf(concreteIndexNames), originalIndices));
+            result.put(stage.id(), new ShardStageInfo(stageFragment, Set.copyOf(concreteIndexNames), originalIndices, lookupScan));
         }
         return Map.copyOf(result);
     }
@@ -231,7 +240,7 @@ final class StageScheduler {
                     info.fragmentPlan(),
                     info.concreteIndices(),
                     info.originalIndices(),
-                    false,
+                    info.lookupScan(),
                     ActionListener.wrap(nodes -> {
                         resolvedShards.put(entry.getKey(), nodes);
                         if (remainingStages.decrementAndGet() == 0 && completed.compareAndSet(false, true)) {
@@ -305,7 +314,35 @@ final class StageScheduler {
             };
             stageLocations.put(stage.id(), new StageLocation(lanesByNode, stageShards, laneCount));
         }
-        return new Topology(stageLocations, workers, partitionsPerNode, partitionCount, sharedIndices);
+        Topology topology = new Topology(stageLocations, workers, partitionsPerNode, partitionCount, sharedIndices);
+        validateWorkerHashInputs(stagedPlan, topology);
+        return topology;
+    }
+
+    private static void validateWorkerHashInputs(StagedPlanner.StagedPlan stagedPlan, Topology topology) {
+        for (StagedPlanner.Stage stage : stagedPlan.stages()) {
+            if (stage.placement() != StagedPlanner.StagePlacement.WORKERS) {
+                continue;
+            }
+            for (String edgeKey : stage.inputEdges()) {
+                StagedPlanner.Edge edge = stagedPlan.edge(edgeKey);
+                if (edge.distribution() != ExchangeDistribution.HASH) {
+                    throw new IllegalStateException("bug: WORKERS stage [" + stage.id() + "] has a non-HASH input edge");
+                }
+                int consumerLanes = stageLocation(topology, edge.consumerStage()).laneCount();
+                if (consumerLanes != topology.partitionCount()) {
+                    throw new IllegalStateException(
+                        "bug: WORKERS stage ["
+                            + stage.id()
+                            + "] has ["
+                            + consumerLanes
+                            + "] consumer lanes, expected ["
+                            + topology.partitionCount()
+                            + "]"
+                    );
+                }
+            }
+        }
     }
 
     private void openExchangeSinks(
@@ -590,7 +627,12 @@ final class StageScheduler {
         }
     }
 
-    private record ShardStageInfo(PhysicalPlan fragmentPlan, Set<String> concreteIndices, OriginalIndices originalIndices) {}
+    private record ShardStageInfo(
+        PhysicalPlan fragmentPlan,
+        Set<String> concreteIndices,
+        OriginalIndices originalIndices,
+        boolean lookupScan
+    ) {}
 
     private record StageLocation(
         Map<DiscoveryNode, List<Integer>> lanesByNode,

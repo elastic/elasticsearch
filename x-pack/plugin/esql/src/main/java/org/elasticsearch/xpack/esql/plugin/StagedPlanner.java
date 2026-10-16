@@ -121,13 +121,19 @@ final class StagedPlanner {
     }
 
     private static boolean isLookupScan(FragmentExec fragment) {
+        return lookupScanRelation(fragment) != null;
+    }
+
+    @Nullable
+    static EsRelation lookupScanRelation(FragmentExec fragment) {
         List<EsRelation> relations = fragment.fragment().collect(EsRelation.class);
         if (relations.size() != 1) {
-            return false;
+            return null;
         }
-        var indexProperties = relations.getFirst().indexProperties();
+        EsRelation relation = relations.getFirst();
+        var indexProperties = relation.indexProperties();
         return indexProperties.isEmpty() == false
-            && indexProperties.values().stream().allMatch(properties -> properties.indexMode() == IndexMode.LOOKUP);
+            && indexProperties.values().stream().allMatch(properties -> properties.indexMode() == IndexMode.LOOKUP) ? relation : null;
     }
 
     /**

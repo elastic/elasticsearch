@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.inference.highlight;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -23,11 +23,13 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.Semantic
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -137,13 +139,21 @@ public class SemanticTextHighlighter implements Highlighter {
             return null;
         }
 
-        var values = HighlightUtils.loadFieldValues(sourceFieldType, searchContext, hitContext)
-            .stream()
-            .<Object>map((s) -> DefaultHighlighter.convertFieldValue(sourceFieldType, s))
-            .toList();
-        if (values.size() == 0) {
-            return null;
+        // Chunk offsets are relative to the values assigned directly to the source field. Don't use the field type's value fetcher,
+        // which also returns values copied in through copy_to and would shift the offsets.
+        final Set<String> sourcePaths;
+        if (searchContext.isSourceEnabled()) {
+            // A multi-field's values live under its parent's path in _source
+            String parentPath = searchContext.parentPath(sourceFieldType.name());
+            sourcePaths = Set.of(parentPath != null ? parentPath : sourceFieldType.name());
+        } else {
+            sourcePaths = Set.of();
         }
-        return DefaultHighlighter.mergeFieldValues(values, MULTIVAL_SEP_CHAR);
+
+        SourceValueFetcher valueFetcher = SourceValueFetcher.toString(sourcePaths, searchContext.getIndexSettings());
+        valueFetcher.setNextReader(hitContext.readerContext());
+        List<Object> values = valueFetcher.fetchValues(hitContext.source(), hitContext.docId(), new ArrayList<>());
+
+        return values.isEmpty() ? null : DefaultHighlighter.mergeFieldValues(values, MULTIVAL_SEP_CHAR);
     }
 }

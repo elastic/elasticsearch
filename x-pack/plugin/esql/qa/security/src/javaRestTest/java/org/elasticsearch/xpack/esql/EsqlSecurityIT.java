@@ -66,6 +66,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_cross_index_user", "x-pack-test-password", "fls_cross_index", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .user("fls_alias_user", "x-pack-test-password", "fls_alias_user", false)
         .user("fls_user2", "x-pack-test-password", "fls_user2", false)
         .user("fls_user2_alias", "x-pack-test-password", "fls_user2_alias", false)
         .user("fls_user3", "x-pack-test-password", "fls_user3", false)
@@ -722,6 +723,180 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
     }
 
+    public void testFieldLevelSecurityWithConstantKeyword() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        putConstantKeywordMapping("index", "hidden_value");
+
+        ResponseException unknownField = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_user", "FROM index | KEEP value, test_constant | SORT value | LIMIT 2")
+        );
+        assertThat(unknownField.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(unknownField.getResponse().getEntity()), containsString("Unknown column [test_constant]"));
+
+        Response projection = runESQLCommand("fls_user", """
+            SET unmapped_fields="load";
+            FROM index
+            | KEEP value, test_constant
+            | SORT value
+            | LIMIT 2
+            """);
+        assertOK(projection);
+        assertMap(
+            entityAsMap(projection),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "test_constant").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(10.0, null), Arrays.asList(20.0, null)))
+        );
+
+        Response filtered = runESQLCommand("fls_user", """
+            SET unmapped_fields="load";
+            FROM index
+            | WHERE test_constant == "hidden_value"
+            | KEEP value
+            """);
+        assertOK(filtered);
+        assertThat(entityAsMap(filtered).get("values"), equalTo(List.of()));
+    }
+
+    public void testFieldLevelSecurityWithConstantKeywordVisibleOnOneIndex() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        putConstantKeywordMapping("index", "visible");
+        putConstantKeywordMapping("index-user1", "hidden");
+
+        Response projection = runESQLCommand("fls_cross_index_user", """
+            SET unmapped_fields="load";
+            FROM index,index-user1 METADATA _index
+            | KEEP _index, test_constant
+            | SORT _index
+            """);
+        assertOK(projection);
+        assertMap(
+            entityAsMap(projection),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "_index").entry("type", "keyword"),
+                        matchesMap().entry("name", "test_constant").entry("type", "keyword")
+                    )
+                )
+                .entry(
+                    "values",
+                    List.of(
+                        List.of("index", "visible"),
+                        List.of("index", "visible"),
+                        Arrays.asList("index-user1", null),
+                        Arrays.asList("index-user1", null)
+                    )
+                )
+        );
+
+        Response hiddenGuess = runESQLCommand("fls_cross_index_user", """
+            SET unmapped_fields="load";
+            FROM index,index-user1
+            | WHERE test_constant == "hidden"
+            | KEEP value
+            """);
+        assertOK(hiddenGuess);
+        assertThat(entityAsMap(hiddenGuess).get("values"), equalTo(List.of()));
+    }
+
+    public void testFieldLevelSecurityWithRuntimeMappingTargetingConstantKeyword() throws Exception {
+        Request putMapping = new Request("PUT", "/index/_mapping");
+        putMapping.setJsonEntity("""
+            {
+              "runtime": {
+                "constant_values_count": {
+                  "type": "long",
+                  "script": "emit(doc['test_constant'].size())"
+                }
+              },
+              "properties": {
+                "test_constant": {
+                  "type": "constant_keyword",
+                  "value": "hidden_value"
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(putMapping));
+
+        Response visible = runESQLCommand("test-admin", "FROM index | KEEP constant_values_count");
+        assertOK(visible);
+        assertThat(entityAsMap(visible).get("values"), equalTo(List.of(List.of(1), List.of(1))));
+
+        Response hidden = runESQLCommand("fls_user", "FROM index | KEEP constant_values_count");
+        assertOK(hidden);
+        assertThat(entityAsMap(hidden).get("values"), equalTo(List.of(List.of(0), List.of(0))));
+    }
+
+    public void testFieldLevelSecurityWithConstantKeywordAlias() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        Request putMapping = new Request("PUT", "/index/_mapping");
+        putMapping.setJsonEntity("""
+            {
+              "properties": {
+                "test_constant": {
+                  "type": "constant_keyword",
+                  "value": "hidden_value"
+                },
+                "constant_value_alias": {
+                  "type": "alias",
+                  "path": "test_constant"
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(putMapping));
+
+        ResponseException unknownField = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_alias_user", "FROM index | KEEP constant_value_alias")
+        );
+        assertThat(unknownField.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(unknownField.getResponse().getEntity()), containsString("Unknown column [constant_value_alias]"));
+
+        Response projection = runESQLCommand("fls_alias_user", """
+            SET unmapped_fields="load";
+            FROM index
+            | KEEP constant_value_alias
+            | LIMIT 2
+            """);
+        assertOK(projection);
+        assertThat(entityAsMap(projection).get("values"), equalTo(List.of(Arrays.asList((Object) null), Arrays.asList((Object) null))));
+    }
+
+    private void putConstantKeywordMapping(String index, String value) throws IOException {
+        Request putMapping = new Request("PUT", "/" + index + "/_mapping");
+        putMapping.setJsonEntity("""
+            {
+              "properties": {
+                "test_constant": {
+                  "type": "constant_keyword",
+                  "value": "%s"
+                }
+              }
+            }
+            """.formatted(value));
+        assertOK(client().performRequest(putMapping));
+    }
+
     public void testRowCommand() throws Exception {
         String user = randomFrom("test-admin", "user1", "user2");
         Response resp = runESQLCommand(user, "row a = 5, b = 2 | stats count=sum(b) by a");
@@ -1285,6 +1460,27 @@ public class EsqlSecurityIT extends ESRestTestCase {
         resp = expectThrows(ResponseException.class, () -> runESQLCommand("alias_user1", query4));
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testLookupJoinConstantKeywordRespectsFieldLevelSecurity() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+        putConstantKeywordMapping("lookup-user2", "hidden_value");
+
+        String query = "ROW value = 40.0 | LOOKUP JOIN lookup-user2 ON value";
+        Response admin = runESQLCommand("test-admin", query);
+        assertOK(admin);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> adminColumns = (List<Map<String, Object>>) entityAsMap(admin).get("columns");
+        assertTrue(adminColumns.stream().anyMatch(column -> "test_constant".equals(column.get("name"))));
+
+        Response restricted = runESQLCommand("fls_user2", query);
+        assertOK(restricted);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> restrictedColumns = (List<Map<String, Object>>) entityAsMap(restricted).get("columns");
+        assertFalse(restrictedColumns.stream().anyMatch(column -> "test_constant".equals(column.get("name"))));
     }
 
     public void testFromLookupIndexForbidden() throws Exception {

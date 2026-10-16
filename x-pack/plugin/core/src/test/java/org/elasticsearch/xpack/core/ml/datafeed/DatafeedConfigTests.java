@@ -45,6 +45,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -441,13 +442,39 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         assertThat(conf.build().getMaxConsecutiveExtractionFailures(), equalTo(42));
     }
 
-    public void testMaxConsecutiveExtractionFailuresSurvivesSerializationRoundTrip() throws IOException {
-        DatafeedConfig.Builder builder = createRandomizedDatafeedConfigBuilder("job1", randomValidDatafeedId(), 3600000);
-        builder.setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100));
-        DatafeedConfig config = builder.build();
-        DatafeedConfig deserialized = copyInstance(config);
+    public void testMaxConsecutiveExtractionFailuresIsOnTheWireBeforeRemovedTransportVersion() throws IOException {
+        TransportVersion beforeRemoved = TransportVersionUtils.getPreviousVersion(
+            DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED
+        );
+        assertTrue(beforeRemoved.supports(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES));
+        DatafeedConfig config = createRandomizedDatafeedConfigBuilder("job1", randomValidDatafeedId(), 3600000)
+            .setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100))
+            .build();
+
+        DatafeedConfig deserialized = copyInstance(config, beforeRemoved);
+
         assertThat(deserialized.getMaxConsecutiveExtractionFailures(), equalTo(config.getMaxConsecutiveExtractionFailures()));
         assertThat(deserialized, equalTo(config));
+    }
+
+    public void testMaxConsecutiveExtractionFailuresIsNotOnTheWireFromRemovedTransportVersion() throws IOException {
+        TransportVersion removed = DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED;
+        DatafeedConfig withField = createRandomizedDatafeedConfigBuilder("job1", randomValidDatafeedId(), 3600000)
+            .setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100))
+            .build();
+        DatafeedConfig withoutField = new DatafeedConfig.Builder(withField).setMaxConsecutiveExtractionFailures(null).build();
+
+        // main and 9.5 read nothing for this field from this version on, so it must not contribute any bytes
+        assertThat(serialize(withField, removed), equalTo(serialize(withoutField, removed)));
+        assertThat(copyInstance(withField, removed).getMaxConsecutiveExtractionFailures(), is(nullValue()));
+    }
+
+    private static BytesReference serialize(DatafeedConfig config, TransportVersion version) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(version);
+            config.writeTo(output);
+            return output.bytes();
+        }
     }
 
     public void testCheckValid_GivenEmptyIndices() {

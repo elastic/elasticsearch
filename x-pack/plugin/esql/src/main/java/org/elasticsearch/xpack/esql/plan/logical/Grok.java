@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
@@ -139,11 +138,6 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
         return NodeInfo.create(this, Grok::new, child(), input, parser, extractedFields);
-    }
-
-    @Override
-    public List<Attribute> output() {
-        return NamedExpressions.mergeOutputAttributes(extractedFields, child().output());
     }
 
     @Override

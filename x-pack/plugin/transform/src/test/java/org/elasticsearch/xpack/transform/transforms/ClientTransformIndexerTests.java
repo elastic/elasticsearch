@@ -342,7 +342,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
-                projectId -> false
+                projectId -> false,
+                Clock.systemUTC()
             ),
             client,
             config
@@ -402,7 +403,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
                     crossProjectModeDecider,
-                    projectId -> true
+                    projectId -> true,
+                    Clock.systemUTC()
                 ),
                 client,
                 config
@@ -428,7 +430,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
                     crossProjectModeDecider,
-                    projectId -> false
+                    projectId -> false,
+                    Clock.systemUTC()
                 ),
                 client,
                 config
@@ -603,7 +606,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
-                projectId -> false
+                projectId -> false,
+                Clock.systemUTC()
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
@@ -817,7 +821,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
-                projectId -> false
+                projectId -> false,
+                Clock.systemUTC()
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

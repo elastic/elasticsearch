@@ -49,9 +49,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -733,6 +736,95 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var caseF = as(inn.children().get(0), Case.class);
         assertThat(Expressions.names(caseF.children()), contains("emp_no IS NULL", "\"1\"", "salary IS NOT NULL", "\"2\"", "first_name"));
         var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testIsNullFilterDoesNotPruneDisjunctionBranch() {
+        // (nullable IS NOT NULL OR emp_no > 10000) AND nullable IS NULL simplifies to
+        // (emp_no > 10000) AND nullable IS NULL — the surviving OR branch must not be pruned.
+        var plan = localPlan("""
+            FROM test
+            | EVAL nullable = languages
+            | KEEP emp_no, nullable
+            | WHERE nullable IS NOT NULL OR emp_no > 10000
+            | WHERE nullable IS NULL
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat(conjuncts, hasSize(2));
+
+        var residualBranch = conjuncts.stream()
+            .filter(GreaterThan.class::isInstance)
+            .map(GreaterThan.class::cast)
+            .findFirst()
+            .orElseThrow();
+        var residualField = as(residualBranch.left(), FieldAttribute.class);
+        assertEquals("emp_no", residualField.name());
+
+        var isNull = conjuncts.stream().filter(IsNull.class::isInstance).map(IsNull.class::cast).findFirst().orElseThrow();
+        String nullableName = Expressions.name(isNull.field());
+        assertTrue(
+            "expected nullable field null-check to be preserved",
+            "nullable".equals(nullableName) || "languages".equals(nullableName)
+        );
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
+    public void testIsNullOrDisjunctionWithSeparateWhereClauses() {
+        // Two separate WHERE clauses are merged by PushDownAndCombineFilters into the same pattern,
+        // so the surviving OR branch must also be preserved when the clauses come from different pipes.
+        var plan = localPlan("""
+            FROM test
+            | WHERE gender IS NOT NULL OR emp_no > 10015
+            | WHERE gender IS NULL
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
+
+        assertTrue("expected emp_no GreaterThan conjunct", conjuncts.stream().anyMatch(GreaterThan.class::isInstance));
+        assertTrue("expected gender IS NULL conjunct", conjuncts.stream().anyMatch(IsNull.class::isInstance));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
+    public void testIsNullOrDisjunctionWithEvalAlias() {
+        // EVAL introduces an alias; PropagateNullable must preserve the surviving OR branch
+        // even when the IS NULL targets an alias rather than a direct field.
+        var plan = localPlan("""
+            FROM test
+            | EVAL g = gender
+            | KEEP emp_no, g
+            | WHERE g IS NOT NULL OR emp_no > 10015
+            | WHERE g IS NULL
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
+    public void testIsNullOrDisjunctionDoesNotPruneToEmptyRelation() {
+        // A salary-based surviving branch: (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
+        // must keep the salary filter rather than pruning to empty.
+        var plan = localPlan("""
+            FROM test
+            | WHERE (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
+
+        assertTrue("expected salary GreaterThan conjunct", conjuncts.stream().anyMatch(GreaterThan.class::isInstance));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
     }
 
     /**

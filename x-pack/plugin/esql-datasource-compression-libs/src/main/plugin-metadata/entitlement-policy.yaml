@@ -1,2 +1,5 @@
 ALL-UNNAMED:
   - load_native_libraries
+  - files:
+      - path: "/proc/self/maps"
+        mode: "read"

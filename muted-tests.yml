@@ -116,9 +116,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/152599
-- class: org.elasticsearch.search.fieldcaps.FieldCapsHasValueTests
-  method: testUnmappedFieldsWithValueAfterRestart
-  issue: https://github.com/elastic/elasticsearch/issues/158359
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.highlight/30_max_analyzed_offset/Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL}
   issue: https://github.com/elastic/elasticsearch/issues/158519
@@ -135,17 +132,11 @@ tests:
   method: testPutJob_GivenFarequoteConfig
   issue: https://github.com/elastic/elasticsearch/issues/159088
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
-  method: test {p0=ml/delete_expired_data/Test delete expired data with body parameters}
+  method: test {yaml=ml/delete_expired_data/Test delete expired data with body parameters}
   issue: https://github.com/elastic/elasticsearch/issues/147656
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/159150
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testRestartAfterCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/159451
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testSearchPhaseFailure
-  issue: https://github.com/elastic/elasticsearch/issues/159452
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/159529
@@ -156,7 +147,7 @@ tests:
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/150541
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=ml/delete_expired_data/Test delete expired data with path parameters}
+  method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/159566
 - class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalUtilTests
   method: testRandomBounds
@@ -179,24 +170,16 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
   method: testEvalWhere
   issue: https://github.com/elastic/elasticsearch/issues/160180
-- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
-  method: testAutoFollowing {clusterName=LEADER leaderNodesUpgraded=3 followerNodesUpgraded=3}
-  issue: https://github.com/elastic/elasticsearch/issues/160284
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148619
 - class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/160407
-- class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
-  method: testTcpHandshake
-  issue: https://github.com/elastic/elasticsearch/issues/160280
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/146955
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   issue: https://github.com/elastic/elasticsearch/issues/160421
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/160523
 - class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
   method: testHandlerIsInvokedOnConnectionClose
   issue: https://github.com/elastic/elasticsearch/issues/160606
@@ -217,6 +200,67 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
   method: testCleanUpAfterIndicesAreDeleted
   issue: https://github.com/elastic/elasticsearch/issues/160715
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
+  issue: https://github.com/elastic/elasticsearch/issues/160950
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: falls back to source build with warning when mode=dra but DRA snapshot is unavailable (distribution archive)
+  issue: https://github.com/elastic/elasticsearch/issues/161067
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/161093
+- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/161094
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvgTests
+  issue: https://github.com/elastic/elasticsearch/issues/161319
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=search/160_exists_query/Test exists query on mapped short field with no doc values}
+  issue: https://github.com/elastic/elasticsearch/issues/161489
+- class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
+  method: testForceMergeIsBlockedThenUnblocked
+  issue: https://github.com/elastic/elasticsearch/issues/161490
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  method: test {yaml=multi_cluster/80_transform/Batch transform local and remote index sharing the same name}
+  issue: https://github.com/elastic/elasticsearch/issues/161651
+- class: org.elasticsearch.index.codec.vectors.cluster.OnlineQuantileEstimatorTests
+  method: testQuantileUniform
+  issue: https://github.com/elastic/elasticsearch/issues/161654
+- class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
+  method: testRevertModelSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/147383
+- class: org.elasticsearch.integration.FieldLevelSecurityTests
+  method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
+  issue: https://github.com/elastic/elasticsearch/issues/161396
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148619
+- class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedResilienceIT
+  method: testConnectionResetRecoveryDuringDistributedQuery
+  issue: https://github.com/elastic/elasticsearch/issues/161792
+- class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
+  method: testUpdatingFileBasedRoleAffectsAllProjects
+  issue: https://github.com/elastic/elasticsearch/issues/161852
+- class: org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests
+  method: testManyDocsWithManyValues
+  issue: https://github.com/elastic/elasticsearch/issues/161955
+- class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
+  method: testRevertModelSnapshot_DeleteInterveningResults
+  issue: https://github.com/elastic/elasticsearch/issues/161086
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/162116
+- class: org.elasticsearch.upgrades.BinaryKeywordCollapseRollingUpgradeIT
+  method: testCollapseOnBinaryKeyword {upgradedNodes=0}
+  issue: https://github.com/elastic/elasticsearch/issues/162265
+- class: org.elasticsearch.upgrades.BinaryKeywordCollapseFullClusterRestartIT
+  method: testCollapseOnBinaryKeyword {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/162267
+- class: org.elasticsearch.upgrades.BinaryKeywordCollapseFullClusterRestartIT
+  method: testCollapseOnBinaryKeyword {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/162279
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {yaml=profiling/10_basic/Test topN functions from test-events}
+  issue: https://github.com/elastic/elasticsearch/issues/162284
 
 # Examples:
 #

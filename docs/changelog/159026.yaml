@@ -1,0 +1,6 @@
+area: Inference
+issues: []
+pr: 159026
+summary: Fix byte counter in inference SizeLimitInputStream to count bytes actually
+  read instead of buffer size
+type: bug

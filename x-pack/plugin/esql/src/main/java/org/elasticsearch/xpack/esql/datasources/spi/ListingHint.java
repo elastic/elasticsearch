@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
+
 /**
  * Metadata about a file already known from a directory listing, passed to
  * {@link ExternalSourceFactory#resolveMetadataAsync} so the factory can build the storage object
@@ -23,8 +25,9 @@ package org.elasticsearch.xpack.esql.datasources.spi;
  * @param lastModifiedMillis the object's last-modified time, in epoch milliseconds
  * @param schemaSampleShare how many files of the listing share one schema sample budget with this one, see
  *                          {@link FormatReader#withSchemaSampleShare}; {@code 1} when this file gets the whole sample
+ * @param version the object version the listing reported, or {@code null}; see {@link StorageObject#version()}
  */
-public record ListingHint(long length, long lastModifiedMillis, int schemaSampleShare) {
+public record ListingHint(long length, long lastModifiedMillis, int schemaSampleShare, @Nullable String version) {
 
     public ListingHint {
         if (schemaSampleShare < 1) {
@@ -32,7 +35,11 @@ public record ListingHint(long length, long lastModifiedMillis, int schemaSample
         }
     }
 
+    public ListingHint(long length, long lastModifiedMillis, int schemaSampleShare) {
+        this(length, lastModifiedMillis, schemaSampleShare, null);
+    }
+
     public ListingHint(long length, long lastModifiedMillis) {
-        this(length, lastModifiedMillis, 1);
+        this(length, lastModifiedMillis, 1, null);
     }
 }

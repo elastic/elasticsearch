@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -57,7 +58,9 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
 
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
-        createIndex(INDEX, columnarSettings(mode), "@timestamp", "type=date", "kw", "type=keyword");
+        final String mapping = Strings.format("""
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":%s}}}}""", randomBoolean());
+        indicesAdmin().prepareCreate(INDEX).setSettings(columnarSettings(mode)).setMapping(mapping).get();
         prepareIndex(INDEX).setSource("@timestamp", "2024-01-01T00:00:00Z", "kw", "hello").get();
         prepareIndex(INDEX).setSource("@timestamp", "2024-01-01T00:00:01Z", "kw", "world").get();
         indicesAdmin().prepareRefresh(INDEX).get();
@@ -196,17 +199,17 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * An index sorted by a {@code multi_value: false} field, whose sort key is each document's value as its own bytes. The flushed
+     * An index sorted by a field holding at most one value per document, in either framing. The flushed
      * segment is sorted by what the indexing buffer holds and the merged one by what the column holds, so both are checked: one batch,
      * and several batches force-merged. Documents without the field sort to whichever end {@code missing} names.
      */
-    public void testIndexSortedBySingleValuedField() throws IOException {
+    public void testIndexSortedByKeywordWithOneValuePerDocument() throws IOException {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
 
         final boolean descending = randomBoolean();
         final boolean missingFirst = randomBoolean();
-        final String mapping = """
-            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":false}}}}""";
+        final String mapping = Strings.format("""
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":%s}}}}""", randomBoolean());
         final List<String> values = new ArrayList<>();
         final int numDocs = between(50, 200);
         for (int i = 0; i < numDocs; i++) {
@@ -293,9 +296,8 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
 
     /**
      * With no inverted index to fall back on, the term-family queries scan the binary doc values themselves. The columnar payload is not
-     * one of the encodings those queries are told about up front — {@code KeywordFieldType} hands them
-     * {@code usesArrayOrderInlineNull()}, which is false for it — so they have to recognise it per segment from the field's own
-     * attributes. This pins that, including the empty-term case, which rewrites to a length query and has to recognise the payload again.
+     * told to them by the mapping: {@code KeywordFieldType} hands them its binary format, which says the blobs are payloads. This pins
+     * that, including the empty-term case, which rewrites to a length query and has to recognise the payload again.
      */
     public void testDocValuesOnlyQueriesReadTheColumnarPayload() throws IOException {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());

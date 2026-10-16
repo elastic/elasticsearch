@@ -11,9 +11,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -27,6 +29,14 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     private static final String COMPACT_MULTI_TYPE_ES_FIELD = "compact_multi_type_es_field";
     private static final String PACK_DIMS_AGG = "pack_dims_agg";
     private static final EnumSet<Stage> ANALYSIS_AND_LOCAL_PHYSICAL = EnumSet.of(Stage.ANALYSIS, Stage.LOCAL_PHYSICAL_OPTIMIZATION);
+
+    /** The stats of a data node none of whose shards may hold an unmapped field, see {@link SearchStats#mayHoldUnmappedFields}. */
+    private static final SearchStats NO_UNMAPPED_FIELDS = new EsqlTestUtils.TestSearchStats() {
+        @Override
+        public boolean mayHoldUnmappedFields() {
+            return false;
+        }
+    };
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -1439,8 +1449,8 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """);
     }
 
-    // Branching view (expands to ViewUnionAll, a UnionAll subclass): does_not_exist is referenced only in the outer KEEP and is
-    // unmapped in every branch, so it is loaded from _source in all branches (#142033). Exercises the ViewUnionAll scope boundary.
+    // Branching view (expands to BranchPlan, a UnionAll subclass): does_not_exist is referenced only in the outer KEEP and is
+    // unmapped in every branch, so it is loaded from _source in all branches (#142033). Exercises the BranchPlan scope boundary.
     public void testViewBranchingLoadsUnmappedField() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         runInNullifyAndLoadModes("""
@@ -1449,7 +1459,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code)"));
     }
 
-    // Branching view (ViewUnionAll): does_not_exist is referenced inside the languages branch (via the view's KEEP), so under load it is
+    // Branching view (BranchPlan): does_not_exist is referenced inside the languages branch (via the view's KEEP), so under load it is
     // loaded into that branch's source and null-filled in the employees branch (Decision A), mirroring the subquery case.
     public void testViewBranchingLoadsUnmappedFieldReferencedInOneBranch() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
@@ -1496,7 +1506,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     /**
      * Coordinator-side LOOKUP JOIN under LOAD_ALL mode. The join runs on the coordinator, so the
-     * data-node fragment must include {@code $$unmapped_fields} in the exchange output for the
+     * data-node fragment must include {@code _unmapped_fields} in the exchange output for the
      * coordinator to attach unmapped source fields to each joined row.
      * Captures both analysis and local-physical-optimization stages to verify the exchange boundary.
      */
@@ -1513,7 +1523,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
     /**
      * Data-node-side LOOKUP JOIN under LOAD_ALL mode. A {@code SORT} on a lookup-added field
      * ({@code language_name}) forces the join to execute on data nodes rather than on the
-     * coordinator, exercising the alternative plan shape and confirming that {@code $$unmapped_fields}
+     * coordinator, exercising the alternative plan shape and confirming that {@code _unmapped_fields}
      * is still present in the plan after the join.
      * Captures both analysis and local-physical-optimization stages to verify the exchange boundary.
      */
@@ -1528,7 +1538,32 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
-    /** Every branch can surface extras, so none of them needs the null {@code $$unmapped_fields} column that aligns branch layouts. */
+    /**
+     * When no shard on the data node may hold an unmapped field, the local logical plan gives {@code _unmapped_fields} a null
+     * {@code Eval} with the same id, so the local physical plan never extracts it and nothing reads {@code _source}. The mapped
+     * fields are still extracted.
+     */
+    public void testLoadAllNoShardHoldsUnmappedFieldsSkipsSourceRead() {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
+            FROM employees
+            | KEEP emp_no, first_name*
+            """).searchStats(NO_UNMAPPED_FIELDS).run();
+    }
+
+    /**
+     * Like {@link #testLoadAllNoShardHoldsUnmappedFieldsSkipsSourceRead}, but the query keeps no mapped column, so nothing at all
+     * is extracted: the null {@code _unmapped_fields} sits directly on the query.
+     */
+    public void testLoadAllNetZeroProjectionSkipsSourceReadEntirely() {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        loadAll(ANALYSIS_AND_LOCAL_PHYSICAL, """
+            FROM employees
+            | KEEP does_not_exist*
+            """).searchStats(NO_UNMAPPED_FIELDS).run();
+    }
+
+    /** Every branch can surface extras, so none of them needs the null {@code _unmapped_fields} column that aligns branch layouts. */
     public void testLoadAllForkEveryBranchLoadsExtras() {
         loadAll("""
             FROM employees
@@ -1539,7 +1574,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
 
     /**
      * A pattern-less {@code KEEP} can never let an unmapped source field through, so that branch alone is padded
-     * with a null {@code $$unmapped_fields} to match its sibling.
+     * with a null {@code _unmapped_fields} to match its sibling.
      */
     public void testLoadAllForkPatternLessKeepInOneBranch() {
         loadAll("""

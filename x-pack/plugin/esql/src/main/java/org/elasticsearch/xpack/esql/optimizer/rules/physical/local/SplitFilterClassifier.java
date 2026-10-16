@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.datasources.StatValueComparator;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitStats;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -70,6 +72,19 @@ final class SplitFilterClassifier {
         if (filter == null || splitStats == null) {
             return SplitMatch.AMBIGUOUS;
         }
+        // Convert mixed date/numeric literals into the column domain before stats compare.
+        return classifyRewritten(PushdownLiteralConversion.rewrite(filter), splitStats, implicitNullsForAbsentColumn);
+    }
+
+    /**
+     * Like {@link #classifyExpression} but assumes {@code filter} was already passed through
+     * {@link PushdownLiteralConversion#rewrite}. Callers that classify the same filter against many
+     * splits (e.g. footer fold) should rewrite once and reuse this.
+     */
+    static SplitMatch classifyRewritten(Expression filter, SplitStats splitStats, boolean implicitNullsForAbsentColumn) {
+        if (filter == null || splitStats == null) {
+            return SplitMatch.AMBIGUOUS;
+        }
         return classifyRecursive(filter, splitStats, implicitNullsForAbsentColumn);
     }
 
@@ -89,11 +104,16 @@ final class SplitFilterClassifier {
         if (filterConjuncts.isEmpty() || splitStats == null) {
             return SplitMatch.AMBIGUOUS;
         }
-        if (filterConjuncts.size() == 1) {
-            return classifyRecursive(filterConjuncts.getFirst(), splitStats, implicitNullsForAbsentColumn);
+        // Rewrite before the size check so size==1 and multi-conjunct paths agree on mixed literals.
+        List<Expression> rewritten = new ArrayList<>(filterConjuncts.size());
+        for (Expression conjunct : filterConjuncts) {
+            rewritten.add(PushdownLiteralConversion.rewrite(conjunct));
+        }
+        if (rewritten.size() == 1) {
+            return classifyRecursive(rewritten.getFirst(), splitStats, implicitNullsForAbsentColumn);
         }
         boolean allMatch = true;
-        for (Expression conjunct : filterConjuncts) {
+        for (Expression conjunct : rewritten) {
             SplitMatch result = classifyRecursive(conjunct, splitStats, implicitNullsForAbsentColumn);
             if (result == SplitMatch.MISS) {
                 return SplitMatch.MISS;

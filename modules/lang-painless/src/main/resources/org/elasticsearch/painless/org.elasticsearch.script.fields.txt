@@ -28,8 +28,8 @@ class org.elasticsearch.script.field.DelegateDocValuesField @dynamic_type {
 }
 
 class org.elasticsearch.script.field.BinaryDocValuesField @dynamic_type {
-  ByteBuffer get(ByteBuffer)
-  ByteBuffer get(int, ByteBuffer)
+  ByteBuffer org.elasticsearch.painless.api.Augmentation get(ByteBuffer) @script_aware
+  ByteBuffer org.elasticsearch.painless.api.Augmentation get(int, ByteBuffer) @script_aware
 }
 
 class org.elasticsearch.script.field.BooleanDocValuesField @dynamic_type {
@@ -66,7 +66,7 @@ class org.elasticsearch.script.field.ScaledFloatDocValuesField @dynamic_type {
 class org.elasticsearch.script.field.HalfFloatDocValuesField @dynamic_type {
   float get(double)
   float get(int, double)
-  List asDoubles()
+  List asDoubles() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="halfFloatDoublesBytes"]
   double asDouble(double)
   double asDouble(int, double)
 }
@@ -94,8 +94,8 @@ class org.elasticsearch.script.field.DateNanosDocValuesField @dynamic_type {
 }
 
 class org.elasticsearch.script.field.BaseKeywordDocValuesField @dynamic_type {
-  String get(String)
-  String get(int, String)
+  String org.elasticsearch.painless.api.Augmentation get(String) @script_aware
+  String org.elasticsearch.painless.api.Augmentation get(int, String) @script_aware
 }
 
 # subclass of BaseKeywordDocValuesField
@@ -112,11 +112,11 @@ class org.elasticsearch.script.field.GeoPointDocValuesField @dynamic_type {
 }
 
 class org.elasticsearch.script.field.IpDocValuesField @dynamic_type {
-  IPAddress get(IPAddress)
-  IPAddress get(int, IPAddress)
-  List asStrings()
-  String asString(String)
-  String asString(int, String)
+  IPAddress get(IPAddress) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="ipAddressReadBytes"]
+  IPAddress get(int, IPAddress) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="ipAddressReadBytes"]
+  List asStrings() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="ipStringsBytes"]
+  String asString(String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="ipStringBytes"]
+  String asString(int, String) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="ipStringBytes"]
 }
 
 class org.elasticsearch.script.field.AbstractLongDocValuesField @dynamic_type {
@@ -136,7 +136,7 @@ class org.elasticsearch.script.field.vectors.RankVectors {
     RankVectors EMPTY
     float[] getMagnitudes()
 
-    Iterator getVectors()
+    Iterator getVectors() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="rankVectorsIteratorBytes"]
     boolean isEmpty()
     int getDims()
     int size()

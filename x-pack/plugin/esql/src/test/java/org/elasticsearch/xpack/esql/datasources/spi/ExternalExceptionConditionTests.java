@@ -30,6 +30,11 @@ public class ExternalExceptionConditionTests extends ESTestCase {
         assertRendered(Condition.MALFORMED_DATA, "Malformed data in [x.csv]", "Malformed external data");
         assertRendered(Condition.METADATA_UNAVAILABLE, "Failed to get metadata for [x.csv]", "Failed to get external data metadata");
         assertRendered(Condition.LISTING_FAILED, "Failed to list external data objects", "Failed to list external data objects");
+        assertRendered(
+            Condition.LOCAL_CAPACITY,
+            "External read concurrency limit reached on this node reading [x.csv]",
+            "External read concurrency limit reached on this node"
+        );
     }
 
     public void testDetailCodeAndRemedyAreAppended() {

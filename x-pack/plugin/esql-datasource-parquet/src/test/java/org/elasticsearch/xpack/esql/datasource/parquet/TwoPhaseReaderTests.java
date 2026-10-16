@@ -310,6 +310,14 @@ public class TwoPhaseReaderTests extends ESTestCase {
         try {
             assertEquals(collectIds(expected), collectIds(actual));
             assertEquals(Math.min(upperBound, rowCount), actual.stream().mapToInt(Page::getPositionCount).sum());
+            if (shape == PhaseTwoFallbackShape.TRIVIALLY_PASSES) {
+                // One P1+P2 ticket coalesces predicate+projection. A label-only failure
+                // injection never fires because the GET starts at the earlier column.
+                assertEquals(0, failing.failedChunkReads.get());
+                assertTrue("combined ticket must not join a sync GET", failing.syncRequests.isEmpty());
+                assertEquals("trivially-passes output must contain predicate and projection columns", 2, actual.getFirst().getBlockCount());
+                return;
+            }
             assertEquals(1, failing.failedChunkReads.get());
             assertTrue("Phase-2 miss must re-ticket asynchronously", failing.successfulChunkReads.get() >= 1);
             assertTrue("async re-ticket must not join a sync GET", failing.syncRequests.isEmpty());
@@ -324,18 +332,6 @@ public class TwoPhaseReaderTests extends ESTestCase {
                 assertThat("page-filtered retry must be narrower than the whole projection chunk", retryBytes, lessThan(projectionBytes));
             } else {
                 assertThat("whole-chunk Phase-2 retry must fetch the projection chunk", retryBytes, greaterThan(0L));
-            }
-            if (shape == PhaseTwoFallbackShape.TRIVIALLY_PASSES) {
-                long[] predicateRange = columnChunkRanges(parquetData, Set.of("id")).getFirst();
-                assertTrue(
-                    "trivially-passes path must retain its Phase-1 predicate chunks",
-                    failing.successfulAsyncRequests.stream().anyMatch(request -> request.isWithin(predicateRange))
-                );
-                assertEquals(
-                    "merged trivially-passes output must contain predicate and projection columns",
-                    2,
-                    actual.getFirst().getBlockCount()
-                );
             }
         } finally {
             expected.forEach(Page::releaseBlocks);

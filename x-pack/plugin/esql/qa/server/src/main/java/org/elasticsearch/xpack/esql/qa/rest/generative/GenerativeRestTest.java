@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.FillNullGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.HighlightGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
@@ -131,6 +133,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // A wildcard FROM pattern that expands to include an external dataset creates a
             // federated/subquery-like structure internally; FORK cannot follow such a source.
             "FORK after subquery is not supported",
+            // A wildcard FROM pattern such as "parquet*" expands to several external datasets, each one a union branch,
+            // so with FORK the query can exceed the branch cap (esql.query.max_branch_count); the generator cannot predict
+            // how many datasets a pattern matches.
+            "query resolved to \\d+ branches in total, exceeding the limit of \\d+",
             // Full-text functions and the [:] operator are not allowed when the FROM clause resolves
             // to include external (parquet) datasets — the verifier rejects them with a message of the
             // form "[X] function/operator cannot be used after from <pattern>" (explicit index list) or
@@ -260,6 +266,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // https://github.com/elastic/elasticsearch/issues/159298
         "Invalid types \\[DATETIME, NULL\\] If you see this error, there is a bug in DateDiff\\.resolveType\\(\\)",
 
+        // https://github.com/elastic/elasticsearch/issues/162181
+        "Unsupported field type \\[NULL\\]\\. If you're seeing this, there.s a bug in DateExtract\\.resolveType",
+
         // Queries can time out in the test cluster (e.g. ip_location on non-IP values, wide
         // inline-stats schemas, CHANGE_POINT + LOOKUP JOIN). The timeout itself is a test
         // infrastructure limit; the query was valid ES|QL.
@@ -373,6 +382,24 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     throw e;
                 }
             }
+        }
+    }
+
+    /**
+     * The cluster is preserved across {@link com.carrotsearch.randomizedtesting.annotations.ParametersFactory
+     * @ParametersFactory} cases, so external datasets registered by {@link #availableIndices()} would otherwise stay visible
+     * to every case that runs after {@link GenerativeFeature#PARQUET_DATASET}. Wildcard sources such as {@code FROM *} would
+     * then pick them up and fail on commands that are unsupported on federated sources. Remove them after each such case.
+     */
+    @After
+    public void cleanupExternalDatasetsAfterCase() throws IOException {
+        if (isFeatureEnabled(GenerativeFeature.PARQUET_DATASET) == false) {
+            return;
+        }
+        try {
+            DatasetRegistry.cleanup(adminClient());
+        } finally {
+            DatasetRegistry.clearCaches();
         }
     }
 
@@ -626,7 +653,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isRenameInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isEvalInlineStatsAggregateBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkAttributesInSubplansBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isEvalInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isEvalInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isRangeWithinNullRangeBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isUnionAllUnresolvedKeepWildcardBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message regex patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -995,6 +1024,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             case StatsGenerator.STATS, InlineStatsGenerator.INLINE_STATS -> {
                 return newSchema.stream().map(col -> new Column(col.name(), col.type(), col.originalTypes(), false)).toList();
             }
+            case FillNullGenerator.FILL_NULL -> {
+                // FILLNULL turns each filled column into a reference attribute. The all-fields form may fill any
+                // column, so conservatively clear the flag for all of them; the targeted form only touches its targets.
+                if (Boolean.TRUE.equals(command.context().get(FillNullGenerator.ALL_FIELDS))) {
+                    return newSchema.stream().map(col -> new Column(col.name(), col.type(), col.originalTypes(), false)).toList();
+                }
+                Object filled = command.context().get(FillNullGenerator.FILLED_FIELDS);
+                if (filled instanceof List<?> list) {
+                    list.forEach(name -> createdColumns.add((String) name));
+                }
+            }
             case RenameGenerator.RENAME -> {
                 return handleRenameIndexMapped(newSchema, prevMapped, command.commandString());
             }
@@ -1225,6 +1265,38 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             + " to class org\\.elasticsearch\\.compute\\.data\\.\\w+Block.*",
         Pattern.DOTALL
     );
+
+    private static final Pattern RANGE_WITHIN_FUNCTION_PATTERN = Pattern.compile("(?i)\\bRANGE_WITHIN\\s*\\(");
+
+    /**
+     * {@code RANGE_WITHIN} picks the datetime point evaluator when its range argument is {@code NULL}-typed (e.g.
+     * {@code COALESCE} over an unmapped field), which then fails to read a {@code double} point block as a {@code LongBlock}.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/162183">#162183</a>.
+     */
+    static boolean isRangeWithinNullRangeBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return COMPUTE_BLOCK_CLASS_CAST_PATTERN.matcher(errorMessage).matches() && RANGE_WITHIN_FUNCTION_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern UNRESOLVED_OBJECT_PATTERN = Pattern.compile(
+        ".*Invalid call to attribute on an unresolved object \\?.*",
+        Pattern.DOTALL
+    );
+    private static final Pattern KEEP_WILDCARD_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*KEEP\\b[^|]*\\*");
+
+    /**
+     * {@code ResolveUnionTypesInUnionAll.replaceConvertFunctions} asks an unresolved wildcard {@code KEEP} for its output when a
+     * {@code UnionAll} (subquery or multi-dataset {@code FROM}) pushed a conversion down.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/162184">#162184</a>.
+     */
+    static boolean isUnionAllUnresolvedKeepWildcardBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return UNRESOLVED_OBJECT_PATTERN.matcher(errorMessage).matches() && KEEP_WILDCARD_COMMAND_PATTERN.matcher(query).find();
+    }
 
     private static final Pattern FORK_WITH_SORT_BRANCH_PATTERN = Pattern.compile(
         "(?is)\\bFORK\\b.*\\bSORT\\b.*\\|\\s*WHERE\\s+_fork\\s*=="

@@ -558,6 +558,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("view_partial_mapping_sample_data"),
         new ViewConfig("view_sample_data"),
+        new ViewConfig("view_country_wildcard"),
         new ViewConfig("view_partially_unmapped_sample_data"),
         new ViewConfig("view_partially_unmapped_conflicting_sample_data"),
         new ViewConfig("view_languages"),

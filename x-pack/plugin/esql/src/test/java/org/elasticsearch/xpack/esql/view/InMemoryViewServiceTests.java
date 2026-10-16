@@ -582,6 +582,18 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,emp3,view*")));
     }
 
+    /**
+     * A wildcard exclusion is a wildcard like any other: with {@code wildcards_match_views} off, it matches no view and so excludes
+     * none, not even one that is named exactly. This is also what holds inside every view body, whatever the caller SET.
+     */
+    public void testWildcardsMatchViewsFalseWildcardExclusionDoesNotExcludeViews() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        assertThat(replaceViews(query("FROM view1,-view*"), false), matchesPlan(query("FROM emp1")));
+        // With the setting on, the exclusion matches view1 and removes it.
+        assertThat(replaceViews(query("FROM view1,-view*"), true), matchesPlan(query("FROM -view*")));
+    }
+
     public void testWildcardsMatchViewsFalseDoesNotExpandWildcard() {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");

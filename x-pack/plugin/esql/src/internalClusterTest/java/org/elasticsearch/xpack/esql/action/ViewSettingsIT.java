@@ -283,6 +283,132 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * {@code wcv_data} (ids 1-2), and the view {@code wcv_leak} that the wildcard {@code wcv_*} matches when it is allowed to match
+     * views. {@code wcv_leak} yields ids 101-102 and a {@code marker} column, so a leak shows up both in the rows and the columns.
+     * The views the tests query are named without the {@code wcv_} prefix, so the wildcard never matches them.
+     */
+    private void setupWildcardViewsData() {
+        String mapping = """
+            {"dynamic": false, "properties": {"id": {"type": "integer"}}}
+            """;
+        assertAcked(indicesAdmin().prepareCreate("wcv_data").setMapping(mapping));
+        prepareIndex("wcv_data").setSource("id", 1).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("wcv_data").setSource("id", 2).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        assertAcked(createView("wcv_leak", "FROM wcv_data | EVAL id = id + 100, marker = 1"));
+    }
+
+    private static List<String> columnNames(org.elasticsearch.xpack.esql.action.EsqlQueryResponse resp) {
+        return resp.columns().stream().map(c -> c.name()).toList();
+    }
+
+    public void testWildcardInNonPassThroughViewBodyDoesNotMatchViews() {
+        setupWildcardViewsData();
+        assertAcked(createView("body_view", "FROM wcv_* | WHERE id > 0"));
+        try (var resp = run("""
+            SET wildcards_match_views=true;
+            FROM body_view | SORT id
+            """)) {
+            assertThat(columnNames(resp), not(hasItem("marker")));
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2))));
+        }
+    }
+
+    public void testWildcardInNestedViewBodyDoesNotMatchViews() {
+        setupWildcardViewsData();
+        assertAcked(createView("inner_view", "FROM wcv_* | WHERE id > 0"));
+        assertAcked(createView("outer_view", "FROM inner_view"));
+        try (var resp = run("""
+            SET wildcards_match_views=true;
+            FROM outer_view | SORT id
+            """)) {
+            assertThat(columnNames(resp), not(hasItem("marker")));
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2))));
+        }
+    }
+
+    public void testWildcardInSubqueryInsideViewBodyDoesNotMatchViews() {
+        setupWildcardViewsData();
+        assertAcked(createView("sub_view", "FROM (FROM wcv_*), (FROM wcv_data)"));
+        try (var resp = run("""
+            SET wildcards_match_views=true;
+            FROM sub_view | SORT id
+            """)) {
+            assertThat(columnNames(resp), not(hasItem("marker")));
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(1), List.of(2), List.of(2))));
+        }
+    }
+
+    public void testWildcardInViewBodyWithForkDoesNotMatchViews() {
+        assumeTrue("Requires FORK", EsqlCapabilities.Cap.FORK_V9.isEnabled());
+        setupWildcardViewsData();
+        assertAcked(createView("fork_view", "FROM wcv_* | FORK (WHERE id == 1) (WHERE id == 2)"));
+        try (var resp = run("""
+            SET wildcards_match_views=true;
+            FROM fork_view | SORT _fork, id
+            """)) {
+            assertThat(columnNames(resp), not(hasItem("marker")));
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1, "fork1"), List.of(2, "fork2"))));
+        }
+    }
+
+    /**
+     * The view is a pass-through to the very pattern the caller's wildcard would match views with, and it sits next to a caller
+     * index: the view must contribute its own rows (the index's, but not the matched view's), instead of being merged away.
+     */
+    public void testWildcardInPassThroughViewBodyBesideCallerIndexDoesNotMatchViews() {
+        setupWildcardViewsData();
+        assertAcked(createView("pass_view", "FROM wcv_*"));
+        try (var resp = run("""
+            SET wildcards_match_views=true;
+            FROM wcv_data, pass_view | KEEP id | SORT id
+            """)) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(1), List.of(2), List.of(2))));
+        }
+    }
+
+    public void testWildcardInViewBodyUsedAsInSubqueryDoesNotMatchViews() {
+        setupWildcardViewsData();
+        String mapping = """
+            {"dynamic": false, "properties": {"id": {"type": "integer"}}}
+            """;
+        assertAcked(indicesAdmin().prepareCreate("other_target").setMapping(mapping));
+        for (int id : new int[] { 1, 2, 101, 102 }) {
+            prepareIndex("other_target").setSource("id", id).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        }
+        assertAcked(createView("pass_view", "FROM wcv_*"));
+        // Were the body's wildcard allowed to match wcv_leak, the subquery would also produce 101 and 102.
+        try (var resp = run("""
+            SET wildcards_match_views=true;
+            FROM other_target | WHERE id IN (FROM pass_view | KEEP id) | KEEP id | SORT id
+            """)) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2))));
+        }
+    }
+
+    /**
+     * A view body is not subject to the cluster default either: inside it a wildcard never matches views, so the view returns the
+     * same rows whatever the cluster is configured with.
+     */
+    public void testClusterDefaultOfWildcardsMatchViewsDoesNotReachViewBody() {
+        setupWildcardViewsData();
+        assertAcked(createView("body_view", "FROM wcv_* | WHERE id > 0"));
+        String key = "esql.query.settings.wildcards_match_views";
+        updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().put(key, true));
+        try {
+            // The cluster default does apply to the caller's own wildcard: the index and the matched view.
+            try (var resp = run("FROM wcv_* | KEEP id | SORT id")) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2), List.of(101), List.of(102))));
+            }
+            try (var resp = run("FROM body_view | SORT id")) {
+                assertThat(columnNames(resp), not(hasItem("marker")));
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2))));
+            }
+        } finally {
+            updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
+        }
+    }
+
     private AcknowledgedResponse createView(String viewName, String query) {
         return client().execute(
             PutViewAction.INSTANCE,

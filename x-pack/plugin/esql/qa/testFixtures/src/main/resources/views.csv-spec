@@ -135,6 +135,35 @@ count:long | country:keyword
 12         | Indonesia
 ;
 
+// The wildcard in the body of view_country_wildcard (FROM country_a*) matches the views country_addresses and country_airports
+// when the setting is on at the caller's own level (see the test below), but never inside the view body: no index matches.
+viewBodyWildcardDoesNotMatchViewsEvenWhenTheCallerAllowsIt
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_match_wildcards
+required_capability: settings_scoped_at_view_boundaries
+
+SET wildcards_match_views=true\;
+FROM view_country_wildcard
+;
+
+c:long
+0
+;
+
+viewBodyWildcardDoesNotMatchViewsByDefault
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_match_wildcards
+required_capability: settings_scoped_at_view_boundaries
+
+FROM view_country_wildcard
+;
+
+c:long
+0
+;
+
 countryAirportsAddressesWildcard
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions

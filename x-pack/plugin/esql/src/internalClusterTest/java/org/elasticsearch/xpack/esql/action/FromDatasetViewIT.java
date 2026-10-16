@@ -719,6 +719,84 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testWildcardInNestedViewBodyDoesNotMatchDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_star_view", "FROM employees*");
+        createView("emp_nested_star_view", "FROM emp_star_view");
+        try (
+            var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM emp_nested_star_view | STATS c = COUNT(*)"))
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+        }
+    }
+
+    /**
+     * Exact names inside a view body are not what the setting controls: the exact dataset is read, the wildcard still is not.
+     */
+    public void testWildcardAndExactDatasetInViewBody() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_mixed_view", "FROM employees*, employees_alt");
+        for (String set : List.of("", "SET wildcards_match_datasets = true; ")) {
+            try (var response = run(syncEsqlQueryRequest(set + "FROM emp_mixed_view | KEEP emp_no | SORT emp_no"))) {
+                assertThat(getValuesList(response), equalTo(List.of(List.of(10), List.of(11))));
+            }
+        }
+    }
+
+    public void testWildcardInNonPassThroughViewBodyDoesNotMatchDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_count_star_view", "FROM employees* | STATS c = COUNT(*)");
+        for (String set : List.of("", "SET wildcards_match_datasets = true; ")) {
+            try (var response = run(syncEsqlQueryRequest(set + "FROM emp_count_star_view"))) {
+                assertThat(getValuesList(response), equalTo(List.of(List.of(0L))));
+            }
+        }
+    }
+
+    public void testWildcardInSubqueryInsideViewBodyDoesNotMatchDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_sub_view", "FROM (FROM employees*), (FROM employees)");
+        try (
+            var response = run(syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM emp_sub_view | KEEP emp_no | SORT emp_no"))
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3))));
+        }
+    }
+
+    public void testWildcardInViewBodyWithForkDoesNotMatchDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        createView("emp_fork_star_view", "FROM employees*, employees | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)");
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "SET wildcards_match_datasets = true; FROM emp_fork_star_view | STATS c = COUNT(*) BY _fork | KEEP _fork, c | SORT _fork"
+                )
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 2L), List.of("fork2", 1L))));
+        }
+    }
+
+    /**
+     * A subquery the user writes is not a view: it keeps the caller's setting.
+     */
+    public void testWildcardInUserSubqueryMatchesDatasets() {
+        registerEmployees();
+        registerEmployeesAlt();
+        try (
+            var response = run(
+                syncEsqlQueryRequest("SET wildcards_match_datasets = true; FROM (FROM employees*) | KEEP emp_no | SORT emp_no")
+            )
+        ) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(10), List.of(11))));
+        }
+    }
+
     public void testWildcardMatchesDatasetsIgnoresMatchingView() {
         registerEmployees();
         registerEmployeesAlt();

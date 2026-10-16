@@ -2,7 +2,7 @@
 navigation_title: "Data Federation"
 description: "Query data stored in external cloud storage using ES|QL without ingesting it into Elasticsearch."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -112,7 +112,10 @@ Datasets behave like indices. In most places where {{esql}} accepts an index nam
 
 The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata: `KNN`, `LOOKUP JOIN` with a dataset as the lookup target, and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
 
-{applies_to}`stack: preview 9.6` Relevance scoring works differently for datasets: `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25. (In 9.5, dataset rows do not contribute to `_score`).
+Relevance scoring works differently for datasets:
+
+- {applies_to}`stack: experimental 9.6+` `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25.
+- {applies_to}`stack: experimental =9.5` Dataset rows do not contribute to `_score`.
 
 {{esql}} Data Federation is not currently supported on Windows.
 

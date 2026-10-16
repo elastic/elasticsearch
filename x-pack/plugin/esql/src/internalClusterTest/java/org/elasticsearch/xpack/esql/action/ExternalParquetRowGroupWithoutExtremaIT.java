@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Regression test for esql-planning#2068: {@code MIN} and {@code MAX} over a Parquet column must
+ * Regression test for : {@code MIN} and {@code MAX} over a Parquet column must
  * fall back to a scan when at least one row group holds values but records no min/max statistics.
  *
  * <p>A Parquet writer may omit a column chunk's statistics when a value is too large to store as a

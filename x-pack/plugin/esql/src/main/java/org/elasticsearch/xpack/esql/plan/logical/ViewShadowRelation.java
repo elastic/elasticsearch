@@ -47,15 +47,13 @@ import java.util.Objects;
  *       {@link #linkedIndexPattern()}. If a remote <em>index</em> is found (a valid resolution that
  *       matched at least one index) the shadow is replaced with a corresponding {@code EsRelation};
  *       otherwise (including a valid-but-empty resolution) the shadow is left unresolved.
- *       <em>(this PR — backed by a mocked {@code optionalLinkedResolution} map until the lenient
- *       field-caps PR provides real data)</em></li>
+ *       Backed by a mocked {@code optionalLinkedResolution} map until lenient field-caps
+ *       provides real data.</li>
  *   <li>{@code ViewCompactionPostIndexResolution} runs after {@code ResolveViewShadow}: any
  *       still-unresolved shadow is stripped, then nested {@link ViewUnionAll}s are flattened
- *       and remaining {@code NamedSubquery} wrappers unwrapped. Per Strategy A in
- *       <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a>,
- *       sibling {@code EsRelation}s stay separate (a {@code UnionAll}/{@link ViewUnionAll}
- *       of {@code EsRelation}s) rather than being merged via a third combined field-caps call.
- *       <em>(landed)</em></li>
+ *       and remaining {@code NamedSubquery} wrappers unwrapped.
+ *       Sibling {@code EsRelation}s stay separate (a {@code UnionAll}/{@link ViewUnionAll}
+ *       of {@code EsRelation}s) rather than being merged via a third combined field-caps call.</li>
  * </ol>
  */
 public class ViewShadowRelation extends LeafPlan implements Unresolvable {

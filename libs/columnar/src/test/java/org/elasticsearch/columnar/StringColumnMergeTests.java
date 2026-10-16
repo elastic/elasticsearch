@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -21,14 +22,18 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.SlowCodecReaderWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.test.ESTestCase;
 
@@ -372,7 +377,7 @@ public class StringColumnMergeTests extends ESTestCase {
                 for (int d = 0; d < numDocs / 2; d++) {
                     expected.add(Arrays.asList(values[d]));
                 }
-                assertSlots(expected, readBlobs(reader.leaves().get(0).reader()));
+                assertSlots(expected, readBlobs(reader.leaves().get(0).reader(), FIELD));
             }
         }
     }
@@ -434,7 +439,7 @@ public class StringColumnMergeTests extends ESTestCase {
                         assertFalse(what + ": distinct values make a plain column", column.hasDictionary());
                         assertEquals(what + ": shortest", 16, column.minLength());
                         assertEquals(what + ": longest", sameLength ? 16 : 17, column.maxLength());
-                        assertSlots(expected(values, deleted), readBlobs(reader.leaves().get(0).reader()));
+                        assertSlots(expected(values, deleted), readBlobs(reader.leaves().get(0).reader(), FIELD));
                     }
                     // The lengths file holds its header and footer and nothing else when no lengths are kept.
                     if (sameLength) {
@@ -469,10 +474,10 @@ public class StringColumnMergeTests extends ESTestCase {
                 };
             }
             final boolean[] deleted = new boolean[numDocs];
-            final FieldType type = ColumnarTestUtils.singleValuedBinaryFieldType();
+            final FieldType type = columnarBinaryFieldType();
 
             try (Directory dir = newDirectory()) {
-                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(ColumnarTestUtils.singleValuedStringCodec())
                     .setMergePolicy(new LogDocMergePolicy());
                 final int batch = Math.max(1, numDocs / between(2, 6));
                 try (IndexWriter writer = new IndexWriter(dir, iwc)) {
@@ -494,7 +499,7 @@ public class StringColumnMergeTests extends ESTestCase {
                         for (var leaf : reader.leaves()) {
                             // The tail after the last commit may be a few documents, none of them holding the field.
                             if (leaf.reader().getBinaryDocValues(FIELD) != null) {
-                                blobs.addAll(readBlobs(leaf.reader()));
+                                blobs.addAll(readBlobs(leaf.reader(), FIELD));
                             }
                         }
                         assertRawValues(expectedRaw(values, new boolean[numDocs]), blobs);
@@ -514,9 +519,8 @@ public class StringColumnMergeTests extends ESTestCase {
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
                     assertEquals("force-merged to one segment", 1, reader.leaves().size());
                     final LeafReader leaf = reader.leaves().get(0).reader();
-                    assertSingleValuedAttribute(leaf);
                     assertEquals("no null slots", 0L, columnOf(leaf).numNullSlots());
-                    assertRawValues(expectedRaw(values, deleted), readBlobs(leaf));
+                    assertRawValues(expectedRaw(values, deleted), readBlobs(leaf, FIELD));
                 }
             }
         }
@@ -537,9 +541,11 @@ public class StringColumnMergeTests extends ESTestCase {
                 default -> "term-" + (d % 9);
             };
         }
-        final FieldType type = ColumnarTestUtils.singleValuedBinaryFieldType();
+        final FieldType type = columnarBinaryFieldType();
         try (Directory foreign = newDirectory(); Directory dir = newDirectory()) {
-            try (IndexWriter writer = new IndexWriter(foreign, new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING)))) {
+            try (
+                IndexWriter writer = new IndexWriter(foreign, new IndexWriterConfig().setCodec(ColumnarTestUtils.singleValuedStringCodec()))
+            ) {
                 for (int d = 0; d < numDocs / 2; d++) {
                     final Document doc = new Document();
                     doc.add(new StringField(ID, Integer.toString(d), Field.Store.NO));
@@ -551,7 +557,7 @@ public class StringColumnMergeTests extends ESTestCase {
                 writer.forceMerge(1);
             }
 
-            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(ColumnarTestUtils.singleValuedStringCodec())
                 .setMergePolicy(new LogDocMergePolicy());
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int d = numDocs / 2; d < numDocs; d++) {
@@ -576,7 +582,6 @@ public class StringColumnMergeTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals("force-merged to one segment", 1, reader.leaves().size());
                 final LeafReader leaf = reader.leaves().get(0).reader();
-                assertSingleValuedAttribute(leaf);
                 // addIndexes appends, so the foreign half lands after the half written here.
                 final List<String> expected = new ArrayList<>();
                 for (int d = numDocs / 2; d < numDocs; d++) {
@@ -589,17 +594,131 @@ public class StringColumnMergeTests extends ESTestCase {
                         expected.add(values[d]);
                     }
                 }
-                assertRawValues(expected, readBlobs(leaf));
+                assertRawValues(expected, readBlobs(leaf, FIELD));
             }
         }
     }
 
-    private static void assertSingleValuedAttribute(LeafReader leaf) {
-        assertEquals(
-            "the merged segment records the column as single-valued",
-            "true",
-            leaf.getFieldInfos().fieldInfo(FIELD).getAttribute(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE)
+    public void testSingleValuedAndPayloadFieldsShareSegmentsThroughFlushAndMerge() throws IOException {
+        final String singleValuedField = "single";
+        final StringColumnOptionsSelector selector = (fieldName, type) -> fieldName.equals(singleValuedField)
+            ? StringColumnOptions.DEFAULT.withSingleValued(true)
+            : StringColumnOptions.DEFAULT;
+        final Codec codec = columnarCodec(
+            new ColumNARDocValuesFormat(
+                (fieldName, type) -> NumericPipeline::defaultPipeline,
+                field -> ColumnarFieldType.STRING,
+                ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
+                selector
+            )
         );
+        final int numDocs = between(200, 2000);
+        final String[] single = new String[numDocs];
+        final String[][] payloads = new String[numDocs][];
+        for (int d = 0; d < numDocs; d++) {
+            single[d] = randomBoolean() ? randomFrom("nginx", "apache", "") : randomAlphaOfLength(between(1, 12));
+            payloads[d] = new String[between(1, 3)];
+            for (int slot = 0; slot < payloads[d].length; slot++) {
+                payloads[d][slot] = rarely() ? null : randomFrom("GET", "POST", "") + slot;
+            }
+        }
+        final FieldType type = columnarBinaryFieldType();
+        try (Directory dir = newDirectory()) {
+            final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setMergePolicy(new LogDocMergePolicy());
+            final int batch = Math.max(1, numDocs / between(2, 6));
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int d = 0; d < numDocs; d++) {
+                    final Document doc = new Document();
+                    doc.add(new Field(singleValuedField, new BytesRef(single[d]), type));
+                    doc.add(new Field(FIELD, encode(payloads[d]), type));
+                    writer.addDocument(doc);
+                    if ((d + 1) % batch == 0) {
+                        writer.commit();
+                    }
+                }
+                try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    assertThat("segments to merge", reader.leaves().size(), greaterThan(1));
+                    final List<BytesRef> singleBlobs = new ArrayList<>();
+                    final List<BytesRef> payloadBlobs = new ArrayList<>();
+                    for (LeafReaderContext leaf : reader.leaves()) {
+                        singleBlobs.addAll(readBlobs(leaf.reader(), singleValuedField));
+                        payloadBlobs.addAll(readBlobs(leaf.reader(), FIELD));
+                    }
+                    assertRawValues(Arrays.asList(single), singleBlobs);
+                    assertSlots(expected(payloads, new boolean[numDocs]), payloadBlobs);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals("force-merged to one segment", 1, reader.leaves().size());
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                assertRawValues(Arrays.asList(single), readBlobs(leaf, singleValuedField));
+                assertSlots(expected(payloads, new boolean[numDocs]), readBlobs(leaf, FIELD));
+            }
+        }
+    }
+
+    public void testSegmentsOfOneFieldInBothFramingsMergeIntoEitherFraming() throws IOException {
+        final int numDocs = between(200, 1500);
+        final String[] values = new String[numDocs];
+        for (int d = 0; d < numDocs; d++) {
+            if (random().nextInt(10) != 0) {
+                values[d] = rarely() ? "rare-" + d : randomFrom("nginx", "apache", "kafka", "");
+            }
+        }
+        final int split = between(1, numDocs - 1);
+        for (boolean mergedSingleValued : new boolean[] { false, true }) {
+            final boolean firstSingleValued = randomBoolean();
+            try (Directory dir = newDirectory()) {
+                writeSegment(dir, firstSingleValued, values, 0, split);
+                writeSegment(dir, firstSingleValued == false, values, split, numDocs);
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    assertEquals("one segment a framing", 2, reader.leaves().size());
+                    final List<String> firstHalf = Arrays.asList(values).subList(0, split);
+                    final List<String> secondHalf = Arrays.asList(values).subList(split, numDocs);
+                    assertSegmentValues(reader.leaves().get(0).reader(), firstSingleValued, firstHalf);
+                    assertSegmentValues(reader.leaves().get(1).reader(), firstSingleValued == false, secondHalf);
+                }
+                final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codecFor(mergedSingleValued))
+                    .setMergePolicy(new LogDocMergePolicy());
+                try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                    writer.forceMerge(1);
+                }
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    assertEquals("force-merged to one segment", 1, reader.leaves().size());
+                    assertSegmentValues(reader.leaves().get(0).reader(), mergedSingleValued, Arrays.asList(values));
+                }
+            }
+        }
+    }
+
+    private static Codec codecFor(boolean singleValued) {
+        return singleValued ? ColumnarTestUtils.singleValuedStringCodec() : columnarCodec(ColumnarFieldType.STRING);
+    }
+
+    private static void writeSegment(Directory dir, boolean singleValued, String[] values, int from, int to) throws IOException {
+        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codecFor(singleValued)).setMergePolicy(new LogDocMergePolicy());
+        try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+            for (int d = from; d < to; d++) {
+                final Document doc = new Document();
+                if (values[d] != null) {
+                    final BytesRef blob = singleValued ? new BytesRef(values[d]) : encode(new String[] { values[d] });
+                    doc.add(new Field(FIELD, blob, columnarBinaryFieldType()));
+                }
+                writer.addDocument(doc);
+            }
+            writer.commit();
+        }
+    }
+
+    private static void assertSegmentValues(LeafReader leaf, boolean singleValued, List<String> values) throws IOException {
+        final List<String> present = values.stream().filter(value -> value != null).toList();
+        final List<BytesRef> blobs = readBlobs(leaf, FIELD);
+        if (singleValued) {
+            assertRawValues(present, blobs);
+        } else {
+            assertSlots(present.stream().map(List::of).toList(), blobs);
+        }
     }
 
     /** The values of the documents that hold one and survived, in doc order; a null is a document without the field. */
@@ -663,7 +782,7 @@ public class StringColumnMergeTests extends ESTestCase {
                     try (DirectoryReader reader = DirectoryReader.open(writer)) {
                         final List<BytesRef> blobs = new ArrayList<>();
                         for (var leaf : reader.leaves()) {
-                            blobs.addAll(readBlobs(leaf.reader()));
+                            blobs.addAll(readBlobs(leaf.reader(), FIELD));
                         }
                         assertSlots(expected(values, new boolean[numDocs]), blobs);
                     }
@@ -681,7 +800,7 @@ public class StringColumnMergeTests extends ESTestCase {
 
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
                     assertEquals("force-merged to one segment", 1, reader.leaves().size());
-                    assertSlots(expected(values, deleted), readBlobs(reader.leaves().get(0).reader()));
+                    assertSlots(expected(values, deleted), readBlobs(reader.leaves().get(0).reader(), FIELD));
                 }
             }
         }
@@ -698,8 +817,8 @@ public class StringColumnMergeTests extends ESTestCase {
     }
 
     /** Every document's blob, in doc order. Decoding needs a slot count, which the caller supplies. */
-    private static List<BytesRef> readBlobs(LeafReader leaf) throws IOException {
-        final BinaryDocValues dv = leaf.getBinaryDocValues(FIELD);
+    private static List<BytesRef> readBlobs(LeafReader leaf, String field) throws IOException {
+        final BinaryDocValues dv = leaf.getBinaryDocValues(field);
         final List<BytesRef> blobs = new ArrayList<>();
         for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
             blobs.add(BytesRef.deepCopyOf(dv.binaryValue()));

@@ -64,7 +64,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  *   <li>a shadow with no lenient entry → left unresolved, then stripped, leaving the dataset's
  *       {@code ExternalRelation};</li>
  *   <li>a matched shadow living alongside the dataset's external relation → both kept as siblings
- *       (Strategy A — no merging);</li>
+ *       (no merging);</li>
  *   <li>the lookup key is the shadow's full {@link DatasetShadowRelation#linkedIndexPattern()}
  *       (dataset name + exclusions), so the same dataset name with different exclusion lists resolves
  *       independently.</li>
@@ -321,7 +321,7 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
     }
 
     /**
-     * Strategy A: when both the dataset external relation and the shadow resolve, they live as separate
+     * When both the dataset external relation and the shadow resolve, they live as separate
      * siblings inside the {@link UnionAll}. No merging.
      */
     public void testShadowResolvesAlongsideDatasetExternalRelation() {
@@ -340,7 +340,7 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
         var unionAll = as(limit.child(), UnionAll.class);
         assertEquals("expected two children, got: " + unionAll, 2, unionAll.children().size());
         // One branch carries the dataset's ExternalRelation, the other the shadow's resolved EsRelation —
-        // kept separate (Strategy A). Output-alignment may wrap each branch in Project/Eval, so search the
+        // kept separate. Output-alignment may wrap each branch in Project/Eval, so search the
         // whole branch subtree for the leaf rather than assuming a fixed wrapper depth.
         long externalBranches = unionAll.children().stream().filter(c -> containsNode(c, ExternalRelation.class)).count();
         long esRelationBranches = unionAll.children().stream().filter(c -> containsNode(c, EsRelation.class)).count();

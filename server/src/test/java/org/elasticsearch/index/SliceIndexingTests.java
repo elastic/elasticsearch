@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -195,6 +196,74 @@ public class SliceIndexingTests extends ESTestCase {
     private static void assertInvalid(String value) {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> SliceIndexing.validateUserSliceValue(value));
         assertThat(ex.getMessage(), containsString("invalid [_slice] value"));
+    }
+
+    public void testPrefixTermPutsTheSlicePrefixFirst() {
+        final BytesRef prefixed = SliceIndexing.prefixTerm("tenant-a", new BytesRef("value"));
+        assertThat(prefixed.utf8ToString(), equalTo(SliceIndexing.termPrefix("tenant-a") + "value"));
+    }
+
+    /** The prefix is the slice hash as hex, so it is the same width for every slice and shares the key's identity. */
+    public void testTermPrefixIsTheSliceHashInFixedWidthHex() {
+        for (String slice : List.of("a", "tenant-a", "0123456789abcdef", randomAlphaOfLengthBetween(1, 64))) {
+            final String prefix = SliceIndexing.termPrefix(slice);
+            assertThat(prefix.length(), equalTo(SliceIndexing.TERM_PREFIX_LENGTH));
+            assertThat(prefix, equalTo(String.format(Locale.ROOT, "%08x", SliceIndexing.sliceHash(slice))));
+            // one byte a character, which is what lets the token-stream and bytes paths agree
+            assertThat(SliceIndexing.termPrefixBytes(slice).length, equalTo(SliceIndexing.TERM_PREFIX_LENGTH));
+            // the same hash the slice key is built from
+            assertThat(SliceIndexing.sliceHashFromKey(SliceIndexing.encodeSliceKey(slice)), equalTo(SliceIndexing.sliceHash(slice)));
+        }
+    }
+
+    public void testStripTermPrefixRoundTrips() {
+        for (String slice : List.of("a", "tenant-a", randomAlphaOfLengthBetween(1, 32))) {
+            for (String term : List.of("", "x", "value", "a|b", randomAlphaOfLengthBetween(1, 32))) {
+                final BytesRef original = new BytesRef(term);
+                final BytesRef roundTripped = SliceIndexing.stripTermPrefix(SliceIndexing.prefixTerm(slice, original));
+                assertThat(roundTripped, equalTo(original));
+            }
+        }
+    }
+
+    /** A fixed width means a term containing the prefix characters is still stripped at the right place. */
+    public void testStripCutsAtTheFixedWidth() {
+        final BytesRef prefixed = SliceIndexing.prefixTerm("s1", new BytesRef("00000000value"));
+        assertThat(SliceIndexing.stripTermPrefix(prefixed).utf8ToString(), equalTo("00000000value"));
+    }
+
+    public void testPrefixingPreservesOrderWithinASlice() {
+        final List<String> terms = List.of("a", "aa", "ab", "b", "z");
+        final List<BytesRef> prefixed = terms.stream().map(t -> SliceIndexing.prefixTerm("tenant-a", new BytesRef(t))).toList();
+        final List<BytesRef> sorted = prefixed.stream().sorted(BytesRef::compareTo).toList();
+        assertThat(sorted, equalTo(prefixed));
+    }
+
+    /** Terms group by slice prefix, so each slice occupies a contiguous run of the dictionary. */
+    public void testSlicesSortAsContiguousRuns() {
+        final List<String> slices = List.of("s1", "s2", "s3");
+        final List<BytesRef> all = new ArrayList<>();
+        for (String slice : slices) {
+            for (String term : List.of("a", "b")) {
+                all.add(SliceIndexing.prefixTerm(slice, new BytesRef(term)));
+            }
+        }
+        all.sort(BytesRef::compareTo);
+        // whichever order the hashes fall in, the two terms of a slice are adjacent
+        for (int i = 0; i < all.size(); i += 2) {
+            final BytesRef first = all.get(i);
+            final BytesRef second = all.get(i + 1);
+            assertThat(prefixOf(first), equalTo(prefixOf(second)));
+        }
+    }
+
+    private static String prefixOf(BytesRef term) {
+        return new BytesRef(term.bytes, term.offset, SliceIndexing.TERM_PREFIX_LENGTH).utf8ToString();
+    }
+
+    public void testStripLeavesATooShortTermAlone() {
+        final BytesRef plain = new BytesRef("short");
+        assertThat(SliceIndexing.stripTermPrefix(plain), equalTo(plain));
     }
 
     private static String randomSliceValue() {

@@ -1045,6 +1045,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         RunOnce dumpHotThreads,
         ActionListener<Boolean> listener
     ) {
+        assert Thread.holdsLock(this);
         try {
             logger.debug("{} creating shard with primary term [{}], iteration [{}]", shardRouting.shardId(), primaryTerm, iteration);
             indicesService.createShard(
@@ -1090,6 +1091,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 () -> clusterService.getClusterApplierService()
                     .runOnApplierThread("create shard " + shardRouting, Priority.NORMAL, currentState -> {
+                        // This lock-retry task must run under the same lock as handleRecoveryFailure/FailedShardHandler (which run on
+                        // the generic pool), otherwise a recovery failure can race the window between this task (re-)creating the shard
+                        // and the listener observing that, e.g. mutating pendingShardCreations or removing the shard for this
+                        // shardId concurrently, leaving this task to act on stale state once it resumes.
+                        // Synchronizing here is cheap: the shard lock is attempted without waiting, so this task never holds the lock
+                        // for long, and since it already runs on the applier thread, it doesn't delay cluster-state application beyond
+                        // what applyClusterState (also synchronized, and running on that same thread) already does.
+                        // See https://github.com/elastic/elasticsearch/pull/160891#discussion_r4185920821
                         synchronized (this) {
                             assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
                             final var pendingShardCreation = pendingShardCreations.get(shardRouting.shardId());

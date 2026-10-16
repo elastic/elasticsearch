@@ -78,9 +78,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testForceCommitPrefetch
   issue: https://github.com/elastic/elasticsearch/issues/147847
-- class: org.elasticsearch.backwards.RareTermsIT
-  method: testSingleValuedString
-  issue: https://github.com/elastic/elasticsearch/issues/147853
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
@@ -174,9 +171,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/152599
-- class: org.elasticsearch.compute.operator.topn.GroupedTopNOperatorTests
-  method: testRandomMultipleColumns
-  issue: https://github.com/elastic/elasticsearch/issues/155019
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   method: testDisableCCM_RemovesAuthorizationTask
   issue: https://github.com/elastic/elasticsearch/issues/155579
@@ -222,9 +216,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
   method: testCreateAndRestorePartialSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/157256
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {yaml=search/395_binary_doc_values_search/Test keyword range uses indexed byte ordering for binary doc values}
-  issue: https://github.com/elastic/elasticsearch/issues/157314
 - class: org.elasticsearch.xpack.inference.services.ai21.Ai21ServiceTests
   method: testUnifiedCompletionInfer
   issue: https://github.com/elastic/elasticsearch/issues/157322
@@ -319,9 +310,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
   issue: https://github.com/elastic/elasticsearch/issues/159710
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:PARQUET_DATASET}
-  issue: https://github.com/elastic/elasticsearch/issues/156789
 - class: org.elasticsearch.xpack.prometheus.PrometheusInstantQueryRestIT
   method: testInstantAggregatedOperandsMatchAcrossIngestionPaths
   issue: https://github.com/elastic/elasticsearch/issues/159795
@@ -346,9 +334,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {yaml=search/397_match_only_text_doc_values_multiterm_search/*}"
   issue: https://github.com/elastic/elasticsearch/issues/159693
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:PARQUET_DATASET}
-  issue: https://github.com/elastic/elasticsearch/issues/156789
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
   method: testPreferredNodeIdsAreUsedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/159502
@@ -400,9 +385,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationContinuesAfterMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/160824
-- class: org.elasticsearch.action.RejectionActionIT
-  method: testRemoteReductionRejectionWithPendingCoordinatorReduction
-  issue: https://github.com/elastic/elasticsearch/issues/160620
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/161086
@@ -439,9 +421,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.action.datafeed.DatafeedEsqlGatesTests
   method: testValidateEsqlDatafeedEnabledWhenFlagOnAndClusterSupportsItShouldSucceed
   issue: https://github.com/elastic/elasticsearch/issues/161485
-- class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
-  method: testShardPrewarming
-  issue: https://github.com/elastic/elasticsearch/issues/161487
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: test {yaml=/37_columnar_collapse/collapse on a single valued columnar keyword field with the columnar codec disabled}
   issue: https://github.com/elastic/elasticsearch/issues/161603
@@ -501,33 +480,15 @@ tests:
 - class: org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValuesGenericWriteableTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/162108
-- class: org.elasticsearch.search.heappressure.ColumnarKeywordWildcardHeapPressureIT
-  method: testPausedHeavyCaseInsensitiveWildcardsTripBreaker
-  issue: https://github.com/elastic/elasticsearch/issues/162159
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/162163
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
   issue: https://github.com/elastic/elasticsearch/issues/162175
-- class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
-  method: testAutomatonStaysChargedUntilSearchContextReleased
-  issue: https://github.com/elastic/elasticsearch/issues/162192
 - class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldWildcardHeapPressureIT
   method: testPausedHeavyWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/162207
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
-  method: testUnsetMultilineFieldsFailsOnQuotedMultilineRows
-  issue: https://github.com/elastic/elasticsearch/issues/162215
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
-  method: testRandomizedQuotedCsvCountsExactlyAcrossSplits
-  issue: https://github.com/elastic/elasticsearch/issues/162217
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
-  method: testQuoteFreeCsvCountsExactlyByDefault
-  issue: https://github.com/elastic/elasticsearch/issues/162219
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
-  method: testMultilineFieldsTrueReadsPlainPrefixThenQuotedMultilineCsv
-  issue: https://github.com/elastic/elasticsearch/issues/162221
 - class: org.elasticsearch.columnar.PayloadColumnMergeTests
   method: testMergeCarriesRepeatsOverWithoutComparing
   issue: https://github.com/elastic/elasticsearch/issues/162235
@@ -536,5 +497,26 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162240
 - class: org.elasticsearch.search.heappressure.FuzzyHighlightHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/149983
-- class: org.elasticsearch.xpack.esql.datasource.s3.S3StorageObjectAsyncTests
-  issue: https://github.com/elastic/elasticsearch/issues/162263
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
+  issue: https://github.com/elastic/elasticsearch/issues/162277
+- class: org.elasticsearch.columnar.StringColumnMergeTests
+  method: testSegmentsOfOneFieldInBothFramingsMergeIntoEitherFraming
+  issue: https://github.com/elastic/elasticsearch/issues/162245
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/162282
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecPrometheusK8sDeltaIT
+  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/162319
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
+  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/162369
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
+  method: test {csv-spec:prometheus-k8s-delta.delta_with_filtering_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/162371
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
+  method: test {csv-spec:prometheus-k8s-delta.eval_on_delta_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/162373
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  method: testBulkRequestSameOutcomeAsSeparateRequests
+  issue: https://github.com/elastic/elasticsearch/issues/162390

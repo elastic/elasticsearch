@@ -1156,6 +1156,36 @@ PromQL increase on counter field:
   - match: {values.3.1: "2021-04-28T18:52:00.000Z"}
 
 ---
+PromQL time range params as range selector duration:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_time_range_params]
+      reason: "PromQL time range params support"
+  # The window (18:50:30, 18:52:00] holds the last two samples of each pod.
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test time=?_tend samples=(sum(count_over_time(k8s.pod.network.tx[?_tend - ?_tstart])))'
+          params: [{"_tstart": "2021-04-28T18:50:30.000Z"}, {"_tend": "2021-04-28T18:52:00.000Z"}]
+
+  - match: {columns.0.name: "samples"}
+  - match: {columns.1.name: "step"}
+  - length: {values: 1}
+  - match: {values.0.0: 4.0}
+  - match: {values.0.1: "2021-04-28T18:52:00.000Z"}
+
+  - do:
+      catch: /Time range \[\?_tstart - \?_tend\] must end after it starts/
+      esql.query:
+        body:
+          query: 'PROMQL index=test time=?_tend samples=(sum(count_over_time(k8s.pod.network.tx[?_tstart - ?_tend])))'
+          params: [{"_tstart": "2021-04-28T18:50:30.000Z"}, {"_tend": "2021-04-28T18:52:00.000Z"}]
+
+---
 PromQL max_over_time:
   - requires:
       test_runner_features: [capabilities]
@@ -1718,6 +1748,63 @@ TS command spurious grouping when non-dimension flattened keys vary:
   - match: {values.1.2: {build.tag: "v2.0", region: "eu-west-1"}}
 
 ---
+TS aggregating a converted metric alongside a plain metric:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_command_v0, fix_ts_null_filter_on_computed_inputs ]
+      reason: "converted metrics must not be dropped by the not-null metrics filter"
+
+  - do:
+      indices.create:
+        index: test-converted-metric
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              a:
+                type: long
+                time_series_metric: gauge
+              b:
+                type: long
+                time_series_metric: gauge
+  - do:
+      bulk:
+        refresh: true
+        index: test-converted-metric
+        body:
+          - '{"create": {}}'
+          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h1", "a": 1}'
+          - '{"create": {}}'
+          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h2", "b": 2}'
+
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-converted-metric | STATS a = max(a::double), b = max(b)'
+  - match: {columns.0.name: "a"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "b"}
+  - match: {columns.1.type: "long"}
+  - length: {values: 1}
+  - match: {values.0.0: 1.0}
+  - match: {values.0.1: 2}
+
+---
 TS null filtering through metric casts:
   - requires:
       test_runner_features: [ capabilities ]
@@ -1725,7 +1812,7 @@ TS null filtering through metric casts:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ ts_command_v0, metric_identity_through_casts ]
+          capabilities: [ ts_command_v0, metric_identity_through_casts, fix_ts_null_filter_on_computed_inputs ]
       reason: "metric casts retain null filtering without changing counter types"
 
   - do:
@@ -1793,3 +1880,30 @@ TS null filtering through metric casts:
   - match: {columns.0.type: "double"}
   - length: {values: 1}
   - match: {values.0.0: 150.0}
+
+  # A cast metric mixed with a computed input must retain rows where only the computed input has a value.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL converted = a::double::long, computed = coalesce(b, 0)::double | STATS a = max(converted), b = max(computed) BY host | SORT host'
+  - length: {values: 2}
+  - match: {values.0: [1, 0.0, "h1"]}
+  - match: {values.1: [null, 2.0, "h2"]}
+
+  # Computing after casting must also disable the metric filter.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL converted = a::double, computed = coalesce(b::double, 0) | STATS a = max(converted), b = max(computed) BY host | SORT host'
+  - length: {values: 2}
+  - match: {values.0: [1.0, 0.0, "h1"]}
+  - match: {values.1: [null, 2.0, "h2"]}
+
+  # A cast of a computed value remains non-metric, so presence and absence see the null rows.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL computed = (b + 0)::double | STATS a = max(a::double), absent = max(absent_over_time(computed)), present = max(present_over_time(computed)) BY host | SORT host'
+  - length: {values: 2}
+  - match: {values.0: [1.0, true, false, "h1"]}
+  - match: {values.1: [null, false, true, "h2"]}

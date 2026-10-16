@@ -2759,7 +2759,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             StoragePath filePath = files.path(fileIndex);
             long size = files.size(fileIndex);
             long mtime = files.lastModifiedMillis(fileIndex);
-            StorageObject obj = FileSplitProvider.newObject(storageProvider, filePath, size, mtime);
+            StorageObject obj = FileSplitProvider.newObject(storageProvider, filePath, size, mtime, files.version(fileIndex));
             attachStorageMetrics(obj); // before any read — see note at the single-object dispatch above
             state.buffer.trackStorageObject(obj);
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -175,12 +176,14 @@ public class EsqlCCSUtils {
      * Update the state for clusters that returned zero matching indices — fail the query, mark the cluster as skipped, or mark it as done.
      * @param executionInfo - The per-cluster CCS state
      * @param indexResolutions - The collection of IndexResolution objects produced by field-caps
+     * @param indexViewOrigins - The views each index pattern was reached through, described in errors about missing indices.
      * @param usedFilter - Whether the query had a request-level filter.
      */
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
         Collection<IndexResolution> indexResolutions,
         Collection<IndexResolution> linkedResolution,
+        IndexViewOrigins indexViewOrigins,
         boolean usedFilter
     ) {
         if (executionInfo.clusterInfo.isEmpty()) {
@@ -213,7 +216,7 @@ public class EsqlCCSUtils {
         for (String c : clustersWithNoMatchingIndices) {
             var cluster = executionInfo.getCluster(c);
             if (concreteIndexRequested(cluster.getIndexExpression())) {
-                String error = Strings.format("Unknown index [%s]", cluster.getQualifiedIndexExpression());
+                String error = unknownIndexError(cluster.getQualifiedIndexExpression(), indexViewOrigins);
                 if (executionInfo.shouldSkipOnFailure(c) == false || usedFilter) {
                     if (fatalErrorMessage == null) {
                         fatalErrorMessage = new StringBuilder(error);
@@ -265,7 +268,7 @@ public class EsqlCCSUtils {
                     continue;
                 }
                 if (executionInfo.shouldSkipOnFailure(clusterAlias) == false || usedFilter) {
-                    String error = Strings.format("Unknown index [%s]", indexResolution.get().name());
+                    String error = unknownIndexError(indexResolution.get().name(), indexViewOrigins);
                     if (fatalErrorMessage == null) {
                         fatalErrorMessage = new StringBuilder(error);
                     } else {
@@ -278,6 +281,11 @@ public class EsqlCCSUtils {
         if (fatalErrorMessage != null) {
             throw new VerificationException(fatalErrorMessage.toString());
         }
+    }
+
+    static String unknownIndexError(String indexExpression, IndexViewOrigins indexViewOrigins) {
+        String error = "Unknown index [" + indexExpression + "]";
+        return indexViewOrigins.describe(indexExpression).map(views -> error + " " + views).orElse(error);
     }
 
     // visible for testing

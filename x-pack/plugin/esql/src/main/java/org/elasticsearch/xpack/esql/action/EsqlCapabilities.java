@@ -4492,8 +4492,15 @@ public class EsqlCapabilities {
         FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
 
         /**
+         * {@code DEDUP} ignores the synthetic {@code $$<field>$converted_to$<type>} attributes that a conversion pushed into
+         * {@code UnionAll} branches leaves in its input. Older nodes rejected such queries when the converted type, e.g.
+         * {@code date_range}, cannot be grouped on, even though the column is never part of the output.
+         */
+        DEDUP_IGNORES_SYNTHETIC_UNION_CONVERSIONS,
+
+        /**
          * Warning, emitted before optimization, when an explicit NULL literal is misused: either the
-         * expression always evaluates to NULL, or a NULL in an IN list is ignored.
+         * expression always evaluates to NULL, or a NULL in an IN list never matches.
          */
         WARN_NULL_MISUSE,
 

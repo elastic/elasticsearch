@@ -711,9 +711,9 @@ public class Verifier {
             || plan instanceof LookupJoin
             || plan instanceof Enrich
             || plan instanceof Fork
-            // Every subquery union is a BranchPlan now; what LOAD_ALL does not support yet is views, and that is a
-            // property of the branches (BranchIdentity), not of the node type. Admit unions without view branches.
-            || (plan instanceof BranchPlan vua && vua.viewBranchKeys().isEmpty())
+            // Every subquery union is a BranchPlan, view branches included: a view is a boundary the setting does not reach into,
+            // so nothing is loaded from _source inside it and its _unmapped_fields is null.
+            || plan instanceof BranchPlan
             || (plan instanceof UnionAll && plan instanceof BranchPlan == false)
             || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
             || plan instanceof AbstractSubqueryJoin;

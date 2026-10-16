@@ -2092,15 +2092,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
             // FORK always copies a mention to siblings. LOAD_ALL subqueries do too. LOAD does not: a mention in one
             // independent-source branch loads that branch and Eval-nulls siblings.
-            // View branches need no exclusion here: ResolveUnmapped already answers outer
-            // references at a view branch's output with null and collects no view-internal mentions, so a view branch
-            // reaches this loop only via the generic missing-column null-fill below; and the LOAD_ALL sibling
-            // materialization cannot apply to one, because the Verifier rejects LOAD_ALL over view branches.
+            // A view branch is never loaded into, whatever a sibling materialized or mapped: a view is a virtual index with no
+            // _source of its own and the setting ends at its boundary. ResolveUnmapped already answers outer references at a view
+            // branch's output with null and collects no view-internal mentions, so a view branch only gets the generic
+            // missing-column null-fill below; the LOAD_ALL extras and the sibling materialization skip it.
             boolean alignMentionedUnmapped = alignUnmappedAcrossBranches
                 || (mergePlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields());
             Set<String> materializedUnmappedFieldNames = alignMentionedUnmapped ? materializedUnmappedFieldNames(mergePlan) : Set.of();
 
-            for (LogicalPlan logicalPlan : mergePlan.children()) {
+            List<LogicalPlan> branches = mergePlan.children();
+            for (int i = 0; i < branches.size(); i++) {
+                LogicalPlan logicalPlan = branches.get(i);
+                boolean viewBranch = mergePlan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i);
                 Source source = logicalPlan.source();
 
                 // find the missing columns
@@ -2122,6 +2125,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (mapped != null
                         && mergePlan instanceof UnionAll
                         && unmappedResolution.loadsAllUnmappedFields()
+                        && viewBranch == false
                         && branchCanSurfaceLoadedField(logicalPlan, attr.name())) {
                         FieldAttribute loaded = unmappedKeyword(attr);
                         AbstractConvertFunction cast = implicitCastFromKeyword(mapped.dataType(), loaded, context.configuration());
@@ -2141,6 +2145,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // FORK: always. UnionAll: LOAD_ALL only. LOAD Eval-nulls siblings of an in-branch mention.
                     if (alignMentionedUnmapped
                         && materializedUnmappedFieldNames.contains(attr.name())
+                        && viewBranch == false
                         && branchCanSurfaceLoadedField(logicalPlan, attr.name())) {
                         toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
                         continue;

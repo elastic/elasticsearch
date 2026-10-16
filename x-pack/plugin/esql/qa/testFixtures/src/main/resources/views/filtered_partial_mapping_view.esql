@@ -1,0 +1,1 @@
+FROM partial_mapping_sample_data | WHERE event_duration > 1000000

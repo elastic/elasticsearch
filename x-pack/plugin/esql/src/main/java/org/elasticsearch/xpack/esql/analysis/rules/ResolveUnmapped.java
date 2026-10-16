@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FlattenedKey;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -98,6 +99,9 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         // scans. BranchPlan.branchIdentity() now says which branches are views; once the design discussion settles,
         // skip resolution in subtrees under VIEW-kind branches (re-enabled later only by SET unmapped_fields inside
         // the view definition itself).
+        if (context.configuration() != null && context.configuration().flattenedKeys(context.minimumVersion())) {
+            plan = resolveContainerKeys(plan);
+        }
         return switch (context.unmappedResolution()) {
             case UnmappedResolution.DEFAULT -> plan;
             case UnmappedResolution.NULLIFY -> resolve(plan, false);
@@ -126,6 +130,43 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
         var transformed = load ? load(plan, unresolved) : nullify(plan, unresolved);
         return transformed == plan ? plan : refreshPlan(transformed, allUnresolved);
+    }
+
+    /**
+     * Reads each name a command uses under a {@code flattened} column of its input, but which is no column of its own, as the key
+     * of that name in the column, such as {@code a.foo} after {@code RENAME attrs AS a}.
+     */
+    private static LogicalPlan resolveContainerKeys(LogicalPlan plan) {
+        Set<UnresolvedAttribute> resolved = new HashSet<>();
+        LogicalPlan transformed = plan.transformUp(UnaryPlan.class, command -> {
+            if (command.childrenResolved() == false) {
+                return command;
+            }
+            Map<String, Attribute> columns = new HashMap<>();
+            for (Attribute attribute : command.child().output()) {
+                columns.put(attribute.name(), attribute);
+            }
+            Map<String, Alias> keys = new LinkedHashMap<>();
+            command.forEachExpression(expression -> expression.forEachDown(UnresolvedAttribute.class, ua -> {
+                String name = ua.name();
+                if (columns.containsKey(name)) {
+                    return;
+                }
+                for (int dot = name.indexOf('.'); dot > 0; dot = name.indexOf('.', dot + 1)) {
+                    Attribute container = columns.get(name.substring(0, dot));
+                    if (container != null && container.dataType() == DataType.FLATTENED) {
+                        keys.putIfAbsent(
+                            name,
+                            new Alias(ua.source(), name, new FlattenedKey(ua.source(), container, name.substring(dot + 1)))
+                        );
+                        resolved.add(ua);
+                        return;
+                    }
+                }
+            }));
+            return keys.isEmpty() ? command : command.replaceChild(new Eval(command.source(), command.child(), List.copyOf(keys.values())));
+        });
+        return resolved.isEmpty() ? plan : refreshPlan(transformed, resolved);
     }
 
     /**

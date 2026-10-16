@@ -38,6 +38,8 @@ path:
 
 :::::::
 ::::{warning}
+Follow these precautions to protect the contents of the {{es}} data directory:
+
 * Don’t modify anything within the data directory or run processes that might interfere with its contents.
 
   If something other than {{es}} modifies the contents of the data directory, then {{es}} may fail, reporting corruption or other data inconsistencies, or may appear to work correctly having silently lost some of your data.

@@ -181,7 +181,20 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
     }
 
     public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel_KeepsSimilarity() throws IOException {
-        testUpdateModelWithEmbeddingDetails(SimilarityMeasure.COSINE, SimilarityMeasure.COSINE);
+        try (var inferenceService = createInferenceService()) {
+            boolean supportsEmbeddingTaskType = supportsTaskType(inferenceService, TaskType.TEXT_EMBEDDING)
+                || supportsTaskType(inferenceService, TaskType.EMBEDDING);
+            Assume.assumeTrue(supportsEmbeddingTaskType);
+
+            var embeddingSize = randomNonNegativeInt();
+            // Verify that every existing similarity value is preserved, including dot_product.
+            // This proves that updating an existing endpoint does not retroactively change its similarity.
+            for (var similarity : SimilarityMeasure.values()) {
+                var model = createEmbeddingModel(similarity);
+                var updatedModel = inferenceService.updateModelWithEmbeddingDetails(model, embeddingSize);
+                assertEquals(similarity, updatedModel.getServiceSettings().similarity());
+            }
+        }
     }
 
     private void testUpdateModelWithEmbeddingDetails(SimilarityMeasure similarityInModel, SimilarityMeasure expectedSimilarity)
@@ -213,11 +226,12 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
     }
 
     /**
-     * This should be overridden by services that do not use {@link SimilarityMeasure#DOT_PRODUCT} as their default similarity
+     * This should be overridden by services that do not use {@link SimilarityMeasure#COSINE} as their default similarity for float
+     * dense embeddings.
      * @return the default {@link SimilarityMeasure} for the service
      */
     public SimilarityMeasure getDefaultSimilarity() {
-        return SimilarityMeasure.DOT_PRODUCT;
+        return SimilarityMeasure.COSINE;
     }
 
     // streaming tests

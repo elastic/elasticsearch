@@ -1898,7 +1898,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     }
 
     public void testDefaultSimilarity_NotBinaryEmbedding() {
-        assertThat(JinaAIService.defaultSimilarity(JinaAIEmbeddingType.FLOAT), is(SimilarityMeasure.DOT_PRODUCT));
+        assertThat(JinaAIService.defaultSimilarity(JinaAIEmbeddingType.FLOAT), is(SimilarityMeasure.COSINE));
     }
 
     @SuppressWarnings("checkstyle:LineLength")
@@ -1940,7 +1940,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                                     "supported_task_types": ["text_embedding", "embedding"]
                                 },
                                 "similarity": {
-                                    "description": "The similarity measure. One of [cosine, dot_product, l2_norm]. For float embeddings, the default similarity is dot_product. For bit and binary embeddings, the default similarity is l2_norm.",
+                                    "description": "The similarity measure. One of [cosine, dot_product, l2_norm]. For float embeddings, the default similarity is cosine. For bit and binary embeddings, the default similarity is l2_norm.",
                                     "label": "Similarity",
                                     "required": false,
                                     "sensitive": false,

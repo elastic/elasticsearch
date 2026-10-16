@@ -216,7 +216,7 @@ public class MistralService extends SenderService<MistralModel> {
             var serviceSettings = embeddingsModel.getServiceSettings();
 
             var similarityFromModel = embeddingsModel.getServiceSettings().similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
 
             MistralEmbeddingsServiceSettings updatedServiceSettings = new MistralEmbeddingsServiceSettings(
                 serviceSettings.modelId(),

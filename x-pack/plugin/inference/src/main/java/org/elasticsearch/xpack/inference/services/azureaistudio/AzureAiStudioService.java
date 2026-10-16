@@ -201,7 +201,7 @@ public class AzureAiStudioService extends SenderService<AzureAiStudioModel> impl
         if (model instanceof AzureAiStudioEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+            var similarityToUse = similarityFromModel == null ? SimilarityMeasure.COSINE : similarityFromModel;
 
             var updatedServiceSettings = new AzureAiStudioEmbeddingsServiceSettings(
                 serviceSettings.target(),

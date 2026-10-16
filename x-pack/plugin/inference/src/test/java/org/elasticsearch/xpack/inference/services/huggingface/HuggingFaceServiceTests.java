@@ -1481,11 +1481,6 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
     }
 
     @Override
-    public SimilarityMeasure getDefaultSimilarity() {
-        return SimilarityMeasure.COSINE;
-    }
-
-    @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
         assertThat(
             rerankingInferenceService.rerankerWindowSize(MODEL_ID_VALUE),

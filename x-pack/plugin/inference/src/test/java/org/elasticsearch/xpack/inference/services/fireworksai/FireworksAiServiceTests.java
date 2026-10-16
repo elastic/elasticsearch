@@ -336,8 +336,4 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
         );
     }
 
-    @Override
-    public SimilarityMeasure getDefaultSimilarity() {
-        return SimilarityMeasure.COSINE;
-    }
 }

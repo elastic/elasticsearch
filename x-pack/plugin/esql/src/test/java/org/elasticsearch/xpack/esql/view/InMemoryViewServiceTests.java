@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -406,6 +407,54 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2");
         LogicalPlan plan = query("FROM view*, -view1, -view2");
         assertThat(replaceViews(plan), matchesPlan(query("FROM view*")));
+    }
+
+    public void testWildcardMatchingViewAndDatasetKeepsPattern() {
+        addView("view1", "FROM emp1");
+        viewService.addDataset(projectId, "view_ds");
+        LogicalPlan plan = query("FROM view*");
+        // The wildcard also matches a dataset (in case data federation is enabled),
+        // so it must survive for DatasetResolver instead of being resolved by view1 only.
+        String expected = Federation.isAvailable(Settings.EMPTY) ? "FROM emp1,view*" : "FROM emp1";
+        assertThat(replaceViews(plan, true, true), matchesPlan(query(expected)));
+    }
+
+    public void testWildcardMatchingViewAndDatasetWithDatasetWildcardsOff() {
+        addView("view1", "FROM emp1");
+        viewService.addDataset(projectId, "view_ds");
+        LogicalPlan plan = query("FROM view*");
+        assertThat(replaceViews(plan, true, false), matchesPlan(query("FROM emp1")));
+    }
+
+    public void testWildcardMatchingViewAndExcludedDataset() {
+        addView("view1", "FROM emp1");
+        viewService.addDataset(projectId, "view_ds");
+        LogicalPlan plan = query("FROM view*,-view_ds");
+        assertThat(replaceViews(plan, true, true), matchesPlan(query("FROM emp1")));
+    }
+
+    public void testWildcardMatchingOnlyDatasetDoesNotAffectViews() {
+        addView("view1", "FROM emp1");
+        viewService.addDataset(projectId, "other_ds");
+        LogicalPlan plan = query("FROM view*");
+        assertThat(replaceViews(plan, true, true), matchesPlan(query("FROM emp1")));
+    }
+
+    public void testWildcardMatchingViewAndDatasetWithFederationUnavailable() {
+        try (
+            InMemoryViewService customViewService = viewService.withSettings(
+                Settings.builder().put(Federation.FEDERATION_ENABLED.getKey(), false).build()
+            )
+        ) {
+            customViewService.addIndex(projectId, "emp1");
+            addView("view1", "FROM emp1", customViewService);
+            customViewService.addDataset(projectId, "view_ds");
+            PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+            customViewService.getViewResolver().replaceViews(query("FROM view*"), null, true, true, this::parse, false, future);
+            assertThat(COMPACTION.apply(future.actionGet().plan()), matchesPlan(query("FROM emp1")));
+        } catch (Exception e) {
+            throw new AssertionError("unexpected exception", e);
+        }
     }
 
     public void testExclusionNonExistingResource() {
@@ -1361,7 +1410,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             InMemoryViewResolver customViewResolver = customViewService.getViewResolver();
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view2"), null, true, this::parse, false, future);
+                customViewResolver.replaceViews(query("FROM view2"), null, true, false, this::parse, false, future);
                 // FROM view2 should fail
                 Exception e = expectThrows(VerificationException.class, future::actionGet);
                 assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
@@ -1369,7 +1418,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             // But FROM view1 should work
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view1"), null, true, this::parse, false, future);
+                customViewResolver.replaceViews(query("FROM view1"), null, true, false, this::parse, false, future);
                 // Run the same compaction (and ViewShadowRelation strip) the production pipeline does.
                 LogicalPlan rewritten = COMPACTION.apply(future.actionGet().plan());
                 assertThat(rewritten, matchesPlan(query("FROM emp")));
@@ -2862,8 +2911,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan, boolean wildcardsMatchViews) {
+        return replaceViews(plan, wildcardsMatchViews, false);
+    }
+
+    private LogicalPlan replaceViews(LogicalPlan plan, boolean wildcardsMatchViews, boolean wildcardsMatchDatasets) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(plan, null, wildcardsMatchViews, this::parse, false, future);
+        viewResolver.replaceViews(plan, null, wildcardsMatchViews, wildcardsMatchDatasets, this::parse, false, future);
         return COMPACTION.apply(future.actionGet().plan());
     }
 
@@ -2888,13 +2941,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan, ViewResolver resolver) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        resolver.replaceViews(plan, null, true, this::parse, false, future);
+        resolver.replaceViews(plan, null, true, false, this::parse, false, future);
         return future.actionGet().plan();
     }
 
     private IndexViewOrigins indexViewOrigins(String query) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(query(query), null, true, this::parse, false, future);
+        viewResolver.replaceViews(query(query), null, true, false, this::parse, false, future);
         return future.actionGet().indexViewOrigins();
     }
 

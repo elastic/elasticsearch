@@ -17,15 +17,15 @@ import java.io.IOException;
 /**
  * Represents a file (typically a {@link BatchedCompoundCommit}) stored in the blobstore.
  */
-public record BlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) implements Writeable {
+public record BccBlobFile(String blobName, PrimaryTermAndGeneration termAndGeneration) implements Writeable {
 
-    public BlobFile {
+    public BccBlobFile {
         assert (BatchedCompoundCommit.startsWithBlobPrefix(blobName) == false && termAndGeneration.generation() == -1)
             || termAndGeneration.generation() == BatchedCompoundCommit.parseGenerationFromBlobName(blobName)
             : "generation mismatch: " + termAndGeneration + " vs " + blobName;
     }
 
-    public BlobFile(StreamInput in) throws IOException {
+    public BccBlobFile(StreamInput in) throws IOException {
         this(in.readString(), new PrimaryTermAndGeneration(in));
     }
 

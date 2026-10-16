@@ -1060,7 +1060,7 @@ public final class IngestDocument {
      * makes no attempt to make it immutable. This method just protects users against accidentally modifying the most common types of
      * Objects found in IngestDocuments.
      */
-    public Map<String, Object> getUnmodifiableSourceAndMetadata() {
+    public Map<String, Object> getUnmodifiableCtxMap() {
         return new UnmodifiableIngestData(ctxMap);
     }
 

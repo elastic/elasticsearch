@@ -2206,7 +2206,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetUnmodifiableSourceAndMetadata() {
+    public void testGetUnmodifiableCtxMap() {
         assertMutatingThrows(ctx -> ctx.remove("foo"));
         assertMutatingThrows(ctx -> ctx.put("foo", "bar"));
         assertMutatingThrows(ctx -> ((List<Object>) ctx.get("listField")).add("bar"));
@@ -2227,7 +2227,7 @@ public class IngestDocumentTests extends ESTestCase {
         Map<String, Object> document = new HashMap<>();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue("byteArrayField", randomByteArrayOfLength(10));
-        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableSourceAndMetadata();
+        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableCtxMap();
         byte originalByteValue = ((byte[]) unmodifiableDocument.get("byteArrayField"))[0];
         ((byte[]) unmodifiableDocument.get("byteArrayField"))[0] = (byte) (originalByteValue + 1);
         assertThat(((byte[]) unmodifiableDocument.get("byteArrayField"))[0], equalTo(originalByteValue));
@@ -2243,7 +2243,7 @@ public class IngestDocumentTests extends ESTestCase {
         List<Object> listWithinSet = new ArrayList<>();
         listWithinSet.add(new ArrayList<>());
         ingestDocument.getFieldValue("setField", Set.class).add(listWithinSet);
-        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableSourceAndMetadata();
+        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableCtxMap();
         assertThrows(UnsupportedOperationException.class, () -> mutation.accept(unmodifiableDocument));
         mutation.accept(ingestDocument.getSourceAndMetadata()); // no exception expected
     }

@@ -330,6 +330,9 @@ public class IncrementalBulkService {
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                         releasables.clear();
                         bulkInProgress = true;
+                        // the individual item requests list is mutated by the transport action, and requests marked as failed are set to
+                        // null; we need to copy it in case the request as a whole is failed, so that we can mark all items as failures
+                        final List<DocWriteRequest<?>> submittedItems = new ArrayList<>(bulkRequest.requests());
                         client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
                             @Override
                             public void onResponse(BulkResponse bulkResponse) {
@@ -341,7 +344,7 @@ public class IncrementalBulkService {
 
                             @Override
                             public void onFailure(Exception e) {
-                                handleBulkFailure(isFirstRequest, e);
+                                handleBulkFailure(isFirstRequest, e, submittedItems);
                             }
                         }, () -> {
                             bulkInProgress = false;
@@ -375,6 +378,9 @@ public class IncrementalBulkService {
                     releasables.clear();
                     // We do not need to set this back to false as this will be the last request.
                     bulkInProgress = true;
+                    // the individual item requests list is mutated by the transport action, and requests marked as failed are set to
+                    // null; we need to copy it in case the request as a whole is failed, so that we can mark all items as failures
+                    final List<DocWriteRequest<?>> submittedItems = new ArrayList<>(bulkRequest.requests());
                     client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
 
                         private final boolean isFirstRequest = incrementalRequestSubmitted == false;
@@ -387,7 +393,7 @@ public class IncrementalBulkService {
 
                         @Override
                         public void onFailure(Exception e) {
-                            handleBulkFailure(isFirstRequest, e);
+                            handleBulkFailure(isFirstRequest, e, submittedItems);
                             errorResponse(finalListener);
                         }
                     }, () -> {
@@ -437,31 +443,25 @@ public class IncrementalBulkService {
             bulkRequest = null;
         }
 
-        private void handleBulkFailure(boolean isFirstRequest, Exception e) {
+        private void handleBulkFailure(boolean isFirstRequest, Exception e, List<DocWriteRequest<?>> items) {
             assert bulkActionLevelFailure == null;
             globalFailure = isFirstRequest;
             bulkActionLevelFailure = e instanceof TaskCancelledException tce
                 ? new ElasticsearchStatusException(tce.getMessage(), RestStatus.TOO_MANY_REQUESTS, tce)
                 : e;
-            addItemLevelFailures(bulkRequest.requests());
+            addItemLevelFailures(items);
             bulkRequest = null;
         }
 
         private void addItemLevelFailures(List<DocWriteRequest<?>> items) {
-            // Items that already failed individually (e.g. during index resolution) are replaced by null in the request; their
-            // failure is reported elsewhere, so they are skipped here.
-            List<BulkItemResponse> itemResponses = new ArrayList<>(items.size());
+            BulkItemResponse[] bulkItemResponses = new BulkItemResponse[items.size()];
             int idx = 0;
             for (DocWriteRequest<?> item : items) {
-                idx++;
-                if (item == null) {
-                    continue;
-                }
                 BulkItemResponse.Failure failure = new BulkItemResponse.Failure(item.index(), item.id(), bulkActionLevelFailure);
-                itemResponses.add(BulkItemResponse.failure(idx, item.opType(), failure));
+                bulkItemResponses[idx++] = BulkItemResponse.failure(idx, item.opType(), failure);
             }
 
-            responses.add(new BulkResponse(itemResponses.toArray(BulkItemResponse[]::new), 0, 0));
+            responses.add(new BulkResponse(bulkItemResponses, 0, 0));
         }
 
         private boolean internalAddItems(List<DocWriteRequest<?>> items, Releasable releasable) {
@@ -486,7 +486,7 @@ public class IncrementalBulkService {
         }
 
         private void failAndRelease(Exception e) {
-            handleBulkFailure(incrementalRequestSubmitted == false, e);
+            handleBulkFailure(incrementalRequestSubmitted == false, e, bulkRequest.requests());
             incrementalOperation.split().close();
             releasables.forEach(Releasable::close);
             releasables.clear();

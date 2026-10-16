@@ -69,7 +69,7 @@ public class EsqlFlags {
     public static final Setting<Integer> ESQL_MAX_QUERY_AST_SIZE = Setting.intSetting(
         "esql.query.max_query_ast_size",
         QueryPragmas.MAX_QUERY_AST_SIZE.getDefault(Settings.EMPTY),
-        1,
+        500,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

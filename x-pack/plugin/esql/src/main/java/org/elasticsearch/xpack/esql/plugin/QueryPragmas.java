@@ -25,7 +25,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
-import org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
@@ -148,11 +147,7 @@ public final class QueryPragmas implements Writeable {
      * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_QUERY_AST_SIZE} supplies the cap. An explicit value overrides the cluster
      * setting for this query only.
      */
-    public static final Setting<Integer> MAX_QUERY_AST_SIZE = Setting.intSetting(
-        "max_query_ast_size",
-        LogicalPlanBuilder.MAX_QUERY_DEPTH,
-        1
-    );
+    public static final Setting<Integer> MAX_QUERY_AST_SIZE = Setting.intSetting("max_query_ast_size", 500, 500);
 
     /**
      * Inclusive upper bound of {@link #MAX_BRANCH_COUNT_PER_MERGE} and {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE}. Parse-time

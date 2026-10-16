@@ -178,7 +178,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -283,6 +282,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertScoreFilteredWithRuntimeSearch(plan(prefix + "where _score < 0.5 | where match(t, \"cat\") | keep _score"));
         assertScoreFilteredWithRuntimeSearch(plan(prefix + "where match(t, \"cat\") | eval s = _score | where s > 1.5 | keep s"));
         assertScoreFilteredWithRuntimeSearch(plan(prefix + "where match(t, \"cat\") | rename _score as s | where s > 1.5 | keep s"));
+        assertScoreFilteredWithRuntimeSearch(
+            plan(prefix + "where match(t, \"cat\") and _score > 1.5 | limit 10 | where match(t, \"dog\") and _score > 2.0 | keep _score")
+        );
     }
 
     public void testScoreCopiedBeforeRuntimeSearchStaysWithIt() {
@@ -330,16 +332,32 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * it pushed below the search, where it would see the score from before it.
      */
     private static void assertScoreFilteredWithRuntimeSearch(LogicalPlan plan) {
-        Predicate<LogicalPlan> scoreFilter = p -> p instanceof Filter f && f.condition().anyMatch(MetadataAttribute::isScoreAttribute);
-        List<Filter> searches = plan.collect(
-            Filter.class,
-            f -> f.condition().anyMatch(e -> e instanceof FullTextFunction ftf && ftf.isRuntimeSearch() && ftf.contributesToScore())
-        );
+        List<Filter> searches = plan.collect(Filter.class, LogicalPlanOptimizerTests::holdsRuntimeSearch);
         assertThat(plan.toString(), searches, not(empty()));
         for (Filter search : searches) {
-            assertTrue(plan.toString(), scoreFilter.test(search));
-            assertFalse(plan.toString(), search.child().anyMatch(scoreFilter));
+            assertTrue(plan.toString(), readsScore(search));
+            assertFalse(plan.toString(), scoreFilteredBeforeSearch(search.child()));
         }
+    }
+
+    /**
+     * Whether a filter on {@code _score} sits below the search, stopping at the next runtime search, whose own
+     * predicates {@link #assertScoreFilteredWithRuntimeSearch} checks separately.
+     */
+    private static boolean scoreFilteredBeforeSearch(LogicalPlan plan) {
+        if (holdsRuntimeSearch(plan)) {
+            return false;
+        }
+        return readsScore(plan) || plan.children().stream().anyMatch(LogicalPlanOptimizerTests::scoreFilteredBeforeSearch);
+    }
+
+    private static boolean holdsRuntimeSearch(LogicalPlan plan) {
+        return plan instanceof Filter f
+            && f.condition().anyMatch(e -> e instanceof FullTextFunction ftf && ftf.isRuntimeSearch() && ftf.contributesToScore());
+    }
+
+    private static boolean readsScore(LogicalPlan plan) {
+        return plan instanceof Filter f && f.condition().anyMatch(MetadataAttribute::isScoreAttribute);
     }
 
     public void testEmptyProjections() {

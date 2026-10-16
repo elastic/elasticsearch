@@ -682,13 +682,16 @@ public final class LuceneSliceQueue {
         try {
             if (scoreMode == ScoreMode.COMPLETE_NO_SCORES && intraSegment) {
                 DocPartitioningQueryCache queryCache = new DocPartitioningQueryCache(ctx.searcher().getQueryCache());
-                ContextIndexSearcher searcher = new ContextIndexSearcher(
-                    ctx.searcher().getIndexReader(),
-                    ctx.searcher().getSimilarity(),
-                    queryCache,
-                    ctx.searcher().getQueryCachingPolicy(),
-                    false
-                );
+                // derived from the shard's searcher so that execution memory is charged to it
+                ContextIndexSearcher searcher = ctx.searcher() instanceof ContextIndexSearcher shardSearcher
+                    ? shardSearcher.withQueryCache(queryCache)
+                    : new ContextIndexSearcher(
+                        ctx.searcher().getIndexReader(),
+                        ctx.searcher().getSimilarity(),
+                        queryCache,
+                        ctx.searcher().getQueryCachingPolicy(),
+                        false
+                    );
                 return new WeightAndCache(searcher.createWeight(query, scoreMode, 1), queryCache::blockedOnCaching);
             }
             return new WeightAndCache(ctx.searcher().createWeight(query, scoreMode, 1), LuceneSlice.NEVER_BLOCKED);

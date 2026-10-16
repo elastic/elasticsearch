@@ -1224,15 +1224,10 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
 
         collectAllMeters();
 
-        // APM: all four components must fire (planning is wall time so it is always > 0; execution,
-        // read, and split_discovery are real CPU time and must be > 0 for any non-trivial scan)
+        // APM: all four components are real CPU time and must be > 0 for any non-trivial scan
         assertThat("cpu.total{component=execution} > 0", cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_EXECUTION), greaterThan(0L));
         assertThat("cpu.total{component=read} > 0", cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_READ), greaterThan(0L));
-        assertThat(
-            "cpu.total{component=planning} > 0 (wall time)",
-            cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_PLANNING),
-            greaterThan(0L)
-        );
+        assertThat("cpu.total{component=planning} > 0", cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_PLANNING), greaterThan(0L));
         assertThat(
             "cpu.total{component=split_discovery} > 0",
             cpuComponentTotal(ExternalSourceMetrics.CPU_COMPONENT_SPLIT_DISCOVERY),

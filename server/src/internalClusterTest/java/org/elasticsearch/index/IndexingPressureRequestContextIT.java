@@ -49,7 +49,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * Verifies that the request context a write retains while in flight (its request headers, and any
  * {@link org.apache.lucene.util.Accountable} transient value) counts toward indexing pressure, once per copy held on the heap:
  * on the coordinating node, on a primary that received the request over the network, and on a replica. A primary that is also the
- * coordinating node does not count it again, because the local reroute reuses the coordinating request's context.
+ * coordinating node reports the context in its primary stats but does not charge it against the limit again, because the local
+ * reroute reuses the coordinating request's context.
  *
  * <p>A large request header stands in for the security metadata an authenticated client contributes. The accounting is generic, so
  * these tests need no security.
@@ -114,9 +115,10 @@ public class IndexingPressureRequestContextIT extends ESIntegTestCase {
 
     /**
      * The coordinating node is also the primary node, so there is one context and no network hop. The primary phase reuses the
-     * coordinating request's context through a local reroute, so counting it again there would charge the same heap twice.
+     * coordinating request's context through a local reroute. The primary stats include the context, as they do for a primary that
+     * received the request over the network, but the node charges it against the limit only once.
      */
-    public void testLocalPrimaryDoesNotCountTheSameContextTwice() throws Exception {
+    public void testLocalPrimaryDoesNotChargeTheSameContextTwice() throws Exception {
         final String primaryNode = createIndexAndGetPrimaryNode();
         final IndexingPressure pressure = internalCluster().getInstance(IndexingPressure.class, primaryNode);
         final String header = randomAlphaOfLength(HEADER_LENGTH);
@@ -132,9 +134,9 @@ public class IndexingPressureRequestContextIT extends ESIntegTestCase {
             assertThat(pressure.stats().getCurrentPrimaryOps(), greaterThan(0L));
         });
         final IndexingPressureStats held = pressure.stats();
-        // the primary phase added only the shard request, not another copy of the context
-        assertThat(held.getCurrentPrimaryBytes(), lessThan(header.length() / 2L));
-        // and the node as a whole is charged for one context, not two
+        // the primary stats include the context, as they would for a network-received primary
+        assertThat(held.getCurrentPrimaryBytes(), greaterThanOrEqualTo((long) header.length()));
+        // but the node as a whole is charged for one context, not two
         assertThat(held.getCurrentCombinedCoordinatingAndPrimaryBytes(), lessThan(2L * header.length()));
 
         HoldIndexingPlugin.release();

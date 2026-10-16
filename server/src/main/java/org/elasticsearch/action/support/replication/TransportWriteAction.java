@@ -117,7 +117,7 @@ public abstract class TransportWriteAction<
     protected Releasable checkOperationLimits(Request request) {
         return indexingPressure.validateAndMarkPrimaryOperationStarted(
             primaryOperationCount(request),
-            primaryOperationSize(request) + requestContextBytes(),
+            primaryBytesWithContext(request),
             primaryLargestOperationSize(request),
             force(request),
             primaryAllowsOperationsBeyondSizeLimit(request)
@@ -143,7 +143,7 @@ public abstract class TransportWriteAction<
             if (localRerouteInitiatedByNodeClient) {
                 return indexingPressure.validateAndMarkPrimaryOperationLocalToCoordinatingNodeStarted(
                     primaryOperationCount(request),
-                    primaryOperationSize(request),
+                    primaryBytesWithContext(request),
                     primaryLargestOperationSize(request),
                     primaryAllowsOperationsBeyondSizeLimit(request)
                 );
@@ -156,7 +156,7 @@ public abstract class TransportWriteAction<
             // primary delegation, after the primary relocation hand-off.
             return indexingPressure.validateAndMarkPrimaryOperationStarted(
                 primaryOperationCount(request),
-                primaryOperationSize(request) + requestContextBytes(),
+                primaryBytesWithContext(request),
                 primaryLargestOperationSize(request),
                 force(request),
                 primaryAllowsOperationsBeyondSizeLimit(request)
@@ -166,9 +166,24 @@ public abstract class TransportWriteAction<
     }
 
     /**
-     * Estimated size of the request context (headers and transient security metadata) that a request received over the network
-     * retains for as long as it is in flight. Requests rerouted locally share the coordinating request's context, which has
-     * already been accounted for, so this is only added on the network-received paths: primary requests and replica requests.
+     * Bytes a primary request retains while in flight: its payload plus its request context. A locally rerouted request shares the
+     * coordinating request's context, which counts toward the primary stats but is not charged against the limit again.
+     */
+    private long primaryBytesWithContext(Request request) {
+        return primaryOperationSize(request) + requestContextBytes();
+    }
+
+    /**
+     * Bytes a replica request retains while in flight: its payload plus its request context. Every replica reservation goes through
+     * this rather than {@link #replicaOperationSize}, because subclasses override that hook to size the payload alone.
+     */
+    private long replicaBytes(ReplicaRequest request) {
+        return replicaOperationSize(request) + requestContextBytes();
+    }
+
+    /**
+     * Estimated size of the request context (headers and transient security metadata) that a request retains for as long as it is
+     * in flight.
      */
     private long requestContextBytes() {
         return threadPool.getThreadContext().estimatedRequestContextBytes();
@@ -192,11 +207,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return indexingPressure.markReplicaOperationStarted(
-            replicaOperationCount(request),
-            replicaOperationSize(request) + requestContextBytes(),
-            force(request)
-        );
+        return indexingPressure.markReplicaOperationStarted(replicaOperationCount(request), replicaBytes(request), force(request));
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {

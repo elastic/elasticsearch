@@ -55,6 +55,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -286,7 +287,8 @@ public class TransportWriteActionTests extends ESTestCase {
     /**
      * A primary request received over the network materializes its own request context (headers and, with security, the decoded
      * authentication) and retains it while in flight, so that context counts toward the primary limit. A locally rerouted request
-     * shares the coordinating request's context, which the coordinating operation has already accounted for.
+     * shares the coordinating request's context, which the coordinating operation has already accounted for, so it reports the
+     * context in its primary stats without charging it against the limit again.
      */
     public void testRequestContextBytesCountedForNetworkReceivedPrimaryRequests() {
         final TestAction action = new TestAction();
@@ -302,7 +304,15 @@ public class TransportWriteActionTests extends ESTestCase {
                 threadContext.putHeader("large-header", randomAlphaOfLength(Math.toIntExact(headroom * 2)));
                 expectThrows(EsRejectedExecutionException.class, () -> action.checkPrimaryLimits(request, false, false));
                 expectThrows(EsRejectedExecutionException.class, () -> action.checkOperationLimits(request));
-                action.checkPrimaryLimits(request, true, true).close();
+                // a locally rerouted request reports the context in the primary stats, but charges nothing more against the limit
+                final long contextBytes = threadContext.estimatedRequestContextBytes();
+                final long combinedBytesBefore = action.indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes();
+                try (Releasable ignored3 = action.checkPrimaryLimits(request, true, true)) {
+                    final IndexingPressureStats stats = action.indexingPressure.stats();
+                    assertThat(stats.getCurrentPrimaryBytes(), equalTo(contextBytes));
+                    assertThat(stats.getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(combinedBytesBefore));
+                }
+                assertThat(action.indexingPressure.stats().getCurrentPrimaryBytes(), equalTo(0L));
                 action.checkPrimaryLimits(request, true, false).close();
             }
             // without the large header the same network-received request is admitted

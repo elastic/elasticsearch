@@ -52,6 +52,7 @@ The settings are grouped by feature or purpose, for example:
 - [Shard request cache](/reference/elasticsearch/configuration-reference/shard-request-cache-settings.md)
 - [Shard routing](/reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md)
 - [Snapshot and restore](/reference/elasticsearch/configuration-reference/snapshot-restore-settings.md)
+- [Telemetry](/reference/elasticsearch/configuration-reference/telemetry-settings.md)
 - [Transforms](/reference/elasticsearch/configuration-reference/transforms-settings.md)
 - [Thread pools](/reference/elasticsearch/configuration-reference/thread-pool-settings.md)
 - [Watcher](/reference/elasticsearch/configuration-reference/watcher-settings.md)

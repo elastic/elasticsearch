@@ -118,6 +118,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -164,6 +165,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -197,7 +200,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -300,8 +302,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveViewShadow(),
                 new ResolveDatasetShadow(),
                 new StripDatasetShadowRelations(),
-                new ViewCompactionPostIndexResolution(),
+                // Freezes _class/_name into literal Evals while every Subquery/NamedSubquery wrapper is still exactly as
+                // the parser and ViewResolver left it — BEFORE compaction below may lift or merge branches. Compaction
+                // then needs no metadata-driven flags: a branch topped by a frozen Eval is no longer a bare relation, so
+                // the merges that would lose identity are blocked by plan structure alone.
                 new ResolveSubqueryRelationColumns(),
+                new ViewCompactionPostIndexResolution(),
                 new UnwrapNamedSubqueries(),
                 new ResolveExternalRelations(),
                 new PruneEmptyUnionAllBranch(),
@@ -605,10 +611,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     /**
      * Phase 2 of view compaction. Runs in the Initialize batch after index, view-shadow, and dataset-shadow resolution. Dataset shadows
-     * must be resolved or stripped while they remain in the plain {@code UnionAll} built by the dataset rewriter; view compaction may
-     * otherwise lift them into a {@code ViewUnionAll}. Strips remaining unresolved view shadows, flattens nested {@code ViewUnionAll}
-     * structures when the flat width is within {@link AnalyzerContext#maxBranchCount()}, and unwraps remaining {@code NamedSubquery}
-     * wrappers. See {@link ViewCompaction} for the rationale behind splitting compaction across the analyzer boundary.
+     * must be resolved ({@link ResolveDatasetShadow}) or stripped ({@link StripDatasetShadowRelations}) before this rule runs, so the
+     * nested-union flattening below never lifts an unresolved shadow into an outer level. Strips remaining unresolved view shadows,
+     * flattens nested {@code BranchPlan} structures when the flat width is within {@link AnalyzerContext#maxBranchCount()}, and
+     * unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale behind splitting compaction
+     * across the analyzer boundary.
      */
     private static class ViewCompactionPostIndexResolution extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
@@ -619,8 +626,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Answers {@code _class} and {@code _name} for every view and subquery branch of a {@code FROM}. It runs while the branch
-     * wrappers still say which is which, before {@link UnwrapNamedSubqueries} removes the view wrappers.
+     * Answers {@code _class} and {@code _name} for every view and subquery branch of a {@code FROM}, freezing them into
+     * literal {@link Eval}s. It runs before {@link ViewCompactionPostIndexResolution}, while the branch wrappers are
+     * still exactly as the parser and {@code ViewResolver} left them, so the answers never depend on what compaction
+     * later lifts, merges, or unwraps ({@link UnwrapNamedSubqueries} strips the view wrappers right after).
      */
     private static class ResolveSubqueryRelationColumns extends ParameterizedAnalyzerRule<UnresolvedMetadata, AnalyzerContext> {
 
@@ -646,25 +655,48 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Source src = unresolvedMetadata.source();
 
             LogicalPlan answered;
-            if (child instanceof UnionAll unionAll) {
-                List<LogicalPlan> branches = unionAll.children().stream().map(b -> answer(b, relationColumns, src, false)).toList();
-                answered = branches.equals(unionAll.children()) ? child : unionAll.replaceChildren(branches);
+            if (child instanceof BranchPlan vua) {
+                answered = answerFromIdentities(vua, relationColumns, src);
             } else {
-                answered = answer(child, relationColumns, src, true);
+                answered = answerLone(child, relationColumns, src);
             }
             return answered.equals(child) ? unresolvedMetadata : new UnresolvedMetadata(src, answered, metadataFields);
         }
 
-        private static LogicalPlan answer(LogicalPlan branch, List<NamedExpression> relationColumns, Source src, boolean lone) {
-            return switch (branch) {
+        /**
+         * Answers each branch from its surviving wrapper first, falling back to the branch's {@link BranchIdentity}
+         * when no wrapper is left. A wrapper, at this pre-compaction point, is fresh parser/resolver structure and
+         * states the request point directly: a literal subquery wrapping a view answers {@code subquery} even though
+         * the branch's identity kind is VIEW (the kind is the boundary truth the request-filter rewriter needs) — the
+         * wrapper is consumed exactly once, here, before compaction can disturb it. The identity fallback covers the
+         * one wrapper-less case: a pass-through view that {@code ViewResolver} folded down to its bare index pattern.
+         */
+        private static LogicalPlan answerFromIdentities(BranchPlan vua, List<NamedExpression> relationColumns, Source src) {
+            List<LogicalPlan> branches = new ArrayList<>(vua.children().size());
+            boolean changed = false;
+            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
+                LogicalPlan branch = entry.getValue();
+                LogicalPlan answered = switch (branch) {
+                    case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
+                    case Subquery subquery -> withRelationColumns(subquery, relationColumns, src, RelationClass.SUBQUERY, null);
+                    default -> {
+                        BranchIdentity identity = vua.branchIdentity(entry.getKey());
+                        yield identity.isView()
+                            ? withRelationColumns(branch, relationColumns, src, RelationClass.VIEW, identity.name())
+                            : branch;
+                    }
+                };
+                changed |= answered != branch;
+                branches.add(answered);
+            }
+            return changed ? vua.replaceChildren(branches) : vua;
+        }
+
+        /** Answers a lone (non-union) {@code FROM} target. A lone subquery's wrapper is consumed here, not left for compaction. */
+        private static LogicalPlan answerLone(LogicalPlan child, List<NamedExpression> relationColumns, Source src) {
+            return switch (child) {
                 case NamedSubquery view -> withRelationColumns(view, relationColumns, src, RelationClass.VIEW, view.name());
-                case Subquery subquery -> withRelationColumns(
-                    lone ? subquery.child() : subquery,
-                    relationColumns,
-                    src,
-                    RelationClass.SUBQUERY,
-                    null
-                );
+                case Subquery subquery -> withRelationColumns(subquery.child(), relationColumns, src, RelationClass.SUBQUERY, null);
                 case LogicalPlan relation -> relation;
             };
         }
@@ -745,31 +777,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Strips any {@link DatasetShadowRelation} that {@link ResolveDatasetShadow} did not fold into a
      * sibling {@code EsRelation}. The dataset analog of {@code ViewCompaction.stripViewShadowRelations},
-     * but over the plain {@link UnionAll} the {@code DatasetRewriter} builds rather than a
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll}. Runs right after
+     * over the {@link BranchPlan} the {@code DatasetRewriter} builds. Runs right after
      * {@link ResolveDatasetShadow} in the Initialize batch.
      * <p>
-     * Delegates to {@link UnionAll#pruneEmptyBranches(java.util.function.Predicate)} so a matched shadow
-     * (now an {@code EsRelation}) survives alongside the dataset's external relation as separate
-     * {@code UnionAll} branches (no merging into a single combined relation). A single-survivor
-     * union collapses to its lone child, so {@code FROM ds} with no remote match returns to exactly the bare
-     * {@code UnresolvedExternalRelation} shape the non-CPS path produces.
+     * Delegates to {@link BranchPlan#pruneEmptyBranches(java.util.function.Predicate)} so a matched shadow
+     * (now an {@code EsRelation}) survives alongside the dataset's external relation as a separate branch
+     * (no merging into a single combined relation) and the named-subqueries map stays in sync. A union the
+     * prune reduces to one branch collapses to that lone child, so {@code FROM ds} with no remote match
+     * returns to exactly the bare {@code UnresolvedExternalRelation} shape the non-CPS path produces; a
+     * union the prune did not change is returned as-is — whether a single-branch union may collapse is
+     * otherwise {@code ViewCompaction}'s decision (see {@code preserveViewBoundaries}).
      */
     private static class StripDatasetShadowRelations extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformDown(UnionAll.class, unionAll -> {
-                // Plain UnionAll only — ViewUnionAll shadows are ViewCompaction's, and its single-child
-                // wrappers must not collapse.
-                if (unionAll instanceof ViewUnionAll) {
-                    return unionAll;
-                }
-                LogicalPlan pruned = unionAll.pruneEmptyBranches(child -> child instanceof DatasetShadowRelation);
-                if (pruned instanceof UnionAll prunedUnion
-                    && prunedUnion instanceof ViewUnionAll == false
-                    && prunedUnion.children().size() == 1) {
-                    return prunedUnion.children().getFirst();
+            return plan.transformDown(BranchPlan.class, vua -> {
+                LogicalPlan pruned = vua.pruneEmptyBranches(child -> child instanceof DatasetShadowRelation);
+                if (pruned != vua && pruned instanceof BranchPlan prunedVua && prunedVua.children().size() == 1) {
+                    return prunedVua.children().getFirst();
                 }
                 return pruned;
             });
@@ -1433,12 +1459,79 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
             List<Expression> newGroupings = maybeResolveGroupings(aggregate, childrenOutput);
             List<? extends NamedExpression> newAggregates = maybeResolveAggregates(aggregate, newGroupings, childrenOutput);
+            if (aggregate instanceof TimeSeriesAggregate) {
+                Map<NameId, Alias> renames = timeSeriesWithoutRenames(newGroupings);
+                if (renames.isEmpty() == false) {
+                    newGroupings = renameTimeSeriesWithoutGroupings(newGroupings, renames);
+                    newAggregates = renameTimeSeriesWithoutAggregates(newAggregates, renames);
+                }
+            }
             boolean changed = newGroupings != aggregate.groupings() || newAggregates != aggregate.aggregates();
             LogicalPlan maybeNewAggregate = changed ? aggregate.with(aggregate.child(), newGroupings, newAggregates) : aggregate;
 
             return maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
                 ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
                 : maybeNewAggregate;
+        }
+
+        /**
+         * Renames an unaliased {@code BY WITHOUT(...)} grouping from its parser-given sourceText name to its final output
+         * name, {@code _timeseries}, the moment the aggregate resolves. The Finish-Analysis lowering
+         * ({@code TranslateTimeSeriesWithout}) replaces the grouping with a {@code _timeseries}-named metadata attribute
+         * under the <em>same name id</em>; renaming here means that replacement no longer changes any output name after
+         * resolution. That matters because resolution-time consumers capture output names: {@link #resolveMergePlan}
+         * aligns union branches and mints the union's columns by name, so a branch aligned under the sourceText name
+         * would silently change names once the optimizer's project-combining normalizes attribute instances by id,
+         * failing the post-optimization merge consistency check. It also makes {@code FROM idx, (TS ... BY WITHOUT(...))}
+         * surface the column as {@code _timeseries} — the same name a lone TS query (and the WITHOUT docs) show.
+         * <p>
+         * Two groupings are left alone. A user alias ({@code BY dims = WITHOUT(...)}) keeps its name, so downstream
+         * commands can refer to it; the lowering preserves the alias over the lowered attribute. An unresolved grouping
+         * (e.g. {@code WITHOUT(unmapped)} under {@code unmapped_fields="nullify"}) is not renamed yet: the parser exports
+         * it into the aggregates as an attribute <em>by name</em>, and only once the grouping resolves does
+         * {@link #maybeResolveAggregates} bind that export to the grouping's id. Renaming earlier would orphan the export,
+         * which {@code ResolveUnmapped} would then nullify as an input field.
+         */
+        private static Map<NameId, Alias> timeSeriesWithoutRenames(List<Expression> groupings) {
+            Map<NameId, Alias> renames = new HashMap<>();
+            for (Expression grouping : groupings) {
+                if (grouping instanceof Alias a
+                    && a.resolved()
+                    && a.child() instanceof TimeSeriesWithout
+                    && a.name().equals(a.child().sourceText())) {
+                    renames.put(a.id(), new Alias(a.source(), MetadataAttribute.TIMESERIES, a.child(), a.id(), a.synthetic()));
+                }
+            }
+            return renames;
+        }
+
+        private static List<Expression> renameTimeSeriesWithoutGroupings(List<Expression> groupings, Map<NameId, Alias> renames) {
+            List<Expression> renamed = new ArrayList<>(groupings.size());
+            for (Expression grouping : groupings) {
+                Alias rename = grouping instanceof Alias a ? renames.get(a.id()) : null;
+                renamed.add(rename != null ? rename : grouping);
+            }
+            return renamed;
+        }
+
+        /** The grouping rides in the aggregates list either as its {@link Alias} or as a plain attribute reference. */
+        private static List<NamedExpression> renameTimeSeriesWithoutAggregates(
+            List<? extends NamedExpression> aggregates,
+            Map<NameId, Alias> renames
+        ) {
+            List<NamedExpression> renamed = new ArrayList<>(aggregates.size());
+            for (NamedExpression agg : aggregates) {
+                Alias rename = agg instanceof Alias a && a.child() instanceof TimeSeriesWithout ? renames.get(a.id()) : null;
+                if (rename != null) {
+                    renamed.add(rename);
+                } else {
+                    renamed.add((NamedExpression) agg.transformUp(Attribute.class, attr -> {
+                        Alias r = renames.get(attr.id());
+                        return r != null ? r.toAttribute() : attr;
+                    }));
+                }
+            }
+            return renamed;
         }
 
         private List<Expression> maybeResolveGroupings(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -1999,6 +2092,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
             // FORK always copies a mention to siblings. LOAD_ALL subqueries do too. LOAD does not: a mention in one
             // independent-source branch loads that branch and Eval-nulls siblings.
+            // TODO: VIEW-kind branches (BranchPlan.branchIdentity) should be excluded from
+            // unmapped-field materialization here — _source loading must not reach through the view boundary; the view
+            // branch should null-fill like a dataset would, pending the design discussion.
             boolean alignMentionedUnmapped = alignUnmappedAcrossBranches
                 || (mergePlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields());
             Set<String> materializedUnmappedFieldNames = alignMentionedUnmapped ? materializedUnmappedFieldNames(mergePlan) : Set.of();
@@ -2121,7 +2217,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newSubPlans.add(logicalPlan);
             }
 
-            // A merge whose branches already line up still needs its own output populated. View resolution builds a ViewUnionAll
+            // A merge whose branches already line up still needs its own output populated. View resolution builds a BranchPlan
             // with an empty output and relies on this rule to fill it in; when every branch is already a Project over exactly the
             // merge columns (a view body ending in KEEP is the common case) no branch is rewritten, and returning early here would
             // leave that empty output in place. MergePlan.expressionsResolved then fails on the size mismatch and everything above
@@ -2744,7 +2840,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /** What a wildcard projection that matches nothing in the child output should do. */
         private enum UnmatchedPatterns {
-            /** Drop the wildcard, letting the {@code _unmapped_fields} flattening apply it later. */
+            /** Drop the wildcard: it may only match unmapped fields, which are not columns. */
             IGNORE,
             /** Keep the unresolved attribute so the {@code Verifier} reports "No matches found". */
             FAIL
@@ -2783,8 +2879,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     } else if (proj instanceof UnresolvedNamePattern up) {
                         List<Attribute> matched = resolveAgainstList(up, childOutput);
                         // A wildcard that matches nothing resolves to a single unresolved UnresolvedAttribute. Under
-                        // LOAD_ALL it may match only (not-yet-visible) unmapped source fields, so skip it here and let
-                        // the _unmapped_fields flattening apply it later, instead of failing with "No matches found".
+                        // LOAD_ALL it may match only unmapped source fields, which are not columns, so skip it here
+                        // instead of failing with "No matches found".
                         if (unmatchedPatterns == UnmatchedPatterns.IGNORE
                             && matched.size() == 1
                             && matched.getFirst() instanceof UnresolvedAttribute) {
@@ -5143,15 +5239,67 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // If the pattern doesn't match, something unexpected happened, just return the child as is
             if ((aliases.isEmpty() == false || resolvedUnionFields.isEmpty() == false) && child instanceof Project project) {
                 LogicalPlan childOfProject = project.child();
+                // The conversion Evals are normally inserted below the Project, so their inputs must be produced below it
+                // too. The top Project is not always the purely structural alignment projection added by resolveMergePlan:
+                // when a branch already ends in a Project with the merge's column names (e.g. a trailing RENAME, now that
+                // subquery branches are no longer wrapped in a Subquery node), that Project is the merge child itself and
+                // can mint the converted column via one of its own aliases. Referencing such a column from below would
+                // dangle, so the conversion goes *above* the user's Project instead — every conversion input is drawn from
+                // the branch's output, so it is always available there — with the alignment Project added on top.
+                AttributeSet availableBelowProject = childOfProject.outputSet();
+                for (Alias alias : aliases) {
+                    if (alias.child().references().subsetOf(availableBelowProject) == false) {
+                        return convertAboveUserProject(project, aliases, resolvedUnionFields, output);
+                    }
+                }
                 if (aliases.isEmpty() == false) {
                     childOfProject = new Eval(childOfProject.source(), childOfProject, aliases);
                 }
                 if (resolvedUnionFields.isEmpty() == false) {
                     childOfProject = ResolveUnionTypes.addGeneratedFieldsToEsRelations(childOfProject, resolvedUnionFields);
                 }
-                return new Project(project.source(), childOfProject, output);
+                // Rebuild the Project from the original projections rather than from plain output attributes: a user alias in
+                // the top Project (e.g. `renamed AS label` from a trailing RENAME) names an output column that exists nowhere
+                // else, so projecting its bare attribute would leave a reference without a producer, which the
+                // post-optimization verifier rejects once column pruning removes the orphaned rename chain below.
+                Map<NameId, NamedExpression> originalProjections = new HashMap<>(project.projections().size());
+                for (NamedExpression projection : project.projections()) {
+                    originalProjections.put(projection.id(), projection);
+                }
+                List<NamedExpression> newProjections = new ArrayList<>(output.size());
+                for (Attribute attr : output) {
+                    newProjections.add(originalProjections.getOrDefault(attr.id(), attr));
+                }
+                return new Project(project.source(), childOfProject, newProjections);
             }
             return child;
+        }
+
+        /**
+         * Places the pushed-down conversions <em>above</em> a user-written top {@code Project} that mints one of their
+         * inputs (e.g. a trailing RENAME), where every input is available by construction, and re-aligns with a plain
+         * {@code Project} over {@code output} on top. Synthetic multi-typed union fields still have to live in the
+         * branch's {@link EsRelation}s, so they are injected below the user Project, which is widened to pass them
+         * through.
+         */
+        private static LogicalPlan convertAboveUserProject(
+            Project project,
+            List<Alias> aliases,
+            List<FieldAttribute> resolvedUnionFields,
+            List<Attribute> output
+        ) {
+            LogicalPlan branch = project;
+            if (resolvedUnionFields.isEmpty() == false) {
+                LogicalPlan injected = ResolveUnionTypes.addGeneratedFieldsToEsRelations(project.child(), resolvedUnionFields);
+                List<NamedExpression> widened = new ArrayList<>(project.projections());
+                widened.addAll(resolvedUnionFields);
+                branch = new Project(project.source(), injected, widened);
+            }
+            if (aliases.isEmpty() == false) {
+                branch = new Eval(branch.source(), branch, aliases);
+            }
+            // The user's Project stays intact below, so every output column has a producer and can be projected bare.
+            return new Project(project.source(), branch, new ArrayList<>(output));
         }
 
         /**
@@ -5924,9 +6072,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnionAll unionAll, AnalyzerContext context) {
-            // Delegate to UnionAll#pruneEmptyBranches — ViewUnionAll overrides it to preserve
+            // Delegate to UnionAll#pruneEmptyBranches — BranchPlan overrides it to preserve
             // its named-subqueries map so this rule works correctly when an EMPTY_SUBQUERY
-            // branch lives next to a CPS shadow inside a ViewUnionAll.
+            // branch lives next to a CPS shadow inside a BranchPlan.
             Map<IndexPattern, IndexResolution> indexResolutions = context.indexResolution();
             return unionAll.pruneEmptyBranches(child -> resolvesToEmptySubquery(child, indexResolutions));
         }

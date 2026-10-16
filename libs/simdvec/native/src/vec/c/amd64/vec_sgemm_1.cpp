@@ -7,43 +7,53 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
- // Int8 matrix multiplication, C[m x n] += A[m x k] @ B[k x n], using AVX2.
- // AVX2 has no exact signed 8-bit dot product, so B is widened to int16 when it is packed,
- // and the VPMADDWD instruction multiplies pairs of int16 values and adds each pair into an int32 lane.
-
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 #include <algorithm>
 #include "vec.h"
 #include "vec_common.h"
 #include "amd64/amd64_vec_common.h"
 
-// Rows of A and columns of B multiplied together at once.
-// 4 rows x 2 column vectors = 8 accumulators, plus 4 A vectors and 1 B vector at a time.
+/*
+ * Int8 matrix multiplication, C[m x n] += A[m x k] @ B[k x n], using AVX2.
+ * AVX2 has no exact signed 8-bit dot product, so B is widened to int16 when it is packed,
+ * and the VPMADDWD instruction multiplies pairs of int16 values and adds each pair into an int32 lane.
+ *
+ * C is computed in tiles of TILE_ROWS A rows x TILE_COLS B cols, held in TILE_ROWS x TILE_VECS __m256i registers.
+ * The k values are split into blocks of K_BLOCK. For each block, the K_BLOCK values of TILE_COLS B cols
+ * are packed into a panel array, which stays in L1. Then every TILE_ROWS A rows, over the same K_BLOCK values,
+ * are multiplied against that panel, and the results are added to the matching C tile.
+ *
+ * The madd instruction is _mm256_madd_epi16(__m256i b, __m256i a).
+ * Each int32 lane adds the products of one pair of int16 values in `b` with the same pair in `a`.
+ * `a` has the same pair of A values broadcast to every lane.
+ */
+
+// number of rows processed at once - this determines the number of accumulators
 constexpr int TILE_ROWS = 4;
+// 16-byte values are used to load each B row, so 16 columns per value
 constexpr int TILE_COLS = 16;
-// int32 lanes in one accumulator vector
+// int32 lanes in one __m256i accumulator vector
 constexpr int LANES = 8;
 // Accumulator vectors per tile row, also the number of panel vectors per group
 constexpr int TILE_VECS = TILE_COLS / LANES;
-// Number of inner values multiplied together by one VPMADDWD lane.
-// we have to use int16 here rather than int8, as AVX2 only has asymmetric int8 madd instructions
+// Number of values multiplied together by one _mm256_madd_epi16 lane
+// we have to use int16 here rather than int8, as AVX2 only has asymmetric int8 madd instructions, and ours are symmetric
 constexpr int GROUP = 2;
-// int16 values of packed panel in one vector: LANES columns x GROUP inner values.
+// int16 values of packed panel in one vector: LANES B cols x GROUP values from each B col.
 constexpr int VEC_VALUES = LANES * GROUP;
-// int16 values of packed panel per group: TILE_COLS columns x GROUP inner values.
+// int16 values of packed panel per group: TILE_COLS B cols x GROUP values from each B col.
 constexpr int GROUP_VALUES = TILE_COLS * GROUP;
-// Inner values per block. A packed panel is INNER_BLOCK * TILE_COLS int16 values, so it stays in L1 across all the rows.
-constexpr int INNER_BLOCK = 512;
+// k values (A rows, or B cols) per block. A packed panel is K_BLOCK * TILE_COLS int16 values, so it stays in L1 across all the rows.
+constexpr int K_BLOCK = 512;
 
-static_assert(INNER_BLOCK % GROUP == 0, "INNER_BLOCK must be a whole number of groups");
+static_assert(K_BLOCK % GROUP == 0, "K_BLOCK must be a whole number of groups");
 static_assert(TILE_VECS == 2, "pack_panel writes exactly 2 panel vectors per group");
 
-// Packs B[lStart .. lStart + lCount) x [j, j + cols) into panel as int16, as [group][column][GROUP inner values].
-// Missing columns, and the inner value up to the next whole group, are zero.
+// Packs B[lStart .. lStart + lCount) x [j, j + cols) into panel as int16, as [group][B col][GROUP values from that B col].
+// Missing B cols, and B col values up to the next whole group, are zero.
 static void pack_panel(const int8_t* b, const int n, const int lStart, const int lCount, const int j, const int cols, int16_t* panel) {
-    const int innerPadded = (lCount + GROUP - 1) / GROUP * GROUP;
+    const int kPadded = (lCount + GROUP - 1) / GROUP * GROUP;
     int l = 0;
 
     if (cols == TILE_COLS) {
@@ -52,7 +62,7 @@ static void pack_panel(const int8_t* b, const int n, const int lStart, const int
             const __m256i row0 = _mm256_cvtepi8_epi16(_mm_loadu_si128((const __m128i*)src));
             const __m256i row1 = _mm256_cvtepi8_epi16(_mm_loadu_si128((const __m128i*)(src + n)));
 
-            // interleaves the 2 rows, so each column has its GROUP inner values together.
+            // interleaves the 2 rows, so each B col has GROUP consecutive values together
             // unpack works within each 128-bit half, so the halves are put back in column order when storing.
             const __m256i lo = _mm256_unpacklo_epi16(row0, row1); // columns 0-3 and 8-11
             const __m256i hi = _mm256_unpackhi_epi16(row0, row1); // columns 4-7 and 12-15
@@ -64,7 +74,7 @@ static void pack_panel(const int8_t* b, const int n, const int lStart, const int
     }
 
     // partial panel, or the tail of the block
-    for (; l < innerPadded; l += GROUP) {
+    for (; l < kPadded; l += GROUP) {
         int16_t* dst = panel + (l / GROUP) * GROUP_VALUES;
         for (int c = 0; c < TILE_COLS; ++c) {
             for (int t = 0; t < GROUP; ++t) {
@@ -79,7 +89,7 @@ static inline __m256i broadcast_pair(const int8_t a0, const int8_t a1) {
     return _mm256_set1_epi32((int32_t)((uint16_t)a0 | ((uint32_t)a1 << 16)));
 }
 
-// Multiplies one GROUP of inner values of each A row against the matching group of the panel.
+// Multiplies GROUP values of each A row against the matching group of the panel.
 template <int ROWS>
 static inline void multiply_group(__m256i (&acc)[ROWS][TILE_VECS], const __m256i (&aPairs)[ROWS], const int16_t* panel) {
     apply_indexed<TILE_VECS>([&](auto Q) {
@@ -101,9 +111,9 @@ static inline void multiply_panel(const int8_t* const (&aRows)[ROWS], const int1
         });
     });
 
-    const int innerLimit = lCount - lCount % GROUP;
+    const int kLimit = lCount - lCount % GROUP;
     int l = 0;
-    for (; l < innerLimit; l += GROUP) {
+    for (; l < kLimit; l += GROUP) {
         __m256i aPairs[ROWS];
         apply_indexed<ROWS>([&](auto R) {
             aPairs[R] = broadcast_pair(aRows[R][l], aRows[R][l + 1]);
@@ -111,7 +121,7 @@ static inline void multiply_panel(const int8_t* const (&aRows)[ROWS], const int1
         multiply_group<ROWS>(acc, aPairs, panel + (l / GROUP) * GROUP_VALUES);
     }
 
-    // tail, the panel is zero for the missing inner value
+    // tail, the panel is zero for the missing B col value
     if (l < lCount) {
         __m256i aPairs[ROWS];
         apply_indexed<ROWS>([&](auto R) {
@@ -150,14 +160,15 @@ static inline void multiply_rows(
     if (cols == TILE_COLS) {
         multiply_panel<ROWS>(aRows, panel, lCount, c + (int64_t)i * n + j, n);
     } else {
-        // use a separate array of the full width, so we don't access c out-of-bounds
-        int32_t out[ROWS * TILE_COLS] = {};
+        // use a separate array of the full width, leaving zeros in unallocated columns,
+        // so we don't access C out-of-bounds
+        int32_t tail[ROWS * TILE_COLS] = {};
         for (int r = 0; r < ROWS; ++r) {
-            memcpy(out + r * TILE_COLS, c + (int64_t)(i + r) * n + j, sizeof(int32_t) * cols);
+            std::copy_n(c + (int64_t)(i + r) * n + j, cols, tail + r * TILE_COLS);
         }
-        multiply_panel<ROWS>(aRows, panel, lCount, out, TILE_COLS);
+        multiply_panel<ROWS>(aRows, panel, lCount, tail, TILE_COLS);
         for (int r = 0; r < ROWS; ++r) {
-            memcpy(c + (int64_t)(i + r) * n + j, out + r * TILE_COLS, sizeof(int32_t) * cols);
+            std::copy_n(tail + r * TILE_COLS, cols, c + (int64_t)(i + r) * n + j);
         }
     }
 }
@@ -175,11 +186,11 @@ EXPORT void vec_sgemm_i8(
     const int32_t colStart,
     const int32_t colEnd
 ) {
-    // allocated directly on the stack, INNER_BLOCK * TILE_COLS * 2 bytes
-    alignas(32) int16_t panel[INNER_BLOCK * TILE_COLS];
+    // allocated directly on the stack, K_BLOCK * TILE_COLS * 2 bytes
+    alignas(32) int16_t panel[K_BLOCK * TILE_COLS];
 
-    for (int lStart = 0; lStart < k; lStart += INNER_BLOCK) {
-        const int lCount = std::min(INNER_BLOCK, k - lStart);
+    for (int lStart = 0; lStart < k; lStart += K_BLOCK) {
+        const int lCount = std::min(K_BLOCK, k - lStart);
 
         for (int j = colStart; j < colEnd; j += TILE_COLS) {
             const int cols = std::min(TILE_COLS, colEnd - j);

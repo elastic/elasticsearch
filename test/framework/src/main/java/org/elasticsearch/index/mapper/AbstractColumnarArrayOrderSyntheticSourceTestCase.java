@@ -41,11 +41,7 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
     protected abstract String fieldTypeName();
 
     protected MapperService columnarMapperService() throws IOException {
-        return columnarMapperService(Settings.builder());
-    }
-
-    protected MapperService columnarMapperService(Settings.Builder extra) throws IOException {
-        Settings.Builder settings = extra.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
+        Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
         if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
             settings.put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false);
         }
@@ -117,9 +113,7 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
     }
 
     public void testEmptyStringDistinctFromNull() throws IOException {
-        // The distinction is what [index.mapping.empty_keyword_string_as_null] gives up, so this asks for it off.
-        var mapper = columnarMapperService(Settings.builder().put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), false))
-            .documentMapper();
+        var mapper = columnarMapper();
         assertEquals("""
             {"field":""}""", syntheticSource(mapper, b -> b.array("field", "")));
         assertEquals("""

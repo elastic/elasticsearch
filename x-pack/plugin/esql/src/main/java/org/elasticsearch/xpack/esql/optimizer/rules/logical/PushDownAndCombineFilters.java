@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -110,9 +112,20 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         } else if (child instanceof Highlight highlight) {
             var attributes = AttributeSet.of(highlight.generatedAttributes());
             plan = maybePushDownPastUnary(filter, highlight, attributes::contains, NO_OP);
-        } else if (child instanceof Project) {
+        } else if (child instanceof Project project) {
+            // Don't push filter past Project if the Project references _score and the filter does runtime scoring.
+            // This preserves pipe order semantics for RENAME cases. See issue #160809.
+            if (projectReferencesScore(project) && filterUsesRuntimeScoring(filter)) {
+                return plan;
+            }
             return PushDownUtils.pushDownPastProject(filter);
         } else if (child instanceof OrderBy orderBy) {
+            // Don't push filter below OrderBy if the OrderBy references _score and the filter does runtime scoring.
+            // This preserves pipe order semantics: the OrderBy should see the pre-search _score value.
+            // See issue #160809.
+            if (orderByReferencesScore(orderBy) && filterUsesRuntimeScoring(filter)) {
+                return plan;
+            }
             // swap the filter with its child
             plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
         } else if (child instanceof Join join) {
@@ -339,5 +352,36 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             plan = filter;
         }
         return plan;
+    }
+
+    /**
+     * Check if the OrderBy references _score directly or through an alias.
+     */
+    private static boolean orderByReferencesScore(OrderBy orderBy) {
+        for (org.elasticsearch.xpack.esql.expression.Order order : orderBy.order()) {
+            if (order.child().anyMatch(MetadataAttribute::isScoreAttribute)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if the Project's projections reference _score directly or through an alias.
+     */
+    private static boolean projectReferencesScore(Project project) {
+        for (NamedExpression projection : project.projections()) {
+            if (projection.anyMatch(MetadataAttribute::isScoreAttribute)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if the filter condition contains a full-text function that performs runtime scoring.
+     */
+    private static boolean filterUsesRuntimeScoring(Filter filter) {
+        return filter.condition().anyMatch(e -> e instanceof org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction);
     }
 }

@@ -1,0 +1,84 @@
+###############################################
+# Tests for _score pipe order with runtime expressions
+# Issue #160809
+
+# Alias case: simple alias of _score before runtime search
+# Expected: before should be 0.0 (pipe order)
+# Actual (before fix): before is 2.0 (sees post-search score)
+scoreAliasBeforeRuntime
+required_capability: metadata_score
+required_capability: match_function
+required_capability: to_text_function
+required_capability: concat_function
+
+FROM books METADATA _score
+| EVAL before = _score, content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings")
+| STATS max_before = MAX(before), max_score = MAX(_score)
+;
+
+max_before:double | max_score:double
+0.0 | 2.0
+;
+
+# Alias case: computed expression with _score before runtime search
+# Expected: before should be 0.0 (pipe order)
+# Actual (current): before is 0.0 (works correctly)
+scoreComputedBeforeRuntime
+required_capability: metadata_score
+required_capability: match_function
+required_capability: to_text_function
+required_capability: concat_function
+
+FROM books METADATA _score
+| EVAL before = _score + 0.0, content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings")
+| STATS max_before = MAX(before), max_score = MAX(_score)
+;
+
+max_before:double | max_score:double
+0.0 | 2.0
+;
+
+# Rename case: rename _score before runtime search
+# Expected: s should be 0.0 (pipe order)
+# Actual (before fix): s is 2.0 (sees post-search score)
+scoreRenameBeforeRuntime
+required_capability: metadata_score
+required_capability: match_function
+required_capability: to_text_function
+required_capability: concat_function
+
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| RENAME _score AS s
+| WHERE MATCH(content, "Tolkien Rings")
+| STATS max_s = MAX(s)
+;
+
+max_s:double
+0.0
+;
+
+# Sort case: sort by _score before runtime search
+# Expected: Should sort by 0.0 (all ties), so book_no determines order
+# Actual (before fix): Sorts by 2.0 (post-search score)
+scoreSortBeforeRuntime
+required_capability: metadata_score
+required_capability: match_function
+required_capability: to_text_function
+required_capability: concat_function
+
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| SORT _score DESC, book_no ASC
+| WHERE MATCH(content, "Tolkien Rings")
+| LIMIT 3
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463 | 0.0
+2130 | 0.0
+2301 | 0.0
+;

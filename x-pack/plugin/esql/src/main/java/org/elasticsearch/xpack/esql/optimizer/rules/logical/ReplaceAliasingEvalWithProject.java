@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -56,6 +57,18 @@ public final class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, Logi
 
     private LogicalPlan rule(Eval eval) {
         LogicalPlan plan = eval;
+
+        // Check if any alias references _score - if so, skip the optimization to preserve pipe order semantics
+        // when runtime scoring may overwrite _score value. See issue #160809.
+        for (Alias alias : eval.fields()) {
+            if (alias.child().anyMatch(MetadataAttribute::isScoreAttribute)) {
+                // Check if there are full-text functions below that could do runtime scoring
+                if (hasRuntimeScoringBelow(eval)) {
+                    // Skip optimization to preserve pipe order
+                    return plan;
+                }
+            }
+        }
 
         // Mostly, holds simple aliases from the eval, such as b = a, c = b, d = c, so we can resolve them in subsequent eval fields
         AttributeMap.Builder<Expression> renamesToPropagate = AttributeMap.builder();
@@ -120,5 +133,25 @@ public final class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, Logi
         }
 
         return plan;
+    }
+
+    /**
+     * Check if there are full-text functions below the given plan that could perform runtime scoring.
+     * Runtime scoring adds to _score via ScoreOperator, so if _score is aliased above and a runtime search occurs below,
+     * the alias would see the post-search score instead of the pre-search score, violating pipe order semantics.
+     */
+    private boolean hasRuntimeScoringBelow(LogicalPlan plan) {
+        Holder<Boolean> hasRuntimeScoring = new Holder<>(false);
+        plan.transformDown(p -> {
+            if (p instanceof org.elasticsearch.xpack.esql.plan.logical.Filter filter) {
+                // Check if the filter condition contains full-text functions that can do runtime scoring
+                if (filter.condition()
+                    .anyMatch(e -> e instanceof org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction)) {
+                    hasRuntimeScoring.set(true);
+                }
+            }
+            return p;
+        });
+        return hasRuntimeScoring.get();
     }
 }

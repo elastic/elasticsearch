@@ -1,0 +1,5 @@
+area: ES|QL
+issues: [160809]
+pr: 162322
+summary: Preserve ES|QL _score pipe-order semantics around runtime search operations
+type: bug

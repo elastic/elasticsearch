@@ -135,7 +135,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -195,6 +194,45 @@ public class EsqlSession {
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
 
     /**
+     * Distinguishes between the main plan and the different kinds of re-planning subplan executions.
+     * Passed through {@link PlanRunner#run} so the execution engine applies correct per-kind behavior
+     * without relying on shared mutable state in {@link EsqlExecutionInfo}.
+     */
+    public enum SubPlanKind {
+        /** The main (outer) plan, or the final plan after all subplans have completed. */
+        MAIN,
+        /**
+         * An IN-subquery ({@code SemiJoin} / {@code AntiJoin} / {@code MarkJoin} via
+         * {@link org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin}) subplan.
+         * The right side is an independent uncorrelated subquery that needs an exchange wrapper.
+         */
+        SUBQUERY_JOIN,
+        /**
+         * A PromQL-style {@link org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin} subplan.
+         * Like {@link #SUBQUERY_JOIN}, the right side is a standalone uncorrelated subquery.
+         */
+        INNER_JOIN,
+        /** An {@code INLINE STATS} ({@code InlineJoin}) subplan. */
+        INLINE_JOIN,
+        /** An approximation-calibration subplan used by the sampling executor. */
+        APPROXIMATION
+    }
+
+    /**
+     * Per-invocation context passed to {@link PlanRunner#run}. Carries the subplan kind so the
+     * execution engine can route behavior (child session creation, shard-count updates, status
+     * transitions) without reading global mutable state from {@link EsqlExecutionInfo}.
+     * {@code null} is equivalent to {@link #MAIN_PLAN}.
+     *
+     * @param kind              what is being executed
+     * @param profileQualifier  optional prefix for profile descriptions (e.g. {@code "rsub-0"})
+     */
+    public record PlanRunContext(SubPlanKind kind, @Nullable String profileQualifier) {
+        /** Singleton context for all main (non-subplan) executions. */
+        public static final PlanRunContext MAIN_PLAN = new PlanRunContext(SubPlanKind.MAIN, null);
+    }
+
+    /**
      * Interface for running the underlying plan.
      * Abstracts away the underlying execution engine.
      */
@@ -217,6 +255,7 @@ public class EsqlSession {
             Configuration configuration,
             FoldContext foldContext,
             PlanTimeProfile planTimeProfile,
+            PlanRunContext context,
             ActionListener<Result> listener
         );
 
@@ -778,7 +817,15 @@ public class EsqlSession {
             : listener;
 
         PlanRunner executionRunner = explainContext != null
-            ? (role, plan, cfg, foldCtx, profile, l) -> planRunner.run(PlanRunner.Role.INTERMEDIATE, plan, cfg, foldCtx, profile, l)
+            ? (role, plan, cfg, foldCtx, profile, ctx, l) -> planRunner.run(
+                PlanRunner.Role.INTERMEDIATE,
+                plan,
+                cfg,
+                foldCtx,
+                profile,
+                ctx,
+                l
+            )
             : planRunner;
 
         // Always use the same execution path - executeSubPlans handles both simple queries and those with subplans
@@ -994,7 +1041,7 @@ public class EsqlSession {
     ) {
         var blocks = BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
         PhysicalPlan resultPlan = new LocalSourceExec(Source.EMPTY, Explain.OUTPUT_ATTRIBUTES, LocalSupplier.of(new Page(blocks)));
-        planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, configuration, foldContext, planTimeProfile, listener);
+        planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, configuration, foldContext, planTimeProfile, PlanRunContext.MAIN_PLAN, listener);
     }
 
     private void executeSubPlans(
@@ -1031,8 +1078,7 @@ public class EsqlSession {
                 subPlansResults,
                 physicalPlanOptimizer,
                 planTimeProfile,
-                // Ensure we don't have subplan flag stuck in there on failure
-                ActionListener.runAfter(listener, executionInfo::finishSubPlans)
+                listener
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
@@ -1048,6 +1094,7 @@ public class EsqlSession {
                 configuration,
                 foldContext,
                 planTimeProfile,
+                PlanRunContext.MAIN_PLAN,
                 listener.delegateFailureAndWrap((next, result) -> {
                     Map<String, PinnedColumns> pinnedReads = new HashMap<>();
                     collectPinnedReads(optimizedPlan, pinnedReads);
@@ -1225,14 +1272,22 @@ public class EsqlSession {
      * @param subPlan     first subplan that needs to be executed
      * @param newMainPlan callback to build the new main plan based on the subplan results
      * @param cleanup     callback to release any resources hold by the subplan results
+     * @param kind        the kind of subplan, used to route execution-engine behavior
      */
     private record SubPlanAndCallback(
         LogicalPlan subPlan,
         java.util.function.Function<Result, LogicalPlan> newMainPlan,
         Runnable cleanup,
-        boolean isSubqueryJoinSubPlan,
-        boolean isApproximationCalibration
-    ) {};
+        SubPlanKind kind
+    ) {
+        boolean isSubqueryJoinSubPlan() {
+            return kind == SubPlanKind.SUBQUERY_JOIN || kind == SubPlanKind.INNER_JOIN;
+        }
+
+        boolean isApproximationCalibration() {
+            return kind == SubPlanKind.APPROXIMATION;
+        }
+    };
 
     private SubPlanAndCallback firstSubPlan(
         LogicalPlan mainPlan,
@@ -1247,49 +1302,43 @@ public class EsqlSession {
         // are resolved before outer ones that depend on them.
         LogicalPlan firstJoin = findFirstSubPlanJoin(mainPlan, subPlansResults);
 
-        if (firstJoin instanceof AbstractSubqueryJoin) {
-            AbstractSubqueryJoin.LogicalPlanTuple semiJoinTuple = AbstractSubqueryJoin.firstSubPlan(mainPlan, subPlansResults);
-            if (semiJoinTuple != null) {
-                AtomicReference<Page> localRelationPage = new AtomicReference<>();
-                subPlanAndCallback = new SubPlanAndCallback(semiJoinTuple.subPlan(), result -> {
-                    LocalRelation resultWrapper = resultToPlan(semiJoinTuple.subPlan().source(), result);
-                    // AbstractSubqueryJoin.inlineData may release this page eagerly (filter / empty paths) or swap
-                    // it for a smaller, breaker-tracked dedup page (hash-join path) so the cleanup
-                    // below releases the right one at end of main plan execution.
-                    localRelationPage.set(resultWrapper.supplier().get());
-                    subPlansResults.add(resultWrapper);
-                    return AbstractSubqueryJoin.newMainPlan(
-                        mainPlan,
-                        semiJoinTuple,
-                        resultWrapper,
-                        resolveInSubqueryHashJoinThreshold(configuration),
-                        blockFactory,
-                        localRelationPage
-                    );
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
-            }
-        } else if (firstJoin instanceof InnerJoin) {
-            InnerJoin.LogicalPlanTuple subPlans = InnerJoin.firstSubPlan(mainPlan, subPlansResults);
-            if (subPlans != null) {
-                AtomicReference<Page> localRelationPage = new AtomicReference<>();
-                subPlanAndCallback = new SubPlanAndCallback(subPlans.subPlan(), result -> {
-                    LocalRelation resultWrapper = resultToPlan(subPlans.subPlan().source(), result);
-                    localRelationPage.set(resultWrapper.supplier().get());
-                    subPlansResults.add(resultWrapper);
-                    return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
-            }
-        } else if (firstJoin instanceof InlineJoin) {
-            InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
-            if (subPlans != null) {
-                AtomicReference<Page> localRelationPage = new AtomicReference<>();
-                subPlanAndCallback = new SubPlanAndCallback(subPlans.stubReplacedSubPlan(), result -> {
-                    LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
-                    localRelationPage.set(resultWrapper.supplier().get());
-                    subPlansResults.add(resultWrapper);
-                    return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false);
-            }
+        if (firstJoin instanceof AbstractSubqueryJoin sj) {
+            AbstractSubqueryJoin.LogicalPlanTuple semiJoinTuple = AbstractSubqueryJoin.subPlanFor(sj);
+            AtomicReference<Page> localRelationPage = new AtomicReference<>();
+            subPlanAndCallback = new SubPlanAndCallback(semiJoinTuple.subPlan(), result -> {
+                LocalRelation resultWrapper = resultToPlan(semiJoinTuple.subPlan().source(), result);
+                // AbstractSubqueryJoin.inlineData may release this page eagerly (filter / empty paths) or swap
+                // it for a smaller, breaker-tracked dedup page (hash-join path) so the cleanup
+                // below releases the right one at end of main plan execution.
+                localRelationPage.set(resultWrapper.supplier().get());
+                subPlansResults.add(resultWrapper);
+                return AbstractSubqueryJoin.newMainPlan(
+                    mainPlan,
+                    semiJoinTuple,
+                    resultWrapper,
+                    resolveInSubqueryHashJoinThreshold(configuration),
+                    blockFactory,
+                    localRelationPage
+                );
+            }, () -> releaseLocalRelationBlocks(localRelationPage), SubPlanKind.SUBQUERY_JOIN);
+        } else if (firstJoin instanceof InnerJoin ej) {
+            InnerJoin.LogicalPlanTuple subPlans = InnerJoin.subPlanFor(ej);
+            AtomicReference<Page> localRelationPage = new AtomicReference<>();
+            subPlanAndCallback = new SubPlanAndCallback(subPlans.subPlan(), result -> {
+                LocalRelation resultWrapper = resultToPlan(subPlans.subPlan().source(), result);
+                localRelationPage.set(resultWrapper.supplier().get());
+                subPlansResults.add(resultWrapper);
+                return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
+            }, () -> releaseLocalRelationBlocks(localRelationPage), SubPlanKind.INNER_JOIN);
+        } else if (firstJoin instanceof InlineJoin ij) {
+            InlineJoin.LogicalPlanTuple subPlans = InlineJoin.subPlanFor(ij);
+            AtomicReference<Page> localRelationPage = new AtomicReference<>();
+            subPlanAndCallback = new SubPlanAndCallback(subPlans.stubReplacedSubPlan(), result -> {
+                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
+                localRelationPage.set(resultWrapper.supplier().get());
+                subPlansResults.add(resultWrapper);
+                return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
+            }, () -> releaseLocalRelationBlocks(localRelationPage), SubPlanKind.INLINE_JOIN);
         }
 
         LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan() : mainPlan;
@@ -1303,13 +1352,23 @@ public class EsqlSession {
                     subPlan,
                     result -> approximation.get().newMainPlan(mainPlan, result),
                     () -> {},
-                    false,
-                    true
+                    SubPlanKind.APPROXIMATION
                 );
             }
         }
 
         return subPlanAndCallback;
+    }
+
+    /**
+     * Returns {@code true} when the given plan node is a join whose subplan has not yet been executed.
+     * Delegates to the per-type {@code isPending} methods to avoid duplicating the three divergent
+     * pending-detection conditions that each join type requires.
+     */
+    static boolean isPendingJoin(LogicalPlan p, Set<LocalRelation> subPlansResults) {
+        return (p instanceof AbstractSubqueryJoin sj && AbstractSubqueryJoin.isPending(sj, subPlansResults))
+            || (p instanceof InnerJoin ej && InnerJoin.isPending(ej, subPlansResults))
+            || (p instanceof InlineJoin ij && InlineJoin.isPending(ij, subPlansResults));
     }
 
     /**
@@ -1319,32 +1378,10 @@ public class EsqlSession {
     private static LogicalPlan findFirstSubPlanJoin(LogicalPlan plan, Set<LocalRelation> subPlansResults) {
         Holder<LogicalPlan> result = new Holder<>();
         // Evaluate the right hand side of a SemiJoin/InnerJoin/InlineJoin, unless it is a LocalRelation and registered in subPlansResults
-        // already
+        // already. Processing is bottom up; whether checking the subquery join, InnerJoin or InlineJoin first does not matter.
         plan.forEachUp(p -> {
-            if (result.get() != null) {
-                return;
-            }
-            // Whether checking the subquery join, InnerJoin or InlineJoin first does not matter, the plan is processed bottom up, looking
-            // for
-            // joins whose right child haven't been evaluated yet
-            if (p instanceof AbstractSubqueryJoin sj) {
-                if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
-                    return; // already processed
-                }
-                result.set(sj);
-            } else if (p instanceof InnerJoin ej) {
-                if (ej.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
-                    return; // already processed
-                }
-                result.set(ej);
-            } else if (p instanceof InlineJoin ij) {
-                if (ij.right().anyMatch(r -> r instanceof StubRelation)) {
-                    result.set(ij);
-                } else if (ij.right() instanceof LocalRelation lr && (subPlansResults.isEmpty() || subPlansResults.contains(lr) == false)) {
-                    result.set(ij);
-                } else if (ij.right() instanceof LocalRelation == false && ij.right().anyMatch(r -> r instanceof LocalRelation)) {
-                    result.set(ij);
-                }
+            if (result.get() == null && isPendingJoin(p, subPlansResults)) {
+                result.set(p);
             }
         });
         return result.get();
@@ -1379,14 +1416,13 @@ public class EsqlSession {
             recordExplainSubPlan(subPlan.subPlan, physicalSubPlan);
         }
 
-        executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
-
         runner.run(
             PlanRunner.Role.INTERMEDIATE,
             physicalSubPlan,
             configuration,
             foldContext,
             planTimeProfile,
+            new PlanRunContext(subPlan.kind(), null),
             listener.delegateFailureAndWrap((next, result) -> {
                 // Approximation subplans (to get the sample probability) may approximate internally to estimate
                 // the result count. This does not affect whether the final result is approximate or not.
@@ -1408,7 +1444,6 @@ public class EsqlSession {
                     LOGGER.debug("Next subplan: {}", newSubPlan != null ? newSubPlan.subPlan() : "null");
 
                     if (newSubPlan == null) {
-                        executionInfo.finishSubPlans();
                         var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
                         if (explainContext != null) {
                             // Capture the post-substitution physical plan — the one that actually runs. For
@@ -1422,6 +1457,7 @@ public class EsqlSession {
                             configuration,
                             foldContext,
                             planTimeProfile,
+                            PlanRunContext.MAIN_PLAN,
                             releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                                 completionInfoAccumulator.accumulate(finalResult.completionInfo());
                                 DriverCompletionInfo merged = completionInfoAccumulator.finish();

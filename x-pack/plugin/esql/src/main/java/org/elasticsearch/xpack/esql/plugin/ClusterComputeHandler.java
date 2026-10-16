@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -79,6 +80,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         RemoteCluster cluster,
         Runnable cancelQueryOnFailure,
         EsqlExecutionInfo executionInfo,
+        EsqlSession.SubPlanKind kind,
         boolean accumulateShardStats,
         ActionListener<DriverCompletionInfo> listener
     ) {
@@ -122,7 +124,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                 }
                 try (var computeListener = new ComputeListener(onGroupFailure, l.map(completionInfo -> {
-                    updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get(), accumulateShardStats);
+                    updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get(), kind, accumulateShardStats);
                     return completionInfo;
                 }))) {
                     var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
@@ -157,6 +159,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         EsqlExecutionInfo executionInfo,
         String clusterAlias,
         ComputeResponse resp,
+        EsqlSession.SubPlanKind kind,
         boolean accumulateShardStats
     ) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
@@ -165,7 +168,9 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             // For INLINE STATS subplans, skip shard count updates here — the main plan will set the definitive values.
             // Merge branches (FORK / UNION ALL / FROM subquery) share one execInfo and must add, not replace,
             // so failIfAllShardsFailed at the root merge sees every branch's targets.
-            if (executionInfo.isMainPlan() || executionInfo.isSubqueryJoinSubPlan()) {
+            if (kind == EsqlSession.SubPlanKind.MAIN
+                || kind == EsqlSession.SubPlanKind.SUBQUERY_JOIN
+                || kind == EsqlSession.SubPlanKind.INNER_JOIN) {
                 ComputeService.applyShardCounts(
                     builder,
                     v,
@@ -193,7 +198,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             // Always keep this response's failures. Builder copies any already-recorded list; adding v.getFailures() again would duplicate
             // them. Later merge branches can report after an earlier leaf set SUCCESSFUL.
             builder.addFailures(resp.failures);
-            if (executionInfo.isMainPlan()) {
+            if (kind == EsqlSession.SubPlanKind.MAIN) {
                 boolean failed = executionInfo.isStopped()
                     || resp.failedShards > 0
                     || resp.failures.isEmpty() == false

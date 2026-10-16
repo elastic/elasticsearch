@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlStreamLogContextBuilder;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunContext;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -250,6 +251,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 Configuration configuration,
                 FoldContext foldCtx,
                 PlanTimeProfile planTimeProfile,
+                PlanRunContext ctx,
                 ActionListener<Result> resultListener
             ) {
                 if (QuerySettings.UNMAPPED_FIELDS.get(configuration.resolvedSettings()).loadsAllUnmappedFields()) {
@@ -264,6 +266,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         configuration,
                         foldCtx,
                         executionInfo,
+                        ctx,
                         planTimeProfile,
                         resultListener.map(r -> {
                             completedWork.accumulate(r.completionInfo());
@@ -303,6 +306,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             configuration,
                             foldCtx,
                             executionInfo,
+                            ctx,
                             planTimeProfile,
                             resultListener
                         );

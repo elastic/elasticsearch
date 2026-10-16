@@ -79,12 +79,21 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         return plugins;
     }
 
+    private boolean runningWithDisruption;
+
     @Override
     public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
         // IndexResolver currently ignores failures from field-caps responses and can resolve to a smaller set of concrete indices.
         boolean singleIndex = request.queryDescription().startsWith("from test |");
         if (singleIndex) {
-            return runQueryWithDisruption(request, timeout);
+            // Fail fast if the retry ever re-enters the disruption path, instead of looping until the suite timeout.
+            assertFalse("runQueryWithDisruption must not re-enter itself", runningWithDisruption);
+            runningWithDisruption = true;
+            try {
+                return runQueryWithDisruption(request, timeout);
+            } finally {
+                runningWithDisruption = false;
+            }
         } else {
             return super.run(request, timeout);
         }

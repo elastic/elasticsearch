@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 140522
 pr: 161747
-summary: Add tests for `dense_vector` in *_OVER_TIME agg functions
+summary: Document support for `dense_vector` and add tests in *_OVER_TIME agg functions
 type: enhancement

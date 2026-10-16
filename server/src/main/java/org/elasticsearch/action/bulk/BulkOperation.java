@@ -203,7 +203,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             return;
         }
         Map<ShardId, List<BulkItemRequest>> requestsByShard = groupBulkRequestsByShards(clusterState);
-        executeBulkRequestsByShard(requestsByShard, clusterState, this::redirectFailuresOrCompleteBulkOperation);
+        executeBulkRequestsByShard(requestsByShard, clusterState, router, this::redirectFailuresOrCompleteBulkOperation);
     }
 
     private void doRedirectFailures() {
@@ -221,7 +221,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // Get new cluster state that includes any potential failure store rollovers.
             var rolledOverState = observer.setAndGetObservedState();
             Map<ShardId, List<BulkItemRequest>> requestsByShard = drainAndGroupRedirectsByShards(rolledOverState);
-            executeBulkRequestsByShard(requestsByShard, rolledOverState, this::completeBulkOperation);
+            executeBulkRequestsByShard(requestsByShard, rolledOverState, null, this::completeBulkOperation);
         };
         rollOverFailureStores(executeRedirectRequests);
     }
@@ -407,9 +407,15 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         }
     }
 
+    /**
+     * @param batchRouter the router whose batches back these requests, or {@code null} when the requests carry inline source. Only the
+     *                    initial pass has batches to build; the failure-store redirect pass passes {@code null}, since redirected
+     *                    items are new requests that were never batch-encoded.
+     */
     private void executeBulkRequestsByShard(
         Map<ShardId, List<BulkItemRequest>> requestsByShard,
         ClusterState clusterState,
+        @Nullable BatchModeRouter batchRouter,
         Runnable onRequestsCompleted
     ) {
         if (requestsByShard.isEmpty()) {
@@ -420,7 +426,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
         // Build per-shard source batches. For the inline-encoder path, batches are finalized here
         // (rows were accumulated during routing). For provided-batch mode the source is scattered here.
-        Map<ShardId, SourceBatch> shardBatches = router != null ? router.shardBatches() : Map.of();
+        Map<ShardId, SourceBatch> shardBatches = batchRouter != null ? batchRouter.shardBatches() : Map.of();
         BatchModeRouter.validateBatchAlignment(requestsByShard, shardBatches);
 
         String nodeId = clusterService.localNode().getId();

@@ -85,8 +85,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
@@ -1401,21 +1403,226 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Evicting the footer-byte entry after metadata forces the scan to GET again; rows stay correct.
+     * A refill that cannot read must leave the query working, not break it. This is the claim the swallow in
+     * {@code ParquetStorageObjectAdapter.refillWholeFileFooter} rests on, and the adapter's own failure tests
+     * only assert cache state: nothing stored, no stream leaked, charges refunded. Here the whole query runs
+     * with the refill's route to storage ({@code newStream}) failing and the scan's route
+     * ({@code readBytesAsync}) healthy, so the scan must fall back to ranged data GETs and still return the
+     * rows. The two routes are separate in production too — the refill opens a stream while the preload and
+     * the column-chunk prefetch read asynchronously — which is why a failure on one need not condemn the other.
      */
-    public void testFooterByteEvictionForcesScanGet() throws Exception {
+    public void testQueryStillRunsWhenTheFooterRefillCannotRead() throws Exception {
+        assertRefillFailureLeavesTheQueryRunning(path -> new IOException("simulated stream failure"));
+    }
+
+    /**
+     * The same guarantee for the class a real provider actually raises. {@code GcsStorageObject.mapReadFailure}
+     * turns a retryable status (5xx, 429) into an {@link ExternalUnavailableException}, which is unchecked —
+     * it extends {@code ExternalException} through {@code QlException} — so a catch of {@code IOException}
+     * alone would absorb a local read error and let a store throttle fail the query. This is the cell that
+     * matters in production, and it is the one no test covered.
+     */
+    public void testQueryStillRunsWhenTheFooterRefillIsThrottled() throws Exception {
+        assertRefillFailureLeavesTheQueryRunning(
+            path -> new ExternalUnavailableException(ExternalException.Condition.STORE_THROTTLED, path, "HTTP 429", "", true, 100L)
+        );
+    }
+
+    private void assertRefillFailureLeavesTheQueryRunning(java.util.function.Function<StoragePath, Exception> failure) throws Exception {
         byte[] parquetData = createVpcFlowShapedParquet();
+        assertThat(parquetData.length, lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
         ExecutorService probePool = Executors.newFixedThreadPool(2);
         AtomicInteger asyncReadCount = new AtomicInteger();
+        AtomicInteger streamAttempts = new AtomicInteger();
         try {
-            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null);
+            StorageObject healthy = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null);
+            // Same bytes and the same cache key, but every stream open fails. readBytesAsync still works.
+            StorageObject streamsFail = new StorageObject() {
+                @Override
+                public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                @Override
+                public StorageIdentity storageIdentity() {
+                    return AbstractTestStorageObject.NOOP;
+                }
+
+                @Override
+                public String version() {
+                    // The same key as the healthy object, which is what makes this the same cache entry.
+                    return healthy.version();
+                }
+
+                @Override
+                public InputStream newStream() throws IOException {
+                    streamAttempts.incrementAndGet();
+                    throw rethrow(failure.apply(path()));
+                }
+
+                @Override
+                public InputStream newStream(long position, long length) throws IOException {
+                    streamAttempts.incrementAndGet();
+                    throw rethrow(failure.apply(path()));
+                }
+
+                @Override
+                public void readBytesAsync(
+                    long position,
+                    long length,
+                    DirectBufferFactory factory,
+                    Executor ignored,
+                    ActionListener<DirectReadBuffer> listener
+                ) {
+                    healthy.readBytesAsync(position, length, factory, ignored, listener);
+                }
+
+                @Override
+                public long length() {
+                    return parquetData.length;
+                }
+
+                @Override
+                public Instant lastModified() {
+                    return Instant.ofEpochMilli(0);
+                }
+
+                @Override
+                public boolean exists() {
+                    return true;
+                }
+
+                @Override
+                public boolean supportsNativeAsync() {
+                    return true;
+                }
+
+                @Override
+                public StoragePath path() {
+                    return healthy.path();
+                }
+            };
+
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(healthy);
+            metadataAsyncDirect(reader, healthy);
+            assertEquals("the async prefetch stores the whole small object", 1, asyncReadCount.get());
+            assertNotNull(reader.footerByteCacheForTests().get(key));
+
+            // The state the refill exists for: byte entry gone, parsed entry still warm.
+            reader.footerByteCacheForTests().invalidateAll();
+            assertNotNull("the parsed entry must survive the byte expiry", reader.parsedFooterForTests(key));
+
+            assertEquals("the query still returns its rows", 1, drainAllRows(reader, streamsFail));
+            assertThat("the refill tried to read and failed", streamAttempts.get(), greaterThan(0));
+            assertNull("a failed refill stores nothing", reader.footerByteCacheForTests().get(key));
+            assertThat("with no entry to serve it, the scan fetched its data with ranged GETs", asyncReadCount.get(), greaterThan(1));
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    /**
+     * The scan path only peeks the footer byte cache ({@code CoalescedRangeReader.lookupFooterCacheHit}) and a
+     * parsed-footer hit reads no bytes, so once a small file's byte entry has expired while its parsed entry
+     * stays warm nothing would write it back: every later scan would issue ranged data GETs for the life of
+     * the parsed entry. The next scan must instead re-read the whole object once and store it, and the scan
+     * after that must issue no storage request at all. Rows stay correct throughout.
+     */
+    public void testScanAfterFooterByteExpiryRefillsTheByteCache() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        assertThat(parquetData.length, lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        AtomicInteger streamCount = new AtomicInteger();
+        try {
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null, streamCount);
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(asyncObject);
             metadataAsyncDirect(reader, asyncObject);
             assertEquals(1, asyncReadCount.get());
+            assertEquals(0, streamCount.get());
+            assertNotNull("metadata stores the whole small object as its footer", reader.footerByteCacheForTests().get(key));
+
+            // Expire the byte entry alone; the parsed entry stays warm.
             reader.footerByteCacheForTests().invalidateAll();
-            int rows = drainAllRows(reader, asyncObject);
-            assertEquals(1, rows);
-            assertEquals("metadata GET plus scan GET after eviction", 2, asyncReadCount.get());
+            assertNotNull("the parsed entry must survive the byte expiry", reader.parsedFooterForTests(key));
+
+            assertEquals(1, drainAllRows(reader, asyncObject));
+            assertEquals("the scan re-reads the whole object once through the adapter", 1, streamCount.get());
+            assertEquals("no ranged data GET: the scan is served from the refilled entry", 1, asyncReadCount.get());
+            byte[] refilled = reader.footerByteCacheForTests().get(key);
+            assertNotNull("the scan must write the byte entry back", refilled);
+            assertEquals(parquetData.length, refilled.length);
+
+            assertEquals(1, drainAllRows(reader, asyncObject));
+            assertEquals("a scan over the refilled entry opens no stream", 1, streamCount.get());
+            assertEquals("a scan over the refilled entry issues no GET", 1, asyncReadCount.get());
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    /**
+     * A filtered scan needs the refill as much as an unfiltered one, which is not obvious: row-group pruning
+     * reads column indexes, so it looks like a window fill that the relaxed admission gate would re-seed on
+     * its own. It is not — those reads are asynchronous and never touch the adapter window. Measured either
+     * side of the refill on a small object with a pushed filter: with the refill removed the scan opens no
+     * stream at all, issues three ranged GETs and leaves the entry absent; with it, one whole-object read
+     * serves the scan and the entry is back. So this test is also the gate on the refill being reached from
+     * the filtered path, and removing the call reddens the two counts below as well as the entry.
+     */
+    public void testFilteredScanAfterFooterByteExpiryAlsoRefills() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        assertThat(parquetData.length, lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
+        FilterPredicate filter = FilterApi.gt(FilterApi.longColumn("i64_0"), -1L);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(FilterCompat.get(filter));
+        reader.clearFooterCachesForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        AtomicInteger streamCount = new AtomicInteger();
+        try {
+            StorageObject asyncObject = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null, streamCount);
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(asyncObject);
+            metadataAsyncDirect(reader, asyncObject);
+            assertEquals("the metadata prefetch is the only GET so far", 1, asyncReadCount.get());
+
+            // The state the refill exists for: byte entry gone, parsed entry still warm.
+            reader.footerByteCacheForTests().invalidateAll();
+            assertNotNull("the parsed entry must survive the byte expiry", reader.parsedFooterForTests(key));
+
+            assertEquals("the filtered scan still returns its rows", 1, drainAllRows(reader, asyncObject));
+            assertEquals("the refill reads the whole object once through the adapter", 1, streamCount.get());
+            assertEquals("no ranged data GET: the filtered scan is served from the refilled entry", 1, asyncReadCount.get());
+            byte[] refilled = reader.footerByteCacheForTests().get(key);
+            assertNotNull("the filtered scan must write the byte entry back", refilled);
+            assertEquals(parquetData.length, refilled.length);
+        } finally {
+            probePool.shutdownNow();
+        }
+    }
+
+    public void testSyncFooterParseStoresSmallFileAsItsFooter() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        assertThat(parquetData.length, lessThanOrEqualTo(ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES));
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        reader.clearFooterCachesForTests();
+        ExecutorService probePool = Executors.newFixedThreadPool(2);
+        AtomicInteger asyncReadCount = new AtomicInteger();
+        AtomicInteger streamCount = new AtomicInteger();
+        try {
+            StorageObject object = createAsyncStorageObject(parquetData, probePool, asyncReadCount, null, streamCount);
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(object);
+            assertNotNull(reader.metadata(object));
+            assertEquals("the sync parse is one whole-object stream read", 1, streamCount.get());
+            assertEquals(0, asyncReadCount.get());
+            byte[] stored = reader.footerByteCacheForTests().get(key);
+            assertNotNull("the sync parse must store the whole small object as its footer", stored);
+            assertEquals(parquetData.length, stored.length);
+
+            assertEquals(1, drainAllRows(reader, object));
+            assertEquals("the scan is served from the stored entry: no GET", 0, asyncReadCount.get());
+            assertEquals("the scan is served from the stored entry: no stream", 1, streamCount.get());
         } finally {
             probePool.shutdownNow();
         }
@@ -1435,6 +1642,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
         } finally {
             probePool.shutdownNow();
         }
+    }
+
+    /** Throws the injected failure as its own class: unchecked ones directly, checked ones as the declared IOException. */
+    private static IOException rethrow(Exception e) throws IOException {
+        if (e instanceof RuntimeException re) {
+            throw re;
+        }
+        throw (IOException) e;
     }
 
     private static int drainAllRows(ParquetFormatReader reader, StorageObject object) throws Exception {

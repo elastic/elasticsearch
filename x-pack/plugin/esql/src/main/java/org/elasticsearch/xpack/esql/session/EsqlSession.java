@@ -2471,8 +2471,7 @@ public class EsqlSession {
                 lookupIndexResolution.get().mapping(),
                 Map.of(indexName, new IndexProperties(IndexMode.LOOKUP, 0)),
                 lookupIndexResolution.get().originalIndices(),
-                lookupIndexResolution.get().concreteIndices(),
-                lookupIndexResolution.get().singleValuedFields()
+                lookupIndexResolution.get().concreteIndices()
             );
             return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
         }

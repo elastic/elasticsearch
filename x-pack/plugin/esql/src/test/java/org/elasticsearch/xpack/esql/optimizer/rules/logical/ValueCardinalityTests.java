@@ -7,13 +7,20 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 
+import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.ValueCardinality.MAYBE_MULTI;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.ValueCardinality.SINGLE;
 import static org.hamcrest.Matchers.equalTo;
@@ -161,12 +168,52 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(cardinalityOfKey(query, "k", Set.of("languages")), equalTo(MAYBE_MULTI));
     }
 
+    /**
+     * An analyzer over {@code test}, where the named top level fields carry the single-value guarantee that {@code IndexResolver}
+     * gives a field every index guarantees. Only plain {@link EsField} and {@link KeywordEsField} are used by the fields it flags.
+     */
+    private TestAnalyzer analyzerWithSingleValuedFields(Set<String> singleValuedFields) {
+        Map<String, EsField> mapping = loadMapping("mapping-basic.json");
+        for (String name : singleValuedFields) {
+            mapping.put(name, asSingleValued(mapping.get(name)));
+        }
+        var index = new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
+        return analyzerWithEnrichPolicies().addIndex(index);
+    }
+
+    private static EsField asSingleValued(EsField field) {
+        if (field.getClass() == KeywordEsField.class) {
+            KeywordEsField keyword = (KeywordEsField) field;
+            return new KeywordEsField(
+                keyword.getName(),
+                keyword.getProperties(),
+                keyword.isAggregatable(),
+                keyword.getPrecision(),
+                keyword.getNormalized(),
+                keyword.isAlias(),
+                keyword.getTimeSeriesFieldType(),
+                true
+            );
+        }
+        assertThat(field.getClass(), equalTo(EsField.class));
+        return new EsField(
+            field.getName(),
+            field.getDataType(),
+            field.getProperties(),
+            field.isAggregatable(),
+            field.isAlias(),
+            field.getTimeSeriesFieldType(),
+            field.isPassthrough(),
+            true
+        );
+    }
+
     private ValueCardinality cardinalityOfKey(String query, String keyName) {
         return cardinalityOfKey(query, keyName, Set.of());
     }
 
     private ValueCardinality cardinalityOfKey(String query, String keyName, Set<String> singleValuedFields) {
-        var plan = defaultAnalyzer().query(query).transformUp(EsRelation.class, r -> r.withSingleValuedFields(singleValuedFields));
+        var plan = analyzerWithSingleValuedFields(singleValuedFields).query(query);
         var aggregates = plan.collect(Aggregate.class);
         assertThat(aggregates, hasSize(greaterThanOrEqualTo(1)));
         // The last STATS is the one whose key the query asks about; collect lists the outermost first.

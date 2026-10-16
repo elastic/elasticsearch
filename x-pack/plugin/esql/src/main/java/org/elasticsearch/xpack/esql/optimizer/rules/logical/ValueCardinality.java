@@ -52,8 +52,8 @@ import java.util.List;
  *   <li>an {@link Eval}, {@link Project} or {@code ROW} alias of an attribute proven by these rules.</li>
  * </ul>
  * A field of {@code FROM index} is {@code SINGLE} only if the mapping of every resolved index guarantees it
- * ({@code doc_values.multi_value=false}), as recorded in {@link EsRelation#singleValuedFields()}. External sources answer
- * {@code MAYBE_MULTI}; a hook can be added where a statistics guarantee exists.
+ * ({@code doc_values.multi_value=false}), as recorded in {@link org.elasticsearch.xpack.esql.core.type.EsField#isSingleValued()}.
+ * External sources answer {@code MAYBE_MULTI}; a hook can be added where a statistics guarantee exists.
  */
 enum ValueCardinality {
     SINGLE,
@@ -103,12 +103,10 @@ enum ValueCardinality {
         if (plan instanceof Aggregate aggregate) {
             return ofAggregateOutput(attribute, aggregate);
         }
-        if (plan instanceof EsRelation relation) {
+        if (plan instanceof EsRelation) {
             // A field is single-valued only if the mapping of every resolved index says so. A field that may be read from _source or
-            // converted is not a plain mapped field, so it is never in the set.
-            return attribute instanceof FieldAttribute field
-                && field.isPotentiallyUnmapped() == false
-                && relation.singleValuedFields().contains(field.fieldName().string()) ? SINGLE : MAYBE_MULTI;
+            // converted is not a plain mapped field, so its EsField never carries the flag.
+            return attribute instanceof FieldAttribute field && field.field().isSingleValued() ? SINGLE : MAYBE_MULTI;
         }
         if (plan instanceof Filter || plan instanceof Limit || plan instanceof OrderBy) {
             return ofAttribute(attribute, plan.children().get(0), depth + 1);

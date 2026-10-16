@@ -450,7 +450,6 @@ public class IndexResolver {
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
         Map<String, EsField> rootFields = new HashMap<>();
-        Set<String> singleValuedFields = new HashSet<>();
         Map<Set<String>, Set<String>> indexDedupCache = useCompactInvalidMappedField(fieldsInfo.minTransportVersion())
             ? new HashMap<>()
             : null;
@@ -494,9 +493,6 @@ public class IndexResolver {
                 field = wrapIfPartiallyUnmapped(field, name, fullName, mappedIndices, numberOfIndices, indexDedupCache);
             }
             fields.put(name, field);
-            if (isSingleValuedInEveryIndex(field, fcs)) {
-                singleValuedFields.add(fullName);
-            }
         }
 
         boolean allEmpty = true;
@@ -524,8 +520,7 @@ public class IndexResolver {
             // FieldCapabilitiesResponse#resolvedLocally and FieldCapabilitiesResponse#resolvedRemotely
             // once all remotes support it (v9.3+)
             originalIndexExtractor.apply(indexPattern, fieldsInfo.caps),
-            concreteIndices,
-            singleValuedFields
+            concreteIndices
         );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
         return IndexResolution.valid(index, indexProperties.keySet(), failures);
@@ -600,19 +595,6 @@ public class IndexResolver {
         };
     }
 
-    /**
-     * Whether the mapping of every index that has the field guarantees at most one value per document. Only plain fields qualify: a
-     * field that ended up as a type conflict, an unsupported or a partially unmapped field is not what the flags describe, because
-     * it may be read from {@code _source} or converted. A field missing from an index has no value there, so it does not count.
-     */
-    private static boolean isSingleValuedInEveryIndex(EsField field, List<IndexFieldCapabilities> fcs) {
-        Class<?> type = field.getClass();
-        if (type != EsField.class && type != KeywordEsField.class && type != DateEsField.class) {
-            return false;
-        }
-        return fcs.stream().allMatch(IndexFieldCapabilities::isSingleValued);
-    }
-
     private static EsField createField(
         FieldsInfo fieldsInfo,
         String name,
@@ -630,6 +612,7 @@ public class IndexResolver {
         }
         boolean aggregatable = first.isAggregatable();
         boolean isPassthrough = Boolean.TRUE.equals(first.isPassthrough());
+        boolean isSingleValued = first.isSingleValued();
         EsField.TimeSeriesFieldType timeSeriesFieldType = fieldsInfo.hasTimeSeriesAggregation()
             ? EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first)
             : EsField.TimeSeriesFieldType.NONE;
@@ -655,6 +638,8 @@ public class IndexResolver {
             for (IndexFieldCapabilities fc : rest) {
                 aggregatable &= fc.isAggregatable();
                 isPassthrough &= Boolean.TRUE.equals(fc.isPassthrough());
+                // A field missing from an index has no value there, so only the indices that have it count.
+                isSingleValued &= fc.isSingleValued();
             }
         }
 
@@ -667,16 +652,25 @@ public class IndexResolver {
             int length = Short.MAX_VALUE;
             // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
             boolean normalized = false;
-            return new KeywordEsField(name, new HashMap<>(), aggregatable, length, normalized, isAlias, timeSeriesFieldType);
+            return new KeywordEsField(
+                name,
+                new HashMap<>(),
+                aggregatable,
+                length,
+                normalized,
+                isAlias,
+                timeSeriesFieldType,
+                isSingleValued
+            );
         }
         if (type == DATETIME) {
-            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType);
+            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType, isSingleValued);
         }
         if (type == UNSUPPORTED) {
             return unsupported(name, first);
         }
 
-        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType, isPassthrough);
+        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType, isPassthrough, isSingleValued);
     }
 
     /**

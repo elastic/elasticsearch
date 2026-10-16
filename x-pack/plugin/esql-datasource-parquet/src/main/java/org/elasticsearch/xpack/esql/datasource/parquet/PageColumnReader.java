@@ -2062,9 +2062,7 @@ final class PageColumnReader implements Releasable {
      * {@link OrdinalBytesRefBlock} carries a dictionary for the batch rather than the whole chunk.
      */
     private static final class OrdinalRemap implements Releasable {
-        // Maps original dictionary ordinals to compact ordinals; -1 means unreferenced in this batch.
         private int[] assignedOrds;
-        // Maps compact ordinals back to original dictionary ordinals, in first-seen order.
         private int[] referencedOrds;
         private int uniqueCount;
         private final CircuitBreaker breaker;
@@ -2082,7 +2080,6 @@ final class PageColumnReader implements Releasable {
                 Arrays.fill(assignedOrds, -1);
                 breaker.addWithoutBreaking(-oldBytes);
             } else {
-                // Reset only entries referenced by the previous batch, avoiding a full dictionary scan.
                 for (int i = 0; i < uniqueCount; i++) {
                     assignedOrds[referencedOrds[i]] = -1;
                 }

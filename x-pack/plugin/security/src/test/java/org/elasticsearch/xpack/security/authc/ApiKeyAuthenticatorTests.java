@@ -7,15 +7,20 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import io.netty.channel.Channel;
+
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -24,7 +29,10 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.AuditableRequest;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
+import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
@@ -269,6 +277,91 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
         final AuditableRequest auditableRequest = mock(AuditableRequest.class);
         when(context.getRequest()).thenReturn(auditableRequest);
         return context;
+    }
+
+    public void testAuthenticationFailureLogsOriginAddressWithoutException() throws Exception {
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final ApiKeyService apiKeyService = mock(ApiKeyService.class);
+        final ApiKeyAuthenticator apiKeyAuthenticator = createApiKeyAuthenticator(
+            apiKeyService,
+            telemetryPlugin,
+            new TestNanoTimeSupplier(randomLongBetween(1, 100))
+        );
+
+        final ApiKeyCredentials apiKeyCredentials = randomApiKeyCredentials();
+        final Authenticator.Context context = mockApiKeyAuthenticationContext(apiKeyCredentials);
+
+        final InetSocketAddress remoteAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(1024, 65535));
+        final Channel channel = mock(Channel.class);
+        when(channel.remoteAddress()).thenReturn(remoteAddress);
+        RemoteHostHeader.process(channel, context.getThreadContext());
+
+        doAnswer(invocation -> {
+            final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
+            listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful API key auth", null));
+            return Void.TYPE;
+        }).when(apiKeyService).tryAuthenticate(any(), same(apiKeyCredentials), anyActionListener());
+
+        try (var mockLog = MockLog.capture(ApiKeyAuthenticator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "origin-in-failure-log-no-exception",
+                    ApiKeyAuthenticator.class.getName(),
+                    Level.WARN,
+                    "unsuccessful API key auth, origin [" + NetworkAddress.format(remoteAddress) + "]"
+                )
+            );
+
+            final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+            apiKeyAuthenticator.authenticate(context, future);
+            final var authResult = future.actionGet();
+            assertThat(authResult.isAuthenticated(), equalTo(false));
+
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testAuthenticationFailureLogsOriginAddressWithException() throws Exception {
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final ApiKeyService apiKeyService = mock(ApiKeyService.class);
+        final ApiKeyAuthenticator apiKeyAuthenticator = createApiKeyAuthenticator(
+            apiKeyService,
+            telemetryPlugin,
+            new TestNanoTimeSupplier(randomLongBetween(1, 100))
+        );
+
+        final ApiKeyCredentials apiKeyCredentials = randomApiKeyCredentials();
+        final Authenticator.Context context = mockApiKeyAuthenticationContext(apiKeyCredentials);
+
+        final InetSocketAddress remoteAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(1024, 65535));
+        final Channel channel = mock(Channel.class);
+        when(channel.remoteAddress()).thenReturn(remoteAddress);
+        RemoteHostHeader.process(channel, context.getThreadContext());
+
+        final ElasticsearchException exception = new ElasticsearchException("API key auth exception");
+        doAnswer(invocation -> {
+            final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
+            listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful API key auth", exception));
+            return Void.TYPE;
+        }).when(apiKeyService).tryAuthenticate(any(), same(apiKeyCredentials), anyActionListener());
+
+        try (var mockLog = MockLog.capture(ApiKeyAuthenticator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "origin-in-failure-log-with-exception",
+                    ApiKeyAuthenticator.class.getName(),
+                    Level.WARN,
+                    "unsuccessful API key auth, origin [" + NetworkAddress.format(remoteAddress) + "]"
+                )
+            );
+
+            final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+            apiKeyAuthenticator.authenticate(context, future);
+            final var authResult = future.actionGet();
+            assertThat(authResult.isAuthenticated(), equalTo(false));
+
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
 }

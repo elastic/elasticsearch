@@ -2348,6 +2348,11 @@ public class EsqlCapabilities {
         FIX_TIME_SERIES_WINDOW_BACKWARD,
 
         /**
+         * Disable ReplaceFieldWithConstantOrNull rule for time-series aggregation
+         */
+        DISABLE_REPLACE_NULL_RULE_FOR_TIME_SERIES,
+
+        /**
          * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
          */
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),

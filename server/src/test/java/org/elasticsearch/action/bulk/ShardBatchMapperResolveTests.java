@@ -852,7 +852,7 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     }
 
     /**
-     * The sink is keyed by the leaf's <em>full</em> dotted path, matching {@code DynamicFieldsBuilder.FlattenedSink},
+     * The sink is keyed by the leaf's <em>full</em> dotted path, matching {@code UnmappedSinkFieldMapper.absorb},
      * which calls {@code indexValueAtPath(context, context.path().pathAsText(name))}. This differs from a real
      * flattened field, whose relative keys have the owner prefix stripped.
      */
@@ -871,6 +871,32 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         assertNotNull(resolution);
         assertEquals(1, resolution.columnGroups().length);
         assertArrayEquals(new String[] { "a.b" }, resolution.columnGroups()[0].relativeKeys());
+    }
+
+    /**
+     * The sink is a metadata field, so a document key under {@code _unmapped} must reach the sequential parser, which rejects it. Both
+     * {@code {"_unmapped":{"a":..}}} and the dotted {@code {"_unmapped.a":..}} become the batch leaf {@code _unmapped.a}, and neither may
+     * be silently written into the sink as key {@code a}.
+     */
+    public void testLeafUnderSinkNameFallsBack() throws IOException {
+        assumeUnmappedSinkAvailable();
+        MapperService ms = columnarMapperService(unmappedSinkEnabled(), mapping(b -> {}));
+        String key = randomAlphaOfLength(5);
+        String json = randomBoolean() ? "{\"_unmapped\":{\"" + key + "\":\"x\"}}" : "{\"_unmapped." + key + "\":\"x\"}";
+        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), columnarIndexSettings(unmappedSinkEnabled())));
+    }
+
+    /**
+     * A document key {@code _unmapped} holding a value resolves to the sink itself rather than to a leaf under it. The sink never maps a
+     * column of its own, so the batch must fall back at resolve time and let the sequential parser reject the key, instead of assigning the
+     * sink to the column and failing later inside {@code mapColumnBatch}.
+     */
+    public void testSinkNameAsLeafFallsBack() throws IOException {
+        assumeUnmappedSinkAvailable();
+        MapperService ms = columnarMapperService(unmappedSinkEnabled(), mapping(b -> {}));
+        String value = randomAlphaOfLength(5);
+        String json = randomBoolean() ? "{\"_unmapped\":\"" + value + "\"}" : "{\"_unmapped\":[\"" + value + "\"]}";
+        assertNull(ShardBatchMapper.resolveMappers(schemaOfJson(json), ms.mappingLookup(), columnarIndexSettings(unmappedSinkEnabled())));
     }
 
     /**

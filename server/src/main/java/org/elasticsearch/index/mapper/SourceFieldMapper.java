@@ -13,7 +13,9 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
@@ -43,6 +45,7 @@ import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -702,7 +705,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final EscfColumnBuilder blobs = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, context.recycler());
         blobs.lockScalar(EscfColumnKind.BINARY);
         try (blobs) {
-            final MappedColumns.RowCursor rows = context.rowCursor();
+            final MappedColumns.RowCursor rows = context.rowCursor(SourceFieldMapper::isReadByColumnarSourceWriter);
             for (int d = 0; d < docCount; d++) {
                 rows.advance();
                 // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
@@ -732,6 +735,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             final EscfColumnData countsData = countsBuilder.finish(docCount);
             context.addColumn(LuceneLongColumn.counts(countsData, IgnoredSourceFieldMapper.NAME), countsData);
         }
+    }
+
+    /**
+     * Whether {@link ColumnarSourceWriter} can read the fields of {@code column}: it only looks at doc values and stored fields, as
+     * {@code ReusableColumnarStoredLeafReader#repopulate} ignores every other field. Columns that only index terms (the inverted index
+     * of a text field, for instance) are left out, so that the row cursor does not build their fields for nothing.
+     */
+    private static boolean isReadByColumnarSourceWriter(LuceneColumn column) {
+        final IndexableFieldType fieldType = column.toLuceneColumn().fieldType();
+        return fieldType.docValuesType() != DocValuesType.NONE || fieldType.stored();
     }
 
     @Override

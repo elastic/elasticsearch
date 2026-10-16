@@ -38,7 +38,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM test | WHERE KNN(v, [0.5]) AND id == 1 | KEEP id | LIMIT 10'
+          query: 'FROM test METADATA _score | WHERE KNN(v, [0.5]) | SORT _score DESC | KEEP id | LIMIT 1'
   - match: { values: [ [ 1 ] ] }
 
 ---
@@ -46,7 +46,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM test | WHERE KNN(v, 0.5) AND id == 1 | KEEP id | LIMIT 10'
+          query: 'FROM test METADATA _score | WHERE KNN(v, 0.5) | SORT _score DESC | KEEP id | LIMIT 1'
   - match: { values: [ [ 1 ] ] }
 
 ---
@@ -54,7 +54,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM test | WHERE KNN(v, ?q) AND id == 1 | KEEP id | LIMIT 10'
+          query: 'FROM test METADATA _score | WHERE KNN(v, ?q) | SORT _score DESC | KEEP id | LIMIT 1'
           params: [ { "q": [ 0.5 ] } ]
   - match: { values: [ [ 1 ] ] }
 
@@ -63,5 +63,13 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM test | WHERE KNN(v, TO_DENSE_VECTOR([0.5])) AND id == 1 | KEEP id | LIMIT 10'
+          query: 'FROM test METADATA _score | WHERE KNN(v, TO_DENSE_VECTOR([0.5])) | SORT _score DESC | KEEP id | LIMIT 1'
   - match: { values: [ [ 1 ] ] }
+
+---
+"different query vector returns its nearest document":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _score | WHERE KNN(v, [0.1]) | SORT _score DESC | KEEP id | LIMIT 1'
+  - match: { values: [ [ 0 ] ] }

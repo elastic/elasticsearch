@@ -34,10 +34,6 @@ You can set up content connectors in two ways. The availability of each setup mo
 | **Can send data to** | Any {{es}} instance | Deployment or project the connector is deployed within only |
 | **Customization** | Supported | Not supported |
 
-::::{note}
-In Elastic 8.x, Elastic managed connectors ran on Enterprise Search in {{ech}} deployments only. They were never available that way on {{es-serverless}}, and that model was discontinued in Elastic **9.0.0** along with Enterprise Search. For details, refer to [Connector release notes](release-notes.md).
-::::
-
 ## Available connectors
 
 This table provides an overview of our available connectors, their current support status, and the features they support.

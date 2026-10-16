@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162030
+summary: Enhance index resolution error message thrown during planning
+type: enhancement

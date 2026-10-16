@@ -58,6 +58,11 @@ class ConcurrencyLimitedStorageProvider extends DelegatingStorageProvider {
     }
 
     @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        return new ConcurrencyLimitedStorageObject(delegate.newObject(path, length, lastModified, version), limiter);
+    }
+
+    @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
         return listObjects(prefix, "", recursive);
     }

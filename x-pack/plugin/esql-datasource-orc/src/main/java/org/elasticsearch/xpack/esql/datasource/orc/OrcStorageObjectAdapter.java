@@ -68,7 +68,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
     }
 
     /**
-     * Returns the cache key identifying this file by {@code (path, length)}. Shared with
+     * Returns the cache key identifying this file by {@code (path, length, version)}. Shared with
      * {@link FooterByteCache} and the parsed-footer cache held by {@link OrcFormatReader} so that
      * callers reusing this adapter can hit those caches without recomputing the key.
      */
@@ -226,7 +226,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
             // pos + len (requested bytes) because PositionedReadable.read may return a short read.
             // This caches a smaller suffix [length - bytesRead, length) which readFromTailCache
             // handles correctly — its bounds check rejects requests that span outside the cached region.
-            if (bytesRead > 0 && pos + bytesRead == length) {
+            if (cacheKey != null && bytesRead > 0 && pos + bytesRead == length) {
                 byte[] tailBytes = new byte[bytesRead];
                 System.arraycopy(buffer, offset, tailBytes, 0, bytesRead);
                 tailCache.put(cacheKey, tailBytes);
@@ -238,7 +238,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
         public void readFully(long pos, byte[] buffer, int offset, int len) throws IOException {
             boolean isTailRead = pos + len == length;
 
-            if (isTailRead && len > 0 && len <= tailCache.maxEntryBytes()) {
+            if (cacheKey != null && isTailRead && len > 0 && len <= tailCache.maxEntryBytes()) {
                 try {
                     byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> {
                         byte[] loaded = new byte[len];
@@ -265,7 +265,7 @@ public class OrcStorageObjectAdapter extends FileSystem {
 
             readFullyFromStorage(pos, buffer, offset, len);
 
-            if (pos + len == length) {
+            if (cacheKey != null && pos + len == length) {
                 byte[] tailBytes = new byte[len];
                 System.arraycopy(buffer, offset, tailBytes, 0, len);
                 tailCache.put(cacheKey, tailBytes);
@@ -278,6 +278,9 @@ public class OrcStorageObjectAdapter extends FileSystem {
         }
 
         private int readFromTailCache(long pos, byte[] buffer, int offset, int len) {
+            if (cacheKey == null) {
+                return -1;
+            }
             byte[] cached = tailCache.get(cacheKey);
             if (cached == null || cached.length == 0) {
                 return -1;

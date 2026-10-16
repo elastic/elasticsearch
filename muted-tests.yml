@@ -257,6 +257,9 @@ tests:
 - class: org.elasticsearch.upgrades.BinaryKeywordCollapseFullClusterRestartIT
   method: testCollapseOnBinaryKeyword {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/162267
+- class: org.elasticsearch.upgrades.BinaryKeywordCollapseFullClusterRestartIT
+  method: testCollapseOnBinaryKeyword {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/162279
 
 # Examples:
 #

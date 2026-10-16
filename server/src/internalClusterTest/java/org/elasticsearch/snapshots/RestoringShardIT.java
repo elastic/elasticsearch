@@ -517,15 +517,15 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
      * {@code POST /{index}/_refresh} silently swallows the shard-unavailable exception via
      * {@code isShardNotAvailableException} — {@code _shards.failed} stays 0.
      *
-     * <p>Takes ~60s: refresh is a replication action, so the per-shard request waits for the
-     * primary to become active until the default {@code ReplicationRequest} timeout (1m) expires,
-     * then fails with {@code UnavailableShardsException}, which is what gets swallowed. The
-     * timeout is not settable on refresh requests.
+     * <p>Refresh is a replication action, so the per-shard request waits for the
+     * primary to become active until the request timeout expires, then fails with
+     * {@code UnavailableShardsException}, which is what gets swallowed. A short timeout is used
+     * to avoid waiting for the default 1-minute timeout.
      */
     public void testRefreshWhileRestoringSwallowsExceptionAndReportsNoFailedShards() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         try {
-            assertThat(indicesAdmin().prepareRefresh(INDEX).get().getFailedShards(), equalTo(0));
+            assertThat(indicesAdmin().prepareRefresh(INDEX).setTimeout(TimeValue.timeValueMillis(100)).get().getFailedShards(), equalTo(0));
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
         }
@@ -535,15 +535,15 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
      * {@code POST /{index}/_flush} silently swallows the shard-unavailable exception —
      * {@code _shards.failed} stays 0.
      *
-     * <p>Takes ~60s: flush is a replication action, so the per-shard request waits for the
-     * primary to become active until the default {@code ReplicationRequest} timeout (1m) expires,
-     * then fails with {@code UnavailableShardsException}, which is what gets swallowed. The
-     * timeout is not settable on flush requests.
+     * <p>Flush is a replication action, so the per-shard request waits for the
+     * primary to become active until the request timeout expires, then fails with
+     * {@code UnavailableShardsException}, which is what gets swallowed. A short timeout is used
+     * to avoid waiting for the default 1-minute timeout.
      */
     public void testFlushWhileRestoringSwallowsExceptionAndReportsNoFailedShards() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         try {
-            assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+            assertThat(indicesAdmin().prepareFlush(INDEX).setTimeout(TimeValue.timeValueMillis(100)).get().getFailedShards(), equalTo(0));
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
         }

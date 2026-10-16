@@ -458,7 +458,7 @@ _doc_count:
 ---
 text with doc_values:
   - requires:
-      cluster_features: ["mapper.text.doc_values"]
+      cluster_features: ["mapper.text.doc_values_without_feature_flag"]
       reason: "text doc_values support required"
 
   - do:
@@ -498,7 +498,7 @@ text with doc_values:
 ---
 text with doc_values multi-value:
   - requires:
-      cluster_features: ["mapper.text.doc_values"]
+      cluster_features: ["mapper.text.doc_values_without_feature_flag"]
       reason: "text doc_values support required"
 
   - do:

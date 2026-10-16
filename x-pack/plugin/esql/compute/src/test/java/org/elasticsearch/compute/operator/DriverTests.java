@@ -83,12 +83,14 @@ public class DriverTests extends ESTestCase {
 
         logger.info("status {}", driver.status());
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.QUEUED));
+        assertThat(driver.status().threadName(), equalTo(""));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().cpuNanos(), equalTo(0L));
         assertThat(driver.status().iterations(), equalTo(0L));
         driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), Integer.MAX_VALUE, nowSupplier);
         logger.info("status {}", driver.status());
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        assertThat(driver.status().threadName(), equalTo(Thread.currentThread().getName()));
         assertThat(driver.status().started(), equalTo(startEpoch));
         long sumRunningTime = tickTime * (nowSupplier.callCount - 1);
         assertThat(driver.status().cpuNanos(), equalTo(sumRunningTime));

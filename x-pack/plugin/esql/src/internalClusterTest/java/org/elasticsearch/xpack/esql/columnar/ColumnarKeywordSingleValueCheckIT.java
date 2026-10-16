@@ -14,11 +14,13 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.BeforeClass;
 
 import java.util.Random;
 import java.util.Set;
@@ -41,6 +43,12 @@ import static org.hamcrest.Matchers.not;
 public class ColumnarKeywordSingleValueCheckIT extends AbstractEsqlIntegTestCase {
 
     private static final String CHECK = "single_value_match";
+
+    /** The index setting these tests create with is only registered while the feature flag is on, as a release build is not. */
+    @BeforeClass
+    public static void checkColumnarCodecEnabled() {
+        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+    }
 
     @Override
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {

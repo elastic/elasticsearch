@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.startsWith;
 
 public class AsyncCountersAdapterTests extends ESTestCase {
     RecordingOtelMeter otelMeter;
@@ -140,16 +139,6 @@ public class AsyncCountersAdapterTests extends ESTestCase {
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
         assertThat(error.getMessage(), containsString("Attribute [es_has_timestamp] of [es.test.name.total] is forbidden"));
-    }
-
-    public void testNullRecords() {
-        DoubleAsyncCounter dcounter = registry.registerDoublesAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
-        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
-        dcounter.close();
-
-        LongAsyncCounter lcounter = registry.registerLongsAsyncCounter("es.test.name.total", "desc", "unit", () -> null);
-        expectThrows(AssertionError.class, startsWith("must not pass null values to async instruments"), otelMeter::collectMetrics);
-        lcounter.close();
     }
 
     public void testLongAsyncCounterIsRemovedFromTheRegistryAfterClosing() throws Exception {

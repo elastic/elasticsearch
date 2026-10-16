@@ -314,6 +314,15 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * How an internal doc-values field this mapper writes under its own path, such as {@code <field>.input}, is written as a
+     * ColumNAR string column, or {@code null} when it is not one. Such a field has no mapper of its own, so its owner answers.
+     */
+    @Nullable
+    public StringColumnOptions internalColumnarStringOptions(String fieldName) {
+        return null;
+    }
+
+    /**
      * Returns {@code true} for metadata field mappers ({@link MetadataFieldMapper} subclasses),
      * {@code false} for all user-defined data field mappers. Used by {@link #supportsColumnarParse}
      * to skip the index-mode and legacy-version gates, which are data-field concerns only.
@@ -688,19 +697,6 @@ public abstract class FieldMapper extends Mapper {
      */
     public abstract Builder getMergeBuilder();
 
-    protected void checkIncomingMergeType(FieldMapper mergeWith) {
-        if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
-            throw new IllegalArgumentException(
-                "mapper [" + fullPath() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
-            );
-        }
-        if (Objects.equals(contentType(), mergeWith.contentType()) == false) {
-            throw new IllegalArgumentException(
-                "mapper [" + fullPath() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
-            );
-        }
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(leafName());
@@ -919,27 +915,11 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void add(FieldMapper mapper) {
-                FieldMapper.Builder builder = mapper.getMergeBuilder();
-                if (builder != null) {
-                    fieldBuilders.put(mapper.leafName(), builder);
-                } else {
-                    fieldBuilders.put(mapper.leafName(), new FieldMapper.Builder(mapper.leafName()) {
-                        @Override
-                        protected Parameter<?>[] getParameters() {
-                            return EMPTY_PARAMETERS;
-                        }
-
-                        @Override
-                        public String contentType() {
-                            return mapper.contentType();
-                        }
-
-                        @Override
-                        public FieldMapper build(MapperBuilderContext context) {
-                            return mapper;
-                        }
-                    });
-                }
+                FieldMapper.Builder builder = Objects.requireNonNull(
+                    mapper.getMergeBuilder(),
+                    () -> "multi-field mapper [" + mapper.fullPath() + "] must provide a merge builder"
+                );
+                fieldBuilders.put(mapper.leafName(), builder);
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
@@ -958,7 +938,7 @@ public abstract class FieldMapper extends Mapper {
                             updateSyntheticSourceCompatibleKeywordField(incomingBuilder);
                         }
                     } else {
-                        MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
+                        MapperMergeContext childContext = mergeContext.withUnlimitedParseFieldLimitsBudget();
                         Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, childContext);
                         fieldBuilders.put(entry.getKey(), (FieldMapper.Builder) merged);
                     }

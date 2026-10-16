@@ -79,7 +79,7 @@ class PromqlQueryPlanBuilder {
     ) {
         Instant startInstant = PromqlParserUtils.parseDate(Source.EMPTY, startStr);
         Instant endInstant = PromqlParserUtils.parseDate(Source.EMPTY, endStr);
-        Duration stepDuration = parseStep(stepStr);
+        Duration stepDuration = parseDuration(stepStr);
         Literal startLiteral = Literal.dateTime(Source.EMPTY, startInstant);
         Literal endLiteral = Literal.dateTime(Source.EMPTY, endInstant);
         Literal stepLiteral = Literal.timeDuration(Source.EMPTY, stepDuration);
@@ -192,7 +192,11 @@ class PromqlQueryPlanBuilder {
         };
     }
 
-    private static Duration parseStep(String value) {
+    /**
+     * Parses a Prometheus duration request parameter, given either as an integer number of seconds or as a duration literal like
+     * {@code 1m30s}. Unlike Prometheus, fractional seconds such as {@code 1.5} are not supported yet.
+     */
+    static Duration parseDuration(String value) {
         try {
             return Duration.ofSeconds(Integer.parseInt(value));
         } catch (NumberFormatException ignore) {

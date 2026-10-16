@@ -112,7 +112,6 @@ public class ES920DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                     random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER),
                     random().nextInt(8, ES920DiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER),
                     DenseVectorFieldMapper.ElementType.FLOAT,
-                    random().nextBoolean(),
                     executorService,
                     numMergingThreads
                 );
@@ -122,7 +121,6 @@ public class ES920DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                     random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
                     random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
                     DenseVectorFieldMapper.ElementType.FLOAT,
-                    random().nextBoolean(),
                     executorService,
                     numMergingThreads
                 );
@@ -189,34 +187,46 @@ public class ES920DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
         }
     }
 
+    /** Segments of the versions that recorded each field's direct I/O options still read back, every field of them. */
     public void testDirectIOBackwardsCompatibleRead() throws IOException {
-        try (Directory dir = newDirectory()) {
-            IndexWriterConfig bwcConfig = newIndexWriterConfig();
-            bwcConfig.setCodec(TestUtil.alwaysKnnVectorsFormat(new ES920DiskBBQVectorsFormat() {
+        for (int version : new int[] { ES920DiskBBQVectorsFormat.VERSION_START, ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO }) {
+            assertReadsBack(new ES920DiskBBQVectorsFormat() {
                 @Override
                 public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-                    return version0FieldsWriter(state);
+                    return fieldsWriterForVersion(state, version);
                 }
-            }));
+            });
+        }
+    }
 
-            try (IndexWriter w = new IndexWriter(dir, bwcConfig)) {
-                // just testing the metadata here, don't need to do anything fancy
-                float[] vector = randomVector(1024);
-                Document doc = new Document();
-                doc.add(new KnnFloatVectorField("f", vector, VectorSimilarityFunction.EUCLIDEAN));
-                w.addDocument(doc);
+    /** Writes two fields with {@code format} and reads every vector of both back. */
+    public static void assertReadsBack(KnnVectorsFormat format) throws IOException {
+        int dims = 64;
+        float[][] vectors = new float[2 * 20][];
+        try (Directory dir = newDirectory()) {
+            // not randomized: the documents must land in one segment, in order
+            IndexWriterConfig config = new IndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+            try (IndexWriter w = new IndexWriter(dir, config)) {
+                for (int i = 0; i < 20; i++) {
+                    Document doc = new Document();
+                    vectors[2 * i] = randomVector(dims);
+                    vectors[2 * i + 1] = randomVector(dims);
+                    doc.add(new KnnFloatVectorField("f", vectors[2 * i], VectorSimilarityFunction.EUCLIDEAN));
+                    doc.add(new KnnFloatVectorField("g", vectors[2 * i + 1], VectorSimilarityFunction.EUCLIDEAN));
+                    w.addDocument(doc);
+                }
                 w.commit();
-
-                try (IndexReader reader = DirectoryReader.open(w)) {
-                    LeafReader r = getOnlyLeafReader(reader);
-                    FloatVectorValues vectorValues = r.getFloatVectorValues("f");
-                    KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
-                    assertEquals(0, iterator.nextDoc());
-                    assertArrayEquals(vector, vectorValues.vectorValue(0), 0);
-                    assertEquals(NO_MORE_DOCS, iterator.nextDoc());
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                LeafReader r = getOnlyLeafReader(reader);
+                for (int field = 0; field < 2; field++) {
+                    FloatVectorValues values = r.getFloatVectorValues(field == 0 ? "f" : "g");
+                    KnnVectorValues.DocIndexIterator iterator = values.iterator();
+                    for (int doc = iterator.nextDoc(); doc != NO_MORE_DOCS; doc = iterator.nextDoc()) {
+                        assertArrayEquals(vectors[2 * doc + field], values.vectorValue(iterator.index()), 0);
+                    }
                 }
             }
-
         }
     }
 

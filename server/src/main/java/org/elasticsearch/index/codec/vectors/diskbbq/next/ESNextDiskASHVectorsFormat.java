@@ -12,18 +12,18 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
-import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.codec.vectors.VectorWriteHints;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
-import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorScorer;
+import org.elasticsearch.index.codec.vectors.es93.ES93Lucene99FlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -52,16 +52,14 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     public static final int VERSION_START = 1;
     public static final int VERSION_DIRECT_IO = VERSION_START;
     public static final int VERSION_ON_DISK_MERGE = VERSION_START;
-    public static final int VERSION_CURRENT = VERSION_START;
+    /** From this version, fields do not record their direct I/O options: the directory reads them from the mapping. */
+    public static final int VERSION_NO_DIRECT_IO = 2;
+    public static final int VERSION_CURRENT = VERSION_NO_DIRECT_IO;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
-    private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
-        ES93GenericFlatVectorScorer.INSTANCE
-    );
-    private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
-        ES93GenericFlatVectorScorer.INSTANCE
-    );
-    private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
+    private static final FlatVectorsFormat float32VectorFormat = new ES93Lucene99FlatVectorsFormat(ES93GenericFlatVectorScorer.INSTANCE);
+    private static final FlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(ES93GenericFlatVectorScorer.INSTANCE);
+    private static final Map<String, FlatVectorsFormat> supportedFormats = Map.of(
         float32VectorFormat.getName(),
         float32VectorFormat,
         bfloat16VectorFormat.getName(),
@@ -90,9 +88,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     private final IvfSegmentConfig.AshConfig ashConfig;
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
-    private final boolean useDirectIO;
-    private final boolean onDiskMerge;
-    private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
+    private final FlatVectorsFormat rawVectorFormat;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
     private final TaskExecutor quantizerExec;
@@ -112,33 +108,28 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             vectorPerCluster,
             centroidsPerParentCluster,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            false,
             null,
             1,
             null,
             defaultFlatThreshold(vectorPerCluster),
             sliceField,
             IvfFlushConfigSource.empty(),
-            IvfMergeConfigResolver.useCodecDefault(),
-            false
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
-    /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */
     public ESNextDiskASHVectorsFormat(
         IvfSegmentConfig.AshConfig ashConfig,
         int vectorPerCluster,
         int centroidsPerParentCluster,
         DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
         ExecutorService mergingExecutorService,
         int maxMergingWorkers,
         ExecutorService quantizerExecutorService,
         int flatVectorThreshold,
         String sliceField,
         IvfFlushConfigSource ivfFlushConfigSource,
-        IvfMergeConfigResolver ivfMergeConfigResolver,
-        boolean onDiskMerge
+        IvfMergeConfigResolver ivfMergeConfigResolver
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -174,8 +165,6 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             case BFLOAT16 -> bfloat16VectorFormat;
             default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
         };
-        this.useDirectIO = useDirectIO;
-        this.onDiskMerge = onDiskMerge;
         this.mergeExec = mergingExecutorService == null ? null : new TaskExecutor(mergingExecutorService);
         this.numMergeWorkers = maxMergingWorkers;
         this.quantizerExec = quantizerExecutorService == null ? null : new TaskExecutor(quantizerExecutorService);
@@ -191,9 +180,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         return new ESNextDiskASHVectorsWriter(
             state,
             rawVectorFormat.getName(),
-            useDirectIO,
-            onDiskMerge,
-            rawVectorFormat.fieldsWriter(VectorWriteHints.writtenToRescore(state), onDiskMerge),
+            rawVectorFormat.fieldsWriter(VectorWriteHints.writtenToRescore(state)),
             vectorPerCluster,
             centroidsPerParentCluster,
             mergeExec,
@@ -210,10 +197,10 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         ESNextDiskBBQVectorsFormat.validateSliceSort(sliceField, state.segmentInfo.getIndexSort());
-        return new ESNextDiskASHVectorsReader(state, (f, dio, odm) -> {
+        return new ESNextDiskASHVectorsReader(state, f -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
-            return format.fieldsReader(VectorReadHints.readToRescore(state), dio, odm);
+            return format.fieldsReader(VectorReadHints.readToRescore(state));
         }, ashConfig.queryBitsPerDim());
     }
 

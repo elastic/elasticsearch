@@ -22,6 +22,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
@@ -37,7 +38,7 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     ES93GenericFlatVectorsReader(
         GenericFormatMetaInformation metaInfo,
         SegmentReadState state,
-        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
+        IOFunction<String, FlatVectorsReader> loadReader
     ) throws IOException {
         this.fieldInfos = state.fieldInfos;
         this.genericReaders = new GenericFlatVectorReaders();
@@ -79,10 +80,8 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
         int versionMeta,
         FieldInfos fieldInfos,
         GenericFlatVectorReaders fieldHelper,
-        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
+        IOFunction<String, FlatVectorsReader> loadReader
     ) throws IOException {
-        record FieldEntry(String rawVectorFormatName, boolean useDirectIOReads) implements GenericFlatVectorReaders.Field {}
-
         for (int fieldNumber = meta.readInt(); fieldNumber != -1; fieldNumber = meta.readInt()) {
             final FieldInfo info = fieldInfos.fieldInfo(fieldNumber);
             if (info == null) {
@@ -90,10 +89,22 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
             }
 
             String rawVectorFormatName = meta.readString();
-            boolean useDirectIOReads = meta.readByte() == 1;
-            boolean onDiskMerge = versionMeta >= ES93GenericFlatVectorsFormat.VERSION_ON_DISK_MERGE && meta.readByte() == 1;
-            FieldEntry entry = new FieldEntry(rawVectorFormatName, useDirectIOReads);
-            fieldHelper.loadField(fieldNumber, entry, onDiskMerge, loadReader);
+            skipDirectIOFlags(meta, versionMeta);
+            fieldHelper.loadField(fieldNumber, rawVectorFormatName, loadReader);
+        }
+    }
+
+    /**
+     * Reads past the direct I/O options a field records in a meta written before
+     * {@link ES93GenericFlatVectorsFormat#VERSION_NO_DIRECT_IO}.
+     */
+    private static void skipDirectIOFlags(IndexInput meta, int versionMeta) throws IOException {
+        if (versionMeta >= ES93GenericFlatVectorsFormat.VERSION_NO_DIRECT_IO) {
+            return;
+        }
+        meta.readByte();
+        if (versionMeta >= ES93GenericFlatVectorsFormat.VERSION_ON_DISK_MERGE) {
+            meta.readByte();
         }
     }
 

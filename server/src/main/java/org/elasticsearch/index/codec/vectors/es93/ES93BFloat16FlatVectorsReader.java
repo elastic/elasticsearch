@@ -70,8 +70,6 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     private final String vectorDataFN;
     // the search reader a merge instance comes from
     private final ES93BFloat16FlatVectorsReader original;
-    // on the original: whether a merge instance is out; only merges take one, one at a time
-    private boolean merging;
     // on a merge instance: whether it opened vectorData for itself, so finishMerge closes it
     private final boolean ownsVectorData;
 
@@ -206,7 +204,8 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     /**
      * Merges read the vectors sequentially and searches at random, and advice applies to a whole mapping, so a merge reads
-     * them through a mapping of its own, closed by {@link #finishMerge()}.
+     * them through a mapping of its own, closed by {@link #finishMerge()}. Only merges take one, one per field this reader
+     * serves.
      */
     @Override
     public FlatVectorsReader getMergeInstance() throws IOException {
@@ -214,7 +213,6 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
             return this;
         }
         assert original == this : "a merge instance is not merged";
-        assert merging == false : "only merges take a merge instance, and a segment is in one merge at a time";
         IndexInput data;
         try {
             data = directory.openInput(vectorDataFN, mergeContext());
@@ -222,7 +220,6 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
             // an open reader outlives its files, so read the mapping it already holds
             data = null;
         }
-        merging = true;
         return data == null
             ? new ES93BFloat16FlatVectorsReader(this, vectorData.clone(), false)
             : new ES93BFloat16FlatVectorsReader(this, data, true);
@@ -321,7 +318,6 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     @Override
     public void finishMerge() throws IOException {
         if (original != this) {
-            original.merging = false;
             if (ownsVectorData) {
                 vectorData.close();
             }

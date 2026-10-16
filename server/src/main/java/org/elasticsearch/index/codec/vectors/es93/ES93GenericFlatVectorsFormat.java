@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
-import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -34,7 +33,9 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     public static final int VERSION_START = 0;
     public static final int VERSION_ON_DISK_MERGE = 1;
-    public static final int VERSION_CURRENT = VERSION_ON_DISK_MERGE;
+    /** From this version, fields do not record their direct I/O options: the directory reads them from the mapping. */
+    public static final int VERSION_NO_DIRECT_IO = 2;
+    public static final int VERSION_CURRENT = VERSION_NO_DIRECT_IO;
 
     private static final GenericFormatMetaInformation META = new GenericFormatMetaInformation(
         VECTOR_FORMAT_INFO_EXTENSION,
@@ -43,22 +44,20 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
         VERSION_CURRENT
     );
 
-    private static final DirectIOCapableFlatVectorsFormat defaultVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
+    private static final AbstractFlatVectorsFormat defaultVectorFormat = new ES93Lucene99FlatVectorsFormat(
         ES93GenericFlatVectorScorer.INSTANCE
     );
-    private static final DirectIOCapableFlatVectorsFormat bitVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
-        ES93FlatBitVectorScorer.INSTANCE
-    ) {
+    private static final AbstractFlatVectorsFormat bitVectorFormat = new ES93Lucene99FlatVectorsFormat(ES93FlatBitVectorScorer.INSTANCE) {
         @Override
         public String getName() {
             return "ES93BitFlatVectorsFormat";
         }
     };
-    private static final DirectIOCapableFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
+    private static final AbstractFlatVectorsFormat bfloat16VectorFormat = new ES93BFloat16FlatVectorsFormat(
         ES93GenericFlatVectorScorer.INSTANCE
     );
 
-    private static final Map<String, DirectIOCapableFlatVectorsFormat> supportedFormats = Map.of(
+    private static final Map<String, AbstractFlatVectorsFormat> supportedFormats = Map.of(
         defaultVectorFormat.getName(),
         defaultVectorFormat,
         bitVectorFormat.getName(),
@@ -67,52 +66,26 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
         bfloat16VectorFormat
     );
 
-    private final DirectIOCapableFlatVectorsFormat writeFormat;
-    private final boolean useDirectIO;
-    private final boolean onDiskMerge;
-    private final boolean directIOMergeWrites;
+    private final AbstractFlatVectorsFormat writeFormat;
+    private final int writeVersion;
 
     public ES93GenericFlatVectorsFormat() {
-        this(DenseVectorFieldMapper.ElementType.FLOAT, false, false);
+        this(DenseVectorFieldMapper.ElementType.FLOAT);
     }
 
-    /**
-     * @param useDirectIO whether searches read the raw vectors with direct I/O (the field's {@code on_disk_rescore} option)
-     * @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option)
-     */
-    public ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO, boolean onDiskMerge) {
-        this(elementType, useDirectIO, onDiskMerge, true);
+    public ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType) {
+        this(elementType, VERSION_CURRENT);
     }
 
-    /**
-     * A format whose merges write the raw vectors through the page cache even with {@code on_disk_merge} on. Plain
-     * HNSW is the one format that declines the write side: it builds its graph by random access over the merged raw
-     * vectors as soon as the merge has written them, so a direct write would only make that read-back cold. Every
-     * other format keeps direct writes. Merge reads of the sources stay direct either way.
-     */
-    static ES93GenericFlatVectorsFormat withBufferedMergeWrites(DenseVectorFieldMapper.ElementType elementType, boolean onDiskMerge) {
-        return new ES93GenericFlatVectorsFormat(elementType, false, onDiskMerge, false);
-    }
-
-    /**
-     * @param directIOMergeWrites whether a merge may write the raw vectors with direct I/O when the field asks
-     *                            for it, see {@link #withBufferedMergeWrites}
-     */
-    private ES93GenericFlatVectorsFormat(
-        DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
-        boolean onDiskMerge,
-        boolean directIOMergeWrites
-    ) {
+    /** A format writing segments of {@code writeVersion}, for tests reading segments of earlier versions. */
+    ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, int writeVersion) {
         super(NAME);
+        this.writeVersion = writeVersion;
         writeFormat = switch (elementType) {
             case FLOAT, BYTE -> defaultVectorFormat;
             case BIT -> bitVectorFormat;
             case BFLOAT16 -> bfloat16VectorFormat;
         };
-        this.useDirectIO = useDirectIO;
-        this.onDiskMerge = onDiskMerge;
-        this.directIOMergeWrites = directIOMergeWrites;
     }
 
     @Override
@@ -122,40 +95,20 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        // this format decides whether a merge writes the raw files with direct I/O (the field's on_disk_merge,
-        // unless the format declines the write side); the raw format applies it, see
-        // DirectIOCapableFlatVectorsFormat#directIOMergeWriteState. This format's own metadata file and
-        // everything else written for the field keep the original context
-        return new ES93GenericFlatVectorsWriter(
-            META,
-            writeFormat.getName(),
-            useDirectIO,
-            onDiskMerge,
-            state,
-            writeFormat.fieldsWriter(state, onDiskMerge && directIOMergeWrites)
-        );
+        return new ES93GenericFlatVectorsWriter(META, writeFormat.getName(), state, writeFormat.fieldsWriter(state), writeVersion);
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES93GenericFlatVectorsReader(META, state, (f, dio, odm) -> {
+        return new ES93GenericFlatVectorsReader(META, state, f -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
-            return format.fieldsReader(state, dio, odm);
+            return format.fieldsReader(state);
         });
     }
 
     @Override
     public String toString() {
-        return getName()
-            + "(name="
-            + getName()
-            + ", format="
-            + writeFormat
-            + ", useDirectIO="
-            + useDirectIO
-            + ", onDiskMerge="
-            + onDiskMerge
-            + ")";
+        return getName() + "(name=" + getName() + ", format=" + writeFormat + ")";
     }
 }

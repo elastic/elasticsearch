@@ -305,15 +305,13 @@ public class KnnIndexTester {
                         args.ivfClusterSize(),
                         centroidsPerParentCluster,
                         elementType,
-                        false,
                         mergeExec,
                         mergeWorkers,
                         quantExec,
                         flatVectorThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        IvfMergeConfigResolver.useCodecDefault(),
-                        false
+                        IvfMergeConfigResolver.useCodecDefault()
                     );
                 } else {
                     var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
@@ -325,7 +323,6 @@ public class KnnIndexTester {
                         args.ivfClusterSize(),
                         centroidsPerParentCluster,
                         elementType,
-                        args.onDiskRescore(),
                         mergeExec,
                         mergeWorkers,
                         args.doPrecondition(),
@@ -333,8 +330,7 @@ public class KnnIndexTester {
                         flatVectorThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        mergeConfigResolver,
-                        false
+                        mergeConfigResolver
                     );
                 }
             }
@@ -359,35 +355,30 @@ public class KnnIndexTester {
                     elementType,
                     mergeWorkers,
                     mergeExec,
-                    args.flatVectorThreshold(),
-                    false
+                    args.flatVectorThreshold()
                 );
                 case 1 -> new ES93HnswBinaryQuantizedVectorsFormat(
                     args.hnswM(),
                     args.hnswEfConstruction(),
                     elementType,
-                    false,
                     mergeWorkers,
                     mergeExec,
-                    args.flatVectorThreshold(),
-                    false
+                    args.flatVectorThreshold()
                 );
                 default -> new ES94HnswScalarQuantizedVectorsFormat(
                     args.hnswM(),
                     args.hnswEfConstruction(),
                     elementType,
                     quantizeBits,
-                    false,
                     mergeWorkers,
                     mergeExec,
-                    args.flatVectorThreshold(),
-                    false
+                    args.flatVectorThreshold()
                 );
             };
             case FLAT -> switch (quantizeBits) {
-                case null -> new ES93FlatVectorFormat(elementType, false);
-                case 1 -> new ES93BinaryQuantizedVectorsFormat(elementType, false, false);
-                default -> new ES94ScalarQuantizedVectorsFormat(elementType, quantizeBits, false, false);
+                case null -> new ES93FlatVectorFormat(elementType);
+                case 1 -> new ES93BinaryQuantizedVectorsFormat(elementType);
+                default -> new ES94ScalarQuantizedVectorsFormat(elementType, quantizeBits);
             };
         };
 
@@ -519,6 +510,16 @@ public class KnnIndexTester {
             // check this here so IVF/GPUHNSW can guarantee quantizeBits is set properly
             checkQuantizeBits(testConfiguration);
             DirectoryTypeConfig dirConfig = getDirectoryTypeConfig(testConfiguration.directoryType());
+            if (testConfiguration.onDiskRescore() && "default".equals(testConfiguration.directoryType())) {
+                // the directory decides, from the mapping, to rescore from disk
+                dirConfig = new DirectoryTypeConfig(
+                    indexPath -> KnnIndexer.getDirectory(indexPath, true),
+                    dirConfig.shared(),
+                    dirConfig.preWarm(),
+                    dirConfig.diagnosticLogger(),
+                    dirConfig.requiresFreshIndex()
+                );
+            }
             checkCanReuseIndex(testConfiguration, dirConfig);
             String indexPathName = formatIndexPath(testConfiguration, dirConfig);
             String indexType = testConfiguration.indexType().name().toLowerCase(Locale.ROOT);

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.es94;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.KnnVectorValues;
@@ -22,6 +23,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
@@ -57,8 +59,7 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
  */
 public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVectorsReader.NextFieldEntry> implements VectorPreconditioner {
 
-    public ES940DiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
-        throws IOException {
+    public ES940DiskBBQVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> getFormatReader) throws IOException {
         super(
             state,
             getFormatReader,
@@ -70,6 +71,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             ES940DiskBBQVectorsFormat.VERSION_CURRENT,
             ES940DiskBBQVectorsFormat.VERSION_DIRECT_IO,
             ES940DiskBBQVectorsFormat.VERSION_ON_DISK_MERGE,
+            ES940DiskBBQVectorsFormat.VERSION_NO_DIRECT_IO,
             ES940DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO
         );
     }
@@ -214,7 +216,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
     protected NextFieldEntry doReadField(
         IndexInput input,
         String rawVectorFormat,
-        boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
         int numCentroids,
@@ -235,7 +236,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         }
         return new NextFieldEntry(
             rawVectorFormat,
-            useDirectIOReads,
             similarityFunction,
             vectorEncoding,
             numCentroids,
@@ -278,7 +278,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
 
         NextFieldEntry(
             String rawVectorFormat,
-            boolean doDirectIOReads,
             VectorSimilarityFunction similarityFunction,
             VectorEncoding vectorEncoding,
             int numCentroids,
@@ -295,7 +294,6 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         ) {
             super(
                 rawVectorFormat,
-                doDirectIOReads,
                 similarityFunction,
                 vectorEncoding,
                 numCentroids,

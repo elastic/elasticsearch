@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndexType;
+import org.elasticsearch.index.store.VectorFieldHint;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -87,6 +88,9 @@ public class VectorReadHintsTests extends MapperServiceTestCase {
                 boolean walkedOrRescored = each.rescoresFromRaw() || each.walkedByGraph();
                 assertThat("raw vectors say how they are read, " + open, hints, has(DataAccessHint.RANDOM, walkedOrRescored));
                 assertThat("nothing streams them for search, " + open, hints, not(hasItem(DataAccessHint.SEQUENTIAL)));
+                if (walkedOrRescored) {
+                    assertThat("raw vectors say which field they hold, " + open, hints, hasItem(new VectorFieldHint("field")));
+                }
             } else {
                 assertThat("quantized vectors and graphs are read again, " + open, hints, not(hasItem(NoReuseHint.INSTANCE)));
             }
@@ -242,7 +246,8 @@ public class VectorReadHintsTests extends MapperServiceTestCase {
             return new PerFieldKnnVectorsFormat() {
                 @Override
                 public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                    return format;
+                    // as Elasticsearch's codec does, so the field's writes say which field they hold
+                    return new FieldKnnVectorsFormat(field, format);
                 }
             };
         }

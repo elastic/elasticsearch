@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.util.IOFunction;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -23,43 +24,21 @@ import java.util.Map;
  */
 public class GenericFlatVectorReaders {
 
-    public interface Field {
-        String rawVectorFormatName();
-
-        boolean useDirectIOReads();
-    }
-
-    @FunctionalInterface
-    public interface LoadFlatVectorsReader {
-        FlatVectorsReader getReader(String formatName, boolean useDirectIO, boolean onDiskMerge) throws IOException;
-    }
-
-    private record FlatVectorsReaderKey(String formatName, boolean useDirectIO, boolean onDiskMerge) {
-        private FlatVectorsReaderKey(Field field, boolean onDiskMerge) {
-            this(field.rawVectorFormatName(), field.useDirectIOReads(), onDiskMerge);
-        }
-
-        @Override
-        public String toString() {
-            return formatName + (useDirectIO ? " with Direct IO" : "") + (onDiskMerge ? " with Direct IO merges" : "");
-        }
-    }
-
-    private final Map<FlatVectorsReaderKey, FlatVectorsReader> readers = new HashMap<>();
+    private final Map<String, FlatVectorsReader> readers = new HashMap<>();
     private final Map<Integer, FlatVectorsReader> readersForFields = new HashMap<>();
 
     /**
-     * @param onDiskMerge whether merges read this field's raw vectors with direct I/O (the field's {@code on_disk_merge} option)
+     * Reads the field's raw vectors with the reader of {@code formatName}, loading it with {@code loadReader} the first time a
+     * field names it.
      */
-    public void loadField(int fieldNumber, Field field, boolean onDiskMerge, LoadFlatVectorsReader loadReader) throws IOException {
-        FlatVectorsReaderKey key = new FlatVectorsReaderKey(field, onDiskMerge);
-        FlatVectorsReader reader = readers.get(key);
+    public void loadField(int fieldNumber, String formatName, IOFunction<String, FlatVectorsReader> loadReader) throws IOException {
+        FlatVectorsReader reader = readers.get(formatName);
         if (reader == null) {
-            reader = loadReader.getReader(field.rawVectorFormatName(), field.useDirectIOReads(), onDiskMerge);
+            reader = loadReader.apply(formatName);
             if (reader == null) {
-                throw new IllegalStateException("Cannot find flat vector format: " + field.rawVectorFormatName());
+                throw new IllegalStateException("Cannot find flat vector format: " + formatName);
             }
-            readers.put(key, reader);
+            readers.put(formatName, reader);
         }
         readersForFields.put(fieldNumber, reader);
     }

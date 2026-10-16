@@ -62,6 +62,11 @@ public final class PerFieldMapperCodec extends Elasticsearch96Codec {
     }
 
     @Override
+    protected KnnVectorsFormat getKnnVectorsFormatToWrite(String field) {
+        return formatSupplier.getKnnVectorsFormatToWrite(field);
+    }
+
+    @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
         return formatSupplier.getDocValuesFormatForField(field);
     }

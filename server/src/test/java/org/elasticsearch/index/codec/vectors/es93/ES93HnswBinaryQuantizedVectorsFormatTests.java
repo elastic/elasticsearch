@@ -49,12 +49,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHnsw
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES93HnswBinaryQuantizedVectorsFormat(
-            maxConn,
-            beamWidth,
-            DenseVectorFieldMapper.ElementType.FLOAT,
-            random().nextBoolean()
-        );
+        return new ES93HnswBinaryQuantizedVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.FLOAT);
     }
 
     @Override
@@ -63,7 +58,6 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            random().nextBoolean(),
             numMergeWorkers,
             service
         );
@@ -80,11 +74,9 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHnsw
             maxConn,
             beamWidth,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            random().nextBoolean(),
             numMergeWorkers,
             service,
-            hnswGraphThreshold,
-            false
+            hnswGraphThreshold
         );
     }
 
@@ -144,16 +136,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseQuantizedHnsw
     public void testSimpleOffHeapSizeImpl(Directory dir, IndexWriterConfig config, boolean expectVecOffHeap) throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
         // Use threshold=0 to ensure HNSW graph is always built
-        var format = new ES93HnswBinaryQuantizedVectorsFormat(
-            16,
-            100,
-            DenseVectorFieldMapper.ElementType.FLOAT,
-            random().nextBoolean(),
-            1,
-            null,
-            0,
-            false
-        );
+        var format = new ES93HnswBinaryQuantizedVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.FLOAT, 1, null, 0);
         config.setCodec(alwaysKnnVectorsFormat(format));
         var matcher = expectVecOffHeap
             ? allOf(

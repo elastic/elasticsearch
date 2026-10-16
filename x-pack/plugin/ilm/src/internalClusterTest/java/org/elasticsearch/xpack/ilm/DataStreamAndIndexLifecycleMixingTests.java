@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -969,7 +970,10 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         // The test cluster does not install the stack template registry, so we install the "metrics" policy the way it would be: a
         // first version policy that has only a hot phase with a rollover action.
         RolloverAction rolloverIlmAction = new RolloverAction(
-            RolloverConditions.newBuilder().addMaxIndexAgeCondition(TimeValue.timeValueDays(30)).build()
+            RolloverConditions.newBuilder()
+                .addMaxIndexAgeCondition(TimeValue.timeValueDays(30))
+                .addMaxPrimaryShardSizeCondition(ByteSizeValue.ofGb(50))
+                .build()
         );
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
         LifecyclePolicy metricsPolicy = new LifecyclePolicy("metrics", Map.of("hot", hotPhase));

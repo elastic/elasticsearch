@@ -19,6 +19,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -867,6 +868,12 @@ public interface BlockLoader {
          * Appends a BytesRef to the current entry.
          */
         BytesRefBuilder appendBytesRef(BytesRef value);
+
+        /**
+         * Appends all chunks as one value in the current entry, without first materializing a contiguous copy.
+         * The bytes are copied into the builder, so the caller may release or reuse the input after this returns.
+         */
+        BytesRefBuilder appendBytesReference(BytesReference value);
     }
 
     /**

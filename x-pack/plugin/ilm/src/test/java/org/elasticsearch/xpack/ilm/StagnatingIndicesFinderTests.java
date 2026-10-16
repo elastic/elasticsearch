@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -376,9 +378,13 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
 
     record IndexMetadataTestCase(String indexName, String policyName, LifecycleExecutionState ilmState) {}
 
-    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean enabled) {
-        var dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings());
-        dataStreamLifecycleSettings.setMinimumLifecycleEnabled(enabled);
-        return dataStreamLifecycleSettings;
+    private DataStreamLifecycleSettings createDataStreamLifecycleSettings(boolean minimumLifecycleEnabled) {
+        // Mimics the ILM plugin, which is the one registering the minimum lifecycle setting.
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING);
+        Settings settings = Settings.builder()
+            .put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, minimumLifecycleEnabled)
+            .build();
+        return DataStreamLifecycleSettings.create(new ClusterSettings(settings, settingsSet));
     }
 }

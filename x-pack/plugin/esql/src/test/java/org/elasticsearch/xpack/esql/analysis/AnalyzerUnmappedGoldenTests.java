@@ -1449,8 +1449,8 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """);
     }
 
-    // Branching view (expands to ViewUnionAll, a UnionAll subclass): does_not_exist is referenced only in the outer KEEP and is
-    // unmapped in every branch, so it is loaded from _source in all branches (#142033). Exercises the ViewUnionAll scope boundary.
+    // Branching view (expands to BranchPlan, a UnionAll subclass): does_not_exist is referenced only in the outer KEEP and is
+    // unmapped in every branch, so it is loaded from _source in all branches (#142033). Exercises the BranchPlan scope boundary.
     public void testViewBranchingLoadsUnmappedField() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         runInNullifyAndLoadModes("""
@@ -1459,7 +1459,7 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """, Map.of("emp_lang_view", "FROM employees, (FROM languages | KEEP language_code)"));
     }
 
-    // Branching view (ViewUnionAll): does_not_exist is referenced inside the languages branch (via the view's KEEP), so under load it is
+    // Branching view (BranchPlan): does_not_exist is referenced inside the languages branch (via the view's KEEP), so under load it is
     // loaded into that branch's source and null-filled in the employees branch (Decision A), mirroring the subquery case.
     public void testViewBranchingLoadsUnmappedFieldReferencedInOneBranch() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());

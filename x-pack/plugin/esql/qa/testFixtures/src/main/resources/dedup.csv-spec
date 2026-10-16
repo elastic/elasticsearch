@@ -386,3 +386,52 @@ FROM (FROM conv_from_keyword), (FROM conv_from_keyword)
 date_range_str:keyword                              | min_bound:date
 2023-01-01T00:00:00.000Z..2024-01-01T00:00:00.000Z  | 2023-01-01T00:00:00.000Z
 ;
+
+
+dedupOverUnsupportedUnionTypeColumn
+required_capability: dedup_command
+
+// emp_no is a union type (integer / long), so it is unsupported and shows as null: all rows are identical.
+FROM employees, employees_incompatible
+| KEEP emp_no
+| DEDUP
+;
+
+emp_no:unsupported
+null
+;
+
+
+dedupOverUnsupportedUnionTypeColumnThenCast
+required_capability: dedup_command
+required_capability: dedup_ignores_synthetic_union_conversions
+
+// DEDUP has already collapsed the rows when the cast runs, so the cast, which is a synthetic attribute at DEDUP time, cannot bring
+// the rows back.
+FROM employees, employees_incompatible
+| KEEP emp_no
+| DEDUP
+| EVAL e = emp_no::long
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;
+
+
+dedupOverUnsupportedUnionTypeColumnConvertedFirst
+required_capability: dedup_command
+
+// Converting the union type column before DEDUP gives DEDUP a real column to compare.
+FROM employees, employees_incompatible
+| KEEP emp_no
+| EVAL e = emp_no::long
+| DROP emp_no
+| DEDUP
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;

@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
+import org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
@@ -140,6 +141,18 @@ public final class QueryPragmas implements Writeable {
      * setting for this query only.
      */
     public static final Setting<Integer> MAX_BRANCH_COUNT = Setting.intSetting("max_branch_count", 20, 1);
+
+    /**
+     * Cap on how many commands a statement may have, counting the main query and all its subqueries together. The parser enforces it.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_QUERY_AST_SIZE} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     */
+    public static final Setting<Integer> MAX_QUERY_AST_SIZE = Setting.intSetting(
+        "max_query_ast_size",
+        LogicalPlanBuilder.MAX_QUERY_DEPTH,
+        1
+    );
 
     /**
      * Inclusive upper bound of {@link #MAX_BRANCH_COUNT_PER_MERGE} and {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE}. Parse-time
@@ -259,6 +272,7 @@ public final class QueryPragmas implements Writeable {
         IN_SUBQUERY_HASH_JOIN_THRESHOLD,
         BRANCH_PARALLEL_DEGREE,
         MAX_BRANCH_COUNT,
+        MAX_QUERY_AST_SIZE,
         MAX_BRANCH_COUNT_PER_MERGE,
         MAX_BRANCH_LEVEL,
         PARSING_PARALLELISM,
@@ -433,6 +447,13 @@ public final class QueryPragmas implements Writeable {
      */
     public int maxBranchCount(int clusterDefault) {
         return settings.hasValue(MAX_BRANCH_COUNT.getKey()) ? MAX_BRANCH_COUNT.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Effective statement size cap: an explicit {@link #MAX_QUERY_AST_SIZE} pragma overrides {@code clusterDefault}.
+     */
+    public int maxQueryAstSize(int clusterDefault) {
+        return settings.hasValue(MAX_QUERY_AST_SIZE.getKey()) ? MAX_QUERY_AST_SIZE.get(settings) : clusterDefault;
     }
 
     /**

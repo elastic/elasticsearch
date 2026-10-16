@@ -1122,6 +1122,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         return query.toString();
     }
 
+    public void testMaxExpandedSizeIsConfigurable() {
+        addView("long_view", "FROM emp" + pipes(10));
+        // 5 pipes in the query plus 10 in the view
+        replaceViewsWithMaxExpandedSize(query("FROM long_view" + pipes(5)), 15);
+        expectThrows(
+            VerificationException.class,
+            startsWith("ES|QL query exceeded the maximum plan size allowed (14 nodes) after expanding views"),
+            () -> replaceViewsWithMaxExpandedSize(query("FROM long_view" + pipes(5)), 14)
+        );
+    }
+
     public void testCircularViewSelfReference() {
         addView("view_a", "FROM view_a");
         Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a")));
@@ -3061,6 +3072,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private LogicalPlan replaceViews(LogicalPlan plan, ViewResolver resolver) {
         return COMPACTION.apply(replaceViewsWithoutCompaction(plan, resolver));
+    }
+
+    private LogicalPlan replaceViewsWithMaxExpandedSize(LogicalPlan plan, int maxExpandedSize) {
+        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+        viewResolver.replaceViews(plan, null, true, this::parse, false, maxExpandedSize, future);
+        return COMPACTION.apply(future.actionGet().plan());
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan, boolean wildcardsMatchViews) {

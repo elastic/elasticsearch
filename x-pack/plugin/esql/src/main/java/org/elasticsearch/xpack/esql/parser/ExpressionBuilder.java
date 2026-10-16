@@ -143,7 +143,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParsingContext context;
 
-    public record ParsingContext(QueryParams params, InferenceSettings inferenceSettings, String viewName) {}
+    /**
+     * @param maxQueryAstSize maximum number of commands in a statement, counting the main query and all its subqueries together
+     */
+    public record ParsingContext(QueryParams params, InferenceSettings inferenceSettings, String viewName, int maxQueryAstSize) {}
 
     ExpressionBuilder(ParsingContext context) {
         this.context = context;

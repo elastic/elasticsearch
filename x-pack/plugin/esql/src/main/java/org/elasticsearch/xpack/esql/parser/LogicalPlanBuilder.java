@@ -152,11 +152,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
-    /**
-     * Maximum number of commands allowed in a statement, counting the commands of the main query and of all its subqueries together
-     */
-    public static final int MAX_QUERY_SIZE = MAX_QUERY_DEPTH;
-
     private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
     private static final String DENSE_VECTOR_SUFFIX_KEYWORD = "suffix";
 
@@ -166,7 +161,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
 
-    /** Commands seen so far in the main query and in all its subqueries, see {@link #MAX_QUERY_SIZE} */
+    /** Commands seen so far in the main query and in all its subqueries, see {@link ParsingContext#maxQueryAstSize()} */
     private int commandCount = 0;
 
     protected EsqlStatement statement(ParseTree ctx) {
@@ -239,8 +234,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
         commandCount++;
-        if (commandCount > MAX_QUERY_SIZE) {
-            throw new ParsingException("ES|QL statement exceeded the maximum query size allowed ({}): [{}]", MAX_QUERY_SIZE, ctx.getText());
+        if (commandCount > context.maxQueryAstSize()) {
+            throw new ParsingException(
+                "ES|QL statement exceeded the maximum query size allowed ({}): [{}]",
+                context.maxQueryAstSize(),
+                ctx.getText()
+            );
         }
         try {
             LogicalPlan input = plan(ctx.query());
@@ -464,11 +463,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitSubquery(EsqlBaseParser.SubqueryContext ctx) {
         // Subquery commands are parsed as a flat list rather than through visitCompositeQuery, so the limits are enforced here.
         commandCount += ctx.processingCommand().size();
-        if (commandCount > MAX_QUERY_SIZE) {
+        if (commandCount > context.maxQueryAstSize()) {
             throw new ParsingException(
                 source(ctx),
                 "ES|QL statement exceeded the maximum query size allowed ({}): [{}]",
-                MAX_QUERY_SIZE,
+                context.maxQueryAstSize(),
                 ctx.getText()
             );
         }

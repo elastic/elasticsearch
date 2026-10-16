@@ -1500,6 +1500,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testMaxQuerySizeIsConfigurable() {
+        String query = "from foo, (from bar" + " | where a > 0".repeat(3) + ")" + " | where a > 0".repeat(2);
+        TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 5);
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum query size allowed (4)"),
+            () -> TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 4)
+        );
+    }
+
     public void testBlockComments() {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         String query = " explain ( from foo )";

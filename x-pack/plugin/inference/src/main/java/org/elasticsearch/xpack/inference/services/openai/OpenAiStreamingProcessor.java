@@ -169,11 +169,14 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
 
                 if (currentToken == XContentParser.Token.FIELD_NAME && parser.currentName().equals(CONTENT_FIELD)) {
                     parser.nextToken();
-                    ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                    var content = parser.text();
-                    consumeUntilObjectEnd(parser); // end delta
-                    consumeUntilObjectEnd(parser); // end choices
-                    return content;
+                    // llama.cpp and some reasoning models send "content": null in role-only or reasoning-only chunks
+                    if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
+                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                        var content = parser.text();
+                        consumeUntilObjectEnd(parser); // end delta
+                        consumeUntilObjectEnd(parser); // end choices
+                        return content;
+                    }
                 }
 
                 currentToken = parser.nextToken();

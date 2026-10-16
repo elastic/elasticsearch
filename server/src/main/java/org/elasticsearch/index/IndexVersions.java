@@ -299,6 +299,7 @@ public class IndexVersions {
 
     public static final IndexVersion UPGRADE_TO_LUCENE_10_6_0 = def(9_300_00_0, Version.LUCENE_10_6_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_7_0 = def(9_400_00_0, Version.LUCENE_10_7_0);
+    public static final IndexVersion DOC_VALUES_UPDATABLE = def(9_401_0_00, Version.LUCENE_10_7_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

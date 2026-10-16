@@ -67,6 +67,12 @@ import java.util.TreeSet;
  */
 final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
+    /** Field attribute recording a column's {@link ColumnarFieldType}, so an update or merge resolves it without the mapping. */
+    static final String FIELD_TYPE_ATTRIBUTE = "ColumNAR.fieldType";
+
+    /** Field attribute recording whether a string column holds single-valued raw bytes, so an update reads its values the same way. */
+    static final String SINGLE_VALUED_ATTRIBUTE = "ColumNAR.singleValued";
+
     private final int maxDoc;
     private final Directory directory;
     private final IOContext context;
@@ -135,7 +141,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
     @Override
     public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
-        ColumnarFieldType type = typeSelector.select(field);
+        ColumnarFieldType type = resolveType(field);
         // Exhaustive, so a column type added later is a compile error here rather than a surprise at runtime.
         switch (type) {
             case LONG, DOUBLE -> writeNumericColumn(
@@ -144,10 +150,42 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 () -> ColumnarNumericBinaryDocValues.decodePayloads(valuesProducer.getBinary(field))
             );
             case STRING -> {
-                final StringColumnOptions options = stringSelector.select(field.name, type);
+                final StringColumnOptions options = resolveStringOptions(field, type, true);
                 writeStringColumn(field, type, options, () -> decodeBlobs(valuesProducer.getBinary(field), options), null);
             }
         }
+    }
+
+    /**
+     * The column type for {@code field}. The mapping-backed type selector is only reachable when a field is
+     * first written; a doc-values update writes a new generation through the read-only SPI format, which has
+     * no mapping. The type is therefore recorded in the field's attributes on first write and read back here,
+     * so an update (or a merge) resolves it without the selector.
+     */
+    private ColumnarFieldType resolveType(FieldInfo field) {
+        String recorded = field.getAttribute(FIELD_TYPE_ATTRIBUTE);
+        if (recorded != null) {
+            return ColumnarFieldType.valueOf(recorded);
+        }
+        ColumnarFieldType type = typeSelector.select(field);
+        field.putAttribute(FIELD_TYPE_ATTRIBUTE, type.name());
+        return type;
+    }
+
+    /**
+     * The options a string column of {@code field} is written with. Whether the column is single-valued comes from
+     * the mapping-backed selector and is recorded in the field's attributes. A doc-values update writes through the
+     * read-only SPI format, which has no mapping, so a write reads the recorded value back when there is one; a merge
+     * always follows the selector, which decides the framing of segments merged from both.
+     */
+    private StringColumnOptions resolveStringOptions(FieldInfo field, ColumnarFieldType type, boolean useRecorded) {
+        StringColumnOptions options = stringSelector.select(field.name, type);
+        String recorded = field.getAttribute(SINGLE_VALUED_ATTRIBUTE);
+        if (useRecorded && recorded != null) {
+            return options.withSingleValued(Boolean.parseBoolean(recorded));
+        }
+        field.putAttribute(SINGLE_VALUED_ATTRIBUTE, Boolean.toString(options.singleValued()));
+        return options;
     }
 
     /**
@@ -158,11 +196,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      */
     @Override
     public void mergeBinaryField(FieldInfo field, MergeState mergeState) throws IOException {
-        ColumnarFieldType type = typeSelector.select(field);
+        ColumnarFieldType type = resolveType(field);
         switch (type) {
             case LONG, DOUBLE -> writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
             case STRING -> {
-                final StringColumnOptions options = stringSelector.select(field.name, type);
+                final StringColumnOptions options = resolveStringOptions(field, type, false);
                 final Vocabulary.Terms vocabulary = mergedVocabulary(field, mergeState, options.dictionary(), options.summary()).terms();
                 writeStringColumn(field, type, options, () -> stringMergeCursor(field, mergeState, vocabulary, options), vocabulary);
             }

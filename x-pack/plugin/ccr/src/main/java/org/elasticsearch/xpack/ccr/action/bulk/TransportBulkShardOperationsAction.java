@@ -155,6 +155,16 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
                 operationWithPrimaryTerm = new Translog.NoOp(noOp.seqNo(), primaryTerm, noOp.reason());
             }
+            case DOC_VALUES_UPDATE -> {
+                final Translog.DocValuesUpdate update = (Translog.DocValuesUpdate) operation;
+                operationWithPrimaryTerm = new Translog.DocValuesUpdate(
+                    update.uid(),
+                    update.seqNo(),
+                    primaryTerm,
+                    update.version(),
+                    update.updates()
+                );
+            }
             default -> throw new IllegalStateException("unexpected operation type [" + operation.opType() + "]");
         }
         return operationWithPrimaryTerm;

@@ -388,6 +388,83 @@ public class AuditIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * A grant API key request that carries a user-managed service account token produces two audit events. The REST
+     * event logs the request body, from which the token must have been removed, and the security config change event
+     * records that a token was presented without ever including its value.
+     */
+    public void testAuditGrantApiKeyWithUserManagedServiceAccountToken() throws Exception {
+        final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final Request putAccountRequest = new Request("PUT", "/_security/service/" + namespace + "/" + serviceName);
+        putAccountRequest.setJsonEntity("{\"roles\":[\"superuser\"],\"enabled\":true}");
+        client().performRequest(putAccountRequest);
+        try {
+            final Request createTokenRequest = new Request(
+                "POST",
+                "/_security/service/" + namespace + "/" + serviceName + "/credential/token/grant-token"
+            );
+            final Map<String, Object> token = asMap(responseAsMap(client().performRequest(createTokenRequest)).get("token"));
+            final String serviceAccountToken = (String) token.get("value");
+            assertThat(serviceAccountToken, notNullValue());
+
+            final String apiKeyName = "granted-" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+            final Request grantRequest = new Request("POST", "/_security/api_key/grant");
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.startObject()
+                    .field("grant_type", "_user_managed_service_account")
+                    .field("service_account_token", serviceAccountToken)
+                    .startObject("api_key")
+                    .field("name", apiKeyName)
+                    .endObject()
+                    .endObject();
+                grantRequest.setJsonEntity(Strings.toString(builder));
+            }
+
+            final Instant start = Instant.now();
+            executeAndVerifyAudit(grantRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+                final String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+                assertThat(
+                    XContentHelper.convertToMap(XContentType.JSON.xContent(), body, false),
+                    equalTo(Map.of("grant_type", "_user_managed_service_account", "api_key", Map.of("name", apiKeyName)))
+                );
+                assertThat(toJson(event), not(containsString(serviceAccountToken)));
+            });
+
+            // The same request is also recorded as a security config change. Other tests create API keys too, so the
+            // event is picked out by the key's unique name rather than by time alone.
+            assertBusy(() -> {
+                try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                    final List<String> lines = Streams.readAllLines(auditLog);
+                    final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "create_apikey", start).stream()
+                        .filter(
+                            e -> apiKeyName.equals(
+                                asMap(asMap(e.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("apikey")).get("name")
+                            )
+                        )
+                        .toList();
+                    if (events.isEmpty()) {
+                        fail("Could not find a [create_apikey] security_config_change event for [" + apiKeyName + "]");
+                    }
+                    assertThat(events, hasSize(1));
+                    final Map<String, Object> event = events.get(0);
+                    final Map<String, Object> grant = asMap(asMap(event.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("grant"));
+                    assertThat(grant, hasEntry("type", "_user_managed_service_account"));
+                    assertThat(grant, hasEntry("has_service_account_token", true));
+                    assertThat(grant, not(hasKey("has_access_token")));
+                    assertThat(grant, not(hasKey("user")));
+                    assertThat(grant, not(hasKey("run_as")));
+                    assertThat(toJson(event), not(containsString(serviceAccountToken)));
+                }
+            }, 5, TimeUnit.SECONDS);
+        } finally {
+            final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
+            deleteRequest.addParameter("force", "true");
+            deleteRequest.addParameter("ignore", "404");
+            client().performRequest(deleteRequest);
+        }
+    }
+
     public void testAuditPutUserManagedServiceAccount() throws Exception {
         final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
         final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);

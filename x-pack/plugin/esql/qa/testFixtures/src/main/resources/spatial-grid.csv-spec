@@ -87,6 +87,52 @@ hash:long | boundary:geo_shape
 13686180  | POLYGON((12.3046875 55.546875, 12.65625 55.546875, 12.65625 55.72265625, 12.3046875 55.72265625, 12.3046875 55.546875))
 ;
 
+toGeohashInvalidLong
+required_capability: fn_to_geohash_invalid_input_warns
+
+// Level 12 geohashes use all 64 bits, so some valid geohash longs are negative
+ROW gridId = TO_LONG([13686180, -3398621254357864756, -9223372036854775796, 0, 13, 1025, -1, -8753118198750035589])
+| MV_EXPAND gridId
+| EVAL geohash = TO_GEOHASH(gridId)
+;
+warning:Line 3:18: evaluation of [TO_GEOHASH(gridId)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geohash long [0]: level [0] must be between 1 and 12
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geohash long [13]: level [13] must be between 1 and 12
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geohash long [1025]: has bits set above level [1]
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geohash long [-1]: level [15] must be between 1 and 12
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geohash long [-8753118198750035589]: has bits set above level [11]
+
+gridId:long          | geohash:geohash
+13686180             | u3bu
+-3398621254357864756 | u3buryfgx0rd
+-9223372036854775796 | h00000000000
+0                    | null
+13                   | null
+1025                 | null
+-1                   | null
+-8753118198750035589 | null
+;
+
+toGeohashInvalidString
+required_capability: fn_to_geohash_invalid_input_warns
+
+ROW string = ["u3bu", "u3buryfgx0rd", "a", "U3BU", "u3buryfgx0rdu"]
+| MV_EXPAND string
+| EVAL geohash = TO_GEOHASH(string)
+;
+warning:Line 3:18: evaluation of [TO_GEOHASH(string)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geohash [a]: contains characters outside the geohash alphabet
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geohash [U3BU]: contains characters outside the geohash alphabet
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geohash [u3buryfgx0rdu]: length must be between 1 and 12 characters
+
+string:keyword | geohash:geohash
+u3bu           | u3bu
+u3buryfgx0rd   | u3buryfgx0rd
+a              | null
+U3BU           | null
+u3buryfgx0rdu  | null
+;
+
 geohashLiteral
 required_capability: spatial_grid_types
 
@@ -716,6 +762,73 @@ tile:keyword    | boundary:geo_shape
 // end::geotile_to_geoshape-result[]
 ;
 
+toGeotileInvalidLong
+required_capability: fn_to_geotile_invalid_input_warns
+
+// Zoom level z has 2^z x 2^z tiles, so zoom 0 has only the single tile 0/0/0, and zoom 1 has tiles 1/0/0 to 1/1/1
+// The highest bit is never used, so all negative longs are invalid geotiles
+ROW gridId = [1152921508901814277, 0, 288230376688582657, 1, 50, 288230377225453568, -1]
+| MV_EXPAND gridId
+| EVAL geotile = TO_GEOTILE(gridId)
+;
+warning:Line 3:18: evaluation of [TO_GEOTILE(gridId)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geotile long [1]: Zoom/X/Y combination is not valid: 0/0/1
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geotile long [50]: Zoom/X/Y combination is not valid: 0/0/50
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geotile long [288230377225453568]: Zoom/X/Y combination is not valid: 1/2/0
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geotile long [-1]: Invalid geotile_grid precision of 63. Must be between 0 and 29.
+
+gridId:long         | geotile:geotile
+1152921508901814277 | 4/8/5
+0                   | 0/0/0
+288230376688582657  | 1/1/1
+1                   | null
+50                  | null
+288230377225453568  | null
+-1                  | null
+;
+
+toGeotileInvalidString
+required_capability: fn_to_geotile_invalid_input_warns
+
+ROW string = ["4/8/5", "0/0/0", "1/1/1", "0/0/1", "1/2/0", "0/0/-1", "30/0/0", "foo"]
+| MV_EXPAND string
+| EVAL geotile = TO_GEOTILE(string)
+;
+warning:Line 3:18: evaluation of [TO_GEOTILE(string)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geotile [0/0/1]: x and y must be between 0 and 0 for zoom 0
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geotile [1/2/0]: x and y must be between 0 and 1 for zoom 1
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geotile [0/0/-1]: x and y must be between 0 and 0 for zoom 0
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geotile_grid precision of 30. Must be between 0 and 29.
+warning:Line 3:18: java.lang.IllegalArgumentException: Invalid geotile_grid hash string of foo. Must be three integers in a form \"zoom/x/y\".
+
+string:keyword | geotile:geotile
+4/8/5          | 4/8/5
+0/0/0          | 0/0/0
+1/1/1          | 1/1/1
+0/0/1          | null
+1/2/0          | null
+0/0/-1         | null
+30/0/0         | null
+foo            | null
+;
+
+toGeotileInvalidLongFromIndex
+required_capability: fn_to_geotile_invalid_input_warns
+
+FROM airports
+| WHERE scalerank <= 3
+| STATS count = COUNT(*) BY scalerank
+| EVAL geotile = TO_GEOTILE(TO_LONG(scalerank - 2))
+| SORT scalerank
+;
+warning:Line 4:18: evaluation of [TO_GEOTILE(TO_LONG(scalerank - 2))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:18: java.lang.IllegalArgumentException: Invalid geotile long [1]: Zoom/X/Y combination is not valid: 0/0/1
+
+count:long | scalerank:integer | geotile:geotile
+63         | 2                 | 0/0/0
+24         | 3                 | null
+;
+
 geotileLiteral
 required_capability: spatial_grid_types
 
@@ -1219,6 +1332,43 @@ ROW hex = "841f059ffffffff"
 hex:keyword     | boundary:geo_shape
 841f059ffffffff | POLYGON ((12.353546327258265 55.80335405461356, 12.2434612967008 55.60502874054935, 12.51733872608954 55.470800201545316, 12.901880149865134 55.53443156197633, 13.014270156228921 55.73262985778208, 12.739822958959069 55.8673267391136, 12.353546327258265 55.80335405461356))
 // end::geohex_to_geoshape-result[]
+;
+
+toGeohexInvalidLong
+required_capability: fn_to_geohex_invalid_input_warns
+
+// The highest bit is never used, so all negative longs are invalid geohexes
+ROW gridId = [595020895127339007, 0, 1, -1]
+| MV_EXPAND gridId
+| EVAL geohex = TO_GEOHEX(gridId)
+;
+warning:Line 3:17: evaluation of [TO_GEOHEX(gridId)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.IllegalArgumentException: Invalid geohex long [0]: not a valid H3 cell index
+warning:Line 3:17: java.lang.IllegalArgumentException: Invalid geohex long [1]: not a valid H3 cell index
+warning:Line 3:17: java.lang.IllegalArgumentException: Invalid geohex long [-1]: not a valid H3 cell index
+
+gridId:long        | geohex:geohex
+595020895127339007 | 841f059ffffffff
+0                  | null
+1                  | null
+-1                 | null
+;
+
+toGeohexInvalidString
+required_capability: fn_to_geohex_invalid_input_warns
+
+ROW string = ["841f059ffffffff", "1", "xyz"]
+| MV_EXPAND string
+| EVAL geohex = TO_GEOHEX(string)
+;
+warning:Line 3:17: evaluation of [TO_GEOHEX(string)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.IllegalArgumentException: Invalid geohex [1]: not a valid H3 cell address
+warning:Line 3:17: java.lang.NumberFormatException: For input string: \"xyz\" under radix 16
+
+string:keyword  | geohex:geohex
+841f059ffffffff | 841f059ffffffff
+1               | null
+xyz             | null
 ;
 
 geohexLiteral

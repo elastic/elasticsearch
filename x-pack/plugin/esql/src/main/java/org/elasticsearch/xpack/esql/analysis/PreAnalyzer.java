@@ -64,7 +64,7 @@ public class PreAnalyzer {
         boolean hasTimeSeriesAggregation,
         boolean requiresAllDimensionFields,
         boolean needsAnalyzerGroups,
-        List<String> icebergPaths,
+        List<String> externalSourcePaths,
         List<String> inferenceIds
     ) {
         public static final PreAnalysis EMPTY = new PreAnalysis(
@@ -100,7 +100,7 @@ public class PreAnalyzer {
                     IndexMode m1 = p.indexMode();
                     IndexMode m2 = indexes.get(p.indexPattern());
                     throw new IllegalStateException(
-                        "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
+                        "index pattern '" + p.indexPattern() + "' found with different index mode: " + m2 + " != " + m1
                     );
                 }
             }

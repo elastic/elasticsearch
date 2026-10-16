@@ -179,4 +179,9 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
         );
         return new MapExpression(Source.EMPTY, entries);
     }
+
+    public void testOutputIsCached() {
+        LogicalPlan plan = createTestInstance().replaceChild(EsRelationSerializationTests.randomEsRelation());
+        assertSame(plan.output(), plan.output());
+    }
 }

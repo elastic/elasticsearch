@@ -139,7 +139,7 @@ public final class AnalyzerTestUtils {
             MessageDigests.sha256().digest(fields.toString().getBytes(StandardCharsets.UTF_8)),
             StandardCharsets.UTF_8
         );
-        return new FieldCapabilitiesIndexResponse(indexName, indexMappingHash, fields, false, IndexMode.STANDARD);
+        return new FieldCapabilitiesIndexResponse(indexName, indexMappingHash, fields, false, IndexMode.STANDARD, 0, 0, 0);
     }
 
     public static Map<String, IndexFieldCapabilities> fieldResponseMap(String fieldName, String type) {

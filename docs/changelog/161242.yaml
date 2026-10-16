@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 160230
+ - 161209
+pr: 161242
+summary: Validate TO_GEOHASH/GEOTILE/GEOHEX input
+type: bug

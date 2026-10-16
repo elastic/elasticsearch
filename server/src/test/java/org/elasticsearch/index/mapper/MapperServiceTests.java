@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -71,6 +72,75 @@ public class MapperServiceTests extends MapperServiceTestCase {
         MappingLookup newLookup = service.mappingLookup();
         assertThat(newLookup.fieldTypesLookup().get("cat"), not(nullValue()));
         assertThat(oldLookup.fieldTypesLookup().get("cat"), nullValue());
+    }
+
+    public void testMappingLookupPassthroughStatus() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc": {
+              "properties": {
+                "passthrough_object": {
+                  "type": "passthrough",
+                  "priority": 10,
+                  "properties": {
+                    "host.name": { "type": "keyword" }
+                  }
+                },
+                "plain_object": {
+                  "properties": {
+                    "field": { "type": "keyword" }
+                  }
+                },
+                "nested_object": {
+                  "type": "nested",
+                  "properties": {
+                    "field": { "type": "keyword" }
+                  }
+                },
+                "passthrough_flattened": {
+                  "type": "flattened",
+                  "passthrough": { "priority": 20 },
+                  "properties": {
+                    "service.name": { "type": "keyword" }
+                  }
+                },
+                "plain_flattened": { "type": "flattened" },
+                "keyword": { "type": "keyword" }
+              }
+            } }
+            """);
+
+        MappingLookup lookup = mapperService.mappingLookup();
+        assertEquals(Boolean.TRUE, lookup.isPassthrough("passthrough_object"));
+        assertEquals(Boolean.FALSE, lookup.isPassthrough("plain_object"));
+        assertNull(lookup.isPassthrough("nested_object"));
+        assertEquals(Boolean.TRUE, lookup.isPassthrough("passthrough_flattened"));
+        assertEquals(Boolean.FALSE, lookup.isPassthrough("plain_flattened"));
+        assertNull(lookup.isPassthrough("keyword"));
+        assertNull(lookup.isPassthrough("host.name"));
+        assertNull(lookup.isPassthrough("unknown"));
+    }
+
+    public void testMappingLookupAutoFlattenedPassthroughStatus() throws IOException {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, topMapping(b -> {
+                b.field("subobjects", false);
+                b.startObject("properties");
+                b.startObject("resource.attributes").field("type", "passthrough").field("priority", 10);
+                b.startObject("properties").startObject("host.name").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.startObject("plain").field("dynamic", false);
+                b.startObject("properties").startObject("field").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.endObject();
+            }));
+
+            MappingLookup lookup = mapperService.mappingLookup();
+            assertEquals(Boolean.TRUE, lookup.isPassthrough("resource.attributes"));
+            assertEquals(Boolean.FALSE, lookup.isPassthrough("plain"));
+            assertNull(lookup.isPassthrough("resource.attributes.host.name"));
+            assertNull(lookup.isPassthrough("unknown"));
+        }
     }
 
     /**
@@ -452,8 +522,15 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 }
                 boolean isTimeSeriesField = builtIn.equals("_tsid") || builtIn.equals("_ts_routing_hash");
                 boolean isTimeSeriesMode = mapperService.getIndexSettings().getMode().equals(IndexMode.TIME_SERIES);
+                // _slice_key is mapped only on slice-enabled indices, like the time-series fields on time-series indices.
+                boolean isSliceOnlyField = builtIn.equals(SliceKeyFieldMapper.NAME);
+                boolean isSliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
+                boolean isAbsentUnmappedSink = builtIn.equals(FlattenedFieldMapper.UNMAPPED_SINK_NAME)
+                    && mapperService.getIndexSettings().isFlattenedUnmappedFieldsEnabled() == false;
 
-                if (isTimeSeriesField && isTimeSeriesMode == false) {
+                if ((isTimeSeriesField && isTimeSeriesMode == false)
+                    || (isSliceOnlyField && isSliceEnabled == false)
+                    || isAbsentUnmappedSink) {
                     assertFalse(
                         "Expected "
                             + builtIn

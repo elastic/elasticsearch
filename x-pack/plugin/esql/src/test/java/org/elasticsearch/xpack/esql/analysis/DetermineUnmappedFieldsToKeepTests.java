@@ -28,10 +28,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,9 +53,9 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     /**
-     * Mapped field names in the "test" index (from mapping-basic.json). They are always excluded from
-     * {@code _unmapped_fields} (added to the pattern's excludes from {@code EsRelation.output()}), so no
-     * pattern should ever keep them.
+     * Mapped field names in the "test" index (from mapping-basic.json). The pattern does not exclude them: a shard never puts a
+     * field it maps into {@code _unmapped_fields}, and an index that does not map one returns it there. Only KEEP/DROP patterns
+     * restrict them.
      */
     private static final List<String> TEST_MAPPED_FIELDS = List.of(
         "_meta_field",
@@ -73,71 +71,59 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         "salary"
     );
 
-    /**
-     * The field names expected to be excluded from expansion: the {@code extra} names introduced by
-     * DROP/RENAME/EVAL, plus every mapped field name.
-     */
-    private static List<String> excl(String... extra) {
-        return Stream.concat(Arrays.stream(extra), TEST_MAPPED_FIELDS.stream()).distinct().toList();
-    }
-
     public void testNoCommand() {
         UnmappedFieldsPattern pattern = patternFor("FROM test");
         assertKept(pattern, "unmapped_extra", "first_name_suffix", "address.city", "address.city.zip");
-        assertNotKept(pattern, excl());
-        assertKeptAnyOtherName(pattern, excl());
+        assertKept(pattern, TEST_MAPPED_FIELDS);
+        assertKeptAnyOtherName(pattern, List.of());
     }
 
     public void testKeepStar() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP *");
         assertKept(pattern, "unmapped_extra");
-        assertNotKept(pattern, excl());
+        assertKept(pattern, TEST_MAPPED_FIELDS);
     }
 
     public void testKeepWildcard() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first_name*");
-        assertKept(pattern, "first_name_suffix", "first_name.sub", "first_name.sub.deeper");
-        assertNotKept(pattern, excl());
-        assertNotKept(pattern, "unmapped_extra", "salary_bonus");
+        assertKept(pattern, "first_name", "first_name_suffix", "first_name.sub", "first_name.sub.deeper");
+        assertNotKept(pattern, "unmapped_extra", "salary_bonus", "salary", "emp_no");
     }
 
     /**
-     * A dotted keep pattern selects source keys several subfield levels deep. {@code job} and {@code job.raw} are mapped, so they
-     * are excluded no matter what, but any other {@code job.*} key in {@code _source} survives.
+     * A dotted keep pattern selects source keys several subfield levels deep. {@code job.raw} matches it like any other
+     * {@code job.*} key; {@code job} itself does not.
      */
     public void testKeepDottedWildcardMatchesSubfields() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP job.*");
-        assertKept(pattern, "job.title", "job.title.short");
-        assertNotKept(pattern, "jobless", "unmapped_extra");
-        assertNotKept(pattern, excl());
+        assertKept(pattern, "job.raw", "job.title", "job.title.short");
+        assertNotKept(pattern, "job", "jobless", "unmapped_extra");
     }
 
     public void testKeepBackquotedWildcardMatchesLikeUnquoted() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP `first_name`*");
-        assertKept(pattern, "first_name_suffix", "first_name.sub", "first_name.sub.deeper");
-        assertNotKept(pattern, excl());
-        assertNotKept(pattern, "unmapped_extra", "salary_bonus");
+        assertKept(pattern, "first_name", "first_name_suffix", "first_name.sub", "first_name.sub.deeper");
+        assertNotKept(pattern, "unmapped_extra", "salary_bonus", "salary");
     }
 
     public void testKeepBackquotedDottedWildcardMatchesSubfields() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP `job`.`ti`*");
         assertKept(pattern, "job.title", "job.title.short");
         assertNotKept(pattern, "jobless", "job.other", "unmapped_extra");
-        assertNotKept(pattern, excl());
+        assertNotKept(pattern, TEST_MAPPED_FIELDS);
     }
 
     public void testKeepBackquotedStarIsLiteral() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first_name, `first*`*");
         assertKept(pattern, "first*", "first*_suffix");
         assertNotKept(pattern, "first_name_suffix", "firstly", "unmapped_extra");
-        assertNotKept(pattern, excl());
+        assertNotKept(pattern, TEST_MAPPED_FIELDS);
     }
 
     public void testDropBackquotedWildcardMatchesLikeUnquoted() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | DROP `first_name`*");
-        assertKept(pattern, "unmapped_extra", "salary_bonus");
-        assertNotKept(pattern, "first_name_suffix", "first_name.sub");
-        assertNotKept(pattern, excl());
+        assertKept(pattern, "unmapped_extra", "salary_bonus", "salary", "emp_no");
+        assertNotKept(pattern, "first_name", "first_name_suffix", "first_name.sub");
     }
 
     public void testKeepExactNameOmitsUnmappedFieldsAttribute() {
@@ -214,80 +200,73 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     public void testKeepWildcardIgnoresMappedExactNameInSameCommand() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first_name*, salary");
-        assertKept(pattern, "first_name_suffix");
-        assertNotKept(pattern, excl());
-        assertNotKept(pattern, "salary_bonus", "unmapped_extra");
+        assertKept(pattern, "first_name", "first_name_suffix");
+        assertNotKept(pattern, "salary", "salary_bonus", "unmapped_extra");
     }
 
     public void testKeepSingleCommandOrAcrossWildcardTerms() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first_name*, salary_bonus*");
-        assertKept(pattern, "first_name_suffix", "salary_bonus");
-        assertNotKept(pattern, excl());
-        assertNotKept(pattern, "unmapped_extra", "first_grade");
+        assertKept(pattern, "first_name", "first_name_suffix", "salary_bonus");
+        assertNotKept(pattern, "unmapped_extra", "first_grade", "salary");
     }
 
     public void testChainedKeepCombinesOrGroupsWithAnd() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first*, salary_bonus* | KEEP first_name*");
-        assertKept(pattern, "first_name_suffix");
-        assertNotKept(pattern, "first_grade", "salary_bonus", "unmapped_extra");
-        assertNotKept(pattern, excl());
+        assertKept(pattern, "first_name", "first_name_suffix");
+        assertNotKept(pattern, "first_grade", "salary_bonus", "unmapped_extra", "salary");
     }
 
     public void testDrop() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | DROP salary");
-        assertKept(pattern, "unmapped_extra", "first_name_suffix", "address.city.zip");
-        assertNotKept(pattern, excl("salary"));
-        assertKeptAnyOtherName(pattern, excl("salary"));
+        assertNotKept(pattern, "salary");
+        assertKept(pattern, "unmapped_extra", "first_name_suffix", "address.city.zip", "first_name", "emp_no");
+        assertKeptAnyOtherName(pattern, List.of("salary"));
     }
 
     public void testDropWildcardDoesNotRemoveUnmappedFieldsColumn() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | DROP *unmapped_fields");
         assertKept(pattern, "unmapped_extra");
         assertNotKept(pattern, "source_unmapped_fields");
-        assertNotKept(pattern, excl());
+        assertKept(pattern, TEST_MAPPED_FIELDS);
     }
 
     public void testRename() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME last_name AS x");
-        assertKept(pattern, "unmapped_extra");
-        assertNotKept(pattern, excl("x"));
-        assertKeptAnyOtherName(pattern, excl("x"));
+        assertKept(pattern, "unmapped_extra", "x", "last_name");
+        assertKeptAnyOtherName(pattern, List.of());
     }
 
     public void testKeepThenEval() {
         // EVAL uses a literal so it does not reference a field excluded by KEEP.
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first_name* | EVAL z = 1");
-        assertKept(pattern, "first_name_suffix");
-        assertNotKept(pattern, excl("z"));
-        assertNotKept(pattern, "unmapped_extra");
+        assertKept(pattern, "first_name", "first_name_suffix");
+        assertNotKept(pattern, "z", "unmapped_extra", "salary");
     }
 
     public void testEvalThenKeep() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | EVAL z = 1 | KEEP first_name*");
-        assertKept(pattern, "first_name_suffix");
-        assertNotKept(pattern, excl("z"));
-        assertNotKept(pattern, "unmapped_extra");
+        assertKept(pattern, "first_name", "first_name_suffix");
+        assertNotKept(pattern, "z", "unmapped_extra", "salary");
     }
 
     public void testDropThenRename() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | DROP salary | RENAME last_name AS x");
-        assertKept(pattern, "unmapped_extra");
-        assertNotKept(pattern, excl("x", "salary"));
-        assertKeptAnyOtherName(pattern, excl("x", "salary"));
+        assertNotKept(pattern, "salary");
+        assertKept(pattern, "unmapped_extra", "x", "last_name");
+        assertKeptAnyOtherName(pattern, List.of("salary"));
     }
 
     public void testKeepWildcardThenEvalShadow() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first* | EVAL first_name = to_upper(first_name)");
-        assertKept(pattern, "first_grade");
-        assertNotKept(pattern, excl("first_name"));
-        assertNotKept(pattern, "unmapped_extra");
+        assertKept(pattern, "first_grade", "first_name");
+        assertNotKept(pattern, "unmapped_extra", "salary");
     }
 
     public void testKeepWildcardThenDropWildcard() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first*, salary | DROP first_name*");
         assertKept(pattern, "first_grade");
         assertNotKept(pattern, "first_name_suffix", "unmapped_extra", "salary_bonus");
-        assertNotKept(pattern, excl());
+        assertNotKept(pattern, TEST_MAPPED_FIELDS);
     }
 
     public void testKeepThenDropRemovesAllMappedColumns() {
@@ -299,111 +278,109 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first* | DROP first_name*");
         assertKept(pattern, "first_pet", "first_grade");
         assertNotKept(pattern, "first_name_suffix", "unmapped_extra");
-        assertNotKept(pattern, excl());
+        assertNotKept(pattern, TEST_MAPPED_FIELDS);
     }
 
     public void testEvalShadowThenKeepWildcard() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | EVAL first_name_x = 1 | KEEP first_name*");
-        assertKept(pattern, "first_name_suffix");
-        assertNotKept(pattern, excl("first_name_x"));
-        assertNotKept(pattern, "unmapped_extra");
+        assertKept(pattern, "first_name", "first_name_suffix", "first_name_x");
+        assertNotKept(pattern, "unmapped_extra", "salary");
     }
 
-    public void testInlineStatsExcludesAggregateAlias() {
+    public void testInlineStatsKeepsAggregateAliasAndMentionedFields() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(c2) BY languages");
-        assertNotKept(pattern, excl("c", "c2", "languages"));
-        assertKept(pattern, "unmapped_extra", "first_name_suffix");
+        assertKept(pattern, "c", "c2", "languages", "unmapped_extra", "first_name_suffix");
+        assertKept(pattern, TEST_MAPPED_FIELDS);
     }
 
-    public void testInlineStatsPrunedStillDropsMentionedFields() {
+    public void testInlineStatsThenDropAliasKeepsMentionedFields() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(c2) BY languages | DROP c");
-        assertNotKept(pattern, excl("c", "c2", "languages"));
-        assertKept(pattern, "unmapped_extra", "first_name_suffix");
+        assertNotKept(pattern, "c");
+        assertKept(pattern, "c2", "languages", "unmapped_extra", "first_name_suffix");
     }
 
-    public void testInlineStatsPrunedByKeepPatternStillDropsMentionedFields() {
+    public void testInlineStatsPrunedByKeepPatternKeepsOnlyMatchingFields() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(c2) BY languages | KEEP first*");
-        assertNotKept(pattern, excl("c", "c2", "c3", "languages"));
-        assertKept(pattern, "first_name_suffix");
+        assertNotKept(pattern, "c", "c2", "c3", "languages", "salary");
+        assertKept(pattern, "first_name", "first_name_suffix");
     }
 
-    public void testInlineStatsExcludesUnmappedByAlias() {
+    public void testInlineStatsKeepsUnmappedGroupingFieldAndAlias() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(c2) BY x = unmapped_extra");
-        assertNotKept(pattern, excl("c", "c2", "x", "unmapped_extra"));
-        assertKept(pattern, "first_name_suffix");
+        assertKept(pattern, "c", "c2", "x", "unmapped_extra", "first_name_suffix");
+        assertKept(pattern, TEST_MAPPED_FIELDS);
     }
 
-    public void testMultipleInlineStatsCommandsExcludesBothAliases() {
+    public void testMultipleInlineStatsCommandsKeepBothAliases() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(c2) | INLINE STATS m = MAX(salary) BY languages");
-        assertNotKept(pattern, excl("c", "c2", "m", "languages"));
-        assertKept(pattern, "unmapped_extra", "first_name_suffix");
+        assertKept(pattern, "c", "c2", "m", "languages", "unmapped_extra", "first_name_suffix");
+        assertKept(pattern, TEST_MAPPED_FIELDS);
     }
 
-    public void testMultipleInlineStatsExpressionsExcludesBothAliases() {
+    public void testMultipleInlineStatsExpressionsKeepBothAliases() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(c2), m = MAX(salary) BY languages");
-        assertNotKept(pattern, excl("c", "c2", "m", "languages"));
-        assertKept(pattern, "unmapped_extra", "first_name_suffix");
+        assertKept(pattern, "c", "c2", "m", "languages", "unmapped_extra", "first_name_suffix");
+        assertKept(pattern, TEST_MAPPED_FIELDS);
     }
 
     public void testInlineStatsThenDropAggKeepsUnmapped() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(*) | DROP c");
-        assertNotKept(pattern, excl("c"));
+        assertNotKept(pattern, "c");
         assertKept(pattern, "unmapped_extra", "first_name_suffix");
+        assertKept(pattern, TEST_MAPPED_FIELDS);
     }
 
     public void testInlineStatsThenKeepWildcardStillExpands() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | INLINE STATS c = COUNT(*) | KEEP first_name*");
-        assertKept(pattern, "first_name_suffix");
-        assertNotKept(pattern, excl("c", "unmapped_extra"));
+        assertKept(pattern, "first_name", "first_name_suffix");
+        assertNotKept(pattern, "c", "unmapped_extra", "salary");
     }
 
     public void testRenameThenEval() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME last_name AS x | EVAL y = 2");
-        assertKept(pattern, "unmapped_extra");
-        assertNotKept(pattern, excl("x", "y"));
-        assertKeptAnyOtherName(pattern, excl("x", "y"));
+        assertKept(pattern, "unmapped_extra", "x", "y", "last_name");
+        assertKeptAnyOtherName(pattern, List.of());
     }
 
     public void testKeepWildcardThenRename() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first_name* | RENAME first_name AS first_name_x");
-        assertKept(pattern, "first_name_suffix");
-        assertNotKept(pattern, excl("first_name_x"));
-        assertNotKept(pattern, "unmapped_extra");
+        assertKept(pattern, "first_name", "first_name_suffix", "first_name_x");
+        assertNotKept(pattern, "unmapped_extra", "salary");
     }
 
     public void testChainedKeepWildcardsIntersect() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first* | KEEP first_name*");
-        assertKept(pattern, "first_name_suffix");
-        assertNotKept(pattern, "first_grade", "unmapped_extra");
-        assertNotKept(pattern, excl());
+        assertKept(pattern, "first_name", "first_name_suffix");
+        assertNotKept(pattern, "first_grade", "unmapped_extra", "salary");
     }
 
     public void testChainedDropsAccumulateExcludes() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | DROP salary | DROP first_name*");
-        assertKept(pattern, "unmapped_extra", "first_grade", "salary_bonus");
-        assertNotKept(pattern, "first_name_suffix");
-        assertNotKept(pattern, excl("salary"));
+        assertNotKept(pattern, "salary");
+        assertKept(pattern, "unmapped_extra", "first_grade", "salary_bonus", "emp_no");
+        assertNotKept(pattern, "first_name", "first_name_suffix");
     }
 
     public void testKeepThenDropThenEval() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first*, salary | DROP first_name* | EVAL first_grade = 1");
-        assertKept(pattern, "first_grade_bonus");
-        assertNotKept(pattern, "first_grade", "first_name_suffix", "unmapped_extra");
-        assertNotKept(pattern, excl());
+        assertKept(pattern, "first_grade", "first_grade_bonus");
+        assertNotKept(pattern, "first_name_suffix", "unmapped_extra");
+        assertNotKept(pattern, TEST_MAPPED_FIELDS);
     }
 
     public void testKeepMultipleUnmatchedWildcards() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP nomatch1*, nomatch2*");
         assertKept(pattern, "nomatch1_a", "nomatch2_b");
         assertNotKept(pattern, "unmapped_extra");
-        assertNotKept(pattern, excl());
+        assertNotKept(pattern, TEST_MAPPED_FIELDS);
     }
 
     public void testDropExactUnmappedName() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | DROP unmapped_extra");
+        assertNotKept(pattern, "unmapped_extra");
         assertKept(pattern, "first_name_suffix");
-        assertNotKept(pattern, excl("unmapped_extra"));
-        assertKeptAnyOtherName(pattern, excl("unmapped_extra"));
+        assertKept(pattern, TEST_MAPPED_FIELDS);
+        assertKeptAnyOtherName(pattern, List.of("unmapped_extra"));
     }
 
     /**
@@ -456,7 +433,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         for (EsRelation relation : relations) {
             UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
             assertKept(pattern, "unmapped_extra");
-            assertNotKept(pattern, excl());
+            assertKept(pattern, TEST_MAPPED_FIELDS);
         }
     }
 
@@ -468,7 +445,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         for (EsRelation relation : relations) {
             UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
             assertKept(pattern, "unmapped_extra");
-            assertNotKept(pattern, excl());
+            assertKept(pattern, TEST_MAPPED_FIELDS);
         }
     }
 
@@ -648,17 +625,16 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertThat(unmappedFieldsAttributes(plan), hasSize(1));
         for (EsRelation relation : plan.collect(EsRelation.class)) {
             UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
-            assertKept(pattern, "unmapped_extra");
-            assertNotKept(pattern, excl("_fork"));
+            assertKept(pattern, "unmapped_extra", "_fork");
+            assertKept(pattern, TEST_MAPPED_FIELDS);
         }
     }
 
-    public void testForkMentionExcludesNamedFieldFromBothBranches() {
+    public void testForkMentionKeepsNamedFieldInBothBranches() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FORK (WHERE unmapped_extra == \"x\") (WHERE emp_no > 0)"));
         for (EsRelation relation : plan.collect(EsRelation.class)) {
             UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
-            assertNotKept(pattern, "unmapped_extra");
-            assertKept(pattern, "first_name_suffix");
+            assertKept(pattern, "unmapped_extra", "first_name_suffix");
         }
     }
 
@@ -671,14 +647,13 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         }
     }
 
-    public void testForkDifferentFieldsMentionedExcludeBothKeepOthers() {
+    public void testForkDifferentFieldsMentionedKeepsBothAndOthers() {
         LogicalPlan plan = test().statement(
             setUnmappedLoadAll("FROM test | FORK (WHERE unmapped_extra == \"x\") (WHERE first_name_suffix == \"y\")")
         );
         for (EsRelation relation : plan.collect(EsRelation.class)) {
             UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
-            assertNotKept(pattern, "unmapped_extra", "first_name_suffix");
-            assertKept(pattern, "salary_bonus");
+            assertKept(pattern, "unmapped_extra", "first_name_suffix", "salary_bonus");
         }
     }
 
@@ -728,7 +703,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertKept(unmappedFieldsPattern(plan), "unmapped_extra");
     }
 
-    public void testInlineStatsThenForkStampsBothBranchesAndExcludesAggAlias() {
+    public void testInlineStatsThenForkStampsBothBranchesAndKeepsAggAlias() {
         LogicalPlan plan = test().statement(
             setUnmappedLoadAll("FROM test | INLINE STATS c = COUNT(*) | FORK (WHERE emp_no > 0) (WHERE emp_no > 0)")
         );
@@ -737,8 +712,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertThat(relations, hasSize(2));
         for (EsRelation relation : relations) {
             UnmappedFieldsPattern pattern = unmappedFieldsPattern(relation);
-            assertKept(pattern, "unmapped_extra");
-            assertNotKept(pattern, "c");
+            assertKept(pattern, "unmapped_extra", "c");
         }
     }
 
@@ -752,11 +726,9 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             test().addLanguagesLookup()
         );
         // first_name* pattern should survive the join
-        assertKept(pattern, "first_name_suffix", "first_name.sub");
-        // lookup index fields (language_name, language_code) and test-mapped fields are excluded
-        assertNotKept(pattern, excl("language_code", "language_name"));
-        // other unmapped fields not matching first_name* are not kept
-        assertNotKept(pattern, "unmapped_extra", "salary_bonus");
+        assertKept(pattern, "first_name", "first_name_suffix", "first_name.sub");
+        // names not matching first_name* are not kept, whether lookup index fields, mapped or unmapped
+        assertNotKept(pattern, "language_code", "language_name", "salary", "unmapped_extra", "salary_bonus");
     }
 
     /** A DROP of a plain name before the join still restricts — the dropped name must stay excluded across the join. */
@@ -766,9 +738,9 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             test().addLanguagesLookup()
         );
         // salary is excluded, everything else kept
-        assertKept(pattern, "unmapped_extra", "first_name_suffix");
-        assertNotKept(pattern, excl("salary", "language_code", "language_name"));
-        assertKeptAnyOtherName(pattern, excl("salary", "language_code", "language_name"));
+        assertNotKept(pattern, "salary");
+        assertKept(pattern, "unmapped_extra", "first_name_suffix", "language_code", "language_name", "emp_no");
+        assertKeptAnyOtherName(pattern, List.of("salary"));
     }
 
     /**
@@ -782,45 +754,40 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             test().addLanguagesLookup()
         );
         // names matching the dropped wildcard stay excluded across the join
-        assertNotKept(pattern, "first_name_suffix", "first_name.sub");
-        // everything else still expands
-        assertKept(pattern, "unmapped_extra", "first_grade", "salary_bonus");
-        // lookup index fields (language_code, language_name) and test-mapped fields are excluded
-        assertNotKept(pattern, excl("language_code", "language_name"));
+        assertNotKept(pattern, "first_name", "first_name_suffix", "first_name.sub");
+        // everything else still expands, lookup index fields included
+        assertKept(pattern, "unmapped_extra", "first_grade", "salary_bonus", "salary", "language_code", "language_name");
     }
 
     /**
-     * The lookup index's own output fields ({@code language_code}, {@code language_name}) are excluded from expansion via
-     * {@link UnmappedFieldsPattern#withAdditionalExcludes} on the Join's output, even though they come from the right side.
+     * The lookup index's own output fields ({@code language_code}, {@code language_name}) do not restrict the pattern of the main
+     * index: a source field of the same name stays in {@code _unmapped_fields}.
      */
-    public void testLookupIndexFieldsAreExcludedFromPattern() {
+    public void testLookupIndexFieldsAreKeptInPattern() {
         UnmappedFieldsPattern pattern = patternForJoin(
             "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
             test().addLanguagesLookup()
         );
-        assertKept(pattern, "unmapped_extra");
-        // language_code and language_name come from the lookup index - they must be excluded from the blob
-        assertNotKept(pattern, excl("language_code", "language_name"));
-        assertKeptAnyOtherName(pattern, excl("language_code", "language_name"));
+        assertKept(pattern, "unmapped_extra", "language_code", "language_name");
+        assertKept(pattern, TEST_MAPPED_FIELDS);
+        assertKeptAnyOtherName(pattern, List.of());
     }
 
     /**
-     * Fields from a lookup index with names that overlap existing columns (e.g. {@code salary}) must be excluded from expansion.
+     * Fields from a lookup index with names that overlap existing columns (e.g. {@code salary}) do not restrict the pattern either.
      * We use {@code EVAL language_code = languages} to produce an integer join key matching the lookup's integer {@code language_code}.
      */
-    public void testLookupIndexOverlappingFieldIsExcluded() {
+    public void testLookupIndexOverlappingFieldIsKept() {
         UnmappedFieldsPattern pattern = patternForJoin(
             "FROM test | EVAL language_code = languages | LOOKUP JOIN custom_lookup ON language_code",
             test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
         );
-        // salary, lookup_only are lookup-index output fields — excluded from blob
-        assertNotKept(pattern, excl("salary", "lookup_only", "language_code"));
-        assertKept(pattern, "unmapped_extra");
+        assertKept(pattern, "salary", "lookup_only", "language_code", "unmapped_extra");
     }
 
     /**
-     * Multi-column LOOKUP JOIN ({@code ON field1, field2}): all join-key names and lookup output fields are
-     * excluded from the unmapped-fields blob.
+     * Multi-column LOOKUP JOIN ({@code ON field1, field2}): the join keys and lookup output fields stay in the unmapped-fields
+     * pattern.
      */
     public void testMultiColumnLookupJoin() {
         // EVAL two keyword columns that match the lookup's two key fields.
@@ -829,40 +796,36 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
                 + " | LOOKUP JOIN keyword_languages_lookup ON language_code, language_name",
             test().addLookupIndex(keywordLanguagesLookup())
         );
-        // language_code and language_name appear in join output — excluded from blob
-        assertNotKept(pattern, excl("language_code", "language_name"));
-        assertKept(pattern, "unmapped_extra");
+        assertKept(pattern, "language_code", "language_name", "unmapped_extra");
+        assertKept(pattern, TEST_MAPPED_FIELDS);
     }
 
     /**
-     * ON-expression LOOKUP JOIN ({@code ON lc == language_code}): the derived column and all lookup output fields
-     * are excluded from the unmapped-fields blob.
+     * ON-expression LOOKUP JOIN ({@code ON lc == language_code}): the derived column and the lookup output fields stay in the
+     * unmapped-fields pattern.
      */
     public void testLookupJoinOnExpression() {
         UnmappedFieldsPattern pattern = patternForJoin(
             "FROM test | EVAL lc = first_name" + " | LOOKUP JOIN keyword_languages_lookup ON lc == language_code",
             test().addLookupIndex(keywordLanguagesLookup())
         );
-        // lc is the derived join key; language_code and language_name come from the lookup — all excluded
-        assertNotKept(pattern, excl("lc", "language_code", "language_name"));
-        assertKept(pattern, "unmapped_extra");
+        assertKept(pattern, "lc", "language_code", "language_name", "unmapped_extra");
+        assertKept(pattern, TEST_MAPPED_FIELDS);
     }
 
     // -----------------------------------------------------------------------
-    // ENRICH: already a UnaryPlan/GeneratingPlan, so recursion was already correct;
-    // these tests confirm nothing regressed and that enrich output names are excluded.
+    // ENRICH: a UnaryPlan/GeneratingPlan, so the pattern is computed through it like any other unary command.
     // -----------------------------------------------------------------------
 
-    public void testEnrichOutputFieldsAreExcludedFromPattern() {
-        // languages policy adds language_name; the enrich output name must be excluded from the blob.
+    public void testEnrichOutputFieldsAreKeptInPattern() {
+        // languages policy adds language_name; a source field of that name stays in _unmapped_fields.
         UnmappedFieldsPattern pattern = patternForEnrich(
             "FROM test | ENRICH languages ON languages",
             test().addAnalysisTestsEnrichResolution()
         );
-        assertKept(pattern, "unmapped_extra");
-        // language_name is the enrich output field — must not reappear from the blob
-        assertNotKept(pattern, excl("language_name"));
-        assertKeptAnyOtherName(pattern, excl("language_name"));
+        assertKept(pattern, "unmapped_extra", "language_name");
+        assertKept(pattern, TEST_MAPPED_FIELDS);
+        assertKeptAnyOtherName(pattern, List.of());
     }
 
     public void testKeepWildcardBeforeEnrichIsRespected() {
@@ -871,9 +834,8 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
             "FROM test | EVAL lc = languages | KEEP first_name*, lc | ENRICH languages ON lc",
             test().addAnalysisTestsEnrichResolution()
         );
-        assertKept(pattern, "first_name_suffix");
-        assertNotKept(pattern, excl("language_name", "lc"));
-        assertNotKept(pattern, "unmapped_extra");
+        assertKept(pattern, "first_name", "first_name_suffix");
+        assertNotKept(pattern, "language_name", "lc", "unmapped_extra", "salary");
     }
 
     // -----------------------------------------------------------------------
@@ -923,6 +885,10 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     }
 
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {
+        assertKept(pattern, List.of(names));
+    }
+
+    private static void assertKept(UnmappedFieldsPattern pattern, List<String> names) {
         for (String name : names) {
             assertThat("expected [" + name + "] to be kept", pattern.matches(name), is(true));
         }

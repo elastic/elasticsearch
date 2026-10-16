@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -149,12 +150,16 @@ public class Verifier {
 
         if (unmappedResolution.loadsUnmappedFields()) {
             checkLoadModeDisallowedCommands(plan, failures, unmappedResolution);
-            checkFlattenedSubFieldLoad(plan, failures, unmappedResolution);
+            if (context.configuration() == null || context.configuration().flattenedKeys(context.minimumVersion()) == false) {
+                checkFlattenedSubFieldLoad(plan, failures, unmappedResolution);
+            }
         }
 
         if (unmappedResolution.loadsAllUnmappedFields()) {
             checkLoadAllModeSupportedCommands(plan, failures);
         }
+
+        warnIfSubfieldsAreNotRead(plan, context);
 
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
@@ -719,10 +724,50 @@ public class Verifier {
             || plan instanceof AbstractSubqueryJoin;
     }
 
+    /** Header warning for a query over a {@code flattened} field that a node in it cannot read the subfields of. */
+    public static final String FLATTENED_SUBFIELDS_NOT_READ_WARNING =
+        "A node in this query does not support the subfields of flattened fields, so they are not read as fields";
+
+    /**
+     * Warns when the query names a field under a {@code flattened} column that no index maps, which it would read as the key of
+     * that column, but a node in it cannot, so that the query reads it as before rather than silently. A field a {@code flattened}
+     * field maps as a subfield reads the same either way. The analyzer warns for patterns of keys.
+     */
+    private static void warnIfSubfieldsAreNotRead(LogicalPlan plan, AnalyzerContext context) {
+        Configuration configuration = context.configuration();
+        if (configuration == null || configuration.flattenedKeys() == false || configuration.flattenedKeys(context.minimumVersion())) {
+            return;
+        }
+        Set<String> roots = new HashSet<>();
+        plan.forEachDown(p -> p.output().forEach(a -> {
+            if (a.dataType() == DataType.FLATTENED) {
+                roots.add(a.name());
+            }
+        }));
+        if (roots.isEmpty()) {
+            return;
+        }
+        Holder<Boolean> underRoot = new Holder<>(false);
+        plan.forEachExpressionDown(FieldAttribute.class, field -> {
+            if (field.dataType() != DataType.NULL && (field.field() instanceof PotentiallyUnmappedKeywordEsField) == false) {
+                return;
+            }
+            String name = field.name();
+            for (int dot = name.indexOf('.'); dot > 0 && underRoot.get() == false; dot = name.indexOf('.', dot + 1)) {
+                underRoot.set(roots.contains(name.substring(0, dot)));
+            }
+        });
+        if (underRoot.get()) {
+            context.deferredHeaderWarnings().add(FLATTENED_SUBFIELDS_NOT_READ_WARNING);
+        }
+    }
+
     /**
      * Reject loading sub-fields of flattened fields in either loading mode, by checking if any
      * {@link PotentiallyUnmappedKeywordEsField} is a sub-field of a parent field whose original type is flattened. The reason is that
      * flattened subfields resolution may eventually differ from what happens when unmapped fields are loaded from {@code _source}.
+     * Only applies when the query does not read the keys of flattened fields as fields of their own (see
+     * {@link org.elasticsearch.xpack.esql.session.Configuration#flattenedKeys()}).
      */
     private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures, UnmappedResolution unmappedResolution) {
         plan.forEachDown(EsRelation.class, esRelation -> {

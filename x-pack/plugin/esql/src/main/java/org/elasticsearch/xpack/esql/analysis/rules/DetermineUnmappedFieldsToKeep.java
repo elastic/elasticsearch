@@ -63,8 +63,8 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  * their columns up by name.
  *
  * <p>{@link MergePlan} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
- * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, so that
- * name is excluded from {@code _unmapped_fields}. Extra fields that a branch does not keep (literal
+ * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it. Extra fields that a branch does
+ * not keep (literal
  * {@code KEEP}, {@code STATS}) are not loaded there; a null {@code _unmapped_fields} is appended so the
  * coordinator can still return extras from siblings.
  *
@@ -120,15 +120,13 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * Computes the {@link UnmappedFieldsPattern} describing which additional (currently unmapped)
      * source fields would survive to the output of {@code plan}.
      * <p>
-     * Two things restrict the pattern. KEEP/DROP (as {@link ResolvingProject}) contribute the
-     * include/exclude patterns they were written with: each one adds a single OR group, while
-     * {@link UnmappedFieldsPattern#intersect} applies AND across chained commands. And every name that any
-     * node in the plan outputs is excluded: a mapped field, a name the query introduced (EVAL's aliases,
-     * RENAME's targets, ENRICH/LOOKUP JOIN fields) are all already columns of their own, so returning a
-     * source field of that name in {@code _unmapped_fields} as well would collide with them.
+     * KEEP/DROP (as {@link ResolvingProject}) restrict the pattern with the include/exclude patterns they were written with: each
+     * one adds a single OR group, while {@link UnmappedFieldsPattern#intersect} applies AND across chained commands. A field the
+     * query also reads as a column of its own stays in {@code _unmapped_fields}: the column is filled from it, and the container
+     * keeps its values, like a {@code flattened} field keeps the keys the query names.
      * <p>
-     * For {@link Join}, only the left side is recursed into. {@link MergePlan} is treated as transparent (no include restriction beyond
-     * excluding its output names); branch-local {@code KEEP}/{@code DROP} patterns are applied in {@link #annotate} by recomputing
+     * For {@link Join}, only the left side is recursed into. {@link MergePlan} is treated as transparent (no include restriction);
+     * branch-local {@code KEEP}/{@code DROP} patterns are applied in {@link #annotate} by recomputing
      * this for each child. Other non-unary plans fall back to {@link UnmappedFieldsPattern#ALL}; those queries are rejected by the
      * {@code Verifier}'s {@code LOAD_ALL} command allow-list.
      */
@@ -147,10 +145,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             case Join join -> computeUnmappedFieldsToKeep(join.left());
             default -> UnmappedFieldsPattern.ALL;
         };
-        UnmappedFieldsPattern restricted = plan instanceof ResolvingProject project
-            ? project.unmappedFieldsPattern().intersect(fromChild)
-            : fromChild;
-        return restricted.withAdditionalExcludes(Expressions.names(plan.output()));
+        return plan instanceof ResolvingProject project ? project.unmappedFieldsPattern().intersect(fromChild) : fromChild;
     }
 
     /**

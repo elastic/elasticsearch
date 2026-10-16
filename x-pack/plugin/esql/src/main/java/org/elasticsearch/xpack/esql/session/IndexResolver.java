@@ -301,8 +301,7 @@ public class IndexResolver {
             ),
             listener.delegateResponse((l, e) -> {
                 if (e instanceof IllegalArgumentException
-                    && e.getMessage()
-                        .startsWith("The '-' exclusions in the index expression list excludes all indexes. Nothing to search.")) {
+                    && e.getMessage().startsWith(RemoteClusterAware.ALL_INDICES_EXCLUDED_MESSAGE_PREFIX)) {
                     l.onResponse(new Versioned<>(IndexResolution.empty(indexPattern), TransportVersion.minimumCompatible()));
                     return;
                 }

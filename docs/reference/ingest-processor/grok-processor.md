@@ -119,7 +119,7 @@ Sometimes one pattern is not enough to capture the potential structure of a fiel
 
 ### How pattern selection works
 
-Elasticsearch combines all patterns into a single regular expression and delegates matching to the [Joni](https://github.com/jruby/joni) library. This means the winning pattern is **not always the first pattern in the list**. It is the pattern that matches **leftmost** in the input string. When two patterns match at the same position, list order is used as a tiebreaker.
+{{es}} combines all patterns into a single regular expression. This means the winning pattern is **not always the first pattern in the list**. It is the pattern that matches **leftmost** in the input string. When two patterns match at the same position, list order is used as a tiebreaker.
 
 This differs from Logstash’s Grok filter, which evaluates patterns iteratively and returns the first pattern in the list that matches (controlled by the `break_on_match` setting).
 
@@ -292,7 +292,10 @@ POST _ingest/pipeline/_simulate
 ```
 % TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
 
-In the above response, you can see that the index of the pattern that matched was `"1"`. This is to say that it was the second pattern in `patterns` (index starts at zero). Note that this index reflects which pattern won, not necessarily the first pattern listed, since Elasticsearch selects the leftmost match across all patterns. See [How pattern selection works](#how-pattern-selection-works) for details.
+In the above response, you can see that the index of the pattern that matched was `"1"`. This is to say that it was the second pattern in `patterns` (index starts at zero).
+:::{note}
+This index reflects which pattern won, which is not necessarily the first pattern listed. {{es}} selects the leftmost match across all patterns. Refer to [How pattern selection works](#how-pattern-selection-works).
+:::
 
 This trace metadata enables debugging which of the patterns matched. This information is stored in the ingest metadata and will not be indexed.
 

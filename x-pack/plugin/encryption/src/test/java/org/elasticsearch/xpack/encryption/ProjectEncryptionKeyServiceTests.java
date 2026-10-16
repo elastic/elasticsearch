@@ -265,6 +265,29 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
         expectThrows(AssertionError.class, service::getActiveKey);
     }
 
+    public void testKeyInstalledDuringMissDoesNotTripAssertion() {
+        ClusterService clusterService = mockClusterService();
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            () -> Settings.EMPTY
+        );
+        ClusterStateApplier applier = captureApplier(clusterService);
+        ProjectEncryptionKeyMetadata pek = plaintextPekMetadata(PASSWORD_ID);
+        ClusterState withKey = ClusterState.builder(stateWithKey(pek)).version(randomLongBetween(1, 100)).build();
+        // the key is installed and published after the caller has read the (empty) cache but before the miss is checked
+        when(clusterService.state()).thenAnswer(invocation -> {
+            applier.applyClusterState(new ClusterChangedEvent("test", withKey, stateWithoutKey()));
+            return withKey;
+        });
+
+        if (randomBoolean()) {
+            assertNull(service.getActiveKey());
+        } else {
+            assertNull(service.getKey(pek.getActiveKeyId()));
+        }
+    }
+
     public void testWarnsOnceWhenKeyNotInClusterState() {
         ClusterService clusterService = mockClusterService();
         ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(

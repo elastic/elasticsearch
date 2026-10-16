@@ -177,7 +177,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
     public AesGcmEncryptionService.ActiveKey getActiveKey() {
         KeyCache snapshot = cache;
         if (snapshot.activeKeyId == null) {
-            checkMissingKey(snapshot, null);
+            checkMissingKey(null);
             return null;
         }
         return new AesGcmEncryptionService.ActiveKey(snapshot.activeKeyId, snapshot.decryptedKeys.get(snapshot.activeKeyId));
@@ -189,14 +189,16 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         KeyCache snapshot = cache;
         SecretKey key = snapshot.decryptedKeys.get(keyId);
         if (key == null) {
-            checkMissingKey(snapshot, keyId);
+            checkMissingKey(keyId);
         }
         return key;
     }
 
     /** Asserts the cache doesn't lag the visible cluster state and warns once per key that is missing from it. */
-    private void checkMissingKey(KeyCache snapshot, @Nullable String keyId) {
+    private void checkMissingKey(@Nullable String keyId) {
         ClusterState visible = clusterService.state();
+        // read after the visible state: the applier updates the cache before publishing, so this is at least as new
+        KeyCache current = cache;
         ProjectMetadata project = visible.metadata().projects().get(projectResolver.getProjectId());
         ProjectEncryptionKeyMetadata metadata = project == null ? null : project.custom(ProjectEncryptionKeyMetadata.TYPE);
         if (metadata == null || metadata.isUnwrapFailed()) {
@@ -205,7 +207,8 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         String id = keyId != null ? keyId : metadata.getActiveKeyId();
         boolean inState = metadata.getKeys().containsKey(id);
         // a cache built from a newer state than the visible one is expected while that state is being applied
-        assert inState == false || visible.version() <= snapshot.stateVersion() : "key [" + id + "] is in cluster state but not cached";
+        assert inState == false || current.decryptedKeys().containsKey(id) || visible.version() <= current.stateVersion()
+            : "key [" + id + "] is in cluster state but not cached";
         if (inState == false && missingKeyIdWarnings.add(id)) {
             logger.warn("project encryption key [{}] is not in cluster state (active key is [{}])", id, metadata.getActiveKeyId());
         }

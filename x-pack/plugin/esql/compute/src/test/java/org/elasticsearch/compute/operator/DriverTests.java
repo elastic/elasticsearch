@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -47,6 +48,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -77,7 +79,14 @@ public class DriverTests extends ESTestCase {
         long waitTime = randomLongBetween(1000, 100000);
         long tickTime = randomLongBetween(1, 10000);
 
-        Driver driver = createDriver(startEpoch, startNanos, driverContext, inPages, outPages, TimeValue.timeValueDays(10));
+        Driver driver = createDriver(
+            startEpoch,
+            startNanos,
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            outPages,
+            TimeValue.timeValueDays(10)
+        );
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
 
@@ -118,7 +127,14 @@ public class DriverTests extends ESTestCase {
         long waitTime = randomLongBetween(1000, 100000);
         long tickTime = randomLongBetween(1, 10000);
 
-        Driver driver = createDriver(startEpoch, startNanos, driverContext, inPages, outPages, TimeValue.timeValueDays(10));
+        Driver driver = createDriver(
+            startEpoch,
+            startNanos,
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            outPages,
+            TimeValue.timeValueDays(10)
+        );
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
         for (int i = 0; i < inPages.size(); i++) {
@@ -157,7 +173,14 @@ public class DriverTests extends ESTestCase {
         long waitTime = randomLongBetween(1000, 100000);
         long tickTime = randomLongBetween(1, 10000);
 
-        Driver driver = createDriver(startEpoch, startNanos, driverContext, inPages, outPages, TimeValue.timeValueNanos(tickTime));
+        Driver driver = createDriver(
+            startEpoch,
+            startNanos,
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            outPages,
+            TimeValue.timeValueNanos(tickTime)
+        );
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
         for (int i = 0; i < inPages.size(); i++) {
@@ -192,7 +215,14 @@ public class DriverTests extends ESTestCase {
         long tickTime = randomLongBetween(10000, 100000);
         long statusInterval = randomLongBetween(1, 10);
 
-        Driver driver = createDriver(startEpoch, startNanos, driverContext, inPages, outPages, TimeValue.timeValueNanos(statusInterval));
+        Driver driver = createDriver(
+            startEpoch,
+            startNanos,
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            outPages,
+            TimeValue.timeValueNanos(statusInterval)
+        );
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
 
@@ -235,7 +265,14 @@ public class DriverTests extends ESTestCase {
         long cpuTickTime = randomLongBetween(1, 10000);
         TimeValue statusInterval = randomBoolean() ? TimeValue.timeValueDays(10) : TimeValue.timeValueNanos(randomLongBetween(1, 10));
 
-        Driver driver = createDriver(randomNonNegativeLong(), startNanos, driverContext, inPages, outPages, statusInterval);
+        Driver driver = createDriver(
+            randomNonNegativeLong(),
+            startNanos,
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            outPages,
+            statusInterval
+        );
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
         // Thread CPU time starts at an arbitrary value, like the real per-thread counter.
@@ -268,7 +305,14 @@ public class DriverTests extends ESTestCase {
 
         long startNanos = randomLong();
         long tickTime = randomLongBetween(1, 10000);
-        Driver driver = createDriver(randomNonNegativeLong(), startNanos, driverContext, inPages, outPages, TimeValue.timeValueDays(10));
+        Driver driver = createDriver(
+            randomNonNegativeLong(),
+            startNanos,
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            outPages,
+            TimeValue.timeValueDays(10)
+        );
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, randomLongBetween(1000, 100000), tickTime);
         driver.run(TimeValue.timeValueDays(10), Integer.MAX_VALUE, nowSupplier, () -> -1L);
@@ -276,6 +320,50 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.profile().cpuNanos(), equalTo(0L));
         assertThat(driver.profile().driverNanos(), equalTo(tickTime * (nowSupplier.callCount - 1)));
+    }
+
+    /**
+     * Like {@link #testCpuNanosUsesThreadCpuClock} but every slice except the last ends because the source blocks,
+     * so the CPU and driver time of each slice must be published by the {@code ASYNC} status update. The status
+     * interval is long so blocked slices have no periodic update and their deltas are fixed. An expectation derived
+     * from how often the clocks were read would still match if the {@code ASYNC} update skipped the CPU clock.
+     */
+    public void testCpuNanosWhenSourceBlocks() {
+        DriverContext driverContext = driverContext();
+        List<Page> inPages = randomList(2, 100, DriverTests::randomPage);
+        List<Page> outPages = new ArrayList<>();
+
+        long startNanos = randomLong();
+        long tickTime = randomLongBetween(1, 10000);
+        long cpuTickTime = randomLongBetween(1, 10000);
+
+        BlockAfterEachPageSourceOperator source = new BlockAfterEachPageSourceOperator(inPages.iterator());
+        Driver driver = createDriver(randomNonNegativeLong(), startNanos, driverContext, source, outPages, TimeValue.timeValueDays(10));
+
+        NowSupplier nowSupplier = new NowSupplier(startNanos, randomLongBetween(1000, 100000), tickTime);
+        NowSupplier cpuSupplier = new NowSupplier(randomLongBetween(0, 1_000_000), 0, cpuTickTime);
+        int runs = 0;
+        int blockedRuns = 0;
+        while (driver.status().status() != DriverStatus.Status.DONE) {
+            long cpuBefore = driver.status().cpuNanos();
+            long driverBefore = driver.status().driverNanos();
+            SubscribableListener<Void> blocked = driver.run(TimeValue.timeValueDays(10), Integer.MAX_VALUE, nowSupplier, cpuSupplier);
+            runs++;
+            if (blocked.isDone() == false) {
+                blockedRuns++;
+                assertThat(driver.status().status(), equalTo(DriverStatus.Status.ASYNC));
+                // One iteration moves the page and the next sees the source blocked: the CPU clock is read at the start
+                // and at the ASYNC update, the wall clock at the start and after each iteration.
+                assertThat(driver.status().cpuNanos() - cpuBefore, equalTo(cpuTickTime));
+                assertThat(driver.status().driverNanos() - driverBefore, equalTo(2 * tickTime));
+                source.unblock();
+            }
+        }
+
+        assertThat(blockedRuns, equalTo(inPages.size() - 1));
+        assertThat(outPages.size(), equalTo(inPages.size()));
+        assertThat(driver.profile().cpuNanos(), equalTo(cpuTickTime * (cpuSupplier.callCount - runs)));
+        assertThat(driver.profile().driverNanos(), equalTo(tickTime * (nowSupplier.callCount - runs)));
     }
 
     public void testUnchangedStatus() {
@@ -289,7 +377,14 @@ public class DriverTests extends ESTestCase {
         long tickTime = randomLongBetween(10000, 100000);
         long statusInterval = randomLongBetween(1, 10);
 
-        Driver driver = createDriver(startEpoch, startNanos, driverContext, inPages, outPages, TimeValue.timeValueNanos(statusInterval));
+        Driver driver = createDriver(
+            startEpoch,
+            startNanos,
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            outPages,
+            TimeValue.timeValueNanos(statusInterval)
+        );
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
 
@@ -354,7 +449,7 @@ public class DriverTests extends ESTestCase {
         long startEpoch,
         long startNanos,
         DriverContext driverContext,
-        List<Page> inPages,
+        SourceOperator source,
         List<Page> outPages,
         TimeValue statusInterval
     ) {
@@ -367,7 +462,7 @@ public class DriverTests extends ESTestCase {
             startNanos,
             driverContext,
             () -> "unset",
-            new CannedSourceOperator(inPages.iterator()),
+            source,
             List.of(),
             new TestResultPageSinkOperator(outPages::add),
             statusInterval,
@@ -417,6 +512,33 @@ public class DriverTests extends ESTestCase {
             );
         } finally {
             driver.close();
+        }
+    }
+
+    /**
+     * Blocks after each page until {@link #unblock} is called, so the driver ends the slice with a blocked listener.
+     */
+    private static class BlockAfterEachPageSourceOperator extends CannedSourceOperator {
+        private SubscribableListener<Void> blocked;
+
+        BlockAfterEachPageSourceOperator(Iterator<Page> pages) {
+            super(pages);
+        }
+
+        @Override
+        public Page getOutput() {
+            blocked = new SubscribableListener<>();
+            return super.getOutput();
+        }
+
+        @Override
+        public IsBlockedResult isBlocked() {
+            return blocked == null ? NOT_BLOCKED : new IsBlockedResult(blocked, "test blocked");
+        }
+
+        void unblock() {
+            blocked.onResponse(null);
+            blocked = null;
         }
     }
 

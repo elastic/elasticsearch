@@ -30,7 +30,8 @@ public class ProfileParserTests extends ESTestCase {
     public void testThreadDurationUsesLegacyCpuTime() throws IOException {
         JsonNode event = parseDriverEvent("");
         assertEquals(1.0, event.get("tdur").doubleValue(), 0.0);
-        assertEquals(1000L, event.get("args").get("driver_nanos").longValue());
+        assertEquals(1000L, event.get("args").get("cpu_nanos").longValue());
+        assertFalse(event.get("args").has("driver_nanos"));
     }
 
     public void testZeroDriverTimeDoesNotFallBackToCpuTime() throws IOException {

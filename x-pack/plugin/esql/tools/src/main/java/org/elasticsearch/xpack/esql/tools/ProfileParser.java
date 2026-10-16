@@ -173,6 +173,8 @@ public class ProfileParser {
         builder.field("ts", startMicros);
         double durationMicros = ((double) driver.tookNanos()) / 1000.0;
         builder.field("dur", durationMicros);
+        // The trace format defines tdur as thread clock time, but here it is driver wall time so traces are comparable
+        // across versions. Profiles without driver_nanos come from versions that report driver wall time in cpu_nanos.
         long driverNanos = driver.driverNanos() == null ? driver.cpuNanos() : driver.driverNanos();
         double driverDurationMicros = ((double) driverNanos) / 1000.0;
         builder.field("tdur", driverDurationMicros);
@@ -180,7 +182,9 @@ public class ProfileParser {
         builder.field("args");
         builder.startObject();
         builder.field("cpu_nanos", driver.cpuNanos());
-        builder.field("driver_nanos", driverNanos);
+        if (driver.driverNanos() != null) {
+            builder.field("driver_nanos", driver.driverNanos());
+        }
         builder.field("took_nanos", driver.tookNanos());
         builder.field("iterations", driver.iterations());
         // TODO: Sleeps have more details that could be added here

@@ -254,7 +254,7 @@ public class Driver implements Releasable, Describable {
             if (isBlocked.listener().isDone() == false) {
                 updateStatus(
                     now - lastStatusUpdateTime,
-                    cpuDelta(lastStatusUpdateCpu, threadCpuNanosSupplier.getAsLong()),
+                    ThreadCpuTimer.elapsedNanos(lastStatusUpdateCpu, threadCpuNanosSupplier.getAsLong()),
                     iterationsSinceLastStatusUpdate,
                     DriverStatus.Status.ASYNC,
                     isBlocked.reason(),
@@ -264,7 +264,7 @@ public class Driver implements Releasable, Describable {
             }
             if (isFinished()) {
                 finishNanos = now;
-                long extraCpuNanos = cpuDelta(lastStatusUpdateCpu, threadCpuNanosSupplier.getAsLong());
+                long extraCpuNanos = ThreadCpuTimer.elapsedNanos(lastStatusUpdateCpu, threadCpuNanosSupplier.getAsLong());
                 if (pendingFinalStatus.isEmpty()) {
                     updateStatus(
                         finishNanos - lastStatusUpdateTime,
@@ -293,7 +293,7 @@ public class Driver implements Releasable, Describable {
             if (totalIterationsThisRun >= maxIterations) {
                 updateStatus(
                     now - lastStatusUpdateTime,
-                    cpuDelta(lastStatusUpdateCpu, threadCpuNanosSupplier.getAsLong()),
+                    ThreadCpuTimer.elapsedNanos(lastStatusUpdateCpu, threadCpuNanosSupplier.getAsLong()),
                     iterationsSinceLastStatusUpdate,
                     DriverStatus.Status.WAITING,
                     "driver iterations",
@@ -304,7 +304,7 @@ public class Driver implements Releasable, Describable {
             if (now - startTime >= maxTimeNanos) {
                 updateStatus(
                     now - lastStatusUpdateTime,
-                    cpuDelta(lastStatusUpdateCpu, threadCpuNanosSupplier.getAsLong()),
+                    ThreadCpuTimer.elapsedNanos(lastStatusUpdateCpu, threadCpuNanosSupplier.getAsLong()),
                     iterationsSinceLastStatusUpdate,
                     DriverStatus.Status.WAITING,
                     "driver time",
@@ -316,7 +316,7 @@ public class Driver implements Releasable, Describable {
                 long cpuNow = threadCpuNanosSupplier.getAsLong();
                 updateStatus(
                     now - lastStatusUpdateTime,
-                    cpuDelta(lastStatusUpdateCpu, cpuNow),
+                    ThreadCpuTimer.elapsedNanos(lastStatusUpdateCpu, cpuNow),
                     iterationsSinceLastStatusUpdate,
                     DriverStatus.Status.RUNNING,
                     "driver running",
@@ -328,16 +328,6 @@ public class Driver implements Releasable, Describable {
                 nextStatus = now + statusNanos;
             }
         }
-    }
-
-    /**
-     * Thread CPU nanos between two readings of the same thread, or 0 if either reading is unsupported ({@code -1}).
-     */
-    private static long cpuDelta(long startCpuNanos, long endCpuNanos) {
-        if (startCpuNanos < 0 || endCpuNanos < 0) {
-            return 0;
-        }
-        return Math.max(0, endCpuNanos - startCpuNanos);
     }
 
     /**

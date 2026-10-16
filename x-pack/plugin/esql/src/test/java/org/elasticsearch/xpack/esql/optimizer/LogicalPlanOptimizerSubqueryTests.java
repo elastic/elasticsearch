@@ -583,6 +583,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
      * where the plan above it reads it; nothing may be left referencing an attribute that no subplan provides.
      */
     public void testLoadAllViewsOptimize() {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
         TestAnalyzer analyzer = subqueryAnalyzer().addView("kept", "FROM test | KEEP *name*")
             .addView("plain", "FROM test")
             .addView("filtered", "FROM test | WHERE emp_no > 0");

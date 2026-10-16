@@ -7,7 +7,7 @@ Elastic managed connectors were initially known as "native connectors".
 You might find this term in older documentation.
 ****
 
-Managed <<es-connectors,Elastic connectors>> are available directly within your Elastic Cloud deployment.
+Managed <<es-connectors,Elastic connectors>> are available directly within your Elastic Cloud *hosted* deployment.
 No additional infrastructure is required.
 
 Managed connectors sync data sources directly to Elasticsearch indices.
@@ -23,7 +23,12 @@ include::_connectors-list-native.asciidoc[]
 
 Managed connectors were introduced in Elastic version *8.5.0*.
 
-Your Elastic Cloud deployment must include the following Elastic services:
+[NOTE]
+====
+Elastic managed connectors are not available on Elastic Cloud Serverless projects. Use <<es-build-connector,self-managed connectors>> instead.
+====
+
+Your Elastic Cloud *hosted* deployment must include the following Elastic services:
 
 * *Elasticsearch*
 * *{kib}*

@@ -23,13 +23,18 @@ Connectors extract the original files, records, or objects; and transforms them 
 Many connectors are available out-of-the-box on Elastic Cloud.
 You can also access the source code for these (and additional) connectors, and run them on your own infrastructure.
 
-* **Managed connectors** are available directly within your Elastic Cloud deployment.
+* **Elastic managed connectors** are available on Elastic Cloud *hosted* deployments that include Enterprise Search.
 * **Self-managed connectors** are self-managed on your own infrastructure.
+
+[NOTE]
+====
+*Setup modes.* Self-managed connectors work in any Elastic environment, including Elastic Cloud Serverless projects. Elastic managed connectors are available only on Elastic Cloud *hosted* deployments (Elastic 8.5 through 8.19) that include Enterprise Search. They are not available on Serverless.
+====
 
 [discrete#es-connectors-native]
 == Elastic managed connectors {ess-icon}
 
-_Managed connectors_ are available directly within your Elastic Cloud deployment, as a managed service.
+_Managed connectors_ are available directly within your Elastic Cloud *hosted* deployment, as a managed service.
 No additional infrastructure is required.
 
 Please note that Elastic managed connectors were previously known as "native connectors".

@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -61,6 +62,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -86,7 +88,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -916,6 +917,206 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     public void testIndexViewOriginsIgnoreIndicesNamedByQuery() {
         addView("v1", "FROM emp | KEEP f1");
         assertThat(viewChains("FROM missing, v1", "missing"), nullValue());
+    }
+
+    private static String pipes(int count) {
+        return " | WHERE a > 0".repeat(count);
+    }
+
+    private static final String maxPlanNodesViewsError =
+        "ES|QL query exceeded the maximum plan size allowed (500 nodes) after expanding views";
+
+    public void testMaxExpandedSizeWithDeepView() {
+        addView("long_view", "FROM emp" + pipes(300));
+        // This query is spot on the limit, so it should pass
+        String q = "FROM long_view" + pipes(200);
+        replaceViews(query(q));
+        // If we add an extra pipe, we should fail
+        expectThrows(VerificationException.class, startsWith(maxPlanNodesViewsError), () -> replaceViews(query(q + pipes(1))));
+    }
+
+    /**
+     * The limit only applies to queries that expand views or IN subqueries. A FORK repeats its upstream plan in every branch, so this
+     * query has more than the maximum number of nodes, but nothing is expanded.
+     */
+    public void testMaxExpandedSizeDoesNotApplyWithoutViewsOrSubqueries() {
+        addView("some_view", "FROM emp");
+        replaceViews(query("FROM emp" + pipes(400) + " | FORK (WHERE a > 0) (WHERE a > 1)"));
+    }
+
+    public void testMaxExpandedSizeWithNestedDeepViews() {
+        addView("view_c", "FROM emp" + pipes(100));
+        addView("view_b", "FROM view_c" + pipes(100));
+        addView("view_a", "FROM view_b" + pipes(100));
+        // 100 pipes in each of the three views, and the rest in the query
+        replaceViews(query("FROM view_a" + pipes(200)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM view_a" + pipes(201)))
+        );
+    }
+
+    public void testMaxExpandedSizeWithDeepSubqueriesAndViews() {
+        addView("long_view", "FROM emp" + pipes(300));
+        // This query is spot on the limit, so it should pass
+        replaceViews(query("FROM emp1, (FROM long_view" + pipes(100) + ")" + pipes(100)));
+        // If we add an extra pipe (either in the inner subquery or outside), we should fail
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM emp1, (FROM long_view" + pipes(100) + ")" + pipes(101)))
+        );
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM emp1, (FROM long_view" + pipes(101) + ")" + pipes(100)))
+        );
+
+        addView("inner_view", "FROM emp" + pipes(150));
+        addView("outer_view", "FROM emp1, (FROM inner_view" + pipes(100) + ")" + pipes(50));
+        // 150 + 100 + 50 on the path through the views, and the rest in the query
+        replaceViews(query("FROM outer_view" + pipes(200)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM outer_view" + pipes(201)))
+        );
+    }
+
+    public void testMaxExpandedSizeWithDeepInSubqueriesAndViews() {
+        addView("long_view", "FROM emp" + pipes(300));
+        replaceViews(query("FROM emp1 | WHERE x IN (FROM long_view" + pipes(199) + ")"));
+        expectThrows(VerificationException.class, () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM long_view" + pipes(200) + ")")));
+        // The pipes after the command holding the IN subquery are above the subquery too.
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM long_view" + pipes(100) + ")" + pipes(100)))
+        );
+
+        addView("inner_view", "FROM emp" + pipes(150));
+        addView("outer_view", "FROM emp1 | WHERE x IN (FROM inner_view" + pipes(100) + ")" + pipes(50));
+        // 150 + 100 + the join + 50 on the path through the views, and the rest in the query
+        replaceViews(query("FROM outer_view" + pipes(199)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM outer_view" + pipes(200)))
+        );
+
+        addView("view_1", "FROM emp2" + pipes(249));
+        addView("view_2", "FROM emp3" + pipes(249));
+        replaceViews(query("FROM emp1 | WHERE x IN (FROM view_1) | WHERE y IN (FROM view_2)"));
+
+        addView("bigger_view_1", "FROM emp2" + pipes(250));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM bigger_view_1) | WHERE y IN (FROM view_2)"))
+        );
+    }
+
+    public void testMaxExpandedSizeWithDeepMarkInSubqueries() {
+        addView("long_view", "FROM emp" + pipes(300));
+        // MarkJoin creates extra nodes on top of a subquery, so there's a small deviation on the heuristic that counts the num of nodes
+        String first = "FROM emp1 | WHERE x IN (FROM long_view %s) OR y IN (FROM emp2)";
+        replaceViews(query(Strings.format(first, pipes(197))));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query(Strings.format(first, pipes(200))))
+        );
+
+        String second = "FROM emp1 | WHERE x IN (FROM emp2) OR y IN (FROM long_view %s)";
+        replaceViews(query(Strings.format(second, pipes(197))));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query(Strings.format(second, pipes(199))))
+        );
+    }
+
+    public void testMaxExpandedSizeWithDeepInSubqueries() {
+        // The WHERE holding the subquery counts as one command, and the subquery as 300 below it
+        addView("view_with_in_subquery", "FROM emp | WHERE x IN (FROM emp2" + pipes(300) + ")");
+        replaceViews(query("FROM view_with_in_subquery" + pipes(199)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM view_with_in_subquery" + pipes(200)))
+        );
+    }
+
+    /**
+     * The pipes of sibling views are all added up
+     */
+    public void testMaxExpandedSizeWithSiblingViews() {
+        addView("view_a", "FROM emp" + pipes(100));
+        addView("view_b", "FROM emp" + pipes(100));
+        addView("view_c", "FROM emp" + pipes(100));
+        replaceViews(query("FROM view_a, view_b" + pipes(200)));
+        replaceViews(query("FROM view_a, (FROM view_b), (FROM view_c" + pipes(100) + ")" + pipes(100)));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM view_a, view_b" + pipes(301)))
+        );
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM view_a, (FROM view_b), (FROM view_c" + pipes(101) + ")" + pipes(100)))
+        );
+    }
+
+    public void testMaxExpandedSizeWithViewAndFork() {
+        addView("long_view", "FROM emp" + pipes(100));
+        // Fork duplicates the full query for both branches so we need to be careful to count after that duplication
+        String fork = " | FORK (WHERE a > 0 | WHERE a > 1 | WHERE a > 2) (WHERE a > 3)";
+        replaceViews(query("FROM long_view" + pipes(145) + fork));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM long_view" + pipes(150) + fork))
+        );
+    }
+
+    public void testMaxQueryDepthOfViewWithoutRelation() {
+        addView("row_view", "ROW a = 1" + pipes(300));
+        addView("outer_view", "FROM row_view" + pipes(200));
+        addView("too_long_outer_view", "FROM row_view" + pipes(201));
+        replaceViews(query("FROM outer_view"));
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query("FROM too_long_outer_view"))
+        );
+    }
+
+    public void testMaxExpandedSizeWithExponentialViewsAndSubqueries() {
+        int maxDepth = 50;
+        for (int k = 1; k <= maxDepth; k++) {
+            addView("growing_view_" + k, "FROM emp" + pipes(k));
+        }
+        // about 5,000 nodes, four for each pipe: the command, the comparison, and its two operands
+        expectThrows(
+            VerificationException.class,
+            startsWith(maxPlanNodesViewsError),
+            () -> replaceViews(query(inSubqueriesOfGrowingViews(maxDepth)))
+        );
+    }
+
+    public void testMaxExpandedSizeDoesNotApplyWithoutViews() {
+        // far over MAX_EXPANDED_SIZE in expression nodes, but no view is involved so nothing is checked
+        replaceViews(query("FROM emp | EVAL y = COALESCE(" + String.join(", ", Collections.nCopies(20_000, "a")) + ")"));
+    }
+
+    private static String inSubqueriesOfGrowingViews(int count) {
+        StringBuilder query = new StringBuilder("FROM emp1");
+        for (int k = 1; k <= count; k++) {
+            query.append(" | WHERE x IN (FROM growing_view_").append(k).append(")");
+        }
+        return query.toString();
     }
 
     public void testCircularViewSelfReference() {

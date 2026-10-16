@@ -148,9 +148,14 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.TIM
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
     /**
-     * Maximum number of commands allowed per query
+     * Maximum number of commands allowed per query or subquery
      */
     public static final int MAX_QUERY_DEPTH = 500;
+
+    /**
+     * Maximum number of commands allowed in a statement, counting the commands of the main query and of all its subqueries together
+     */
+    public static final int MAX_QUERY_SIZE = MAX_QUERY_DEPTH;
 
     private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
     private static final String DENSE_VECTOR_SUFFIX_KEYWORD = "suffix";
@@ -160,6 +165,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private int queryDepth = 0;
+
+    /** Commands seen so far in the main query and in all its subqueries, see {@link #MAX_QUERY_SIZE} */
+    private int commandCount = 0;
 
     protected EsqlStatement statement(ParseTree ctx) {
         EsqlStatement p = typedParsing(this, ctx, EsqlStatement.class);
@@ -229,6 +237,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 MAX_QUERY_DEPTH,
                 ctx.getText()
             );
+        }
+        commandCount++;
+        if (commandCount > MAX_QUERY_SIZE) {
+            throw new ParsingException("ES|QL statement exceeded the maximum query size allowed ({}): [{}]", MAX_QUERY_SIZE, ctx.getText());
         }
         try {
             LogicalPlan input = plan(ctx.query());
@@ -450,6 +462,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSubquery(EsqlBaseParser.SubqueryContext ctx) {
+        // Subquery commands are parsed as a flat list rather than through visitCompositeQuery, so the limits are enforced here.
+        commandCount += ctx.processingCommand().size();
+        if (commandCount > MAX_QUERY_SIZE) {
+            throw new ParsingException(
+                source(ctx),
+                "ES|QL statement exceeded the maximum query size allowed ({}): [{}]",
+                MAX_QUERY_SIZE,
+                ctx.getText()
+            );
+        }
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {

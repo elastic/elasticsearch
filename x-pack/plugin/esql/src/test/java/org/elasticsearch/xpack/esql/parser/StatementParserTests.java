@@ -1472,6 +1472,34 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEqualsIgnoringIds(new Explain(EMPTY, PROCESSING_CMD_INPUT), query("explain ( row a = 1 )"));
     }
 
+    public void testMaxSubqueryDepth() {
+        assumeTrue("Requires subqueries in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String pipes = " | where a > 0".repeat(LogicalPlanBuilder.MAX_QUERY_DEPTH);
+        query("from foo, (from bar" + pipes + ")");
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum query size allowed"),
+            () -> query("from foo, (from bar" + pipes + " | where a > 0)")
+        );
+    }
+
+    public void testMaxQuerySizeIsSharedAcrossSubqueries() {
+        String pipes = " | where a > 0".repeat(LogicalPlanBuilder.MAX_QUERY_DEPTH / 2);
+        // each subquery and the main query are within the depth limit, together they add up to the size limit
+        query("from foo, (from bar" + pipes + "), (from baz" + pipes + ")");
+        query("from foo, (from bar" + pipes + ")" + pipes);
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum query size allowed"),
+            () -> query("from foo, (from bar" + pipes + "), (from baz" + pipes + "), (from qux | where a > 0)")
+        );
+        expectThrows(
+            ParsingException.class,
+            containsString("ES|QL statement exceeded the maximum query size allowed"),
+            () -> query("from foo, (from bar" + pipes + ")" + pipes + " | where a > 0")
+        );
+    }
+
     public void testBlockComments() {
         assumeTrue("Requires EXPLAIN capability", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
         String query = " explain ( from foo )";

@@ -19,6 +19,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -76,6 +78,24 @@ public final class SliceIndexing {
     public static final String SLICE_HASH_FIELD_NAME = "_slice_hash";
 
     private static final int SLICE_HASH_BYTES = Integer.BYTES;
+
+    /**
+     * Width of the slice prefix on an indexed term: {@link #sliceHash} as fixed-width lowercase hex.
+     *
+     * <p>Hex rather than the raw four bytes because the prefix is applied to a token stream as characters as well as to
+     * a {@link BytesRef} as bytes, and only an ASCII rendering makes those two produce the same term. Fixed width also
+     * means a search across every slice is {@code ANY^8} instead of needing a separator, and stripping is a constant
+     * offset.
+     */
+    public static final int TERM_PREFIX_LENGTH = 8;
+
+    /**
+     * Mapped field types whose terms a slice index leaves plain because no query asks for them by value: {@code completion}
+     * encodes a surface form for its transducer and is suggested over rather than searched. {@code SliceTermPrefix}
+     * recognises the same fields on the way in, by the class of the Lucene field they add, so a field named here is one
+     * whose terms never carry a prefix.
+     */
+    private static final Set<String> SELF_ENCODED_TERM_TYPES = Set.of("completion");
 
     /** Unsigned 32-bit Murmur3 of the slice value; the same hash shard routing uses for the routing value. */
     public static long sliceHash(String slice) {
@@ -149,6 +169,62 @@ public final class SliceIndexing {
     @Nullable
     public static String sliceToRouting(String slice) {
         return SLICE_ALL.equals(slice) ? null : slice;
+    }
+
+    /**
+     * Whether the terms of {@code fieldName} carry a slice prefix. The index and the query side both go through here, so
+     * a field this returns {@code false} for keeps its terms interleaved across slices but stays correct. Names starting
+     * with {@code _} are left out: the engine looks those up without a slice, for instance {@code _id} on a get, and
+     * {@code _routing}, which carries the exact slice filter a search is scoped by.
+     */
+    public static boolean prefixesTerms(String fieldName) {
+        return fieldName.isEmpty() == false && fieldName.charAt(0) != '_';
+    }
+
+    /** Whether a field of this mapped type keeps plain terms on a slice index. See {@link #SELF_ENCODED_TERM_TYPES}. */
+    public static boolean keepsPlainTerms(String typeName) {
+        return SELF_ENCODED_TERM_TYPES.contains(typeName);
+    }
+
+    /**
+     * The characters every indexed term of {@code slice} starts with: its {@link #sliceHash} as
+     * {@link #TERM_PREFIX_LENGTH} hex digits. The hash is the one {@link #SLICE_KEY_FIELD_NAME} and shard routing use,
+     * so a slice has a single identity across the index.
+     *
+     * <p>Two slices may share a hash and therefore a region of the terms dictionary. That costs locality for the pair
+     * and nothing else: a slice search is filtered on the exact slice value, never on this prefix.
+     */
+    public static String termPrefix(String slice) {
+        return String.format(Locale.ROOT, "%08x", sliceHash(slice));
+    }
+
+    /** {@link #termPrefix(String)} as bytes; ASCII, so one byte a character. */
+    public static byte[] termPrefixBytes(String slice) {
+        return termPrefix(slice).getBytes(StandardCharsets.US_ASCII);
+    }
+
+    /** Prefixes an indexed term with the slice it belongs to; see {@code SliceTermPrefix} for where this applies. */
+    public static BytesRef prefixTerm(byte[] termPrefix, BytesRef term) {
+        final byte[] out = new byte[termPrefix.length + term.length];
+        System.arraycopy(termPrefix, 0, out, 0, termPrefix.length);
+        System.arraycopy(term.bytes, term.offset, out, termPrefix.length, term.length);
+        return new BytesRef(out, 0, out.length);
+    }
+
+    /** Prefixes a term for a slice given by name; see {@link #prefixTerm(byte[], BytesRef)}. */
+    public static BytesRef prefixTerm(String slice, BytesRef term) {
+        return prefixTerm(termPrefixBytes(slice), term);
+    }
+
+    /**
+     * Removes the slice prefix written by {@link #prefixTerm}, for the paths that hand a term back to the user such as
+     * term vectors. Returns the term unchanged when it is too short to carry one.
+     */
+    public static BytesRef stripTermPrefix(BytesRef term) {
+        if (term.length < TERM_PREFIX_LENGTH) {
+            return term;
+        }
+        return new BytesRef(term.bytes, term.offset + TERM_PREFIX_LENGTH, term.length - TERM_PREFIX_LENGTH);
     }
 
     /**

@@ -29,7 +29,7 @@ final class BatchDocumentParserContext extends DocumentParserContext {
 
     // TODO: Will need to implement ContentPath for future mappers.
     private final ContentPath path = new ContentPath();
-    private final LuceneDocument document = new LuceneDocument();
+    private final LuceneDocument document;
     private final BytesRef tsid;
     private XContentParser parser;
 
@@ -42,6 +42,7 @@ final class BatchDocumentParserContext extends DocumentParserContext {
             ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
         );
         this.tsid = sourceToParse.tsid();
+        this.document = newRootDocument(mappingParserContext.getIndexSettings(), sourceToParse);
     }
 
     void setParser(XContentParser parser) {

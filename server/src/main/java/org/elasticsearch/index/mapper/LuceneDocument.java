@@ -40,16 +40,30 @@ public class LuceneDocument implements Iterable<IndexableField> {
     // mapping actually has required fields, so mappings without nullability=false pay nothing. Tallied per Lucene doc so each nested
     // instance is independent and copy_to (which targets this doc) counts correctly.
     private Set<String> satisfiedRequiredFields;
+    // Prefixes the terms of every field added to this document with the slice it belongs to; null outside slice indices.
+    private final SliceTermPrefix slicePrefix;
 
-    LuceneDocument(String path, LuceneDocument parent) {
+    private LuceneDocument(String path, LuceneDocument parent, SliceTermPrefix slicePrefix) {
         fields = new ArrayList<>();
         this.path = path;
         this.prefix = path.isEmpty() ? "" : path + ".";
         this.parent = parent;
+        this.slicePrefix = slicePrefix;
+    }
+
+    LuceneDocument(String path, LuceneDocument parent) {
+        this(path, parent, parent == null ? null : parent.slicePrefix);
     }
 
     public LuceneDocument() {
-        this("", null);
+        this("", null, null);
+    }
+
+    /**
+     * A root document whose indexed terms carry a slice prefix; nested documents created under it inherit it.
+     */
+    public LuceneDocument(SliceTermPrefix slicePrefix) {
+        this("", null, slicePrefix);
     }
 
     public LuceneDocument(List<IndexableField> fields) {
@@ -57,6 +71,7 @@ public class LuceneDocument implements Iterable<IndexableField> {
         this.path = "";
         this.prefix = "";
         this.parent = null;
+        this.slicePrefix = null;
     }
 
     /**
@@ -90,12 +105,22 @@ public class LuceneDocument implements Iterable<IndexableField> {
     }
 
     public void addAll(List<? extends IndexableField> fields) {
-        this.fields.addAll(fields);
+        if (slicePrefix == null) {
+            this.fields.addAll(fields);
+            return;
+        }
+        for (IndexableField field : fields) {
+            add(field);
+        }
     }
 
     public void add(IndexableField field) {
         assert assertLegalFieldName(field);
-        fields.add(field);
+        if (slicePrefix == null) {
+            fields.add(field);
+        } else {
+            slicePrefix.add(fields, field);
+        }
     }
 
     private boolean assertLegalFieldName(IndexableField field) {

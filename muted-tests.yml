@@ -184,6 +184,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests
   method: testKnnOptionsPushDown {default}
   issue: https://github.com/elastic/elasticsearch/issues/162269
+- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
+  method: testInvalidFromPatterns
+  issue: https://github.com/elastic/elasticsearch/issues/162271
 
 # Examples:
 #

@@ -25,7 +25,6 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.util.List;
@@ -361,7 +360,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
             while (flushQueue.size() > 0) {
                 int currentPosition = nextPosition(flushQueue);
                 ExponentialHistogram currentValue = rawBuffer.value(currentPosition, currentScratch);
-                if (histogramsEqual(previousValue, currentValue) == false) {
+                if (previousValue.equals(currentValue) == false) {
                     state.changes++;
                 }
                 ExponentialHistogramScratch swap = previousScratch;
@@ -383,32 +382,6 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                 flushQueue.updateTop();
             }
             return position;
-        }
-
-        private static boolean histogramsEqual(ExponentialHistogram left, ExponentialHistogram right) {
-            return left.scale() == right.scale()
-                && left.valueCount() == right.valueCount()
-                && Double.doubleToRawLongBits(left.sum()) == Double.doubleToRawLongBits(right.sum())
-                && left.zeroBucket().zeroThreshold() == right.zeroBucket().zeroThreshold()
-                && left.zeroBucket().count() == right.zeroBucket().count()
-                && compareBuckets(left.negativeBuckets().iterator(), right.negativeBuckets().iterator()) == 0
-                && compareBuckets(left.positiveBuckets().iterator(), right.positiveBuckets().iterator()) == 0;
-        }
-
-        private static int compareBuckets(BucketIterator left, BucketIterator right) {
-            int result = Integer.compare(left.scale(), right.scale());
-            while (result == 0 && left.hasNext() && right.hasNext()) {
-                result = Long.compare(left.peekIndex(), right.peekIndex());
-                if (result == 0) {
-                    result = Long.compare(left.peekCount(), right.peekCount());
-                }
-                left.advance();
-                right.advance();
-            }
-            if (result == 0) {
-                result = Boolean.compare(left.hasNext(), right.hasNext());
-            }
-            return result;
         }
 
         @Override
@@ -473,7 +446,7 @@ public final class ChangesExponentialHistogramAggregatorFunctionSupplier impleme
                     int previous = intervals[i];
                     ExponentialHistogram previousLast = intervalBuffer.lastValue(previous, previousScratch);
                     ExponentialHistogram nextFirst = intervalBuffer.firstValue(next, nextScratch);
-                    if (histogramsEqual(previousLast, nextFirst) == false) {
+                    if (previousLast.equals(nextFirst) == false) {
                         changes++;
                     }
                 }

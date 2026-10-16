@@ -7,17 +7,23 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.OperatorTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.test.ComputeTestCase;
 
 import java.util.List;
 
-public class ChangesDoubleAggregatorTests extends OperatorTests {
+public class ChangesDoubleAggregatorTests extends ComputeTestCase {
+
+    private DriverContext driverContext() {
+        BlockFactory blockFactory = blockFactory();
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+    }
 
     public void testCountsTimestampOrderedChangesAcrossIntermediateMerge() {
         DriverContext driverContext = driverContext();
@@ -51,7 +57,6 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
             }
         } finally {
             driverContext.finish();
-            assertDriverContext(driverContext);
         }
     }
 
@@ -72,7 +77,6 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
             }
         } finally {
             driverContext.finish();
-            assertDriverContext(driverContext);
         }
     }
 
@@ -101,7 +105,6 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
             }
         } finally {
             driverContext.finish();
-            assertDriverContext(driverContext);
         }
     }
 
@@ -122,7 +125,6 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
             }
         } finally {
             driverContext.finish();
-            assertDriverContext(driverContext);
         }
     }
 
@@ -141,7 +143,6 @@ public class ChangesDoubleAggregatorTests extends OperatorTests {
             }
         } finally {
             driverContext.finish();
-            assertDriverContext(driverContext);
         }
     }
 

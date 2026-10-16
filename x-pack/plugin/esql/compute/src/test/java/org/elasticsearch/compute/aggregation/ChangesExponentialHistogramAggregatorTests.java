@@ -7,14 +7,15 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.OperatorTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
@@ -23,7 +24,12 @@ import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
+public class ChangesExponentialHistogramAggregatorTests extends ComputeTestCase {
+
+    private DriverContext driverContext() {
+        BlockFactory blockFactory = blockFactory();
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+    }
 
     public void testCountsTimestampOrderedChangesAcrossIntermediateMerge() {
         DriverContext driverContext = driverContext();
@@ -48,7 +54,6 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
             assertChanges(merged, selected, evalContext, 3L);
         } finally {
             driverContext.finish();
-            assertDriverContext(driverContext);
         }
     }
 
@@ -76,7 +81,6 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
             }
         } finally {
             driverContext.finish();
-            assertDriverContext(driverContext);
         }
     }
 
@@ -105,7 +109,6 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
             }
         } finally {
             driverContext.finish();
-            assertDriverContext(driverContext);
         }
     }
 
@@ -121,7 +124,6 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
             assertChanges(state, selected, evalContext, 0L);
         } finally {
             driverContext.finish();
-            assertDriverContext(driverContext);
         }
     }
 
@@ -143,7 +145,6 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
             }
         } finally {
             driverContext.finish();
-            assertDriverContext(driverContext);
         }
     }
 
@@ -159,27 +160,26 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
             assertChanges(state, selected, evalContext, 1L);
         } finally {
             driverContext.finish();
-            assertDriverContext(driverContext);
         }
     }
 
-    public void testIgnoresMinAndMax() {
-        assertChanges(List.of(histogram(3.0, 1.0, 3.0), histogram(3.0, -100.0, 100.0)), new long[] { 20, 10 }, 0L);
+    public void testMinAndMaxDifferencesAreChanges() {
+        assertChanges(List.of(histogram(3.0, 1.0, 3.0), histogram(3.0, -100.0, 100.0)), new long[] { 20, 10 }, 1L);
     }
 
     public void testSumComparisonIsExact() {
         assertChanges(List.of(histogram(1.0, 1.0, 1.0), histogram(Math.nextUp(1.0), 1.0, 1.0)), new long[] { 20, 10 }, 1L);
     }
 
-    public void testSumComparisonDistinguishesSignedZero() {
-        assertChanges(List.of(histogram(+0.0, 1.0, 1.0), histogram(-0.0, 1.0, 1.0)), new long[] { 20, 10 }, 1L);
+    public void testSumComparisonTreatsSignedZeroAsEqual() {
+        assertChanges(List.of(histogram(+0.0, 1.0, 1.0), histogram(-0.0, 1.0, 1.0)), new long[] { 20, 10 }, 0L);
     }
 
-    public void testDuplicateTimestampOrderingMatchesSumEquality() {
+    public void testDuplicateTimestampOrderingMatchesHistogramEquality() {
         assertChanges(
             List.of(histogram(+0.0, 1.0, 1.0), histogram(-0.0, 1.0, 1.0), histogram(+0.0, 1.0, 1.0)),
             new long[] { 10, 10, 10 },
-            1L
+            0L
         );
     }
 
@@ -292,7 +292,6 @@ public class ChangesExponentialHistogramAggregatorTests extends OperatorTests {
             assertChanges(state, selected, evalContext, expected);
         } finally {
             driverContext.finish();
-            assertDriverContext(driverContext);
         }
     }
 

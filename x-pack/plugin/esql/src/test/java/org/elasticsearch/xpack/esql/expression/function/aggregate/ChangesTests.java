@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.exponentialhistogram.BucketIterator;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -153,33 +151,9 @@ public class ChangesTests extends AbstractAggregationTestCase {
                 double rightDouble = (double) right;
                 yield leftDouble == rightDouble || (Double.isNaN(leftDouble) && Double.isNaN(rightDouble));
             }
-            case EXPONENTIAL_HISTOGRAM -> histogramsEqual((ExponentialHistogram) left, (ExponentialHistogram) right);
+            case EXPONENTIAL_HISTOGRAM -> left.equals(right);
             default -> left.equals(right);
         };
-    }
-
-    private static boolean histogramsEqual(ExponentialHistogram left, ExponentialHistogram right) {
-        return left.scale() == right.scale()
-            && left.valueCount() == right.valueCount()
-            && Double.doubleToRawLongBits(left.sum()) == Double.doubleToRawLongBits(right.sum())
-            && left.zeroBucket().zeroThreshold() == right.zeroBucket().zeroThreshold()
-            && left.zeroBucket().count() == right.zeroBucket().count()
-            && bucketsEqual(left.negativeBuckets().iterator(), right.negativeBuckets().iterator())
-            && bucketsEqual(left.positiveBuckets().iterator(), right.positiveBuckets().iterator());
-    }
-
-    private static boolean bucketsEqual(BucketIterator left, BucketIterator right) {
-        if (left.scale() != right.scale()) {
-            return false;
-        }
-        while (left.hasNext() && right.hasNext()) {
-            if (left.peekIndex() != right.peekIndex() || left.peekCount() != right.peekCount()) {
-                return false;
-            }
-            left.advance();
-            right.advance();
-        }
-        return left.hasNext() == right.hasNext();
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {

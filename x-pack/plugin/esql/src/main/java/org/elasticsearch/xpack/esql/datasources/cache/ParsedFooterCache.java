@@ -36,7 +36,7 @@ import java.util.function.ToLongFunction;
  * Node-wide cache for parsed file metadata (e.g., Parquet {@code ParquetMetadata}, ORC
  * {@code OrcTail}). Sits at the same architectural layer as {@link FooterByteCache} but stores
  * the result of the format-specific footer parse rather than its raw bytes, so the (typically
- * Thrift/protobuf) deserialization runs at most once per {@code (storageIdentity, path, fileLength)} key across:
+ * Thrift/protobuf) deserialization runs at most once per {@code (storageIdentity, path, fileLength, version)} key across:
  * <ul>
  *   <li>concurrent splits of the same file taken by N producer threads;</li>
  *   <li>back-to-back queries against the same file within the TTL.</li>
@@ -51,7 +51,7 @@ import java.util.function.ToLongFunction;
  * are not full-footer parses, and because format readers fall back to byte reads on a cold cache.
  *
  * <h2>Sharing keys with {@link FooterByteCache}</h2>
- * The cache is keyed by {@link FooterByteCache.Key} ({@code (storageIdentity, path, fileLength)}) so that the same
+ * The cache is keyed by {@link FooterByteCache.Key} ({@code (storageIdentity, path, fileLength, version)}) so that the same
  * key construction logic used to hit the byte cache also hits this cache; both caches stay aligned
  * without an extra key type. Per-format instances (one for Parquet, one for ORC, etc.) keep the
  * value type concrete and the cache's ownership unambiguous.
@@ -65,10 +65,10 @@ import java.util.function.ToLongFunction;
  *   <li>Two-clock expiry: same policy as the paired {@link FooterByteCache}. An access clock releases
  *       an entry a TTL after the last read of it (working set stays hot); a write cap
  *       ({@link FooterByteCache#WRITE_CAP_MULTIPLIER} × TTL) force-expires every entry at most
- *       {@code WRITE_CAP_MULTIPLIER × TTL} after it was written, bounding staleness. Unlike the byte cache,
- *       a store here does NOT imply a storage read — an entry can be evicted while its bytes survive
- *       and a reparse refills it from those bytes, which can extend the total staleness window for
- *       parsed footers beyond what the raw-bytes cap alone would allow.</li>
+ *       {@code WRITE_CAP_MULTIPLIER × TTL} after it was written, bounding memory. The key carries the object's
+ *       version, so a rewritten object never reads another version's entry. Unlike the byte cache, a store here
+ *       does NOT imply a storage read — an entry can be evicted while its bytes survive and a reparse refills it
+ *       from those bytes, which can hold a version's parsed footer longer than the raw-bytes cap alone would.</li>
  *   <li>Byte-weighted LRU eviction: parsed metadata structures do not expose an exact byte
  *       size, so each format supplies a structural estimator (row groups × columns for Parquet,
  *       the analogous stripe shape for ORC) against a heap-relative budget

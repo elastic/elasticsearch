@@ -49,6 +49,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -684,9 +686,9 @@ public class Verifier {
                 failures.add(
                     fail(
                         p,
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, "
-                            + "MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
-                            + "subquery commands; [{}] is not supported yet",
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
+                            + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, FILL_NULL, DEDUP, WHERE, SORT, LIMIT, "
+                            + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
                             : p instanceof BranchPlan ? "BranchPlan"
                             : p instanceof NamedSubquery ? "NamedSubquery"
@@ -709,6 +711,10 @@ public class Verifier {
             || plan instanceof Dissect
             || plan instanceof MvExpand
             || plan instanceof Sample
+            || plan instanceof CompoundOutputEval
+            || plan instanceof FillNull
+            || plan instanceof LimitBy
+            || plan instanceof Dedup
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof Limit

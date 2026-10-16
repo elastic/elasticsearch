@@ -181,6 +181,8 @@ public class CsvColumnarIT extends CsvIT {
         // nests parts inside items, and columnar supports only a single level of nesting, so index creation fails outright.
         "nested_paths_mapped",
         "nested_paths_unmapped",
+        // dynamic:false and read for the leaves its mapping does not declare, which strict columnar drops at ingest.
+        "unmapped_compound_outputs",
         "synthetic_source_partial_mapping",
         // unmapped_source_* family: dynamic:false with only id mapped; everything else lives in
         // _source / _ignored_source, which strict columnar drops at ingest. unmapped_source_disabled

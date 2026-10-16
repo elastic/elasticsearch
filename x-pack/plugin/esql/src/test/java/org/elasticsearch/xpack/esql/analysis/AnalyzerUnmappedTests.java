@@ -1563,8 +1563,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             test().statementError(
                 setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
+                        + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, FILL_NULL, DEDUP, WHERE, SORT, LIMIT, "
+                        + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
                         + commandAndLabel.v2()
                         + "] is not supported yet"
                 )
@@ -1848,8 +1849,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
+                        + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, FILL_NULL, DEDUP, WHERE, SORT, LIMIT, "
+                        + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
                         + "[TS] is not supported yet"
                 )
             );
@@ -1857,8 +1859,9 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             .statementError(
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
+                        + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, FILL_NULL, DEDUP, WHERE, SORT, LIMIT, "
+                        + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
                         + "[TS] is not supported yet"
                 )
             );

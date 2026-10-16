@@ -6654,3 +6654,134 @@ message:keyword | _unmapped_fields:_source
 42              | "{""unmapped_message"":""43""}"
 42              | null
 ;
+
+###########################################################################
+# Compound-output commands, FILL_NULL, LIMIT BY and DEDUP (#157189)       #
+###########################################################################
+
+// URI_PARTS adds parts.* columns. They shadow the unmapped parts.domain and parts.port leaves, so those drop out of _unmapped_fields while
+// the others stay. The wildcards parts.* and oth* both keep columns and narrow _unmapped_fields to the leaves they match.
+uriPartsOutputShadowsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: uri_parts_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| URI_PARTS parts = url
+| KEEP id, parts.domain, parts.port, parts.*, oth*
+| SORT id
+;
+id:keyword | parts.domain:keyword | parts.port:integer | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword | _unmapped_fields:_source
+1 | www.example.com | 8080 | null | /a | null | null | http | null | null | null | "{""other"":""x""}"
+2 | example.org | null | null | /b | null | null | https | null | null | null | "{""other"":""x""}"
+3 | c.example.net | null | null | /c | null | null | http | null | null | null | null
+;
+
+// REGISTERED_DOMAIN shadows the unmapped rd.domain leaf in the same way.
+registeredDomainOutputShadowsUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: registered_domain_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| REGISTERED_DOMAIN rd = host
+| KEEP id, rd.*, oth*
+| SORT id
+;
+id:keyword | rd.domain:keyword | rd.registered_domain:keyword | rd.top_level_domain:keyword | rd.subdomain:keyword | _unmapped_fields:_source
+1 | www.example.co.uk | example.co.uk | co.uk | www | "{""other"":""x""}"
+2 | mail.example.org | example.org | org | mail | "{""other"":""x""}"
+3 | c.example.net | example.net | net | c | null
+;
+
+// USER_AGENT shadows the unmapped ua.name leaf.
+userAgentOutputShadowsUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: user_agent_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| USER_AGENT ua = agent
+| KEEP id, ua.name, ua.*, oth*
+| SORT id
+;
+id:keyword | ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword | ua.device.name:keyword | _unmapped_fields:_source
+1 | Chrome | 33.0.1750.149 | Mac OS X | 10.9.2 | Mac OS X 10.9.2 | Mac | "{""other"":""x""}"
+2 | Firefox | 115.0 | Windows | 10 | Windows 10 | null | "{""other"":""x""}"
+3 | curl | 8.0.1 | null | null | null | null | null
+;
+
+// IP_LOCATION shadows the unmapped g.country_iso_code leaf.
+ipLocationOutputShadowsUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: ip_location_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| IP_LOCATION g = addr
+| KEEP id, g.country_iso_code, g.*, oth*
+| SORT id
+;
+id:keyword | g.country_iso_code:keyword | g.country_name:keyword | g.continent_name:keyword | g.region_iso_code:keyword | g.region_name:keyword | g.city_name:keyword | g.location:geo_point | _unmapped_fields:_source
+1 | US | United States | North America | null | null | null | POINT (-97.822000 37.751000) | "{""other"":""x""}"
+2 | AU | Australia | Oceania | null | null | null | POINT (143.210400 -33.494000) | "{""other"":""x""}"
+3 | FR | France | Europe | null | null | null | POINT (2.338700 48.858200) | null
+;
+
+// FILL_NULL names an unmapped field, which becomes a real column: it is filled where the row has no value and drops out of
+// _unmapped_fields, while the other leaves matching pa* stay.
+fillNullOnUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| FILLNULL "none" ON other
+| KEEP id, other, pa*
+| SORT id
+;
+id:keyword | other:keyword | _unmapped_fields:_source
+1 | x | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
+2 | x | "{""parts.domain"":""old.example2"",""parts.port"":""81""}"
+3 | none | null
+;
+
+// LIMIT BY groups by an unmapped field and keeps _unmapped_fields on the surviving rows.
+limitByUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: esql_limit_by
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| SORT id
+| LIMIT 1 BY other
+| KEEP id, other, pa*
+| SORT id
+;
+id:keyword | other:keyword | _unmapped_fields:_source
+1 | x | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
+3 | null | null
+;
+
+// DEDUP compares _unmapped_fields like any other column: rows 1 and 2 hold the same other and tag, so they collapse into one.
+dedupOnUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: dedup_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| KEEP other, ta*
+| DEDUP
+| SORT other
+;
+other:keyword | _unmapped_fields:_source
+x | "{""tag"":""t""}"
+null | null
+;

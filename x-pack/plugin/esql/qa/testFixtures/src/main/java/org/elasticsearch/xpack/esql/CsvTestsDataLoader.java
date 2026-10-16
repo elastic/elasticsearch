@@ -202,6 +202,7 @@ public class CsvTestsDataLoader {
         new TestDataset("mv_expand_unmapped", "mapping-mv_expand_unmapped.json", "mv_expand_unmapped.csv"),
         new TestDataset("flattened_paths_mapped", "mapping-flattened_paths_mapped.json", "flattened_paths_mapped.csv"),
         new TestDataset("flattened_paths_unmapped", "mapping-flattened_paths_unmapped.json", "flattened_paths_unmapped.csv"),
+        new TestDataset("unmapped_compound_outputs", "mapping-unmapped_compound_outputs.json", "unmapped_compound_outputs.csv"),
         // Four indices that give the same conceptual "unmapped" field a different shape each, for LOAD_ALL multi-index expansion:
         // a foo leaf only, a bar leaf only, foo / bar / deep.leaf across separate documents (synthetic source), and a bare scalar plus a
         // foo array. All share mapping-unmapped_multi.json (dynamic:false, only id mapped) so the rest lands in _source / _ignored_source.

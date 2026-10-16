@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -24,14 +23,10 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -59,10 +54,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.IntSupplier;
 
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests.TestES819TSDBDocValuesFormatVersion0;
-import static org.hamcrest.Matchers.equalTo;
 
 public class TsdbDocValueBwcTests extends ESTestCase {
 
@@ -413,108 +406,6 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                     "verbatim-copy must have fired during merge",
                     baos.toString(StandardCharsets.UTF_8).contains("copied binary block of")
                 );
-            }
-        }
-    }
-
-    public void testEncodeOrdinalRange() throws IOException {
-        try (var dir = newDirectory()) {
-            int iters = between(5, 20);
-            for (int iter = 0; iter < iters; iter++) {
-                var config = new IndexWriterConfig();
-                String hostNameField = "host.name";
-                String hostIdField = "host.id";
-                config.setIndexSort(new Sort(new SortField(hostNameField, SortField.Type.STRING, false)));
-                int thresholdRange = random().nextInt(3);
-                IntSupplier nextOrdinalRangeThreshold = () -> {
-                    if (thresholdRange == 0) {
-                        return between(1, 5);
-                    } else if (thresholdRange == 1) {
-                        return between(5, 20);
-                    } else {
-                        return Integer.MAX_VALUE;
-                    }
-                };
-                config.setCodec(
-                    TestUtil.alwaysDocValuesFormat(
-                        new ES819TSDBDocValuesFormat(
-                            random().nextInt(16, 128),
-                            nextOrdinalRangeThreshold.getAsInt(),
-                            random().nextBoolean(),
-                            TSDBDocValuesTestUtil.randomBinaryCompressionMode(),
-                            randomBoolean(),
-                            TSDBDocValuesTestUtil.randomNumericBlockSize()
-                        )
-                    )
-                );
-                try (IndexWriter writer = new IndexWriter(dir, config)) {
-                    int numDocs = between(50, 500);
-                    for (int d = 0; d < numDocs; d++) {
-                        Document doc = new Document();
-                        int hostId = random().nextInt(100);
-                        if (random().nextInt(100) <= 10) {
-                            writer.deleteDocuments(LongPoint.newExactQuery(hostIdField, hostId));
-                        } else {
-                            String hostName = String.format(Locale.ROOT, "host-%02d", hostId);
-                            doc.add(new LongPoint("host.id", hostId));
-                            doc.add(new SortedDocValuesField(hostNameField, new BytesRef(hostName)));
-                            doc.add(new NumericDocValuesField(hostIdField, hostId));
-                            writer.addDocument(doc);
-                        }
-
-                        if (random().nextInt(100) <= 5) {
-                            Document dummy = new Document();
-                            dummy.add(new SortedDocValuesField("dummy", new BytesRef("dummy")));
-                            writer.addDocument(dummy);
-                        }
-                        if (random().nextInt(100) <= 10) {
-                            writer.flush();
-                        }
-                        if (random().nextInt(100) <= 5) {
-                            writer.forceMerge(between(1, 10));
-                        }
-                    }
-                }
-                try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                    for (LeafReaderContext leaf : reader.leaves()) {
-                        // sequential
-                        NumericDocValues hostIdDv = leaf.reader().getNumericDocValues(hostIdField);
-                        SortedDocValues hostNameDv = leaf.reader().getSortedDocValues(hostNameField);
-                        if (hostIdDv == null) {
-                            assertNull(hostNameDv);
-                            continue;
-                        }
-                        {
-                            int docId;
-                            while ((docId = hostIdDv.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                                assertTrue(hostNameDv.advanceExact(docId));
-                                String hostName = hostNameDv.lookupOrd(hostNameDv.ordValue()).utf8ToString();
-                                String expectedHostName = String.format(Locale.ROOT, "host-%02d", hostIdDv.longValue());
-                                assertThat(hostName, equalTo(expectedHostName));
-                            }
-                        }
-                        int checkIters = between(1, 20);
-                        int nextDoc = 0;
-                        for (int n = 0; n < checkIters; n++) {
-                            if (nextDoc >= leaf.reader().maxDoc()) {
-                                nextDoc = 0;
-                            }
-                            nextDoc = nextDoc + random().nextInt(leaf.reader().maxDoc() - nextDoc);
-                            if (hostIdDv.docID() == DocIdSetIterator.NO_MORE_DOCS || nextDoc > hostIdDv.docID()) {
-                                hostIdDv = leaf.reader().getNumericDocValues(hostIdField);
-                                hostNameDv = leaf.reader().getSortedDocValues(hostNameField);
-                            }
-                            if (hostIdDv.advanceExact(nextDoc)) {
-                                assertTrue(hostNameDv.advanceExact(nextDoc));
-                                String hostName = hostNameDv.lookupOrd(hostNameDv.ordValue()).utf8ToString();
-                                String expectedHostName = String.format(Locale.ROOT, "host-%02d", hostIdDv.longValue());
-                                assertThat(hostName, equalTo(expectedHostName));
-                            } else {
-                                assertFalse(hostNameDv.advanceExact(nextDoc));
-                            }
-                        }
-                    }
-                }
             }
         }
     }

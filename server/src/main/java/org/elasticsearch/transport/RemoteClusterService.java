@@ -141,7 +141,7 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (returnLocalAll == false && IndexNameExpressionResolver.isNoneExpression(indices)) {
             groupedIndices = Map.of();
         } else {
-            groupedIndices = groupClusterIndices(remoteClusterNames, indices);
+            groupedIndices = groupClusterIndices(remoteClusterNames, indices, indicesOptions.wildcardOptions().allowEmptyExpressions());
         }
 
         if (groupedIndices.isEmpty()) {

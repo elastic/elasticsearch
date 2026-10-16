@@ -162,6 +162,8 @@ redirects:
       - to: 'reference/query-languages/esql/commands/processing-commands.md'
         anchors: {'esql-processing-commands'}
 
+  'reference/query-languages/esql/esql-dense_vector.md': 'reference/query-languages/esql/commands/dense-vector.md'
+
   'reference/query-languages/esql/commands/processing-commands.md':
     to: 'reference/query-languages/esql/commands/processing-commands.md'
     anchors: {} # pass-through unlisted anchors in the `many` ruleset

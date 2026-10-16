@@ -430,7 +430,6 @@ public final class ParallelHashAggregationOperator implements Operator {
         public void onRejection(Exception e) {
             // ignore rejection - handle by the driver thread, but we should stop schedule
             worker.scheduled.set(false);
-            onAfter();
         }
 
         @Override

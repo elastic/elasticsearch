@@ -1070,6 +1070,24 @@ content:keyword
 brown fox
 ;
 
+matchPhraseOnMvMaxOfKeyword
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_fused_field_load_fix
+
+// MV_MAX is fused into the field load on the data node; that load has no indexed Lucene field behind it, so the
+// match still has to run at runtime
+FROM employees
+| WHERE emp_no <= 10025 AND match_phrase(MV_MAX(job_positions), "Support Engineer")
+| SORT emp_no
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10015          | [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer]
+10021          | Support Engineer
+10023          | [Accountant, Purchase Manager, Support Engineer]
+;
+
 matchPhraseOnKeywordWithRowAndNullValues
 required_capability: match_phrase_function
 required_capability: fn_match_phrase_runtime_filter

@@ -977,7 +977,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 .stream()
                 .collect(Collectors.toMap(entry -> entry.getKey().getName(), Map.Entry::getValue));
             for (var index : indices) {
-                assertThat(indexSettingsValues.containsKey(index), notNullValue());
+                assertThat(indexSettingsValues.containsKey(index), is(true));
                 assertThat(indexSettingsValues.get(index).managedBy(), equalTo(expected));
             }
         });

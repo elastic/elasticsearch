@@ -65,24 +65,13 @@ public class VersionEncoderTests extends ESTestCase {
         assertFalse(VersionEncoder.encodeVersion("1.2.3+buildSufix-withDash").isPreRelease);
     }
 
-    public void testVersionPartExtraction() {
-        int numParts = randomIntBetween(1, 6);
-        String[] parts = new String[numParts];
-        for (int i = 0; i < numParts; i++) {
-            parts[i] = String.valueOf(randomIntBetween(1, 1000));
-        }
-        EncodedVersion encodedVersion = VersionEncoder.encodeVersion(String.join(".", parts));
-        assertEquals(parts[0], encodedVersion.major.toString());
-        if (numParts > 1) {
-            assertEquals(parts[1], encodedVersion.minor.toString());
-        } else {
-            assertNull(encodedVersion.minor);
-        }
-        if (numParts > 2) {
-            assertEquals(parts[2], encodedVersion.patch.toString());
-        } else {
-            assertNull(encodedVersion.patch);
-        }
+    public void testDigitGroupsBeyondIntRange() {
+        String beyondInt = "2147483648.0.0";
+        EncodedVersion encoded = VersionEncoder.encodeVersion(beyondInt);
+        assertTrue(encoded.isLegal);
+        assertEquals(beyondInt, decodeVersion(encoded.bytesRef).utf8ToString());
+        assertTrue(encodeVersion("2147483647.0.0").compareTo(encoded.bytesRef) < 0);
+        assertTrue(encoded.bytesRef.compareTo(encodeVersion("2147483649.0.0")) < 0);
     }
 
     public void testMaxDigitGroupLength() {

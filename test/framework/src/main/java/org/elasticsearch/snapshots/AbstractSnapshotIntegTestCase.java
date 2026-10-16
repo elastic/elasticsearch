@@ -799,11 +799,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             assertEquals("reportShardRestoring of every restore entry", expected, reported);
         }
     }
-<<<<<<< Updated upstream
-
-    /**
-=======
->>>>>>> Stashed changes
 
     protected static ClusterState masterClusterState() {
         return internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();

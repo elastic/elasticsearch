@@ -2735,6 +2735,16 @@ public class EsqlCapabilities {
         ESQL_WITHOUT_GROUPING,
 
         /**
+         * The {@code WITHOUT(...)} grouping column is named {@code _timeseries} from resolution onward, so a
+         * {@code FROM idx, (TS ... BY WITHOUT(...))} union surfaces it as {@code _timeseries} — the same name a lone
+         * TS query shows — instead of the parser's sourceText name, which changed mid-plan when the grouping was
+         * lowered and failed the post-optimization merge consistency check. A user alias ({@code BY dims = WITHOUT(...)})
+         * is now kept as the output name, and {@code WITHOUT(unmapped)} works under {@code unmapped_fields="nullify"}.
+         * Gates the affected csv-spec tests so mixed-version clusters skip them on older nodes.
+         */
+        TS_WITHOUT_GROUPING_NAMED_AT_RESOLUTION,
+
+        /**
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
@@ -3725,6 +3735,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_COLUMN_FROM_SHARD(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a query that has a column named {@code _unmapped_fields} of its own is not given
+         * the column of unmapped fields, and a warning says so.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_NAME_COLLISION_WARNING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -4193,7 +4209,7 @@ public class EsqlCapabilities {
         /**
          * KNN function support for runtime expressions, not just ES mapped fields.
          */
-        KNN_RUNTIME_FIELD(Build.current().isSnapshot()),
+        KNN_RUNTIME_FIELD,
 
         /**
          * Support for {@code MATCH}, {@code MATCH_PHRASE}, and the match operator in a {@code WHERE}
@@ -4398,6 +4414,13 @@ public class EsqlCapabilities {
          * Fixed in <a href="https://github.com/elastic/elasticsearch/issues/160012">#160012</a>.
          */
         FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
+
+        /**
+         * PromQL durations can be the difference of two timestamp parameters, such as {@code [?_tend - ?_tstart]}, so an
+         * instant query can cover a dashboard's whole time range:
+         * <a href="https://github.com/elastic/elasticsearch/issues/161115">#161115</a>
+         */
+        PROMQL_TIME_RANGE_PARAMS,
 
         /**
          * A whole number in an external dataset column declared or inferred as {@code date_nanos}, without a

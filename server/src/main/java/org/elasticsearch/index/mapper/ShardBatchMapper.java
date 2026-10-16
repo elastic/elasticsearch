@@ -203,20 +203,30 @@ public final class ShardBatchMapper {
                         logger.debug("batch indexing disabled: unmapped leaf [{}] matches routing_path", fullPath);
                         return null;
                     }
-                    // TODO: Look into ignored source
-                    // leaf silently ignored
+                    // The sequential path copies the value of an unmapped leaf under dynamic: false into _ignored_source, when it
+                    // records ignored source for this index at all, so that synthetic source still returns it. The batch path writes no
+                    // such entry, so
+                    // dropping the leaf here would lose the value; leave those batches to the sequential path. Where it does not
+                    // capture (stored source, strict-columnar modes), the value stays in _source and dropping the leaf is correct.
+                    if (sequentialPathCapturesDynamicFalseLeaves(lookup, indexSettings)) {
+                        logger.debug(
+                            "batch indexing disabled: unmapped leaf [{}] under dynamic=false is kept in _ignored_source",
+                            fullPath
+                        );
+                        return null;
+                    }
                     columnMappers[leaf] = null;
                     continue;
                 }
                 if (parentDynamic == ObjectMapper.Dynamic.FLATTENED) {
-                    final FieldMapper sink = unmappedSink(lookup, indexSettings);
+                    final FieldMapper sink = unmappedSink(lookup);
                     if (sink == null) {
                         return null;
                     }
                     if (groupBuilder == null) {
                         groupBuilder = new ColumnGroupResolver.Builder();
                     }
-                    // The sink is keyed by the leaf's full dotted path, matching DynamicFieldsBuilder.FlattenedSink,
+                    // The sink is keyed by the leaf's full dotted path, matching UnmappedSinkFieldMapper.absorb,
                     // which calls indexValueAtPath with context.path().pathAsText(name).
                     groupBuilder.add(new ColumnGroupLookup.Owned(sink, FlattenedFieldMapper.UNMAPPED_SINK_NAME, fullPath), leaf);
                     columnMappers[leaf] = null;
@@ -301,10 +311,21 @@ public final class ShardBatchMapper {
     }
 
     /**
+     * Mirrors {@link DocumentParserContext#canAddIgnoredField()}, minus the per-document {@code recordedSource} part, which can
+     * only make the sequential path capture less. When this is {@code true} the sequential path writes
+     * {@code _ignored_source} for values it would otherwise drop; refusing slightly more than needed is always safe.
+     */
+    private static boolean sequentialPathCapturesDynamicFalseLeaves(MappingLookup lookup, IndexSettings indexSettings) {
+        return lookup.isSourceSynthetic()
+            && indexSettings.getSkipIgnoredSourceWrite() == false
+            && indexSettings.getMode().isStrictColumnar() == false;
+    }
+
+    /**
      * Returns the implicit flattened {@code _unmapped} sink that absorbs unmapped leaves under
      * {@link ObjectMapper.Dynamic#FLATTENED}, or {@code null} if the batch cannot use it and must fall back.
      */
-    private static FieldMapper unmappedSink(MappingLookup lookup, IndexSettings indexSettings) {
+    private static FieldMapper unmappedSink(MappingLookup lookup) {
         // Dynamic templates are tried before the sink on the sequential path
         // (DynamicFieldsBuilder#createDynamicFieldFromValue), and a match creates a concrete field instead of
         // absorbing the value. The batch path cannot evaluate templates, so it cannot tell which leaves would
@@ -313,16 +334,9 @@ public final class ShardBatchMapper {
             logger.debug("batch indexing disabled: dynamic templates may pre-empt the [{}] sink", FlattenedFieldMapper.UNMAPPED_SINK_NAME);
             return null;
         }
-        // getRootDynamic only reports FLATTENED when the sink exists, so this cast is safe.
-        final FlattenedFieldMapper sink = (FlattenedFieldMapper) lookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
-        if (sink.supportsColumnarParse(indexSettings) == false) {
-            logger.debug(
-                "columnar batch mapping disabled: [{}] sink does not support columnar parsing",
-                FlattenedFieldMapper.UNMAPPED_SINK_NAME
-            );
-            return null;
-        }
-        return sink;
+        // The sink's columnar support was already checked with every other metadata mapper above, so a sink that cannot batch never
+        // reaches this point.
+        return lookup.getMapping().getMetadataMapperByName(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
     }
 
     /**

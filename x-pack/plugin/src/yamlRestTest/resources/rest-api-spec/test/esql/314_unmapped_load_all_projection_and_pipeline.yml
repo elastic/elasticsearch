@@ -78,7 +78,7 @@ teardown:
   - match: { values.1: [ 2, { b1: q } ] }
 
 ---
-'an EVAL column shadows the leaf of the same name':
+'an EVAL column of the name of a leaf leaves the leaf in _unmapped_fields':
   - do:
       esql.query:
         body:
@@ -87,8 +87,8 @@ teardown:
   - match: { columns.0.name: id }
   - match: { columns.1.name: _unmapped_fields }
   - match: { columns.2.name: a1 }
-  - match: { values.0: [ 1, { a2: y, b1: z, n.j: 2, n.k: 1 }, 0 ] }
-  - match: { values.1: [ 2, { b1: q }, 0 ] }
+  - match: { values.0: [ 1, { a1: x, a2: y, b1: z, n.j: 2, n.k: 1 }, 0 ] }
+  - match: { values.1: [ 2, { a1: p, b1: q }, 0 ] }
 
 ---
 'SORT and LIMIT keep the column with the surviving rows':

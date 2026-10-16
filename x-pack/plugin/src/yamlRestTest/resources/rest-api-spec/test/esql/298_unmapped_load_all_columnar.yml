@@ -104,8 +104,8 @@ teardown:
   - match: { columns.2.type: keyword }
   - match: { columns.3.name: _unmapped_fields }
   - match: { columns.3.type: _source }
-  # bar and foo are each mapped in one of the indices, so neither is left over for the _unmapped_fields object.
-  - match: { values.0: [ "b1", "a1", "unmapped-idx-std", null ] }
+  # bar is a column as well as an unmapped field of unmapped-idx-std, so _unmapped_fields keeps it there too.
+  - match: { values.0: [ "b1", "a1", "unmapped-idx-std", { bar: "b1" } ] }
   - match: { values.1: [ "b2", null, "unmapped-idx-col", null ] }
 
 ---

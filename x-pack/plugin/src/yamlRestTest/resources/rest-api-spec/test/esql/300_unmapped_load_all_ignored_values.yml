@@ -174,14 +174,14 @@ teardown:
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_above_mapped, la_above_unmapped | SORT id | LIMIT 5'
-  # kw is a real column (mapped in one index), so it is not repeated in _unmapped_fields.
+  # kw is a real column (mapped in one index); la_above_unmapped also returns it in _unmapped_fields.
   - length: { columns: 3 }
   - match: { columns.1.name: kw }
   - match: { columns.1.type: keyword }
   - match: { columns.2.name: _unmapped_fields }
   - match: { values.0: [ "m1", null, null ] }
   - match: { values.1: [ "m2", "ok", null ] }
-  - match: { values.2: [ "u1", "toolong", null ] }
+  - match: { values.2: [ "u1", "toolong", { kw: "toolong" } ] }
 
 ---
 'ignore_malformed: the malformed value is kept aside but is not reachable through the mapped name':

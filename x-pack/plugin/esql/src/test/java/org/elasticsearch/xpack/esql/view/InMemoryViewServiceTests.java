@@ -2947,7 +2947,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private IndexViewOrigins indexViewOrigins(String query) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(query(query), null, true, this::parse, false, future);
+        viewResolver.replaceViews(query(query), null, true, false, this::parse, false, future);
         return future.actionGet().indexViewOrigins();
     }
 

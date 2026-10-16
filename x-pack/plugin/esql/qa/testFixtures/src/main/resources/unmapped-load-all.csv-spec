@@ -6076,3 +6076,87 @@ a:keyword | b:keyword | _unmapped_fields:_source
 Connected | to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
 null | null | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
 ;
+
+// MV_EXPAND of a field that is multivalued and mapped in one index and unmapped in the other, with single-valued, valueless and
+// multivalued rows. Every row survives; a row without the field yields one null.
+mvExpandFieldMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mv_expand_mapped, mv_expand_unmapped
+| MV_EXPAND tags
+| KEEP id, tags
+| SORT id, tags
+;
+
+id:keyword | tags:keyword
+m1 | a
+m1 | b
+m2 | c
+m3 | null
+u1 | d
+u1 | e
+u2 | null
+u3 | f
+;
+
+// The unmapped deep.items leaf is repeated across the rows tags expands into, and is absent where the row has no such leaf.
+mvExpandRepeatsOtherUnmappedLeaves
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mv_expand_mapped, mv_expand_unmapped
+| MV_EXPAND tags
+| KEEP id, tags, deep*
+| SORT id, tags
+;
+
+id:keyword | tags:keyword | _unmapped_fields:_source
+m1 | a | null
+m1 | b | null
+m2 | c | null
+m3 | null | null
+u1 | d | "{""deep.items"":[""x"",""y""]}"
+u1 | e | "{""deep.items"":[""x"",""y""]}"
+u2 | null | null
+u3 | f | "{""deep.items"":""z""}"
+;
+
+// An unmapped field with a dotted name expands like any other, and drops out of _unmapped_fields once it is a column.
+mvExpandDottedUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mv_expand_unmapped
+| MV_EXPAND deep.items
+| KEEP id, deep.items, ta*
+| SORT id, deep.items
+;
+
+id:keyword | deep.items:keyword | _unmapped_fields:_source
+u1 | x | "{""tags"":[""d"",""e""]}"
+u1 | y | "{""tags"":[""d"",""e""]}"
+u2 | null | null
+u3 | z | "{""tags"":""f""}"
+;
+
+// GROK on a field no index has yields a null column rather than an error.
+grokOnFieldNoIndexHas
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| GROK no_such_field "%{WORD:w}"
+| KEEP @timestamp, w
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime | w:keyword
+2024-10-23T12:15:03.360Z | null
+2024-10-23T12:27:28.948Z | null
+;

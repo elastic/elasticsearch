@@ -114,7 +114,11 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
             : batchedCompoundCommit.shardId() + " != " + indexShard.shardId();
 
-        final var warmingRatioProvider = warmingRatioProviderFactory.create(clusterService.getClusterSettings());
+        final var warmingRatioProvider = warmingRatioProviderFactory.create(
+            clusterService.getClusterSettings(),
+            clusterService.state(),
+            indexShard.shardId()
+        );
 
         recoveryCommitRegistrationHandler.register(
             batchedCompoundCommit != null ? batchedCompoundCommit.primaryTermAndGeneration() : PrimaryTermAndGeneration.ZERO,

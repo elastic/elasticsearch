@@ -312,7 +312,11 @@ public class FakeStatelessNode implements Closeable {
             var consistencyService = new StatelessClusterConsistencyService(clusterService, electionStrategy, threadPool, nodeSettings);
             commitCleaner = createCommitCleaner(consistencyService, threadPool, objectStoreService);
             localCloseables.add(commitCleaner);
-            WarmingRatioProvider warmingRatioProvider = new DefaultWarmingRatioProviderFactory().create(clusterSettings);
+            WarmingRatioProvider warmingRatioProvider = new DefaultWarmingRatioProviderFactory().create(
+                clusterSettings,
+                clusterService.state(),
+                shardId
+            );
             warmingService = createSharedBlobCacheWarmingService(
                 sharedCacheService,
                 threadPool,

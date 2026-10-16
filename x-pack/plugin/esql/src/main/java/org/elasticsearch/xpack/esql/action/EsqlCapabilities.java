@@ -3794,6 +3794,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_VIEWS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, {@code _unmapped_fields} keeps the unmapped fields the query also reads as columns
+         * of their own.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_KEEPS_READ_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,

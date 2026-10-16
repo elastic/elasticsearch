@@ -143,6 +143,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FlattenedKeys;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -266,6 +267,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
@@ -1504,9 +1506,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var resolved = switch (plan) {
                 case Aggregate a -> resolveAggregate(a, childrenOutput);
                 case Completion c -> resolveCompletion(c, childrenOutput);
-                case Drop d -> resolveDrop(d, context.unmappedResolution());
+                case Drop d -> resolveDrop(d, context);
                 case Rename r -> resolveRename(r, context.unmappedResolution());
-                case Keep k -> resolveKeep(k, context.unmappedResolution());
+                case Keep k -> resolveKeep(k, context);
                 case MergePlan mergePlan -> resolveMergePlan(mergePlan, context);
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
@@ -2945,11 +2947,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * row foo = 1, bar = 2 | keep foo, *   ->  foo, bar
          * row foo = 1, bar = 2 | keep bar*, foo, *   ->  bar, foo
          */
-        private static LogicalPlan resolveKeep(Keep keep, UnmappedResolution unmappedResolution) {
-            if (unmappedResolution != UnmappedResolution.DEFAULT) {
-                UnmatchedPatterns unmatchedPatterns = unmappedResolution.loadsAllUnmappedFields()
-                    ? UnmatchedPatterns.IGNORE
-                    : UnmatchedPatterns.FAIL;
+        private static LogicalPlan resolveKeep(Keep keep, boolean lateFields, UnmatchedPatterns unmatchedPatterns) {
+            if (lateFields) {
                 return new ResolvingProject(
                     keep.source(),
                     keep.child(),
@@ -3001,6 +3000,204 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             IGNORE,
             /** Keep the unresolved attribute so the {@code Verifier} reports "No matches found". */
             FAIL
+        }
+
+        /**
+         * Resolves {@code keep}. A pattern that names keys under a {@code flattened} column, such as {@code attrs.b*}, keeps that
+         * column with those keys, and the other columns it matches as any pattern does. {@code keep} keeps what any of its
+         * projections selects, so a column another projection names whole keeps every key.
+         */
+        private static LogicalPlan resolveKeep(Keep keep, AnalyzerContext context) {
+            boolean lateFields = context.unmappedResolution() != UnmappedResolution.DEFAULT;
+            UnmatchedPatterns unmatchedPatterns = context.unmappedResolution().loadsAllUnmappedFields()
+                ? UnmatchedPatterns.IGNORE
+                : UnmatchedPatterns.FAIL;
+            FlattenedKeyPatterns patterns = flattenedKeyPatterns(keep.projections(), keep.child(), false, context);
+            if (patterns == null) {
+                return resolveKeep(keep, lateFields, unmatchedPatterns);
+            }
+            List<NamedExpression> projections = new ArrayList<>(keep.projections().size() + 1);
+            Set<String> roots = new HashSet<>();
+            for (NamedExpression projection : keep.projections()) {
+                Attribute root = patterns.keyPatterns.get(projection);
+                if (root != null && patterns.wholeRoots.contains(root.name()) == false && roots.add(root.name())) {
+                    projections.add(new UnresolvedAttribute(projection.source(), root.name()));
+                }
+                projections.add(projection);
+            }
+            Eval eval = flattenedKeysEval(keep, patterns, true);
+            LogicalPlan child = eval == null ? keep.child() : eval;
+            Set<NamedExpression> keys = patterns.keyPatterns.keySet();
+            Function<List<Attribute>, List<? extends NamedExpression>> resolver = input -> keepResolver(
+                withoutUnmatchedKeys(projections, keys, input),
+                input,
+                unmatchedPatterns
+            );
+            return lateFields
+                ? new ResolvingProject(
+                    keep.source(),
+                    child,
+                    new ResolvingProject.Command(ResolvingProject.Kind.KEEP, projections, resolver)
+                )
+                : new Project(keep.source(), child, resolver.apply(child.output()));
+        }
+
+        /**
+         * Resolves {@code drop}. A name or a pattern under a {@code flattened} column, such as {@code attrs.s*}, keeps that column
+         * where it is without those keys, and drops the other columns it matches.
+         */
+        private static LogicalPlan resolveDrop(Drop drop, AnalyzerContext context) {
+            boolean lateFields = context.unmappedResolution() != UnmappedResolution.DEFAULT;
+            UnmatchedPatterns unmatchedPatterns = lateFields ? UnmatchedPatterns.IGNORE : UnmatchedPatterns.FAIL;
+            List<NamedExpression> removals = drop.removals();
+            FlattenedKeyPatterns patterns = flattenedKeyPatterns(removals, drop.child(), true, context);
+            Eval eval = patterns == null ? null : flattenedKeysEval(drop, patterns, false);
+            LogicalPlan child = eval == null ? drop.child() : eval;
+            Set<NamedExpression> keys = patterns == null ? Set.of() : patterns.keyPatterns.keySet();
+            // The Eval appends the columns it reads, so put each back where it was
+            List<String> order = Expressions.names(drop.child().output());
+            Function<List<Attribute>, List<? extends NamedExpression>> resolver = input -> dropResolver(
+                withoutUnmatchedKeys(removals, keys, input),
+                inOrder(input, order),
+                unmatchedPatterns
+            );
+            return lateFields
+                ? new ResolvingProject(drop.source(), child, new ResolvingProject.Command(ResolvingProject.Kind.DROP, removals, resolver))
+                : new Project(drop.source(), child, resolver.apply(child.output()));
+        }
+
+        /** {@code attributes} in the order of the names in {@code order}, followed by the others in their order. */
+        private static List<Attribute> inOrder(List<Attribute> attributes, List<String> order) {
+            Map<String, Attribute> byName = new LinkedHashMap<>();
+            for (Attribute attribute : attributes) {
+                byName.put(attribute.name(), attribute);
+            }
+            List<Attribute> ordered = new ArrayList<>(attributes.size());
+            for (String name : order) {
+                Attribute attribute = byName.remove(name);
+                if (attribute != null) {
+                    ordered.add(attribute);
+                }
+            }
+            ordered.addAll(byName.values());
+            return ordered;
+        }
+
+        /** {@code projections} without the names and patterns of keys that match no column of {@code input}: the container holds them. */
+        private static List<NamedExpression> withoutUnmatchedKeys(
+            List<? extends NamedExpression> projections,
+            Set<NamedExpression> keys,
+            List<Attribute> input
+        ) {
+            List<NamedExpression> kept = new ArrayList<>(projections.size());
+            for (NamedExpression projection : projections) {
+                if (keys.contains(projection) == false || input.stream().anyMatch(attribute -> matches(projection, attribute.name()))) {
+                    kept.add(projection);
+                }
+            }
+            return kept;
+        }
+
+        private static boolean matches(NamedExpression projection, String name) {
+            return projection instanceof UnresolvedNamePattern pattern ? pattern.match(name) : projection.name().equals(name);
+        }
+
+        /**
+         * The patterns of {@code projections}, and their names if {@code names}, that name keys under a {@code flattened} column of
+         * {@code child}, by the column they name keys of, and the columns another projection names whole; {@code null} if there are
+         * none.
+         */
+        @Nullable
+        private static FlattenedKeyPatterns flattenedKeyPatterns(
+            List<? extends NamedExpression> projections,
+            LogicalPlan child,
+            boolean names,
+            AnalyzerContext context
+        ) {
+            if (context.configuration() == null || context.configuration().flattenedKeys() == false) {
+                return null;
+            }
+            Map<String, Attribute> roots = new HashMap<>();
+            for (Attribute attribute : child.output()) {
+                if (attribute.dataType() == FLATTENED) {
+                    roots.put(attribute.name(), attribute);
+                }
+            }
+            if (roots.isEmpty()) {
+                return null;
+            }
+            Map<NamedExpression, Attribute> keyPatterns = new LinkedHashMap<>();
+            Map<String, List<String>> keys = new LinkedHashMap<>();
+            for (NamedExpression projection : projections) {
+                String glob = null;
+                if (projection instanceof UnresolvedNamePattern pattern && pattern.glob() != null && pattern.glob().indexOf('\\') < 0) {
+                    glob = pattern.glob();
+                } else if (names && projection instanceof UnresolvedAttribute attribute && attribute.name().indexOf('*') < 0) {
+                    glob = attribute.name();
+                }
+                if (glob != null) {
+                    for (int dot = glob.indexOf('.'); dot > 0 && glob.lastIndexOf('*', dot) < 0; dot = glob.indexOf('.', dot + 1)) {
+                        Attribute root = roots.get(glob.substring(0, dot));
+                        if (root != null) {
+                            keyPatterns.put(projection, root);
+                            keys.computeIfAbsent(root.name(), name -> new ArrayList<>()).add(glob.substring(dot + 1));
+                            break;
+                        }
+                    }
+                }
+            }
+            if (keyPatterns.isEmpty()) {
+                return null;
+            }
+            if (context.configuration().flattenedKeys(context.minimumVersion()) == false) {
+                context.deferredHeaderWarnings().add(Verifier.FLATTENED_SUBFIELDS_NOT_READ_WARNING);
+                return null;
+            }
+            Set<String> wholeRoots = new HashSet<>();
+            for (NamedExpression projection : projections) {
+                if (keyPatterns.containsKey(projection) == false) {
+                    for (String root : keys.keySet()) {
+                        if (projection instanceof UnresolvedStar
+                            || (projection instanceof UnresolvedNamePattern pattern && pattern.match(root))
+                            || (projection instanceof UnresolvedAttribute attribute && attribute.name().equals(root))) {
+                            wholeRoots.add(root);
+                        }
+                    }
+                }
+            }
+            return new FlattenedKeyPatterns(keyPatterns, keys, roots, wholeRoots);
+        }
+
+        /**
+         * @param keyPatterns the patterns that name keys of a {@code flattened} column, by the column
+         * @param keys the key patterns of each column, by its name
+         * @param roots the {@code flattened} columns of the child, by name
+         * @param wholeRoots the names of the columns another projection names whole, which it keeps or drops with every key
+         */
+        private record FlattenedKeyPatterns(
+            Map<NamedExpression, Attribute> keyPatterns,
+            Map<String, List<String>> keys,
+            Map<String, Attribute> roots,
+            Set<String> wholeRoots
+        ) {}
+
+        /**
+         * The {@link Eval} over the child of {@code command} that reads each column with the keys it includes or without the keys it
+         * excludes, or {@code null} if another projection names every column whole.
+         */
+        @Nullable
+        private static Eval flattenedKeysEval(UnaryPlan command, FlattenedKeyPatterns patterns, boolean include) {
+            List<Alias> aliases = new ArrayList<>();
+            patterns.keys.forEach((name, keys) -> {
+                if (patterns.wholeRoots.contains(name) == false) {
+                    Attribute root = patterns.roots.get(name);
+                    FlattenedKeys filtered = include
+                        ? new FlattenedKeys(command.source(), root, keys, List.of())
+                        : new FlattenedKeys(command.source(), root, List.of(), keys);
+                    aliases.add(new Alias(command.source(), name, filtered));
+                }
+            });
+            return aliases.isEmpty() ? null : new Eval(command.source(), command.child(), aliases);
         }
 
         private static List<NamedExpression> keepResolver(
@@ -3076,20 +3273,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return resolvedProjections;
-        }
-
-        private static LogicalPlan resolveDrop(Drop drop, UnmappedResolution unmappedResolution) {
-            return unmappedResolution != UnmappedResolution.DEFAULT
-                ? new ResolvingProject(
-                    drop.source(),
-                    drop.child(),
-                    new ResolvingProject.Command(
-                        ResolvingProject.Kind.DROP,
-                        drop.removals(),
-                        inputAttributes -> dropResolver(drop.removals(), inputAttributes, UnmatchedPatterns.IGNORE)
-                    )
-                )
-                : new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output(), UnmatchedPatterns.FAIL));
         }
 
         private static List<NamedExpression> dropResolver(

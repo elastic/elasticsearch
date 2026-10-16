@@ -560,7 +560,6 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             return new SharedBlobCacheWarmingService(
@@ -568,7 +567,6 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider,
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
@@ -577,12 +575,22 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, subscribableListener);
+                    super.warmCache(
+                        type,
+                        indexShard,
+                        commit,
+                        directory,
+                        warmingRatioProvider,
+                        endTargetsToWarm,
+                        preWarmForIdLookup,
+                        subscribableListener
+                    );
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }

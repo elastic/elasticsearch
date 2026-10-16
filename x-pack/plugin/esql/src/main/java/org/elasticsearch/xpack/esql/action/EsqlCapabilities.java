@@ -3550,6 +3550,11 @@ public class EsqlCapabilities {
         PROMQL_TIMESTAMP,
 
         /**
+         * Support for PromQL {@code changes()} function.
+         */
+        PROMQL_CHANGES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
          * and the {@code TEXT_EMBEDDING} function.
          */
@@ -4490,6 +4495,13 @@ public class EsqlCapabilities {
          * for these aggregations when another metric was aggregated in the same {@code STATS}.
          */
         FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
+
+        /**
+         * {@code DEDUP} ignores the synthetic {@code $$<field>$converted_to$<type>} attributes that a conversion pushed into
+         * {@code UnionAll} branches leaves in its input. Older nodes rejected such queries when the converted type, e.g.
+         * {@code date_range}, cannot be grouped on, even though the column is never part of the output.
+         */
+        DEDUP_IGNORES_SYNTHETIC_UNION_CONVERSIONS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

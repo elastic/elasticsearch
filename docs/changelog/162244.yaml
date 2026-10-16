@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 162244
+summary: Retry GCS requests on socket read timeouts
+type: enhancement

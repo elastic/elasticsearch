@@ -805,7 +805,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
                 .prepareSearch("query_index")
                 .setQuery(percolateQuery),
-            "unrestricted-writer", "restricted-writer"
+            "unrestricted-writer",
+            "restricted-writer"
         );
         assertSearchHitsWithoutFailures(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
@@ -839,7 +840,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
               }
             }""";
 
-        for (var query: Map.of("negated", negatedQuery, "exists", existsQuery).entrySet()) {
+        for (var query : Map.of("negated", negatedQuery, "exists", existsQuery).entrySet()) {
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
                 .prepareIndex("query_index")
                 .setId(query.getKey())

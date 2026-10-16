@@ -103,6 +103,7 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -3295,7 +3296,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     }
 
                     @Override
-                    public XContentParser decorate(XContentParser xContentParser) {
+                    public XContentParser decorate(XContentParser xContentParser, Mapping mapping) {
                         return xContentParser;
                     }
                 };

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.xcontent.XContentParser;
 
 public interface XContentMeteringParserDecorator extends XContentParserDecorator {
@@ -23,7 +24,7 @@ public interface XContentMeteringParserDecorator extends XContentParserDecorator
         }
 
         @Override
-        public XContentParser decorate(XContentParser xContentParser) {
+        public XContentParser decorate(XContentParser xContentParser, Mapping mapping) {
             return xContentParser;
         }
     };

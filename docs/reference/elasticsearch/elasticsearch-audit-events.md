@@ -830,19 +830,21 @@ The events with the `event.type` attribute equal to `security_config_change` hav
 
    * {applies_to}`stack: ga 9.0+` `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, `change_apikeys`
    * {applies_to}`stack: ga 9.6+` `put_user_managed_service_account`, `delete_user_managed_service_account`
-   * {applies_to}`stack: experimental 9.6+``put_dataset`, `delete_dataset`, `put_data_source`, `delete_data_source`
+   * {applies_to}`stack: experimental 9.6+` `put_dataset`, `delete_dataset`, `put_data_source`, `delete_data_source`
 
 These events also have **one** of the following extra attributes (in addition to the common ones), which is specific to the `event.type` attribute. The attribute’s value is a nested JSON object:
 
 `put`
 :   The object representation of the security config that is being created, or the overwrite of an existing config. It contains the following objects:
     * {applies_to}`stack: ga 9.0+` `user`, `role`, `role_mapping`, or application `privileges`
-    * {applies_to}`stack: ga 9.6+` `user_managed_service_account`, `data_source`, or `dataset`
+    * {applies_to}`stack: ga 9.6+` `user_managed_service_account`
+    * {applies_to}`stack: experimental 9.6+` `data_source` or `dataset`
 
 `delete`
 :   The object representation of the security config that is being deleted. It contains one of the following:
     * {applies_to}`stack: ga 9.0+` `user`, `role`, `role_mapping`, or application `privileges`
-    * {applies_to}`stack: ga 9.6+` `user_managed_service_account`, `data_source`, or `dataset`
+    * {applies_to}`stack: ga 9.6+` `user_managed_service_account`
+    * {applies_to}`stack: experimental 9.6+` `data_source` or `dataset`
 
 `change`
 :   The object representation of the security config that is being changed. It can be the `password`, `enable` or `disable`, config object for native or built-in users. If an API key is updated, the config object will be an `apikey`.

@@ -1,11 +1,19 @@
 area: Infra/Metrics
 deprecation:
-  area: Infra/Metrics
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
-  title: Deprecate APM Agent settings
+  area: Cluster and node setting
+  details: |-
+    The `telemetry.agent.*` settings configured the Elastic APM Java agent, which Elasticsearch no
+    longer includes. Elasticsearch now exports its own metrics and traces with the OpenTelemetry SDK,
+    configured by the `telemetry.export.*`, `telemetry.metrics.*`, `telemetry.tracing.*` and
+    `telemetry.resource.*` settings. Nodes still start with `telemetry.agent.*` settings. Some of
+    them, such as `telemetry.agent.server_url` and `telemetry.agent.global_labels.*`, are still
+    applied until they are replaced; the others have no effect.
+  impact: |-
+    Using a `telemetry.agent.*` setting emits a deprecation warning, and the deprecation info API
+    lists the settings in use. Replace each one with its replacement from the telemetry settings
+    reference, or remove it.
+  title: Deprecate the `telemetry.agent.*` settings
 issues: []
 pr: 162326
-summary: Deprecate APM Agent settings
+summary: Deprecate the `telemetry.agent.*` settings. Elasticsearch no longer includes the Elastic APM Java agent and exports telemetry with the OpenTelemetry SDK.
 type: deprecation

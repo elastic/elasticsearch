@@ -538,3 +538,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/149983
 - class: org.elasticsearch.xpack.esql.datasource.s3.S3StorageObjectAsyncTests
   issue: https://github.com/elastic/elasticsearch/issues/162263
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
+  issue: https://github.com/elastic/elasticsearch/issues/162277

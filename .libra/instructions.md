@@ -1,7 +1,3 @@
-# Elasticsearch review guidance
-
-Review as an Elasticsearch reviewer. Treat this file as a small Elasticsearch-specific overlay on top of Libra's built-in reviewer instructions and the repository `AGENTS.md` guidance.
-
 ## Scope and signal
 
 - Identify concrete defects or maintainability risks. Cite the changed code or relevant pinned source and include enough reasoning that a human reviewer can confirm or dismiss the finding quickly.

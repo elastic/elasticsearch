@@ -59,6 +59,9 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.Exchange
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.PartitionedExchangeSink;
+import org.elasticsearch.compute.operator.lookup.HashJoinBuildOperator;
+import org.elasticsearch.compute.operator.lookup.HashJoinColumnLoadOperator;
+import org.elasticsearch.compute.operator.lookup.HashJoinProbeOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -133,6 +136,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryResultContext;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
+import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
@@ -1755,6 +1759,57 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         } finally {
             exchangeSink.finish();
         }
+    }
+
+    public void testDistributedHashJoinUsesSingleBuildDriver() throws IOException {
+        ReferenceAttribute probeKey = new ReferenceAttribute(Source.EMPTY, "key", DataType.INTEGER);
+        ReferenceAttribute buildKey = new ReferenceAttribute(Source.EMPTY, "key", DataType.INTEGER);
+        ReferenceAttribute buildValue = new ReferenceAttribute(Source.EMPTY, "value", DataType.KEYWORD);
+        Attribute marker = Mapper.newJoinMarker(Source.EMPTY);
+        StageSourceExec probe = new StageSourceExec(Source.EMPTY, List.of(probeKey), false, "probe");
+        StageSourceExec build = new StageSourceExec(Source.EMPTY, List.of(buildKey, buildValue), false, "build");
+        DistributedHashJoinExec join = new DistributedHashJoinExec(
+            Source.EMPTY,
+            probe,
+            build,
+            List.of(probeKey),
+            List.of(buildKey),
+            List.of(buildValue, marker)
+        );
+        ExchangeWiring wiring = new ExchangeWiring(
+            Map.of(
+                "probe",
+                new ExchangeSourceHandler(10, null)::createExchangeSource,
+                "build",
+                new ExchangeSourceHandler(10, null)::createExchangeSource
+            ),
+            Map.of()
+        );
+
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner(null, true, null, wiring).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            join,
+            EmptyIndexedByShardId.instance(),
+            false
+        );
+
+        assertThat(plan.driverFactories, hasSize(2));
+        assertThat(plan.driverFactories.get(0).driverParallelism(), equalTo(LocalExecutionPlanner.DriverParallelism.SINGLE));
+        var buildOperation = plan.driverFactories.get(0).driverSupplier().physicalOperation();
+        assertThat(buildOperation.sinkOperatorFactory, instanceOf(HashJoinBuildOperator.Factory.class));
+        HashJoinBuildOperator.Factory buildFactory = (HashJoinBuildOperator.Factory) buildOperation.sinkOperatorFactory;
+        assertArrayEquals(new int[] { 0 }, buildFactory.keyChannels());
+        assertArrayEquals(new int[] { 1 }, buildFactory.payloadChannels());
+
+        var probeOperation = plan.driverFactories.get(1).driverSupplier().physicalOperation();
+        assertThat(probeOperation.intermediateOperatorFactories, hasSize(3));
+        assertThat(probeOperation.intermediateOperatorFactories.get(0), instanceOf(HashJoinProbeOperator.Factory.class));
+        assertThat(probeOperation.intermediateOperatorFactories.get(1), instanceOf(MvExpandOperator.Factory.class));
+        assertThat(probeOperation.intermediateOperatorFactories.get(2), instanceOf(HashJoinColumnLoadOperator.Factory.class));
+        assertThat(probeOperation.layout.get(marker.id()).channel(), equalTo(1));
+        assertThat(probeOperation.layout.get(buildValue.id()).channel(), equalTo(2));
     }
 
     public void testStageGatherSinkRequiresExactlyOneHandler() throws IOException {

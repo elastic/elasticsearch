@@ -83,6 +83,10 @@ import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.lookup.HashJoinBridge;
+import org.elasticsearch.compute.operator.lookup.HashJoinBuildOperator;
+import org.elasticsearch.compute.operator.lookup.HashJoinColumnLoadOperator;
+import org.elasticsearch.compute.operator.lookup.HashJoinProbeOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
 import org.elasticsearch.compute.operator.topn.SharedGlobalTopK;
@@ -185,6 +189,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
+import org.elasticsearch.xpack.esql.plan.physical.DistributedHashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -580,6 +585,8 @@ public class LocalExecutionPlanner {
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
             return planEnrich(enrich, context);
+        } else if (node instanceof DistributedHashJoinExec join) {
+            return planDistributedHashJoin(join, context);
         } else if (node instanceof HashJoinExec join) {
             return planHashJoin(join, context);
         } else if (node instanceof DistinctByExec distinctBy) {
@@ -1860,6 +1867,123 @@ public class LocalExecutionPlanner {
         layoutBuilder.append(highlight.generatedFields());
 
         return source.with(new HighlightOperator.Factory(config, fieldEvaluators, indexEvaluator), layoutBuilder.build());
+    }
+
+    private PhysicalOperation planDistributedHashJoin(DistributedHashJoinExec join, LocalExecutionPlannerContext context) {
+        HashJoinBridge bridge = new HashJoinBridge();
+        LocalExecutionPlannerContext buildContext = new LocalExecutionPlannerContext(
+            context.description(),
+            context.driverFactories(),
+            new Holder<>(DriverParallelism.SINGLE),
+            context.queryPragmas(),
+            context.bigArrays(),
+            context.blockFactory(),
+            context.foldCtx(),
+            context.plannerSettings(),
+            context.timeSeries(),
+            context.settings(),
+            context.shardContexts(),
+            context.analysisRegistry(),
+            context.lastVisitedTopN(),
+            context.luceneMinCompetitivePilot(),
+            context.singleNodeOptimizations()
+        );
+        PhysicalOperation build = plan(join.right(), buildContext);
+        List<Attribute> buildOutput = join.right().output();
+        int[] rightKeyChannels = new int[join.rightFields().size()];
+        ElementType[] keyTypes = new ElementType[join.rightFields().size()];
+        for (int i = 0; i < join.rightFields().size(); i++) {
+            Attribute field = join.rightFields().get(i);
+            rightKeyChannels[i] = buildChannel(build.layout, buildOutput, field);
+            keyTypes[i] = PlannerUtils.toElementType(field.dataType());
+        }
+
+        List<Attribute> payloadFields = join.addedFields().stream().filter(field -> Mapper.isJoinMarker(field) == false).toList();
+        int[] payloadChannels = new int[payloadFields.size()];
+        ElementType[] payloadTypes = new ElementType[payloadFields.size()];
+        for (int i = 0; i < payloadFields.size(); i++) {
+            Attribute field = payloadFields.get(i);
+            payloadChannels[i] = buildChannel(build.layout, buildOutput, field);
+            payloadTypes[i] = PlannerUtils.toElementType(field.dataType());
+        }
+
+        build = build.withSink(
+            new HashJoinBuildOperator.Factory(bridge, rightKeyChannels, keyTypes, payloadChannels, payloadTypes, join.source()),
+            build.layout
+        );
+        context.addDriverFactory(
+            new DriverFactory(
+                new DriverSupplier(
+                    context.description(),
+                    ClusterName.CLUSTER_NAME_SETTING.get(context.settings()).value(),
+                    Node.NODE_NAME_SETTING.get(context.settings()),
+                    context.bigArrays(),
+                    context.blockFactory(),
+                    context.shardContexts(),
+                    build,
+                    context.queryPragmas().statusInterval(),
+                    context.settings()
+                ),
+                DriverParallelism.SINGLE
+            )
+        );
+
+        PhysicalOperation probe = plan(join.left(), context);
+        int positionsChannel = probe.layout.numberOfChannels();
+        Attribute marker = join.addedFields().stream().filter(Mapper::isJoinMarker).findFirst().orElse(null);
+        Layout.Builder layoutBuilder = probe.layout.builder();
+        if (marker != null) {
+            layoutBuilder.append(marker);
+        }
+        for (Attribute field : join.output()) {
+            if (join.left().outputSet().contains(field) || field.equals(marker)) {
+                continue;
+            }
+            layoutBuilder.append(field);
+        }
+        Layout layout = layoutBuilder.build();
+
+        int[] leftKeyChannels = new int[join.leftFields().size()];
+        for (int i = 0; i < join.leftFields().size(); i++) {
+            Attribute field = join.leftFields().get(i);
+            Layout.ChannelAndType input = probe.layout.get(field.id());
+            if (input == null) {
+                throw new IllegalArgumentException("can't find probe column for [" + field + "]");
+            }
+            leftKeyChannels[i] = input.channel();
+        }
+
+        probe = probe.with(new HashJoinProbeOperator.Factory(bridge, leftKeyChannels, join.source()), layout);
+        probe = probe.with(new MvExpandOperator.Factory(positionsChannel, MV_EXPAND_BLOCK_SIZE), layout);
+        for (int i = 0; i < payloadFields.size(); i++) {
+            probe = probe.with(new HashJoinColumnLoadOperator.Factory(bridge, i, positionsChannel), layout);
+        }
+
+        if (marker != null) {
+            return probe;
+        }
+        List<Integer> projection = new ArrayList<>();
+        IntStream.range(0, positionsChannel).forEach(projection::add);
+        IntStream.range(positionsChannel + 1, positionsChannel + 1 + payloadFields.size()).forEach(projection::add);
+        return probe.with(new ProjectOperatorFactory(projection), layout);
+    }
+
+    private static int buildChannel(Layout layout, List<Attribute> buildOutput, Attribute field) {
+        Layout.ChannelAndType input = layout.get(field.id());
+        if (input == null) {
+            for (Attribute output : buildOutput) {
+                if (output.name().equals(field.name())) {
+                    input = layout.get(output.id());
+                    if (input != null) {
+                        break;
+                    }
+                }
+            }
+        }
+        if (input == null) {
+            throw new IllegalArgumentException("can't find build column for [" + field + "]");
+        }
+        return input.channel();
     }
 
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {

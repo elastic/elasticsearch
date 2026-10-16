@@ -46,7 +46,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
     private final PreferIlmSettingProvider provider = PreferIlmSettingProvider.create(clusterSettings);
 
     public void testPreferIlmDefaultsToFalse() {
-        ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L));
+        ProjectMetadata project = projectWithPolicies(defaultPolicyMetadata());
 
         Settings templateSettings = resolvedSettings(METRICS_POLICY_NAME, null);
         Settings.Builder additionalSettings = Settings.builder();
@@ -67,7 +67,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
     }
 
     public void testPreferIlmRemainsTheSameIfTheIndexIsNotACandidate() {
-        ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L));
+        ProjectMetadata project = projectWithPolicies(defaultPolicyMetadata());
         Settings compatibleSettings = resolvedSettings(METRICS_POLICY_NAME, null);
         // When there is no data stream
         {
@@ -131,10 +131,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
 
         // Managed by another policy
         {
-            ProjectMetadata project = projectWithPolicies(
-                onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L),
-                someOtherPolicyMetadata(otherPolicyName, 1L)
-            );
+            ProjectMetadata project = projectWithPolicies(defaultPolicyMetadata(), someOtherPolicyMetadata(otherPolicyName, 1L));
             Settings templateSettings = resolvedSettings(otherPolicyName, null);
             Settings.Builder additionalSettings = Settings.builder();
             provider.provideAdditionalSettings(
@@ -154,7 +151,8 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
 
         // Default policy with different version
         {
-            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 2L));
+            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 2L, 50, 30, null));
+            Settings templateSettings = resolvedSettings(METRICS_POLICY_NAME, null);
             Settings.Builder additionalSettings = Settings.builder();
             provider.provideAdditionalSettings(
                 INDEX_NAME,
@@ -163,7 +161,67 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
                 randomBoolean(),
                 project,
                 Instant.now(),
-                Settings.EMPTY,
+                templateSettings,
+                List.of(),
+                IndexVersion.current(),
+                additionalSettings
+            );
+            assertThat(additionalSettings.build(), equalTo(Settings.EMPTY));
+        }
+
+        // Default policy with different max primary shard size
+        {
+            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L, 30, 30, null));
+            Settings templateSettings = resolvedSettings(METRICS_POLICY_NAME, null);
+            Settings.Builder additionalSettings = Settings.builder();
+            provider.provideAdditionalSettings(
+                INDEX_NAME,
+                DATA_STREAM_NAME,
+                IndexMode.TIME_SERIES,
+                randomBoolean(),
+                project,
+                Instant.now(),
+                templateSettings,
+                List.of(),
+                IndexVersion.current(),
+                additionalSettings
+            );
+            assertThat(additionalSettings.build(), equalTo(Settings.EMPTY));
+        }
+
+        // Default policy with different max age
+        {
+            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L, 50, 7, null));
+            Settings templateSettings = resolvedSettings(METRICS_POLICY_NAME, null);
+            Settings.Builder additionalSettings = Settings.builder();
+            provider.provideAdditionalSettings(
+                INDEX_NAME,
+                DATA_STREAM_NAME,
+                IndexMode.TIME_SERIES,
+                randomBoolean(),
+                project,
+                Instant.now(),
+                templateSettings,
+                List.of(),
+                IndexVersion.current(),
+                additionalSettings
+            );
+            assertThat(additionalSettings.build(), equalTo(Settings.EMPTY));
+        }
+
+        // Default policy with another condition
+        {
+            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L, 50, 7, 200_000_000L));
+            Settings templateSettings = resolvedSettings(METRICS_POLICY_NAME, null);
+            Settings.Builder additionalSettings = Settings.builder();
+            provider.provideAdditionalSettings(
+                INDEX_NAME,
+                DATA_STREAM_NAME,
+                IndexMode.TIME_SERIES,
+                randomBoolean(),
+                project,
+                Instant.now(),
+                templateSettings,
                 List.of(),
                 IndexVersion.current(),
                 additionalSettings
@@ -174,6 +232,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
         // Default policy installed by the user
         {
             ProjectMetadata project = projectWithPolicies(someOtherPolicyMetadata(METRICS_POLICY_NAME, 1L));
+            Settings templateSettings = resolvedSettings(METRICS_POLICY_NAME, null);
             Settings.Builder additionalSettings = Settings.builder();
             provider.provideAdditionalSettings(
                 INDEX_NAME,
@@ -182,7 +241,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
                 randomBoolean(),
                 project,
                 Instant.now(),
-                Settings.EMPTY,
+                templateSettings,
                 List.of(),
                 IndexVersion.current(),
                 additionalSettings
@@ -197,7 +256,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
     }
 
     public void testCanBeDisabledAndReEnabledDynamically() {
-        ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L));
+        ProjectMetadata project = projectWithPolicies(defaultPolicyMetadata());
         assertThat(preferIlmProvided(provider, project), is(true));
 
         clusterSettings.applySettings(Settings.builder().put(PreferIlmSettingProvider.ENABLED_SETTING.getKey(), false).build());
@@ -212,7 +271,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
             Settings.builder().put(PreferIlmSettingProvider.ENABLED_SETTING.getKey(), false).build(),
             Set.of(PreferIlmSettingProvider.ENABLED_SETTING)
         );
-        ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L));
+        ProjectMetadata project = projectWithPolicies(defaultPolicyMetadata());
         assertThat(preferIlmProvided(PreferIlmSettingProvider.create(disabled), project), is(false));
     }
 
@@ -261,13 +320,37 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
         return ProjectMetadata.builder(randomProjectIdOrDefault()).putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata).build();
     }
 
-    private static LifecyclePolicyMetadata onlyRolloverPolicyMetadata(String policyName, long version) {
+    private static LifecyclePolicyMetadata defaultPolicyMetadata() {
+        LifecyclePolicy policy = new LifecyclePolicy(
+            TimeseriesLifecycleType.INSTANCE,
+            METRICS_POLICY_NAME,
+            Map.of(
+                TimeseriesLifecycleType.HOT_PHASE,
+                new Phase(TimeseriesLifecycleType.HOT_PHASE, TimeValue.ZERO, Map.of(RolloverAction.NAME, rolloverAction(50, 30, null)))
+            ),
+            Map.of(),
+            null
+        );
+        return new LifecyclePolicyMetadata(policy, Map.of(), 1, randomNonNegativeLong());
+    }
+
+    private static LifecyclePolicyMetadata onlyRolloverPolicyMetadata(
+        String policyName,
+        long version,
+        int maxPrimaryShardSize,
+        int maxAge,
+        Long maxPrimaryShardCount
+    ) {
         LifecyclePolicy policy = new LifecyclePolicy(
             TimeseriesLifecycleType.INSTANCE,
             policyName,
             Map.of(
                 TimeseriesLifecycleType.HOT_PHASE,
-                new Phase(TimeseriesLifecycleType.HOT_PHASE, TimeValue.ZERO, Map.of(RolloverAction.NAME, rolloverAction()))
+                new Phase(
+                    TimeseriesLifecycleType.HOT_PHASE,
+                    TimeValue.ZERO,
+                    Map.of(RolloverAction.NAME, rolloverAction(maxPrimaryShardSize, maxAge, maxPrimaryShardCount))
+                )
             ),
             Map.of(),
             null
@@ -281,7 +364,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
             policyName,
             Map.of(
                 TimeseriesLifecycleType.HOT_PHASE,
-                new Phase(TimeseriesLifecycleType.HOT_PHASE, TimeValue.ZERO, Map.of(RolloverAction.NAME, rolloverAction())),
+                new Phase(TimeseriesLifecycleType.HOT_PHASE, TimeValue.ZERO, Map.of(RolloverAction.NAME, rolloverAction(50, 30, null))),
                 WARM_PHASE,
                 new Phase(WARM_PHASE, TimeValue.ZERO, Map.of(SetPriorityAction.NAME, new SetPriorityAction(100)))
             ),
@@ -291,7 +374,18 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
         return new LifecyclePolicyMetadata(policy, Map.of(), version, randomNonNegativeLong());
     }
 
-    private static RolloverAction rolloverAction() {
-        return new RolloverAction(null, ByteSizeValue.ofGb(50), TimeValue.timeValueDays(30), null, null, null, null, null, null, null);
+    private static RolloverAction rolloverAction(int maxPrimaryShardsSize, int maxAge, Long maxPrimaryShardDocsCount) {
+        return new RolloverAction(
+            null,
+            ByteSizeValue.ofGb(maxPrimaryShardsSize),
+            TimeValue.timeValueDays(maxAge),
+            null,
+            maxPrimaryShardDocsCount,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 }

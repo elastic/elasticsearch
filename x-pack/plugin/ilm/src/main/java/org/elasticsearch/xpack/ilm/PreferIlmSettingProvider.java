@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
@@ -49,10 +52,14 @@ import java.util.Set;
  * The provider can be turned on or off at runtime with {@link #ENABLED_SETTING}. Turning it off only affects indices created
  * afterwards.
  */
-public class PreferIlmSettingProvider implements IndexSettingProvider {
+final class PreferIlmSettingProvider implements IndexSettingProvider {
 
     private static final Logger logger = LogManager.getLogger(PreferIlmSettingProvider.class);
     private static final String METRICS_POLICY_NAME = "metrics";
+    private static final RolloverConditions DEFAULT_ROLLOVER_CONDITIONS = RolloverConditions.newBuilder()
+        .addMaxIndexAgeCondition(TimeValue.timeValueDays(30))
+        .addMaxPrimaryShardSizeCondition(ByteSizeValue.ofGb(50))
+        .build();
 
     /**
      * Whether new backing indices of data streams managed by the unmodified pre-installed metrics policy default
@@ -127,7 +134,8 @@ public class PreferIlmSettingProvider implements IndexSettingProvider {
      * Determines whether the metrics policy is the pre-installed one, and it hasn't been customised, namely:
      * <ul>
      *     <li>it is still on its first version, so it has not been updated since it was installed;</li>
-     *     <li>it consists of nothing but a hot phase whose only action is a rollover.</li>
+     *     <li>it consists of nothing but a hot phase whose only action is a rollover;</li>
+     *     <li>and rollover conditions are max_primary_shard_size: 50GB and max_age: 30 days</li>
      * </ul>
      *
      * @param projectMetadata the project holding the {@link IndexLifecycleMetadata}
@@ -135,12 +143,11 @@ public class PreferIlmSettingProvider implements IndexSettingProvider {
      *         {@code false}, since we cannot establish that it is safe to treat the policy as ours
      */
     public boolean isMetricPolicyUnchanged(ProjectMetadata projectMetadata) {
-        String policyName = "metrics";
         IndexLifecycleMetadata metadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
             return false;
         }
-        LifecyclePolicyMetadata lifecyclePolicyMetadata = metadata.getPolicyMetadatas().get(policyName);
+        LifecyclePolicyMetadata lifecyclePolicyMetadata = metadata.getPolicyMetadatas().get(METRICS_POLICY_NAME);
         if (lifecyclePolicyMetadata == null) {
             return false;
         }
@@ -154,7 +161,11 @@ public class PreferIlmSettingProvider implements IndexSettingProvider {
             return false;
         }
         Phase hotPhase = phases.get(TimeseriesLifecycleType.HOT_PHASE);
-        return hotPhase != null && hotPhase.getActions().size() == 1 && hotPhase.getActions().containsKey(RolloverAction.NAME);
+        if (hotPhase != null && hotPhase.getActions().size() == 1 && hotPhase.getActions().containsKey(RolloverAction.NAME)) {
+            RolloverAction rolloverAction = (RolloverAction) hotPhase.getActions().get(RolloverAction.NAME);
+            return DEFAULT_ROLLOVER_CONDITIONS.equals(rolloverAction.getConditions());
+        }
+        return false;
     }
 
     public void setEnabled(boolean enabled) {

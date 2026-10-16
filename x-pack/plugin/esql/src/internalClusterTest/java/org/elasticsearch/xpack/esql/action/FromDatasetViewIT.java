@@ -771,13 +771,8 @@ public class FromDatasetViewIT extends AbstractExternalDataSourceIT {
         registerEmployees();
         registerEmployeesAlt();
         createView("emp_fork_star_view", "FROM employees*, employees | FORK (WHERE emp_no <= 2) (WHERE emp_no > 2)");
-        try (
-            var response = run(
-                syncEsqlQueryRequest(
-                    "SET wildcards_match_datasets = true; FROM emp_fork_star_view | STATS c = COUNT(*) BY _fork | KEEP _fork, c | SORT _fork"
-                )
-            )
-        ) {
+        try (var response = run(syncEsqlQueryRequest("""
+            SET wildcards_match_datasets = true; FROM emp_fork_star_view | STATS c = COUNT(*) BY _fork | KEEP _fork, c | SORT _fork"""))) {
             assertThat(getValuesList(response), equalTo(List.of(List.of("fork1", 2L), List.of("fork2", 1L))));
         }
     }

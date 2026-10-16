@@ -782,6 +782,11 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".ai-index-idx-elastic-index", ".ai-index-idx-elastic-index-*")
                     .privileges("all")
                     .build(),
+                // Context Engine AI index backing stores, read by the Kibana usage collector.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("ai-index-idx-*", "ai-index-ds-*", ".ai-index-idx-*", ".ai-index-ds-*")
+                    .privileges("read")
+                    .build(),
                 // Context Engine feedback-loop signals. Per-space, regular (non-system)
                 // user indices that Kibana creates and manages via the storage adapter
                 // (one index per Kibana space: context-engine-signals-<space>).

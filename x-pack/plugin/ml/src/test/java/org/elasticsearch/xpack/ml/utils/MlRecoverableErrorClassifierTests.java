@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
@@ -34,6 +35,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -68,6 +70,25 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
     public void testNoShardAvailableActionException_isRecoverable() {
         var e = new NoShardAvailableActionException(new ShardId("my-index", "uuid", 0));
         assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
+    /**
+     * An {@link UnavailableShardsException} is returned as a 503 when a shard is unavailable. ML treats it as recoverable and retries.
+     */
+    public void testUnavailableShardsException_isRecoverable() {
+        var e = new UnavailableShardsException(new ShardId("my-index", "uuid", 0), "primary shard is not active");
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, e.status());
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
+    /**
+     * {@link ShardRestoringException} has {@link RestStatus#FORBIDDEN} status, so ML treats it like any other 403 and does not retry.
+     * This is deliberate: a restore can outlast the ML retry budgets, so ML fails fast and leaves recovery to the user.
+     */
+    public void testShardRestoringException_isNotRecoverable() {
+        var e = new ShardRestoringException("my-index", randomUUID());
+        assertEquals(RestStatus.FORBIDDEN, e.status());
+        assertFalse(MlRecoverableErrorClassifier.isRecoverable(e));
     }
 
     public void testIllegalIndexShardStateException_isRecoverable() {

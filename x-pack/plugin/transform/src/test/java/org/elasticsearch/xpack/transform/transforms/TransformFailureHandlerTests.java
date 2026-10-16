@@ -10,14 +10,17 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
@@ -181,6 +184,57 @@ public class TransformFailureHandlerTests extends ESTestCase {
 
     public void testHandleIndexerFailure_UnexpectedException() {
         List.of(true, false).forEach((unattended) -> { assertRetry(new Exception(), unattended); });
+    }
+
+    /**
+     * A bulk write that fails with a 503 because a destination shard is unavailable is a counted retry: the transform fails once
+     * {@code num_failure_retries} is used up, unless it is unattended.
+     */
+    public void testHandleIndexerFailure_BulkIndexExceptionWrappingUnavailableShardsException() {
+        final BulkIndexingException bulkIndexingException = new BulkIndexingException(
+            randomAlphaOfLength(10),
+            new UnavailableShardsException(new ShardId("dest_index", "uuid", 0), "primary shard is not active"),
+            false
+        );
+
+        List.of(true, false).forEach((unattended) -> { assertRetry(bulkIndexingException, unattended); });
+    }
+
+    /**
+     * A shard that is being restored is handled like a {@link ClusterBlockException}: on the search path it is a counted retry, so the
+     * transform fails once {@code num_failure_retries} is used up, unless it is unattended, in which case it retries indefinitely.
+     */
+    public void testHandleIndexerFailure_ShardRestoringException() {
+        List.of(true, false).forEach((unattended) -> {
+            assertRetry(new ShardRestoringException(randomAlphaOfLength(10), randomUUID()), unattended);
+        });
+    }
+
+    public void testHandleIndexerFailure_ShardRestoringExceptionWrappedInSearchPhaseExecutionException() {
+        List.of(true, false).forEach((unattended) -> {
+            assertRetry(
+                new SearchPhaseExecutionException(
+                    randomAlphaOfLength(10),
+                    randomAlphaOfLength(10),
+                    new ShardSearchFailure[] { new ShardSearchFailure(new ShardRestoringException(randomAlphaOfLength(10), randomUUID())) }
+                ),
+                unattended
+            );
+        });
+    }
+
+    /**
+     * On the bulk path it is handled like a {@link ClusterBlockException} on the destination index: an uncounted retry, so the
+     * transform waits for the restore instead of failing.
+     */
+    public void testHandleIndexerFailure_BulkIndexExceptionWrappingShardRestoringException() {
+        final BulkIndexingException bulkIndexingException = new BulkIndexingException(
+            randomAlphaOfLength(10),
+            new ShardRestoringException(randomAlphaOfLength(10), randomUUID()),
+            randomBoolean()
+        );
+
+        List.of(true, false).forEach((unattended) -> { assertClusterBlockHandled(bulkIndexingException, unattended); });
     }
 
     private void assertRetryIfUnattendedOtherwiseFail(Exception e) {

@@ -37,7 +37,7 @@ The availability of each setup mode is indicated on the interface of your {{kib}
 | **Customization** | Supported | Not supported |
 
 ::::{note}
-Elastic managed connectors were removed in Elastic **9.0.0** with Enterprise Search. On {{es-serverless}} projects and Elastic **9.0+** deployments, run the connector service yourself and use [self-managed connectors](self-managed-connectors.md). Refer to [Connector release notes](release-notes.md).
+Elastic managed connectors were never available on {{es-serverless}}. They were discontinued in Elastic **9.0.0** along with Enterprise Search. If you are on Elastic 8.x {{ech}}, refer to the 8.x documentation for Elastic managed connectors. For details, refer to [Connector release notes](release-notes.md).
 ::::
 
 ## Available connectors

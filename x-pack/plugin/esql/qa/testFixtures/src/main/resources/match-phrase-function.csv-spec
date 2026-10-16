@@ -1022,6 +1022,24 @@ content:keyword
 brown fox
 ;
 
+matchPhraseOnMvMaxOfKeyword
+required_capability: match_phrase_function
+required_capability: fn_match_phrase_fused_field_load_fix
+
+// MV_MAX is fused into the field load on the data node; that load has no indexed Lucene field behind it, so the
+// match still has to run at runtime
+FROM employees
+| WHERE emp_no <= 10025 AND match_phrase(MV_MAX(job_positions), "Support Engineer")
+| SORT emp_no
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10015          | [Head Human Resources, Junior Developer, Principal Support Engineer, Support Engineer]
+10021          | Support Engineer
+10023          | [Accountant, Purchase Manager, Support Engineer]
+;
+
 matchPhraseOnKeywordWithRowAndNullValues
 required_capability: match_phrase_function
 required_capability: fn_match_phrase_runtime_filter
@@ -1206,6 +1224,22 @@ ROW content = to_text(["a Brown Fox runs", "a brown fox runs"], {"analyzer": "wh
 
 content:text
 a Brown Fox runs
+;
+
+matchPhraseOnRuntimeTextWithWhitespaceAnalyzerInStatsWhere
+required_capability: match_phrase_function
+required_capability: fn_to_text_analyzer
+required_capability: fn_match_phrase_stats_where_analyzer_fix
+
+// the aggregate filter has to honor the declared values analyzer too: whitespace does not lowercase, so only one
+// row counts; the standard analyzer would count both. The unfiltered total keeps the filter on the aggregate.
+ROW content = to_text(["a Brown Fox runs", "a brown fox runs"], {"analyzer": "whitespace"})
+| MV_EXPAND content
+| STATS c = COUNT(*) WHERE match_phrase(content, "Brown Fox"), total = COUNT(*)
+;
+
+c:long | total:long
+1      | 2
 ;
 
 matchPhraseOnRuntimeTextWithKeywordAnalyzer

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 161369
+summary: Make Lucene query circuit breaker accounting work for both `_search` and ES|QL
+type: enhancement

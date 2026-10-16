@@ -30,9 +30,23 @@ You can set up content connectors in two ways. The availability of each setup mo
 | | **[Self-managed](self-managed-connectors.md)** | **Elastic managed** |
 |---|---|---|
 | **Infrastructure** | You deploy the connector service | Elastic hosts it for you |
-| **Availability** | Any Elastic environment | {{ecloud}} only ({{ech}}/Serverless), for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md) |
-| **Can send data to** | Any {{es}} instance | Deployment or project the connector is deployed within only |
+| **Availability** | Any Elastic environment (including {{es-serverless}} projects) | {{ech}} only (Elastic 8.5–8.18), for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md) in supported {{kib}} workflows |
+| **Can send data to** | Any {{es}} instance | The {{ech}} deployment the connector runs in only |
 | **Customization** | Supported | Not supported |
+
+::::{note} Elastic managed connectors on {{es-serverless}}
+```{applies_to}
+serverless: ga
+```
+{{es-serverless}} projects support **self-managed** content connectors only. Elastic does not host the connector service in your project.
+::::
+
+::::{important} Elastic managed connectors in Elastic 9.0+
+```{applies_to}
+stack: ga 9.0
+```
+Elastic managed connectors were discontinued in Elastic **9.0.0** with Enterprise Search. Use [self-managed connectors](self-managed-connectors.md). Refer to [Connector release notes](release-notes.md).
+::::
 
 ## Available connectors
 

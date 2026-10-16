@@ -139,6 +139,18 @@ public class BranchPlan extends UnionAll {
         return key != null && branchIdentity(key).isView();
     }
 
+    /**
+     * Whether the child at {@code childIndex} in {@link #children()} is an actual resolved view branch; see
+     * {@link #isViewBranch(String)}. Branch keys line up with the children positionally.
+     */
+    public boolean isViewBranch(int childIndex) {
+        Iterator<String> keys = namedSubqueries.keySet().iterator();
+        for (int i = 0; i < childIndex; i++) {
+            keys.next();
+        }
+        return isViewBranch(keys.next());
+    }
+
     private LinkedHashMap<String, LogicalPlan> asSubqueryMap(List<LogicalPlan> children) {
         if (children.size() != namedSubqueries.size()) {
             throw new IllegalArgumentException(

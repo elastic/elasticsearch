@@ -615,7 +615,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
             }
         }
         // A merged relation serving caller-owned content must not claim view origin: per-relation settings scoping
-        // (DatasetRewriter.wildcardsMatchDatasetsFor, ResolveUnmapped) reads the Source view tag, and keeping a
+        // (DatasetRewriter.wildcardsMatchDatasetsFor) reads the Source view tag, and keeping a
         // view-tagged source on a relation that now also carries the caller's own patterns would wrongly scope them.
         // Prefer the untagged side's source wholesale rather than clearing the tag on the tagged one — a Source's
         // positions are only meaningful within the query text its tag names, so mixing tag and positions would break

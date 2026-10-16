@@ -28,10 +28,10 @@ package org.elasticsearch.xpack.esql.view;
  *
  * <p>{@link #KEEP_VIEW_IDENTITY} — a query setting must stop at view boundaries (currently: {@code unmapped_fields}
  * is not {@code DEFAULT}; see esql-planning#2273): pass-through views keep their identity too, wrapped as named view
- * branches instead of merging with sibling or outer patterns. A merged relation serves caller-owned content as well,
- * and the analyzer's per-relation scoping (which reads
- * {@link org.elasticsearch.xpack.esql.core.tree.Source#viewName()}) could then either leak the setting into the view
- * or wrongly deny it to the caller's own pattern. The pass-through equivalence that lets {@link #KEEP_VIEW_BRANCHES}
+ * branches instead of merging with sibling or outer patterns. The view branches are the boundary itself:
+ * {@code ResolveUnmapped} skips every view branch wholesale and null-fills at its output, so a view must never end up
+ * outside one — a merged relation serves caller-owned content as well, and would either leak the setting into the
+ * view or wrongly deny it to the caller's own pattern. The pass-through equivalence that lets {@link #KEEP_VIEW_BRANCHES}
  * collapse does not hold here: loading an unmapped field from {@code _source} at the index is not the same as
  * null-filling at the view output — a view is a virtual index with no {@code _source} of its own.
  */

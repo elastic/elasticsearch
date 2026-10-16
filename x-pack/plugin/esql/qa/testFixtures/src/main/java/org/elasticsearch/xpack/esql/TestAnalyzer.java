@@ -669,40 +669,45 @@ public class TestAnalyzer {
 
     // This most primitive view resolution only works for the simple cases being tested
     private LogicalPlan resolveViews(LogicalPlan parsed) {
-        return resolveViews(parsed, resolveViews(views));
+        // Mirror ViewBoundaryPreservation.KEEP_VIEW_IDENTITY, which EsqlSession picks whenever unmapped_fields is not DEFAULT.
+        return resolveViews(parsed, resolveViews(views), unmappedResolution != UnmappedResolution.DEFAULT);
     }
 
     /**
      * Single traversal that interleaves view expansion and IN-subquery rewriting, mirroring {@code ViewResolver#replaceViews}.
+     *
+     * @param keepViewIdentity keep every view referenced at this level as a view branch of a {@link BranchPlan}, even a lone one,
+     *                         like {@code ViewResolver} does at the top level of a query under
+     *                         {@code ViewBoundaryPreservation.KEEP_VIEW_IDENTITY}; never inside a view body
      */
-    private LogicalPlan resolveViews(LogicalPlan parsed, Map<String, LogicalPlan> viewDefinitions) {
+    private LogicalPlan resolveViews(LogicalPlan parsed, Map<String, LogicalPlan> viewDefinitions, boolean keepViewIdentity) {
         return parsed.transformDown(p -> {
             if (p instanceof Filter filter) {
                 LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
                 // If an IN subquery was rewritten to a Semi/Anti/MarkJoin, recurse so views nested inside the now-exposed subquery
                 // plans (and any IN subqueries those views in turn contain) get resolved too.
-                return resolved == filter ? filter : resolveViews(resolved, viewDefinitions);
+                return resolved == filter ? filter : resolveViews(resolved, viewDefinitions, keepViewIdentity);
             }
             if (p instanceof Eval eval) {
                 LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval);
                 // EVAL IN subqueries become MarkJoins; recurse so views in their now-exposed subquery plans are resolved too.
-                return resolved == eval ? eval : resolveViews(resolved, viewDefinitions);
+                return resolved == eval ? eval : resolveViews(resolved, viewDefinitions, keepViewIdentity);
             }
             if (p instanceof Aggregate aggregate) {
                 LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
                 // Recurse into rewritten joins so views referenced by the newly exposed subquery plans are expanded too.
-                return resolved == aggregate ? aggregate : resolveViews(resolved, viewDefinitions);
+                return resolved == aggregate ? aggregate : resolveViews(resolved, viewDefinitions, keepViewIdentity);
             }
             if (p instanceof UnresolvedRelation ur) {
-                LogicalPlan resolved = resolveViewReference(ur, viewDefinitions);
+                LogicalPlan resolved = resolveViewReference(ur, viewDefinitions, keepViewIdentity);
                 // Recurse into the expanded view body so IN subqueries / nested views anywhere in it (including its root) are resolved.
-                return resolved.equals(ur) ? ur : resolveViews(resolved, viewDefinitions);
+                return resolved.equals(ur) ? ur : resolveViews(resolved, viewDefinitions, false);
             }
             return p;
         });
     }
 
-    private LogicalPlan resolveViewReference(UnresolvedRelation ur, Map<String, LogicalPlan> viewDefinitions) {
+    private LogicalPlan resolveViewReference(UnresolvedRelation ur, Map<String, LogicalPlan> viewDefinitions, boolean keepViewIdentity) {
         List<LogicalPlan> resolved = Arrays.stream(ur.indexPattern().indexPattern().split("\\s*\\,\\s*")).map(indexPattern -> {
             var view = viewDefinitions.get(indexPattern);
             return view == null
@@ -710,7 +715,7 @@ public class TestAnalyzer {
                 : new NamedSubquery(view.source(), view, indexPattern);
         }).toList();
         boolean keepViewWrapper = MetadataAttribute.requestsRelationColumn(ur.metadataFields());
-        if (resolved.size() == 1) {
+        if (resolved.size() == 1 && keepViewIdentity == false) {
             var subplan = resolved.get(0);
             if (subplan instanceof NamedSubquery n) {
                 return keepViewWrapper ? n : n.child();
@@ -740,7 +745,7 @@ public class TestAnalyzer {
             subplans.put(namedSubquery.name(), keepViewWrapper ? namedSubquery : namedSubquery.child());
             identities.put(namedSubquery.name(), BranchIdentity.view(namedSubquery.name()));
         }
-        if (subplans.size() == 1) {
+        if (subplans.size() == 1 && (keepViewIdentity == false || identities.isEmpty())) {
             return subplans.values().iterator().next();
         } else {
             return new BranchPlan(ur.source(), subplans, identities, List.of());
@@ -762,8 +767,8 @@ public class TestAnalyzer {
     private static Map<String, LogicalPlan> resolveViews(Map<String, String> views) {
         var parsedViews = new HashMap<String, LogicalPlan>();
         for (Map.Entry<String, String> entry : views.entrySet()) {
-            // parseView, not parseQuery: production stamps the view name on every Source in a view body, and rules
-            // gate on that tag (e.g. ResolveUnmapped stops unmapped-field resolution at view boundaries).
+            // parseView, not parseQuery: production stamps the view name on every Source in a view body, which e.g.
+            // names the view in errors on references inside its body.
             parsedViews.put(
                 entry.getKey(),
                 TEST_PARSER.parseView(entry.getValue(), new QueryParams(), new InferenceSettings(Settings.EMPTY), entry.getKey()).plan()
@@ -1018,7 +1023,8 @@ public class TestAnalyzer {
             unmappedResolution,
             timestampBounds,
             TEST_IP_LOCATION_RESOLUTION,
-            false,
+            // preserveViewBoundaries, as EsqlSession derives it: view branches must survive compaction for ResolveUnmapped.
+            unmappedResolution != UnmappedResolution.DEFAULT,
             flags
         );
     }

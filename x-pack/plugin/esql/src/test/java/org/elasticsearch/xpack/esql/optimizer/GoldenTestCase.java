@@ -750,7 +750,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             if (views.isEmpty()) {
                 parsedPlan = InSubqueryResolver.resolve(statement.plan());
             } else {
-                TestAnalyzer viewAnalyzer = analyzer();
+                // The unmapped_fields setting decides how much view structure resolution keeps, as in EsqlSession.
+                TestAnalyzer viewAnalyzer = analyzer().unmappedResolution(statement.setting(UNMAPPED_FIELDS));
                 views.forEach(viewAnalyzer::addView);
                 parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(statement.plan());
             }

@@ -504,8 +504,8 @@ public class EsqlSession {
         // The weakest ViewBoundaryPreservation level that covers this request: a DSL filter needs view branches kept
         // so the rewriter can apply it at view outputs; a non-DEFAULT unmapped_fields setting needs pass-through view
         // identity kept too — a view must produce the same rows whatever the caller's query settings say (a
-        // materialized view would have baked its contents in), so ResolveUnmapped skips the relations inside view
-        // bodies and null-fills outer references at the view's output instead.
+        // materialized view would have baked its contents in), so ResolveUnmapped skips every view branch wholesale
+        // and null-fills outer references at the view's output instead.
         ViewBoundaryPreservation boundaryPreservation = ViewBoundaryPreservation.NONE;
         if (ViewRequestFilterRewriter.appliesToViewOutputs(request.filter())) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_BRANCHES;

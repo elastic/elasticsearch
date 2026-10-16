@@ -704,8 +704,8 @@ public class ViewResolver {
                         // implementation detail of this view. Keeping their wrappers would block compaction for no
                         // benefit, and nested wrappers are what produce unexecutable nested MergePlans. Settings
                         // scoping needs no per-branch identity inside a body either: everything in the body (nested
-                        // views included) already belongs to this view, and the analyzer's per-relation scoping reads
-                        // the Source view tag, which parsing stamped on every node of the body.
+                        // views included) already belongs to this view, and ResolveUnmapped skips this view's branch
+                        // wholesale, nested views and all.
                         ViewBoundaryPreservation.NONE,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);

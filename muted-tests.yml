@@ -251,6 +251,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/161086
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   issue: https://github.com/elastic/elasticsearch/issues/162116
+- class: org.elasticsearch.upgrades.BinaryKeywordCollapseRollingUpgradeIT
+  method: testCollapseOnBinaryKeyword {upgradedNodes=0}
+  issue: https://github.com/elastic/elasticsearch/issues/162265
 
 # Examples:
 #

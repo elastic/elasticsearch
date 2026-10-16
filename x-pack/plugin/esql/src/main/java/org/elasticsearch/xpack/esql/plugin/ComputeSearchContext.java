@@ -13,6 +13,7 @@ import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -26,7 +27,7 @@ import java.util.Objects;
  * <p>
  * Closing this will only close the underlying search context, and doing so <i>directly</i> is generally only done during error handling. In
  * happy-path execution, this class will be closed when the reference count in the {@link ShardContext} returned by
- * {@link #shardContext(QueryWarnings)} reaches 0.
+ * {@link #shardContext(QueryWarnings, boolean)} reaches 0.
  */
 class ComputeSearchContext implements Releasable {
     private final int index;
@@ -60,11 +61,24 @@ class ComputeSearchContext implements Releasable {
         return index;
     }
 
-    ShardContext shardContext(QueryWarnings queryWarnings) {
+    /**
+     * @param flattenedKeys whether a name under a {@code flattened} field is a mapped field, the key of that name
+     */
+    ShardContext shardContext(QueryWarnings queryWarnings, boolean flattenedKeys) {
         if (shardContext.get() == null) {
-            shardContext.set(createShardContext(queryWarnings));
+            shardContext.set(createShardContext(queryWarnings, flattenedKeys));
         }
         return shardContext.get();
+    }
+
+    /**
+     * The search execution context that the statistics the plan is optimized with read the mapping through, so that they see
+     * the same fields as the {@link #shardContext shard context}.
+     */
+    SearchExecutionContext statsSearchExecutionContext(boolean flattenedKeys) {
+        ensureNotTombstone();
+        SearchExecutionContext base = searchContext.getSearchExecutionContext();
+        return flattenedKeys ? new EsqlSearchExecutionContext(base, QueryWarnings.NOOP, true) : base;
     }
 
     public SearchContext searchContext() {
@@ -72,11 +86,12 @@ class ComputeSearchContext implements Releasable {
         return searchContext;
     }
 
-    private ShardContext createShardContext(QueryWarnings queryWarnings) {
+    private ShardContext createShardContext(QueryWarnings queryWarnings, boolean flattenedKeys) {
         ensureNotTombstone();
         EsqlSearchExecutionContext searchExecutionContext = new EsqlSearchExecutionContext(
             searchContext.getSearchExecutionContext(),
-            queryWarnings
+            queryWarnings,
+            flattenedKeys
         );
         searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
         return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter());

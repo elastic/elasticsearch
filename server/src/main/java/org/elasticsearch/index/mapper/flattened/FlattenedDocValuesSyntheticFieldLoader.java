@@ -241,7 +241,16 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
                 sortedSubFieldEntries.add(Map.entry(loader.fieldName().substring(parentPrefix.length()), loader));
             }
         }
-        return new FlattenedFieldSyntheticWriterHelper(getKeyedValueProducer(), sortedSubFieldEntries);
+        return new FlattenedFieldSyntheticWriterHelper(keyedValues(getKeyedValueProducer()), sortedSubFieldEntries);
+    }
+
+    /**
+     * The keyed values to write, out of every keyed value of the document.
+     */
+    protected FlattenedFieldSyntheticWriterHelper.KeyedValueProducer keyedValues(
+        FlattenedFieldSyntheticWriterHelper.KeyedValueProducer all
+    ) {
+        return all;
     }
 
     private FlattenedFieldSyntheticWriterHelper.KeyedValueProducer getKeyedValueProducer() throws IOException {

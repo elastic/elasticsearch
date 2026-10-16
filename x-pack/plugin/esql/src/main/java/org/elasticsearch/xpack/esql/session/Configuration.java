@@ -54,6 +54,8 @@ public class Configuration implements Writeable {
 
     private static final TransportVersion ESQL_RESOLVED_SETTINGS = TransportVersion.fromName("esql_resolved_settings");
 
+    public static final TransportVersion ESQL_SHARD_RESOLVED_FIELDS = TransportVersion.fromName("esql_shard_resolved_fields");
+
     /**
      * Reserved transport version id from the GROK watchdog work (#152170), which was reverted before release.
      * Intentionally unused: the id is boxed in between released version markers, so it cannot be removed without
@@ -81,6 +83,7 @@ public class Configuration implements Writeable {
     private final boolean profile;
     private final boolean allowPartialResults;
     private final boolean explainOnly;
+    private final boolean flattenedKeys;
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
@@ -134,6 +137,7 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
+            false,
             false
         );
     }
@@ -159,7 +163,8 @@ public class Configuration implements Writeable {
         int resultTruncationDefaultSizeTimeseries,
         ResolvedSettings resolvedSettings,
         Map<String, String> viewQueries,
-        boolean explainOnly
+        boolean explainOnly,
+        boolean flattenedKeys
     ) {
         this.now = now;
         this.username = username;
@@ -180,6 +185,7 @@ public class Configuration implements Writeable {
         this.viewQueries = viewQueries;
         assert viewQueries != null;
         this.explainOnly = explainOnly;
+        this.flattenedKeys = flattenedKeys;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -228,6 +234,7 @@ public class Configuration implements Writeable {
         } else {
             this.explainOnly = false;
         }
+        this.flattenedKeys = in.getTransportVersion().supports(ESQL_SHARD_RESOLVED_FIELDS) && in.readBoolean();
         if (readLegacySettings) {
             // project_routing is intentionally not synthesized here — data nodes never had it on the wire.
             this.resolvedSettings = synthesizeResolvedFromLegacy(zi, legacyApproximation);
@@ -285,6 +292,9 @@ public class Configuration implements Writeable {
         }
         if (out.getTransportVersion().supports(ESQL_EXPLAIN_ONLY)) {
             out.writeBoolean(explainOnly);
+        }
+        if (out.getTransportVersion().supports(ESQL_SHARD_RESOLVED_FIELDS)) {
+            out.writeBoolean(flattenedKeys);
         }
         if (writeLegacySettings == false) {
             resolvedSettings.writeTo(out);
@@ -404,6 +414,38 @@ public class Configuration implements Writeable {
     }
 
     /**
+     * Whether the query reads a name under a {@code flattened} field as a {@code keyword} field of its own, the key of
+     * that name. A data node reads such a key only when the query was planned that way, so that it never returns a
+     * {@code keyword} where the plan expects another type.
+     */
+    public boolean flattenedKeys() {
+        return flattenedKeys;
+    }
+
+    /**
+     * Whether a query planned for nodes on {@code minimumVersion} reads the keys of {@code flattened} fields as fields of their
+     * own: a node before that version would not read them.
+     */
+    public boolean flattenedKeys(@Nullable TransportVersion minimumVersion) {
+        return flattenedKeys && minimumVersion != null && minimumVersion.supports(ESQL_SHARD_RESOLVED_FIELDS);
+    }
+
+    /**
+     * Returns a new Configuration that reads the keys of {@code flattened} fields as fields of their own.
+     */
+    public Configuration withFlattenedKeys() {
+        return new ConfigurationBuilder(this).flattenedKeys(true).build();
+    }
+
+    /**
+     * Returns the Configuration that runs a query planned for nodes on {@code minimumVersion}: it reads the keys of
+     * {@code flattened} fields only if the plan does.
+     */
+    public Configuration forMinimumVersion(@Nullable TransportVersion minimumVersion) {
+        return flattenedKeys == flattenedKeys(minimumVersion) ? this : new ConfigurationBuilder(this).flattenedKeys(false).build();
+    }
+
+    /**
      * Returns the map of view names to their query strings.
      */
     public Map<String, String> viewQueries() {
@@ -468,7 +510,8 @@ public class Configuration implements Writeable {
             && allowPartialResults == that.allowPartialResults
             && Objects.equals(resolvedSettings, that.resolvedSettings)
             && viewQueries.equals(that.viewQueries)
-            && explainOnly == that.explainOnly;
+            && explainOnly == that.explainOnly
+            && flattenedKeys == that.flattenedKeys;
     }
 
     @Override
@@ -489,7 +532,8 @@ public class Configuration implements Writeable {
             resultTruncationDefaultSizeTimeseries,
             resolvedSettings,
             viewQueries,
-            explainOnly
+            explainOnly,
+            flattenedKeys
         );
     }
 
@@ -525,6 +569,8 @@ public class Configuration implements Writeable {
             + allowPartialResults
             + ", explainOnly="
             + explainOnly
+            + ", flattenedKeys="
+            + flattenedKeys
             + '}';
     }
 

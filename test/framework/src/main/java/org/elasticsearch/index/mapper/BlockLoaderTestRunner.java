@@ -17,6 +17,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -57,6 +58,7 @@ public class BlockLoaderTestRunner {
     private MapperService mapperService;
     private CircuitBreaker breaker;
     private String fieldName;
+    private BlockLoaderFunctionConfig blockLoaderFunctionConfig;
     private ParsedDocument doc;
     private Map<String, Object> mapDoc;
     private ResultMatcher matcher = (expected, actual) -> assertThat(actual, PrettyEqual.prettyEqualTo(expected));
@@ -105,6 +107,14 @@ public class BlockLoaderTestRunner {
      */
     public BlockLoaderTestRunner fieldName(String fieldName) {
         this.fieldName = fieldName;
+        return this;
+    }
+
+    /**
+     * Set the function the field is loaded with, if any.
+     */
+    public BlockLoaderTestRunner blockLoaderFunctionConfig(BlockLoaderFunctionConfig blockLoaderFunctionConfig) {
+        this.blockLoaderFunctionConfig = blockLoaderFunctionConfig;
         return this;
     }
 
@@ -275,6 +285,11 @@ public class BlockLoaderTestRunner {
             @Override
             public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
                 return params.preference();
+            }
+
+            @Override
+            public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                return blockLoaderFunctionConfig;
             }
         });
     }

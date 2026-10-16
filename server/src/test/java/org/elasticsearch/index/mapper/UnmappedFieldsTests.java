@@ -16,11 +16,15 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
@@ -219,6 +223,24 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
             reader.read(0, storedFields(Source.fromBytes(new BytesArray(json), XContentType.JSON)), builder);
             assertThat((List<?>) asValue(((TestBlock) builder.build()).get(0)), containsInAnyOrder("a", "e", "f"));
         }
+    }
+
+    /**
+     * An index that keeps its unmapped fields in the {@code _unmapped} field holds them there, not in {@code _ignored_source}.
+     */
+    public void testUnmappedFieldsKeptInTheUnmappedField() throws IOException {
+        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("k", "a")));
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+            UnmappedFields unmappedFields = createSearchExecutionContext(mapperService, newSearcher(reader)).unmappedFields();
+            assertTrue(unmappedFields.mayExist());
+            assertTrue(unmappedFields.mayExist("k"));
+        });
     }
 
     /**

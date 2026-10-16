@@ -155,7 +155,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, true, true);
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, true, true, Set.of());
     }
 
     public static IndexResolution mergedResolution(String indexPattern, FieldCapabilitiesResponse caps) {

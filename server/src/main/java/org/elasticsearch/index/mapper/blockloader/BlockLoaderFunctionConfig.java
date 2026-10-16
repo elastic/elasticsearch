@@ -159,6 +159,7 @@ public interface BlockLoaderFunctionConfig {
         V_L1NORM,
         V_L2NORM,
         TIME_SERIES_METADATA,
-        EXTRACT_FLATTENED_SUBFIELD
+        EXTRACT_FLATTENED_SUBFIELD,
+        FLATTENED_KEYS
     }
 }

@@ -87,6 +87,7 @@ Currently, flattened object fields can be used with the following query types:
 
 * `term`, `terms`, and `terms_set`
 * `prefix`
+* `wildcard`, `regexp`, and `fuzzy`
 * `range`
 * `match` and `multi_match`
 * `query_string` and `simple_query_string`

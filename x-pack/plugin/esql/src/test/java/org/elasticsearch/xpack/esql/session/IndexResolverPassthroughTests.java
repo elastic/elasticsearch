@@ -37,7 +37,7 @@ public class IndexResolverPassthroughTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, false),
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, false, null),
             false,
             IndexResolver.DO_NOT_GROUP
         );

@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -30,18 +31,22 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -102,11 +107,14 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.lucene.queries.BinaryDocValuesQueries;
+import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullAutomatonQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullPrefixQuery;
 import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
@@ -134,6 +142,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType.toSubFieldLoaders;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -853,7 +863,69 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             SearchExecutionContext context,
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
-            throw new IllegalArgumentException("[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields.");
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+            failIfNotSearchable();
+            // The edits apply to the value only: the key and the separator are a prefix that must match exactly
+            String keyPrefix = FlattenedFieldParser.createKeyedValue(key, "");
+            int keyedPrefixLength = keyPrefix.codePointCount(0, keyPrefix.length()) + prefixLength;
+            BytesRef term = indexedValueForSearch(value);
+            int maxEdits = fuzziness.asDistance(BytesRefs.toString(value));
+            if (indexType.hasTerms() == false && usesBinaryDocValues) {
+                if (usesArrayOrderBinaryDocValues) {
+                    // The automaton matches the key and the separator exactly, as the prefix it does not edit
+                    Automaton fuzzy = FuzzyQueries.create(
+                        new Term(name(), term),
+                        maxEdits,
+                        keyedPrefixLength,
+                        1,
+                        transpositions,
+                        null,
+                        null,
+                        name()
+                    ).getAutomata().automaton;
+                    return new KeyedArrayOrderInlineNullAutomatonQuery(name(), fuzzy, "fuzzy=" + term.utf8ToString());
+                }
+                return binaryQueries().fuzzy(name(), term.utf8ToString(), maxEdits, keyedPrefixLength, transpositions);
+            }
+            return FuzzyQueries.create(
+                new Term(name(), term),
+                maxEdits,
+                keyedPrefixLength,
+                maxExpansions,
+                transpositions,
+                indexType.hasTerms() ? rewriteMethod : MultiTermQuery.DOC_VALUES_REWRITE,
+                context,
+                name()
+            );
+        }
+
+        @Override
+        public Query prefixQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
+            if (caseInsensitive == false && indexType.hasTerms()) {
+                return super.prefixQuery(value, method, false, context);
+            }
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[prefix] queries cannot be executed when '"
+                        + ALLOW_EXPENSIVE_QUERIES.getKey()
+                        + "' is set to false. For optimised prefix queries on text "
+                        + "fields please enable [index_prefixes]."
+                );
+            }
+            failIfNotSearchable();
+            Automaton prefix = caseInsensitive
+                ? AutomatonQueries.caseInsensitivePrefix(value)
+                : Operations.concatenate(List.of(Automata.makeString(value), Automata.makeAnyString()));
+            return keyedQuery(value + "*", prefix, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
         }
 
         @Override
@@ -865,24 +937,92 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context
         ) {
-            throw new IllegalArgumentException("[regexp] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields.");
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+            failIfNotSearchable();
+            value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
+            Automaton automaton = new RegExp(value, syntaxFlags, matchFlags).toAutomaton();
+            return keyedQuery(value, automaton, maxDeterminizedStates, method);
         }
 
         @Override
-        public Query wildcardQuery(
+        protected Query wildcardQuery(
             String value,
             MultiTermQuery.RewriteMethod method,
             boolean caseInsensitive,
+            boolean shouldNormalize,
             SearchExecutionContext context
         ) {
-            throw new IllegalArgumentException(
-                "[wildcard] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
-            );
+            failIfNotSearchable();
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[wildcard] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+            Term pattern = new Term(name(), value);
+            Automaton automaton = caseInsensitive
+                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(pattern)
+                : WildcardQuery.toAutomaton(pattern, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            return keyedQuery(value, automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
         }
 
         @Override
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-            return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+            failIfNotSearchable();
+            String text = BytesRefs.toString(value);
+            Automaton automaton = Operations.concatenate(text.codePoints().mapToObj(Automata::makeCaseInsensitiveChar).toList());
+            return keyedQuery(text, automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null);
+        }
+
+        @Override
+        public Query automatonQuery(
+            Supplier<Automaton> automatonSupplier,
+            Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context,
+            String description
+        ) {
+            failIfNotSearchable();
+            return keyedQuery(description, automatonSupplier.get(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
+        }
+
+        /**
+         * The terms of this key whose value {@code value} accepts, the way {@code pattern} reads, from the terms of the field or,
+         * without them, from its doc values.
+         */
+        private Query keyedQuery(String pattern, Automaton value, int determinizeWorkLimit, @Nullable MultiTermQuery.RewriteMethod method) {
+            Automaton automaton = Operations.determinize(Operations.concatenate(List.of(keyAutomaton(), value)), determinizeWorkLimit);
+            Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, pattern));
+            if (indexType.hasTerms()) {
+                return method == null ? new AutomatonQuery(term, automaton) : new AutomatonQuery(term, automaton, false, method);
+            }
+            if (usesArrayOrderBinaryDocValues) {
+                return new KeyedArrayOrderInlineNullAutomatonQuery(name(), automaton, term.text());
+            }
+            if (usesBinaryDocValues) {
+                return binaryQueries().automaton(name(), automaton, term.text());
+            }
+            return new AutomatonQuery(term, automaton, false, MultiTermQuery.DOC_VALUES_REWRITE);
+        }
+
+        /** The key and the separator every term of this key starts with, matched exactly. */
+        private Automaton keyAutomaton() {
+            return Automata.makeString(FlattenedFieldParser.createKeyedValue(key, ""));
+        }
+
+        /** The queries this key answers from binary doc values that hold one {@code key\0value} entry each. */
+        private static BinaryDocValuesQueries binaryQueries() {
+            return BinaryDocValuesQueries.forFormat(BinaryDocValuesFormat.SEPARATE_COUNT);
+        }
+
+        /** Fails unless this key has terms or doc values to search. */
+        private void failIfNotSearchable() {
+            if (indexType.hasTerms() == false && hasDocValues() == false) {
+                failIfNotIndexed();
+            }
         }
 
         @Override
@@ -973,7 +1113,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             ) {
                 @Override
                 protected Object parseSourceValue(Object value) {
-                    return value.toString();
+                    // An object under the key holds other keys, not a value of this one
+                    return value instanceof Map<?, ?> ? null : value.toString();
                 }
             };
 
@@ -1454,6 +1595,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             BlockLoaderFunctionConfig functionConfig = blContext == null ? null : blContext.blockLoaderFunctionConfig();
+            // Every key unless the query keeps only some
+            Predicate<String> keys = functionConfig instanceof FlattenedKeysConfig flattenedKeys ? flattenedKeys::includes : key -> true;
             if (functionConfig instanceof ExtractFlattenedSubfieldConfig(String key)) {
                 if (hasDocValues() == false) {
                     throw new IllegalStateException(
@@ -1487,7 +1630,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                     usesArrayOrderBinaryDocValues,
                     toSubFieldLoaders(mappedSubFields),
                     storeIgnoredFieldsInBinaryDocValues,
-                    preserveLeafArrays
+                    preserveLeafArrays,
+                    keys
                 );
             }
 
@@ -1495,7 +1639,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 blContext.sourcePaths(name()),
                 nullValue,
                 blContext.indexSettings().getIgnoredSourceFormat(),
-                preserveLeafArrays == PreserveLeafArrays.EXACT
+                preserveLeafArrays == PreserveLeafArrays.EXACT,
+                keys
             );
 
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext, name()));
@@ -1506,7 +1651,9 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             if (config instanceof ExtractFlattenedSubfieldConfig(String key)) {
                 return hasDocValues() && isMappedSubField(key) == false;
             }
-            return false;
+            // Both the doc values and the _source loaders of the root load some of its keys, but the doc values loader writes the
+            // mapped sub-fields whole, so a field with any is filtered once loaded
+            return config instanceof FlattenedKeysConfig && mappedSubFields.isEmpty();
         }
 
         /**

@@ -10,18 +10,21 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
-import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
@@ -93,8 +96,10 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         Query expected = new TermQuery(new Term(ft.name(), "key\0value"));
         assertEquals(expected, ft.termQuery("value", null));
 
-        expected = AutomatonQueries.caseInsensitiveTermQuery(new Term(ft.name(), "key\0value"));
-        assertEquals(expected, ft.termQueryCaseInsensitive("value", null));
+        Query caseInsensitive = ft.termQueryCaseInsensitive("value", null);
+        assertTrue(accepts(caseInsensitive, "key\0VaLuE"));
+        assertFalse(accepts(caseInsensitive, "KEY\0value"));
+        assertFalse(accepts(caseInsensitive, "key\0values"));
 
         KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType(
             "field",
@@ -296,8 +301,11 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         Query expected = new PrefixQuery(new Term(ft.name(), "key\0val"));
         assertEquals(expected, ft.prefixQuery("val", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, false, MOCK_CONTEXT));
 
-        expected = AutomatonQueries.caseInsensitivePrefixQuery(new Term(ft.name(), "key\0vAl"));
-        assertEquals(expected, ft.prefixQuery("vAl", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, true, MOCK_CONTEXT));
+        // case-insensitive on the value only
+        Query caseInsensitive = ft.prefixQuery("vAl", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, true, MOCK_CONTEXT);
+        assertTrue(accepts(caseInsensitive, "key\0VALUE"));
+        assertFalse(accepts(caseInsensitive, "KEY\0value"));
+        assertFalse(accepts(caseInsensitive, "other\0value"));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
@@ -313,11 +321,17 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testFuzzyQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, randomMockContext())
+        FuzzyQuery query = (FuzzyQuery) ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT);
+        assertEquals(new Term(ft.name(), "key\0value"), query.getTerm());
+        assertEquals(2, query.getMaxEdits());
+        // the key and the separator match exactly, then the prefix of the value
+        assertEquals("key\0".length() + 1, query.getPrefixLength());
+
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
-        assertEquals("[fuzzy] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
+        assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testRangeQuery() {
@@ -439,21 +453,47 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testRegexpQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ft.regexpQuery("valu*", 0, 0, 10, null, randomMockContext())
+        Query query = ft.regexpQuery("valu*", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null, MOCK_CONTEXT);
+        assertTrue(accepts(query, "key\0val"));
+        assertTrue(accepts(query, "key\0valuu"));
+        assertFalse(accepts(query, "key\0value"));
+        assertFalse(accepts(query, "other\0val"));
+
+        // an alternation stays under the key
+        Query alternation = ft.regexpQuery("a|b", RegExp.ALL, 0, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, null, MOCK_CONTEXT);
+        assertTrue(accepts(alternation, "key\0a"));
+        assertTrue(accepts(alternation, "key\0b"));
+        assertFalse(accepts(alternation, "b"));
+
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> ft.regexpQuery("valu*", RegExp.ALL, 0, 10, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
-        assertEquals("[regexp] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
+        assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testWildcardQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ft.wildcardQuery("valu*", null, false, randomMockContext())
+        Query query = ft.wildcardQuery("valu*", null, false, MOCK_CONTEXT);
+        assertTrue(accepts(query, "key\0value"));
+        assertFalse(accepts(query, "key\0VALUE"));
+        assertFalse(accepts(query, "other\0value"));
+
+        Query caseInsensitive = ft.wildcardQuery("VALU*", null, true, MOCK_CONTEXT);
+        assertTrue(accepts(caseInsensitive, "key\0value"));
+        assertFalse(accepts(caseInsensitive, "KEY\0value"));
+
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> ft.wildcardQuery("valu*", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
-        assertEquals("[wildcard] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
+        assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
+    }
+
+    /** Whether the automaton of {@code query} accepts the term {@code term}. */
+    private static boolean accepts(Query query, String term) {
+        return Operations.run(((AutomatonQuery) query).getAutomaton(), term);
     }
 
     public void testFetchIsEmpty() throws IOException {

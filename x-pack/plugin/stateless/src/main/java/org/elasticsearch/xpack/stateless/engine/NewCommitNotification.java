@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.stateless.engine;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 
 /**
@@ -53,7 +53,7 @@ public record NewCommitNotification(
 
     public String toShortDescription() {
         return '['
-            + BatchedCompoundCommit.blobNameFromGeneration(batchedCompoundCommitGeneration)
+            + BccBlobFile.blobNameFromGeneration(batchedCompoundCommitGeneration)
             + ']'
             + compoundCommit.toShortDescription()
             + '['

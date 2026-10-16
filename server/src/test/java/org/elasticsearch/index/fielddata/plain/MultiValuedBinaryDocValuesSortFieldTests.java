@@ -16,6 +16,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.Directory;
@@ -310,6 +311,55 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         }
     }
 
+    /**
+     * An index sorted by this field, flushed with a document that holds only nulls among multi-valued ones. That document writes its
+     * {@code .counts} but no binary value, so the counts are dense where the binary values are sparse; the flush-time sort has to keep
+     * the two in step by document rather than by position, or every document after the gap is decoded with its neighbour's count.
+     */
+    public void testArrayOrder_indexSortAtFlush_documentWithoutValue() throws IOException {
+        for (boolean maxMode : new boolean[] { false, true }) {
+            final SortField sortField = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, maxMode, true);
+            try (
+                Directory dir = newDirectory();
+                IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setIndexSort(new Sort(sortField)))
+            ) {
+                addArrayOrderDoc(w, "zebra", "bob");
+                addArrayOrderDoc(w, (String) null);
+                addArrayOrderDoc(w, "mango", "apple", "orange");
+                addArrayOrderDoc(w, "delta", "charlie");
+                try (DirectoryReader reader = DirectoryReader.open(w)) {
+                    LeafReader leaf = getOnlyLeafReader(reader);
+                    BinaryDocValues dvs = new MultiValuedBinaryDocValuesSortField("name", false, SortField.STRING_LAST, maxMode, true)
+                        .getSortKeyDocValues(leaf);
+                    final String[] expected = maxMode
+                        ? new String[] { "delta", "orange", "zebra", null }
+                        : new String[] { "apple", "bob", "charlie", null };
+                    for (int doc = 0; doc < expected.length; doc++) {
+                        if (expected[doc] == null) {
+                            assertFalse("maxMode=" + maxMode + " doc=" + doc, dvs.advanceExact(doc));
+                        } else {
+                            assertTrue("maxMode=" + maxMode + " doc=" + doc, dvs.advanceExact(doc));
+                            assertEquals("maxMode=" + maxMode + " doc=" + doc, new BytesRef(expected[doc]), dvs.binaryValue());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Adds a document whose {@code name} holds {@code values} in document order, a {@code null} element being a null slot. */
+    private static void addArrayOrderDoc(IndexWriter w, String... values) throws IOException {
+        LuceneDocument doc = new LuceneDocument();
+        for (String value : values) {
+            if (value == null) {
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(doc, "name");
+            } else {
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, "name", new BytesRef(value));
+            }
+        }
+        w.addDocument(doc);
+    }
+
     // =========================================================================
     // Provider round-trip serialization
     // =========================================================================
@@ -348,5 +398,94 @@ public class MultiValuedBinaryDocValuesSortFieldTests extends ESTestCase {
         assertEquals(original.getMissingValue(), restored.getMissingValue());
         assertEquals(original.isMaxMode(), restored.isMaxMode());
         assertEquals(original.isArrayOrder(), restored.isArrayOrder());
+    }
+
+    public void testEqualsIsReflexive() {
+        final MultiValuedBinaryDocValuesSortField sf = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        assertEquals(sf, sf);
+        assertEquals(sf.hashCode(), sf.hashCode());
+    }
+
+    public void testEqualsIsSymmetric() {
+        final MultiValuedBinaryDocValuesSortField a = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField b = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        assertEquals(a, b);
+        assertEquals(b, a);
+        assertEquals(a.hashCode(), b.hashCode());
+    }
+
+    public void testEqualsDistinguishesMaxMode() {
+        final MultiValuedBinaryDocValuesSortField min = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField max = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, true);
+        assertNotEquals(min, max);
+        assertNotEquals(max, min);
+    }
+
+    public void testEqualsDistinguishesArrayOrder() {
+        final MultiValuedBinaryDocValuesSortField separateCount = new MultiValuedBinaryDocValuesSortField(
+            "kw",
+            false,
+            SortField.STRING_LAST,
+            false,
+            false
+        );
+        final MultiValuedBinaryDocValuesSortField arrayOrder = new MultiValuedBinaryDocValuesSortField(
+            "kw",
+            false,
+            SortField.STRING_LAST,
+            false,
+            true
+        );
+        assertNotEquals(separateCount, arrayOrder);
+        assertNotEquals(arrayOrder, separateCount);
+    }
+
+    public void testEqualsDistinguishesFieldName() {
+        final MultiValuedBinaryDocValuesSortField a = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField b = new MultiValuedBinaryDocValuesSortField("other", false, SortField.STRING_LAST, false);
+        assertNotEquals(a, b);
+    }
+
+    public void testEqualsDistinguishesReverse() {
+        final MultiValuedBinaryDocValuesSortField asc = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField desc = new MultiValuedBinaryDocValuesSortField("kw", true, SortField.STRING_FIRST, false);
+        assertNotEquals(asc, desc);
+    }
+
+    public void testEqualsDistinguishesMissingValue() {
+        final MultiValuedBinaryDocValuesSortField last = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        final MultiValuedBinaryDocValuesSortField first = new MultiValuedBinaryDocValuesSortField(
+            "kw",
+            false,
+            SortField.STRING_FIRST,
+            false
+        );
+        assertNotEquals(last, first);
+    }
+
+    public void testFuzzyEqualsHashCode() {
+        for (int i = 0; i < 20; i++) {
+            final String field = randomAlphaOfLengthBetween(1, 20);
+            final boolean reverse = randomBoolean();
+            final Object missing = randomFrom(SortField.STRING_FIRST, SortField.STRING_LAST);
+            final boolean maxMode = randomBoolean();
+            final boolean arrayOrder = randomBoolean();
+            final MultiValuedBinaryDocValuesSortField a = new MultiValuedBinaryDocValuesSortField(
+                field,
+                reverse,
+                missing,
+                maxMode,
+                arrayOrder
+            );
+            final MultiValuedBinaryDocValuesSortField b = new MultiValuedBinaryDocValuesSortField(
+                field,
+                reverse,
+                missing,
+                maxMode,
+                arrayOrder
+            );
+            assertEquals("iteration " + i, a, b);
+            assertEquals("hashCode iteration " + i, a.hashCode(), b.hashCode());
+        }
     }
 }

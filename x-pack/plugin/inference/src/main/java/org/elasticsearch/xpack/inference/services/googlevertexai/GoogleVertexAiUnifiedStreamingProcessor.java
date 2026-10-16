@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -89,6 +90,11 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
      * Checked on the request side to filter out reasoning details from other providers.
      */
     public static final String GOOGLE_VERTEX_AI_FORMAT = "google-vertex-ai-v1";
+
+    /**
+     * Separator in synthesized tool call ids ({@code <name>#<random>}). Not valid in Google function names.
+     */
+    public static final String SYNTHESIZED_TOOL_CALL_ID_SEPARATOR = "#";
 
     private final BiFunction<String, Exception, Exception> errorParser;
     private final GoogleVertexAiChatCompletionChunkParser chunkParser;
@@ -255,8 +261,10 @@ public class GoogleVertexAiUnifiedStreamingProcessor extends DelegatingProcessor
                             fc.name()
                         );
                         // Gemini 3 returns an id for each function call. Older models and older responses do not, in
-                        // which case the name is the only stable identifier available.
-                        var toolCallId = fc.id() != null ? fc.id() : fc.name();
+                        // which case an id unique across calls is synthesized from the name.
+                        var toolCallId = fc.id() != null
+                            ? fc.id()
+                            : fc.name() + SYNTHESIZED_TOOL_CALL_ID_SEPARATOR + UUIDs.randomBase64UUID();
                         toolCalls.add(
                             new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
                                 toolCallIndex++,

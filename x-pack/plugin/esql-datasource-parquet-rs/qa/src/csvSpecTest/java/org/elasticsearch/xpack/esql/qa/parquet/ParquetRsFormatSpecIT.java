@@ -84,6 +84,8 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         "mvMinFromSplit",
         // unknown parquet column [salary_change] referenced in projection (reported in the schema as "element")
         "mvDedupeFromSplit2",
+        "derivedGroupingKeyOverMultivalueColumn",
+        "derivedGroupingKeyOverMultivalueColumnKeepsGroups",
         // unknown parquet column [author] referenced in projection
         "externalRerankBooks",
         // TODO: parquet-rs OrdinalBytesRefBlock validity buffer is not 8-byte padded per the Arrow

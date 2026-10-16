@@ -17,11 +17,13 @@ import org.elasticsearch.test.RollingUpgradePerformer;
 import org.elasticsearch.test.RollingUpgradePerformer.ClusterAndClients;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Base class for rolling upgrade YAML suites. YAML suites are run in phases: first the suites from the {@code old_cluster} directory are
@@ -33,6 +35,22 @@ import java.util.List;
  * {@code build.gradle}, otherwise a phase that passed in an earlier build attempt is skipped on retry and the later phase
  * it was setting up fails:
  * <pre>{@code smartRetry.pruneIndividualTests.set(false)}</pre>
+ * <p>
+ * <b>Synthetic cluster features for phase gating</b><br>
+ * The following synthetic feature IDs are injected into the YAML test runner so that individual test sections can gate themselves
+ * on the current upgrade phase using {@code requires.cluster_features} or {@code skip.cluster_features}:
+ * <ul>
+ *   <li>{@code rolling_upgrade.old_cluster}: all nodes are still on the old version</li>
+ *   <li>{@code rolling_upgrade.first_mixed_cluster}: exactly one node has been upgraded</li>
+ *   <li>{@code rolling_upgrade.mixed_cluster}: at least one but not all nodes have been upgraded</li>
+ *   <li>{@code rolling_upgrade.upgraded_cluster}: all nodes have been upgraded to the new version</li>
+ * </ul>
+ * Example: run a test only in the second mixed-cluster pass (two nodes upgraded, not one):
+ * <pre>{@code
+ * - skip:
+ *     cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+ *     reason: "Creates durable state — must run exactly once"
+ * }</pre>
  */
 public abstract class ParameterizedYamlRollingUpgradeTestCase extends ESClientYamlSuiteTestCase {
 
@@ -91,6 +109,28 @@ public abstract class ParameterizedYamlRollingUpgradeTestCase extends ESClientYa
     @AfterClass
     public static void resetNodes() {
         rollingUpgrade.reset();
+    }
+
+    /**
+     * Wraps the real {@link TestFeatureService} with synthetic rolling-upgrade phase features so that YAML test sections can use
+     * {@code requires.cluster_features} / {@code skip.cluster_features} to gate themselves on the current upgrade phase.
+     */
+    @Override
+    protected ClientYamlTestExecutionContext createRestTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient,
+        Set<String> nodesVersions,
+        TestFeatureService testFeatureService,
+        Set<String> osSet
+    ) {
+        TestFeatureService wrapped = (featureId, any) -> switch (featureId) {
+            case "rolling_upgrade.old_cluster" -> rollingUpgrade.isOldCluster();
+            case "rolling_upgrade.first_mixed_cluster" -> rollingUpgrade.isFirstMixedCluster();
+            case "rolling_upgrade.mixed_cluster" -> rollingUpgrade.isMixedCluster();
+            case "rolling_upgrade.upgraded_cluster" -> rollingUpgrade.isUpgradedCluster();
+            default -> testFeatureService.clusterHasFeature(featureId, any);
+        };
+        return super.createRestTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, nodesVersions, wrapped, osSet);
     }
 
     @Override

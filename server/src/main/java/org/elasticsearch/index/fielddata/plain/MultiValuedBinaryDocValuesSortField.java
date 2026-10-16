@@ -66,6 +66,21 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (!super.equals(obj)) return false;
+        final MultiValuedBinaryDocValuesSortField other = (MultiValuedBinaryDocValuesSortField) obj;
+        return maxMode == other.maxMode && arrayOrder == other.arrayOrder;
+    }
+
+    @Override
+    public int hashCode() {
+        int h = super.hashCode();
+        h = 31 * h + Boolean.hashCode(maxMode);
+        h = 31 * h + Boolean.hashCode(arrayOrder);
+        return h;
+    }
+
+    @Override
     protected BinaryDocValues getSortKeyDocValues(LeafReader reader) throws IOException {
         BinaryDocValues values = DocValues.getBinary(reader, getField());
         String countsFieldName = getField() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
@@ -130,11 +145,13 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
         public int nextDoc() throws IOException {
             int doc = in.nextDoc();
             if (doc != NO_MORE_DOCS) {
-                // Use nextDoc (sequential) rather than advanceExact: during segment flush
-                // Lucene iterates docs with nextDoc() only and the buffered NumericDocValues
-                // writer does not support advanceExact(). The binary and count fields are
-                // always indexed together so they have the same doc IDs and stay in sync.
-                counts.nextDoc();
+                // Step with nextDoc rather than advance/advanceExact: during segment flush the buffered
+                // NumericDocValues writer supports neither. The counts are dense but the binary values
+                // are sparse (a document with no non-null value writes only its count), so stepping counts
+                // once per binary doc would drift out of step; step until it reaches the binary doc.
+                while (counts.docID() < doc) {
+                    counts.nextDoc();
+                }
             }
             return doc;
         }

@@ -125,6 +125,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     );
     private static final String HOSTNAME_OVERRIDE = "LinuxDarwinHostname";
     private static final String COMPUTERNAME_OVERRIDE = "WindowsComputername";
+    private static final String DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG = "es.dlm_searchable_snapshots_feature_flag_enabled";
 
     private final String path;
     private final String name;
@@ -840,6 +841,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         if (systemProperties.containsKey("io.netty.leakDetection.level") == false) {
             systemPropertiesString = systemPropertiesString + " -Dio.netty.leakDetection.level=paranoid";
+        }
+        // The flag is on in snapshot builds and off in release builds, so mixed-version clusters disagree on the DLM
+        // lifecycle wire format unless it is off everywhere. Added here because the systemProperty guard rejects flags.
+        // Skipped when requested via requiresFeature, which is only emitted for released versions.
+        // See https://github.com/elastic/elasticsearch/issues/156594.
+        if (featureFlags.stream().noneMatch(f -> f.getFeature().equals(DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG))) {
+            systemPropertiesString = systemPropertiesString + " -D" + DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG + "=false";
         }
 
         String featureFlagsString = "";

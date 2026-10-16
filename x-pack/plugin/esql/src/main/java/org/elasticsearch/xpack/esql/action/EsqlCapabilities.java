@@ -3698,14 +3698,6 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS,
 
         /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, at most 1000 fields discovered in {@code _source} become columns: the
-         * alphabetically first ones, with a warning if there were more. Superseded by
-         * {@link #OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN}, under which no per-field columns are produced and nothing is capped.
-         * See https://github.com/elastic/elasticsearch/issues/159972.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS,
-
-        /**
          * Under {@code unmapped_fields="LOAD_ALL"}, the keys of a mapped field whose type takes an object as its value are
          * not discovered on the shard that maps it: they are part of its value.
          */

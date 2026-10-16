@@ -811,23 +811,24 @@ public class ViewRequestFilterIT extends AbstractEsqlIntegTestCase {
     }
 
     private static void assertForkAfterForkViewRows(List<List<Object>> rows) {
-        assertThat(rows, hasSize(12));
-        assertForkId(rows.get(0), "fork1", 1);
-        assertForkId(rows.get(1), "fork1", 1);
-        assertForkId(rows.get(2), "fork1", 2);
-        assertForkId(rows.get(3), "fork1", 3);
-        assertForkId(rows.get(4), "fork1", 4);
-        assertForkId(rows.get(5), "fork1", 5);
-        assertForkId(rows.get(6), "fork2", 0);
-        assertForkId(rows.get(7), "fork2", 1);
-        assertForkId(rows.get(8), "fork2", 1);
-        assertForkId(rows.get(9), "fork2", 2);
-        assertForkId(rows.get(10), "fork2", 3);
-        assertForkId(rows.get(11), "fork2", 4);
-    }
-
-    private static void assertForkId(List<Object> row, String fork, int id) {
-        assertThat(row.get(0).toString(), equalTo(fork));
-        assertThat(row.get(1), equalTo(id));
+        assertThat(
+            rows,
+            equalTo(
+                List.of(
+                    List.of("fork1", 1),
+                    List.of("fork1", 1),
+                    List.of("fork1", 2),
+                    List.of("fork1", 3),
+                    List.of("fork1", 4),
+                    List.of("fork1", 5),
+                    List.of("fork2", 0),
+                    List.of("fork2", 1),
+                    List.of("fork2", 1),
+                    List.of("fork2", 2),
+                    List.of("fork2", 3),
+                    List.of("fork2", 4)
+                )
+            )
+        );
     }
 }

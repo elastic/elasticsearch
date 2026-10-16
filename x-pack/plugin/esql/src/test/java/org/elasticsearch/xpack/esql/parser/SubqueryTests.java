@@ -614,8 +614,6 @@ public class SubqueryTests extends AbstractStatementParserTests {
     }
 
     /**
-     * A lone FROM ( ... | FORK ) keeps a one-child UnionAll under the outer pipeline.
-     *
      * Keep[[?g]]
      * \_Drop[[?f]]
      *   \_Limit[10[INTEGER],false]

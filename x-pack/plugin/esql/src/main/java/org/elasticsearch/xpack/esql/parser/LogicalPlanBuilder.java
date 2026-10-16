@@ -419,9 +419,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             LogicalPlan inner;
             if (mainQueryAndSubqueries.size() == 1) {
                 Subquery only = subqueries.get(0);
-                // A single FROM subquery does not need UnionAll unless the body contains a FORK. That one-child
-                // UnionAll becomes a BranchPlan in preIndexResolution, which checkForUnseparatedFork treats as a
-                // merge boundary and which compaction can flatten a body-topping FORK into.
+                // A single FROM subquery does not need UnionAll unless the body contains a FORK, so that forks inside and outside the
+                // subquery are not treated consecutive forks.
                 if (Fork.containsFork(only.plan())) {
                     inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), List.of(only), List.of());
                 } else {

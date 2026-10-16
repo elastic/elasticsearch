@@ -162,10 +162,10 @@ public final class Fork extends MergePlan implements TelemetryAware {
 
     /**
      * Whether this pipeline segment contains a {@link Fork} that is not already under a {@link MergePlan}. FORKs inside a {@link UnionAll},
-     * {@link BranchPlan}, or another {@link Fork} are a different merge segment and do not count. The right side of an
-     * {@link AbstractSubqueryJoin} is an independently executed query and is also skipped. Used to keep a one-child {@link UnionAll} or
-     * {@link BranchPlan} around a single {@code FROM (...)} or inlined view so {@link #checkForUnseparatedFork} can treat that scope as a
-     * boundary rather than consecutive FORKs on one pipeline.
+     * {@link BranchPlan} are a different merge segment and do not count. The right side of an {@link AbstractSubqueryJoin} is an
+     * independently executed query and is also skipped. Used to keep a one-child {@link UnionAll} or {@link BranchPlan} around a single
+     * {@code FROM (...)} or inlined view so {@link #checkForUnseparatedFork} can treat that scope as a boundary rather than consecutive
+     * FORKs on one pipeline.
      */
     public static boolean containsFork(LogicalPlan plan) {
         if (plan instanceof Fork) {

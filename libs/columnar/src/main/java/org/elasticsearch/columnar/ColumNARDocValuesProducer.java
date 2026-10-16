@@ -187,7 +187,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     }
 
     private BinaryDocValues stringBinary(StringColumnMetadata metadata, boolean singleValued) throws IOException {
-        StringColumnReader reader = StringColumnReader.open(metadata, inputs);
+        StringColumnReader reader = StringColumnReader.open(metadata, inputs, skipIndex);
         return new ColumnarStringBinaryDocValues(reader, reader.iterator(), singleValued);
     }
 

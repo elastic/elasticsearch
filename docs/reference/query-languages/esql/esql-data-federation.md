@@ -112,6 +112,8 @@ Datasets behave like indices. In most places where {{esql}} accepts an index nam
 
 The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata: `KNN`, `LOOKUP JOIN` with a dataset as the lookup target, and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
 
+{applies_to}`stack: preview 9.6+` `KNN` works on `dense_vector` columns in a dataset and performs an exact search over every row instead of failing.
+
 Relevance scoring works differently for datasets:
 
 - {applies_to}`stack: experimental 9.6+` `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25.

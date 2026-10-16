@@ -227,6 +227,14 @@ field sharing the command still fails. (e.g. if `content` was an indexed field i
 [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
 supports targeting `text` and `keyword` expressions in the same way, with the same limitations.
 
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+[`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md)
+supports targeting a `dense_vector` expression (such as a column produced by `EVAL` or the `DENSE_VECTOR`
+command) instead of an indexed field. It performs an exact search by comparing the query vector against
+every row rather than using the vector index. When used on an expression, `KNN` can appear anywhere in the
+query (including after `STATS` or `LIMIT`), and the `similarity_function` option sets the similarity metric.
+To get the k nearest results, sort and limit explicitly, for example `SORT _score DESC | LIMIT 10`.
+
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
 When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
 (match query options) are supported on `text` expressions. As on an indexed field, the `analyzer`
@@ -299,6 +307,15 @@ FROM books
 | MV_EXPAND author
 | WHERE MATCH(title, "Tolkien")
 ```
+
+### KNN on expressions during rolling upgrades and CCS [esql-limitations-knn-expression-upgrade]
+
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+`KNN` on a `dense_vector` expression requires all nodes in the cluster to be on version 9.6+.
+During a rolling upgrade, or when using cross-cluster search (CCS) with a remote cluster on a version earlier than 9.6,
+the coordinator rejects the query before it runs with the error: KNN over a non-index-mapped field or expression
+is not supported on every participating node. To avoid this, ensure all participating nodes and remote clusters are
+upgraded before sending queries that use KNN on an expression.
 
 ### Scoring for a runtime search [esql-limitations-full-text-search-scoring]
 

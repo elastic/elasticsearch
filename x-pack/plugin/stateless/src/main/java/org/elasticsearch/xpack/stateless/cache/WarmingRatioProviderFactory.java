@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
  * Factory for creating {@link WarmingRatioProvider} instances.
@@ -18,5 +20,5 @@ public interface WarmingRatioProviderFactory {
      * Invoked once per search shard recovery; implementations must not register settings consumers.
      * Read the current setting values instead.
      */
-    WarmingRatioProvider create(ClusterSettings clusterSettings);
+    WarmingRatioProvider create(ClusterSettings clusterSettings, ClusterState clusterState, ShardId shardId);
 }

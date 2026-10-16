@@ -84,6 +84,34 @@ public class MistralChatCompletionResponseNormalizerTests extends ESTestCase {
         assertThat(delta.get("reasoning"), is("hmm"));
     }
 
+    public void testTextThenThinkingChunksAreSplitIntoContentAndReasoning() throws IOException {
+        var data = """
+            {"id":"1","choices":[{"index":0,"delta":{"content":[
+              {"type":"text","text":"the answer"},
+              {"type":"thinking","thinking":[{"type":"text","text":"hmm"}]}
+            ]}}]}""";
+
+        var delta = firstChoiceNode(MistralChatCompletionResponseNormalizer.normalizeStreamingEvent(data), "delta");
+
+        assertThat(delta.get("content"), is("the answer"));
+        assertThat(delta.get("reasoning"), is("hmm"));
+    }
+
+    public void testMultipleThinkingChunksAreJoined() throws IOException {
+        var data = """
+            {"id":"1","choices":[{"index":0,"delta":{"content":[
+              {"type":"thinking","thinking":[{"type":"text","text":"first "}]},
+              {"type":"text","text":"a"},
+              {"type":"thinking","thinking":[{"type":"text","text":"second"}]},
+              {"type":"text","text":"b"}
+            ]}}]}""";
+
+        var delta = firstChoiceNode(MistralChatCompletionResponseNormalizer.normalizeStreamingEvent(data), "delta");
+
+        assertThat(delta.get("content"), is("ab"));
+        assertThat(delta.get("reasoning"), is("first second"));
+    }
+
     public void testNonStreamingListContentIsNormalizedAndOtherFieldsSurvive() throws IOException {
         var body = """
             {"id":"abc","model":"m","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":[

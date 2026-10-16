@@ -489,15 +489,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.inference.ingest.IngestModelMemoryServiceTests
   method: testTransientFirstFetchFailureShouldStayInexactUntilIngestChangeRetries
   issue: https://github.com/elastic/elasticsearch/issues/161995
-- class: org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodecTests
-  method: testTruncatedMemberThrows
-  issue: https://github.com/elastic/elasticsearch/issues/162000
 - class: org.elasticsearch.index.mapper.DynamicMappingIT
   method: testCombineDynamicMappingUpdatesSettingIsDynamic
   issue: https://github.com/elastic/elasticsearch/issues/162026
-- class: org.elasticsearch.xpack.esql.qa.csv.CsvCompressedFormatSpecIT
-  method: test {csv-spec:csv-multifile-resolution.ffwSalaryStats [csv.gz/S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/162041
 - class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
   method: testMaxFillNullFieldsSetting
   issue: https://github.com/elastic/elasticsearch/issues/162061
@@ -507,9 +501,48 @@ tests:
 - class: org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValuesGenericWriteableTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/162108
-- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
-  method: test {csv-spec:external-multifile-resolution.omittedFilterAndSort [ndjson.gz/S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/162111
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
-  method: testClientInitializer
-  issue: https://github.com/elastic/elasticsearch/issues/162143
+- class: org.elasticsearch.search.heappressure.ColumnarKeywordWildcardHeapPressureIT
+  method: testPausedHeavyCaseInsensitiveWildcardsTripBreaker
+  issue: https://github.com/elastic/elasticsearch/issues/162159
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
+  method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
+  issue: https://github.com/elastic/elasticsearch/issues/162163
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
+  issue: https://github.com/elastic/elasticsearch/issues/162175
+- class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
+  method: testAutomatonStaysChargedUntilSearchContextReleased
+  issue: https://github.com/elastic/elasticsearch/issues/162192
+- class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldWildcardHeapPressureIT
+  method: testPausedHeavyWildcardsTripBreaker
+  issue: https://github.com/elastic/elasticsearch/issues/162207
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
+  method: testUnsetMultilineFieldsFailsOnQuotedMultilineRows
+  issue: https://github.com/elastic/elasticsearch/issues/162215
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
+  method: testRandomizedQuotedCsvCountsExactlyAcrossSplits
+  issue: https://github.com/elastic/elasticsearch/issues/162217
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
+  method: testQuoteFreeCsvCountsExactlyByDefault
+  issue: https://github.com/elastic/elasticsearch/issues/162219
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
+  method: testMultilineFieldsTrueReadsPlainPrefixThenQuotedMultilineCsv
+  issue: https://github.com/elastic/elasticsearch/issues/162221
+- class: org.elasticsearch.columnar.PayloadColumnMergeTests
+  method: testMergeCarriesRepeatsOverWithoutComparing
+  issue: https://github.com/elastic/elasticsearch/issues/162235
+- class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=2 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
+  issue: https://github.com/elastic/elasticsearch/issues/162240
+- class: org.elasticsearch.search.heappressure.FuzzyHighlightHeapPressureIT
+  issue: https://github.com/elastic/elasticsearch/issues/149983
+- class: org.elasticsearch.xpack.esql.datasource.s3.S3StorageObjectAsyncTests
+  issue: https://github.com/elastic/elasticsearch/issues/162263
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
+  issue: https://github.com/elastic/elasticsearch/issues/162277
+- class: org.elasticsearch.columnar.StringColumnMergeTests
+  method: testSegmentsOfOneFieldInBothFramingsMergeIntoEitherFraming
+  issue: https://github.com/elastic/elasticsearch/issues/162245
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/162282

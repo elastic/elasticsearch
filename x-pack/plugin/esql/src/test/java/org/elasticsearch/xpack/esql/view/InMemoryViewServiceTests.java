@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -85,6 +86,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -895,6 +897,41 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             LogicalPlan rewritten = replaceViews(query("FROM view10"));
             assertThat(rewritten, matchesPlan(query("FROM emp")));
         }
+    }
+
+    public void testIndexViewOriginsRecordImmediateView() {
+        addView("v1", "FROM missing | KEEP f1");
+        assertThat(viewChains("FROM emp, v1", "missing"), equalTo(Set.of(List.of("v1"))));
+    }
+
+    public void testIndexViewOriginsRecordNestedViewChain() {
+        addView("outer", "FROM inner | KEEP f1");
+        addView("inner", "FROM missing");
+        assertThat(viewChains("FROM outer", "missing"), equalTo(Set.of(List.of("outer", "inner"))));
+    }
+
+    public void testIndexViewOriginsSurviveMergedPassThroughViews() {
+        addView("bare1", "FROM missing1");
+        addView("bare2", "FROM missing2");
+        IndexViewOrigins origins = indexViewOrigins("FROM bare1, bare2");
+        assertThat(origins.chainsByPattern().get("missing1"), equalTo(Set.of(List.of("bare1"))));
+        assertThat(origins.chainsByPattern().get("missing2"), equalTo(Set.of(List.of("bare2"))));
+    }
+
+    public void testIndexViewOriginsRecordEveryViewReferencingIndex() {
+        addView("v1", "FROM missing | KEEP f1");
+        addView("v2", "FROM missing | KEEP f2");
+        assertThat(viewChains("FROM v1, v2", "missing"), equalTo(Set.of(List.of("v1"), List.of("v2"))));
+    }
+
+    public void testIndexViewOriginsRecordViewWhenQueryAlsoNamesIndex() {
+        addView("v1", "FROM missing | KEEP f1");
+        assertThat(viewChains("FROM missing, v1", "missing"), equalTo(Set.of(List.of("v1"))));
+    }
+
+    public void testIndexViewOriginsIgnoreIndicesNamedByQuery() {
+        addView("v1", "FROM emp | KEEP f1");
+        assertThat(viewChains("FROM missing, v1", "missing"), nullValue());
     }
 
     public void testCircularViewSelfReference() {
@@ -2867,6 +2904,16 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
         resolver.replaceViews(plan, null, true, this::parse, false, future);
         return future.actionGet().plan();
+    }
+
+    private IndexViewOrigins indexViewOrigins(String query) {
+        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+        viewResolver.replaceViews(query(query), null, true, this::parse, false, future);
+        return future.actionGet().indexViewOrigins();
+    }
+
+    private Set<List<String>> viewChains(String query, String index) {
+        return indexViewOrigins(query).chainsByPattern().get(index);
     }
 
     private InMemoryViewResolver cpsViewResolver() {

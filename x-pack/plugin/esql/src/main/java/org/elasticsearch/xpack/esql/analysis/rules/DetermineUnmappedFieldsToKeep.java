@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -61,6 +62,10 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  * field. The query's column wins, and a warning says so. Adding the
  * {@link UnmappedFieldsAttribute} next to it would not work, since {@code EVAL} shadows by name and union and fork branches line
  * their columns up by name.
+ *
+ * <p>A view is a boundary this setting does not reach into: nothing inside a view branch is stamped, as a view is a virtual index with
+ * no {@code _source} of its own. Where the view branch could have had the column, its output carries a null {@code _unmapped_fields}
+ * instead, so that the union lines up and the query still has the column.
  *
  * <p>{@link MergePlan} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
  * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, so that
@@ -173,11 +178,24 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
         if (plan instanceof MergePlan merge) {
-            var newChildren = merge.children().stream().map(child -> {
-                LogicalPlan annotated = annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern));
-                return annotated instanceof Project project ? passThroughUnmappedFields(project) : annotated;
-            }).toList();
-            return merge.replaceChildren(newChildren);
+            List<LogicalPlan> children = merge.children();
+            List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+            for (int i = 0; i < children.size(); i++) {
+                LogicalPlan child = children.get(i);
+                UnmappedFieldsPattern branchPattern = computeUnmappedFieldsToKeep(child).intersect(pattern);
+                if (merge instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
+                    // A view is a virtual index with no _source of its own, and the setting ends at its boundary: nothing inside is
+                    // stamped, and the view's output has a null _unmapped_fields where it could have had one.
+                    newChildren.add(branchPattern.isNone() ? child : padNullUnmappedFields(child));
+                    continue;
+                }
+                LogicalPlan annotated = annotate(child, branchPattern);
+                newChildren.add(annotated instanceof Project project ? passThroughUnmappedFields(project) : annotated);
+            }
+            LogicalPlan replaced = merge.replaceChildren(newChildren);
+            // Declared right away, so that what is built above sees the padded column of a view branch: the Projects of a
+            // user's subquery around this union, and the union around them.
+            return replaced instanceof UnionAll unionAll ? declarePaddedUnmappedFields(unionAll) : replaced;
         }
         if (plan instanceof AbstractSubqueryJoin join) {
             return join.replaceChildren(annotate(join.left(), pattern), annotate(join.right(), UnmappedFieldsPattern.NONE));
@@ -210,14 +228,18 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             return project;
         }
         var noStaleFields = dropStaleNoFields(project);
-        List<UnmappedFieldsAttribute> unmapped = CollectionUtils.collect(noStaleFields.child().output(), UnmappedFieldsAttribute.class);
+        // By name, not by type: below a view the column is a null that was padded in (see padNullUnmappedFields), which is a plain
+        // reference. apply() leaves the plan alone when the query has a column of that name of its own, so this finds only ours.
+        List<Attribute> unmapped = noStaleFields.child()
+            .output()
+            .stream()
+            .filter(attr -> attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME))
+            .collect(Collectors.toList());
         if (unmapped.isEmpty()) {
             return noStaleFields;
         }
         Set<String> names = new HashSet<>(Expressions.names(noStaleFields.projections()));
-        List<UnmappedFieldsAttribute> missing = unmapped.stream()
-            .filter(attr -> names.contains(attr.name()) == false)
-            .collect(Collectors.toList());
+        List<Attribute> missing = unmapped.stream().filter(attr -> names.contains(attr.name()) == false).collect(Collectors.toList());
         return noStaleFields.withAdditionalProjections(missing);
     }
 
@@ -269,7 +291,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
     private static UnionAll alignUnmappedFields(UnionAll unionAll) {
         UnmappedFieldsAttribute unmapped = unionFrom(unionAll);
         if (unmapped == null) {
-            return unionAll;
+            return declarePaddedUnmappedFields(unionAll);
         }
         List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
         boolean childrenChanged = false;
@@ -290,6 +312,25 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         return childrenChanged == false && newOutput.equals(unionAll.output())
             ? unionAll
             : withChildren.replaceSubPlansAndOutput(withChildren.children(), newOutput);
+    }
+
+    /**
+     * No branch exposes an {@link UnmappedFieldsAttribute}, but view branches were padded with a null {@code _unmapped_fields}: a
+     * view never loads from {@code _source}. The union has to declare that column, as its output predates the padding.
+     */
+    private static UnionAll declarePaddedUnmappedFields(UnionAll unionAll) {
+        boolean padded = unionAll.children()
+            .stream()
+            .anyMatch(child -> child.outputSet().names().contains(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        boolean declared = unionAll.output().stream().anyMatch(attr -> attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        if (padded == false || declared) {
+            return unionAll;
+        }
+        List<Attribute> output = keepExistingUnsupportedAttributes(
+            toReferenceAttributesPreservingIds(MergePlan.outputUnion(unionAll.children()), unionAll.output()),
+            unionAll.output()
+        );
+        return unionAll.replaceSubPlansAndOutput(unionAll.children(), output);
     }
 
     /** {@code null} when no branch exposes {@code _unmapped_fields}. */

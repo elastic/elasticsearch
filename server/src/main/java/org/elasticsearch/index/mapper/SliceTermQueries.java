@@ -67,6 +67,11 @@ public final class SliceTermQueries {
         if (settings == null || settings.isSliceEnabled() == false) {
             return Scope.PLAIN;
         }
+        // A field whose terms a slice index leaves plain is asked for plainly, the same decision the index side makes.
+        final MappedFieldType type = context.getFieldType(field);
+        if (type != null && SliceIndexing.keepsPlainTerms(type.typeName())) {
+            return Scope.PLAIN;
+        }
         return context.sliceSelection().isRestricted() ? Scope.SLICES : Scope.ALL_SLICES;
     }
 

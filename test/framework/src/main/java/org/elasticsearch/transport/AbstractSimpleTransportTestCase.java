@@ -58,6 +58,9 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -105,11 +108,13 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -535,21 +540,21 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             AtomicInteger responseSent = new AtomicInteger();
 
             @Override
-            public void onRequestReceived(long requestId, String action) {
+            public void onRequestReceived(long requestId, String action, int networkMessageSize) {
                 if (action.equals(ACTION)) {
                     requestsReceived.incrementAndGet();
                 }
             }
 
             @Override
-            public void onResponseSent(long requestId, String action) {
+            public void onResponseSent(long requestId, String action, int networkMessageSize) {
                 if (action.equals(ACTION)) {
                     responseSent.incrementAndGet();
                 }
             }
 
             @Override
-            public void onResponseSent(long requestId, String action, Exception error) {
+            public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
                 if (action.equals(ACTION)) {
                     responseSent.incrementAndGet();
                 }
@@ -569,7 +574,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 long requestId,
                 String action,
                 TransportRequest request,
-                TransportRequestOptions options
+                TransportRequestOptions options,
+                int networkMessageSize
             ) {
                 if (action.equals(ACTION)) {
                     requestsSent.incrementAndGet();
@@ -3411,6 +3417,62 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         );
         safeAwait(barrier);
         safeAwait(responseLatch);
+    }
+
+    public void testActionMetrics() throws Exception {
+        final String action = "internal:testActionMetrics";
+        serviceA.registerRequestHandler(
+            action,
+            threadPool.executor(ThreadPool.Names.GENERIC),
+            StringMessageRequest::new,
+            (request, channel, task) -> channel.sendResponse(new StringMessageResponse("hello " + request.message))
+        );
+
+        final var future = new PlainActionFuture<StringMessageResponse>();
+        serviceB.sendRequest(
+            nodeA,
+            action,
+            new StringMessageRequest(randomAlphaOfLengthBetween(1, 1000)),
+            new ActionListenerResponseHandler<>(future, StringMessageResponse::new, threadPool.generic())
+        );
+        safeGet(future);
+
+        assertBusy(() -> {
+            // each message is recorded once by the node sending it and once by the node receiving it, with the same size as the action
+            // stats
+            final var stats = serviceA.getRequestHandler(action).getStats();
+            assertThat(stats.requestCount(), equalTo(1L));
+            assertThat(stats.responseCount(), equalTo(1L));
+            assertThat(messageSizes(serviceB, TransportActionMetrics.SENT_REQUEST_SIZE_METRIC, action), contains(stats.totalRequestSize()));
+            assertThat(
+                messageSizes(serviceA, TransportActionMetrics.RECEIVED_REQUEST_SIZE_METRIC, action),
+                contains(stats.totalRequestSize())
+            );
+            assertThat(
+                messageSizes(serviceA, TransportActionMetrics.SENT_RESPONSE_SIZE_METRIC, action),
+                contains(stats.totalResponseSize())
+            );
+            assertThat(
+                messageSizes(serviceB, TransportActionMetrics.RECEIVED_RESPONSE_SIZE_METRIC, action),
+                contains(stats.totalResponseSize())
+            );
+            // each node only records what it sends and receives
+            assertThat(messageSizes(serviceA, TransportActionMetrics.SENT_REQUEST_SIZE_METRIC, action), empty());
+            assertThat(messageSizes(serviceB, TransportActionMetrics.RECEIVED_REQUEST_SIZE_METRIC, action), empty());
+            assertThat(messageSizes(serviceB, TransportActionMetrics.SENT_RESPONSE_SIZE_METRIC, action), empty());
+            assertThat(messageSizes(serviceA, TransportActionMetrics.RECEIVED_RESPONSE_SIZE_METRIC, action), empty());
+        });
+    }
+
+    private static List<Long> messageSizes(MockTransportService service, String metric, String action) {
+        final var meterRegistry = (RecordingMeterRegistry) service.getTelemetryProvider().getMeterRegistry();
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, metric)
+            .stream()
+            .filter(m -> action.equals(m.attributes().get(TransportActionMetrics.ACTION_NAME_ATTRIBUTE)))
+            .peek(m -> assertThat(m.attributes(), not(hasKey(TransportActionMetrics.IS_REMOTE_CONNECTION_ATTRIBUTE))))
+            .map(Measurement::getLong)
+            .toList();
     }
 
     private static long[] getConstantMessageSizeHistogram(int count, long size) {

@@ -67,10 +67,7 @@ public final class NodeHeapUsageCalculator {
             final NodeHeapUsageComponents nodeHeapUsageComponents = componentsForActiveShards(routingNode, shardHeapUsageEstimates);
             nodeHeapUsageComponentsByNode.put(discoveryNode, nodeHeapUsageComponents);
             if (isIndexingNode(discoveryNode)) {
-                maxIndexingNodePostingsHeapUsage = Math.max(
-                    maxIndexingNodePostingsHeapUsage,
-                    nodeHeapUsageComponents.postingsHeapUsage
-                );
+                maxIndexingNodePostingsHeapUsage = Math.max(maxIndexingNodePostingsHeapUsage, nodeHeapUsageComponents.postingsHeapUsage);
             }
         }
 

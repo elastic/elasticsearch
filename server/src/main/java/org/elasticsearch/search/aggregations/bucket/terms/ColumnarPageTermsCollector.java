@@ -50,7 +50,7 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
     static final class Scratch {
         private final PageBudget budget;
         private int[] docs;
-        private int[] counts = new int[0];
+        private int[] ordinalCounts = new int[0];
 
         Scratch(PageBudget budget) {
             this.budget = budget;
@@ -65,14 +65,14 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
             return docs;
         }
 
-        /** The counts of a page's terms, with room for {@code size} slots. */
-        int[] counts(int size) {
-            if (counts.length < size) {
-                final int capacity = ArrayUtil.oversize(size, Integer.BYTES);
-                budget.charge((long) (capacity - counts.length) * Integer.BYTES);
-                counts = new int[capacity];
+        /** The count of each ordinal of a page's dictionary, with room for {@code dictionarySize} of them. */
+        int[] ordinalCounts(int dictionarySize) {
+            if (ordinalCounts.length < dictionarySize) {
+                final int capacity = ArrayUtil.oversize(dictionarySize, Integer.BYTES);
+                budget.charge((long) (capacity - ordinalCounts.length) * Integer.BYTES);
+                ordinalCounts = new int[capacity];
             }
-            return counts;
+            return ordinalCounts;
         }
     }
 
@@ -164,17 +164,24 @@ final class ColumnarPageTermsCollector extends LeafBucketCollector {
         };
 
         @Override
-        public void appendOrdinals(int[] ordinals, int valueCount, int[] valueCounts, int docCount, BytesRef[] dictionary, int size) {
+        public void appendOrdinals(
+            int[] ordinals,
+            int valueCount,
+            int[] valueCounts,
+            int docCount,
+            BytesRef[] dictionary,
+            int dictionarySize
+        ) {
             assert valueCount <= docCount : "a column with one value a document";
             ordinalPages++;
-            final int[] slotCounts = target.scratch().counts(size);
-            Arrays.fill(slotCounts, 0, size, 0);
+            final int[] ordinalCounts = target.scratch().ordinalCounts(dictionarySize);
+            Arrays.fill(ordinalCounts, 0, dictionarySize, 0);
             for (int i = 0; i < valueCount; i++) {
-                slotCounts[ordinals[i]]++;
+                ordinalCounts[ordinals[i]]++;
             }
-            for (int slot = 0; slot < size; slot++) {
-                if (slotCounts[slot] > 0) {
-                    target.count(dictionary[slot], slotCounts[slot]);
+            for (int ordinal = 0; ordinal < dictionarySize; ordinal++) {
+                if (ordinalCounts[ordinal] > 0) {
+                    target.count(dictionary[ordinal], ordinalCounts[ordinal]);
                 }
             }
         }

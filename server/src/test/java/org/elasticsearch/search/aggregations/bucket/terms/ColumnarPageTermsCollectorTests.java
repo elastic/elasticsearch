@@ -45,15 +45,15 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -65,9 +65,11 @@ import static org.hamcrest.Matchers.lessThan;
 public class ColumnarPageTermsCollectorTests extends ESTestCase {
 
     private static final String FIELD = "kw";
+    /** A document whose one slot is null, which has no value. */
+    private static final String NULL_SLOT = "<null>";
 
     /** What a search counted, and how the documents arrived. */
-    private record Outcome(Map<String, Long> counts, int perDocumentDocs, int ordinalPages, int flatPages) {}
+    private record Outcome(Map<String, Long> counts, int perDocumentDocs, int ordinalPages, int flatPages, int dictionarySize) {}
 
     /** Counts into a map. The real target is the aggregator, which needs a whole search context. */
     private static final class CountingTarget implements ColumnarPageTermsCollector.Target {
@@ -112,10 +114,10 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
 
     /** A column that repeats a lot is read as dictionary pages. */
     public void testFewTermsOverSeveralPages() throws IOException {
-        final String[] vocabulary = { "7.17.0", "8.4.1", "8.11.0", "8.12.2", "9.0.0" };
-        final String[][] docs = new String[ColumnarPageTermsCollector.PAGE_DOCS * 2 + randomIntBetween(1, 1000)][];
+        final String[] vocabulary = { "alpha", "bravo", "charlie", "delta", "echo" };
+        final String[] docs = new String[ColumnarPageTermsCollector.PAGE_DOCS * 2 + randomIntBetween(1, 1000)];
         for (int i = 0; i < docs.length; i++) {
-            docs[i] = new String[] { vocabulary[randomIntBetween(0, vocabulary.length - 1)] };
+            docs[i] = vocabulary[randomIntBetween(0, vocabulary.length - 1)];
         }
         final Outcome outcome = search(docs, Set.of(), null, new MatchAllDocsQuery(), false);
         assertThat(outcome.counts, equalTo(expected(docs, null)));
@@ -126,9 +128,9 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
 
     /** A column that does not repeat is read as flat pages. */
     public void testNoRepeatsAreCountedAsFlatPages() throws IOException {
-        final String[][] docs = new String[3000][];
+        final String[] docs = new String[3000];
         for (int i = 0; i < docs.length; i++) {
-            docs[i] = new String[] { "unique-" + i };
+            docs[i] = "unique-" + i;
         }
         final Outcome outcome = search(docs, Set.of(), null, new MatchAllDocsQuery(), false);
         assertThat(outcome.counts, equalTo(expected(docs, null)));
@@ -138,7 +140,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
 
     /** With deleted documents Lucene delivers bit-set windows, which are streams too. */
     public void testDeletedDocumentsAreLeftOutOfPages() throws IOException {
-        final String[][] docs = randomDocs(5000, 6);
+        final String[] docs = randomDocs(5000, 6);
         final Set<Integer> deleted = new HashSet<>();
         for (int doc = 0; doc < docs.length; doc += randomIntBetween(1, 30)) {
             deleted.add(doc);
@@ -148,9 +150,28 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         assertThat("the live documents arrived as streams", outcome.perDocumentDocs, equalTo(0));
     }
 
+    /**
+     * The dictionary is capped relative to the column's size, so when some values are long and rare it names only some
+     * of them and the rest escape. Escaped values are counted like any other.
+     */
+    public void testEscapedValuesAreCounted() throws IOException {
+        final String[] common = { "alpha", "bravo", "charlie", "delta", "echo" };
+        final String[] docs = new String[5000];
+        final Set<String> distinct = new HashSet<>();
+        for (int i = 0; i < docs.length; i++) {
+            docs[i] = i % 12 == 1 ? "unique-" + i + "-" + "x".repeat(120) : common[randomIntBetween(0, common.length - 1)];
+            distinct.add(docs[i]);
+        }
+        final Outcome outcome = search(docs, Set.of(), null, new MatchAllDocsQuery(), false);
+        assertThat(outcome.counts, equalTo(expected(docs, null)));
+        assertThat("a dictionary, so the rest escaped", outcome.dictionarySize, greaterThan(0));
+        assertThat("that does not name every value", outcome.dictionarySize, lessThan(distinct.size()));
+        assertThat(outcome.ordinalPages, greaterThan(0));
+    }
+
     /** Documents delivered one at a time go the ordinary way. */
     public void testDocumentsOneAtATimeAreNotCountedAsPages() throws IOException {
-        final String[][] docs = randomDocs(5000, 6);
+        final String[] docs = randomDocs(5000, 6);
         final Outcome outcome = search(docs, Set.of(), null, new MatchAllDocsQuery(), true);
         assertThat(outcome.counts, equalTo(expected(docs, null)));
         assertThat(outcome.perDocumentDocs, equalTo(docs.length));
@@ -160,7 +181,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
     /** Random vocabulary, missing, null, deleted and filtered documents, and delivery. */
     public void testRandomLayouts() throws IOException {
         for (int round = 0; round < 10; round++) {
-            final String[][] docs = randomDocs(
+            final String[] docs = randomDocs(
                 randomIntBetween(1, ColumnarPageTermsCollector.PAGE_DOCS * 2 + 500),
                 randomFrom(2, 10, 200, 20000)
             );
@@ -198,12 +219,12 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         scratch.docs();
         assertThat("charged once", charged[0], equalTo(docsCharge));
 
-        scratch.counts(100);
+        scratch.ordinalCounts(100);
         final long first = charged[0] - docsCharge;
-        assertThat("an int a slot at least", first, greaterThanOrEqualTo(100L * Integer.BYTES));
-        scratch.counts(50);
+        assertThat("an int an ordinal at least", first, greaterThanOrEqualTo(100L * Integer.BYTES));
+        scratch.ordinalCounts(50);
         assertThat("big enough already", charged[0] - docsCharge, equalTo(first));
-        scratch.counts(10_000);
+        scratch.ordinalCounts(10_000);
         assertThat(charged[0] - docsCharge, greaterThanOrEqualTo(10_000L * Integer.BYTES));
         assertThat("the growth, not the whole size again", charged[0] - docsCharge, lessThan(2 * 10_000L * Integer.BYTES));
     }
@@ -227,13 +248,13 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
         assertThat("and the last is returned when the aggregation closes", held[0], equalTo(0L));
     }
 
-    /** A document is {@code null} for no field, {@code {null}} for a null slot, or {@code {value}}. */
-    private static String[][] randomDocs(int numDocs, int vocabularySize) {
-        final String[][] docs = new String[numDocs][];
+    /** A document is {@code null} for no field, {@link #NULL_SLOT} for a null value, or its value. */
+    private static String[] randomDocs(int numDocs, int vocabularySize) {
+        final String[] docs = new String[numDocs];
         for (int i = 0; i < numDocs; i++) {
             final int shape = randomIntBetween(0, 19);
             if (shape != 0) { // zero leaves the field absent
-                docs[i] = new String[] { shape == 1 ? null : "term-" + randomIntBetween(0, vocabularySize - 1) };
+                docs[i] = shape == 1 ? NULL_SLOT : "term-" + randomIntBetween(0, vocabularySize - 1);
             }
         }
         return docs;
@@ -251,11 +272,11 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
     }
 
     /** The counts of reading a document at a time. */
-    private static Map<String, Long> expected(String[][] docs, Set<Integer> only) {
+    private static Map<String, Long> expected(String[] docs, Set<Integer> only) {
         final Map<String, Long> counts = new TreeMap<>();
         for (int doc = 0; doc < docs.length; doc++) {
-            if (docs[doc] != null && docs[doc][0] != null && (only == null || only.contains(doc))) {
-                counts.merge(docs[doc][0], 1L, Long::sum);
+            if (docs[doc] != null && docs[doc].equals(NULL_SLOT) == false && (only == null || only.contains(doc))) {
+                counts.merge(docs[doc], 1L, Long::sum);
             }
         }
         return counts;
@@ -266,10 +287,11 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
      * {@code tagged} marks documents for a query to match, or is null. With {@code oneAtATime} streams are passed on a
      * document at a time.
      */
-    private Outcome search(String[][] docs, Set<Integer> deleted, Set<Integer> tagged, Query query, boolean oneAtATime) throws IOException {
+    private Outcome search(String[] docs, Set<Integer> deleted, Set<Integer> tagged, Query query, boolean oneAtATime) throws IOException {
         final CountingTarget target = new CountingTarget();
         final PerDocumentCollector[] perDocument = new PerDocumentCollector[1];
         final ColumnarPageTermsCollector[] collector = new ColumnarPageTermsCollector[1];
+        final int[] dictionarySize = new int[1];
         try (Directory dir = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
                 for (int i = 0; i < docs.length; i++) {
@@ -304,6 +326,7 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
                                     FIELD
                                 );
                                 perDocument[0] = new PerDocumentCollector(values, target);
+                                dictionarySize[0] = values.columnSource().reader().dictionarySize();
                                 collector[0] = new ColumnarPageTermsCollector(values.columnSource().reader(), target, perDocument[0]);
                                 return oneAtATime ? new FilterLeafCollector(collector[0]) {
                                     @Override
@@ -327,18 +350,12 @@ public class ColumnarPageTermsCollectorTests extends ESTestCase {
                 });
             }
         }
-        if (collector[0] == null) {
-            return new Outcome(target.counts, 0, 0, 0); // a segment the search had no use for
-        }
-        return new Outcome(target.counts, perDocument[0].docs, collector[0].ordinalPages, collector[0].flatPages);
+        return new Outcome(target.counts, perDocument[0].docs, collector[0].ordinalPages, collector[0].flatPages, dictionarySize[0]);
     }
 
-    private static BytesRef encode(String[] slots) {
-        final List<BytesRef> refs = new ArrayList<>(slots.length);
-        for (String slot : slots) {
-            refs.add(slot == null ? null : new BytesRef(slot));
-        }
-        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(refs));
+    private static BytesRef encode(String value) {
+        final BytesRef ref = value.equals(NULL_SLOT) ? null : new BytesRef(value);
+        return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(Collections.singletonList(ref)));
     }
 
     private static FieldType binaryDocValuesType() {

@@ -106,7 +106,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
-        columnarPages.releaseLeaf();
+        columnarPages.releaseLeafBudget();
         return resultStrategy.wrapCollector(
             collectorSource.getLeafCollector(
                 includeExclude,
@@ -167,7 +167,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         /** Returns what the previous leaf's reader was charged. */
-        void releaseLeaf() {
+        void releaseLeafBudget() {
             budget.release();
         }
 
@@ -300,7 +300,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             final LeafBucketCollector perDocument = singleton != null
                 ? getLeafCollector(includeExclude, singleton, sub, consumer)
                 : getLeafCollector(includeExclude, values, sub, consumer);
-            // Only a column with one value a document; pages were slower than the ordinary route for several.
+            // Only a column with one value a document.
             if (pages != null
                 && values instanceof ColumnarPayloadSortableBinaryDocValues columnar
                 && columnar.columnSource() != null

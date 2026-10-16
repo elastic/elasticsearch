@@ -93,7 +93,7 @@ public class ColumnarTermsCollectionBenchmark {
 
     private static final String FIELD = "kw";
 
-    /** Distinct values in the field: a version string at 5, a service name at 100. */
+    /** Distinct values in the field. */
     @Param({ "5", "100", "1000", "5000" })
     private int distinctValues;
 
@@ -252,7 +252,7 @@ public class ColumnarTermsCollectionBenchmark {
             case "uniform" -> random.nextInt(distinctValues);
             default -> throw new IllegalStateException("unknown distribution [" + distribution + "]");
         };
-        final BytesRef value = new BytesRef("9." + index / 100 + "." + index % 100);
+        final BytesRef value = new BytesRef("value-" + index);
         return BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(List.of(value)));
     }
 

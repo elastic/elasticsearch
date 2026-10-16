@@ -40,7 +40,7 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
     private static final String COLUMNAR = "columnar-index";
     private static final String PLAIN = "plain-index";
 
-    private static final String[] VERSIONS = { "7.17.0", "8.4.1", "8.11.0", "8.12.2", "9.0.0" };
+    private static final String[] COMMON_VALUES = { "alpha", "bravo", "charlie", "delta", "echo" };
 
     @Before
     public void indexTheSameDocumentsTwice() {
@@ -72,27 +72,26 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
             .build();
     }
 
-    /** One value from a few, some documents with none, some with a value of their own. */
+    /**
+     * Mostly one value from a few, and some documents with none. One in twelve has a long value that occurs once. There
+     * are too many of those for the column's dictionary to name them all, so some probably escape it, which is not
+     * checked here.
+     */
     private static Map<String, Object> source(int doc) {
         final Map<String, Object> source = new TreeMap<>();
         source.put("@timestamp", "2024-01-01T00:00:00Z");
         source.put("n", doc % 7);
-        final int shape = doc % 20;
-        if (shape == 0) {
+        if (doc % 20 == 0) {
             return source; // no kw
         }
-        if (shape == 1) {
-            source.put("kw", "rare-" + doc); // a value of its own, which a dictionary does not name
-        } else {
-            source.put("kw", VERSIONS[doc % VERSIONS.length]);
-        }
+        source.put("kw", doc % 12 == 1 ? "unique-" + doc + "-" + "x".repeat(120) : COMMON_VALUES[doc % COMMON_VALUES.length]);
         return source;
     }
 
     public void testTermsMatchesAnOrdinaryKeywordField() {
         final AggregationBuilder terms = AggregationBuilders.terms("t").field("kw").size(10_000);
         final Map<String, Long> expected = buckets(PLAIN, terms, false, false);
-        assertThat(expected.size(), greaterThan(VERSIONS.length));
+        assertThat(expected.size(), greaterThan(COMMON_VALUES.length));
         assertThat(buckets(COLUMNAR, terms, false, false), equalTo(expected));
     }
 
@@ -135,10 +134,10 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
         final BulkRequestBuilder columnarBulk = client().prepareBulk();
         final BulkRequestBuilder plainBulk = client().prepareBulk();
         for (int doc = 0; doc < 3000; doc++) {
-            final String version = VERSIONS[doc % VERSIONS.length];
+            final String value = COMMON_VALUES[doc % COMMON_VALUES.length];
             final Map<String, Object> source = new TreeMap<>();
             source.put("@timestamp", "2024-01-01T00:00:00Z");
-            source.put("kw", doc % 3 == 0 ? List.of(version, version) : List.of(version, VERSIONS[(doc + 1) % VERSIONS.length]));
+            source.put("kw", doc % 3 == 0 ? List.of(value, value) : List.of(value, COMMON_VALUES[(doc + 1) % COMMON_VALUES.length]));
             columnarBulk.add(prepareIndex(columnar).setSource(source));
             plainBulk.add(prepareIndex(plain).setSource(source));
         }
@@ -147,6 +146,33 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh(columnar, plain).get();
         final AggregationBuilder terms = AggregationBuilders.terms("t").field("kw").size(10_000);
         assertThat(buckets(columnar, terms, false, false), equalTo(buckets(plain, terms, false, false)));
+    }
+
+    /** Under another aggregation, terms is collected for many owning buckets, and counts the same. */
+    public void testANestedAggregationCountsTheSame() {
+        final AggregationBuilder outer = AggregationBuilders.terms("outer")
+            .field("n")
+            .size(100)
+            .subAggregation(AggregationBuilders.terms("t").field("kw").size(10_000));
+        final Map<String, Long> expected = nested(PLAIN, outer);
+        assertThat(expected.size(), greaterThan(7));
+        assertThat(nested(COLUMNAR, outer), equalTo(expected));
+    }
+
+    /** Outer key and inner key to doc count. */
+    private Map<String, Long> nested(String index, AggregationBuilder outer) {
+        final Map<String, Long> buckets = new TreeMap<>();
+        final SearchRequestBuilder request = client().prepareSearch(index).setSize(0).setTrackTotalHits(false).addAggregation(outer);
+        assertNoFailuresAndResponse(request, response -> {
+            final LongTerms outerTerms = response.getAggregations().get("outer");
+            for (LongTerms.Bucket bucket : outerTerms.getBuckets()) {
+                final StringTerms inner = bucket.getAggregations().get("t");
+                for (StringTerms.Bucket innerBucket : inner.getBuckets()) {
+                    buckets.put(bucket.getKeyAsString() + "/" + innerBucket.getKeyAsString(), innerBucket.getDocCount());
+                }
+            }
+        });
+        return buckets;
     }
 
     /** Key to doc count, and with {@code withSum} the sub-aggregation's sum too. Hits are tracked only when asked. */

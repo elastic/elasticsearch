@@ -50,6 +50,8 @@ final class SumDenseVectorGroupingState extends AbstractFallibleArrayState imple
         int groupSumStart = groupId * dimensions;
         for (int i = 0; i < dimensions; i++) {
             double sum = block.getFloat(start + i) + sums.get(groupSumStart + i);
+            // The double can hold totals past Float.MAX_VALUE, but the result is emitted as a float,
+            // so fail as soon as the total would no longer fit in one.
             float result = (float) sum;
             if (Float.isFinite(result) == false) {
                 throw new ArithmeticException("not a finite float number: " + result);

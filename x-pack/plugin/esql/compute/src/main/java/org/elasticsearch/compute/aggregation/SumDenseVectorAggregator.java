@@ -137,6 +137,8 @@ class SumDenseVectorAggregator {
             }
             for (int i = 0; i < dimensions; i++) {
                 sum[i] += block.getFloat(start + i);
+                // The double can hold totals past Float.MAX_VALUE, but the result is emitted as a float,
+                // so fail as soon as the total would no longer fit in one.
                 float result = (float) sum[i];
                 if (Float.isFinite(result) == false) {
                     throw new ArithmeticException("not a finite float number: " + result);

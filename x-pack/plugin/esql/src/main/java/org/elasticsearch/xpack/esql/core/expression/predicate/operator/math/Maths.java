@@ -15,6 +15,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt
 
 public final class Maths {
 
+    /**
+     * Half of 10^19, the smallest power of ten that does not fit into a long. A long rounded at that
+     * scale is either zero or +/-10^19, so this is the only threshold needed to tell the two apart.
+     */
+    private static final long HALF_OF_TEN_POW_19 = 5_000_000_000_000_000_000L;
+
     public static Number round(Number n, long precision) throws ArithmeticException {
         if (n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte) {
             return convertToIntegerType(round(n.longValue(), precision), n.getClass());
@@ -69,34 +75,48 @@ public final class Maths {
         return middleResult.multiply(tenAtScale);
     }
 
+    /**
+     * Rounds {@code n} half away from zero at a scale of {@code 10^-precision}.
+     * <p>
+     * Note there is deliberately no shortcut for numbers with fewer digits than the scale: a leading
+     * digit of 5 or more rounds up to the next power of ten rather than to zero, so {@code ROUND(5, -1)}
+     * is 10 and not 0. Only truncation may take that shortcut, and {@link #truncate} still does.
+     *
+     * @throws ArithmeticException if the rounded value does not fit into a long
+     */
     public static Long round(long n, long precision) throws ArithmeticException {
         if (n == 0L || precision >= 0) {
             return n;
         }
-
-        long digitsToRound = -precision;
-        int digits = (int) (Math.log10(Math.abs((double) n)) + 1);
-        if (digits <= digitsToRound) {
+        // Every long is below 10^19, so at a scale of 10^20 or more it is smaller than half of the scale
+        // and rounds to zero. Testing before negating also keeps -Long.MIN_VALUE from overflowing back
+        // to a negative value, which would leave the scale nonsensical.
+        if (precision <= -20) {
             return 0L;
         }
 
-        long tenAtScaleMinusOne = (long) tenPower(digitsToRound - 1);
-        long tenAtScale = tenAtScaleMinusOne * 10;
+        int digitsToRound = (int) -precision;
+        if (digitsToRound == 19) {
+            // the result is either zero or +/-10^19, and 10^19 does not fit into a long
+            if (n >= HALF_OF_TEN_POW_19 || n <= -HALF_OF_TEN_POW_19) {
+                throw new ArithmeticException("long overflow");
+            }
+            return 0L;
+        }
+
+        long tenAtScale = (long) tenPower(digitsToRound);
         long middleResult = n / tenAtScale;
         long remainder = n % tenAtScale; // TODO: vs.: n - middleResult * tenAtScale
-        long halving = 5 * tenAtScaleMinusOne;
+        long halving = tenAtScale / 2;
         if (remainder >= halving) {
             middleResult++;
         } else if (remainder <= -halving) {
             middleResult--;
         }
 
-        long result = middleResult * tenAtScale;
-        if (Long.signum(result) == Long.signum(n)) {
-            return result;
-        } else {
-            throw new ArithmeticException("long overflow");
-        }
+        // multiplyExact reports the overflow that a signum comparison cannot, since a legitimate
+        // result of zero is indistinguishable from a wrapped one by sign alone
+        return Math.multiplyExact(middleResult, tenAtScale);
     }
 
     public static Number truncate(Number n, Number precision) {
@@ -105,6 +125,12 @@ public final class Maths {
             long nLong = n.longValue();
             if (nLong == 0L || longPrecision >= 0) {
                 return n;
+            }
+            // Every long is below 10^19, so truncating at that scale or beyond always yields zero.
+            // Testing before negating also keeps -Long.MIN_VALUE from overflowing back to a negative
+            // value, which would drive tenPower() to zero and divide by zero below.
+            if (longPrecision <= -19) {
+                return convertToIntegerType(0L, n.getClass());
             }
 
             long digitsToTruncate = -longPrecision;

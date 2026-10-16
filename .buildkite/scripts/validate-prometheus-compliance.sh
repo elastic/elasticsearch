@@ -124,7 +124,7 @@ run_promcheck() {
   NO_COLOR=1 "$PROMCHECK_BIN" \
     --elasticsearch "$workspace" \
     --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
-    -o json < "$BUNDLE" | tee "$log"
+    --output json < "$BUNDLE" | tee "$log"
   rc=${PIPESTATUS[0]}
   set -e
   (( rc == 0 || rc == 1 ))

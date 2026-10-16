@@ -11,7 +11,7 @@ const VERSION = "0.9.5+prometheus-3.13.1";
 type Status = "match" | "mismatch" | "error" | "error4xx" | "error5xx" | "flaky" | "filtered";
 type Case = [id: string, status: Status, expr: string];
 
-/** JSONL records matching promcheck -o json, with the full expression. */
+/** JSONL records matching promcheck --output json, with the full expression. */
 function promcheckLog(cases: Case[]): string {
   const count = (status: Status) => cases.filter(([, value]) => value === status).length;
   const rows = cases.map(([name, status, query]) => ({
@@ -224,7 +224,7 @@ esac
     for (const args of lines) {
       expect(args).toContain("--elasticsearch ");
       expect(args).toContain("--elasticsearch-timeout 900s");
-      expect(args).toContain("-o json");
+      expect(args).toContain("--output json");
     }
   });
 

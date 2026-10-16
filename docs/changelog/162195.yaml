@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162195
+summary: Read the keys of flattened fields and unmapped fields like any field, and support wildcard, regexp, fuzzy and case-insensitive queries on flattened keys
+type: enhancement

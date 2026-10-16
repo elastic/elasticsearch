@@ -846,6 +846,16 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"file": {"raw": "o2"}}""");
 
+        if (flattenedSubfields()) {
+            // A name is mapped only where it is a leaf: file is the keyword of test1, and test2 has none
+            Map<String, Object> result = runEsql("FROM test* | SORT file, file.raw | LIMIT 3");
+            assertResultMap(
+                result,
+                List.of(columnInfo("file", "keyword"), columnInfo("file.raw", "keyword")),
+                List.of(matchesList().item("f1").item(null), matchesList().item(null).item("o2"))
+            );
+            return;
+        }
         ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT file, file.raw | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(
@@ -1590,6 +1600,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         var capsName = EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.name().toLowerCase(Locale.ROOT);
         boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
         assumeTrue("date_range field type not supported in this version", requiredClusterCapability);
+    }
+
+    /** Whether a name is mapped only in the indices where it is a leaf, as with the subfields of flattened fields. */
+    private boolean flattenedSubfields() throws IOException {
+        var capsName = EsqlCapabilities.Cap.FLATTENED_SUBFIELDS.name().toLowerCase(Locale.ROOT);
+        return clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
     }
 
     private void assumeSuggestedCastReported() throws IOException {

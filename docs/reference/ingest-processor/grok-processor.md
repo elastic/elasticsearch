@@ -20,7 +20,7 @@ $$$grok-options$$$
 | Name | Required | Default | Description |
 | --- | --- | --- | --- |
 | `field` | yes | - | The field to use for grok expression parsing |
-| `patterns` | yes | - | An ordered list of grok expression to match and extract named captures with. Returns on the first expression in the list that matches. |
+| `patterns` | yes | - | An ordered list of grok expressions to match and extract named captures with. Returns the match that starts leftmost in the input string. If two patterns match at the same position, the first pattern in the list wins. |
 | `pattern_definitions` | no | - | A map of pattern-name and pattern tuples defining custom patterns to be used by the current processor. Patterns matching existing names will override the pre-existing definition. |
 | `ecs_compatibility` | no | `disabled` | Must be `disabled` or `v1`. If `v1`, the processor uses patterns with [Elastic Common Schema (ECS)](ecs://reference/ecs-field-reference.md) field names. |
 | `trace_match` | no | false | when true, `_ingest._grok_match_index` will be inserted into your matched document’s metadata with the index into the pattern found in `patterns` that matched. |
@@ -117,7 +117,72 @@ You can add your own patterns to a processor definition under the `pattern_defin
 
 Sometimes one pattern is not enough to capture the potential structure of a field. Let’s assume we want to match all messages that contain your favorite pet breeds of either cats or dogs. One way to accomplish this is to provide two distinct patterns that can be matched, instead of one really complicated expression capturing the same `or` behavior.
 
-Here is an example of such a configuration executed against the simulate API:
+### How pattern selection works
+
+Elasticsearch combines all patterns into a single regular expression and delegates matching to the [Joni](https://github.com/jruby/joni) library. This means the winning pattern is **not always the first pattern in the list**. It is the pattern that matches **leftmost** in the input string. When two patterns match at the same position, list order is used as a tiebreaker.
+
+This differs from Logstash’s Grok filter, which evaluates patterns iteratively and returns the first pattern in the list that matches (controlled by the `break_on_match` setting).
+
+**Practical implication:** broad patterns like `%{GREEDYDATA}` can match earlier in the string than a more specific pattern listed before it, causing the broad pattern to win. For example:
+
+```console
+POST _ingest/pipeline/_simulate
+{
+  "docs": [
+    { "_source": { "message": "something some=1234567890" } }
+  ],
+  "pipeline": {
+    "processors": [
+      {
+        "grok": {
+          "field": "message",
+          "patterns": [
+            "some=%{NUMBER:some.number}",
+            "%{GREEDYDATA:event.original}"
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+% NOTCONSOLE
+
+Even though `some=%{NUMBER:some.number}` is listed first, `%{GREEDYDATA:event.original}` wins because it matches starting at position 0 (the beginning of the string), while the first pattern only matches starting at position 10. The result is that `event.original` is populated rather than `some.number`.
+
+To avoid this, use the `if` condition on separate processors to explicitly control which pattern applies, rather than relying on list order:
+
+```console
+POST _ingest/pipeline/_simulate
+{
+  "docs": [
+    { "_source": { "message": "something some=1234567890" } }
+  ],
+  "pipeline": {
+    "processors": [
+      {
+        "grok": {
+          "if": "ctx.message.contains('some=')",
+          "field": "message",
+          "patterns": ["some=%{NUMBER:some.number}"],
+          "ignore_failure": true
+        }
+      },
+      {
+        "grok": {
+          "if": "!ctx.message.contains('some=')",
+          "field": "message",
+          "patterns": ["%{GREEDYDATA:event.original}"],
+          "ignore_failure": true
+        }
+      }
+    ]
+  }
+}
+```
+% NOTCONSOLE
+
+Here is a standard example of multiple pattern matching executed against the simulate API:
 
 ```console
 POST _ingest/pipeline/_simulate
@@ -227,7 +292,7 @@ POST _ingest/pipeline/_simulate
 ```
 % TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
 
-In the above response, you can see that the index of the pattern that matched was `"1"`. This is to say that it was the second (index starts at zero) pattern in `patterns` to match.
+In the above response, you can see that the index of the pattern that matched was `"1"`. This is to say that it was the second pattern in `patterns` (index starts at zero). Note that this index reflects which pattern won, not necessarily the first pattern listed, since Elasticsearch selects the leftmost match across all patterns. See [How pattern selection works](#how-pattern-selection-works) for details.
 
 This trace metadata enables debugging which of the patterns matched. This information is stored in the ingest metadata and will not be indexed.
 

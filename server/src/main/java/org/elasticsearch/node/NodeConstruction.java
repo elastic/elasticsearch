@@ -246,6 +246,7 @@ import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
+import org.elasticsearch.snapshots.RestoreLifecycleListener;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -692,7 +693,10 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService,
         IndexSettingProviders indexSettingProviders
     ) {
-        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(clusterService.getClusterSettings());
+        DataStreamLifecycleSettings dataStreamLifecycleSettings = DataStreamLifecycleSettings.create(
+            clusterService.getClusterSettings(),
+            clusterService.getSettings()
+        );
         modules.bindToInstance(DataStreamLifecycleSettings.class, dataStreamLifecycleSettings);
         modules.bindToInstance(
             DataStreamFailureStoreSettings.class,
@@ -1300,6 +1304,13 @@ class NodeConstruction {
             pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance),
             featureService
         );
+
+        getSinglePlugin(
+            pluginsService.filterPlugins(RepositoryPlugin.class)
+                .map(RepositoryPlugin::getRestoreLifecycleListener)
+                .filter(Objects::nonNull),
+            RestoreLifecycleListener.class
+        ).ifPresent(restoreService::setLifecycleListener);
 
         DiscoveryModule discoveryModule = createDiscoveryModule(
             settings,

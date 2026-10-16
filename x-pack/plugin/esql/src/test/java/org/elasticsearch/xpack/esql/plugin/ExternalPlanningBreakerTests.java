@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -1045,6 +1046,14 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
 
         private static StorageObject object(StoragePath path, long length) {
             return new StorageObject() {
+                @Override
+                public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                @Override
+                public String version() {
+                    return "v1";
+                }
+
                 @Override
                 public StorageIdentity storageIdentity() {
                     return AbstractTestStorageObject.NOOP;

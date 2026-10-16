@@ -994,7 +994,7 @@ public class NdJsonPageDecoder implements Closeable {
      * {@link #decodePage()}. Enforcement is gated on {@link #capEnforced}: on the byte-array path a
      * record can never exceed the buffer that fully contains it, so when the whole segment is within
      * the cap the loop skips offset tracking entirely (the streaming-parallel chunk hot path pays
-     * nothing — see issue 965). The {@link InputStream} path has no such bound, so it always enforces
+     * nothing). The {@link InputStream} path has no such bound, so it always enforces
      * when a finite cap is configured.
      */
     void setMaxRecordBytes(int maxRecordBytes) {

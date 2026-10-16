@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -4320,7 +4321,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * U10 / HANG_FIX_PLAN §1.6 (nightly 312): a text iterator lost by Bug A never closes
+     * A replaced text iterator never closes
      * {@code PermitReleasingInputStream}, so the node S3 permit and per-query budget stay taken
      * until restart. Closing the replaced iterator is the leak fix, not a defensive extra.
      */
@@ -4363,7 +4364,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * U6 outcome: a second {@code executeProducer} while {@code doRun} holds the token fails the
+     * A second {@code executeProducer} while {@code doRun} holds the token fails the
      * query once and the token holder closes the iterator.
      */
     public void testOverlappingDrainFailsQueryOnceAndHolderClosesIterator() throws Exception {
@@ -4374,8 +4375,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         BlockingAdvanceReader reader = new BlockingAdvanceReader(inDrain, resumeDrain, closes);
         AtomicInteger submits = new AtomicInteger();
         CountDownLatch duplicateRan = new CountDownLatch(1);
-        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u6-overlap-io"));
-        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u6-overlap-prod"));
+        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "overlap-io"));
+        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "overlap-prod"));
         try {
             SourceOperator operator = startSliceOperator(
                 reader,
@@ -4397,7 +4398,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * U10 e2e + Bug 2: duplicate start while open is blocked. One open, query fails once,
+     * Duplicate start while open is blocked. One open, query fails once,
      * text stream close returns the node permit and query budget.
      */
     public void testDuplicateOpenDuringBlockedReadReleasesPermitAndBudget() throws Exception {
@@ -4411,8 +4412,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         AtomicInteger submits = new AtomicInteger();
         PermitHoldingReader reader = new PermitHoldingReader(inOpen, resumeOpen, opens);
         CountDownLatch duplicateRan = new CountDownLatch(1);
-        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u10-io"));
-        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u10-prod"));
+        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "dup-open-io"));
+        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "dup-open-prod"));
         try {
             SourceOperator operator = startSliceOperator(
                 reader,
@@ -4438,7 +4439,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * Bug 1: open throws after a concurrent failProducer. Failures go through the
+     * Open throws after a concurrent failProducer. Failures go through the
      * {@code producerFinished} guard; {@code removeAsyncAction} fires once.
      */
     public void testOpenThrowAfterConcurrentFailCompletesOnce() throws Exception {
@@ -4449,8 +4450,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         AtomicInteger submits = new AtomicInteger();
         ThrowingAfterSignalReader reader = new ThrowingAfterSignalReader(inOpen, resumeOpen, opens);
         CountDownLatch duplicateRan = new CountDownLatch(1);
-        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "bug1-io"));
-        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "bug1-prod"));
+        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "open-throw-io"));
+        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "open-throw-prod"));
         try {
             SourceOperator operator = startSliceOperator(
                 reader,
@@ -4472,7 +4473,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * U6: {@code waitForReady} is not done at the park check; a side thread completes it so
+     * {@code waitForReady} is not done at the park check; a side thread completes it so
      * {@code addListener} often runs the resume inline (or on another {@code producerExecutor}
      * thread before the parking task's {@code finally}). Must not fail as overlapping producer run.
      * Fully deterministic inline is impossible: {@code isDone} is {@code final} and is checked
@@ -4480,14 +4481,14 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      */
     public void testAlreadyDoneParkDoesNotFailAsOverlap() throws Exception {
         int iters = 50;
-        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u6-io"));
-        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "u6-producer"));
+        ExecutorService ioExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "park-io"));
+        ExecutorService producerExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "park-producer"));
         try {
             for (int i = 0; i < iters; i++) {
                 InlineCompletingReader reader = new InlineCompletingReader();
                 ExternalSliceQueue sliceQueue = new ExternalSliceQueue(
                     List.of(
-                        new FileSplit("test", StoragePath.of("s3://bucket/u6-" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of())
+                        new FileSplit("test", StoragePath.of("s3://bucket/park-" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of())
                     )
                 );
                 DriverContext driverContext = mock(DriverContext.class);
@@ -4497,7 +4498,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                     new StubMultiFileStorageProvider(),
                     reader,
-                    StoragePath.of("s3://bucket/u6-" + i + ".parquet"),
+                    StoragePath.of("s3://bucket/park-" + i + ".parquet"),
                     List.of(
                         new FieldAttribute(
                             Source.EMPTY,
@@ -4946,6 +4947,14 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     ) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return inner.storageIdentity();
             }
@@ -5175,6 +5184,14 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
     private static StorageObject bytesStorageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -6236,7 +6253,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
     /**
      * {@code waitForReady} starts not-done; a daemon thread completes it immediately so
-     * {@code addListener} races with the park check (U6 inline resume).
+     * {@code addListener} races with the park check (inline resume).
      */
     private static final class InlineCompletingReader implements NoConfigFormatReader {
         @Override
@@ -6252,7 +6269,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             SubscribableListener<Void> ready = new SubscribableListener<>();
-            Thread completer = new Thread(() -> ready.onResponse(null), "u6-inline-complete");
+            Thread completer = new Thread(() -> ready.onResponse(null), "park-inline-complete");
             completer.setDaemon(true);
             completer.start();
             return new CloseableIterator<>() {
@@ -7408,6 +7425,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         MeteredPayloadStorageObject(StoragePath path, byte[] payload) {
             this.path = path;
             this.payload = payload;
+        }
+
+        @Override
+        public String version() {
+            return "v1";
         }
 
         @Override

@@ -532,7 +532,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         // from 1001 up -- including the default -- unregisterable. See FileDataSourceValidatorSampleSizeBoundTests.
         assertEquals(1001, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001)).get("schema_sample_size"));
         // The bound must admit CSV's default (40000, raised from 20000 when its two sampling windows were
-        // merged into one -- elastic/esql-planning#2134); NDJSON's own default (20000) sits well under it
+        // merged into one); NDJSON's own default (20000) sits well under it
         // either way. See FileDataSourceValidatorSampleSizeBoundTests.
         assertEquals(
             40_000,

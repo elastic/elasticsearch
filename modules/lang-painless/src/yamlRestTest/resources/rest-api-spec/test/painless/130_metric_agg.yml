@@ -112,3 +112,45 @@ setup:
   - match: { hits.total: 3 }
   - match: { aggregations.total.value: 4.0 }
 
+
+---
+"Numeric value script returning null":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [numeric_value_script_null_is_missing]
+      test_runner_features: [capabilities]
+      reason: "null numeric value script results are treated as missing"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: {
+          "size": 0,
+          "aggs": {
+            "sum": {
+              "sum": {
+                "field": "double",
+                "script": "_value > 1 ? _value : null"
+              }
+            },
+            "max": {
+              "max": {
+                "field": "double",
+                "script": "_value > 1 ? _value * 3 : null"
+              }
+            },
+            "none": {
+              "avg": {
+                "field": "double",
+                "script": "return null"
+              }
+            }
+          }
+        }
+
+  - match: { hits.total: 3 }
+  - match: { aggregations.sum.value: 2.0 }
+  - match: { aggregations.max.value: 6.0 }
+  - match: { aggregations.none.value: null }

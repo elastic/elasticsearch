@@ -8,21 +8,25 @@ const SCRIPT = resolve(`${import.meta.dirname}/validate-prometheus-compliance.sh
 const CORPUS = "grafanalabs-top100";
 const VERSION = "0.9.5+prometheus-3.13.1";
 
-type Status = "match" | "mismatch" | "error" | "skipped";
+type Status = "match" | "mismatch" | "error" | "error4xx" | "error5xx" | "flaky" | "filtered";
 type Case = [id: string, status: Status, expr: string];
 
 /** JSONL records matching promcheck -o json, with the full expression. */
 function promcheckLog(cases: Case[]): string {
   const count = (status: Status) => cases.filter(([, value]) => value === status).length;
-  const errors = count("error");
-  const rows = cases.map(([name, status, query]) => ({ type: "query", name, status, query }));
+  const rows = cases.map(([name, status, query]) => ({
+    type: "query", name, query,
+    status: status === "flaky" || status === "filtered" ? "skipped" : status.startsWith("error") ? "error" : status,
+    ...(status === "error4xx" ? { es_status: 400 } : status === "error5xx" ? { es_status: 503 } : {}),
+    ...(status === "flaky" || status === "filtered" ? { skip_reason: status === "flaky" ? "flaky" : "response_filtered" } : {}),
+  }));
   return [
     { type: "build_info", version: VERSION },
     ...rows,
     { type: "summary", total: cases.length, inspected: cases.length,
       match: count("match"), mismatch: count("mismatch"),
-      es_4xx: Math.floor((errors + 2) / 3), es_5xx: Math.floor((errors + 1) / 3),
-      error: Math.floor(errors / 3), request_filtered: 0, response_filtered: 0, flaky: count("skipped") },
+      es_4xx: count("error4xx"), es_5xx: count("error5xx"), error: count("error"),
+      request_filtered: 0, response_filtered: count("filtered"), flaky: count("flaky") },
   ].map((row) => JSON.stringify(row)).join("\n") + "\n";
 }
 
@@ -159,46 +163,43 @@ esac
     expect(r.agent).toContain("== annotate --context ctx-validate-prometheus-compliance --style success");
   });
 
-  test("a regression is reported without failing the job, listing only the regressions", () => {
+  test("a regression fails the job after publishing the report", () => {
     const r = run(STABLE, [
       ["001", "mismatch", "up"],
       ["002", "mismatch", "rate(http_requests_total[5m])"],
     ]);
-    expect(r.status).toBe(0);
-    expect(r.report).toContain("**Regression detected**\n\n1 regression, 0 fixes, 1 changed case\n");
+    expect(r.status).toBe(1);
+    expect(r.report).toContain("**Regression detected**\n\n1 regression, 0 improvements, 0 flaky cases\n");
     expect(r.report).toContain("<summary><strong>Show changed queries</strong></summary>");
     expect(r.report).toContain("### Regressions\n\n| Case | Result | Query |\n|---:|:---:|---|\n| 001 | `PASS -> FAIL` | `up` |\n");
-    expect(r.report).not.toContain("### Fixed");
+    expect(r.report).not.toContain("### Improvements");
     expect(r.agent).toContain("--style error");
   });
 
-  test("fixes alone report no regressions and list only the fixes", () => {
+  test("improvements alone report no regressions", () => {
     const r = run(STABLE, [
       ["001", "match", "up"],
       ["002", "match", "rate(http_requests_total[5m])"],
     ]);
     expect(r.status).toBe(0);
-    expect(r.report).toContain("**No regressions**\n\n0 regressions, 1 fix, 1 changed case\n");
+    expect(r.report).toContain("**No regressions**\n\n0 regressions, 1 improvement, 0 flaky cases\n");
     expect(r.report).toContain("| 002 | `FAIL -> PASS` | `rate(http_requests_total[5m])` |");
     expect(r.report).not.toContain("### Regressions");
     expect(r.agent).toContain("--style success");
   });
 
-  test("a flaky skip is a transition like any other", () => {
+  test("flaky transitions are reported separately without failing the job", () => {
     const r = run(
-      [
-        ["001", "match", "up"],
-        ["002", "skipped", "rate(http_requests_total[5m])"],
-      ],
-      [
-        ["001", "skipped", "up"],
-        ["002", "match", "rate(http_requests_total[5m])"],
-      ]
+      [["001", "match", "up"], ["002", "flaky", "rate(http_requests_total[5m])"]],
+      [["001", "flaky", "up"], ["002", "match", "rate(http_requests_total[5m])"]]
     );
     expect(r.status).toBe(0);
-    expect(r.report).toContain("**Regression detected**\n\n1 regression, 1 fix, 2 changed cases\n");
-    expect(r.report).toContain("| 001 | `PASS -> SKIP` | `up` |");
-    expect(r.report).toContain("| 002 | `SKIP -> PASS` | `rate(http_requests_total[5m])` |");
+    expect(r.report).toContain("**No regressions**\n\n0 regressions, 0 improvements, 2 flaky cases\n");
+    expect(r.report).toContain("### Flaky");
+    expect(r.report).toContain("| 001 | `PASS -> FLAKY` | `up` |");
+    expect(r.report).toContain("| 002 | `FLAKY -> PASS` | `rate(http_requests_total[5m])` |");
+    expect(r.report).not.toContain("### Regressions");
+    expect(r.report).not.toContain("### Improvements");
   });
 
   test("error memos and flaky skips add up in the run summaries", () => {
@@ -207,11 +208,12 @@ esac
       ["002", "error", "a"],
       ["003", "error", "b"],
       ["004", "error", "c"],
-      ["005", "skipped", "d"],
+      ["005", "flaky", "d"],
     ]);
-    expect(r.status).toBe(0);
-    expect(r.output).toContain("Merge base: ok=1 fail=1 err=0 skip=0 total=2");
-    expect(r.output).toContain("PR: ok=1 fail=0 err=3 skip=1 total=5");
+    expect(r.status).toBe(1);
+    expect(r.output).toContain('"match":1,"mismatch":1');
+    expect(r.output).toContain('"errors":3');
+    expect(r.output).toContain('"flaky":1');
   });
 
   test("the binary gets the checkout, the timeout in seconds, and JSONL output", () => {
@@ -239,10 +241,10 @@ esac
         ["003", "error", "sum(x)"],
       ]
     );
-    expect(r.status).toBe(0);
-    expect(r.report).toContain("**Regression detected**\n\n1 regression, 1 fix, 2 changed cases\n");
+    expect(r.status).toBe(1);
+    expect(r.report).toContain("**Regression detected**\n\n1 regression, 1 improvement, 0 flaky cases\n");
     expect(r.report).toContain("| 003 | `PASS -> ERROR` | `sum(x)` |");
-    expect(r.report.indexOf("### Regressions")).toBeLessThan(r.report.indexOf("### Fixed"));
+    expect(r.report.indexOf("### Regressions")).toBeLessThan(r.report.indexOf("### Improvements"));
     expect(r.agent).toContain("--style error");
   });
 
@@ -263,6 +265,56 @@ esac
     );
     const rows = r.report.match(/^\| \d{3} \|/gm);
     expect(rows).toEqual(["| 002 |", "| 010 |", "| 003 |", "| 007 |"]);
+  });
+
+  test.each([
+    ["match", "match", "stable"],
+    ["match", "error4xx", "regression"],
+    ["match", "error5xx", "regression"],
+    ["error4xx", "match", "improvement"],
+    ["error5xx", "match", "improvement"],
+    ["error4xx", "error4xx", "stable"],
+    ["error5xx", "error5xx", "stable"],
+    ["error4xx", "error5xx", "regression"],
+    ["error5xx", "error4xx", "improvement"],
+    ["match", "flaky", "flaky"],
+    ["error4xx", "flaky", "flaky"],
+    ["error5xx", "flaky", "flaky"],
+    ["flaky", "match", "flaky"],
+    ["flaky", "error4xx", "flaky"],
+    ["flaky", "error5xx", "flaky"],
+    ["flaky", "flaky", "flaky"],
+    ["match", "mismatch", "regression"],
+    ["mismatch", "match", "improvement"],
+    ["mismatch", "error4xx", "regression"],
+    ["error4xx", "mismatch", "improvement"],
+    ["error", "match", "improvement"],
+    ["match", "error", "regression"],
+    ["error", "error5xx", "stable"],
+    ["error5xx", "error", "stable"],
+    ["match", "filtered", "stable"],
+    ["filtered", "error5xx", "stable"],
+  ] as const)("%s -> %s is %s", (before, after, category) => {
+    const r = run([["001", before, "up"]], [["001", after, "up"]]);
+    expect(r.status, r.output).toBe(category === "regression" ? 1 : 0);
+    if (category === "stable") {
+      expect(r.report).not.toContain("| 001 |");
+      expect(r.report).not.toContain("<details>");
+    } else {
+      const section = category === "regression" ? "Regressions" : category === "improvement" ? "Improvements" : "Flaky";
+      expect(r.report).toContain(`### ${section}`);
+      expect(r.report).toContain("| 001 |");
+    }
+    expect(r.agent).toContain(category === "regression" ? "--style error" : "--style success");
+    expect(r.agent).toContain(r.report.trim());
+  });
+
+  test("summary errors sum HTTP 4xx, HTTP 5xx, and non-HTTP errors", () => {
+    const cases: Case[] = [["001", "error4xx", "a"], ["002", "error5xx", "b"], ["003", "error", "c"]];
+    const r = run(cases, cases);
+    expect(r.status).toBe(0);
+    expect(r.output.match(/"errors":3/g)).toHaveLength(2);
+    expect(r.report).not.toContain("<details>");
   });
 
   test("the comparison links the exact Buildkite job and promcheck release, with short commits", () => {
@@ -337,7 +389,7 @@ esac
   test("JSON query escapes round-trip without doubling backslashes or making extra rows", () => {
     const query = 'sum(\nup{job=~"a\\\\.b"})';
     const r = run([["001", "match", query]], [["001", "mismatch", query]]);
-    expect(r.status).toBe(0);
+    expect(r.status).toBe(1);
     expect(r.report).toContain(query.replace(/\n/g, " "));
     expect(r.report.match(/^\| \d{3} \|/gm)).toHaveLength(1);
   });

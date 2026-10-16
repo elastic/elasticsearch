@@ -5,9 +5,8 @@
 # The elasticsearch-pull-request-validate-prometheus-compliance pipeline (catalog-info.yaml) runs it with the PR's
 # GITHUB_PR_* variables, so that the build bot also posts the report as a PR comment.
 #
-# The step never fails on the result. Buildkite's GitHub commit status mirrors the step state and ignores
-# soft_fail (see flakiness-detection/runners/never-fail.sh), so a regression, or a comparison that could not
-# run, is annotated and the step exits 0. Only a misconfigured pipeline fails it.
+# Regressions fail the step after publishing the report. Flaky cases are reported separately and do not
+# count as regressions or improvements. A comparison that could not run is annotated as a warning.
 #
 # The testcase bundle is fixed: grafanalabs-top100.tar.gz from the promcheck release carries the seeded
 # dataset plus the queries, piped whole into the binary. No Python, no Docker: Prometheus runs in-process.
@@ -131,47 +130,52 @@ run_promcheck() {
   (( rc == 0 || rc == 1 ))
 }
 
-# Read the typed summary; diagnostics stay on stderr and never enter the JSONL log.
+# Trust promcheck's summary; combine the error buckets for the console output.
 summary() {
-  jq -ers '
-    map(select(.type == "summary")) |
-    if length != 1 then error("expected one summary") else .[0] end |
-    . as $s |
-    [.total, .inspected, .match, .mismatch, .es_4xx, .es_5xx, .error,
-     .request_filtered, .response_filtered, .flaky] |
-    if all(.[]; type == "number" and . >= 0 and . == floor) then $s
-    else error("invalid summary counts") end |
-    (.es_4xx + .es_5xx + .error) as $err |
-    (.flaky + .response_filtered) as $skip |
-    if .inspected != (.match + .mismatch + $err + $skip) or .total != (.inspected + .request_filtered)
-    then error("inconsistent summary counts") else
-    "ok=\(.match) fail=\(.mismatch) err=\($err) skip=\($skip) total=\(.inspected)" end
-  ' "$1"
+  jq -ec 'select(.type == "summary") | . + {errors: (.es_4xx + .es_5xx + .error)}' "$1"
 }
 
 # Every executed query as "<case>\t<status>\t<expression>". Flatten whitespace
 # for the Markdown table while preserving literal backslashes in PromQL.
 outcomes() {
-  jq -r 'select(.type == "query") | [.name, .status, (.query | gsub("[\t\r\n]"; " "))] | join("\t")' "$1"
+  jq -r '
+    select(.type == "query") |
+    (if .status == "skipped" then
+       if .skip_reason == "flaky" then "flaky" else "filtered" end
+     elif .status == "error" and .es_status >= 500 then "error5xx"
+     elif .status == "error" and .es_status >= 400 then "error4xx"
+     else .status end) as $status |
+    [.name, $status, (.query | gsub("[\t\r\n]"; " "))] | join("\t")
+  ' "$1"
 }
 
-# Queries that pass in one run and not the other, by case id: "<case>\t<before>\t<after>\t<expression>".
+# Compare by case ID. Flaky on either side takes precedence; filtered cases
+# do not participate. The last column records the comparison category.
 changes() {
   awk -F'\t' '
+    function severity(s) {
+      return s == "match" ? 0 : s == "mismatch" ? 1 : s == "error4xx" ? 2 : 3
+    }
     NR == FNR { before[$1] = $2; next }
-    ($1 in before) && ((before[$1] == "match") != ($2 == "match")) { printf "%s\t%s\t%s\t%s\n", $1, before[$1], $2, $3 }
+    $1 in before {
+      old = before[$1]
+      if (old == "flaky" || $2 == "flaky") category = "flaky"
+      else if (old == "filtered" || $2 == "filtered") next
+      else if (severity(old) < severity($2)) category = "regression"
+      else if (severity(old) > severity($2)) category = "improvement"
+      else next
+      printf "%s\t%s\t%s\t%s\t%s\n", $1, old, $2, $3, category
+    }
   ' <(outcomes "$1") <(outcomes "$2") | sort -t "$(printf '\t')" -k1,1n
 }
 
 # The report body, in GitHub markdown: the result first, the changed queries collapsed, the comparison last.
-# Regressions and fixes are told apart by the transition, so a new promcheck state only needs a label. Same input,
-# same output.
+# Stable cases are omitted. Flaky cases are shown separately, even when flaky in both runs.
 render_changes() {
   local base="$1"
   local revision="$2"
   awk -F'\t' -v base="$base" -v revision="$revision" -v max="$MAX_ROWS" -v full="$CHANGES_LINK" '
-    function passing(s) { return s == "match" }
-    function label(s) { return s == "match" ? "PASS" : s == "error" ? "ERROR" : s == "mismatch" ? "FAIL" : s == "skipped" ? "SKIP" : s }
+    function label(s) { return s == "match" ? "PASS" : s == "mismatch" ? "FAIL" : s == "error4xx" ? "ERROR 4xx" : s == "error5xx" ? "ERROR 5xx" : s == "flaky" ? "FLAKY" : "ERROR" }
     # n + 0: a section with no rows never set its counter, which awk would print as "".
     function count(n, one, many) { return (n + 0) " " (n == 1 ? one : many) }
     # Inline code: pipes escaped for the table, a backtick in the query widens the fence.
@@ -189,18 +193,20 @@ render_changes() {
       if (n > max) printf "\n_%d more in %s._\n", n - max, full
       printf "\n"
     }
-    passing($2) { regressions[++nr] = $0; next }
-    { fixes[++nf] = $0 }
+    $5 == "regression" { regressions[++nr] = $0 }
+    $5 == "improvement" { improvements[++ni] = $0 }
+    $5 == "flaky" { flaky[++nk] = $0 }
     END {
       printf "**%s**\n\n", nr ? "Regression detected" : "No regressions"
-      if (nr + nf == 0) {
+      if (nr + ni + nk == 0) {
         printf "No query compatibility changes detected.\n\n"
       } else {
-        printf "%s, %s, %s\n\n", count(nr, "regression", "regressions"), count(nf, "fix", "fixes"),
-          count(nr + nf, "changed case", "changed cases")
+        printf "%s, %s, %s\n\n", count(nr, "regression", "regressions"), count(ni, "improvement", "improvements"),
+          count(nk, "flaky case", "flaky cases")
         printf "<details>\n<summary><strong>Show changed queries</strong></summary>\n\n"
         section("Regressions", regressions, nr)
-        section("Fixed", fixes, nf)
+        section("Improvements", improvements, ni)
+        section("Flaky", flaky, nk)
         printf "</details>\n\n"
       }
       printf "**Compared** `%s` -> `%s`  \n", substr(base, 1, 10), substr(revision, 1, 10)
@@ -256,9 +262,7 @@ echo "--- Reporting"
 changes "$CONTROL_LOG" "$TEST_LOG" > "$CHANGES_FILE"
 render_changes "$base" "$revision" | report > "$REPORT_FILE"
 
-# A query that passed on the merge base and changed is a regression.
-regressions=$(awk -F'\t' '$2 == "match" { n++ } END { print n + 0 }' "$CHANGES_FILE")
-fixes=$(awk -F'\t' '$2 != "match" { n++ } END { print n + 0 }' "$CHANGES_FILE")
+regressions=$(awk -F'\t' '$5 == "regression" { n++ } END { print n + 0 }' "$CHANGES_FILE")
 if (( regressions > 0 )); then
   annotate error "$(cat "$REPORT_FILE")"
 else
@@ -268,5 +272,8 @@ fi
 echo "Merge base: $control_summary"
 echo "PR: $test_summary"
 echo "Regressions: $regressions"
-echo "Fixes: $fixes"
 echo "Report: $REPORT_FILE"
+
+if (( regressions > 0 )); then
+  exit 1
+fi

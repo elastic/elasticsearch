@@ -141,8 +141,9 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
         @Override
         protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel, Throwable[] additionalSuppressed)
             throws IOException {
-            Throwable[] allAdditionalSuppressed = Stream.concat(Arrays.stream(getSuppressed()), Arrays.stream(additionalSuppressed))
-                .toArray(Throwable[]::new);
+            Throwable[] allAdditionalSuppressed = additionalSuppressed.length == 0
+                ? getSuppressed()
+                : Stream.concat(Arrays.stream(getSuppressed()), Arrays.stream(additionalSuppressed)).toArray(Throwable[]::new);
             generateThrowableXContent(builder, params, this.getCause(), nestedLevel, allAdditionalSuppressed);
             failureStoreStatus.toXContent(builder, params);
             return builder;

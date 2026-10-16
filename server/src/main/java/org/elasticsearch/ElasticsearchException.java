@@ -128,7 +128,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String TIMED_OUT = "timed_out";
     private static final String CAUSED_BY = "caused_by";
     private static final ParseField SUPPRESSED = new ParseField("suppressed");
-    private static final Throwable[] NO_ADDITIONAL_SUPPRESSED = new Throwable[0];
+    public static final Throwable[] NO_ADDITIONAL_SUPPRESSED = new Throwable[0];
     public static final String STACK_TRACE = "stack_trace";
     private static final String HEADER = "header";
     private static final String ERROR = "error";

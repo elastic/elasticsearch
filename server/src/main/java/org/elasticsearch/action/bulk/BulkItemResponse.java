@@ -316,7 +316,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         }
 
         Throwable[] additionalSuppressed() {
-            return failureStoreCause == null ? new Throwable[0] : new Throwable[] { failureStoreCause };
+            return failureStoreCause == null ? ElasticsearchException.NO_ADDITIONAL_SUPPRESSED : new Throwable[] { failureStoreCause };
         }
 
         @Override

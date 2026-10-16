@@ -406,7 +406,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 if (IndexDocFailureStoreStatus.USED.equals(failureStoreStatus) == false) {
                     failure.setFailureStoreStatus(failureStoreStatus);
                     addFailure(BulkItemResponse.failure(bulkItemRequest.id(), docWriteRequest.opType(), failure));
-                    // make sure the request gets never processed again
+                    // make sure the request is never processed again
                     bulkRequest.requests.set(bulkItemRequest.id(), null);
                 }
             } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException | ResourceNotFoundException e) {
@@ -655,7 +655,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         for (BulkItemRequest request : bulkShardRequest.items()) {
             DocWriteRequest<?> docWriteRequest = request.request();
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), docWriteRequest.id(), e);
-            failure.setFailureStoreStatus(processFailure(request, projectMetadata, failure));
+            IndexDocFailureStoreStatus failureStoreStatus = processFailure(request, projectMetadata, failure);
+            failure.setFailureStoreStatus(failureStoreStatus);
             addFailure(BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
         }
     }
@@ -667,6 +668,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * @return the status:
      * - NOT_ENABLED, if the data stream didn't have the data store enabled and
      * - FAILED if something went wrong in the preparation of the failure store request.
+     * - USED if the document was successfully redirected to the failure store.
      */
     private IndexDocFailureStoreStatus processFailure(
         BulkItemRequest bulkItemRequest,

@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -136,6 +140,7 @@ public final class RuntimeSearch {
         if (luceneQuery instanceof MatchNoDocsQuery) {
             return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
         }
+        luceneQuery = prebuildFuzzyAutomata(luceneQuery);
         return new RuntimeSearchTextWithLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
@@ -167,6 +172,7 @@ public final class RuntimeSearch {
         if (luceneQuery instanceof MatchNoDocsQuery) {
             return ConstantEvaluators.constantDouble(0.0);
         }
+        luceneQuery = prebuildFuzzyAutomata(luceneQuery);
         return new RuntimeSearchScoreLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
@@ -188,6 +194,33 @@ public final class RuntimeSearch {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Replaces each {@link FuzzyQuery} with edits in the compiled query by a {@link PrebuiltFuzzyQuery}, whose
+     * automata are built once rather than on every per-row rewrite against the {@link MemoryIndex}. Walks the
+     * {@link BooleanQuery} and {@link BoostQuery} wrappers a compiled {@code match} query can contain and returns
+     * the same instance for any subtree without such a fuzzy query.
+     */
+    static Query prebuildFuzzyAutomata(Query query) {
+        if (query instanceof FuzzyQuery fuzzy && fuzzy.getMaxEdits() > 0) {
+            return new PrebuiltFuzzyQuery(fuzzy);
+        }
+        if (query instanceof BooleanQuery bool) {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(bool.getMinimumNumberShouldMatch());
+            boolean changed = false;
+            for (BooleanClause clause : bool.clauses()) {
+                Query rewritten = prebuildFuzzyAutomata(clause.query());
+                changed |= rewritten != clause.query();
+                builder.add(rewritten, clause.occur());
+            }
+            return changed ? builder.build() : bool;
+        }
+        if (query instanceof BoostQuery boost) {
+            Query rewritten = prebuildFuzzyAutomata(boost.getQuery());
+            return rewritten == boost.getQuery() ? boost : new BoostQuery(rewritten, boost.getBoost());
+        }
+        return query;
     }
 
     /**

@@ -2343,6 +2343,28 @@ content:text
 the quick brown fox
 ;
 
+matchOnRuntimeTextWithFuzzinessMaxExpansionsAndScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_options
+required_capability: fn_match_runtime_score
+
+// 2714 has both "King" and "Rings", one edit from "ring"; with max_expansions 1 only one of them scores
+FROM books METADATA _score
+| EVAL new_title = to_text(concat("TITLE: ", title))
+| WHERE match(new_title, "ring", {"fuzziness": 1, "max_expansions": 1})
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+2675            | 0.75
+2714            | 0.75
+2936            | 1.0
+4023            | 0.75
+7140            | 0.75
+;
+
 testRuntimeMatchWithIndexAndOptionsPrefixLength
 required_capability: match_function
 required_capability: fn_match_runtime_options

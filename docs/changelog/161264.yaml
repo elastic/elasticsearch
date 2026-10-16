@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 161257
+pr: 161264
+summary: Build runtime MATCH fuzzy automata once
+type: enhancement

@@ -7,7 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -27,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -823,6 +831,39 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
         );
         assertThat(result[0], greaterThan(0.0));
         assertEquals(0.0, result[1], 0.0);
+    }
+
+    /**
+     * With {@code max_expansions: 2} only the two best of up to four fuzzy terms in a row count. The scores must equal
+     * those of a plain {@link FuzzyQuery} on a {@link MemoryIndex} under {@link BooleanSimilarity}.
+     */
+    public void testScoreTextWithFuzzinessAndMaxExpansions() throws IOException {
+        String[] rows = { "brin bran brown bron", "brin bran brown", "bro bon brown", "the lazy dog" };
+        Function<BlockFactory, Block> data = factory -> bytesRefBlock(factory, builder -> {
+            for (String row : rows) {
+                builder.appendBytesRef(new BytesRef(row));
+            }
+        });
+        Double[] result = score(
+            runtimeMatchWithOptions(TEXT, new BytesRef("bron"), KEYWORD, mapOptions("fuzziness", "1", "max_expansions", "2")),
+            data
+        );
+
+        FuzzyQuery expectedQuery = new FuzzyQuery(new Term(RuntimeSearch.CONTENT_FIELD, "bron"), 1, 0, 2, true);
+        MemoryIndex memoryIndex = new MemoryIndex();
+        Double[] expected = new Double[rows.length];
+        for (int i = 0; i < rows.length; i++) {
+            memoryIndex.reset();
+            memoryIndex.addField(RuntimeSearch.CONTENT_FIELD, rows[i], Lucene.STANDARD_ANALYZER);
+            IndexSearcher searcher = memoryIndex.createSearcher();
+            searcher.setSimilarity(new BooleanSimilarity());
+            TopDocs topDocs = searcher.search(expectedQuery, 1);
+            expected[i] = topDocs.scoreDocs.length > 0 ? (double) topDocs.scoreDocs[0].score : 0.0;
+        }
+        assertArrayEquals(expected, result);
+
+        Double[] unlimited = score(runtimeMatchWithOptions(TEXT, new BytesRef("bron"), KEYWORD, mapOptions("fuzziness", "1")), data);
+        assertThat(unlimited[0], greaterThan(result[0]));
     }
 
     public void testScoreTextMultiValueSpanningAnd() {

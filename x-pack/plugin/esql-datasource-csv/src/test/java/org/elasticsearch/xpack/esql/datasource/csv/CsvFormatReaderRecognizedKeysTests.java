@@ -53,8 +53,10 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         expected.add("header_row");
         expected.add("max_field_size");
         expected.add("multi_value_syntax");
+        expected.add("multiline_fields");
         expected.add("null_value");
         expected.add("quote");
+        expected.add("schema_max_fields");
         expected.add("schema_sample_size");
         expected.add("skip_rows");
         expected.add("trim_spaces");
@@ -185,9 +187,12 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             case "datetime_format" -> "yyyy-MM-dd";
             case "max_field_size" -> 1024;
             case "multi_value_syntax" -> "brackets";
+            // true, because the sample config also sets multi_value_syntax=brackets, which [false] cannot be combined with
+            case "multiline_fields" -> true;
             case "header_row" -> false;
             case "column_prefix" -> "f_";
             case "trim_spaces" -> true;
+            case "schema_max_fields" -> 500;
             case "schema_sample_size" -> 10;
             case "skip_rows" -> 2;
             default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
@@ -400,9 +405,11 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             case "datetime_format" -> "dd-MM-yyyy";
             case "max_field_size" -> 2048;
             case "multi_value_syntax" -> "none";
+            case "multiline_fields" -> false;
             case "header_row" -> true;
             case "column_prefix" -> "c_";
             case "trim_spaces" -> false;
+            case "schema_max_fields" -> 600;
             case "schema_sample_size" -> 20;
             case "skip_rows" -> 3;
             default -> throw new AssertionError("update otherSampleValueFor() for new recognised key: " + key);

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -79,7 +80,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.joni.exception.SyntaxException;
 
 import java.time.Duration;
@@ -417,12 +418,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             LogicalPlan inner;
             if (mainQueryAndSubqueries.size() == 1) {
-                // A single FROM subquery does not need UnionAll unless the body contains a FORK. That one-child UnionAll is the merge
-                // boundary checkForUnseparatedFork uses so an outer FORK is not treated as consecutive with the inner one.
-                Subquery subquery = subqueries.get(0);
-                inner = Fork.containsFork(subquery.plan())
-                    ? new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), List.of(subquery), List.of())
-                    : subquery.plan();
+                Subquery only = subqueries.get(0);
+                // A single FROM subquery does not need UnionAll unless the body contains a FORK. That one-child
+                // UnionAll becomes a BranchPlan in preIndexResolution, which checkForUnseparatedFork treats as a
+                // merge boundary and which compaction can flatten a body-topping FORK into.
+                if (Fork.containsFork(only.plan())) {
+                    inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), List.of(only), List.of());
+                } else {
+                    // if there is only one child without metadata - return it directly, no need for UnionAll
+                    inner = metadataFields.isEmpty() ? only.plan() : only;
+                }
             } else {
                 // the output of UnionAll is resolved by analyzer
                 inner = new UnionAll(source(ctxs.getFirst(), ctxs.getLast()), mainQueryAndSubqueries, List.of());
@@ -499,6 +504,44 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
         Source source = source(ctx);
         return input -> new Dedup(source, input);
+    }
+
+    @Override
+    public PlanFactory visitFillNullCommand(EsqlBaseParser.FillNullCommandContext ctx) {
+        var source = source(ctx);
+        EsqlBaseParser.FillNullValueContext valueCtx = ctx.fillNullValue();
+        final Expression fillValue;
+        // DEFAULT -> type-appropriate default (represented as a null fill value); NULL -> explicit no-op.
+        if (valueCtx.DEFAULT() != null) {
+            fillValue = null;
+        } else if (valueCtx.NULL() != null) {
+            fillValue = new Literal(source(valueCtx), null, DataType.NULL);
+        } else {
+            fillValue = expression(valueCtx);
+            // Only the NULL keyword is the explicit no-op: a null-bound ?param would otherwise be indistinguishable from it. A missing
+            // param is skipped because its "Unknown query parameter" error is already recorded.
+            if (valueCtx.parameter() != null && fillValue instanceof Literal lit && lit.value() == null && fillValue != MISSING_PARAMETER) {
+                throw new ParsingException(
+                    source(valueCtx),
+                    "Query parameter [{}] is null, cannot be used as a FILLNULL value; use FILLNULL NULL to leave nulls unchanged",
+                    valueCtx.getText()
+                );
+            }
+        }
+
+        final Holder<Boolean> hasSeenStar = new Holder<>(false);
+        List<NamedExpression> patterns = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+            if (ne instanceof UnresolvedStar) {
+                hasSeenStar.set(Boolean.TRUE);
+            }
+        });
+        // `*` sweeps up every user column. A co-listed name/pattern is kept, not discarded: it still has to resolve (so a
+        // typo is an error), it is still requested from field-caps, and it can name something `*` does not cover.
+        boolean allColumns = hasSeenStar.get();
+        List<NamedExpression> targetFields = allColumns
+            ? patterns.stream().filter(ne -> ne instanceof UnresolvedStar == false).toList()
+            : patterns;
+        return input -> new FillNull(source, input, fillValue, targetFields, allColumns);
     }
 
     @Override
@@ -1324,8 +1367,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
-        if (subQueries.size() > MergePlan.MAX_BRANCHES) {
-            throw new ParsingException(source(ctx), "Fork supports up to " + MergePlan.MAX_BRANCHES + " branches");
+        // Hard ceiling: the setting maxValue. The configured cluster setting or pragma is enforced later in Fork.checkBranchCount.
+        int maxBranches = QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX;
+        if (subQueries.size() > maxBranches) {
+            throw new ParsingException(source(ctx), "FORK supports up to " + maxBranches + " branches");
         }
 
         return input -> {

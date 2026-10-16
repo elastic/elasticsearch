@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -47,6 +48,8 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -54,7 +57,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -62,11 +65,9 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -113,6 +114,7 @@ public class TestAnalyzer {
     private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
     private boolean stripErrorPrefix;
     private Map<String, String> views = new LinkedHashMap<>();
+    private EsqlFlags flags = EsqlFlags.DEFAULTS;
 
     TestAnalyzer() {}
 
@@ -126,6 +128,14 @@ public class TestAnalyzer {
 
     protected Configuration configuration() {
         return configuration;
+    }
+
+    /**
+     * Set the cluster-level {@link EsqlFlags}, for example to lower a query-wide limit the analyzer enforces.
+     */
+    public TestAnalyzer flags(EsqlFlags flags) {
+        this.flags = flags;
+        return this;
     }
 
     /**
@@ -698,15 +708,18 @@ public class TestAnalyzer {
                 ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
                 : new NamedSubquery(view.source(), view, indexPattern);
         }).toList();
+        boolean keepViewWrapper = MetadataAttribute.requestsRelationColumn(ur.metadataFields());
         if (resolved.size() == 1) {
             var subplan = resolved.get(0);
             if (subplan instanceof NamedSubquery n) {
                 if (Fork.containsFork(n.child())) {
                     LinkedHashMap<String, LogicalPlan> subplans = new LinkedHashMap<>();
                     subplans.put(n.name(), n);
-                    return new ViewUnionAll(ur.source(), subplans, Set.of(n.name()), List.of());
+                    LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
+                    identities.put(n.name(), BranchIdentity.view(n.name()));
+                    return new BranchPlan(ur.source(), subplans, identities, List.of());
                 }
-                return n.child();
+                return keepViewWrapper ? n : n.child();
             }
             return subplan;
         }
@@ -728,15 +741,15 @@ public class TestAnalyzer {
             String indexPattern = unresolvedRelations.stream().map(u -> u.indexPattern().indexPattern()).collect(Collectors.joining(","));
             subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
         }
-        Set<String> viewBranchKeys = new HashSet<>();
+        LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
         for (NamedSubquery namedSubquery : namedSubqueries) {
-            subplans.put(namedSubquery.name(), namedSubquery.child());
-            viewBranchKeys.add(namedSubquery.name());
+            subplans.put(namedSubquery.name(), keepViewWrapper ? namedSubquery : namedSubquery.child());
+            identities.put(namedSubquery.name(), BranchIdentity.view(namedSubquery.name()));
         }
         if (subplans.size() == 1) {
             return subplans.values().iterator().next();
         } else {
-            return new ViewUnionAll(ur.source(), subplans, viewBranchKeys, List.of());
+            return new BranchPlan(ur.source(), subplans, identities, List.of());
         }
     }
 
@@ -1006,7 +1019,8 @@ public class TestAnalyzer {
             unmappedResolution,
             timestampBounds,
             TEST_IP_LOCATION_RESOLUTION,
-            false
+            false,
+            flags
         );
     }
 

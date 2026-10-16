@@ -599,11 +599,10 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
-     * A {@code date_nanos} source declared {@code datetime} narrows nanos&rarr;millis, truncating sub-millisecond
-     * precision. This is what lets an annotated {@code TIMESTAMP(MICROS|NANOS)} parquet column — which infers as
-     * {@code date_nanos} — be declared as the conventional {@code date}. Pinned value-identical to {@code ::datetime},
-     * which maps DATE_NANOS through the same {@link DateUtils#toMilliSeconds}, so a declared read and an explicit cast
-     * cannot disagree.
+     * A {@code date_nanos} source declared {@code datetime} narrows nanos&rarr;millis by floor division, losing
+     * sub-millisecond precision. This is what lets an annotated {@code TIMESTAMP(MICROS|NANOS)} parquet column — which
+     * infers as {@code date_nanos} — be declared as the conventional {@code date}. Above the epoch the result is
+     * value-identical to {@code ::datetime}, which maps DATE_NANOS through {@link DateUtils#toMilliSeconds}.
      */
     public void testCastDateNanosToDatetimeNarrowsToMillis() {
         long nanos = 1704067200_123_456_789L; // 2024-01-01T00:00:00.123456789Z
@@ -614,9 +613,32 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             assertEquals("nanos truncate to millis", 1704067200_123L, ((LongBlock) cast).getLong(0));
             assertEquals("must equal the ::datetime primitive", DateUtils.toMilliSeconds(nanos), ((LongBlock) cast).getLong(0));
         }
-        // a pre-epoch nanos instant has no millis representation here: it throws and follows the read's error policy
-        try (Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock()) {
-            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.DATE_NANOS, DataType.DATETIME).close());
+    }
+
+    /**
+     * The narrowing is total below the epoch too, and this is where the declared read deliberately parts from
+     * {@code ::datetime}. {@code date} represents a pre-1970 instant exactly; the 1970 floor
+     * {@link DateUtils#toMilliSeconds} enforces is the floor the {@code date_nanos} field mapper enforces at ingest
+     * ({@link DateUtils#toLong}). Borrowing it made a pre-1970 {@code TIMESTAMP(MICROS)} parquet column fail the
+     * whole read under the default error mode,
+     * while the same column read correctly with no declaration at all.
+     *
+     * <p>Floor division rather than truncation toward zero, which is not a matter of taste: {@code rawBoundFor}'s
+     * {@code ScaleDown} arithmetic — the bounds the planner pushes for this very column — is derived from
+     * {@code decoded == floorDiv(raw, d)}, so truncating would make the decode disagree with the pruning. A single
+     * nanosecond before the epoch is the case that tells them apart: flooring keeps it in 1969, truncation moves it
+     * forward into 1970.
+     */
+    public void testCastDateNanosToDatetimeIsTotalBelowTheEpoch() {
+        long nanos = -152366400_000_000_000L; // 1965-03-04T12:00:00Z
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { nanos, -1L, 0L }, 3).asBlock();
+            Block cast = castStrict(src, DataType.DATE_NANOS, DataType.DATETIME)
+        ) {
+            LongBlock millis = (LongBlock) cast;
+            assertEquals("a pre-1970 instant narrows, it does not fail", -152366400_000L, millis.getLong(0));
+            assertEquals("one nanosecond before the epoch floors into 1969, it does not truncate to 0", -1L, millis.getLong(1));
+            assertEquals(0L, millis.getLong(2));
         }
     }
 

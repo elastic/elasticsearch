@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
@@ -42,8 +43,9 @@ final class AshUtils {
      * @param m the input matrix in row-major order, length k*k
      * @param k the matrix dimension
      * @param r the output matrix in row-major order, length k*k
+     * @param executor parallelization executor
      */
-    public static void procrustes(float[] m, int k, float[] r) {
+    public static void procrustes(float[] m, int k, float[] r, TaskExecutor executor) {
         final int len = k * k;
         assert m.length == len;
         assert r.length == len;
@@ -63,7 +65,7 @@ final class AshUtils {
         float prevMaxOff = Float.POSITIVE_INFINITY;
         for (int iter = 0; iter < maxIter; iter++) {
             ESVectorUtil.transposeMatrix(x, k, k, xT);
-            ESVectorUtil.matrixMultiply(xT, x, k, k, k, xtx);
+            ESVectorUtil.matrixMultiply(xT, x, k, k, k, xtx, executor);
 
             // Distance from orthogonality: X^T X should be close to I
             float maxOff = 0;
@@ -83,7 +85,7 @@ final class AshUtils {
             prevMaxOff = maxOff;
 
             // X_new = X @ (3I - X^T X) / 2 = 1.5 * X - 0.5 * X @ (X^T X)
-            ESVectorUtil.matrixMultiply(x, xtx, k, k, k, xNew);
+            ESVectorUtil.matrixMultiply(x, xtx, k, k, k, xNew, executor);
             ESVectorUtil.linearCombination(1.5f, x, -0.5f, xNew);
 
             // swap the arrays round for the next iteration
@@ -140,33 +142,33 @@ final class AshUtils {
      * @param seed random seed for initialization
      * @return top-k right singular vectors as columns, row-major (n x k)
      */
-    public static float[] topKRightSingularVectors(float[] a, int m, int n, int k, long seed) {
+    public static float[] topKRightSingularVectors(float[] a, int m, int n, int k, long seed, TaskExecutor executor) {
         // Compute C = A^T A (n x n) -- this is symmetric positive semi-definite
         // For m >> n this is cheaper than full SVD
         // For m < n, we use A A^T (m x m) and transform back
         if (m >= n) {
-            return topKEigenvectorsGram(a, m, n, k, seed);
+            return topKEigenvectorsGram(a, m, n, k, seed, executor);
         } else {
             // Compute A A^T (m x m), find eigenvectors, transform back to right singular vectors
-            return topKEigenvectorsGramTranspose(a, m, n, k, seed);
+            return topKEigenvectorsGramTranspose(a, m, n, k, seed, executor);
         }
     }
 
-    private static float[] topKEigenvectorsGram(float[] a, int m, int n, int k, long seed) {
+    private static float[] topKEigenvectorsGram(float[] a, int m, int n, int k, long seed, TaskExecutor executor) {
         // Eigenvectors of A^T A are the right singular vectors, so iterate with X = A. A^T is
         // materialized so that the A^T @ W product reads sequentially.
-        float[] vT = blockPowerIteration(a, ESVectorUtil.transposeMatrix(a, m, n), m, n, k, seed);
+        float[] vT = blockPowerIteration(a, ESVectorUtil.transposeMatrix(a, m, n), m, n, k, seed, executor);
         return ESVectorUtil.transposeMatrix(vT, k, n);
     }
 
-    private static float[] topKEigenvectorsGramTranspose(float[] a, int m, int n, int k, long seed) {
+    private static float[] topKEigenvectorsGramTranspose(float[] a, int m, int n, int k, long seed, TaskExecutor executor) {
         // A is (m x n) with m < n, so A A^T (m x m) is the smaller Gram matrix: iterate with
         // X = A^T to get the left singular vectors U, then recover the right singular vectors.
-        float[] uT = blockPowerIteration(ESVectorUtil.transposeMatrix(a, m, n), a, n, m, k, seed);
+        float[] uT = blockPowerIteration(ESVectorUtil.transposeMatrix(a, m, n), a, n, m, k, seed, executor);
 
         // V = A^T U, computed transposed as V^T = U^T A (k x n) so that each vector occupies a
         // row and the normalization runs over contiguous data.
-        float[] vT = ESVectorUtil.matrixMultiply(uT, a, k, m, n);
+        float[] vT = ESVectorUtil.matrixMultiply(uT, a, k, m, n, executor);
         for (int j = 0; j < k; j++) {
             ESVectorUtil.l2Normalize(vT, j * n, n);
         }
@@ -190,9 +192,10 @@ final class AshUtils {
      * @param q    number of columns in {@code x}
      * @param k    the size of the subspace to extract
      * @param seed random seed for initialization
+     * @param executor parallization executor
      * @return the converged block transposed, row-major (k x q), one orthonormal vector per row
      */
-    private static float[] blockPowerIteration(float[] x, float[] xT, int p, int q, int k, long seed) {
+    private static float[] blockPowerIteration(float[] x, float[] xT, int p, int q, int k, long seed, TaskExecutor executor) {
         int iters = 20; // sufficient for PCA init that gets refined by Procrustes
 
         float[] bT = randomGaussians(new Random(seed), q * k);
@@ -202,8 +205,8 @@ final class AshUtils {
         float[] w = new float[p * k];
         for (int iter = 0; iter < iters; iter++) {
             ESVectorUtil.transposeMatrix(bT, k, q, b);       // B (q x k)
-            ESVectorUtil.matrixMultiply(x, b, p, q, k, w);   // W = X @ B (p x k)
-            ESVectorUtil.matrixMultiply(xT, w, q, p, k, b);  // B <- X^T @ W (q x k)
+            ESVectorUtil.matrixMultiply(x, b, p, q, k, w, executor);   // W = X @ B (p x k)
+            ESVectorUtil.matrixMultiply(xT, w, q, p, k, b, executor);  // B <- X^T @ W (q x k)
 
             ESVectorUtil.transposeMatrix(b, q, k, bT);
             qrOrthogonalize(bT, q, k);

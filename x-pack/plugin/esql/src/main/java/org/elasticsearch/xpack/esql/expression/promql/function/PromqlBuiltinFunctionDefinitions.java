@@ -44,7 +44,7 @@ public class PromqlBuiltinFunctionDefinitions {
      * {@code topk(k, v)} selects the {@code k} series with the highest values rather than reducing the input
      * vector to a single value, so - unlike {@code sum}/{@code avg}/{@code max}/{@code min} - it has no ES|QL
      * aggregate function to build: the ctor reference passes the input field through unchanged, and the PromQL
-     * translator (see {@code TranslatePromqlToEsqlPlan#wrapWithTopNBy}) appends the ranking/limiting step itself.
+     * translator (see {@code AcrossSeriesReduction#translate}) appends the ranking/limiting step itself.
      */
     public static final PromqlFunctionDefinition TOPK = PromqlFunctionDefinition.def()
         .acrossSeriesBinaryReduceSortDesc(PromqlFunctionDefinition.K)
@@ -126,7 +126,7 @@ public class PromqlBuiltinFunctionDefinitions {
      * {@code label_replace(v, dst_label, replacement, src_label, regex)} matches {@code regex} (fully anchored) against the
      * value of {@code src_label} and, on a match, sets {@code dst_label} to the expanded {@code replacement}. It manipulates
      * only labels/identity, never sample values, so it has no ES|QL function to build: it resolves into a dedicated node and
-     * is translated directly (see {@code ResolvePromqlFunctions} / {@code TranslatePromqlToEsqlPlan}).
+     * is translated directly (see {@code ResolvePromqlFunctions} / {@code MetadataManipulationFunction#translate}).
      */
     public static final PromqlFunctionDefinition LABEL_REPLACE = PromqlFunctionDefinition.def()
         .metadataManipulation(
@@ -202,6 +202,40 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here."
         )
         .name("label_join");
+
+    public static final PromqlFunctionDefinition SORT = PromqlFunctionDefinition.def()
+        .resultOrdering()
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Sorts instant-vector series by sample value in ascending order. NaN values are sorted last.")
+        .example("sort(http_requests_total)")
+        .extendedDescription(
+            "Ordering is observable only on instant queries. Range queries return the series in their input order, "
+                + "without applying the requested ordering."
+        )
+        .differenceFromPrometheus(
+            "Supported in this version only as the outermost function of the query. Prometheus also applies an ordering "
+                + "requested inside an enclosing function call. On a range query the ordering is discarded either way, "
+                + "but Prometheus returns the series ordered by their labels, where {{es}} returns them in input order."
+        )
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .name("sort");
+
+    public static final PromqlFunctionDefinition SORT_DESC = PromqlFunctionDefinition.def()
+        .resultOrdering()
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Sorts instant-vector series by sample value in descending order. NaN values are sorted last.")
+        .example("sort_desc(http_requests_total)")
+        .extendedDescription(
+            "Ordering is observable only on instant queries. Range queries return the series in their input order, "
+                + "without applying the requested ordering."
+        )
+        .differenceFromPrometheus(
+            "Supported in this version only as the outermost function of the query. Prometheus also applies an ordering "
+                + "requested inside an enclosing function call. On a range query the ordering is discarded either way, "
+                + "but Prometheus returns the series ordered by their labels, where {{es}} returns them in input order."
+        )
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .name("sort_desc");
 
     public static final PromqlFunctionDefinition VECTOR = PromqlFunctionDefinition.def()
         .vectorConversion()

@@ -175,7 +175,7 @@ public class SchemaCacheEntryTests extends ESTestCase {
     }
 
     public void testFromPrimitivesRejectsMismatchedColumnArrays() {
-        // Direct primitive factory: this validation lives in the record's compact constructor.
+        // Direct primitive factory: this validation lives in the constructor.
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> new SchemaCacheEntry(
@@ -187,7 +187,6 @@ public class SchemaCacheEntryTests extends ESTestCase {
                 "p",
                 Map.of(),
                 Map.of(),
-                0L,
                 List.of(),
                 List.of()
             )

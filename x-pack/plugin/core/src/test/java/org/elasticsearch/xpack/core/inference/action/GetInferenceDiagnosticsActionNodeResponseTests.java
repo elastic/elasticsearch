@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.apache.http.pool.PoolStats;
+import org.apache.hc.core5.pool.PoolStats;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;

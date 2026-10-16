@@ -239,13 +239,13 @@ This trace metadata enables debugging which of the patterns matched. This inform
 
 When you provide multiple patterns, the processor does not necessarily use the first pattern in the list that matches. {{es}} combines the patterns into a single regular expression, so the pattern that matches leftmost in the input string wins. List order only breaks ties between patterns that match at the same position.
 
-For example, `%{GREEDYDATA:event.original}` matches from the start of the string, so it wins even though `some=%{NUMBER:some.number}` is listed first:
+For example, a catch-all `%{GREEDYDATA:event.original}` pattern matches from the start of the string. It wins even though the more specific `Failed password` pattern is listed first:
 
 ```console
 POST _ingest/pipeline/_simulate
 {
   "docs": [
-    { "_source": { "message": "something some=1234567890" } }
+    { "_source": { "message": "Oct 16 12:00:01 web01 sshd[4127]: Failed password for root from 10.1.2.3 port 22 ssh2" } }
   ],
   "pipeline": {
     "processors": [
@@ -253,7 +253,7 @@ POST _ingest/pipeline/_simulate
         "grok": {
           "field": "message",
           "patterns": [
-            "some=%{NUMBER:some.number}",
+            "Failed password for %{USER:user.name} from %{IP:source.ip}",
             "%{GREEDYDATA:event.original}"
           ]
         }
@@ -264,7 +264,7 @@ POST _ingest/pipeline/_simulate
 ```
 % NOTCONSOLE
 
-The `some=%{NUMBER:some.number}` pattern only matches from position 10, so the result populates `event.original` and not `some.number`.
+The `Failed password` pattern only matches from partway into the line, so the result populates `event.original` and not `user.name` or `source.ip`.
 
 
 ## Validating input without extracting fields [validate-only]

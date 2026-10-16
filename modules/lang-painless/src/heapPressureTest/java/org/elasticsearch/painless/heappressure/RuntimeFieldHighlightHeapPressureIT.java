@@ -12,6 +12,7 @@ package org.elasticsearch.painless.heappressure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
@@ -53,6 +54,12 @@ public class RuntimeFieldHighlightHeapPressureIT extends ESRestTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        // highlighting re-runs the runtime field script for every hit and field, which can exceed the default 60s on CI
+        return Settings.builder().put(super.restClientSettings()).put(CLIENT_SOCKET_TIMEOUT, "180s").build();
     }
 
     public void testDoubleRuntimeFieldFromFreeTextSearch() throws IOException {

@@ -121,7 +121,8 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             this.ir,
             new CharacterRunAutomaton(Automata.makeEmpty()),
             IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-            (fieldName) -> true
+            (fieldName) -> true,
+            (field) -> null
         );
         global = sortedSetOrdinalsIndexFieldData.loadGlobal(ir);
         atomic = global.load(ir.leaves().get(0));
@@ -139,7 +140,8 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             this.ir,
             new CharacterRunAutomaton(Automata.makeEmpty()),
             IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-            (fieldName) -> true
+            (fieldName) -> true,
+            (field) -> null
         );
         for (LeafReaderContext context : ir.leaves()) {
             LeafOrdinalsFieldData atomic = sortedSetOrdinalsIndexFieldData.load(context);
@@ -160,7 +162,8 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             this.ir,
             new CharacterRunAutomaton(Automata.makeEmpty()),
             IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-            (fieldName) -> true
+            (fieldName) -> true,
+            (field) -> null
         );
         global = pagedBytesIndexFieldData.loadGlobal(ir);
         atomic = global.load(ir.leaves().get(0));
@@ -180,7 +183,8 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             this.ir,
             new CharacterRunAutomaton(Automata.makeEmpty()),
             IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
-            (fieldName) -> true
+            (fieldName) -> true,
+            (field) -> null
         );
         for (LeafReaderContext context : ir.leaves()) {
             LeafOrdinalsFieldData atomic = pagedBytesIndexFieldData.load(context);

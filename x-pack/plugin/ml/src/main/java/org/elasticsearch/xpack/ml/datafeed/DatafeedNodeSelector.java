@@ -170,6 +170,10 @@ public class DatafeedNodeSelector {
 
     @Nullable
     private AssignmentFailure verifyIndicesActive() {
+        // ES|QL datafeeds have no indices; the ES|QL engine resolves its sources at query time
+        if (datafeedIndices.isEmpty()) {
+            return null;
+        }
         boolean hasRemoteIndices = datafeedIndices.stream().anyMatch(RemoteClusterLicenseChecker::isRemoteIndex);
         // CPS flat-world names are unqualified; data may live only on a linked project.
         boolean cannotVerifyLocally = hasRemoteIndices || indicesOptions.resolveCrossProjectIndexExpression();

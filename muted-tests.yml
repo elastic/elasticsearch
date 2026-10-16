@@ -190,6 +190,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
   method: testDenseVectorImplicitCasting
   issue: https://github.com/elastic/elasticsearch/issues/162273
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggsTests
+  method: testDuplicatedInlineAggWithFoldableIdenticalExpressions
+  issue: https://github.com/elastic/elasticsearch/issues/162275
 
 # Examples:
 #

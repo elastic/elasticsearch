@@ -504,18 +504,6 @@ tests:
 - class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldWildcardHeapPressureIT
   method: testPausedHeavyWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/162207
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
-  method: testUnsetMultilineFieldsFailsOnQuotedMultilineRows
-  issue: https://github.com/elastic/elasticsearch/issues/162215
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
-  method: testRandomizedQuotedCsvCountsExactlyAcrossSplits
-  issue: https://github.com/elastic/elasticsearch/issues/162217
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
-  method: testQuoteFreeCsvCountsExactlyByDefault
-  issue: https://github.com/elastic/elasticsearch/issues/162219
-- class: org.elasticsearch.xpack.esql.action.ExternalCsvQuotedMultilineMacroSplitIT
-  method: testMultilineFieldsTrueReadsPlainPrefixThenQuotedMultilineCsv
-  issue: https://github.com/elastic/elasticsearch/issues/162221
 - class: org.elasticsearch.columnar.PayloadColumnMergeTests
   method: testMergeCarriesRepeatsOverWithoutComparing
   issue: https://github.com/elastic/elasticsearch/issues/162235

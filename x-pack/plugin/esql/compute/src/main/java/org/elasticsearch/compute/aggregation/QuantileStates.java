@@ -184,10 +184,12 @@ public final class QuantileStates {
                         state = TDigestState.create(breaker, DEFAULT_COMPRESSION);
                         closeState = true;
                     }
-                    builder.appendBytesRef(serializeDigest(state));
-
-                    if (closeState) {
-                        state.close();
+                    try {
+                        builder.appendBytesRef(serializeDigest(state));
+                    } finally {
+                        if (closeState) {
+                            state.close();
+                        }
                     }
                 }
                 blocks[offset] = builder.build();

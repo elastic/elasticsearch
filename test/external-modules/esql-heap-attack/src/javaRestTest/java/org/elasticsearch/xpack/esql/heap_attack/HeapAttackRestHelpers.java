@@ -9,16 +9,19 @@ package org.elasticsearch.xpack.esql.heap_attack;
 
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -37,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -206,8 +210,7 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
                 protected void doRun() throws Exception {
                     TimeValue elapsed = TimeValue.timeValueNanos(System.nanoTime() - startedTimeInNanos);
                     logger.info("--> test {} triggering OOM after {}", getTestName(), elapsed);
-                    Request triggerOOM = new Request("POST", "/_trigger_out_of_memory");
-                    client().performRequest(triggerOOM);
+                    triggerOutOfMemoryOnEveryNode();
                 }
             }, TimeValue.timeValueMinutes(5), testThreadPool.executor(ThreadPool.Names.GENERIC));
             Response resp = run.get();
@@ -218,6 +221,48 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
                 schedule.cancel();
             }
             terminate(testThreadPool);
+        }
+    }
+
+    /**
+     * Logs the running ES|QL tasks, then runs every node out of memory at the same time so each one writes a heap dump. The dumps
+     * have to start together: once any node dies the query fails, and the other nodes release its state before they are dumped.
+     */
+    private void triggerOutOfMemoryOnEveryNode() throws IOException {
+        Request tasks = new Request("GET", "/_tasks");
+        tasks.addParameter("actions", "*esql*");
+        tasks.addParameter("detailed", "true");
+        logger.info(
+            "--> test {} running ES|QL tasks {}",
+            getTestName(),
+            EntityUtils.toString(adminClient().performRequest(tasks).getEntity())
+        );
+
+        Map<?, ?> nodes = (Map<?, ?>) entityAsMap(adminClient().performRequest(new Request("GET", "/_nodes/http"))).get("nodes");
+        List<RestClient> clients = new ArrayList<>();
+        try {
+            for (Object node : nodes.values()) {
+                Map<?, ?> http = (Map<?, ?>) ((Map<?, ?>) node).get("http");
+                clients.add(buildClient(restClientSettings(), new HttpHost[] { HttpHost.create((String) http.get("publish_address")) }));
+            }
+            CountDownLatch died = new CountDownLatch(clients.size());
+            ResponseListener listener = new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    died.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception exception) {
+                    died.countDown();
+                }
+            };
+            for (RestClient client : clients) {
+                client.performRequestAsync(new Request("POST", "/_trigger_out_of_memory"), listener);
+            }
+            safeAwait(died, TEST_REQUEST_TIMEOUT);
+        } finally {
+            IOUtils.close(clients);
         }
     }
 

@@ -2975,14 +2975,17 @@ public class LocalExecutionPlanner {
 
         /**
          * A data driver reads slices from a queue shared by all the shards of its batch, so each wait is shared evenly between them,
-         * and sums over the shards add up to the wait and to one task.
+         * and sums over the shards approximately add up to the wait and to one task. Shards without stats are skipped.
          */
         private static LongConsumer shareQueueTimeAcrossShards(IndexedByShardId<? extends ShardContext> shardContexts) {
-            final ShardSearchStats[] stats = new ShardSearchStats[shardContexts.size()];
-            int i = 0;
+            final List<ShardSearchStats> statsList = new ArrayList<>(shardContexts.size());
             for (ShardContext shardContext : shardContexts.iterable()) {
-                stats[i++] = shardContext.stats();
+                ShardSearchStats shardStats = shardContext.stats();
+                if (shardStats != null) {
+                    statsList.add(shardStats);
+                }
             }
+            final ShardSearchStats[] stats = statsList.toArray(ShardSearchStats[]::new);
             return queueTimeNanos -> {
                 for (ShardSearchStats shardStats : stats) {
                     shardStats.onQueueTimeShare(queueTimeNanos, stats.length);

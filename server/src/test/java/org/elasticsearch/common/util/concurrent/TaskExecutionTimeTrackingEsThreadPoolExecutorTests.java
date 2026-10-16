@@ -24,6 +24,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -450,22 +451,23 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         }
     }
 
-    /** Tasks that are not {@link QueueTimeAware} are unaffected. */
-    public void testPlainTaskUnaffectedByQueueTimeAwareSupport() throws Exception {
+    /** Only a {@link QueueTimeAware} task gets the callback, and plain tasks run alongside it as before. */
+    public void testOnlyQueueTimeAwareTaskGetsCallback() throws Exception {
         var executor = buildExecutor(
-            "plain-task",
+            "plain-and-aware",
             1,
             TimedRunnable::new,
-            EsExecutors.TaskTrackingConfig.builder()
-                .trackMaxQueueLatency()
-                .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
-                .build()
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build()
         );
         try {
-            final var ran = new CountDownLatch(1);
-            executor.execute(ran::countDown);
-            safeAwait(ran);
-            assertTrue(executor.getMaxQueueLatencyMillisSinceLastPollAndReset() >= 0);
+            final var callbacks = new AtomicInteger();
+            final var plainRan = new CountDownLatch(1);
+            executor.execute(plainRan::countDown);
+            final var awareRan = new CountDownLatch(1);
+            executor.execute(new QueueTimeAwareRunnable(queueTimeNanos -> callbacks.incrementAndGet(), awareRan::countDown));
+            safeAwait(plainRan);
+            safeAwait(awareRan);
+            assertThat(callbacks.get(), equalTo(1));
         } finally {
             ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }

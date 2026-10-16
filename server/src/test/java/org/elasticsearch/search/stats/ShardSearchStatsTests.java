@@ -43,6 +43,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
 public class ShardSearchStatsTests extends IndexShardTestCase {
 
     private static final long TEN_MILLIS = 10;
@@ -67,7 +70,7 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
         assertEquals(TimeUnit.MILLISECONDS.toNanos(3 * TEN_MILLIS), shardSearchStatsListener.totalQueueTimeInNanos());
     }
 
-    /** A task shared by several shards adds its wait and one task in total across them, so means stay exact. */
+    /** A task shared by several shards adds its wait and one task in total across them. */
     public void testQueueTimeShare() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
         ShardSearchStats shardA = shardSearchStatsListener;
@@ -90,6 +93,24 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
             TimeUnit.MILLISECONDS.toNanos(60),
             shardA.totalQueueTimeInNanos() + shardB.totalQueueTimeInNanos()
         );
+    }
+
+    /** When the shard count does not divide evenly, sums over the shards lose only the truncated remainder. */
+    public void testQueueTimeShareTruncation() {
+        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+        int shardCount = 3;
+        long wait = 1_000_000;
+        double tasks = 0;
+        long nanos = 0;
+        for (int i = 0; i < shardCount; i++) {
+            ShardSearchStats shard = new ShardSearchStats(new SearchStatsSettings(clusterSettings));
+            shard.onQueueTimeShare(wait, shardCount);
+            tasks += shard.queueTimeTaskCount();
+            nanos += shard.totalQueueTimeInNanos();
+        }
+        assertEquals(1.0, tasks, 1e-5);
+        assertThat(nanos, lessThanOrEqualTo(wait));
+        assertThat(nanos, greaterThanOrEqualTo(wait - shardCount));
     }
 
     public void testDfsPhase() {

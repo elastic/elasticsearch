@@ -1127,8 +1127,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * A shard's search task that records its wait in the thread pool queue in the shard's stats. Only pools that track execution time
-     * report the wait, which excludes the system index search pools.
+     * A shard's search task that records its wait in the thread pool queue in the shard's stats. Used for the dfs, query, fetch, scroll and
+     * rank feature tasks. Not recorded: opening a reader context, the data node rewrite, the slices of intra-shard parallel collection,
+     * the keep alive reaper, and any search on a system index pool, because those pools do not track execution time.
      */
     private abstract static class ShardQueueTimeAwareRunnable extends AbstractRunnable implements QueueTimeAware {
         private final ShardSearchStats shardSearchStats;

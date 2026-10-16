@@ -63,16 +63,19 @@ public final class UnmappedFields {
 
     /**
      * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. It
-     * returns {@code false} when the index mode is strict columnar and unmapped fields are not routed to the flattened
-     * {@code _unmapped} field, when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
-     * when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
+     * returns {@code true} when unmapped fields are routed to the flattened {@code _unmapped} field, {@code false} when the
+     * index mode is strict columnar and they are not, when {@code _source} is synthetic and no segment has an
+     * {@code _ignored_source} field, and when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
      * {@link IndexSettings#retainsUnmappedFields()} and {@link RootObjectMapper#canRetainUnmappedFields()}) and no segment
      * has an {@code _ignored} field. When the segments cannot be inspected it returns {@code true} unless the index mode
      * decides. An {@code _ignored_source} field also holds values of mapped fields, so a shard that has one may still
      * hold no unmapped field.
      */
     public boolean mayExist() {
-        if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
+        if (indexSettings.isFlattenedUnmappedFieldsEnabled()) {
+            return true;
+        }
+        if (indexSettings.getMode().isStrictColumnar()) {
             return false;
         }
         if (existsInSegments == null) {

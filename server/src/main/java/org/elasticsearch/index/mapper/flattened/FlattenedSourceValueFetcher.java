@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 /**
  * A {@link SourceValueFetcher} for flattened fields that flattens nested objects into
@@ -38,17 +39,23 @@ final class FlattenedSourceValueFetcher extends SourceValueFetcher {
     private final Set<String> sourcePaths;
     private final Object nullValue;
     private final boolean preserveArrays;
+    private final Predicate<String> keys;
 
+    /**
+     * @param keys the keys to fetch
+     */
     FlattenedSourceValueFetcher(
         Set<String> sourcePaths,
         Object nullValue,
         IgnoredSourceFormat ignoredSourceFormat,
-        boolean preserveArrays
+        boolean preserveArrays,
+        Predicate<String> keys
     ) {
         super(sourcePaths, nullValue, ignoredSourceFormat);
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
         this.preserveArrays = preserveArrays;
+        this.keys = keys;
     }
 
     @Override
@@ -116,10 +123,16 @@ final class FlattenedSourceValueFetcher extends SourceValueFetcher {
         }
 
         private void addValue(String key, String value) {
+            if (keys.test(key) == false) {
+                return;
+            }
             merged.computeIfAbsent(new BytesRef(key), k -> preserveArrays ? new ArrayList<>() : new TreeSet<>()).add(new BytesRef(value));
         }
 
         private void addNull(String key) {
+            if (keys.test(key) == false) {
+                return;
+            }
             merged.computeIfAbsent(new BytesRef(key), k -> new ArrayList<>()).add(null);
         }
 

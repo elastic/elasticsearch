@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
@@ -17,7 +18,10 @@ import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandle
 import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -134,6 +138,30 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BinaryDVBlockLoaderTest
         String valueStr = value.toString();
 
         return valueStr.length() <= ignoreAbove ? new BytesRef(valueStr) : null;
+    }
+
+    public void testBlockLoaderOfAnObjectIsNull() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        runner.document(Map.of("field", Map.of("host", Map.of("name", "h", "ip", "1.2.3.4"))));
+        runner.fieldName("field.host");
+        runner.mapperService(createMapperService(getSettingsForParams().build(), flattenedMapping()));
+        runner.run(null);
+    }
+
+    public void testBlockLoaderSkipsObjectsNextToValues() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        runner.document(Map.of("field", Map.of("host", List.of("h", Map.of("name", "n")))));
+        runner.fieldName("field.host");
+        runner.mapperService(createMapperService(getSettingsForParams().build(), flattenedMapping()));
+        runner.run(new BytesRef("h"));
+    }
+
+    private static XContentBuilder flattenedMapping() throws IOException {
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "flattened")))),
+            Map.of("field", Map.of("type", "flattened"))
+        );
+        return XContentFactory.jsonBuilder().map(mapping.raw());
     }
 
     @Override

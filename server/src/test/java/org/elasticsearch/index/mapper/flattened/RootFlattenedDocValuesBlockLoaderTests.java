@@ -48,7 +48,8 @@ public class RootFlattenedDocValuesBlockLoaderTests extends ESTestCase {
                     false,
                     List.of(),
                     false,
-                    FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+                    FlattenedFieldMapper.PreserveLeafArrays.LOSSY,
+                    key -> true
                 );
                 BlockLoader.ColumnAtATimeReader columnReader = blockLoader.reader(NoopCircuitBreaker.INSTANCE, leaf);
 

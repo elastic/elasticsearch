@@ -296,9 +296,15 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
         RootFlattenedFieldType withDv = createDefaultFieldType(Integer.MAX_VALUE);
         BlockLoaderFunctionConfig unrelated = new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.LENGTH);
         assertFalse(
-            "the flattened root only supports the ExtractFlattenedSubfieldConfig fusion. Other configs must be rejected",
+            "the flattened root only supports the ExtractFlattenedSubfieldConfig and FlattenedKeysConfig. Other configs must be rejected",
             withDv.supportsBlockLoaderConfig(unrelated, MappedFieldType.FieldExtractPreference.NONE)
         );
+    }
+
+    public void testSupportsBlockLoaderConfigAcceptsFlattenedKeys() {
+        FlattenedKeysConfig keys = new FlattenedKeysConfig(List.of("a*"), List.of());
+        assertTrue(createDefaultFieldType(Integer.MAX_VALUE).supportsBlockLoaderConfig(keys, MappedFieldType.FieldExtractPreference.NONE));
+        assertTrue(noDocValuesFieldType().supportsBlockLoaderConfig(keys, MappedFieldType.FieldExtractPreference.NONE));
     }
 
     public void testBlockLoaderReturnsKeyedFlattenedLoaderForExtractFlattenedSubfield() {

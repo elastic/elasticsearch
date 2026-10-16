@@ -495,6 +495,11 @@ public final class DataSourceModule implements Closeable {
         return formatReaderRegistry;
     }
 
+    /** The node's credential decryptor, shared with the compute path so a worker can pre-flight its secrets. */
+    public DataSourceCredentials credentials() {
+        return credentials;
+    }
+
     public Map<String, ExternalSourceFactory> sourceFactories() {
         return sourceFactories;
     }

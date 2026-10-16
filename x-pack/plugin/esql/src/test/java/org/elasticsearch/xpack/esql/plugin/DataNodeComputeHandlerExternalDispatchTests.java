@@ -9,17 +9,25 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.encryption.spi.EncryptionKeyNotYetAvailableException;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler.ExternalDispatchResolution;
 import org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler.ExternalDispatchResolution.ResolvedExternalNode;
 import org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler.ExternalDispatchResolution.UnresolvedExternalNode;
 import org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler.ExternalNodeConnectionLookup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -261,5 +269,63 @@ public class DataNodeComputeHandlerExternalDispatchTests extends ESTestCase {
      */
     private static Transport.Connection connection() {
         return mock(Transport.Connection.class);
+    }
+
+    public void testCredentialsNotReadyIsRecognisedBeforeAndAfterTheWire() throws IOException {
+        Exception local = new ExternalUnavailableException(
+            ExternalException.Condition.CREDENTIALS_NOT_READY,
+            StoragePath.NONE,
+            "key [k]",
+            "Retry the query",
+            false,
+            0L,
+            new EncryptionKeyNotYetAvailableException("project encryption key [{}] is not yet available", "k")
+        );
+        assertTrue(DataNodeComputeHandler.isCredentialsNotReadyFailure(local));
+
+        Exception remote;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeException(local);
+            try (StreamInput in = out.bytes().streamInput()) {
+                remote = in.readException();
+            }
+        }
+        assertTrue("an unregistered type crosses as a wrapper", remote instanceof NotSerializableExceptionWrapper);
+        assertTrue("the condition is read from the wrapper's metadata", DataNodeComputeHandler.isCredentialsNotReadyFailure(remote));
+        assertTrue(
+            "and through the transport layer's own wrapper",
+            DataNodeComputeHandler.isCredentialsNotReadyFailure(new RemoteTransportException("worker", remote))
+        );
+
+        Exception otherCondition = new ExternalUnavailableException(
+            ExternalException.Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "",
+            "",
+            false,
+            0L
+        );
+        assertFalse(DataNodeComputeHandler.isCredentialsNotReadyFailure(otherCondition));
+        assertFalse(DataNodeComputeHandler.isCredentialsNotReadyFailure(new IllegalStateException("boom")));
+    }
+
+    public void testFallbackWorkerIsAnotherResolvedNodeCarryingTheDeclinedSplits() {
+        List<ResolvedExternalNode> resolved = List.of(
+            new ResolvedExternalNode(node("a"), connection(), splits(2)),
+            new ResolvedExternalNode(node("b"), connection(), splits(2)),
+            new ResolvedExternalNode(node("c"), connection(), splits(2))
+        );
+        List<ExternalSplit> declined = splits(2);
+
+        ResolvedExternalNode fallback = DataNodeComputeHandler.chooseFallbackWorker(resolved, "a", declined);
+        assertEquals("b", fallback.node().getId());
+        assertSame("the declined splits move as they are", declined, fallback.splits());
+        assertSame("over the connection already resolved for that node", resolved.get(1).connection(), fallback.connection());
+
+        assertEquals("a", DataNodeComputeHandler.chooseFallbackWorker(resolved, "b", declined).node().getId());
+        assertNull(
+            "no fallback when the decliner was the only worker",
+            DataNodeComputeHandler.chooseFallbackWorker(List.of(resolved.get(0)), "a", declined)
+        );
     }
 }

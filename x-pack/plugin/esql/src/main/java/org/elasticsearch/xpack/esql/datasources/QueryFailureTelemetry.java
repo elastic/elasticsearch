@@ -157,7 +157,9 @@ public final class QueryFailureTelemetry {
             case MALFORMED_DATA -> DataSourceUsageAccumulator.ERROR_TYPE_FORMAT;
             case LOCAL_CAPACITY, SCHEMA_TOO_WIDE -> DataSourceUsageAccumulator.ERROR_TYPE_RESOURCE_LIMIT;
             case METADATA_UNAVAILABLE, LISTING_FAILED -> DataSourceUsageAccumulator.ERROR_TYPE_DISCOVERY;
-            case CLIENT_BUG -> DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
+            // CREDENTIALS_NOT_READY is node-local: the store is not at fault and no limit was hit, so it must not land in a
+            // storage or resource bucket. The coordinator normally routes around it; only an unrouted one is counted here.
+            case CLIENT_BUG, CREDENTIALS_NOT_READY -> DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
         };
     }
 }

@@ -99,6 +99,14 @@ public abstract class ExternalException extends QlException {
         METADATA_UNAVAILABLE("Failed to get metadata for [{}]", "Failed to get external data metadata"),
         /** A listing call failed — the prefix could not be enumerated. */
         LISTING_FAILED("Failed to list external data objects", "Failed to list external data objects"),
+        /**
+         * This node cannot decrypt the data source credentials yet: it has not applied the cluster state that carries the key
+         * (a freshly joined node, or one lagging a key rotation). Another worker can serve the read, so the coordinator reroutes.
+         */
+        CREDENTIALS_NOT_READY(
+            "This node cannot decrypt the credentials for [{}] yet",
+            "This node cannot decrypt the external data source credentials yet"
+        ),
         /** The request was rejected because the host clock is too far from the store's clock. */
         CLOCK_SKEW {
             @Override

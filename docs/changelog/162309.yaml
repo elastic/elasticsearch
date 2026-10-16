@@ -1,0 +1,5 @@
+area: Allocation
+issues: []
+pr: 162309
+summary: Fail `AllocationActionListener` delegate only once
+type: bug

@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -31,6 +30,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToGeotile;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeotile;
 
 public class ToGeotile extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -38,11 +39,15 @@ public class ToGeotile extends AbstractConvertFunction {
         "ToGeotile",
         ToGeotile::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeotile.class).unary(ToGeotile::new).name("to_geotile");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeotile.class)
+        .unary(ToGeotile::new)
+        // Invalid long and string inputs produce a warning and null, instead of failing when rendering the results
+        .capabilities("invalid_input_warns")
+        .name("to_geotile");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEOTILE, (source, fieldEval) -> fieldEval),
-        Map.entry(LONG, (source, fieldEval) -> fieldEval),
+        Map.entry(LONG, ToGeotileFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToGeotileFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeotileFromStringEvaluator.Factory::new)
     );
@@ -101,6 +106,11 @@ public class ToGeotile extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromString(BytesRef in) {
-        return GeoTileUtils.longEncode(in.utf8ToString());
+        return stringToGeotile(in.utf8ToString());
+    }
+
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { IllegalArgumentException.class })
+    static long fromLong(long in) {
+        return longToGeotile(in);
     }
 }

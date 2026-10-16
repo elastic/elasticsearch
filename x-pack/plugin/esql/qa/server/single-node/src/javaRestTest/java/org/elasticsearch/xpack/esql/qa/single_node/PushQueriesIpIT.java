@@ -156,15 +156,15 @@ public class PushQueriesIpIT extends ESRestTestCase {
     }
 
     /**
-     * {@code ip IN ("1.2.3.4", "5.6.7.8")} pushes an {@code InetAddressPoint} set query
-     * (as individual {@code IndexOrDocValuesQuery} OR clauses for ES). {@code DIFFERENT_IP}
-     * ({@code "9.9.9.9"}) is not in the set so only the primary matches.
+     * {@code ip IN ("1.2.3.4", "5.6.7.8")} pushes a single {@code InetAddressPoint} set query
+     * (Lucene's {@code PointInSetQuery}), not a disjunction of per-value queries.
+     * {@code DIFFERENT_IP} ({@code "9.9.9.9"}) is not in the set so only the primary matches.
      */
     public void testIn() throws IOException {
         indexValue("1.2.3.4", DIFFERENT_IP);
         runAndAssert(
             "FROM test | WHERE ip IN (\"1.2.3.4\", \"5.6.7.8\") | KEEP ip",
-            startsWith("IndexOrDocValuesQuery(indexQuery=ip:[1.2.3.4 TO 1.2.3.4],"),
+            equalTo("ip:{1.2.3.4 5.6.7.8}"),
             PushQueriesStringIT.ComputeSignature.FILTER_IN_QUERY,
             1
         );

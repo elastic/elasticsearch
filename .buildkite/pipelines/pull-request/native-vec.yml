@@ -4,6 +4,7 @@ steps:
     if_changed:
       include:
         - "libs/simdvec/native/**"
+        - "libs/native-toolchain/**"
         - "build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/nativelibs/**"
         - "libs/native/libraries/build.gradle"
         - "libs/simdvec/build.gradle"

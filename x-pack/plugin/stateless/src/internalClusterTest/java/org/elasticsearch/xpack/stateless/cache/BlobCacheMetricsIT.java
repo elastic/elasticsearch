@@ -270,26 +270,6 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         assertThat(normalCacheBypassCount, equalTo(0L));
     }
 
-    public void testSearchNodeOnlyPeriodicCacheMetrics() throws Exception {
-        final var indexNode = startMasterAndIndexNode();
-        final var searchNode = startSearchNode();
-
-        // Ensure object not instantiated for indexing node so that we expect exception throwing
-        expectThrows(Exception.class, () -> internalCluster().getInstance(StatelessSharedBlobCachePeriodicMetrics.class, indexNode));
-        // It should be available on the search node
-        internalCluster().getInstance(StatelessSharedBlobCachePeriodicMetrics.class, searchNode);
-
-        updateClusterSettings(Settings.builder().put(StatelessSharedBlobCachePeriodicMetrics.METRICS_INTERVAL_SETTING.getKey(), "1s"));
-
-        final var plugin = getTestTelemetryPlugin(searchNode);
-        assertBusy(() -> {
-            plugin.collect();
-            final var gauge = plugin.getLongGaugeMeasurement(StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED);
-            assertNotNull(gauge);
-            assertFalse(gauge.isEmpty());
-        });
-    }
-
     private static void assertMetricsArePresent(
         String nodeName,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
@@ -580,7 +560,6 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider,
             SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
             return new SharedBlobCacheWarmingService(
@@ -588,7 +567,6 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider,
                 searchRecoveryTimeoutCalculationService
             ) {
                 @Override
@@ -597,12 +575,22 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, subscribableListener);
+                    super.warmCache(
+                        type,
+                        indexShard,
+                        commit,
+                        directory,
+                        warmingRatioProvider,
+                        endTargetsToWarm,
+                        preWarmForIdLookup,
+                        subscribableListener
+                    );
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }

@@ -150,6 +150,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -7417,6 +7418,26 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("pod")));
         assertWarnings("Line 1:16: Field 'pod' shadowed by field at line 1:60");
+    }
+
+    /**
+     * A {@code WITHOUT(...)} grouping inside a union subquery branch. The grouping's output column is named
+     * {@code _timeseries} from resolution onward (see {@code Analyzer.ResolveRefs#timeSeriesWithoutRenames}), so the
+     * union's alignment null-fills and output carry that final name and survive optimization — aligning under the
+     * parser's sourceText name ({@code WITHOUT(pod, region)}) used to fail the post-optimization merge consistency
+     * check once project-combining normalized the branch's attributes by name id.
+     */
+    public void testWithoutGroupingInsideSubqueryUnion() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        var query = "FROM test, (TS k8s | STATS avg_cost = avg(network.cost) BY WITHOUT(pod, region))";
+        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().addEmployees("test").query(query));
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names, hasItem("_timeseries"));
+        assertThat(names, not(hasItem("WITHOUT(pod, region)")));
+        var union = as(as(plan, Limit.class).child(), UnionAll.class);
+        for (LogicalPlan branch : union.children()) {
+            assertThat(branch.output().stream().map(Attribute::name).toList(), equalTo(names));
+        }
     }
 
     public void testTranslateMetricsWithoutGrouping() {

@@ -622,15 +622,8 @@ $$$dense-vector-index-options$$$
 
 ::::{applies-switch}
 
-:::{applies-item} stack: ga 9.6+
-Can be changed on an existing field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping), in either direction.
-The new value applies to later merges only; segments that already exist are not rewritten.
-Refer to [Changing `auto_calibrate` on an existing field](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-update) for details.
-:::
-
-:::{applies-item} stack: ga =9.5
-Cannot be changed after the field is created.
-:::
+- {applies_to}`stack: ga 9.6+` Can be changed on an existing field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping), in either direction. The new value applies to later merges only. Segments that already exist are not rewritten. Refer to [Changing `auto_calibrate` on an existing field](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-update) for details.
+- {applies_to}`stack: ga =9.5` Cannot be changed after the field is created.
 
 ::::
 :::::

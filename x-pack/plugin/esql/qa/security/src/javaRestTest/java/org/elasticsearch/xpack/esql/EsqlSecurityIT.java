@@ -4008,6 +4008,74 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * A view over an authorized dataset is expanded and the inner dataset is reached. The dataset's missing S3
+     * resource fails the query with 400 naming that dataset — the same discriminator as a direct {@code FROM <dataset>}.
+     */
+    public void testViewOverDatasetAuthorized() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        final String view = "security_it_ds_keep_view_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        createView("test-admin", view, "FROM " + dataset);
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_partial", "FROM " + view + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString(dataset));
+        } finally {
+            deleteView("test-admin", view);
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /**
+     * {@code user1} can read {@code other-view-user1} but not the dataset in its body. The expanded name is hidden
+     * the same way an unauthorized exact dataset is: 400 {@code Unknown index}, not a 403 existence leak.
+     */
+    public void testViewOverDatasetUnauthorizedIsUnknownIndex() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        createView("test-admin", "other-view-user1", "FROM " + dataset);
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("user1", "FROM other-view-user1 | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("Unknown index [" + dataset + "]"));
+        } finally {
+            deleteView("test-admin", "other-view-user1");
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /**
+     * DLS on the underlying dataset (or a view name in {@code security_it_ds_*}) rejects {@code FROM <view>} the same
+     * way a direct {@code FROM <dataset>} is rejected.
+     */
+    public void testViewOverDatasetDeniedWithDls() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin();
+        final String view = "security_it_ds_view_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        createView("test-admin", view, "FROM " + dataset);
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_dls", "FROM " + view + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            assertThat(ex.getMessage(), containsString("document or field level security"));
+        } finally {
+            deleteView("test-admin", view);
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
     /** Registers a randomly-named dataset under {@link #SECURITY_IT_SHARED_DATASOURCE} as test-admin; returns its name. */
     private String createSecurityItDatasetAsAdmin() throws IOException {
         return createSecurityItDatasetAsAdmin("security_it_ds_authz_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT));

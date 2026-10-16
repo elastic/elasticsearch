@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.esql.core.QlException;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,8 +39,8 @@ import java.util.regex.Pattern;
  *     temporarily-unavailable condition (a remote-store transport failure, or a node-local admission
  *     condition such as permit exhaustion).</li>
  *     <li>{@link ExternalObjectChangedException} &rarr; 503, the object was rewritten mid-query so a
- *     resume would splice generations. Query-level retryable, but not retried as a storage resume
- *     (the generation pin will keep failing until the query restarts).</li>
+ *     resume would splice generations. The client retries the request; it is not retried as a storage
+ *     resume, since the generation pin would keep failing. The server does not retry the query.</li>
  * </ul>
  * Subtypes extend {@link QlException} (rather than {@code QlClientException}/{@code QlServerException})
  * so they can share this single umbrella while each pinning its own status.
@@ -317,6 +320,20 @@ public abstract class ExternalException extends QlException {
             }
         }
         return null;
+    }
+
+    /**
+     * Whether {@code failure} or any throwable in its cause chain has the given {@link Condition}, as {@link #conditionOf}
+     * reports it. Unlike a class match, this still holds after the failure crossed a node boundary.
+     */
+    public static boolean hasCondition(Throwable failure, Condition condition) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable t = failure; t != null && seen.add(t); t = t.getCause()) {
+            if (conditionOf(t) == condition) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String baseMessage() {

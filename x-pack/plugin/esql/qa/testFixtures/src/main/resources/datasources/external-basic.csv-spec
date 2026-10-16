@@ -1119,7 +1119,7 @@ distinct_paths:long
 // Authored as FROM <dataset> so it runs verbatim on every storage backend, like the rest of this file.
 
 matchOnExternalKeyword
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1135,7 +1135,7 @@ emp_no:integer | first_name:keyword
 ;
 
 matchOnExternalKeywordAsText
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1153,7 +1153,7 @@ emp_no:integer | first_name:keyword
 ;
 
 matchOnExternalInteger
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1169,7 +1169,7 @@ emp_no:integer | salary:integer
 ;
 
 matchOnExternalIntegerWithStringQuery
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1185,7 +1185,7 @@ emp_no:integer | salary:integer
 ;
 
 matchOnExternalKeywordIsExact
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1200,7 +1200,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 matchOnExternalKeywordAsTextIsAnalyzed
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1225,7 +1225,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 matchOnExternalWithOperatorAnd
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_options
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1248,7 +1248,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 matchOnExternalWithMinimumShouldMatch
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_options
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1267,7 +1267,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 matchOnExternalWithFuzziness
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_options
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1283,7 +1283,7 @@ emp_no:integer | first_name:keyword
 ;
 
 matchOnExternalWithValuesAnalyzer
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_to_text_analyzer
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1303,7 +1303,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 matchPhraseOnExternalKeyword
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_phrase_function
 required_capability: fn_match_phrase_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1320,7 +1320,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 matchPhraseOnExternalKeywordAsText
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_phrase_function
 required_capability: fn_match_phrase_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1339,7 +1339,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 matchPhraseOnExternalWithSlop
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_phrase_function
 required_capability: fn_match_phrase_runtime_options
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1357,7 +1357,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 matchPhraseOnExternalWithValuesAnalyzer
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_phrase_function
 required_capability: fn_to_text_analyzer
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1376,7 +1376,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 matchOperatorOnExternalKeyword
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_operator_colon
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1393,7 +1393,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 matchOperatorOnExternalKeywordAsText
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_operator_colon
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1411,7 +1411,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 matchOnExternalLong
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1426,7 +1426,7 @@ emp_no:integer | avg_worked_seconds:long
 ;
 
 matchOnExternalDouble
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1443,7 +1443,7 @@ emp_no:integer | height:double
 ;
 
 matchOnExternalBoolean
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1458,7 +1458,7 @@ emp_no:integer | still_hired:boolean
 ;
 
 matchOnExternalDatetime
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1473,7 +1473,7 @@ emp_no:integer | hire_date:datetime
 ;
 
 matchOnExternalWithReaderPushablePredicate
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1495,7 +1495,7 @@ emp_no:integer | job_positions:keyword
 ;
 
 matchOnExternalThenTopN
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"
@@ -1513,7 +1513,7 @@ emp_no:integer | first_name:keyword
 ;
 
 matchOnExternalThenCount
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: match_function
 required_capability: fn_match_runtime_filter
 dataset: employees_no_mv: "{{employees_no_mv}}"

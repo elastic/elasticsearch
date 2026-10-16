@@ -2218,9 +2218,12 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     public void testMatchRuntimeQueryValueTypeMismatch() throws Exception {
-        // lenient is the default, so a query value that cannot be converted to the field's type just matches nothing
+        // lenient is the default, so a query value that cannot be converted to the field's type passes verification
+        // (but matches nothing)
         fullText().query("from test | eval k = length(title) | where match(k, \"cat\")");
         fullText().query("from test | eval k = length(title) | where match(k, \"cat\", {\"lenient\": true})");
+
+        // 'lenient: false' results in an error about the mismatched types
         fullText().error(
             "from test | eval k = length(title) | where match(k, \"cat\", {\"lenient\": false})",
             containsString("does not match the type ([integer]) of non-index-mapped field [k]")

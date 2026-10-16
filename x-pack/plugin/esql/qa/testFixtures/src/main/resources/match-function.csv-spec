@@ -1301,7 +1301,7 @@ required_capability: match_function
 required_capability: fn_match_runtime_filter
 required_capability: full_text_functions_in_stats_where
 
-ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown", "A red fox"]
+ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown", "A red dog"]
 | MV_EXPAND content
 | EVAL content = to_text(content), colour = case(content LIKE "*brown*", "brown", "red")
 | STATS foxes = COUNT(*) WHERE match(content, "fox") BY colour
@@ -1310,7 +1310,7 @@ ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really
 
 foxes:long | colour:keyword
 1          | brown
-1          | red
+0          | red
 ;
 
 matchOnRuntimeTextAfterInlineStats

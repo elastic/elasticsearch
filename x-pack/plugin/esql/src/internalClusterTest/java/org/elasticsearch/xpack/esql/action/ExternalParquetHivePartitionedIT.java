@@ -135,9 +135,9 @@ public class ExternalParquetHivePartitionedIT extends AbstractExternalDataSource
     }
 
     /**
-     * Runtime full-text search over a path-derived partition column. Partition pruning does not understand MATCH,
-     * so every partition is scanned and the match filters the rows; a COUNT(*) over the match must likewise be
-     * computed from the scan rather than served from file stats.
+     * Runtime full-text search over a path-derived partition column returns only the matching partition's rows, and a
+     * COUNT(*) over the match counts those rows rather than every file's. {@link ExternalHivePartitionPruningIT} checks
+     * which files such a search scans.
      */
     public void testMatchOnPartitionColumn() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);

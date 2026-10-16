@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 161316
+pr: 161556
+summary: Release scroll contexts when index removed
+type: bug

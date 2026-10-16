@@ -187,19 +187,6 @@ public class RemoteClusterAwareTests extends ESTestCase {
         );
     }
 
-    public void testExclusionsLeavingNothingToSearch() {
-        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
-        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2");
-        String[] indices = new String[] { "cluster1:logs*", "-cluster1:*" };
-
-        expectThrows(
-            IllegalArgumentException.class,
-            containsString("The '-' exclusions in the index expression list excludes all indexes. Nothing to search."),
-            () -> remoteClusterAware.groupClusterIndices(remoteClusterNames, indices)
-        );
-        assertThat(remoteClusterAware.groupClusterIndices(remoteClusterNames, indices, true), equalTo(Map.of()));
-    }
-
     private static <T extends Throwable> void mustThrowException(String[] requestIndices, Class<T> expectedType, String expectedMessage) {
         RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
         Set<String> remoteClusterNames = Set.of("cluster1", "cluster2", "some-cluster3");

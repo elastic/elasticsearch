@@ -161,10 +161,6 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
      * @return a map of grouped remote and local indices
      */
     protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {
-        return groupClusterIndices(remoteClusterNames, requestIndices, false);
-    }
-
-    protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices, boolean allowEmpty) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
         Set<String> everIncluded = new HashSet<>();
         boolean hasExclusions = false;
@@ -251,7 +247,7 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                 perClusterIndices.computeIfAbsent(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
             }
         }
-        if (allowEmpty == false && hasExclusions && perClusterIndices.isEmpty()) {
+        if (hasExclusions && perClusterIndices.isEmpty()) {
             throw new IllegalArgumentException(
                 "The '-' exclusions in the index expression list excludes all indexes. Nothing to search. Input: ["
                     + String.join(",", requestIndices)

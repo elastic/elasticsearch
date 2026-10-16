@@ -15,6 +15,8 @@ import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin
+import org.elasticsearch.gradle.internal.distribution.BundledJdkPlatforms
+import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
 import org.elasticsearch.gradle.transform.FilteringJarTransform
 
 import java.nio.file.Files
@@ -256,17 +258,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   apply plugin: 'elasticsearch.jdk-download'
   apply plugin: 'elasticsearch.repositories'
 
-  def architecturesFor = { platform ->
-    def bundledJdkMajor = Integer.parseInt(
-      buildParams.runtimeJava.preRelease
-        ? buildParams.runtimeJavaVersion.get().getMajorVersion()
-        : VersionProperties.bundledJdkMajorVersion
-    )
-    if (platform == 'linux' || (platform == 'darwin' && bundledJdkMajor < 27)) {
-      return ['x64', 'aarch64']
-    }
-    return platform == 'darwin' ? ['aarch64'] : ['x64']
-  }
+  int bundledJdkMajor = BundledJdkPlatforms.bundledJdkMajor(buildParams)
+  def architecturesFor = { String platform -> BundledJdkPlatforms.architecturesFor(platform, bundledJdkMajor) }
 
   if (buildParams.runtimeJava.preRelease) {
     Integer buildNumber = Integer.getInteger("runtime.java.build")

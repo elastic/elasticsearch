@@ -25,7 +25,7 @@ Managed connectors were introduced in Elastic version *8.5.0*.
 
 [NOTE]
 ====
-Elastic managed connectors are not available on Elastic Cloud Serverless projects, and are discontinued in Elastic 9.0.0 along with Enterprise Search.
+These managed connectors run on Enterprise Search, so they are not available on Elastic Cloud Serverless projects, and are discontinued in Elastic 9.0.0 along with Enterprise Search.
 Use <<es-build-connector,self-managed connectors>> instead.
 ====
 

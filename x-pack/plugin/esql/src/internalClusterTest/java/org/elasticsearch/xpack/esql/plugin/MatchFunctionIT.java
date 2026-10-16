@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -1025,6 +1026,75 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                     List.of("The quick brown fox jumps over the lazy dog", 6, 6, "The quick brown fox jumps over the lazy dog")
                 )
             );
+        }
+    }
+
+    /**
+     * With {@code search.allow_expensive_queries: false}, a {@code match} with {@code fuzziness} in a
+     * {@code LOOKUP JOIN ON} condition is refused like in Query DSL. Only a {@code match} on a lookup field gets that
+     * far: lookup-side ON conditions must be pushable to Lucene, so the analyzer rejects a runtime {@code match}. The
+     * field is then either searched by the lookup query, which turns the failure into a warning and matches nothing,
+     * or, after a keyword bulk lookup, filtered with a Lucene query against the lookup shard.
+     */
+    public void testMatchInLookupJoinOnWhenExpensiveQueriesDisallowed() {
+        assumeTrue(
+            "requires LOOKUP JOIN with full-text function support",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("expensive_kw_lookup")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
+                .setMapping("tag", "type=keyword", "description", "type=text")
+        );
+        client().prepareBulk()
+            .add(new IndexRequest("expensive_kw_lookup").source("tag", "fox_tag", "description", "This is a brown fox"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow("expensive_kw_lookup");
+
+        updateClusterSettings(Settings.builder().put(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey(), false));
+        try {
+            var runtime = """
+                FROM test
+                | RENAME id AS id_left
+                | LOOKUP JOIN test_lookup ON id_left == id AND match(to_text(to_string(lookup_content)), "fox", { "fuzziness": "AUTO" })
+                """;
+            var error = expectThrows(VerificationException.class, () -> run(runtime));
+            assertThat(error.getMessage(), containsString("Unsupported join filter expression"));
+
+            for (String options : List.of("{ \"fuzziness\": \"AUTO\", \"lenient\": false }", "{ \"fuzziness\": \"AUTO\" }")) {
+                var pushed =
+                    "FROM test | RENAME id AS id_left | LOOKUP JOIN test_lookup ON id_left == id AND match(lookup_content, \"fox\", "
+                        + options
+                        + ") | WHERE id IS NOT NULL | STATS c = count(*)";
+                try (var resp = run(pushed)) {
+                    assertValues(resp.values(), List.of(List.of(0L)));
+                }
+            }
+
+            var strict = """
+                ROW left_tag = "fox_tag"
+                | LOOKUP JOIN expensive_kw_lookup
+                    ON left_tag == tag AND match(description, "fox", { "fuzziness": "AUTO", "lenient": false })
+                """;
+            var refused = expectThrows(ElasticsearchException.class, () -> run(strict));
+            assertThat(
+                refused.getMessage(),
+                containsString("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.")
+            );
+
+            var lenient = """
+                ROW left_tag = "fox_tag"
+                | LOOKUP JOIN expensive_kw_lookup ON left_tag == tag AND match(description, "fox", { "fuzziness": "AUTO" })
+                | KEEP left_tag, description
+                """;
+            try (var resp = run(lenient)) {
+                assertValues(resp.values(), List.of(Arrays.asList("fox_tag", null)));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey()));
         }
     }
 

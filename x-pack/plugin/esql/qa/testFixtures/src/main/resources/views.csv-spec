@@ -3089,6 +3089,84 @@ fork2         | null                     | 10001
 fork2         | null                     | null
 ;
 
+viewInSubqueryForkLoadUnmappedNullFilledAtViewBoundary
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: settings_scoped_at_view_boundaries
+
+// The sibling of the test above: the view does not surface unmapped_message, so the view boundary answers null for it
+// instead of loading it from the view's source, and WHERE ... IS NULL keeps all of the view's rows.
+SET unmapped_fields="load"\;
+FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message IS NULL),
+     (FROM (FROM view_sample_data | WHERE event_duration == 1232382), (FROM employees_all | WHERE emp_no == 10001))
+| FORK (WHERE unmapped_message == "Disconnection error") (WHERE unmapped_message IS NULL)
+| STATS c = COUNT(*), employees = COUNT(emp_no) BY _fork
+| SORT _fork
+;
+
+c:long | employees:long | _fork:keyword
+9      | 1              | fork2
+;
+
+viewBesideIndexAndSubqueryLoadsUnmappedOnlyOutsideTheView
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: settings_scoped_at_view_boundaries
+
+// The view is a pass-through to the very index that is also queried directly, as a sibling and in a subquery. Only the
+// index branches load unmapped_message from _source; the view must not merge with them and answers null for all its rows.
+SET unmapped_fields="load"\;
+FROM view_partial_mapping_sample_data,
+     partial_mapping_sample_data,
+     (FROM partial_mapping_sample_data | WHERE message == "Connection error?")
+| STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
+;
+
+rows:long | loaded:long
+17        | 10
+;
+
+viewNestedInSubqueryBesideIndexLoadsUnmappedOnlyOutsideTheView
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: settings_scoped_at_view_boundaries
+
+SET unmapped_fields="load"\;
+FROM (FROM (FROM view_partial_mapping_sample_data), partial_mapping_sample_data), (FROM sample_data)
+| STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
+;
+
+rows:long | loaded:long
+21        | 7
+;
+
+viewOverSubqueriesBesideIndexLoadsUnmappedOnlyOutsideTheView
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: settings_scoped_at_view_boundaries
+
+// view_with_unionall is a union of subqueries over employees_all, another view: all of it is the view's own scope.
+SET unmapped_fields="load"\;
+FROM view_with_unionall, partial_mapping_sample_data
+| STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
+;
+
+rows:long | loaded:long
+9         | 7
+;
+
 forkViewInSubqueryInlineStatsInMainQuery
 required_capability: fork_v9
 required_capability: views_with_no_branching

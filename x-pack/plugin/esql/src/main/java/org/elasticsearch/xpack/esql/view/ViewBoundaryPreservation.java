@@ -27,7 +27,7 @@ package org.elasticsearch.xpack.esql.view;
  * safe and strictly more faithful there.
  *
  * <p>{@link #KEEP_VIEW_IDENTITY} — a query setting must stop at view boundaries (currently: {@code unmapped_fields}
- * is not {@code DEFAULT}, or {@code wildcards_match_datasets} is on; see esql-planning#2273): pass-through views keep
+ * is not {@code DEFAULT}, or {@code wildcards_match_datasets} is on): pass-through views keep
  * their identity too, wrapped as named view branches instead of merging with sibling or outer patterns. The view
  * branches are the boundary itself: {@code ResolveUnmapped} skips every view branch wholesale and null-fills at its
  * output, and the dataset rewrite turns wildcard dataset matching off inside view branches, so a view must never end up

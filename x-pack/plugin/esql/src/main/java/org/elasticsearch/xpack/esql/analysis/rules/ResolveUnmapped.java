@@ -117,7 +117,14 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * bodies are skipped entirely: the rule never fires on a node inside one.
      */
     private static LogicalPlan resolveOutsideViews(LogicalPlan plan, boolean load) {
-        return plan.transformUpSkipBranch(ResolveUnmapped::isViewBody, p -> p.analyzed() || p.resolved() ? p : resolve(p, load));
+        return transformUpOutsideViews(plan, p -> p.analyzed() || p.resolved() ? p : resolve(p, load));
+    }
+
+    /**
+     * Applies {@code rule} bottom-up to every node of {@code plan} except those inside view bodies (see {@link #isViewBody}).
+     */
+    private static LogicalPlan transformUpOutsideViews(LogicalPlan plan, Function<LogicalPlan, LogicalPlan> rule) {
+        return plan.transformUpSkipBranch(ResolveUnmapped::isViewBody, rule);
     }
 
     /**
@@ -187,15 +194,15 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      */
     private static LogicalPlan nullify(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
         // For EsRelation sources: add null-typed fields to the relation's output
-        var transformed = plan.transformUpSkipBranch(ResolveUnmapped::isViewBody, p -> {
+        var transformed = transformUpOutsideViews(plan, p -> {
             if (p instanceof EsRelation esr) {
                 List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
                 return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify);
             }
             return p;
         });
-        transformed = nullifyNonEsRelationSources(transformed, unresolved);
-        return nullFillViewBoundaries(transformed, unresolved, false);
+        transformed = nullFillViewBoundaries(transformed, unresolved, false);
+        return nullifyNonEsRelationSources(transformed, unresolved);
     }
 
     /**
@@ -204,18 +211,13 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * like {@code ROW x = 1 | EVAL y = unmapped_field}.
      */
     private static LogicalPlan nullifyNonEsRelationSources(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
-        var transformed = plan.transformUpSkipBranch(
-            ResolveUnmapped::isViewBody,
-            p -> p instanceof UnaryPlan unary && unary.child() instanceof LeafPlan leaf && leaf instanceof EsRelation == false
-                ? evalUnresolvedAtopUnary(unary, nullAliases(unresolved))
-                : p
-        );
-        return transformed.transformUpSkipBranch(
-            ResolveUnmapped::isViewBody,
-            p -> p instanceof UnaryPlan == false && p instanceof LeafPlan == false
-                ? evalUnresolvedAtopNaryNonEsRelation(p, nullAliases(unresolved))
-                : p
-        );
+        return transformUpOutsideViews(plan, p -> switch (p) {
+            case UnaryPlan unary when unary.child() instanceof LeafPlan leaf && leaf instanceof EsRelation == false ->
+                evalUnresolvedAtopUnary(unary, nullAliases(unresolved));
+            case UnaryPlan unary -> unary;
+            case LeafPlan leaf -> leaf;
+            default -> evalUnresolvedAtopNaryNonEsRelation(p, nullAliases(unresolved));
+        });
     }
 
     private static List<FieldAttribute> fieldsToNullify(Set<UnresolvedAttribute> unresolved, List<String> exclude) {
@@ -303,7 +305,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * {@code ResolveRefs#resolveMergePlan} to null-fill.
      */
     private static LogicalPlan loadIntoSources(LogicalPlan plan, Set<UnresolvedAttribute> toLoad) {
-        return plan.transformUpSkipBranch(ResolveUnmapped::isViewBody, p -> {
+        return transformUpOutsideViews(plan, p -> {
             if (p instanceof EsRelation esr) {
                 List<FieldAttribute> fieldsToLoad = fieldsToLoad(toLoad, Expressions.names(esr.output()));
                 return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad);
@@ -430,10 +432,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * {@link #patchMergePlan} for every merge outside view bodies, bottom-up.
      */
     private static LogicalPlan patchMergePlans(LogicalPlan plan) {
-        return plan.transformUpSkipBranch(
-            ResolveUnmapped::isViewBody,
-            p -> p instanceof MergePlan mergePlan ? patchMergePlan(mergePlan) : p
-        );
+        return transformUpOutsideViews(plan, p -> p instanceof MergePlan mergePlan ? patchMergePlan(mergePlan) : p);
     }
 
     /**

@@ -134,6 +134,11 @@ public class BranchPlan extends UnionAll {
      * Returns {@code true} if the given key corresponds to an actual resolved view branch.
      * Use this instead of {@code key != null} checks; bare-index and literal-subquery branches also have non-null keys.
      * Returns {@code false} for {@code null} keys, which are always bare-plan branches.
+     * <p>
+     * Only precise before view compaction: compaction flattens nested branch plans and merges bare relations, so a view
+     * can end up in a branch of its own that is no longer marked as a view, or merged into a sibling's relation. Features
+     * that need exact information on what lies inside a view must run before compaction, or request that views are kept
+     * (see {@code ViewBoundaryPreservation}).
      */
     public boolean isViewBranch(String key) {
         return key != null && branchIdentity(key).isView();

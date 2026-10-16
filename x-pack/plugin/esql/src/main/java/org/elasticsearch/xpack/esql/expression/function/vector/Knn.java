@@ -92,8 +92,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
         .ternary(Knn::new)
-        .capabilities("runtime_anywhere", "runtime_similarity_function")
-        .capabilities("single_dimension_query_vector")
+        .capabilities("runtime_anywhere", "runtime_similarity_function", "single_dimension_query_vector")
         .name("knn");
 
     private final Integer implicitK;

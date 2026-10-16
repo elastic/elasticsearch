@@ -168,11 +168,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         ) {
             @Override
             protected void warmCache(
-                WarmingRatioProvider warmingRatioProvider,
                 Type type,
                 IndexShard indexShard,
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
+                WarmingRatioProvider warmingRatioProvider,
                 @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                 boolean preWarmForIdLookup,
                 ActionListener<Void> listener
@@ -232,11 +232,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().getFirst();
             service.warmCacheForSearchShardRecovery(
-                mock(WarmingRatioProvider.class),
                 () -> state,
                 mockIndexShard(self),
                 null,
                 null,
+                mock(WarmingRatioProvider.class),
                 null,
                 resume
             );
@@ -297,11 +297,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = initializingSearchReplica(state, shardId);
             service.warmCacheForSearchShardRecovery(
-                mock(WarmingRatioProvider.class),
                 () -> state,
                 mockIndexShard(self),
                 null,
                 mockDirectory(),
+                mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
                 resume
             );
@@ -353,11 +353,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().getFirst();
             service.warmCacheForSearchShardRecovery(
-                mock(WarmingRatioProvider.class),
                 () -> state,
                 mockIndexShard(self),
                 null,
                 null,
+                mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), WarmTarget.withUnknownTimestamp(1L, 1L)),
                 resume
             );
@@ -418,11 +418,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardRouting self = initializingSearchReplica(state, shardId);
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
             service.warmCacheForSearchShardRecovery(
-                mock(WarmingRatioProvider.class),
                 () -> state,
                 mockIndexShard(self),
                 null,
                 mockDirectory(),
+                mock(WarmingRatioProvider.class),
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), new WarmTarget(1L, 1L, 1L)),
                 resume
             );

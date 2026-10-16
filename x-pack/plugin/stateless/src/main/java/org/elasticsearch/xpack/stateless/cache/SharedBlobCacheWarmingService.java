@@ -789,7 +789,7 @@ public class SharedBlobCacheWarmingService {
         BlobStoreCacheDirectory directory,
         ActionListener<Void> listener
     ) {
-        warmCache(null, type, indexShard, commit, directory, null, false, listener);
+        warmCache(type, indexShard, commit, directory, null, null, false, listener);
     }
 
     public void warmCacheForShardRecoveryOrUnhollowing(
@@ -800,7 +800,7 @@ public class SharedBlobCacheWarmingService {
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
-        warmCache(null, type, indexShard, commit, directory, null, preWarmForIdLookup, listener);
+        warmCache(type, indexShard, commit, directory, null, null, preWarmForIdLookup, listener);
     }
 
     /**
@@ -812,11 +812,11 @@ public class SharedBlobCacheWarmingService {
      * Notice that this may synchronously invoke the listener.
      */
     public void warmCacheForSearchShardRecovery(
-        WarmingRatioProvider warmingRatioProvider,
         Supplier<ClusterState> clusterStateSupplier,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
+        WarmingRatioProvider warmingRatioProvider,
         @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
         ActionListener<Void> resumeRecoveryListener
     ) {
@@ -827,11 +827,11 @@ public class SharedBlobCacheWarmingService {
         if (plan.awaitWarming()) {
             assert endTargetsToWarm != null;
             warmCacheAndTimeIt(
-                warmingRatioProvider,
                 Type.SEARCH,
                 indexShard,
                 commit,
                 directory,
+                warmingRatioProvider,
                 endTargetsToWarm,
                 false,
                 searchRecoveryWarmingListener(
@@ -845,11 +845,11 @@ public class SharedBlobCacheWarmingService {
             );
         } else {
             warmCacheAndTimeIt(
-                warmingRatioProvider,
                 Type.SEARCH,
                 indexShard,
                 commit,
                 directory,
+                warmingRatioProvider,
                 endTargetsToWarm,
                 false,
                 ActionListener.noop()
@@ -864,21 +864,21 @@ public class SharedBlobCacheWarmingService {
 
     // this indirection is for test purposes (some tests check the listener type that's passed in to warmCache)
     protected void warmCacheAndTimeIt(
-        WarmingRatioProvider warmingRatioProvider,
         Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
+        WarmingRatioProvider warmingRatioProvider,
         @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
         warmCache(
-            warmingRatioProvider,
             type,
             indexShard,
             commit,
             directory,
+            warmingRatioProvider,
             endTargetsToWarm,
             preWarmForIdLookup,
             timeSearchRecoveryWarming(threadPool.relativeTimeInMillis(), listener)
@@ -897,15 +897,16 @@ public class SharedBlobCacheWarmingService {
     }
 
     protected void warmCache(
-        @Nullable WarmingRatioProvider warmingRatioProvider,
         Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
+        @Nullable WarmingRatioProvider warmingRatioProvider,
         @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
+        assert type != Type.SEARCH || warmingRatioProvider != null : "warmingRatioProvider must not be null in search shard recovery path";
         ShardId shardId = indexShard.shardId();
         Store store = indexShard.store();
         if (store.isClosing() || store.tryIncRef() == false) {
@@ -921,7 +922,6 @@ public class SharedBlobCacheWarmingService {
                 // special search shard prewarming based on timestamp range of CCs (more recent data is warmed more)
                 final boolean isOfflineWarmingEnabled = searchOfflineWarmingEnabled;
                 if (type == Type.SEARCH && (prefetchCommitsForSearchShardRecovery || isOfflineWarmingEnabled)) {
-                    assert warmingRatioProvider != null : "warmingRatioProvider must not be null in search shard recovery path";
                     SubscribableListener.<Map<BlobFile, WarmTarget>>newForked(l1 -> {
                         if (endTargetsToWarm == null) {
                             Map<BlobFile, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();

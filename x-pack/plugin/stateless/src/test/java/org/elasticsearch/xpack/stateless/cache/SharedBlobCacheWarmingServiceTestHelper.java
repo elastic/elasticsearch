@@ -75,6 +75,6 @@ public final class SharedBlobCacheWarmingServiceTestHelper {
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
-        warmingService.warmCache(warmingRatioProvider, type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, listener);
+        warmingService.warmCache(type, indexShard, commit, directory, warmingRatioProvider, endTargetsToWarm, preWarmForIdLookup, listener);
     }
 }

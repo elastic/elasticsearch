@@ -884,11 +884,11 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
                 @Override
                 protected void warmCache(
-                    WarmingRatioProvider warmingRatioProvider,
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener

@@ -259,11 +259,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
 
         @Override
         protected void warmCache(
-            WarmingRatioProvider warmingRatioProvider,
             Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory blobStoreCacheDirectory,
+            WarmingRatioProvider warmingRatioProvider,
             @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener

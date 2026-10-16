@@ -1599,7 +1599,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
     /**
      * Test subclass of {@link SharedBlobCacheWarmingService} that exposes listener-based hooks for observing warming start and
-     * completion. By default this subclass mirrors production's async semantics: {@link #warmCache} and {@link #warmCacheMerge}
+     * completion. By default this subclass mirrors production's async semantics: {@link SharedBlobCacheWarmingService#warmCache} and {@link #warmCacheMerge}
      * do not await warming, and callers that pass {@link ActionListener#noop()} (e.g. the fire-and-forget branch of
      * {@code warmCacheForSearchShardRecovery}) are not converted into blocking calls. Tests that need "warming done" as a
      * precondition must explicitly await via {@link #addWarmingCompletedListener} or {@link #addMergeWarmingCompletedListener}.
@@ -1610,8 +1610,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
      * <ul>
      *   <li>{@link #warmCacheForShardRecoveryOrUnhollowing} (indexing) blocks the calling thread until warming completes, because
      *   in production the recovery thread immediately reads {@code segments_N} after kicking off fire-and-forget warming.</li>
-     *   <li>{@link #warmCacheForSearchShardRecovery} (search) does not block the caller. It routes warming through
-     *   {@link #warmCache} so {@code resumeRecoveryListener} is invoked only after warming (and any
+     *   <li>{@link SharedBlobCacheWarmingService#warmCacheForSearchShardRecovery} (search) does not block the caller. It routes warming through
+     *   {@link SharedBlobCacheWarmingService#warmCache} so {@code resumeRecoveryListener} is invoked only after warming (and any
      *   {@code warmingCompletedListeners}) have completed, deferring the resume step rather than blocking the caller.</li>
      * </ul>
      */
@@ -1679,11 +1679,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         @Override
         public void warmCacheForSearchShardRecovery(
-            WarmingRatioProvider warmingRatioProvider,
             Supplier<ClusterState> clusterStateSupplier,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
+            WarmingRatioProvider warmingRatioProvider,
             @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             ActionListener<Void> resumeRecoveryListener
         ) {
@@ -1692,11 +1692,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 // warmingCompletedListeners before the original listener, so the object-store block callback
                 // registered via addWarmingCompletedListener fires before resumeRecoveryListener completes.
                 warmCache(
-                    warmingRatioProvider,
                     Type.SEARCH,
                     indexShard,
                     commit,
                     directory,
+                    warmingRatioProvider,
                     endTargetsToWarm,
                     false,
                     searchRecoveryWarmingListener(
@@ -1710,11 +1710,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 );
             } else {
                 super.warmCacheForSearchShardRecovery(
-                    warmingRatioProvider,
                     clusterStateSupplier,
                     indexShard,
                     commit,
                     directory,
+                    warmingRatioProvider,
                     endTargetsToWarm,
                     resumeRecoveryListener
                 );
@@ -1791,11 +1791,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         @Override
         protected void warmCache(
-            WarmingRatioProvider warmingRatioProvider,
             Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
+            WarmingRatioProvider warmingRatioProvider,
             @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
@@ -1810,11 +1810,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 beforeWarmingStartsListener.accept(type);
             }
             super.warmCache(
-                warmingRatioProvider,
                 type,
                 indexShard,
                 commit,
                 directory,
+                warmingRatioProvider,
                 endTargetsToWarm,
                 preWarmForIdLookup,
                 wrappedListener

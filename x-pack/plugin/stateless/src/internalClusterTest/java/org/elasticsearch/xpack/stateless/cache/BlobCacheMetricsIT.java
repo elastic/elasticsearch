@@ -571,22 +571,22 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
             ) {
                 @Override
                 protected void warmCache(
-                    WarmingRatioProvider warmingRatioProvider,
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
                     var subscribableListener = new SubscribableListener<Void>();
                     super.warmCache(
-                        warmingRatioProvider,
                         type,
                         indexShard,
                         commit,
                         directory,
+                        warmingRatioProvider,
                         endTargetsToWarm,
                         preWarmForIdLookup,
                         subscribableListener

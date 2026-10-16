@@ -92,11 +92,11 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
 
         @Override
         protected void warmCacheAndTimeIt(
-            WarmingRatioProvider warmingRatioProvider,
             Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
+            WarmingRatioProvider warmingRatioProvider,
             @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
@@ -114,11 +114,11 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
                 }
             }
             super.warmCacheAndTimeIt(
-                warmingRatioProvider,
                 type,
                 indexShard,
                 commit,
                 directory,
+                warmingRatioProvider,
                 endTargetsToWarm,
                 preWarmForIdLookup,
                 listener

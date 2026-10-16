@@ -1296,11 +1296,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
             ) {
                 @Override
                 protected void warmCache(
-                    WarmingRatioProvider warmingRatioProvider,
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
+                    WarmingRatioProvider warmingRatioProvider,
                     @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
@@ -1310,11 +1310,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     // warmed afterward.
                     var subscribableListener = new SubscribableListener<Void>();
                     super.warmCache(
-                        warmingRatioProvider,
                         type,
                         indexShard,
                         commit,
                         directory,
+                        warmingRatioProvider,
                         endTargetsToWarm,
                         false,
                         subscribableListener

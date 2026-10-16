@@ -32,7 +32,9 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.AttributeSource;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,6 +48,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.PlaceHolderFieldMapper;
+import org.elasticsearch.index.mapper.SliceTermQueries;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -608,13 +611,37 @@ public class MatchQueryParser {
 
         @Override
         protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
-            SynonymQuery.Builder builder = new SynonymQuery.Builder(field);
-            for (TermAndBoost t : terms) {
-                builder.addTerm(t.term(), t.boost());
-            }
-            Query query = builder.build();
+            // The analyzer hands these terms over, rather than the field type, so this is where a slice index puts the
+            // slice on them. The query is built again for each slice, since each of its terms carries a weight that
+            // reading the built query back does not report.
+            Query query = SliceTermQueries.shape(
+                field,
+                context,
+                () -> synonymQuery(field, terms, null),
+                slice -> synonymQuery(field, terms, slice),
+                () -> Automata.makeBinaryStringUnion(sortedTerms(terms)),
+                null
+            );
             query.visit(queryVisitor);
             return query;
+        }
+
+        private static Query synonymQuery(String field, TermAndBoost[] terms, @Nullable String slice) {
+            SynonymQuery.Builder builder = new SynonymQuery.Builder(field);
+            for (TermAndBoost t : terms) {
+                builder.addTerm(slice == null ? t.term() : SliceTermQueries.term(slice, t.term()), t.boost());
+            }
+            return builder.build();
+        }
+
+        /** The terms a search across every slice looks for, where it asks for any slice's copy of each of them. */
+        private static List<BytesRef> sortedTerms(TermAndBoost[] terms) {
+            final List<BytesRef> sorted = new ArrayList<>(terms.length);
+            for (TermAndBoost t : terms) {
+                sorted.add(t.term());
+            }
+            sorted.sort(BytesRef::compareTo);
+            return sorted;
         }
 
         /**

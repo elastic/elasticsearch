@@ -13,6 +13,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -33,6 +34,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 
 public class TermsEnumTests extends ESSingleNodeTestCase {
 
@@ -252,6 +254,23 @@ public class TermsEnumTests extends ESSingleNodeTestCase {
                 response.getTerms().size()
             );
         }
+    }
+
+    /**
+     * This walks the terms dictionary itself, where a slice index spells every term with the slice it belongs to, and
+     * the request names no slice to walk. Rather than hand back another tenant's terms, it is declined.
+     */
+    public void testTermsEnumIsDeclinedOnASliceIndex() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createIndex("sliced", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
+
+        TermsEnumResponse response = client().execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("sliced").field("keyword")).get();
+
+        assertEquals(1, response.getFailedShards());
+        assertThat(
+            response.getShardFailures()[0].getCause().getMessage(),
+            containsString("[terms_enum] is not supported on index [sliced], which has [index.slice.enabled] set")
+        );
     }
 
     public void testUnmappedFieldOnStrictIndexDoesNotDropTermsFromOtherIndices() throws Exception {

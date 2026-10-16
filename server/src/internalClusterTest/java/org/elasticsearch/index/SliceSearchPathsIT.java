@@ -39,8 +39,8 @@ import static org.hamcrest.Matchers.equalTo;
  * vectors API. {@link SliceTermsVerifier} is interposed under assertions, so a path that reached the terms dictionary
  * without the slice fails here with the field and term named rather than silently matching nothing.
  *
- * <p>{@code more_like_this} is knowingly left out: it builds term queries straight from the analysed text and the
- * verifier reports it, but slice indices are not expected to support it.
+ * <p>It also covers the requests a slice index declines, which are the ones that read the dictionary with a term the
+ * search never named.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, supportsDedicatedMasters = false)
 public class SliceSearchPathsIT extends ESIntegTestCase {
@@ -165,6 +165,43 @@ public class SliceSearchPathsIT extends ESIntegTestCase {
         } finally {
             hits.decRef();
         }
+    }
+
+    /** A phrase is confined to the queried slice, including the positions the fast vector highlighter reads back. */
+    public void testHighlightingAPhraseOnASliceIndex() {
+        final var builder = prepareSearch(INDEX).setSource(
+            new SearchSourceBuilder().query(QueryBuilders.matchPhraseQuery("body", "quick brown"))
+                .highlighter(new HighlightBuilder().field("body").highlighterType("fvh"))
+        );
+        builder.request().searchSlice("a");
+        SearchResponse response = builder.get();
+        try {
+            // "quick brown" is a phrase of slice [a] only: slice [b] holds "quick red" and slice [c] "lazy brown".
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
+            final var highlight = response.getHits().getHits()[0].getHighlightFields().get("body");
+            assertNotNull("the fast vector highlighter produced no field", highlight);
+            // The highlighter merges the two adjacent terms of the phrase into one fragment.
+            assertThat(highlight.fragments()[0].string(), containsString("<em>quick brown</em>"));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
+     * {@code more_like_this} analyses text into terms of its own rather than asking a field type for them, so a slice
+     * index declines it.
+     */
+    public void testMoreLikeThisIsDeclinedOnASliceIndex() {
+        final var builder = prepareSearch(INDEX).setQuery(
+            QueryBuilders.moreLikeThisQuery(new String[] { "body" }, new String[] { "quick brown fox" }, null).minTermFreq(1).minDocFreq(1)
+        );
+        builder.request().searchSlice("a");
+        final var failure = expectThrows(SearchPhaseExecutionException.class, builder::get);
+        assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            failure.guessRootCauses()[0].getMessage(),
+            containsString("[more_like_this] is not supported on an index with [index.slice.enabled] set")
+        );
     }
 
     /**

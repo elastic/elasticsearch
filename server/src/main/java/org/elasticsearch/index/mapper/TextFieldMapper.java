@@ -1469,6 +1469,15 @@ public final class TextFieldMapper extends FieldMapper {
             if (answersFromValues(context) == false) {
                 return query;
             }
+            if (scansEveryDocument() == false && SliceTermQueries.scope(name(), context) != SliceTermQueries.Scope.PLAIN) {
+                // The query both names the documents to read and says what to look for in their values. On a slice
+                // index those are two different terms, the one in the dictionary and the plain one in the values.
+                throw new IllegalArgumentException(
+                    "positional queries on field ["
+                        + name()
+                        + "] of a slice index are not supported, because the field indexes terms without their positions"
+                );
+            }
             return new ReanalyzingTextQuery(
                 query,
                 valueFetcherProvider(context),
@@ -1531,8 +1540,7 @@ public final class TextFieldMapper extends FieldMapper {
                 builder.add(new Term(field, termAtt.getBytesRef()), position);
             }
 
-            // Answered by the shingle subfield, which indexes its own positions.
-            return field.equals(name()) ? reanalyzePositions(builder.build(), context) : builder.build();
+            return positionalQuery(builder.build(), context);
         }
 
         @Override
@@ -1546,9 +1554,7 @@ public final class TextFieldMapper extends FieldMapper {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
             }
-            final Query query = createPhraseQuery(stream, field, slop, enablePositionIncrements);
-            // Answered by the shingle subfield, which indexes its own positions.
-            return field.equals(name()) ? reanalyzePositions(query, context) : query;
+            return positionalQuery(createPhraseQuery(stream, field, slop, enablePositionIncrements), context);
         }
 
         private static int countTokens(TokenStream ts) throws IOException {
@@ -1572,7 +1578,17 @@ public final class TextFieldMapper extends FieldMapper {
                 checkForPositions(false);
             }
             final Query query = analyzePhrasePrefix(stream, slop, maxExpansions, reanalyzes);
-            return reanalyzes ? reanalyzePositions(query, context) : query;
+            return reanalyzes ? reanalyzePositions(query, context) : SliceTermQueries.positional(name(), context, query);
+        }
+
+        /**
+         * A query over the positions this field answers for, in the two ways it can answer them. Where the positions
+         * are indexed, by this field or by the shingle subfield the query names, they carry the slice they belong to
+         * and the query is confined to the slices the search targets. Where they are re-analyzed from the field's
+         * values, those yield plain terms and the query stays as it was built.
+         */
+        private Query positionalQuery(Query query, SearchExecutionContext context) {
+            return answersFromValues(context) ? reanalyzePositions(query, context) : SliceTermQueries.positional(name(), context, query);
         }
 
         private Query analyzePhrasePrefix(TokenStream stream, int slop, int maxExpansions, boolean reanalyzesValues) throws IOException {

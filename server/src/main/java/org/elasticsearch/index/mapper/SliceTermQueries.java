@@ -12,6 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.queries.spans.SpanOrQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -162,6 +164,31 @@ public final class SliceTermQueries {
                 : perSlice(slices(context), onSlice, SliceTermQueries::disjunction);
             case ALL_SLICES -> automatonQuery(field, accepts.get(), method, context);
         };
+    }
+
+    /**
+     * A query that names the terms it matches, asked of each slice the search targets: a copy of it looks up every term
+     * under one slice, and since a document belongs to one slice at most one copy can match it. Positions only ever
+     * compare within a document, so confining the terms is all a phrase needs.
+     *
+     * <p>Every positional shape a field type builds goes through here: a phrase, a phrase prefix, and the spans a
+     * phrase prefix over a prefix subfield is answered with. A search across every slice is declined for the reason
+     * {@link #singleTermShape} is: the shape names its terms and no automaton can stand in for them, so a single slice
+     * must be named.
+     */
+    public static Query positional(String field, @Nullable SearchExecutionContext context, Query onPlainIndex) {
+        return switch (scope(field, context)) {
+            case PLAIN -> onPlainIndex;
+            case SLICES -> perSlice(slices(context), slice -> SlicePositionalQueries.inSlice(onPlainIndex, slice), SliceTermQueries::anyOf);
+            case ALL_SLICES -> throw cannotSpanEverySlice(field, "it names the terms it matches, so a single slice must be named");
+        };
+    }
+
+    /** A disjunction of {@code parts}, spoken as spans where they are spans, since a span query may only hold spans. */
+    private static Query anyOf(List<Query> parts) {
+        return SlicePositionalQueries.areSpans(parts)
+            ? new SpanOrQuery(parts.stream().map(SpanQuery.class::cast).toArray(SpanQuery[]::new))
+            : disjunction(parts);
     }
 
     /** The exclusive end of a slice's range in the dictionary, for a range left open at the top. */

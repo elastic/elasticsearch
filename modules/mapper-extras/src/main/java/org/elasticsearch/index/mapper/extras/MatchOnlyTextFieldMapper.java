@@ -97,6 +97,7 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ReanalyzingIntervalsSource;
 import org.elasticsearch.index.mapper.ReanalyzingTextQuery;
+import org.elasticsearch.index.mapper.SliceTermQueries;
 import org.elasticsearch.index.mapper.SortedSetDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -597,6 +598,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         private Query toQuery(Query query, SearchExecutionContext searchExecutionContext) {
+            failIfSliced("queries over positions", searchExecutionContext);
             return new ConstantScoreQuery(
                 new ReanalyzingTextQuery(
                     query,
@@ -623,7 +625,21 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             Query approximation,
             SearchExecutionContext searchExecutionContext
         ) {
+            failIfSliced("intervals", searchExecutionContext);
             return new ReanalyzingIntervalsSource(source, approximation, getValueFetcherProvider(searchExecutionContext), indexAnalyzer);
+        }
+
+        /**
+         * This field answers a query about positions by reading its values, using its terms to find the documents worth
+         * reading. The values hold the plain term and the terms of a slice index hold the slice, so the one term the
+         * query carries cannot serve both and the query is declined.
+         */
+        private void failIfSliced(String queryDescription, SearchExecutionContext context) {
+            if (indexType().hasTerms() && SliceTermQueries.scope(name(), context) != SliceTermQueries.Scope.PLAIN) {
+                throw new IllegalArgumentException(
+                    queryDescription + " on field [" + name() + "] of type [" + CONTENT_TYPE + "] are not supported on a slice index"
+                );
+            }
         }
 
         @Override

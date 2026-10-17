@@ -430,7 +430,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         });
     }
 
-    private void requestSyncFlush() {
+    // package-private for TranslogReplicators
+    void requestSyncFlush() {
         NodeTranslogBuffer buffer = currentBuffer.get();
         if (buffer != null && buffer.markSyncRequested()) {
             executor.execute(new FlushTask(buffer));

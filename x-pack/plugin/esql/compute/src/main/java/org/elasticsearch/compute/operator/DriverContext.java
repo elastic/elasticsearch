@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.LongConsumer;
 
 /**
  * A driver-local context that is shared across operators.
@@ -87,6 +88,8 @@ public class DriverContext {
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
 
     private Runnable earlyTerminationChecker = () -> {};
+
+    private LongConsumer queueTimeListener = queueTimeNanos -> {};
 
     /**
      * Hooks fired when the controlling task asks this driver to wind down cleanly while keeping
@@ -292,6 +295,17 @@ public class DriverContext {
      */
     public void initializeEarlyTerminationChecker(Runnable checker) {
         this.earlyTerminationChecker = checker;
+    }
+
+    /**
+     * Sets who is told each time this driver waits in its thread pool queue. Set while the driver is built, before it starts.
+     */
+    public void setQueueTimeListener(LongConsumer queueTimeListener) {
+        this.queueTimeListener = Objects.requireNonNull(queueTimeListener);
+    }
+
+    void onQueueTime(long queueTimeNanos) {
+        queueTimeListener.accept(queueTimeNanos);
     }
 
     /**

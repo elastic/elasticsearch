@@ -43,6 +43,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
 public class ShardSearchStatsTests extends IndexShardTestCase {
 
     private static final long TEN_MILLIS = 10;
@@ -54,6 +57,60 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
         SearchStatsSettings searchStatsSettings = new SearchStatsSettings(clusterSettings);
         this.shardSearchStatsListener = new ShardSearchStats(searchStatsSettings);
+    }
+
+    public void testQueueTime() {
+        assertEquals(0.0, shardSearchStatsListener.queueTimeTaskCount(), 0.0);
+        assertEquals(0L, shardSearchStatsListener.totalQueueTimeInNanos());
+
+        shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
+        shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toNanos(2 * TEN_MILLIS));
+
+        assertEquals(2.0, shardSearchStatsListener.queueTimeTaskCount(), 1e-9);
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(3 * TEN_MILLIS), shardSearchStatsListener.totalQueueTimeInNanos());
+    }
+
+    /** A task shared by several shards adds its wait and one task in total across them. */
+    public void testQueueTimeShare() {
+        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+        ShardSearchStats shardA = shardSearchStatsListener;
+        ShardSearchStats shardB = new ShardSearchStats(new SearchStatsSettings(clusterSettings));
+
+        // a 40 ms task shared by 2 shards, and a 20 ms task on shard A only
+        long sharedWait = TimeUnit.MILLISECONDS.toNanos(40);
+        shardA.onQueueTimeShare(sharedWait, 2);
+        shardB.onQueueTimeShare(sharedWait, 2);
+        shardA.onQueueTime(TimeUnit.MILLISECONDS.toNanos(20));
+
+        assertEquals(1.5, shardA.queueTimeTaskCount(), 1e-9);
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(40), shardA.totalQueueTimeInNanos());
+        assertEquals(0.5, shardB.queueTimeTaskCount(), 1e-9);
+        assertEquals(TimeUnit.MILLISECONDS.toNanos(20), shardB.totalQueueTimeInNanos());
+
+        assertEquals("tasks add up across shards", 2.0, shardA.queueTimeTaskCount() + shardB.queueTimeTaskCount(), 1e-9);
+        assertEquals(
+            "waits add up across shards",
+            TimeUnit.MILLISECONDS.toNanos(60),
+            shardA.totalQueueTimeInNanos() + shardB.totalQueueTimeInNanos()
+        );
+    }
+
+    /** When the shard count does not divide evenly, sums over the shards lose only the truncated remainder. */
+    public void testQueueTimeShareTruncation() {
+        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
+        int shardCount = 3;
+        long wait = 1_000_000;
+        double tasks = 0;
+        long nanos = 0;
+        for (int i = 0; i < shardCount; i++) {
+            ShardSearchStats shard = new ShardSearchStats(new SearchStatsSettings(clusterSettings));
+            shard.onQueueTimeShare(wait, shardCount);
+            tasks += shard.queueTimeTaskCount();
+            nanos += shard.totalQueueTimeInNanos();
+        }
+        assertEquals(1.0, tasks, 1e-5);
+        assertThat(nanos, lessThanOrEqualTo(wait));
+        assertThat(nanos, greaterThanOrEqualTo(wait - shardCount));
     }
 
     public void testDfsPhase() {

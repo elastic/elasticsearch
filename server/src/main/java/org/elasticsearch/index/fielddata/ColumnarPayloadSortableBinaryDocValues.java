@@ -20,6 +20,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -105,6 +106,12 @@ public final class ColumnarPayloadSortableBinaryDocValues extends SortableBinary
             return Sparsity.SPARSE;
         }
         return column.numNullSlots() == 0 ? Sparsity.DENSE : Sparsity.UNKNOWN;
+    }
+
+    /** The column behind these values, to read a page at a time. Null when the values do not come from a column. */
+    @Nullable
+    public StringColumnSource columnSource() {
+        return source;
     }
 
     @Override

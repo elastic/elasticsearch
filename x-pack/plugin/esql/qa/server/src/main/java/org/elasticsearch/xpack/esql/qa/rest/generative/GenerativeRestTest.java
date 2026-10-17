@@ -106,6 +106,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // This message is "expected" here, as predicting type conflicts has to be implemented first
             "has conflicting data types in subqueries"
         ),
+        GenerativeFeature.IN_SUBQUERY,
+        Set.of(
+            "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after",
+            "Invalid condition \\[.*]. \\[(?:KQL|QSTR|MATCH|MATCH_PHRASE)] (?:function|operator) can't be used with"
+        ),
         GenerativeFeature.UNMAPPED_FIELDS_LOAD,
         Set.of(
             // https://github.com/elastic/elasticsearch/issues/141995, https://github.com/elastic/elasticsearch/issues/141990

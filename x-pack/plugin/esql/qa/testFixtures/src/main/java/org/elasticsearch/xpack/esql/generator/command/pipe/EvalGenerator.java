@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -52,12 +54,15 @@ public class EvalGenerator implements CommandGenerator {
                     name = EsqlQueryGenerator.randomIdentifier();
                 }
             }
-            // Occasionally generate a null field (EVAL field = null) to test NULL data type handling
-            String expression;
-            if (randomIntBetween(0, 100) < 10) {
-                expression = "null";
-            } else {
-                expression = EsqlQueryGenerator.expression(usablePrevious.values().stream().toList(), true, previousCommands);
+            List<Column> usableColumns = usablePrevious.values().stream().toList();
+            String expression = EsqlQueryGenerator.maybeInSubqueryBooleanExpression(usableColumns, schema, executor, context);
+            if (expression == null) {
+                // Occasionally generate a null field (EVAL field = null) to test NULL data type handling
+                if (randomIntBetween(0, 100) < 10) {
+                    expression = "null";
+                } else {
+                    expression = EsqlQueryGenerator.expression(usableColumns, true, previousCommands);
+                }
             }
             if (i > 0) {
                 cmd.append(",");
@@ -65,8 +70,9 @@ public class EvalGenerator implements CommandGenerator {
             cmd.append(" ");
             cmd.append(name);
             String rawName = unquote(name);
-            newColumns.remove(rawName);
-            newColumns.add(rawName);
+            if (newColumns.contains(rawName) == false) {
+                newColumns.add(rawName);
+            }
             cmd.append(" = ");
             cmd.append(expression);
 
@@ -89,19 +95,21 @@ public class EvalGenerator implements CommandGenerator {
         List<Column> columns,
         List<List<Object>> output
     ) {
-        List<String> expectedColumns = (List<String>) commandDescription.context().get(NEW_COLUMNS);
+        List<String> assignedColumns = (List<String>) commandDescription.context().get(NEW_COLUMNS);
         List<String> resultColNames = columns.stream().map(Column::name).toList();
-        List<String> lastColumns = resultColNames.subList(resultColNames.size() - expectedColumns.size(), resultColNames.size());
-        if (isUnmappedFieldsEnabled(previousCommands) == false
-            && (columns.size() < expectedColumns.size() || lastColumns.equals(expectedColumns) == false)) {
-            return new ValidationResult(
-                false,
-                "Expecting the following as last columns ["
-                    + String.join(", ", expectedColumns)
-                    + "] but got ["
-                    + String.join(", ", resultColNames)
-                    + "]"
-            );
+        if (isUnmappedFieldsEnabled(previousCommands) == false) {
+            Set<String> resultNames = new HashSet<>(resultColNames);
+            List<String> missing = assignedColumns.stream().filter(name -> resultNames.contains(name) == false).toList();
+            if (missing.isEmpty() == false) {
+                return new ValidationResult(
+                    false,
+                    "EVAL output is missing columns ["
+                        + String.join(", ", missing)
+                        + "] but got ["
+                        + String.join(", ", resultColNames)
+                        + "]"
+                );
+            }
         }
 
         return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);

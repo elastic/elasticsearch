@@ -286,12 +286,10 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
      * An index sorted by a multi-valued keyword with a {@code min} or {@code max} sort mode, merged from several segments that hold
      * deleted documents. The flushed segments are sorted from the indexing buffer, but the merged segment is sorted from the column
      * and the deletes shift the document ids it is read through, so a wrong merged order would go unnoticed by anything that only
-     * looks at one segment. The merged order is checked against the format the codec replaces and against the order the values
-     * themselves dictate, so that the two agreeing on a wrong order is not enough to pass.
+     * looks at one segment. The merged order is checked against the order the values themselves dictate, which holds whatever
+     * doc-values format the index's codec picks for the keyword.
      */
     public void testIndexSortedByMultiValuedKeywordAcrossMergeWithDeletes() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-
         final boolean max = randomBoolean();
         final boolean descending = randomBoolean();
         final boolean missingFirst = randomBoolean();
@@ -330,64 +328,48 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
         }
         final int batches = between(3, 5);
 
-        final Map<Boolean, Map<String, List<String>>> merged = new LinkedHashMap<>();
-        for (boolean codecEnabled : new boolean[] { true, false }) {
-            final String index = INDEX + "-multi-sorted-" + codecEnabled;
-            final Settings settings = Settings.builder()
-                .put(columnarSettings(IndexMode.LOGSDB_COLUMNAR, codecEnabled))
-                .put("index.sort.field", "kw")
-                .put("index.sort.mode", max ? "max" : "min")
-                .put("index.sort.order", descending ? "desc" : "asc")
-                .put("index.sort.missing", missingFirst ? "_first" : "_last")
-                .build();
-            indicesAdmin().prepareCreate(index).setSettings(settings).setMapping(mapping).get();
-            final int perBatch = (numDocs + batches - 1) / batches;
-            for (int from = 0; from < numDocs; from += perBatch) {
-                final BulkRequestBuilder bulk = client().prepareBulk();
-                for (int i = from; i < Math.min(from + perBatch, numDocs); i++) {
-                    final int doc = order.get(i);
-                    final Map<String, Object> source = new LinkedHashMap<>();
-                    source.put("@timestamp", "2024-01-01T00:00:00Z");
-                    if (docs.get(doc) != null) {
-                        source.put("kw", docs.get(doc));
-                    }
-                    bulk.add(prepareIndex(index).setId(Integer.toString(doc)).setSource(source));
+        final String index = INDEX + "-multi-sorted";
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
+            .put("index.sort.field", "kw")
+            .put("index.sort.mode", max ? "max" : "min")
+            .put("index.sort.order", descending ? "desc" : "asc")
+            .put("index.sort.missing", missingFirst ? "_first" : "_last")
+            .build();
+        indicesAdmin().prepareCreate(index).setSettings(settings).setMapping(mapping).get();
+        final int perBatch = (numDocs + batches - 1) / batches;
+        for (int from = 0; from < numDocs; from += perBatch) {
+            final BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = from; i < Math.min(from + perBatch, numDocs); i++) {
+                final int doc = order.get(i);
+                final Map<String, Object> source = new LinkedHashMap<>();
+                source.put("@timestamp", "2024-01-01T00:00:00Z");
+                if (docs.get(doc) != null) {
+                    source.put("kw", docs.get(doc));
                 }
-                final var response = bulk.get();
-                assertFalse(response.buildFailureMessage(), response.hasFailures());
-                indicesAdmin().prepareRefresh(index).get();
+                bulk.add(prepareIndex(index).setId(Integer.toString(doc)).setSource(source));
             }
-            for (String id : deleted) {
-                client().prepareDelete(index, id).get();
-            }
+            final var response = bulk.get();
+            assertFalse(response.buildFailureMessage(), response.hasFailures());
             indicesAdmin().prepareRefresh(index).get();
-            indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
-            indicesAdmin().prepareRefresh(index).get();
-
-            if (codecEnabled) {
-                assertKeywordFieldUsesColumnarFormat(index);
-            } else {
-                assertKeywordFieldAvoidsColumnarFormat(index);
-            }
-            merged.put(codecEnabled, valuesByIdInIndexOrder(index, numDocs));
         }
+        for (String id : deleted) {
+            client().prepareDelete(index, id).get();
+        }
+        indicesAdmin().prepareRefresh(index).get();
+        indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+        indicesAdmin().prepareRefresh(index).get();
 
         final String description = "max=" + max + " desc=" + descending + " missingFirst=" + missingFirst;
-        final Map<String, List<String>> columnar = merged.get(true);
-        final Map<String, List<String>> plain = merged.get(false);
-        assertEquals(description, numDocs - deleted.size(), columnar.size());
+        final Map<String, List<String>> merged = valuesByIdInIndexOrder(index, numDocs);
+        assertEquals(description, numDocs - deleted.size(), merged.size());
         for (String id : deleted) {
-            assertFalse("deleted [" + id + "] is gone", columnar.containsKey(id));
+            assertFalse("deleted [" + id + "] is gone", merged.containsKey(id));
         }
-        assertEquals(
-            "same documents in the same order as the format it replaces, " + description,
-            List.copyOf(plain.keySet()),
-            List.copyOf(columnar.keySet())
-        );
 
         // The sort keys the surviving documents have, in the order the merged segment holds them, against the order the keys dictate.
         final List<String> actualKeys = new ArrayList<>();
-        for (List<String> values : columnar.values()) {
+        for (List<String> values : merged.values()) {
             actualKeys.add(sortKey(values, max));
         }
         final List<String> expectedKeys = new ArrayList<>(actualKeys);

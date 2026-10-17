@@ -11,11 +11,21 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.FilterCollector;
+import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
@@ -46,6 +56,7 @@ import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -53,6 +64,9 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -60,15 +74,22 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
@@ -362,6 +383,158 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         indexDocuments(dataStreamName, shuffledDocs);
 
         assertOrder(getBackingIndex(dataStreamName), orderedDocs);
+    }
+
+    /**
+     * A top-N search sorted like the index stops collecting each segment once it holds the top N, which needs the query's sort, built as
+     * the query phase builds it, to compare equal to the segments' index sort. The documents each search collects are counted, against
+     * the same search tracking every hit, which cannot stop early, and the top N is checked against a sort computed here.
+     */
+    public void testTopNTerminatesEarlyWhenSortedLikeTheIndex() throws IOException {
+        final String dataStreamName = "test-logsdb-sort-early-termination";
+        final boolean descending = randomBoolean();
+        final SortOrder order = descending ? SortOrder.DESC : SortOrder.ASC;
+
+        final String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+            """;
+        createDataStream(
+            dataStreamName,
+            mapping,
+            s -> s.put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "service")
+                .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), order.toString())
+        );
+
+        // One segment per batch, each holding several times the top N, so a segment that stops early leaves most of itself unread.
+        final int size = between(1, 5);
+        final List<String> keys = new ArrayList<>();
+        for (int batch = between(2, 4); batch > 0; batch--) {
+            final BulkRequest bulk = new BulkRequest(dataStreamName);
+            for (int i = between(size * 4, size * 10); i > 0; i--) {
+                final List<String> values = randomServiceValues();
+                final Map<String, Object> source = new LinkedHashMap<>();
+                source.put("@timestamp", "2025-01-01T00:00:00Z");
+                if (values != null) {
+                    source.put("service", values);
+                }
+                bulk.add(new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE).source(source));
+                // An ascending sort reads each document's smallest value and a descending one its largest.
+                keys.add(values == null ? null : extreme(values, descending));
+            }
+            assertFalse(client().bulk(bulk).actionGet().hasFailures());
+            indicesAdmin().prepareRefresh(dataStreamName).get();
+        }
+        final Comparator<String> byKey = descending ? Comparator.<String>reverseOrder() : Comparator.<String>naturalOrder();
+        keys.sort(Comparator.nullsLast(byKey));
+
+        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(getBackingIndex(dataStreamName));
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            final SearchExecutionContext context = indexService.newSearchExecutionContext(
+                0,
+                0,
+                searcher,
+                () -> 0L,
+                null,
+                Map.of(),
+                null,
+                null
+            );
+            final int leaves = searcher.getLeafContexts().size();
+            final String description = "order=" + order + " size=" + size + " docs=" + keys.size() + " segments=" + leaves;
+
+            final AtomicInteger untracked = new AtomicInteger();
+            final TopFieldDocs top = searchCounting(searcher, context, order, size, size, untracked);
+            assertThat(description, untracked.get(), lessThanOrEqualTo(leaves * size));
+            assertThat(description, untracked.get(), lessThan(keys.size()));
+            final List<String> topKeys = new ArrayList<>();
+            for (var hit : top.scoreDocs) {
+                final Object value = ((FieldDoc) hit).fields[0];
+                topKeys.add(value == null ? null : ((BytesRef) value).utf8ToString());
+            }
+            assertEquals(description, keys.subList(0, size), topKeys);
+
+            final AtomicInteger tracked = new AtomicInteger();
+            searchCounting(searcher, context, order, size, Integer.MAX_VALUE, tracked);
+            assertEquals("tracking every hit reads every document, " + description, keys.size(), tracked.get());
+        }
+    }
+
+    /** The {@code service} values of one document: absent, only a null, one value, or several in no order with a null among them. */
+    private List<String> randomServiceValues() {
+        return switch (between(0, 3)) {
+            case 0 -> null;
+            case 1 -> Arrays.asList((String) null);
+            case 2 -> List.of("svc-" + between(0, 30));
+            default -> {
+                final List<String> values = new ArrayList<>();
+                for (int v = between(2, 4); v > 0; v--) {
+                    values.add(randomBoolean() || values.isEmpty() ? "svc-" + between(0, 30) : null);
+                }
+                yield values;
+            }
+        };
+    }
+
+    /** The largest non-null value when {@code max}, else the smallest, or {@code null} where there is none. */
+    private static String extreme(List<String> values, boolean max) {
+        return values.stream()
+            .filter(v -> v != null)
+            .reduce((a, b) -> (max ? a.compareTo(b) >= 0 : a.compareTo(b) <= 0) ? a : b)
+            .orElse(null);
+    }
+
+    /**
+     * Runs a top-{@code size} search over every document sorted on {@code service}, with the sort built as the query phase builds it,
+     * counting into {@code collected} the documents the collectors accept.
+     */
+    private static TopFieldDocs searchCounting(
+        Engine.Searcher searcher,
+        SearchExecutionContext context,
+        SortOrder order,
+        int size,
+        int totalHitsThreshold,
+        AtomicInteger collected
+    ) throws IOException {
+        final SortAndFormats sort = SortBuilder.buildSort(List.of(SortBuilders.fieldSort("service").order(order)), context).orElseThrow();
+        final TopFieldCollectorManager topN = new TopFieldCollectorManager(sort.sort, size, null, totalHitsThreshold);
+        final List<TopFieldCollector> collectors = new ArrayList<>();
+        return searcher.search(new MatchAllDocsQuery(), new CollectorManager<Collector, TopFieldDocs>() {
+            @Override
+            public Collector newCollector() throws IOException {
+                final TopFieldCollector inner = topN.newCollector();
+                synchronized (collectors) {
+                    collectors.add(inner);
+                }
+                return new FilterCollector(inner) {
+                    @Override
+                    public LeafCollector getLeafCollector(LeafReaderContext leaf) throws IOException {
+                        return new FilterLeafCollector(super.getLeafCollector(leaf)) {
+                            @Override
+                            public void collect(int doc) throws IOException {
+                                in.collect(doc);
+                                collected.incrementAndGet();
+                            }
+                        };
+                    }
+                };
+            }
+
+            @Override
+            public TopFieldDocs reduce(Collection<Collector> ignored) throws IOException {
+                return topN.reduce(collectors);
+            }
+        });
     }
 
     public void testMatchTailWithMissingHostname() throws Exception {

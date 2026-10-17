@@ -3325,10 +3325,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // Consider minimum pending generation also available to search, since we are in the process of uploading it and search
             // node may have seen it before we process that the upload succeeded. This is also reasonable, because only timing
             // means it is not yet considered uploaded here.
-            // TODO: exclude paused pending-upload BCCs from latestUploading.
-            // See https://github.com/elastic/elasticsearch/pull/160420#discussion_r4243167856
+            // A pending generation above the relocation upload bound is paused and never uploaded by this node. A search
+            // shard could theoretically be registering at or above it saw a same-term commit uploaded by the relocation target,
+            // so it must not be treated as available here. The registration then fails with RecoveryCommitTooNewException
+            // and is retried against the target.
             Optional<VirtualBatchedCompoundCommit> latestUploading = pendingUploadBccGenerations.values()
                 .stream()
+                .filter(pending -> pauseUpload(pending.commit().getMaxGeneration()) == false)
                 .min(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
                 .map(PendingUploadVirtualBatchCompoundCommit::commit);
             var latestUploaded = this.latestUploadedBcc;

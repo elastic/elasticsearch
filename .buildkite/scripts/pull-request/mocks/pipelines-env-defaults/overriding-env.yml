@@ -1,0 +1,6 @@
+env:
+  OVERRIDDEN_ENV_VAR: "pipeline"
+  PIPELINE_ENV_VAR: "pipeline"
+steps:
+  - label: test-step
+    command: echo 'hello world'

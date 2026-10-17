@@ -290,7 +290,7 @@ public abstract class BlockArrowFormatter {
                     out.writeIntLE(offset);
                     // FIXME: add a ByteRefsVector.getLength(position): there are some cases
                     // where getBytesRef will allocate, which isn't needed here.
-                    BytesRef v = block.getBytesRef(i, scratch);
+                    BytesRef v = getBytesRef(block, i, scratch);
 
                     offset += v.length;
                 }
@@ -310,13 +310,21 @@ public abstract class BlockArrowFormatter {
                 BytesRef scratch = new BytesRef();
                 long length = 0;
                 for (int i = 0; i < valueCount(block); i++) {
-                    BytesRef v = block.getBytesRef(i, scratch);
+                    BytesRef v = getBytesRef(block, i, scratch);
 
                     out.write(v.bytes, v.offset, v.length);
                     length += v.length;
                 }
                 return length;
             });
+        }
+
+        protected BytesRef getBytesRef(BytesRefBlock block, int valueIndex, BytesRef scratch) {
+            // Single-valued OrdinalBytesRefBlocks store ordinal 0 at null positions rather than an empty BytesRef.
+            if (block.mayHaveMultivaluedFields() == false && block.isNull(valueIndex)) {
+                return BytesRefBlock.NULL_VALUE;
+            }
+            return block.getBytesRef(valueIndex, scratch);
         }
 
         private static int offsetvectorByteSize(BytesRefBlock block) {
@@ -333,7 +341,7 @@ public abstract class BlockArrowFormatter {
             int length = 0;
             BytesRef scratch = new BytesRef();
             for (int i = 0; i < valueCount(block); i++) {
-                BytesRef v = block.getBytesRef(i, scratch);
+                BytesRef v = getBytesRef(block, i, scratch);
                 length += v.length;
             }
             return length;
@@ -359,52 +367,12 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
-            BytesRefBlock block = (BytesRefBlock) b;
-            try (BytesRefBlock transformed = transformValues(block)) {
-                super.convert(transformed, multivalued, bufs, bufWriters);
-            }
-        }
-
-        /**
-         * Creates a new BytesRefBlock by applying the value converter to each non null and non empty value
-         */
-        private BytesRefBlock transformValues(BytesRefBlock block) {
-            try (BytesRefBlock.Builder builder = block.blockFactory().newBytesRefBlockBuilder(block.getPositionCount())) {
-                BytesRef scratch = new BytesRef();
-                if (block.mayHaveMultivaluedFields() == false) {
-                    for (int pos = 0; pos < valueCount(block); pos++) {
-                        if (block.isNull(pos)) {
-                            builder.appendNull();
-                        } else {
-                            convertAndAppend(builder, block, pos, scratch);
-                        }
-                    }
-                } else {
-                    for (int pos = 0; pos < block.getPositionCount(); pos++) {
-                        if (block.isNull(pos)) {
-                            builder.appendNull();
-                        } else {
-                            builder.beginPositionEntry();
-                            int startPos = block.getFirstValueIndex(pos);
-                            int lastPos = block.getFirstValueIndex(pos + 1);
-                            for (int valuePos = startPos; valuePos < lastPos; valuePos++) {
-                                convertAndAppend(builder, block, valuePos, scratch);
-                            }
-                            builder.endPositionEntry();
-                        }
-                    }
-                }
-                return builder.build();
-            }
-        }
-
-        private void convertAndAppend(BytesRefBlock.Builder builder, BytesRefBlock block, int position, BytesRef scratch) {
-            BytesRef bytes = block.getBytesRef(position, scratch);
+        protected BytesRef getBytesRef(BytesRefBlock block, int valueIndex, BytesRef scratch) {
+            BytesRef bytes = super.getBytesRef(block, valueIndex, scratch);
             if (bytes.length != 0) {
                 bytes = valueConverter.apply(bytes, scratch);
             }
-            builder.appendBytesRef(bytes);
+            return bytes;
         }
     }
 

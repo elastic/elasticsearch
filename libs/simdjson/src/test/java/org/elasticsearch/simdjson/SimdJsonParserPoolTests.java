@@ -42,6 +42,61 @@ public class SimdJsonParserPoolTests extends SimdJsonTestCase {
         assertEquals(walkJson(json), handler.events);
     }
 
+    public void testTruncatedDocumentThrowsParsingException() {
+        JsonDocumentParser docParser = newPool().forCurrentThread();
+        byte[] truncated = "{\"a\":".getBytes(UTF_8);
+        expectThrows(JsonParsingException.class, () -> docParser.parseDocument(truncated, truncated.length, new RecordingHandler(false)));
+    }
+
+    public void testTruncatedDocumentWalksStaleIndexesOfPreviousDocument() {
+        JsonDocumentParser docParser = newPool().forCurrentThread();
+        byte[] previous = "{\"a\":1,\"b\":2,\"c\":3}".getBytes(UTF_8);
+        docParser.parseDocument(previous, previous.length, new RecordingHandler(false));
+
+        byte[] truncated = "{\"s\":\"}}}}}}}}}}\",\"y\":".getBytes(UTF_8);
+        RecordingHandler handler = new RecordingHandler(false);
+        try {
+            docParser.parseDocument(truncated, truncated.length, handler);
+            fail("truncated document parsed as " + handler.events);
+        } catch (JsonParsingException expected) {}
+    }
+
+    /**
+     * Cutting a valid document short, at any byte, must always fail with {@link JsonParsingException}.
+     * It must never parse successfully, and never fail with some other exception type.
+     *
+     * <p>The parser keeps its structural index array between documents, and only the part belonging
+     * to the current document is overwritten. The walker must therefore stop at the end of the
+     * current document's indexes. If it did not, a truncated document would read the previous
+     * document's leftover indexes instead of failing, and could even appear to parse successfully.
+     * To make that failure as visible as possible, each prefix is parsed right after a large,
+     * unrelated document.
+     */
+    public void testEveryTruncatedPrefixIsRejectedOnReusedParser() {
+        JsonDocumentParser docParser = newPool().forCurrentThread();
+        StringBuilder warm = new StringBuilder("{");
+        for (int i = 0; i < 100; i++) {
+            warm.append(i == 0 ? "" : ",").append("\"k").append(i).append("\":{\"v\":[1,2,{}]}");
+        }
+        byte[] warmBytes = warm.append('}').toString().getBytes(UTF_8);
+
+        for (String json : SimdJsonTestDocuments.exactBufferLengthDocuments()) {
+            byte[] full = json.getBytes(UTF_8);
+            // A prefix that still contains the closing brace of the top-level object is a complete document.
+            int lastBrace = json.lastIndexOf('}');
+            for (int len = 1; len <= lastBrace; len++) {
+                docParser.parseDocument(warmBytes, warmBytes.length, new RecordingHandler(false));
+                int prefixLen = len;
+                RecordingHandler handler = new RecordingHandler(false);
+                expectThrows(
+                    JsonParsingException.class,
+                    "prefix [" + new String(full, 0, len, UTF_8) + "] of [" + json + "] must be rejected",
+                    () -> docParser.parseDocument(full, prefixLen, handler)
+                );
+            }
+        }
+    }
+
     public void testParseDocumentRejectsOversizedDocument() {
         JsonDocumentParser docParser = newPool().forCurrentThread();
         int tooLarge = docParser.maxDocumentBytes() + 1;

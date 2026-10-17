@@ -104,6 +104,19 @@ public final class SimdJsonDirectWalker {
 
     private void walkDocument(byte[] buffer, int docStart, BitIndexes bitIndexes, JsonDocumentHandler handler) {
         this.docStart = docStart;
+        try {
+            walkDocumentBody(buffer, bitIndexes, handler);
+        } catch (ArrayIndexOutOfBoundsException e) {
+            // Scalar scanning (numbers, literals, strings, escaped names) trusts that a well-formed
+            // document is terminated by a structural character, and so reads without bounds checks
+            // beyond the value. A truncated document that ends exactly at the end of the buffer
+            // violates that and runs off the array. Checking on every byte would cost the hot path,
+            // so the failure is translated here instead. Handlers must not throw this exception.
+            throw new JsonParsingException("Unexpected end of document", e);
+        }
+    }
+
+    private void walkDocumentBody(byte[] buffer, BitIndexes bitIndexes, JsonDocumentHandler handler) {
         if (bitIndexes.isEnd()) {
             throw new JsonParsingException("No structural element found.");
         }

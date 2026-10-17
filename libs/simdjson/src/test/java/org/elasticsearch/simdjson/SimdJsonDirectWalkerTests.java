@@ -342,7 +342,7 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
             FrozenFieldNameTable parent = new FrozenFieldNameTable();
             SimdJsonDirectWalker walker = new SimdJsonDirectWalker(parent.makeChild());
             RecordingHandler handler = new RecordingHandler();
-            expectThrows(Exception.class, () -> walker.walkDocument(buffer, parser, handler));
+            expectThrows(JsonParsingException.class, () -> walker.walkDocument(buffer, parser, handler));
         } catch (JsonParsingException e) {
             // stage 1 rejection is acceptable
         }

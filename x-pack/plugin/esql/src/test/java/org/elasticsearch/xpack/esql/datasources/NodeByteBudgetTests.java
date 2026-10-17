@@ -397,12 +397,11 @@ public class NodeByteBudgetTests extends ESTestCase {
         }
         NodeByteBudget.Hold owner = occupyOvershoot(budget, 15);
         try {
-            IllegalStateException error = expectThrows(
-                IllegalStateException.class,
-                () -> budget.admitAsync(5, lease, () -> false, Runnable::run)
-            );
+            Exception error = awaitAdmitFailure(budget, 5, lease);
+            assertThat(error, instanceOf(IllegalStateException.class));
             assertTrue(error.getMessage(), error.getMessage().contains("untracked bytes"));
             assertEquals(1, budget.waitingUntrackedCount());
+            assertEquals(0, budget.waiterCount());
         } finally {
             owner.close();
             budget.clearOwner(owner.lease());
@@ -418,12 +417,11 @@ public class NodeByteBudgetTests extends ESTestCase {
         budget.add(4, lease);
         NodeByteBudget.Hold owner = occupyOvershoot(budget, 15);
         try {
-            IllegalStateException error = expectThrows(
-                IllegalStateException.class,
-                () -> budget.admitAsync(5, lease, () -> false, Runnable::run)
-            );
+            Exception error = awaitAdmitFailure(budget, 5, lease);
+            assertThat(error, instanceOf(IllegalStateException.class));
             assertTrue(error.getMessage(), error.getMessage().contains("untracked bytes"));
             assertEquals(1, budget.waitingUntrackedCount());
+            assertEquals(0, budget.waiterCount());
         } finally {
             owner.close();
             budget.clearOwner(owner.lease());
@@ -449,6 +447,21 @@ public class NodeByteBudgetTests extends ESTestCase {
             granted.get().close();
             budget.release(4, lease);
         }
+    }
+
+    private static Exception awaitAdmitFailure(NodeByteBudgetService budget, long bytes, RowGroupIo lease) throws Exception {
+        CountDownLatch failed = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        budget.admitAsync(bytes, lease, () -> false, Runnable::run).addListener(ActionListener.wrap(hold -> {
+            hold.close();
+            fail("waiting lease with untracked bytes must not grant");
+        }, e -> {
+            error.set(e);
+            failed.countDown();
+        }));
+        assertTrue(failed.await(5, TimeUnit.SECONDS));
+        assertNotNull(error.get());
+        return error.get();
     }
 
     /**

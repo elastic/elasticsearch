@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -56,37 +57,46 @@ public class ColumnarStringRangeAndAnyOfQueryTests extends ESTestCase {
     /** A query and the predicate deciding, from the values themselves, which documents it must find. */
     private record Shape(String description, Query query, Predicate<BytesRef> matcher) {}
 
-    private static List<Shape> shapes() {
+    private static List<Shape> shapes(boolean singleValued) {
         return List.of(
-            new Shape("range[alpha,charlie]", range("alpha", true, "charlie", true), between("alpha", true, "charlie", true)),
-            new Shape("range[alpha,charlie)", range("alpha", true, "charlie", false), between("alpha", true, "charlie", false)),
-            new Shape("range(alpha,charlie]", range("alpha", false, "charlie", true), between("alpha", false, "charlie", true)),
-            new Shape("range(alpha,alpha)", range("alpha", false, "alpha", false), between("alpha", false, "alpha", false)),
-            new Shape("range-open-below", range(null, false, "bravo", true), between(null, false, "bravo", true)),
-            new Shape("range-open-above", range("bravo", true, null, false), between("bravo", true, null, false)),
-            new Shape("range-fully-open", range(null, false, null, false), value -> true),
-            new Shape("range-empty-string-bound", range("", true, "alpha", false), between("", true, "alpha", false)),
-            new Shape("range-above-everything", range("zzz", true, "zzzz", true), between("zzz", true, "zzzz", true)),
-            new Shape("terms", anyOf("alpha", "charlie"), in("alpha", "charlie")),
-            new Shape("terms-absent", anyOf("nothing-holds-this"), in("nothing-holds-this")),
-            new Shape("terms-with-empty", anyOf("", "alpha"), in("", "alpha")),
-            new Shape("terms-escaped", anyOf("escaped-3"), in("escaped-3"))
+            new Shape("range[alpha,charlie]", range("alpha", true, "charlie", true, singleValued), between("alpha", true, "charlie", true)),
+            new Shape(
+                "range[alpha,charlie)",
+                range("alpha", true, "charlie", false, singleValued),
+                between("alpha", true, "charlie", false)
+            ),
+            new Shape(
+                "range(alpha,charlie]",
+                range("alpha", false, "charlie", true, singleValued),
+                between("alpha", false, "charlie", true)
+            ),
+            new Shape("range(alpha,alpha)", range("alpha", false, "alpha", false, singleValued), between("alpha", false, "alpha", false)),
+            new Shape("range-open-below", range(null, false, "bravo", true, singleValued), between(null, false, "bravo", true)),
+            new Shape("range-open-above", range("bravo", true, null, false, singleValued), between("bravo", true, null, false)),
+            new Shape("range-fully-open", range(null, false, null, false, singleValued), value -> true),
+            new Shape("range-empty-string-bound", range("", true, "alpha", false, singleValued), between("", true, "alpha", false)),
+            new Shape("range-above-everything", range("zzz", true, "zzzz", true, singleValued), between("zzz", true, "zzzz", true)),
+            new Shape("terms", anyOf(singleValued, "alpha", "charlie"), in("alpha", "charlie")),
+            new Shape("terms-absent", anyOf(singleValued, "nothing-holds-this"), in("nothing-holds-this")),
+            new Shape("terms-with-empty", anyOf(singleValued, "", "alpha"), in("", "alpha")),
+            new Shape("terms-escaped", anyOf(singleValued, "escaped-3"), in("escaped-3"))
         );
     }
 
-    private static Query range(String lower, boolean includeLower, String upper, boolean includeUpper) {
+    private static Query range(String lower, boolean includeLower, String upper, boolean includeUpper, boolean singleValued) {
         return new ColumnarStringRangeQuery(
             FIELD,
             lower == null ? null : new BytesRef(lower),
             includeLower,
             upper == null ? null : new BytesRef(upper),
             includeUpper,
+            singleValued,
             ScanBudget.UNLIMITED
         );
     }
 
-    private static Query anyOf(String... terms) {
-        return new ColumnarStringAnyOfQuery(FIELD, termSet(terms), ScanBudget.UNLIMITED);
+    private static Query anyOf(boolean singleValued, String... terms) {
+        return new ColumnarStringAnyOfQuery(FIELD, termSet(terms), singleValued, ScanBudget.UNLIMITED);
     }
 
     private static NavigableSet<BytesRef> termSet(String... terms) {
@@ -208,12 +218,13 @@ public class ColumnarStringRangeAndAnyOfQueryTests extends ESTestCase {
             docs.add(List.of("term-" + (d % 4)));
         }
         final ScanBudget refuses = searcher -> { throw new IllegalStateException("no room to read a column"); };
+        final boolean singleValued = randomBoolean();
         final List<Query> queries = List.of(
-            new ColumnarStringRangeQuery(FIELD, new BytesRef("term-0"), true, new BytesRef("term-3"), true, refuses),
-            new ColumnarStringAnyOfQuery(FIELD, termSet("term-0", "term-2"), refuses)
+            new ColumnarStringRangeQuery(FIELD, new BytesRef("term-0"), true, new BytesRef("term-3"), true, singleValued, refuses),
+            new ColumnarStringAnyOfQuery(FIELD, termSet("term-0", "term-2"), singleValued, refuses)
         );
         try (Directory dir = newDirectory()) {
-            index(dir, docs, false);
+            index(dir, docs, singleValued);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 final IndexSearcher searcher = new IndexSearcher(reader);
                 for (Query query : queries) {
@@ -246,7 +257,7 @@ public class ColumnarStringRangeAndAnyOfQueryTests extends ESTestCase {
                 );
                 final List<Integer> expected = matching(docs, in("alpha", "charlie"));
                 final IndexSearcher searcher = new IndexSearcher(reader);
-                assertEquals(expected, found(searcher, new ColumnarStringAnyOfQuery(FIELD, reversed, ScanBudget.UNLIMITED)));
+                assertEquals(expected, found(searcher, new ColumnarStringAnyOfQuery(FIELD, reversed, true, ScanBudget.UNLIMITED)));
             }
         }
     }
@@ -276,7 +287,7 @@ public class ColumnarStringRangeAndAnyOfQueryTests extends ESTestCase {
                 );
                 final IndexSearcher onTheColumn = new IndexSearcher(reader);
                 final IndexSearcher onAnOverlay = new IndexSearcher(hidden);
-                for (Shape shape : shapes()) {
+                for (Shape shape : shapes(singleValued)) {
                     final List<Integer> expected = matching(docs, shape.matcher());
                     assertEquals("[" + shape.description() + "] through the column", expected, found(onTheColumn, shape.query()));
                     assertEquals("[" + shape.description() + "] through an overlay", expected, found(onAnOverlay, shape.query()));
@@ -286,9 +297,9 @@ public class ColumnarStringRangeAndAnyOfQueryTests extends ESTestCase {
     }
 
     private static void index(Directory dir, List<List<String>> docs, boolean singleValued) throws IOException {
-        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(columnarCodec(ColumnarFieldType.STRING))
-            .setMergePolicy(new LogDocMergePolicy());
-        final FieldType type = singleValued ? ColumnarTestUtils.singleValuedBinaryFieldType() : columnarBinaryFieldType();
+        final Codec codec = singleValued ? ColumnarTestUtils.singleValuedStringCodec() : columnarCodec(ColumnarFieldType.STRING);
+        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setMergePolicy(new LogDocMergePolicy());
+        final FieldType type = columnarBinaryFieldType();
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
             for (List<String> slots : docs) {
                 final Document doc = new Document();

@@ -168,6 +168,15 @@ public interface ESVectorUtilSupport {
 
     boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
 
+    /** See {@link org.elasticsearch.simdvec.ESVectorUtil#mayContainIgnoringAsciiCase}. */
+    boolean mayContainIgnoringAsciiCase(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    /** See {@link org.elasticsearch.simdvec.ESVectorUtil#indexOfCandidateIgnoringAsciiCase}. */
+    int indexOfCandidateIgnoringAsciiCase(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    /** See {@link org.elasticsearch.simdvec.ESVectorUtil#anyNonAscii}. */
+    boolean anyNonAscii(byte[] value, int offset, int length);
+
     void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches);
 
     void linearCombination(float scaleOther, float[] other, int otherOffset, float scaleDest, float[] dest, int destOffset, int length);

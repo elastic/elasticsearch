@@ -34,6 +34,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -73,6 +74,7 @@ public class ViewService {
 
     private volatile int maxViewsCount;
     private volatile int maxViewLength;
+    private volatile int maxCommandCount;
 
     public ViewService(ClusterService clusterService, EsqlParser parser) {
         this.clusterService = clusterService;
@@ -84,6 +86,7 @@ public class ViewService {
         );
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEWS_COUNT_SETTING, v -> this.maxViewsCount = v);
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_LENGTH_SETTING, v -> this.maxViewLength = v);
+        clusterService.getClusterSettings().initializeAndWatch(EsqlFlags.ESQL_MAX_COMMAND_COUNT, v -> this.maxCommandCount = v);
     }
 
     protected ViewMetadata getMetadata(ProjectMetadata projectMetadata) {
@@ -220,8 +223,9 @@ public class ViewService {
                     entry.getValue().getType().getDisplayName()
                 );
             });
-        // Parse the query to ensure it's syntactically valid; parseView rejects any SET statements
-        parser.parseView(view.query(), new QueryParams(), new InferenceSettings(Settings.EMPTY), view.name());
+        // Parse the query to ensure it's syntactically valid; parseView rejects any SET statements. A PUT request carries no
+        // pragmas, so the command limit comes from the cluster setting only.
+        parser.parseView(view.query(), new QueryParams(), new InferenceSettings(Settings.EMPTY), view.name(), maxCommandCount);
     }
 
     /**

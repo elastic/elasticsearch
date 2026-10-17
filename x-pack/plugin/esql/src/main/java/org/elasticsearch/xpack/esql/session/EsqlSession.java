@@ -452,10 +452,12 @@ public class EsqlSession {
         listener = wrapForAnonymizedFailureLog(listener);
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
+        int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
         EsqlStatement statement = request.parse(
             parser,
             SettingsValidationContext.from(crossProjectModeDecider),
-            inferenceService.inferenceSettings()
+            inferenceService.inferenceSettings(),
+            maxCommandCount
         );
         // Unwrap EXPLAIN right after parsing: Explain is a leaf plan holding the target query as a
         // field rather than a child, so plan traversals do not descend into it. It must be removed
@@ -523,9 +525,10 @@ public class EsqlSession {
             QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved),
             (query, viewName) -> planningCpu.meteredCpu(
-                () -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName).plan()
+                () -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName, maxCommandCount).plan()
             ),
             boundaryPreservation,
+            maxCommandCount,
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());

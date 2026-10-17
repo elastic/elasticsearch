@@ -230,6 +230,11 @@ public class LetParserTests extends AbstractStatementParserTests {
         expectValidationError("LET a = (FROM idx1 | LIMIT 1); LET a = (FROM idx2 | LIMIT 1); ROW x = 1", "duplicate LET binding name [a]");
     }
 
+    public void testBindingNameMustBeLowercase() {
+        assumeLet();
+        expectValidationError("LET MyBinding = (FROM idx | LIMIT 1); ROW x = 1", "LET binding name [MyBinding] must be lowercase");
+    }
+
     public void testBindingNameWithStar() {
         assumeLet();
         expectValidationError("LET `a*b` = (FROM idx | LIMIT 1); ROW x = 1", "mismatched input");

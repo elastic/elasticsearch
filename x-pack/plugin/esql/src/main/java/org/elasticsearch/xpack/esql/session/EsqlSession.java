@@ -584,6 +584,7 @@ public class EsqlSession {
             // stack telemetry
             gatherViewMetrics(viewResolution);
             gatherInSubqueryMetrics(viewResolution);
+            gatherLetMetrics(statement);
             gatherSettingsMetrics(request, statement, resolved);
             // APM
             gatherPlanTelemetry(viewResolution.plan(), statement.settings(), resolved);
@@ -1642,6 +1643,13 @@ public class EsqlSession {
             return;
         }
         metrics.inc(FeatureMetric.IN_SUBQUERY);
+    }
+
+    private void gatherLetMetrics(EsqlStatement statement) {
+        if (metrics == null || statement.letBindings() == null || statement.letBindings().isEmpty()) {
+            return;
+        }
+        metrics.inc(FeatureMetric.LET);
     }
 
     /**

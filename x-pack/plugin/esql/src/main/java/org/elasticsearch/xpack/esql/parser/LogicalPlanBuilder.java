@@ -214,6 +214,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public LetBinding visitLetBinding(EsqlBaseParser.LetBindingContext ctx) {
         Source source = source(ctx);
         String name = ctx.UNQUOTED_IDENTIFIER().getText();
+        if (name.equals(name.toLowerCase(Locale.ROOT)) == false) {
+            throw new ParsingException(source, "LET binding name [{}] must be lowercase", name);
+        }
         LogicalPlan plan = visitSubquery(ctx.subquery());
         return new LetBinding(source, name, plan);
     }

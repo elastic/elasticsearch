@@ -4614,6 +4614,43 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    /**
+     * Search-idle indexing does not set {@link IndexShard#hasRefreshPending()} until the next scheduled refresh.
+     * A search that arrives in that window, or after a refresh cleared the pending location without publishing the
+     * latest writes, must still see those writes.
+     */
+    public void testEnsureShardSearchActiveRefreshesIdleShardWithoutPendingLocation() throws Exception {
+        IndexMetadata metadata = newTestIndexMetadata();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+
+        Settings searchIdleSettings = Settings.builder()
+            .put(primary.indexSettings().getSettings())
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+        indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+        assertFalse("the scheduler has not recorded a pending refresh yet", primary.hasRefreshPending());
+        assertTrue(primary.getEngine().refreshNeeded());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean registered = new AtomicBoolean();
+        primary.ensureShardSearchActive(wasRegistered -> {
+            registered.set(wasRegistered);
+            latch.countDown();
+        });
+        safeAwait(latch);
+        assertTrue("a stale search-idle reader must wait for a refresh", registered.get());
+        try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
+            assertEquals(2, searcher.getIndexReader().numDocs());
+        }
+        closeShards(primary);
+    }
+
     public void testEnsureShardSearchActiveDispatchesListenerOffRefreshThread() throws Exception {
         IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);

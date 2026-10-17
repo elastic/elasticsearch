@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.fetch.chunk;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -392,6 +393,64 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         assertThat("the breaker holds exactly what the result carries", used, equalTo(charged));
         // The action gives the result back in a finally after this listener returns, on the handler's thread.
         assertBusy(() -> assertThat("releasing the result gives the charge back", breaker.getUsed(), equalTo(0L)));
+    }
+
+    /**
+     * A data node with chunked fetch disabled answers with a classic fetch and serializes the hits into lastChunkBytes without
+     * position prefixes. The coordinator must return the classic hits as they are instead of decoding those bytes.
+     */
+    public void testDoExecutePassesClassicFallbackResultThrough() {
+        float[] scores = { 3.25f, 1.5f, 0.75f };
+        transportService.registerRequestHandler(
+            FETCH_ID_ACTION_NAME,
+            threadPool.executor(ThreadPool.Names.GENERIC),
+            ShardFetchSearchRequest::new,
+            (req, channel, task) -> {
+                FetchSearchResult result = createFetchSearchResult();
+                try {
+                    SearchHit[] hits = new SearchHit[scores.length];
+                    for (int i = 0; i < hits.length; i++) {
+                        hits[i] = new SearchHit(i, "doc-" + i);
+                        hits[i].score(scores[i]);
+                        hits[i].sourceRef(new BytesArray("{\"id\":" + i + "}"));
+                    }
+                    result.shardResult(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), scores[0]), null);
+                    BytesStreamOutput out = new BytesStreamOutput();
+                    for (SearchHit hit : hits) {
+                        hit.writeTo(out);
+                    }
+                    result.setLastChunkBytes(out.bytes(), hits.length);
+                    result.setLastChunkSequenceStart(0L);
+                    channel.sendResponse(result);
+                } finally {
+                    result.decRef();
+                }
+            }
+        );
+
+        TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
+            createShardFetchSearchRequest(),
+            transportService.getLocalNode(),
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            e -> {}
+        );
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        action.doExecute(createTask(123L), request, future.delegateFailureAndWrap((l, response) -> {
+            FetchSearchResult result = response.getResult();
+            SearchHit[] hits = result.hits().getHits();
+            assertThat(hits.length, equalTo(scores.length));
+            for (int i = 0; i < hits.length; i++) {
+                assertThat(hits[i].getId(), equalTo("doc-" + i));
+                assertThat(hits[i].getScore(), equalTo(scores[i]));
+                assertThat(hits[i].getRank(), equalTo(-1));
+            }
+            assertNull(result.getLastChunkBytes());
+            l.onResponse(null);
+        }));
+        future.actionGet(10, TimeUnit.SECONDS);
     }
 
     public void testDoExecuteIgnoresLastChunkBytesWhenHitCountIsZero() {

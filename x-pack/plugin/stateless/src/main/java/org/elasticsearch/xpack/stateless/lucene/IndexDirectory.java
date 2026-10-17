@@ -293,6 +293,23 @@ public class IndexDirectory extends ByteSizeDirectory {
     }
 
     /**
+     * Starts tracking the files of the latest commit on local disk that were not created through this directory, which are otherwise
+     * invisible to this directory.
+     */
+    public void trackLatestCommitFilesOnDisk() throws IOException {
+        final var files = SegmentInfos.readLatestCommit(in).files(true);
+        try (var ignored = writeLock.acquire()) {
+            for (String name : files) {
+                if (localFiles.containsKey(name) == false) {
+                    estimatedSize.addAndGet(in.fileLength(name));
+                    localFiles.put(name, new LocalFileRef(name));
+                    logger.trace("{} local file [{}] tracked from disk", cacheDirectory.getShardId(), name);
+                }
+            }
+        }
+    }
+
+    /**
      * Acquires a reference to a local file via {@link LocalFileRef#tryIncRef()}, keeping it on disk even after
      * {@link LocalFileRef#markAsUploaded()} has been called. Returns a no-op {@link Releasable} if the file is not locally available
      * (e.g. it was from an older BCC and has already been freed from disk). The caller must close the returned {@link Releasable} when

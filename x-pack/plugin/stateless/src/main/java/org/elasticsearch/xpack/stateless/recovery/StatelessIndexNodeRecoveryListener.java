@@ -320,6 +320,9 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
                     );
                 }
             }
+            if (indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
+                indexDirectory.trackLatestCommitFilesOnDisk();
+            }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
             final var checkPoint = segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);

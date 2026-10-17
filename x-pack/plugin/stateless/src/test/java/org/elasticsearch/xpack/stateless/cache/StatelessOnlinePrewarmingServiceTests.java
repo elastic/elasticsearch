@@ -262,7 +262,8 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
             final int regionSize = fakeNode.sharedCacheService.getRegionSize();
             final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
             final var siLocation = createBlobLocation(primaryTerm, 1L, 0L, regionSize * 2L);
-            fakeNode.searchDirectory.updateMetadata(Map.of("_0.si", new BlobFileRanges(siLocation, range)), regionSize * 2L);
+            // mergePITReaderMetadata is used only because it is the public merge entry point, even if this is not a PIT scenario
+            fakeNode.searchDirectory.mergePITReaderMetadata(Map.of("_0.si", new BlobFileRanges(siLocation, range)));
             // Mark the BCC as uploaded so the warming read routes through the (synthetic) object store container.
             fakeNode.searchDirectory.updateLatestUploadedBcc(new PrimaryTermAndGeneration(primaryTerm, 1L));
 

@@ -595,6 +595,21 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         }
     }
 
+    /**
+     * Reproduces https://github.com/elastic/elasticsearch/issues/162295: sibling knn queries wrapped in a query type that
+     * auto-prefilter pruning looks through (or, for script_score, does not look into) in a bool must clause make each
+     * knn consume the other as a prefilter, which in turn consumes the first again, recursing until the stack overflows.
+     */
+    public void testAutoPrefilteringWithWrappedKnnSiblingsInMustDoesNotRecurse() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        KnnVectorQueryBuilder knnA = createKnnVectorQueryBuilder(VECTOR_FIELD, 5, 10, null, null, null).setAutoPrefilteringEnabled(true);
+        KnnVectorQueryBuilder knnB = createKnnVectorQueryBuilder(VECTOR_FIELD, 5, 10, null, null, null).setAutoPrefilteringEnabled(true);
+        BoolQueryBuilder bool = QueryBuilders.boolQuery()
+            .must(QueryBuilders.constantScoreQuery(knnA))
+            .must(QueryBuilders.constantScoreQuery(knnB));
+        assertNotNull(bool.toQuery(context));
+    }
+
     public void testSerialization_GivenAutoPrefiltering() throws IOException {
         KnnVectorQueryBuilder query = doCreateTestQueryBuilder().setAutoPrefilteringEnabled(true);
         KnnVectorQueryBuilder serializedQuery = copyQuery(query);

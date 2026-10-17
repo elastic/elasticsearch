@@ -13,6 +13,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -195,6 +196,48 @@ public class PlainRangePresenceTests extends ESTestCase {
             }
             assertEquals(PlainBlockOracle.keptDocs(fixture, first), keptByOne);
             assertTrue(PlainBlockOracle.keptDocs(fixture, second).containsAll(keptByTwo));
+        }
+    }
+
+    public void testIntoBitSetSetsExactlyTheKeptDocumentsAndLeavesTheIteratorAfterThem() throws IOException {
+        for (int round = 0; round < 25; round++) {
+            final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(2, 12));
+            final BytesRef[][] docSlots = new BytesRef[between(1, 600)][];
+            for (int doc = 0; doc < docSlots.length; doc++) {
+                if (randomInt(9) != 0) {
+                    docSlots[doc] = new BytesRef[] { pool[pool.length * (docSlots.length - doc - 1) / docSlots.length] };
+                }
+            }
+            docSlots[docSlots.length - 1] = new BytesRef[] { pool[0] };
+            try (
+                Directory dir = newDirectory();
+                PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, PlainSkipFixture.randomValuesPerBlock())
+            ) {
+                assertTrue(fixture.slots().oneSlotADocument());
+                final PlainSkipBounds.Query query = PlainBlockOracle.randomQuery(pool);
+                final List<Integer> kept = PlainBlockOracle.keptDocs(fixture, query);
+                final PlainRangePresence presence = fixture.presence(query);
+                final List<Integer> collected = new ArrayList<>();
+                int doc = presence.nextDoc();
+                while (doc != DocIdSetIterator.NO_MORE_DOCS) {
+                    final int upTo = doc + between(1, 200);
+                    final int offset = between(0, doc);
+                    final FixedBitSet bits = new FixedBitSet(upTo - offset);
+                    presence.intoBitSet(upTo, bits, offset);
+                    for (int bit = bits.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = bit + 1 < bits.length()
+                        ? bits.nextSetBit(bit + 1)
+                        : DocIdSetIterator.NO_MORE_DOCS) {
+                        collected.add(bit + offset);
+                    }
+                    doc = presence.docID();
+                    assertTrue(doc >= upTo);
+                    if (doc != DocIdSetIterator.NO_MORE_DOCS && randomBoolean()) {
+                        collected.add(doc);
+                        doc = presence.nextDoc();
+                    }
+                }
+                assertEquals(kept, collected);
+            }
         }
     }
 

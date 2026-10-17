@@ -10,6 +10,7 @@
 package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
@@ -82,6 +83,19 @@ final class PlainRangePresence extends ColumnIterator {
             return presence.docID() + 1;
         }
         return Math.min(presence.docIDRunEnd(), runLimit);
+    }
+
+    @Override
+    public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+        if (oneSlotADocument == false) {
+            super.intoBitSet(upTo, bitSet, offset);
+            return;
+        }
+        int doc = docID();
+        while (doc < upTo) {
+            presence.intoBitSet(Math.min(docIDRunEnd(), upTo), bitSet, offset);
+            doc = settle(presence.docID());
+        }
     }
 
     @Override

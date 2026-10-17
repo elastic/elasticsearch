@@ -148,6 +148,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /// Controls uploads of VBCC based on the size. A VBCC that is bigger than the threshold is uploaded after appending the latest commit.
+    /// Size of VBCC does not include generational files, see [VirtualBatchedCompoundCommit#sizeInBytesExcludingCopiedGenerationalFiles].
+    /// Note that smaller VBCC can be uploaded based on the `max_commits` and `max_age` settings.
     public static final Setting<ByteSizeValue> STATELESS_UPLOAD_MAX_SIZE = Setting.byteSizeSetting(
         "stateless.upload.max_size",
         ByteSizeValue.ofMb(15),
@@ -2184,7 +2187,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
-            return virtualBcc.getTotalSizeInBytes() >= bccUploadMaxSizeInBytes
+            return virtualBcc.sizeInBytesExcludingCopiedGenerationalFiles() >= bccUploadMaxSizeInBytes
                 || virtualBcc.getPendingCompoundCommits().size() >= bccMaxAmountOfCommits;
         }
 

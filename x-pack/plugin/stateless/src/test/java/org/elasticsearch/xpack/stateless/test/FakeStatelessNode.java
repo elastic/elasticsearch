@@ -559,7 +559,7 @@ public class FakeStatelessNode implements Closeable {
     }
 
     public List<StatelessCommitRef> generateIndexCommitsWithoutCompoundFiles(int commitsNumber) throws IOException {
-        return generateIndexCommits(commitsNumber, false, true, generation -> {}, false);
+        return generateIndexCommits(commitsNumber, false, DEFAULT_ID_GENERATOR_FOR_DELETES, generation -> {}, false);
     }
 
     public List<StatelessCommitRef> generateIndexCommits(
@@ -568,13 +568,13 @@ public class FakeStatelessNode implements Closeable {
         boolean includeDeletions,
         LongConsumer onCommitClosed
     ) throws IOException {
-        return generateIndexCommits(commitsNumber, merge, includeDeletions, onCommitClosed, true);
+        return generateIndexCommits(commitsNumber, merge, includeDeletions ? DEFAULT_ID_GENERATOR_FOR_DELETES : null, onCommitClosed, true);
     }
 
     private List<StatelessCommitRef> generateIndexCommits(
         int commitsNumber,
         boolean merge,
-        boolean includeDeletions,
+        Function<Integer, String> idGeneratorForDeletes,
         LongConsumer onCommitClosed,
         boolean useCompoundFile
     ) throws IOException {
@@ -582,17 +582,21 @@ public class FakeStatelessNode implements Closeable {
         indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         indexWriterConfig.setMergePolicy(new TieredMergePolicy().setSegmentsPerTier(10)); // lucene 10.3 changed default to 8
         indexWriterConfig.setUseCompoundFile(useCompoundFile);
-        return generateIndexCommits(commitsNumber, merge, includeDeletions, onCommitClosed, (commitNumber) -> {
+        return generateIndexCommits(commitsNumber, merge, idGeneratorForDeletes, onCommitClosed, (commitNumber) -> {
             LuceneDocument document = new LuceneDocument();
             document.add(new KeywordField("field0", "term", Field.Store.YES));
             return List.of(document);
         }, indexWriterConfig);
     }
 
+    // Returns a randomly generated id.
+    // This results in correct tombstone document being created but doesn't actually modify any of the existing documents.
+    private static final Function<Integer, String> DEFAULT_ID_GENERATOR_FOR_DELETES = ignored -> ESTestCase.randomAlphaOfLength(10);
+
     public List<StatelessCommitRef> generateIndexCommits(
         int commitsNumber,
         boolean merge,
-        boolean includeDeletions,
+        Function<Integer, String> idGeneratorForDeletes,
         LongConsumer onCommitClosed,
         Function<Integer, Iterable<LuceneDocument>> newDocForCommitFunction,
         IndexWriterConfig indexWriterConfig
@@ -607,17 +611,19 @@ public class FakeStatelessNode implements Closeable {
                 for (LuceneDocument document : newDocForCommitFunction.apply(i)) {
                     indexWriter.addDocument(document.getFields());
                 }
-                if (includeDeletions && ESTestCase.randomBoolean()) {
-                    String deleteId = ESTestCase.randomAlphaOfLength(10);
-                    final ParsedDocument tombstone = ParsedDocument.deleteTombstone(indexSettings.seqNoIndexOptions(), deleteId);
-                    LuceneDocument delete = tombstone.docs().get(0);
-                    NumericDocValuesField field = Lucene.newSoftDeletesField();
-                    delete.add(field);
-                    indexWriter.softUpdateDocument(
-                        new Term(IdFieldMapper.NAME, Uid.encodeId(deleteId)),
-                        delete.getFields(),
-                        Lucene.newSoftDeletesField()
-                    );
+                if (idGeneratorForDeletes != null && ESTestCase.randomBoolean()) {
+                    String deleteId = idGeneratorForDeletes.apply(i);
+                    if (deleteId != null) {
+                        final ParsedDocument tombstone = ParsedDocument.deleteTombstone(indexSettings.seqNoIndexOptions(), deleteId);
+                        LuceneDocument delete = tombstone.docs().get(0);
+                        NumericDocValuesField field = Lucene.newSoftDeletesField();
+                        delete.add(field);
+                        indexWriter.softUpdateDocument(
+                            new Term(IdFieldMapper.NAME, Uid.encodeId(deleteId)),
+                            delete.getFields(),
+                            Lucene.newSoftDeletesField()
+                        );
+                    }
                 }
                 if (merge) {
                     indexWriter.forceMerge(1, true);

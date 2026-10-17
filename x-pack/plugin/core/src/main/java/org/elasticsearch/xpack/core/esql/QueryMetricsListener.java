@@ -31,7 +31,9 @@ public interface QueryMetricsListener {
      */
     String PLANNING_CPU_NANOS = "planning_cpu_nanos";
     /**
-     * Thread CPU time spent by drivers on compute, from result.completionInfo().cpuNanos()
+     * Thread CPU time spent by drivers on compute, from result.completionInfo().cpuNanos(). Includes CPU time
+     * operators meter on other threads for their driver, such as parallel aggregation workers. Format-reader producer
+     * threads are counted in {@link #READ_CPU_NANOS} instead.
      */
     String CPU_NANOS = "cpu_nanos";
     /**

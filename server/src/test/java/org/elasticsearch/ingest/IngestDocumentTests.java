@@ -308,7 +308,16 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testGetIngestObject() throws Exception {
-        doWithRandomAccessPattern((doc) -> assertThat(doc.getFieldValue("_ingest", Map.class), notNullValue()));
+        doWithRandomAccessPattern((doc) -> {
+            // the bare _ingest path refers to the source field of that name, not the ingest metadata
+            assertThat(doc.getFieldValue("_ingest", Map.class), equalTo(Map.of("timestamp", BOGUS_TIMESTAMP)));
+            assertThat(doc.getFieldValue("_source._ingest", Map.class), equalTo(Map.of("timestamp", BOGUS_TIMESTAMP)));
+            // scripts (via the ctx map's key lookup) also see the source field, which takes precedence over the ingest metadata
+            assertThat(doc.getCtxMap().get("_ingest"), sameInstance(doc.getSource().get("_ingest")));
+            // once the source field is removed, scripts see the ingest metadata
+            doc.removeField("_ingest");
+            assertThat(doc.getCtxMap().get("_ingest"), sameInstance(doc.getIngestMetadata()));
+        });
     }
 
     public void testGetEmptyPathAfterStrippingOutPrefix() throws Exception {
@@ -686,7 +695,12 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testHasFieldIngestObject() throws Exception {
-        doWithRandomAccessPattern((doc) -> assertThat(doc.hasField("_ingest"), equalTo(true)));
+        doWithRandomAccessPattern((doc) -> {
+            // The bare _ingest path refers to the source field of that name.
+            assertThat(doc.hasField("_ingest"), equalTo(true));
+            doc.removeField("_ingest");
+            assertThat(doc.hasField("_ingest"), equalTo(false));
+        });
     }
 
     public void testHasFieldEmptyPathAfterStrippingOutPrefix() throws Exception {
@@ -1734,11 +1748,13 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
-    public void testRemoveIngestObject() throws Exception {
+    public void testRemoveIngestObjectOperatesOnSource() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("_ingest");
             assertThat(doc.getCtxMap().size(), equalTo(14));
             assertThat(doc.getSource().containsKey("_ingest"), equalTo(false));
+            assertThat(doc.getCtxMap().containsKey("_ingest"), equalTo(true));
+            assertThat(doc.getCtxMap().get("_ingest"), sameInstance(doc.getIngestMetadata()));
         });
     }
 
@@ -1870,6 +1886,36 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(timestamp, notNullValue());
         assertThat(actualMillis, greaterThanOrEqualTo(before));
         assertThat(actualMillis, lessThanOrEqualTo(after));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCtxMapSourceIngestFieldTakesPrecedence() {
+        Map<String, Object> source = new HashMap<>();
+        source.put("_ingest", Map.of("source", true));
+        source.put("field", "value");
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1, null, null, source);
+        ingestDocument.getIngestMetadata().put("_value", "ingest-value");
+
+        // the ctx map (used by Painless) gives the source field precedence over the ingest metadata
+        assertThat(ingestDocument.getCtxMap().get("_ingest"), equalTo(Map.of("source", true)));
+
+        // general field access with the _ingest. prefix ignores the source field, both for reads and writes
+        assertThat(ingestDocument.getFieldValue("_ingest._value", String.class), equalTo("ingest-value"));
+        ingestDocument.setFieldValue("_ingest._value", "changed");
+        assertThat(ingestDocument.getIngestMetadata().get("_value"), equalTo("changed"));
+        assertThat(ingestDocument.getSource().get("_ingest"), equalTo(Map.of("source", true)));
+
+        // the copy constructor preserves the source field and the ingest metadata separately
+        IngestDocument copy = new IngestDocument(ingestDocument);
+        assertThat(copy.getSource().get("_ingest"), equalTo(Map.of("source", true)));
+        assertThat(copy.getIngestMetadata().get("_value"), equalTo("changed"));
+
+        // removing the source field exposes the ingest metadata to the ctx map's key lookup
+        ingestDocument.removeField("_ingest");
+        Map<String, Object> retrievedIngestMetadata = (Map<String, Object>) ingestDocument.getCtxMap().get("_ingest");
+        assertThat(retrievedIngestMetadata, sameInstance(ingestDocument.getIngestMetadata()));
+        retrievedIngestMetadata.put("_value", "changed-again");
+        assertThat(ingestDocument.getIngestMetadata().get("_value"), equalTo("changed-again"));
     }
 
     public void testCopyConstructor() {
@@ -2018,10 +2064,11 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testDeepCopy() {
-        IngestDocument copiedDoc = new IngestDocument(
-            CollectionUtils.deepCopy(document.getCtxMap()),
-            CollectionUtils.deepCopy(document.getIngestMetadata())
-        );
+        Map<String, Object> sourceAndMetadata = CollectionUtils.deepCopy(document.getSource());
+        for (String key : document.getMetadata().keySet()) {
+            sourceAndMetadata.put(key, CollectionUtils.deepCopy(document.getMetadata().get(key)));
+        }
+        IngestDocument copiedDoc = new IngestDocument(sourceAndMetadata, CollectionUtils.deepCopy(document.getIngestMetadata()));
         assertArrayEquals(
             copiedDoc.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),
             document.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),
@@ -2216,6 +2263,8 @@ public class IngestDocumentTests extends ESTestCase {
         assertMutatingThrows(ctx -> ((Set<Object>) ctx.get("setField")).remove("bar"));
         assertMutatingThrows(ctx -> ((Map<String, Object>) ctx.get("mapField")).put("bar", "baz"));
         assertMutatingThrows(ctx -> ((Map<?, ?>) ctx.get("mapField")).remove("bar"));
+        assertMutatingThrows(ctx -> ((Map<String, Object>) ctx.get("_ingest")).put("_value", "changed"));
+        assertMutatingThrows(ctx -> ((Map<?, ?>) ctx.get("_ingest")).remove("_value"));
         assertMutatingThrows(ctx -> ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).add("bar"));
         assertMutatingThrows(
             ctx -> ((List<Object>) ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).iterator().next()).add("bar")
@@ -2241,6 +2290,7 @@ public class IngestDocumentTests extends ESTestCase {
         ingestDocument.setFieldValue("listField", new ArrayList<>());
         ingestDocument.setFieldValue("mapField", new HashMap<>());
         ingestDocument.setFieldValue("setField", new HashSet<>());
+        ingestDocument.getIngestMetadata().put("_value", "value");
         List<Object> listWithinSet = new ArrayList<>();
         listWithinSet.add(new ArrayList<>());
         ingestDocument.getFieldValue("setField", Set.class).add(listWithinSet);

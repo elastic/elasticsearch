@@ -102,8 +102,7 @@ public final class IngestDocument {
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
-        this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, ctxMap.getMetadata().getNow());
+        this.ingestMetadata = ctxMap.getIngestMetadata();
         this.templateModel = initializeTemplateModel();
 
         // initialize the index history by putting the current index into it
@@ -123,9 +122,9 @@ public final class IngestDocument {
         this(
             new IngestCtxMap(
                 CollectionUtils.deepCopy(ensureNoSelfReferences(other.ctxMap.getSource(), "source document")),
-                other.ctxMap.getMetadata().clone()
-            ),
-            CollectionUtils.deepCopy(ensureNoSelfReferences(other.ingestMetadata, "ingest metadata"))
+                other.ctxMap.getMetadata().clone(),
+                CollectionUtils.deepCopy(ensureNoSelfReferences(other.ingestMetadata, "ingest metadata"))
+            )
         );
         /*
          * The executedPipelines and accessPatternStack fields are clearly execution-centric rather than data centric.
@@ -165,22 +164,26 @@ public final class IngestDocument {
                 }
             }
         }
-        this.ctxMap = new IngestCtxMap(source, new IngestDocMetadata(metadata, IngestCtxMap.getTimestamp(ingestMetadata)));
         this.ingestMetadata = new HashMap<>(ingestMetadata);
+        this.ctxMap = new IngestCtxMap(
+            source,
+            new IngestDocMetadata(metadata, IngestCtxMap.getTimestamp(this.ingestMetadata)),
+            this.ingestMetadata
+        );
         this.templateModel = initializeTemplateModel();
     }
 
     /**
      * Constructor to create an IngestDocument from its constituent maps.
      */
-    IngestDocument(IngestCtxMap ctxMap, Map<String, Object> ingestMetadata) {
+    IngestDocument(IngestCtxMap ctxMap) {
         this.ctxMap = Objects.requireNonNull(ctxMap);
-        this.ingestMetadata = Objects.requireNonNull(ingestMetadata);
+        this.ingestMetadata = Objects.requireNonNull(ctxMap.getIngestMetadata());
         this.templateModel = initializeTemplateModel();
     }
 
     private DelegatingMapView initializeTemplateModel() {
-        return new DelegatingMapView(ctxMap, Map.of(SOURCE_KEY, ctxMap, INGEST_KEY, ingestMetadata));
+        return new DelegatingMapView(ctxMap, Map.of(SOURCE_KEY, ctxMap.getSource(), INGEST_KEY, ctxMap.getIngestMetadata()));
     }
 
     /**
@@ -1332,18 +1335,24 @@ public final class IngestDocument {
 
         private final String[] pathElements;
         private final boolean useIngestContext;
+        private final boolean useSourceContext;
 
         // you shouldn't call this directly, use the FieldPath.of method above instead!
         private FieldPath(String path, IngestPipelineFieldAccessPattern accessPattern) {
             String newPath;
             if (path.startsWith(INGEST_PREFIX)) {
+                // Dotted _ingest.foo paths resolve within the ingest metadata, ignoring any source field named _ingest
                 useIngestContext = true;
+                useSourceContext = false;
                 newPath = path.substring(INGEST_PREFIX.length());
             } else {
                 useIngestContext = false;
                 if (path.startsWith(SOURCE_PREFIX)) {
+                    useSourceContext = true;
                     newPath = path.substring(SOURCE_PREFIX.length());
                 } else {
+                    // The bare _ingest path refers to the source field of that name
+                    useSourceContext = path.equals(INGEST_KEY);
                     newPath = path;
                 }
             }
@@ -1391,7 +1400,10 @@ public final class IngestDocument {
         }
 
         public Object initialContext(IngestDocument document) {
-            return useIngestContext ? document.getIngestMetadata() : document.getCtxMap();
+            if (useIngestContext) {
+                return document.getIngestMetadata();
+            }
+            return useSourceContext ? document.getSource() : document.getCtxMap();
         }
     }
 

@@ -1121,6 +1121,49 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
+    public void testNoIndexValueLongerThanMaxTermLengthOrderedPath() throws IOException {
+        // index:false with multi-value doc values stores values in array order, which takes the ordered batch path.
+        final String longValue = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("index", false).endObject()),
+            columnarSettings(),
+            batch(
+                "no-index value longer than max term length, ordered path",
+                1L,
+                doc("d1", 1L, "{\"f\":\"" + longValue + "\"}"),
+                doc("d2", 2L, "{\"f\":[\"short\",\"" + longValue + "\"]}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testNoIndexValueLongerThanMaxTermLengthUnorderedPath() throws IOException {
+        // multi_value=false does not record array order, which takes the unordered batch path.
+        final String longValue = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("index", false);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "no-index value longer than max term length, unordered path",
+                1L,
+                doc("d1", 1L, "{\"f\":\"" + longValue + "\"}"),
+                doc("d2", 2L, "{}")
+            )
+        );
+    }
+
+    public void testNoIndexValueLongerThanBinaryDocValueLimitThrows() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder().put(columnarSettings()).put(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey(), "64kb").build(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("index", false).endObject())
+        );
+        final String longValue = "a".repeat(64 * 1024 + 1);
+        expectThrows(IllegalArgumentException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"" + longValue + "\"}"));
+    }
+
     public void testTsdbSortedSetDocValuesWithLargeTermThrows() throws IOException {
         // A non-dimension keyword field with index: false in a TSDB index uses SORTED_SET doc values.
         final MapperService mapperService = createMapperService(tsdbDimensionSettings(), mapping(b -> {

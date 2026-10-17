@@ -38,15 +38,18 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
 import static org.elasticsearch.test.ReadableMatchers.matchesDateNanos;
@@ -233,6 +236,9 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         numberCasesWithSpan(suppliers, "fixed int with span", DataType.INTEGER, () -> 100);
         numberCases(suppliers, "fixed double", DataType.DOUBLE, () -> 100.0);
         numberCasesWithSpan(suppliers, "fixed double with span", DataType.DOUBLE, () -> 100.);
+        numberCases(suppliers, "fixed unsigned long", DataType.UNSIGNED_LONG, () -> BigInteger.valueOf(100));
+        numberCasesWithSpan(suppliers, "fixed unsigned long with span", DataType.UNSIGNED_LONG, () -> BigInteger.valueOf(100));
+        unsignedLongBoundsCases(suppliers);
         histogramCases(suppliers);
         suppliers = anyNullIsNull(
             suppliers,
@@ -241,12 +247,34 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                 : original.expectedType(),
             (nullPosition, nullData, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
         );
+        nullFieldMixedBoundsCases(suppliers);
+        multipleNullArgumentsCases(suppliers);
+        dateAndNanosSpanRangeCases(
+            suppliers,
+            "with month period and range",
+            "1970-01-01T00:00:00.00Z",
+            DataType.DATE_PERIOD,
+            Period.ofMonths(1),
+            "[MONTH_OF_YEAR in Z][fixed to midnight]"
+        );
+        dateAndNanosSpanRangeCases(
+            suppliers,
+            "with hour duration and range",
+            "1970-01-01T00:00:00.00Z",
+            DataType.TIME_DURATION,
+            Duration.ofHours(3L),
+            "[10800000 in Z][fixed]"
+        );
         dateTruncCases(suppliers);
         return parameterSuppliersFromTypedData(suppliers);
     }
 
     // TODO once we cast above the functions we can drop these
-    private static final DataType[] DATE_BOUNDS_TYPE = new DataType[] { DataType.DATETIME, DataType.KEYWORD, DataType.TEXT };
+    private static final DataType[] DATE_BOUNDS_TYPE = new DataType[] {
+        DataType.DATETIME,
+        DataType.DATE_NANOS,
+        DataType.KEYWORD,
+        DataType.TEXT };
     private static final DataType[] BUCKETS_TYPE = new DataType[] { DataType.INTEGER, DataType.LONG };
 
     private static void dateCases(List<TestCaseSupplier> suppliers, String name, LongSupplier date) {
@@ -472,10 +500,195 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         throw new IllegalArgumentException("Unsupported span: " + span);
     }
 
+    /**
+     * With a NULL field, BUCKET cannot tell whether the date or the numeric overload applies, so
+     * {@code resolveType} accepts any date-ish/numeric mix of from/to and the result is simply null.
+     * {@code anyNullIsNull} cannot produce these signatures — it only nullifies one argument of
+     * existing cases, whose bounds are always family-consistent — so they are declared explicitly.
+     */
+    private static void nullFieldMixedBoundsCases(List<TestCaseSupplier> suppliers) {
+        for (DataType bucketsType : BUCKETS_TYPE) {
+            for (DataType dateBoundType : DATE_BOUNDS_TYPE) {
+                for (DataType numericBoundType : NUMERIC_BOUNDS_WITH_UNSIGNED_LONG) {
+                    nullFieldMixedBoundsCase(
+                        suppliers,
+                        bucketsType,
+                        dateBound("from", dateBoundType, "2023-02-01T00:00:00.00Z"),
+                        bound("to", numericBoundType)
+                    );
+                    nullFieldMixedBoundsCase(
+                        suppliers,
+                        bucketsType,
+                        bound("from", numericBoundType),
+                        dateBound("to", dateBoundType, "2023-03-01T09:00:00.00Z")
+                    );
+                }
+            }
+        }
+    }
+
+    private static void nullFieldMixedBoundsCase(
+        List<TestCaseSupplier> suppliers,
+        DataType bucketsType,
+        TestCaseSupplier.TypedData from,
+        TestCaseSupplier.TypedData to
+    ) {
+        nullFoldingCase(
+            suppliers,
+            "null field with mixed bounds",
+            DataType.NULL,
+            TestCaseSupplier.TypedData.NULL,
+            new TestCaseSupplier.TypedData(50, bucketsType, "buckets").forceLiteral(),
+            from,
+            to
+        );
+    }
+
+    /**
+     * Explicit coverage for calls with more than one null argument: {@code anyNullIsNull} only
+     * nullifies one argument of existing cases, and {@code BucketErrorTests} skips signatures with
+     * more than one NULL, so these combinations are otherwise untested. Each non-null argument is
+     * valid for some overload, so the calls must resolve and fold to null.
+     */
+    private static void multipleNullArgumentsCases(List<TestCaseSupplier> suppliers) {
+        TestCaseSupplier.TypedData nullArg = TestCaseSupplier.TypedData.NULL;
+        String name = "multiple null arguments";
+        // BUCKET(null, null)
+        nullFoldingCase(suppliers, name, DataType.NULL, nullArg, nullArg);
+        // BUCKET(null, null, from, to) across every date-ish/numeric bound combination, mixed families included
+        List<DataType> boundTypes = Stream.concat(Arrays.stream(DATE_BOUNDS_TYPE), Arrays.stream(NUMERIC_BOUNDS_WITH_UNSIGNED_LONG))
+            .toList();
+        for (DataType fromType : boundTypes) {
+            for (DataType toType : boundTypes) {
+                nullFoldingCase(suppliers, name, DataType.NULL, nullArg, nullArg, bound("from", fromType), bound("to", toType));
+            }
+        }
+        // null field and buckets with a null bound on either side
+        nullFoldingCase(suppliers, name, DataType.NULL, nullArg, nullArg, nullArg, bound("to", DataType.DATETIME));
+        nullFoldingCase(suppliers, name, DataType.NULL, nullArg, nullArg, bound("from", DataType.LONG), nullArg);
+        // everything null
+        nullFoldingCase(suppliers, name, DataType.NULL, nullArg, nullArg, nullArg, nullArg);
+        // valid field with null buckets and a null bound; the result type follows the field
+        nullFoldingCase(
+            suppliers,
+            name,
+            DataType.DATETIME,
+            new TestCaseSupplier.TypedData(
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"),
+                DataType.DATETIME,
+                "field"
+            ),
+            nullArg,
+            nullArg,
+            bound("to", DataType.KEYWORD)
+        );
+        nullFoldingCase(
+            suppliers,
+            name,
+            DataType.DOUBLE,
+            new TestCaseSupplier.TypedData(100L, DataType.LONG, "field"),
+            nullArg,
+            bound("from", DataType.INTEGER),
+            nullArg
+        );
+    }
+
+    private static TestCaseSupplier.TypedData bound(String name, DataType type) {
+        if (type == DataType.UNSIGNED_LONG) {
+            return unsignedLongBound(name);
+        }
+        return type.isNumeric()
+            ? numericBound(name, type, name.equals("from") ? 0.0 : 1000.0)
+            : dateBound(name, type, name.equals("from") ? "2023-02-01T00:00:00.00Z" : "2023-03-01T09:00:00.00Z");
+    }
+
+    /**
+     * An unsigned_long bound: 0 for {@code from}, 1000 for {@code to} — the same range the other numeric
+     * bounds use. Unsigned_long bounds fold through their sortable-encoded representation and are decoded by
+     * {@code Bucket} before computing the span, so they behave exactly like the other numeric bounds.
+     */
+    private static TestCaseSupplier.TypedData unsignedLongBound(String name) {
+        BigInteger value = name.equals("from") ? BigInteger.ZERO : BigInteger.valueOf(1000);
+        return new TestCaseSupplier.TypedData(value, DataType.UNSIGNED_LONG, name).forceLiteral();
+    }
+
+    /**
+     * 4-arg numeric BUCKET where at least one of from/to is unsigned_long. These resolve and behave like the
+     * other numeric bounds. Registered before {@code anyNullIsNull} so the null-argument variants are generated too.
+     */
+    private static void unsignedLongBoundsCases(List<TestCaseSupplier> suppliers) {
+        for (DataType fieldType : NUMERIC_BOUNDS_WITH_UNSIGNED_LONG) {
+            for (DataType bucketsType : BUCKETS_TYPE) {
+                for (DataType fromType : NUMERIC_BOUNDS_WITH_UNSIGNED_LONG) {
+                    for (DataType toType : NUMERIC_BOUNDS_WITH_UNSIGNED_LONG) {
+                        if (fromType != DataType.UNSIGNED_LONG && toType != DataType.UNSIGNED_LONG) {
+                            continue; // covered by numberCases
+                        }
+                        suppliers.add(
+                            new TestCaseSupplier("unsigned long bounds", List.of(fieldType, bucketsType, fromType, toType), () -> {
+                                List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                                args.add(new TestCaseSupplier.TypedData(numericFieldValue(fieldType), fieldType, "field"));
+                                args.add(new TestCaseSupplier.TypedData(50, bucketsType, "buckets").forceLiteral());
+                                args.add(bound("from", fromType));
+                                args.add(bound("to", toType));
+                                return new TestCaseSupplier.TestCase(
+                                    args,
+                                    bucketDivToStringMatcher(castedNumericAttr(fieldType)),
+                                    DataType.DOUBLE,
+                                    resultsMatcher(args)
+                                ).withExtra(META_NUMERIC_50);
+                            })
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private static Number numericFieldValue(DataType fieldType) {
+        return switch (fieldType) {
+            case INTEGER -> 100;
+            case LONG -> 100L;
+            case DOUBLE -> 100.0;
+            case UNSIGNED_LONG -> BigInteger.valueOf(100);
+            default -> throw new IllegalArgumentException("unexpected numeric field type [" + fieldType + "]");
+        };
+    }
+
+    private static String castedNumericAttr(DataType fieldType) {
+        String attr = "Attribute[channel=0]";
+        return switch (fieldType) {
+            case INTEGER -> "CastIntToDoubleEvaluator[v=" + attr + "]";
+            case LONG -> "CastLongToDoubleEvaluator[v=" + attr + "]";
+            case UNSIGNED_LONG -> "CastUnsignedLongToDoubleEvaluator[v=" + attr + "]";
+            case DOUBLE -> attr;
+            default -> throw new IllegalArgumentException("unexpected numeric field type [" + fieldType + "]");
+        };
+    }
+
+    private static void nullFoldingCase(
+        List<TestCaseSupplier> suppliers,
+        String name,
+        DataType expectedType,
+        TestCaseSupplier.TypedData... args
+    ) {
+        List<TestCaseSupplier.TypedData> argsList = List.of(args);
+        List<DataType> types = argsList.stream().map(TestCaseSupplier.TypedData::type).toList();
+        suppliers.add(
+            new TestCaseSupplier(
+                name,
+                types,
+                () -> new TestCaseSupplier.TestCase(argsList, equalTo("LiteralsEvaluator[lit=null]"), expectedType, nullValue())
+            )
+        );
+    }
+
     private static TestCaseSupplier.TypedData dateBound(String name, DataType type, String date) {
         Object value;
         if (type == DataType.DATETIME) {
             value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
+        } else if (type == DataType.DATE_NANOS) {
+            value = DateUtils.toLong(Instant.parse(date));
         } else {
             value = new BytesRef(date);
         }
@@ -555,6 +768,58 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         }));
     }
 
+    private static void dateAndNanosSpanRangeCases(
+        List<TestCaseSupplier> suppliers,
+        String description,
+        String dateString,
+        DataType spanType,
+        Object span,
+        String spanStr
+    ) {
+        for (DataType fromType : DATE_BOUNDS_TYPE) {
+            for (DataType toType : DATE_BOUNDS_TYPE) {
+                suppliers.add(
+                    new TestCaseSupplier("fixed date " + description, List.of(DataType.DATETIME, spanType, fromType, toType), () -> {
+                        long millis = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateString);
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        args.add(new TestCaseSupplier.TypedData(millis, DataType.DATETIME, "field"));
+                        args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
+                        args.add(dateBound("from", fromType, "1970-01-01T00:00:00.00Z"));
+                        args.add(dateBound("to", toType, "1971-01-01T00:00:00.00Z"));
+                        return new TestCaseSupplier.TestCase(
+                            args,
+                            "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
+                            DataType.DATETIME,
+                            resultsMatcher(args)
+                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                            .withExtra(expectedDateMetadataForSpan(span));
+                    })
+                );
+                suppliers.add(
+                    new TestCaseSupplier(
+                        "fixed date nanos " + description,
+                        List.of(DataType.DATE_NANOS, spanType, fromType, toType),
+                        () -> {
+                            long nanos = DateUtils.toLong(Instant.parse(dateString));
+                            List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                            args.add(new TestCaseSupplier.TypedData(nanos, DataType.DATE_NANOS, "field"));
+                            args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
+                            args.add(dateBound("from", fromType, "1970-01-01T00:00:00.00Z"));
+                            args.add(dateBound("to", toType, "1971-01-01T00:00:00.00Z"));
+                            return new TestCaseSupplier.TestCase(
+                                args,
+                                "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
+                                DataType.DATE_NANOS,
+                                resultsMatcher(args)
+                            ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+                                .withExtra(expectedDateMetadataForSpan(span));
+                        }
+                    )
+                );
+            }
+        }
+    }
+
     private static void dateNanosCases(List<TestCaseSupplier> suppliers, String name, LongSupplier date) {
         for (DataType fromType : DATE_BOUNDS_TYPE) {
             for (DataType toType : DATE_BOUNDS_TYPE) {
@@ -595,26 +860,36 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
 
     private static final DataType[] NUMBER_BOUNDS_TYPES = new DataType[] { DataType.INTEGER, DataType.LONG, DataType.DOUBLE };
 
+    // unsigned_long is also accepted as a numeric from/to bound; see the unsignedLongBound javadoc.
+    private static final DataType[] NUMERIC_BOUNDS_WITH_UNSIGNED_LONG = new DataType[] {
+        DataType.INTEGER,
+        DataType.LONG,
+        DataType.DOUBLE,
+        DataType.UNSIGNED_LONG };
+
     private static void numberCases(List<TestCaseSupplier> suppliers, String name, DataType numberType, Supplier<Number> number) {
         for (DataType fromType : NUMBER_BOUNDS_TYPES) {
             for (DataType toType : NUMBER_BOUNDS_TYPES) {
-                suppliers.add(new TestCaseSupplier(name, List.of(numberType, DataType.INTEGER, fromType, toType), () -> {
-                    List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                    args.add(new TestCaseSupplier.TypedData(number.get(), "field"));
-                    // TODO more "from" and "to" and "buckets"
-                    args.add(new TestCaseSupplier.TypedData(50, DataType.INTEGER, "buckets").forceLiteral());
-                    args.add(numericBound("from", fromType, 0.0));
-                    args.add(numericBound("to", toType, 1000.0));
-                    // TODO more number types for "from" and "to"
-                    String attr = "Attribute[channel=0]";
-                    if (numberType == DataType.INTEGER) {
-                        attr = "CastIntToDoubleEvaluator[v=" + attr + "]";
-                    } else if (numberType == DataType.LONG) {
-                        attr = "CastLongToDoubleEvaluator[v=" + attr + "]";
-                    }
-                    return new TestCaseSupplier.TestCase(args, bucketDivToStringMatcher(attr), DataType.DOUBLE, resultsMatcher(args))
-                        .withExtra(META_NUMERIC_50);
-                }));
+                for (DataType bucketsType : BUCKETS_TYPE) {
+                    suppliers.add(new TestCaseSupplier(name, List.of(numberType, bucketsType, fromType, toType), () -> {
+                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                        args.add(new TestCaseSupplier.TypedData(number.get(), numberType, "field"));
+                        // TODO more "from" and "to" and "buckets"
+                        args.add(new TestCaseSupplier.TypedData(50, bucketsType, "buckets").forceLiteral());
+                        args.add(numericBound("from", fromType, 0.0));
+                        args.add(numericBound("to", toType, 1000.0));
+                        String attr = "Attribute[channel=0]";
+                        if (numberType == DataType.INTEGER) {
+                            attr = "CastIntToDoubleEvaluator[v=" + attr + "]";
+                        } else if (numberType == DataType.LONG) {
+                            attr = "CastLongToDoubleEvaluator[v=" + attr + "]";
+                        } else if (numberType == DataType.UNSIGNED_LONG) {
+                            attr = "CastUnsignedLongToDoubleEvaluator[v=" + attr + "]";
+                        }
+                        return new TestCaseSupplier.TestCase(args, bucketDivToStringMatcher(attr), DataType.DOUBLE, resultsMatcher(args))
+                            .withExtra(META_NUMERIC_50);
+                    }));
+                }
             }
         }
     }
@@ -643,6 +918,8 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             v = (int) value;
         } else if (type == DataType.LONG) {
             v = (long) value;
+        } else if (type == DataType.UNSIGNED_LONG) {
+            v = BigInteger.valueOf((long) Math.max(0, value));
         } else {
             v = value;
         }
@@ -654,13 +931,15 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             DataType spanType = DataType.fromJava(span);
             suppliers.add(new TestCaseSupplier(name, List.of(numberType, spanType), () -> {
                 List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                args.add(new TestCaseSupplier.TypedData(number.get(), "field"));
+                args.add(new TestCaseSupplier.TypedData(number.get(), numberType, "field"));
                 args.add(new TestCaseSupplier.TypedData(span, spanType, "span").forceLiteral());
                 String attr = "Attribute[channel=0]";
                 if (numberType == DataType.INTEGER) {
                     attr = "CastIntToDoubleEvaluator[v=" + attr + "]";
                 } else if (numberType == DataType.LONG) {
                     attr = "CastLongToDoubleEvaluator[v=" + attr + "]";
+                } else if (numberType == DataType.UNSIGNED_LONG) {
+                    attr = "CastUnsignedLongToDoubleEvaluator[v=" + attr + "]";
                 }
                 return new TestCaseSupplier.TestCase(args, bucketDivToStringMatcher(attr), DataType.DOUBLE, resultsMatcher(args)).withExtra(
                     META_NUMERIC_50
@@ -698,41 +977,73 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                     ).withExtra(Map.of("bucket", Map.of("interval", span.doubleValue())));
                 }));
             }
-            for (DataType fromType : NUMBER_BOUNDS_TYPES) {
-                for (DataType toType : NUMBER_BOUNDS_TYPES) {
-                    String name = histogramSupplier.name()
-                        + " with random bucket count and "
-                        + fromType.typeName()
-                        + "/"
-                        + toType.typeName()
-                        + " bounds";
-                    suppliers.add(new TestCaseSupplier(name, List.of(histogramSupplier.type(), DataType.INTEGER, fromType, toType), () -> {
-                        List<TestCaseSupplier.TypedData> args = new ArrayList<>();
-                        TestCaseSupplier.TypedData histogram = histogramSupplier.get();
-                        int bucketCount = randomIntBetween(1, 10_000);
-                        // Expand to integral boundaries so casting to any supported bound type preserves
-                        // a non-empty range containing the histogram. Empty histograms have no finite
-                        // extrema, so use an arbitrary valid range for them.
-                        double rangeFrom = Math.floor(histogramMin(histogram.data())) - 1;
-                        double rangeTo = Math.ceil(histogramMax(histogram.data())) + 1;
-                        if (Double.isFinite(rangeFrom) == false || Double.isFinite(rangeTo) == false) {
-                            rangeFrom = 0.0;
-                            rangeTo = 1000.0;
-                        }
-                        args.add(histogram);
-                        args.add(new TestCaseSupplier.TypedData(bucketCount, DataType.INTEGER, "buckets").forceLiteral());
-                        args.add(numericBound("from", fromType, rangeFrom));
-                        args.add(numericBound("to", toType, rangeTo));
-                        return new TestCaseSupplier.TestCase(
-                            args,
-                            histogramEvaluatorMatcher(histogramSupplier.type()),
-                            DataType.DOUBLE_RANGE,
-                            histogramResultsMatcher(histogram.data())
-                        );
-                    }));
+            for (DataType bucketsType : BUCKETS_TYPE) {
+                for (DataType fromType : NUMERIC_BOUNDS_WITH_UNSIGNED_LONG) {
+                    for (DataType toType : NUMERIC_BOUNDS_WITH_UNSIGNED_LONG) {
+                        String name = histogramSupplier.name()
+                            + " with "
+                            + bucketsType.typeName()
+                            + " bucket count and "
+                            + fromType.typeName()
+                            + "/"
+                            + toType.typeName()
+                            + " bounds";
+                        suppliers.add(new TestCaseSupplier(name, List.of(histogramSupplier.type(), bucketsType, fromType, toType), () -> {
+                            List<TestCaseSupplier.TypedData> args = new ArrayList<>();
+                            TestCaseSupplier.TypedData histogram = histogramSupplier.get();
+                            // Expand to integral boundaries so casting to any supported bound type preserves
+                            // a non-empty range containing the histogram. Empty histograms have no finite
+                            // extrema, so use an arbitrary valid range for them.
+                            double histMin = histogramMin(histogram.data());
+                            double histMax = histogramMax(histogram.data());
+                            double rangeFrom = Math.floor(histMin) - 1;
+                            double rangeTo = Math.ceil(histMax) + 1;
+                            if (Double.isFinite(rangeFrom) == false || Double.isFinite(rangeTo) == false) {
+                                rangeFrom = 0.0;
+                                rangeTo = 1000.0;
+                            }
+                            // unsigned_long cannot represent negatives; keep a non-empty range.
+                            if (fromType == DataType.UNSIGNED_LONG || toType == DataType.UNSIGNED_LONG) {
+                                rangeFrom = Math.max(rangeFrom, 0.0);
+                                rangeTo = Math.max(rangeTo, rangeFrom + 1.0);
+                            }
+                            long maxCount = maxHistogramBucketCount(histMin, histMax, rangeFrom, rangeTo);
+                            Number bucketCount = bucketsType == DataType.LONG
+                                ? randomLongBetween(1, maxCount)
+                                : randomIntBetween(1, Math.toIntExact(maxCount));
+                            args.add(histogram);
+                            args.add(new TestCaseSupplier.TypedData(bucketCount, bucketsType, "buckets").forceLiteral());
+                            args.add(numericBound("from", fromType, rangeFrom));
+                            args.add(numericBound("to", toType, rangeTo));
+                            return new TestCaseSupplier.TestCase(
+                                args,
+                                histogramEvaluatorMatcher(histogramSupplier.type()),
+                                DataType.DOUBLE_RANGE,
+                                histogramResultsMatcher(histogram.data())
+                            );
+                        }));
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Largest bucket count that keeps a t-digest scan under {@link Bucket#MAX_TDIGEST_CANDIDATE_BUCKETS}.
+     * Unsigned_long bounds may clamp {@code from} to 0 and shrink {@code [from, to]} while the histogram
+     * still spans negatives; a 1..10000 count over that smaller range would then exceed the cap.
+     */
+    private static long maxHistogramBucketCount(double histMin, double histMax, double rangeFrom, double rangeTo) {
+        long max = (long) Bucket.MAX_TDIGEST_CANDIDATE_BUCKETS;
+        if (Double.isFinite(histMin) == false || Double.isFinite(histMax) == false) {
+            return max;
+        }
+        double histSpan = histMax - histMin;
+        double rangeSpan = rangeTo - rangeFrom;
+        if (histSpan <= 0 || rangeSpan <= 0) {
+            return max;
+        }
+        return Math.max(1L, Math.min(max, (long) Math.floor((max - 1) * rangeSpan / histSpan)));
     }
 
     private static double histogramMin(Object histogram) {
@@ -879,6 +1190,9 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             LogManager.getLogger(getTestClass()).info("Expected: " + DateUtils.toInstant(expected));
             LogManager.getLogger(getTestClass()).info("Input: " + DateUtils.toInstant(nanos));
             return equalTo(expected);
+        }
+        if (typedData.get(0).type() == DataType.UNSIGNED_LONG) {
+            return equalTo(((Number) typedData.get(0).originalData()).doubleValue());
         }
         return equalTo(((Number) typedData.get(0).data()).doubleValue());
     }

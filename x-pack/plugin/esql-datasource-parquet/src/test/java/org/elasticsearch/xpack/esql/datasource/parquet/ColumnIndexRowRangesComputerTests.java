@@ -465,7 +465,7 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------------------
-    // esql-planning#1030: a Parquet uint32 column (physical INT32) whose true max exceeds
+    // A Parquet uint32 column (physical INT32) whose true max exceeds
     // Integer.MAX_VALUE stores a raw int32 that reads as negative under Java's signed
     // Integer ordering, even though the ColumnIndex's own min/max were computed by the
     // writer using unsigned ordering. Comparisons here must agree with the writer's

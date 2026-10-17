@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.index.codec.vectors.BFloat16;
@@ -22,6 +23,8 @@ import java.nio.ShortBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.ToLongBiFunction;
 import java.util.stream.IntStream;
 
@@ -1483,21 +1486,24 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     }
 
     public void testMatrixMultiply() {
-        int m = randomIntBetween(2, 1024);
-        int k = randomIntBetween(2, 1024);
-        int n = randomIntBetween(2, 1024);
+        try (ExecutorService executor = randomBoolean() ? Executors.newCachedThreadPool() : null) {
+            TaskExecutor tasks = executor == null ? null : new TaskExecutor(executor);
+            int m = randomIntBetween(2, 1024);
+            int k = randomIntBetween(2, 1024);
+            int n = randomIntBetween(2, 1024);
 
-        float[] a = VectorTestUtils.randomFloatVector(m * k);
-        float[] b = VectorTestUtils.randomFloatVector(k * n);
+            float[] a = VectorTestUtils.randomFloatVector(m * k);
+            float[] b = VectorTestUtils.randomFloatVector(k * n);
 
-        float[] expected = basicMatrixMultiply(a, b, m, k, n);
+            float[] expected = basicMatrixMultiply(a, b, m, k, n);
 
-        float[] scalar = new float[m * n];
-        defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, scalar);
-        assertArrayEquals(expected, scalar, 1e-3f);
-        float[] panama = new float[m * n];
-        panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, panama);
-        assertArrayEquals(expected, panama, 1e-3f);
+            float[] scalar = new float[m * n];
+            defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, scalar, tasks);
+            assertArrayEquals(expected, scalar, 1e-3f);
+            float[] panama = new float[m * n];
+            panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, panama, tasks);
+            assertArrayEquals(expected, panama, 1e-3f);
+        }
     }
 
     private static float[] basicMatrixMultiply(float[] a, float[] b, int m, int k, int n) {

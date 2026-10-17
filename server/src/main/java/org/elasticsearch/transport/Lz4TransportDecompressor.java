@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.recycler.Recycler;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Locale;
 
 /**
@@ -234,7 +235,18 @@ public class Lz4TransportDecompressor extends TransportDecompressor {
                                         streamInput.readBytes(compressed, 0, compressedLength);
                                     }
                                 }
-                                decompressor.decompress(compressed, compressedOffset, decompressed, 0, decompressedLength);
+                                final ByteBuffer src = ByteBuffer.wrap(compressed, compressedOffset, compressedLength).slice();
+                                final int read = decompressor.decompress(src, 0, ByteBuffer.wrap(decompressed), 0, decompressedLength);
+                                if (read != compressedLength) {
+                                    throw new IllegalStateException(
+                                        String.format(
+                                            Locale.ROOT,
+                                            "stream corrupted: read %d bytes, expected compressedLength(%d)",
+                                            read,
+                                            compressedLength
+                                        )
+                                    );
+                                }
                                 break;
                             default:
                                 throw new IllegalStateException(

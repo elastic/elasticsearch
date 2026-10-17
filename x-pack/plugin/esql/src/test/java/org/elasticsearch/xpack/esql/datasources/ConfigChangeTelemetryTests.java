@@ -19,9 +19,11 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -63,15 +65,44 @@ public class ConfigChangeTelemetryTests extends ESTestCase {
     }
 
     public void testRecordRejectedPinsEachReasonOnBothSinks() {
-        recordAndAssert(new ValidationException(), "validation");
-        recordAndAssert(new ResourceNotFoundException("x"), "not_found");
-        recordAndAssert(new ResourceAlreadyExistsException("x"), "already_exists");
-        recordAndAssert(new UnknownDataSourceTypeException("nope"), "unknown_type");
-        recordAndAssert(new MaxDataSourcesCountException(1), "max_count");
-        recordAndAssert(new MaxDatasetsCountException(2), "max_count");
-        recordAndAssert(new ElasticsearchStatusException("enc", RestStatus.SERVICE_UNAVAILABLE), "unavailable");
-        recordAndAssert(new ElasticsearchStatusException("conflict", RestStatus.CONFLICT), "has_dependents");
-        recordAndAssert(new IllegalArgumentException("bad mapping"), "validation");
+        recordAndAssert(new ValidationException(), "validation", "400");
+        recordAndAssert(new ResourceNotFoundException("x"), "not_found", "404");
+        recordAndAssert(new ResourceAlreadyExistsException("x"), "already_exists", "400");
+        recordAndAssert(new UnknownDataSourceTypeException("nope"), "unknown_type", "400");
+        recordAndAssert(new MaxDataSourcesCountException(1), "max_count", "400");
+        recordAndAssert(new MaxDatasetsCountException(2), "max_count", "400");
+        recordAndAssert(new ElasticsearchStatusException("enc", RestStatus.SERVICE_UNAVAILABLE), "unavailable", "503");
+        recordAndAssert(new ElasticsearchStatusException("conflict", RestStatus.CONFLICT), "has_dependents", "409");
+        recordAndAssert(new IllegalArgumentException("bad mapping"), "validation", "400");
+    }
+
+    /** The phone-home reason vocabulary lives in the (dependency-free) accumulator; it must not drift from the mapper's. */
+    public void testReasonVocabularyMatchesTheAccumulator() {
+        assertThat(
+            DataSourceUsageAccumulator.REJECT_REASON_NAMES,
+            containsInAnyOrder(
+                ConfigChangeTelemetry.REASON_VALIDATION,
+                ConfigChangeTelemetry.REASON_NOT_FOUND,
+                ConfigChangeTelemetry.REASON_ALREADY_EXISTS,
+                ConfigChangeTelemetry.REASON_MAX_COUNT,
+                ConfigChangeTelemetry.REASON_UNKNOWN_TYPE,
+                ConfigChangeTelemetry.REASON_UNAVAILABLE,
+                ConfigChangeTelemetry.REASON_HAS_DEPENDENTS,
+                ConfigChangeTelemetry.REASON_OTHER
+            )
+        );
+    }
+
+    public void testRecordRejectedReachesPhoneHomeByReasonAndType() {
+        DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(new RecordingMeterRegistry(), acc);
+        ConfigChangeTelemetry.recordRejected(metrics, ConfigChangeTelemetry.KIND_DATASET, "gcs", new ResourceNotFoundException("x"));
+        ConfigChangeTelemetry.recordRejected(metrics, ConfigChangeTelemetry.KIND_DATASET, "gcs", new RuntimeException("boom"));
+
+        int dataset = DataSourceUsageAccumulator.KIND_DATASET;
+        assertThat(acc.configRejected(dataset, DataSourceUsageAccumulator.REJECT_REASON_NAMES.indexOf("not_found")), equalTo(1L));
+        assertThat(acc.configRejected(dataset, DataSourceUsageAccumulator.REJECT_REASON_NAMES.indexOf("other")), equalTo(1L));
+        assertThat(acc.configChanges(dataset, DataSourceTelemetryVocabulary.Type.GCS), equalTo(2L));
     }
 
     public void testRecordRejectedSkipsPublishFailure() {
@@ -86,7 +117,7 @@ public class ConfigChangeTelemetryTests extends ESTestCase {
         );
     }
 
-    private static void recordAndAssert(Exception e, String reason) {
+    private static void recordAndAssert(Exception e, String reason, String status) {
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry, acc);
@@ -96,7 +127,12 @@ public class ConfigChangeTelemetryTests extends ESTestCase {
             .getMeasurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.CONFIG_CHANGES_TOTAL)
             .get(0);
         assertThat(m.attributes().get(ExternalSourceMetrics.REASON_ATTRIBUTE), equalTo(reason));
+        assertThat(m.attributes().get(ExternalSourceMetrics.STATUS_ATTRIBUTE), equalTo(status));
         assertThat(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+        assertThat(
+            acc.configRejected(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.REJECT_REASON_NAMES.indexOf(reason)),
+            equalTo(1L)
+        );
         assertThat(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE), equalTo("rejected"));
     }
 }

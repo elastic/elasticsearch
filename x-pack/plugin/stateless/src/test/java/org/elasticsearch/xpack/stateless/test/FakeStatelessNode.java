@@ -51,12 +51,14 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -65,6 +67,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -92,6 +95,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -147,6 +151,7 @@ public class FakeStatelessNode implements Closeable {
     public final Environment environment;
     public final IndexMetadata indexMetadata;
     public final ShardId shardId;
+    public final IndexShard indexShard;
     public final IndexSettings indexSettings;
     public final MockTransport transport;
     public final ClusterService clusterService;
@@ -267,7 +272,9 @@ public class FakeStatelessNode implements Closeable {
             client = createClient(nodeSettings, threadPool);
             nodeEnvironment = nodeEnvironmentSupplier.apply(nodeSettings);
             localCloseables.add(nodeEnvironment);
-            indicesService = TestUtils.mockIndicesService(clusterService);
+            indexShard = mock(IndexShard.class);
+            when(indexShard.shardId()).thenReturn(shardId);
+            indicesService = createIndicesService();
             sharedCacheService = createCacheService(nodeEnvironment, nodeSettings, threadPool, meterRegistry);
             this.meterRegistry = meterRegistry;
             localCloseables.add(sharedCacheService);
@@ -288,7 +295,14 @@ public class FakeStatelessNode implements Closeable {
             transportService.acceptIncomingRequests();
             localCloseables.add(transportService::stop);
 
-            objectStoreService = new ObjectStoreService(nodeSettings, repoService, threadPool, clusterService, projectResolver);
+            objectStoreService = new ObjectStoreService(
+                nodeSettings,
+                repoService,
+                threadPool,
+                clusterService,
+                projectResolver,
+                meterRegistry != null ? meterRegistry : MeterRegistry.NOOP
+            );
             if (projectResolver.supportsMultipleProjects()) {
                 clusterService.addStateApplier(objectStoreService);
             }
@@ -304,7 +318,8 @@ public class FakeStatelessNode implements Closeable {
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider
+                warmingRatioProvider,
+                new SearchRecoveryTimeoutCalculationService(sharedCacheService, threadPool, clusterSettings, ByteSizeValue.ZERO)
             );
             onlinePrewarmingService = new StatelessOnlinePrewarmingService(
                 nodeSettings,
@@ -367,7 +382,6 @@ public class FakeStatelessNode implements Closeable {
             SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
             SharedBlobCacheWarmingService.WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
             SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
-            SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
@@ -379,9 +393,8 @@ public class FakeStatelessNode implements Closeable {
             ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL,
             ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
-            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
-            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
         );
     }
@@ -391,9 +404,16 @@ public class FakeStatelessNode implements Closeable {
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         ClusterSettings clusterSettings,
-        WarmingRatioProvider warmingRatioProvider
+        WarmingRatioProvider warmingRatioProvider,
+        SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
     ) {
-        return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
+        return new SharedBlobCacheWarmingService(
+            cacheService,
+            threadPool,
+            telemetryProvider,
+            clusterSettings,
+            searchRecoveryTimeoutCalculationService
+        );
     }
 
     protected RepositoriesService createRepositoryService(NamedXContentRegistry xContentRegistry) {
@@ -686,6 +706,17 @@ public class FakeStatelessNode implements Closeable {
             threadPool,
             meterRegistry != null ? meterRegistry : telemetryProvider.getMeterRegistry()
         );
+    }
+
+    /// Stubs [IndicesService#indexService]. The mock reports `0` active operations, as an idle shard would. Tests that
+    /// want a different behavior should stub [indexShard].
+    protected IndicesService createIndicesService() {
+        final IndicesService indicesService = TestUtils.mockIndicesService(clusterService);
+        final IndexService mockIndexService = mock(IndexService.class);
+        when(mockIndexService.getShardOrNull(shardId.id())).thenReturn(indexShard);
+        when(mockIndexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indicesService.indexService(indexMetadata.getIndex())).thenReturn(mockIndexService);
+        return indicesService;
     }
 
     protected StatelessCommitService createCommitService() {

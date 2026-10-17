@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -17,12 +21,36 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Verifies that closing a {@link DirectReadBuffer} severs ownership of its payload while retaining
  * deterministic diagnostics for invalid lifecycle use.
  */
 public class DirectReadBufferTests extends ESTestCase {
+
+    /**
+     * The breaker is charged what the array occupies on the heap, header and G1 humongous rounding included, not the
+     * requested length; close refunds exactly that.
+     */
+    public void testAllocateChargesHeapFootprint() {
+        int length = 4 * 1024 * 1024;
+        CircuitBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(64));
+        DirectReadBuffer buffer = DirectReadBuffer.allocate(breaker, length);
+        assertEquals(length, buffer.buffer().capacity());
+        assertEquals(HeapFootprint.byteArrayBytes(length), breaker.getUsed());
+        assertThat(breaker.getUsed(), greaterThan((long) length));
+        buffer.close();
+        assertEquals(0, breaker.getUsed());
+    }
+
+    /** A breaker that admits the raw length but not the footprint must refuse, and leave nothing charged. */
+    public void testAllocateTripsOnFootprintNotLength() {
+        int length = 64 * 1024;
+        CircuitBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(length));
+        expectThrows(CircuitBreakingException.class, () -> DirectReadBuffer.allocate(breaker, length));
+        assertEquals(0, breaker.getUsed());
+    }
 
     public void testCloseDetachesBackingBuffer() throws Exception {
         DirectReadBuffer owner = new DirectReadBuffer(ByteBuffer.allocate(1 << 20), () -> {});

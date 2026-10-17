@@ -13,14 +13,17 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.columnar.substrate.BytesSink;
+import org.elasticsearch.columnar.substrate.ChunkedBytesReader;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
+import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 
 import java.io.IOException;
 
 /**
  * A string column at the {@code BINARY} surface. The API carries one {@link BytesRef} per document, so a
  * document's slots are re-encoded on the way out: {@link #binaryValue} rebuilds the {@link StringBinaryPayload}
- * the mapper wrote, count and all, which is what every reader of these fields decodes.
+ * the mapper wrote, count and all, or hands back the value's own bytes for a single-valued column.
  *
  * <p>Ingest is the mirror image — {@link #decodePayloads} splits the payload the mapper writes.
  *
@@ -56,6 +59,9 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
         }
         final long first = reader.firstValueAddress(rank);
         final long count = reader.valueCount(rank);
+        if ((long) reader.maxLength() * count > ChunkedBytesReader.RETAINED_SPAN_BYTES) {
+            return largePayload(first, count);
+        }
         payload.reset();
         for (long i = 0; i < count; i++) {
             // A null slot reads back as null, which is what appendSlot takes for one.
@@ -64,10 +70,40 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
         return payload.build();
     }
 
+    /**
+     * A document whose payload may run past {@link ChunkedBytesReader#RETAINED_SPAN_BYTES}: sized from the stored lengths,
+     * each value copied into it straight from the column, and built in a buffer of its own when it is that large.
+     */
+    private BytesRef largePayload(long first, long count) throws IOException {
+        long bytes = 0;
+        for (long i = 0; i < count; i++) {
+            bytes += ByteArrayInts.MAX_VINT_BYTES + (reader.isNullSlot(first + i) ? 0 : reader.byteLengthAt(first + i));
+        }
+        final StringBinaryPayload.Builder target = bytes > ChunkedBytesReader.RETAINED_SPAN_BYTES
+            ? new StringBinaryPayload.Builder()
+            : payload;
+        target.reset();
+        target.reserve(bytes);
+        for (long i = 0; i < count; i++) {
+            final long address = first + i;
+            if (reader.isNullSlot(address)) {
+                target.appendSlot(null);
+            } else {
+                target.appendSlot(reader.byteLengthAt(address), sink -> reader.transferValueAt(address, sink));
+            }
+        }
+        return target.build();
+    }
+
     /** The column behind this surface, so a merge can read what it recorded rather than its values. */
     @Override
     public StringColumnReader reader() {
         return reader;
+    }
+
+    @Override
+    public boolean singleValued() {
+        return singleValued;
     }
 
     @Override
@@ -178,6 +214,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     }
 
     @Override
+    public int docIDRunEnd() throws IOException {
+        return iterator.docIDRunEnd();
+    }
+
+    @Override
     public long cost() {
         return iterator.cost();
     }
@@ -203,6 +244,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             private long count;
             private int upto;
             private long at = -1;
+            private long previousAt = -1;
 
             @Override
             public int valueCount() {
@@ -224,6 +266,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
 
             @Override
             public void nextValue() {
+                previousAt = at;
                 at = first + upto++;
             }
 
@@ -244,6 +287,27 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             @Override
             public BytesRef value() throws IOException {
                 return reader.valueAt(at);
+            }
+
+            @Override
+            public void transferValue(BytesSink sink) throws IOException {
+                reader.transferValueAt(at, sink);
+            }
+
+            @Override
+            public boolean streamsValues() {
+                return reader instanceof PlainStringColumnReader;
+            }
+
+            @Override
+            public boolean repeatsPrevious() throws IOException {
+                // A stored repeat is of the slot before, which is the previous value only if no slot was skipped since.
+                return at > 0 && previousAt == at - 1 && reader.repeatsPreviousSlot(at);
+            }
+
+            @Override
+            public boolean mayBeSorted() {
+                return reader.valuesSorted();
             }
 
             @Override

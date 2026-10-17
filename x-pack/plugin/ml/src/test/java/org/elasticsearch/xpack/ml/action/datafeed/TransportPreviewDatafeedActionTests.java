@@ -6,20 +6,27 @@
  */
 package org.elasticsearch.xpack.ml.action.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
@@ -28,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchIntervalTests;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.junit.After;
 import org.junit.Before;
@@ -44,6 +52,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -56,6 +65,47 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportPreviewDatafeedActionTests extends ESTestCase {
+
+    public void testEsqlDatafeedWhenFlagOnShouldAllowPreview() {
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").build();
+        TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, currentCompatibleClusterState());
+    }
+
+    public void testStoredEsqlDatafeedOnMixedVersionClusterShouldRejectPreview() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql-datafeed", "job").setChunkingConfig(
+            ChunkingConfig.newManual(TimeValue.timeValueMinutes(10))
+        ).build();
+        TransportVersion mixedVersion = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .putCompatibilityVersions("older-node", mixedVersion, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
+            .build();
+
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, state)
+        );
+        assertThat(exception.getMessage(), containsString("cluster upgrade is in progress"));
+        assertThat(exception.getMessage(), containsString("before previewing it"));
+        assertThat(exception.getMessage(), containsString("esql-datafeed"));
+    }
+
+    public void testClassicDatafeedAlwaysAllowedToPreview() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("classic-datafeed", "job").setIndices(List.of("logs")).build();
+        TransportPreviewDatafeedAction.validateEsqlDatafeedEnabled(datafeed, ClusterState.builder(new ClusterName("test")).build());
+    }
+
+    private static DatafeedConfig.Builder esqlDatafeedBuilder(String datafeedId, String jobId) {
+        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1));
+    }
+
+    private static ClusterState currentCompatibleClusterState() {
+        return ClusterState.builder(new ClusterName("test"))
+            .putCompatibilityVersions("current-node", TransportVersion.current(), SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS)
+            .build();
+    }
 
     private DataExtractor dataExtractor;
     private ActionListener<PreviewDatafeedAction.Response> actionListener;
@@ -204,6 +254,16 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         assertThat(request.includeResolvedTo(), is(false));
         assertThat(request.indices(), equalTo(new String[] { "my_index" }));
+    }
+
+    public void testBuildDateNanosFieldCapsRequest_GivenEsqlDatafeedWithoutIndicesOptionsShouldUseDefaults() {
+        DatafeedConfig datafeed = esqlDatafeedBuilder("esql_feed", "job_foo").build();
+        assertThat(datafeed.getIndicesOptions(), nullValue());
+
+        FieldCapabilitiesRequest request = TransportPreviewDatafeedAction.buildDateNanosFieldCapsRequest(datafeed, "time");
+
+        assertThat(request.indicesOptions(), equalTo(SearchRequest.DEFAULT_INDICES_OPTIONS));
+        assertThat(request.includeResolvedTo(), is(false));
     }
 
     public void testBuildPreviewDatafeed_GivenNoAggregations() {

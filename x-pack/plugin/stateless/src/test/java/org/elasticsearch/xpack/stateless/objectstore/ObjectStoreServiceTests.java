@@ -47,6 +47,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
@@ -69,6 +70,9 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -203,21 +207,30 @@ public class ObjectStoreServiceTests extends ESTestCase {
         assertThat(settings.get("base_path"), equalTo(basePath));
 
         // when threshold is not set, the per-type key must be absent
-        String thresholdKey = switch (type) {
-            case S3 -> ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY;
-            case GCS -> ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY;
-            case AZURE -> ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY;
+        List<String> multiPartUploadSettings = switch (type) {
+            case S3 -> List.of(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY);
+            case GCS -> List.of(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY);
+            case AZURE -> List.of(
+                ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY,
+                ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY
+            );
             default -> throw new AssertionError("unexpected type: " + type);
         };
-        assertNull(settings.get(thresholdKey));
+        for (var setting : multiPartUploadSettings) {
+            assertNull(settings.get(setting));
+        }
 
         // when threshold is set, the per-type key must be present with the right value and the key count grows by one
         ByteSizeValue threshold = randomBoolean() ? ByteSizeValue.ofMb(between(5, 100)) : null;
         Settings settingsWithThreshold = objectStoreType.createRepositorySettings(bucket, client, basePath, threshold);
         if (threshold == null) {
-            assertThat(settingsWithThreshold.get(thresholdKey), is(nullValue()));
+            for (var setting : multiPartUploadSettings) {
+                assertThat(settingsWithThreshold.get(setting), is(nullValue()));
+            }
         } else {
-            assertThat(settingsWithThreshold.get(thresholdKey), equalTo(threshold.getStringRep()));
+            for (var setting : multiPartUploadSettings) {
+                assertThat(settingsWithThreshold.get(setting), equalTo(threshold.getStringRep()));
+            }
         }
     }
 
@@ -267,13 +280,24 @@ public class ObjectStoreServiceTests extends ESTestCase {
             AZURE.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY),
             equalTo(threshold.getStringRep())
         );
+        assertThat(
+            AZURE.createRepositorySettings("b", "c", null, threshold).get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY),
+            equalTo(threshold.getStringRep())
+        );
     }
 
     public void testMultiPartThresholdNotInjectedWhenNull() {
         assertNull(S3.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
         assertNull(GCS.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.GCS_MULTIPART_THRESHOLD_SETTING_KEY));
         assertNull(AZURE.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertNull(AZURE.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY));
         assertNull(FS.createRepositorySettings("b", "c", null, null).get(ObjectStoreService.S3_MULTIPART_THRESHOLD_SETTING_KEY));
+    }
+
+    public void testMultiPartThresholdClampedForAzure() {
+        var settings = AZURE.createRepositorySettings("b", "c", null, ByteSizeValue.ofMb(200));
+        assertEquals(ByteSizeValue.ofMb(200).getStringRep(), settings.get(ObjectStoreService.AZURE_MULTIPART_THRESHOLD_SETTING_KEY));
+        assertEquals(ByteSizeValue.ofMb(100).getStringRep(), settings.get(ObjectStoreService.AZURE_MULTIPART_PART_SIZE_SETTING_KEY));
     }
 
     /**
@@ -1365,6 +1389,179 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     Level.WARN,
                     "*translog file*uploaded in*ms*"
                 )
+            );
+        }
+    }
+
+    public void testTranslogUploadRecordsDurationAndSize() throws Exception {
+        final var time = new AtomicLong(0);
+        final var meterRegistry = new RecordingMeterRegistry();
+        final long uploadDuration = randomLongBetween(0, 1_000_000);
+
+        try (
+            var testHarness = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                1,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                meterRegistry
+            ) {
+                @Override
+                protected ThreadPool createThreadPool(Settings nodeSettings) {
+                    return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true)) {
+                        @Override
+                        public long relativeTimeInMillis() {
+                            return time.get();
+                        }
+                    };
+                }
+
+                @Override
+                public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                    return new FilterBlobContainer(innerContainer) {
+                        @Override
+                        protected BlobContainer wrapChild(BlobContainer child) {
+                            return child;
+                        }
+
+                        @Override
+                        public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                            throws IOException {
+                            if (purpose == OperationPurpose.TRANSLOG) {
+                                time.addAndGet(uploadDuration);
+                            }
+                            super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                        }
+                    };
+                }
+            }
+        ) {
+            final var bytes = new BytesArray(randomByteArrayOfLength(between(1, 64) * 1024));
+            final var future = new PlainActionFuture<Void>();
+            testHarness.objectStoreService.uploadTranslogFile("translog", bytes, future);
+            safeGet(future);
+
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.TRANSLOG_UPLOAD_DURATION_HISTOGRAM)
+                    .stream()
+                    .map(Measurement::getLong)
+                    .toList(),
+                equalTo(List.of(uploadDuration))
+            );
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.TRANSLOG_UPLOAD_SIZE_HISTOGRAM)
+                    .stream()
+                    .map(Measurement::getLong)
+                    .toList(),
+                equalTo(List.of(ByteSizeUnit.BYTES.toKB(bytes.length())))
+            );
+        }
+    }
+
+    public void testBccMultipartUploadRecordsBccMultipartUploadPartStartLatency() throws Exception {
+        final var time = new AtomicLong(0);
+        final var meterRegistry = new RecordingMeterRegistry();
+
+        final boolean isMultipart = randomBoolean();
+        // A retry of an upload-part request should not record the metric: only the first upload-part request should record.
+        // We retry each part at least once to assert that at the end we only recorded the metric once per part.
+        final int retriesPerPart = randomIntBetween(1, 5);
+
+        final var waitForUploadLatch = new CountDownLatch(1);
+
+        try (
+            var testHarness = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                1,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                meterRegistry
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    // upload every commit right away instead of batching it with other commits
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+                        .build();
+                }
+
+                @Override
+                protected ThreadPool createThreadPool(Settings nodeSettings) {
+                    return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true)) {
+                        @Override
+                        public long relativeTimeInNanos() {
+                            return time.get();
+                        }
+                    };
+                }
+
+                @Override
+                public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                    return new FilterBlobContainer(innerContainer) {
+                        @Override
+                        protected BlobContainer wrapChild(BlobContainer child) {
+                            return child;
+                        }
+
+                        @Override
+                        public boolean supportsConcurrentMultipartUploads() {
+                            return true;
+                        }
+
+                        @Override
+                        public void writeBlobAtomic(
+                            OperationPurpose purpose,
+                            String blobName,
+                            long blobSize,
+                            BlobMultiPartInputStreamProvider provider,
+                            boolean failIfAlreadyExists,
+                            Executor executor
+                        ) throws IOException {
+                            // A single upload asks for the whole blob (i.e., `blobSize`) at once while a multipart upload asks for
+                            // one part at a time advancing the clock by 10, 20 and 30 milliseconds before each request.
+                            final int parts = isMultipart ? 3 : 1;
+                            final long partSize = blobSize / parts;
+
+                            for (int part = 1; part <= parts; part++) {
+                                time.addAndGet(TimeUnit.MILLISECONDS.toNanos(10L * part));
+
+                                final long offset = (part - 1) * partSize;
+                                final long length = part == parts ? blobSize - offset : partSize;
+
+                                provider.apply(offset, length).close();
+                                for (int retry = 0; retry < retriesPerPart; retry++) {
+                                    provider.apply(offset, length).close();
+                                }
+                            }
+                        }
+                    };
+                }
+            }
+        ) {
+            final var indexCommit = testHarness.generateIndexCommits(1).get(0);
+            testHarness.commitService.onCommitCreation(indexCommit);
+            testHarness.commitService.addListenerForUploadedGeneration(
+                testHarness.shardId,
+                indexCommit.getGeneration(),
+                ActionListener.releasing(waitForUploadLatch::countDown)
+            );
+            safeAwait(waitForUploadLatch);
+
+            final var measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.stateless.bcc_multipart_upload.part_start.latency.histogram");
+            // time since the start of the upload is 10, 10 + 20 (=30), and 10 + 20 + 30 (=60) milliseconds
+            assertThat(
+                measurements.stream().map(Measurement::getLong).toList(),
+                equalTo(isMultipart ? List.of(10L, 30L, 60L) : List.of(10L))
+            );
+            assertThat(
+                measurements.stream().map(m -> m.attributes().get("multipart")).toList(),
+                equalTo(isMultipart ? List.of(true, true, true) : List.of(false))
             );
         }
     }

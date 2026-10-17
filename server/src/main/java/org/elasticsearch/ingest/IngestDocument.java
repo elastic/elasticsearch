@@ -53,7 +53,7 @@ public final class IngestDocument {
 
     public static final String INGEST_KEY = "_ingest";
     public static final String SOURCE_KEY = SourceFieldMapper.NAME; // "_source"
-    private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
+    private static final String INGEST_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SOURCE_KEY + ".";
 
     private static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
@@ -1336,9 +1336,9 @@ public final class IngestDocument {
         // you shouldn't call this directly, use the FieldPath.of method above instead!
         private FieldPath(String path, IngestPipelineFieldAccessPattern accessPattern) {
             String newPath;
-            if (path.startsWith(INGEST_KEY_PREFIX)) {
+            if (path.startsWith(INGEST_PREFIX)) {
                 useIngestContext = true;
-                newPath = path.substring(INGEST_KEY_PREFIX.length());
+                newPath = path.substring(INGEST_PREFIX.length());
             } else {
                 useIngestContext = false;
                 if (path.startsWith(SOURCE_PREFIX)) {

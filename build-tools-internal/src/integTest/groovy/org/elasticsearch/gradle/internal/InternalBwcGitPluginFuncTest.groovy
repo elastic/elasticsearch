@@ -17,7 +17,6 @@ class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
     Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.InternalBwcGitPlugin
 
     def setup() {
-        disableConfigurationCache("InternalBwcGitPlugin runs git commands at configuration time")
         internalBuild()
         buildFile << """
             import org.elasticsearch.gradle.Version;
@@ -78,10 +77,12 @@ class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
                 consumeCheckout project(path:":", configuration: "checkout")
             }
 
-            tasks.register("register") {
+            tasks.register('register') {
+                // Captured at configuration time; resolution still happens lazily at execution.
                 dependsOn configurations.consumeCheckout
+                FileCollection artifacts = configurations.consumeCheckout
                 doLast {
-                    configurations.consumeCheckout.files.each {
+                    artifacts.files.each {
                         println "checkoutDir artifact: " + it
                     }
                 }

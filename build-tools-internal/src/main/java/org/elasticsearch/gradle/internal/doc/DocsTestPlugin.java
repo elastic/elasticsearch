@@ -15,8 +15,8 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.ProjectLayout;
-import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
@@ -26,13 +26,13 @@ import java.util.Map;
 import javax.inject.Inject;
 
 public class DocsTestPlugin implements Plugin<Project> {
-    private FileOperations fileOperations;
     private ProjectLayout projectLayout;
+    private FileSystemOperations fileSystemOperations;
 
     @Inject
-    DocsTestPlugin(FileOperations fileOperations, ProjectLayout projectLayout) {
+    DocsTestPlugin(ProjectLayout projectLayout, FileSystemOperations fileSystemOperations) {
         this.projectLayout = projectLayout;
-        this.fileOperations = fileOperations;
+        this.fileSystemOperations = fileSystemOperations;
     }
 
     @Override
@@ -84,7 +84,7 @@ public class DocsTestPlugin implements Plugin<Project> {
                 task.getDefaultSubstitutions().putAll(commonDefaultSubstitutions);
                 task.getTestRoot().convention(restRootDir);
                 task.getMigrationMode().set(Boolean.getBoolean("gradle.docs.migration"));
-                task.doFirst(task1 -> fileOperations.delete(restRootDir.get()));
+                task.doFirst(task1 -> fileSystemOperations.delete(spec -> spec.delete(restRootDir.get().getAsFile())));
             });
 
         // TODO: This effectively makes testRoot not customizable, which we don't do anyway atm

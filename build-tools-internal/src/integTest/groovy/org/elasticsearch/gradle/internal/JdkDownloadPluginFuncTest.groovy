@@ -45,7 +45,6 @@ class JdkDownloadPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)")
 
     def setup() {
-        disableConfigurationCache("JDK class references configurations which break configuration cache")
     }
 
     @Unroll
@@ -71,9 +70,9 @@ class JdkDownloadPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 //            def theJdks = jdks
             tasks.register("getJdk") {
                 dependsOn jdks.myJdk
-                def jdk = jdks.myJdk
+                def jdkPath = jdks.myJdk.getPath()
                 doLast {
-                    println "JDK HOME: " + jdk
+                    println "JDK HOME: " + jdkPath
                 }
             }
         """
@@ -136,8 +135,9 @@ class JdkDownloadPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
                 tasks.register("getJdk") {
                     def jdk = jdks.myJdk
                     dependsOn jdk
+                    def jdkPath = jdk.getPath()
                     doLast {
-                        println "JDK HOME: " + jdk
+                        println "JDK HOME: " + jdkPath
                     }
                 }
             """

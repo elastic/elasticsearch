@@ -28,7 +28,6 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
     WireMockServer wireMock
 
     def setup() {
-        disableConfigurationCache("cannot serialize BwcSetupExtension containing project object")
         internalBuild()
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
@@ -371,12 +370,17 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         }
 
         tasks.register("resolveExpandedDistribution") {
-            inputs.files(configurations.expandedDist)
+            // Capture the resolvable files and root path at configuration time so the doLast action
+            // closes over a FileCollection and a String rather than the Gradle script objects
+            // (configurations / project), which are not supported under the configuration cache.
+            def expandedDist = configurations.expandedDist
+            def rootPath = project.rootDir.absolutePath
+            inputs.files(expandedDist)
             doLast {
-                configurations.expandedDist.files.each {
-                    println "expandedRootPath " + (it.absolutePath - project.rootDir.absolutePath)
+                expandedDist.files.each {
+                    println "expandedRootPath " + (it.absolutePath - rootPath)
                     it.eachFile { nested ->
-                        println "nested folder " + (nested.absolutePath - project.rootDir.absolutePath)
+                        println "nested folder " + (nested.absolutePath - rootPath)
                     }
                 }
             }

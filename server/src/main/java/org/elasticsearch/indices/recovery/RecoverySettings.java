@@ -433,8 +433,24 @@ public class RecoverySettings {
     private final ByteSizeValue availableDiskReadBandwidth;
     private final ByteSizeValue availableDiskWriteBandwidth;
 
-    @SuppressWarnings("this-escape")
+    @Nullable
+    private final UploadConcurrencyService uploadConcurrencyService;
+    private volatile ByteSizeValue explicitMaxBytesPerSec = ByteSizeValue.MINUS_ONE;
+
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
+        this(settings, clusterSettings, null);
+    }
+
+    /**
+     * @param uploadConcurrencyService the node's upload concurrency component, or {@code null} on a node that has none
+     */
+    @SuppressWarnings("this-escape")
+    public RecoverySettings(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        @Nullable UploadConcurrencyService uploadConcurrencyService
+    ) {
+        this.uploadConcurrencyService = uploadConcurrencyService;
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
         this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);
         this.maxConcurrentOperations = INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.get(settings);
@@ -506,6 +522,9 @@ public class RecoverySettings {
     }
 
     private void computeMaxBytesPerSec(Settings settings) {
+        explicitMaxBytesPerSec = INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.exists(settings)
+            ? INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings)
+            : ByteSizeValue.MINUS_ONE;
         // limit as computed before 8.1.0
         final long defaultBytesPerSec = Math.max(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings).getBytes(), 0L);
 
@@ -663,6 +682,23 @@ public class RecoverySettings {
 
     public boolean nodeBandwidthSettingsExist() {
         return nodeBandwidthSettingsExist;
+    }
+
+    /**
+     * The value of {@link #INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING} if an operator set it, otherwise {@link ByteSizeValue#MINUS_ONE}.
+     * Zero means no limit.
+     */
+    public ByteSizeValue getExplicitMaxBytesPerSec() {
+        return explicitMaxBytesPerSec;
+    }
+
+    /**
+     * The node's upload concurrency component, or {@code null} if there is none, as it only exists on stateless nodes. Kept here because
+     * every repository already has the {@link RecoverySettings}.
+     */
+    @Nullable
+    public UploadConcurrencyService getUploadConcurrencyService() {
+        return uploadConcurrencyService;
     }
 
     public boolean getUseSnapshotsDuringRecovery() {

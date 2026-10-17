@@ -10,6 +10,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -24,7 +25,19 @@ public class PrioritizedThrottledTaskRunner<T extends AbstractRunnable & Compara
     private final PrioritizedThrottledAsyncTaskRunner<TaskWrapper<T>> runner;
 
     public PrioritizedThrottledTaskRunner(final String name, final int maxRunningTasks, final Executor executor) {
-        this.runner = new PrioritizedThrottledAsyncTaskRunner<>(name, maxRunningTasks, executor);
+        this(name, maxRunningTasks, executor, null);
+    }
+
+    /**
+     * @param startPermits a limit shared with other runners, see {@link AbstractThrottledTaskRunner.StartPermits}, or {@code null}
+     */
+    public PrioritizedThrottledTaskRunner(
+        final String name,
+        final int maxRunningTasks,
+        final Executor executor,
+        @Nullable final AbstractThrottledTaskRunner.StartPermits startPermits
+    ) {
+        this.runner = new PrioritizedThrottledAsyncTaskRunner<>(name, maxRunningTasks, executor, startPermits);
     }
 
     /// @param name: name of the task runner that must be a valid metric name (see MetricValidator.validateMetricName)
@@ -47,12 +60,23 @@ public class PrioritizedThrottledTaskRunner<T extends AbstractRunnable & Compara
         runner.enqueueTask(new TaskWrapper<>(task));
     }
 
-    // Only use for testing
+    public int getMaxRunningTasks() {
+        return runner.getMaxRunningTasks();
+    }
+
+    /**
+     * Changes the max number of concurrently running tasks, see {@link AbstractThrottledTaskRunner#setMaxRunningTasks}.
+     */
+    public void setMaxRunningTasks(int maxRunningTasks) {
+        runner.setMaxRunningTasks(maxRunningTasks);
+    }
+
+    // Used by tests and for monitoring
     public int runningTasks() {
         return runner.runningTasks();
     }
 
-    // Only use for testing
+    // Used by tests and for monitoring
     public int queueSize() {
         return runner.queueSize();
     }

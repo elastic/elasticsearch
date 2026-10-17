@@ -16,10 +16,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -52,6 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class RecoverySettingsTests extends ESTestCase {
     public void testSnapshotDownloadPermitsAreNotGrantedWhenSnapshotsUseFlagIsFalse() {
@@ -277,6 +281,19 @@ public class RecoverySettingsTests extends ESTestCase {
                 .getMaxBytesPerSec(),
             equalTo(random)
         );
+    }
+
+    public void testExplicitMaxBytesPerSecIsOnlySetWhenAnOperatorSetsIt() {
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var recoverySettings = new RecoverySettings(Settings.EMPTY, clusterSettings);
+        assertThat(recoverySettings.getExplicitMaxBytesPerSec(), equalTo(ByteSizeValue.MINUS_ONE));
+
+        final ByteSizeValue explicit = randomByteSizeValue();
+        clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), explicit).build());
+        assertThat(recoverySettings.getExplicitMaxBytesPerSec(), equalTo(explicit));
+
+        clusterSettings.applySettings(Settings.EMPTY);
+        assertThat(recoverySettings.getExplicitMaxBytesPerSec(), equalTo(ByteSizeValue.MINUS_ONE));
     }
 
     public void testDefaultMaxBytesPerSecOnDataNode() {
@@ -509,6 +526,29 @@ public class RecoverySettingsTests extends ESTestCase {
             releasable.close();
 
             mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testUploadConcurrencyServiceIsTheOneGivenOrNone() {
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Sets.union(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                Set.of(
+                    UploadConcurrencyService.ADAPTIVE_UPLOAD_CONCURRENCY_ENABLED_SETTING,
+                    UploadConcurrencyService.UPLOAD_CONCURRENCY_MAX_SETTING
+                )
+            )
+        );
+        assertThat(new RecoverySettings(Settings.EMPTY, clusterSettings).getUploadConcurrencyService(), is(nullValue()));
+        assertThat(new RecoverySettings(Settings.EMPTY, clusterSettings, null).getUploadConcurrencyService(), is(nullValue()));
+
+        final ThreadPool threadPool = new TestThreadPool(getTestName(), ThreadPool.snapshotUploadExecutorBuilder(Settings.EMPTY));
+        try {
+            final var service = new UploadConcurrencyService(clusterSettings, threadPool);
+            assertThat(new RecoverySettings(Settings.EMPTY, clusterSettings, service).getUploadConcurrencyService(), sameInstance(service));
+        } finally {
+            terminate(threadPool);
         }
     }
 

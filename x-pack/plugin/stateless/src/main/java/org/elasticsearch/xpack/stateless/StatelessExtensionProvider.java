@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.snapshots.SnapshotBacklogTracker;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 
 /**
@@ -30,4 +31,9 @@ public interface StatelessExtensionProvider {
         StatelessMemoryMetricsService statelessMemoryMetricsService,
         ObjectStoreService objectStoreService
     ) {}
+
+    /**
+     * Callback invoked on index nodes only, after {@link #onServicesCreated}, with the tracker of the snapshot backlog.
+     */
+    default void onSnapshotBacklogTrackerCreated(SnapshotBacklogTracker snapshotBacklogTracker) {}
 }

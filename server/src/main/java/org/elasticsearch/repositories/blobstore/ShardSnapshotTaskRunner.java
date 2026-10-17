@@ -35,6 +35,7 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  */
 public class ShardSnapshotTaskRunner {
     private static final Logger logger = LogManager.getLogger(ShardSnapshotTaskRunner.class);
+    static final String TASK_RUNNER_NAME = "ShardSnapshotTaskRunner";
     private final PrioritizedThrottledTaskRunner<SnapshotTask> taskRunner;
     private final Consumer<SnapshotShardContext> shardSnapshotter;
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
@@ -145,7 +146,15 @@ public class ShardSnapshotTaskRunner {
         final Consumer<SnapshotShardContext> shardSnapshotter,
         final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter
     ) {
-        this.taskRunner = new PrioritizedThrottledTaskRunner<>("ShardSnapshotTaskRunner", maxRunningTasks, executor);
+        this(new PrioritizedThrottledTaskRunner<>(TASK_RUNNER_NAME, maxRunningTasks, executor), shardSnapshotter, fileSnapshotter);
+    }
+
+    ShardSnapshotTaskRunner(
+        final PrioritizedThrottledTaskRunner<SnapshotTask> taskRunner,
+        final Consumer<SnapshotShardContext> shardSnapshotter,
+        final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter
+    ) {
+        this.taskRunner = taskRunner;
         this.shardSnapshotter = shardSnapshotter;
         this.fileSnapshotter = fileSnapshotter;
     }

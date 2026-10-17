@@ -736,17 +736,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
      * which snapshots are retrieved.
      */
     private static class GetSnapshotInfoExecutor extends AbstractThrottledTaskRunner<ActionListener<Releasable>> {
-        private final int maxRunningTasks;
         private final BooleanSupplier isCancelledSupplier;
 
         GetSnapshotInfoExecutor(int maxRunningTasks, BooleanSupplier isCancelledSupplier) {
             super(TYPE.name(), maxRunningTasks, EsExecutors.DIRECT_EXECUTOR_SERVICE, ConcurrentCollections.newBlockingQueue());
-            this.maxRunningTasks = maxRunningTasks;
             this.isCancelledSupplier = isCancelledSupplier;
-        }
-
-        int getMaxRunningTasks() {
-            return maxRunningTasks;
         }
 
         void getSnapshotInfo(Repository repository, SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {

@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.telemetry.metric.Instrument;
@@ -134,6 +135,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
+        /**
+         * Runs shard snapshot uploads while {@code indices.recovery.adaptive_upload_concurrency.enabled} is set (they run on
+         * {@link #SNAPSHOT} otherwise). Sized for the most uploads a node may run, the node adjusts how many it uses. Only stateless
+         * nodes have it, as the stateless plugin registers it, see {@link ThreadPool#snapshotUploadExecutorBuilder}.
+         */
+        public static final String SNAPSHOT_UPLOAD = "snapshot_upload";
         public static final String SNAPSHOT_META = "snapshot_meta";
         public static final String MERGE = "merge";
         public static final String FORCE_MERGE = "force_merge";
@@ -706,6 +713,88 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             return halfAllocatedProcessorsMaxFive(allocatedProcessors);
         }
         return 10;
+    }
+
+    /**
+     * Shard snapshot upload concurrency of a node with less than {@link #LARGE_NODE_MEMORY_BYTES} of memory, which is also what the
+     * SNAPSHOT pool allows on nodes with enough heap.
+     */
+    static final int MIN_SNAPSHOT_UPLOAD_CONCURRENCY = 10;
+
+    /**
+     * Shard snapshot upload concurrency of a node with at least {@link #LARGE_NODE_MEMORY_BYTES} and less than
+     * {@link #XLARGE_NODE_MEMORY_BYTES} of memory.
+     */
+    static final int LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY = 20;
+
+    /** Shard snapshot upload concurrency of a node with {@link #XLARGE_NODE_MEMORY_BYTES} of memory or more. */
+    static final int XLARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY = 40;
+
+    /** The node memory from which {@link #LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY} uploads are allowed: 8GiB. */
+    static final long LARGE_NODE_MEMORY_BYTES = ByteSizeUnit.GB.toBytes(8);
+
+    /** The node memory from which {@link #XLARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY} uploads are allowed: 64GiB. */
+    static final long XLARGE_NODE_MEMORY_BYTES = ByteSizeUnit.GB.toBytes(64);
+
+    /**
+     * The size of the {@link Names#SNAPSHOT_UPLOAD} pool, the most shard snapshot uploads a node may run at once. Like the SNAPSHOT pool
+     * it is small when there is little heap, because uploads hold buffers.
+     */
+    public static int getMaxSnapshotUploadThreadPoolSize(int allocatedProcessors) {
+        final ByteSizeValue maxHeapSize = ByteSizeValue.ofBytes(Runtime.getRuntime().maxMemory());
+        return getMaxSnapshotUploadThreadPoolSize(allocatedProcessors, maxHeapSize, OsProbe.getInstance().getTotalPhysicalMemorySize());
+    }
+
+    /**
+     * The builder of the {@link Names#SNAPSHOT_UPLOAD} pool, which the stateless plugin registers. Sized by
+     * {@link #getMaxSnapshotUploadThreadPoolSize(int)}, but never smaller than the SNAPSHOT pool as configured, whose size an operator may
+     * have raised: uploads run on the SNAPSHOT pool when adaptive upload concurrency is off, and need as many threads here when it is on.
+     */
+    public static ExecutorBuilder<?> snapshotUploadExecutorBuilder(Settings settings) {
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        // the SNAPSHOT pool's builder, to read its size from the settings as the pool does
+        final int snapshotPoolMax = new ScalingExecutorBuilder(
+            Names.SNAPSHOT,
+            1,
+            getMaxSnapshotThreadPoolSize(allocatedProcessors),
+            TimeValue.timeValueMinutes(5),
+            false
+        ).getMaxThreads(settings);
+        return new ScalingExecutorBuilder(
+            Names.SNAPSHOT_UPLOAD,
+            1,
+            Math.max(getMaxSnapshotUploadThreadPoolSize(allocatedProcessors), snapshotPoolMax),
+            TimeValue.timeValueMinutes(5),
+            false
+        );
+    }
+
+    static int getMaxSnapshotUploadThreadPoolSize(int allocatedProcessors, final ByteSizeValue maxHeapSize, long totalMemoryBytes) {
+        final int snapshotPoolSize = getMaxSnapshotThreadPoolSize(allocatedProcessors, maxHeapSize);
+        if (maxHeapSize.compareTo(ByteSizeValue.of(750, ByteSizeUnit.MB)) < 0) {
+            return snapshotPoolSize;
+        }
+        return Math.max(snapshotPoolSize, getSnapshotUploadConcurrencyTarget(totalMemoryBytes));
+    }
+
+    /**
+     * The number of shard snapshot uploads a node runs at once, if nothing holds it back: {@link #MIN_SNAPSHOT_UPLOAD_CONCURRENCY} (10)
+     * below 8GiB of memory, {@link #LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY} (20) from 8GiB up to 64GiB, and
+     * {@link #XLARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY} (40) from 64GiB. It is also the most the node can run, as the
+     * {@link Names#SNAPSHOT_UPLOAD} pool is this big. The upload concurrency controller backs off from it under CPU pressure or upload
+     * errors, and {@code indices.recovery.upload_concurrency.max} caps it.
+     * <p>
+     * The steps exist because each upload moves little data per second, as snapshot files are small and latency-bound, so a bigger
+     * node needs more parallel uploads to use its network. The smallest nodes stay at 10 because more uploads would compete with
+     * foreground work for CPU. The cap setting must stay below the connection limit of the object store client.
+     *
+     * @param totalMemoryBytes total node memory (the container limit when running in a container), or 0 if unknown
+     */
+    static int getSnapshotUploadConcurrencyTarget(long totalMemoryBytes) {
+        if (totalMemoryBytes >= XLARGE_NODE_MEMORY_BYTES) {
+            return XLARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY;
+        }
+        return totalMemoryBytes >= LARGE_NODE_MEMORY_BYTES ? LARGE_NODE_SNAPSHOT_UPLOAD_CONCURRENCY : MIN_SNAPSHOT_UPLOAD_CONCURRENCY;
     }
 
     static class ThreadedRunnable implements Runnable {

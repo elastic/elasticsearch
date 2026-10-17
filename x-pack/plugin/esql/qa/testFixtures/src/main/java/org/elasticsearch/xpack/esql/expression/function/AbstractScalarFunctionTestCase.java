@@ -293,6 +293,18 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     /**
+     * Confirms the test case resolves before any evaluator-based test uses it. {@link #buildFieldExpression} builds
+     * the expression from column references, the same way a real query calls this function. Without this check, a
+     * test case with the wrong declared types would not fail here. It would only fail later, when another test
+     * tries to build an evaluator from the unresolved expression. That failure would be confusing and would not
+     * point at the real problem.
+     */
+    public final void testTypeResolved() {
+        Expression expression = buildFieldExpression(testCase);
+        assertTrue(expression.typeResolved().message(), expression.typeResolved().resolved());
+    }
+
+    /**
      * Evaluates a {@link Block} of values, all copied from the input pattern,
      * using the {@link CrankyCircuitBreakerService} which fails randomly.
      * <p>

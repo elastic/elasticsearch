@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
@@ -547,6 +548,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         final Thread testThread = Thread.currentThread();
         final boolean fatal = randomBoolean();
+        final boolean shutdown = fatal && randomBoolean();
         final PlainActionFuture<Void> primaryFailedFuture = new PlainActionFuture<>();
         final ReplicationOperation.Primary<Request, Request, TestPrimary.Result> primary = new TestPrimary(
             primaryRouting,
@@ -569,8 +571,10 @@ public class ReplicationOperationTests extends ESTestCase {
                 } else {
                     if (fatal) {
                         throw new NullPointerException();
-                    } else {
+                    } else if (randomBoolean()) {
                         throw new AlreadyClosedException("already closed");
+                    } else {
+                        throw new IndexShardClosedException(shardId);
                     }
                 }
             }
@@ -580,10 +584,15 @@ public class ReplicationOperationTests extends ESTestCase {
         final PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ReplicationOperation.Replicas<Request> replicas = new TestReplicaProxy(Collections.emptyMap());
         TestReplicationOperation operation = new TestReplicationOperation(request, primary, listener, replicas, primaryTerm);
+
+        if (shutdown) {
+            // exercise rejection path
+            threadPool.executor(ThreadPool.Names.WRITE).shutdown();
+        }
         operation.execute();
 
-        if (fatal) {
-            primaryFailedFuture.get(10, TimeUnit.SECONDS);
+        if (fatal && shutdown == false) {
+            safeGet(primaryFailedFuture);
         }
 
         final ShardInfo shardInfo = listener.actionGet().getShardInfo();

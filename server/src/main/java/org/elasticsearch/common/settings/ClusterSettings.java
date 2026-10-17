@@ -118,6 +118,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
@@ -523,6 +524,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ResourceWatcherService.RELOAD_INTERVAL_HIGH,
         ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
         ResourceWatcherService.RELOAD_INTERVAL_LOW,
+        RestPutMappingAction.MAX_MAPPING_REQUEST_SIZE_SETTING,
         SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
         SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING,
         SearchModule.SCRIPTED_METRICS_AGG_ONLY_ALLOWED_SCRIPTS,

@@ -11,7 +11,9 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.simdvec.Offsets;
 import org.elasticsearch.simdvec.SimdVecLibrary;
+import org.elasticsearch.simdvec.internal.NativeOffsets;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -73,6 +75,11 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
     abstract float indexBitScale();
 
     @Override
+    final Offsets createOffsetStorage() {
+        return new NativeOffsets(bulkSize);
+    }
+
+    @Override
     final long quantizeScore(byte[] q) throws IOException {
         return IndexInputUtils.withSlice(in, length, scratch, segment -> dotProduct(segment, querySegment(q), length));
     }
@@ -86,14 +93,15 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
     }
 
     @Override
-    final boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+    final boolean quantizeScoreBulkOffsets(byte[] q, Offsets offsets, float[] scores, int count) throws IOException {
         var qSeg = querySegment(q);
-        var offsetsSeg = MemorySegment.ofArray(offsets);
+        var offsetsSeg = offsets.getSegment();
+        int offsetsCount = offsets.count();
         var sSeg = scoresSegment(scores);
         IndexInputUtils.withVoidSlice(in, (long) length * count, scratch, dSeg -> {
             dotProductBulkWithOffsets(dSeg, qSeg, length, length, offsetsSeg, offsetsCount, sSeg);
         });
-        repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
+        repositionScoresMatchingOffsets(offsets, scores);
         return true;
     }
 
@@ -141,19 +149,19 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        int[] offsets,
-        int offsetsCount,
+        Offsets offsets,
         float[] scores,
         int count
     ) throws IOException {
         var qSeg = querySegment(q);
-        var offsetsSeg = MemorySegment.ofArray(offsets);
+        var offsetsSeg = offsets.getSegment();
+        int offsetsCount = offsets.count();
         var sSeg = scoresSegment(scores);
         long vectorBytes = (long) length * count;
         long correctionBytes = 16L * count;
         IndexInputUtils.withVoidSlice(in, vectorBytes + correctionBytes, scratch, seg -> {
             dotProductBulkWithOffsets(seg, qSeg, length, length, offsetsSeg, offsetsCount, sSeg);
-            repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
+            repositionScoresMatchingOffsets(offsets, scores);
             ScoreCorrections.nativeApplyCorrectionsBulk(
                 similarityFunction,
                 seg.asSlice(vectorBytes, correctionBytes),
@@ -171,7 +179,7 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
         });
         float maxScore = Float.NEGATIVE_INFINITY;
         for (int i = 0, offsetIdx = 0; i < count; i++) {
-            if (offsetIdx < offsetsCount && offsets[offsetIdx] == i) {
+            if (offsetIdx < offsetsCount && offsets.get(offsetIdx) == i) {
                 offsetIdx++;
                 if (scores[i] > maxScore) maxScore = scores[i];
             } else {

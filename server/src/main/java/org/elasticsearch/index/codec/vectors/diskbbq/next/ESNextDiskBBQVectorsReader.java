@@ -32,7 +32,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.FlatCentroidIndex;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader.QueryTarget;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
@@ -45,6 +44,7 @@ import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.Offsets;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -679,17 +679,16 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         }
 
         @Override
-        protected int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
-            int docToScore = 0;
+        protected int docToBulkScore(int[] docIds, Offsets offsets, Bits acceptDocs, int bulkSize) {
+            offsets.reset();
             for (int i = 0; i < bulkSize; i++) {
                 if (docIds[i] == -1 || (acceptDocs != null && acceptDocs.get(docIds[i]) == false)) {
                     docIds[i] = -1;
                 } else {
-                    offsets[docToScore] = i;
-                    docToScore++;
+                    offsets.add(i);
                 }
             }
-            return docToScore;
+            return offsets.count();
         }
 
         @Override
@@ -718,7 +717,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         final int[] correctionsSum = new int[BULK_SIZE];
         final float[] correctionsAdd = new float[BULK_SIZE];
         final int[] docIdsScratch = new int[BULK_SIZE];
-        final int[] offsetsScratch = new int[BULK_SIZE];
+        final Offsets offsetsScratch;
         byte docEncoding;
         int docBase = 0;
 
@@ -759,6 +758,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                     ? ES940OSQVectorsScorer.BitEncoding.PACKED
                     : ES940OSQVectorsScorer.BitEncoding.STRIPED
             );
+            offsetsScratch = osqVectorsScorer.createOffsetStorage();
         }
 
         @Override
@@ -826,20 +826,19 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             return maxScore;
         }
 
-        protected int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
+        protected int docToBulkScore(int[] docIds, Offsets offsets, Bits acceptDocs, int bulkSize) {
             if (acceptDocs == null) {
                 return bulkSize;
             }
-            int docToScore = 0;
+            offsets.reset();
             for (int i = 0; i < bulkSize; i++) {
                 if (docIds[i] == -1 || acceptDocs.get(docIds[i]) == false) {
                     docIds[i] = -1;
                 } else {
-                    offsets[docToScore] = i;
-                    docToScore++;
+                    offsets.add(i);
                 }
             }
-            return docToScore;
+            return offsets.count();
         }
 
         protected void collectBulk(KnnCollector knnCollector, float[] scores, int bulkSize, int docsToBulkScore, float maxScore) {
@@ -849,7 +848,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                     return;
                 }
                 for (int i = 0; i < docsToBulkScore; i++) {
-                    int offset = offsetsScratch[i];
+                    int offset = offsetsScratch.get(i);
                     docIdsScratch[i] = docIdsScratch[offset];
                     scores[i] = scores[offset];
                 }
@@ -903,7 +902,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                         fieldInfo.getVectorSimilarityFunction(),
                         0f,
                         offsetsScratch,
-                        docsToBulkScore,
                         scores,
                         BULK_SIZE
                     );
@@ -946,7 +944,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                             fieldInfo.getVectorSimilarityFunction(),
                             0f,
                             offsetsScratch,
-                            docsToBulkScore,
                             scores,
                             tailSize
                         );

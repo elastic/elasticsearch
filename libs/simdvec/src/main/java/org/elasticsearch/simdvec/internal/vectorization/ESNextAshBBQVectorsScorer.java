@@ -9,6 +9,7 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.elasticsearch.simdvec.AshScorer;
+import org.elasticsearch.simdvec.Offsets;
 
 import java.io.IOException;
 
@@ -31,7 +32,12 @@ public final class ESNextAshBBQVectorsScorer implements AshScorer<byte[]> {
     }
 
     @Override
-    public void scoreBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int blockSize) throws IOException {
-        dotProduct.dotProductBulkOffsets(query, offsets, offsetsCount, scores, blockSize);
+    public Offsets createOffsetStorage(int capacity) {
+        return dotProduct.createOffsetStorage(capacity);
+    }
+
+    @Override
+    public void scoreBulkOffsets(byte[] query, Offsets offsets, float[] scores, int blockSize) throws IOException {
+        dotProduct.dotProductBulkOffsets(query, offsets, scores, blockSize);
     }
 }

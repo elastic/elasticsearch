@@ -12,6 +12,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer.QuantEncoding;
+import org.elasticsearch.simdvec.Offsets;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -71,6 +72,11 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
     ) throws IOException;
 
     @Override
+    final Offsets createOffsetStorage() {
+        return dotProduct.createOffsetStorage(bulkSize);
+    }
+
+    @Override
     final long quantizeScore(byte[] q) throws IOException {
         return dotProduct.dotProduct(q);
     }
@@ -82,8 +88,8 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
     }
 
     @Override
-    final boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        dotProduct.dotProductBulkOffsets(q, offsets, offsetsCount, scores, count);
+    final boolean quantizeScoreBulkOffsets(byte[] q, Offsets offsets, float[] scores, int count) throws IOException {
+        dotProduct.dotProductBulkOffsets(q, offsets, scores, count);
         return true;
     }
 
@@ -121,12 +127,11 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        int[] offsets,
-        int offsetsCount,
+        Offsets offsets,
         float[] scores,
         int count
     ) throws IOException {
-        dotProduct.dotProductBulkOffsets(q, offsets, offsetsCount, scores, count);
+        dotProduct.dotProductBulkOffsets(q, offsets, scores, count);
         // corrections are applied across the whole block; the unscored entries are discarded below
         applyCorrections(
             queryLowerInterval,
@@ -139,8 +144,9 @@ abstract sealed class StripedES940OSQVectorsScorer extends MemorySegmentES940OSQ
             count
         );
         float maxScore = Float.NEGATIVE_INFINITY;
+        int offsetsCount = offsets.count();
         for (int i = 0, offsetIdx = 0; i < count; i++) {
-            if (offsetIdx < offsetsCount && offsets[offsetIdx] == i) {
+            if (offsetIdx < offsetsCount && offsets.get(offsetIdx) == i) {
                 offsetIdx++;
                 if (scores[i] > maxScore) {
                     maxScore = scores[i];

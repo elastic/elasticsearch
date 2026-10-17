@@ -36,9 +36,14 @@ public interface AshScorer<T> {
     void scoreBulk(T query, int blockSize, float[] scores) throws IOException;
 
     /**
-     * Scores {@code offsetsCount} of the next {@code blockSize} data vectors, advancing the input past all of them
-     * so a block can be consumed whole even when most of it is filtered out. Scores are written into the corresponding
-     * entries in {@code scores[0..blockSize)}.
+     * Scores the vectors at the positions in {@code offsets} among the next {@code blockSize} data vectors, advancing the
+     * input past all of them so a block can be consumed whole even when most of it is filtered out. Scores are written into
+     * the corresponding entries in {@code scores[0..blockSize)}.
      */
-    void scoreBulkOffsets(T query, int[] offsets, int offsetsCount, float[] scores, int blockSize) throws IOException;
+    void scoreBulkOffsets(T query, Offsets offsets, float[] scores, int blockSize) throws IOException;
+
+    /**
+     * Creates the {@link Offsets} to pass to {@link #scoreBulkOffsets}, holding up to {@code capacity} positions.
+     */
+    Offsets createOffsetStorage(int capacity);
 }

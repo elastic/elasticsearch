@@ -25,6 +25,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFor
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer.QuantEncoding;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
+import org.elasticsearch.simdvec.Offsets;
 import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -138,6 +139,8 @@ public class VectorScorerOSQBenchmark {
     int[] sparseOffsets;
     int sparseOffsetsCount;
     static final int[] SINGLE_OFFSET = new int[] { 0 };
+    Offsets singleScorerOffsets;
+    Offsets offsetsScratch;
 
     record VectorData(
         VectorScorerTestUtils.OSQVectorData[] indexVectors,
@@ -324,6 +327,17 @@ public class VectorScorerOSQBenchmark {
         this.denseOffsetsCount = data.denseOffsetsCount();
         this.sparseOffsets = data.sparseOffsets();
         this.sparseOffsetsCount = data.sparseOffsetsCount();
+        this.singleScorerOffsets = scorer.createOffsetStorage();
+        this.singleScorerOffsets.add(SINGLE_OFFSET[0]);
+        this.offsetsScratch = scorer.createOffsetStorage();
+    }
+
+    private Offsets rebuildOffsets(int[] positions, int count) {
+        offsetsScratch.reset();
+        for (int k = 0; k < count; k++) {
+            offsetsScratch.add(positions[k]);
+        }
+        return offsetsScratch;
     }
 
     @SuppressForbidden(reason = "scratch directory for the Lucene Directory")
@@ -423,8 +437,7 @@ public class VectorScorerOSQBenchmark {
                     binaryQueries[j].additionalCorrection(),
                     similarityFunction,
                     centroidDp,
-                    SINGLE_OFFSET,
-                    1,
+                    singleScorerOffsets,
                     scratchScores,
                     BULK_SIZE
                 );
@@ -453,6 +466,8 @@ public class VectorScorerOSQBenchmark {
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
             for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
+                // Offsets are rebuilt per-call in a realistic scenario (production)
+                Offsets offsets = rebuildOffsets(denseOffsets, denseOffsetsCount);
                 scorer.scoreBulkOffsets(
                     binaryQueries[j].quantizedVector(),
                     binaryQueries[j].lowerInterval(),
@@ -461,8 +476,7 @@ public class VectorScorerOSQBenchmark {
                     binaryQueries[j].additionalCorrection(),
                     similarityFunction,
                     centroidDp,
-                    denseOffsets,
-                    denseOffsetsCount,
+                    offsets,
                     scratchScores,
                     BULK_SIZE
                 );
@@ -491,6 +505,8 @@ public class VectorScorerOSQBenchmark {
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
             for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
+                // Offsets are rebuilt per-call in a realistic scenario (production)
+                Offsets offsets = rebuildOffsets(sparseOffsets, sparseOffsetsCount);
                 scorer.scoreBulkOffsets(
                     binaryQueries[j].quantizedVector(),
                     binaryQueries[j].lowerInterval(),
@@ -499,8 +515,7 @@ public class VectorScorerOSQBenchmark {
                     binaryQueries[j].additionalCorrection(),
                     similarityFunction,
                     centroidDp,
-                    sparseOffsets,
-                    sparseOffsetsCount,
+                    offsets,
                     scratchScores,
                     BULK_SIZE
                 );

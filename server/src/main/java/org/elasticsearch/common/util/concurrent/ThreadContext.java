@@ -15,6 +15,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -717,8 +718,10 @@ public final class ThreadContext implements Writeable, TraceContext {
         } catch (Exception e) {
             // an estimate must never fail the request it is made for, and on a replica a failure would fail the shard copy
             logger.debug(
-                "failed to estimate the size of a request context value of type [{}], counting it as zero",
-                accountable.getClass().getName(),
+                () -> Strings.format(
+                    "failed to estimate the size of a request context value of type [%s], counting it as zero",
+                    accountable.getClass().getName()
+                ),
                 e
             );
             return 0;

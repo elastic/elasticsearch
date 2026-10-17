@@ -522,6 +522,22 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     /**
+     * The {@link XContentType} the whole-document {@code columnar_stored} blob is encoded in. SMILE rather than JSON: the binary
+     * generator skips the string escaping and UTF-8 segment scanning that dominate JSON generation (profiles of columnar source
+     * indexing attributed ~20% of the blob-building CPU to it), writes repeated field names as back-references, and produces a
+     * smaller blob.
+     *
+     * <p>No index-version gate is needed: every value stored through {@link XContentDataHelper} carries its content type in the
+     * leading type byte, and every reader of the blob dispatches on it — the root object loader
+     * ({@code ObjectMapper.SyntheticSourceFieldLoader#write} via {@code decodeType}/{@code decodeAndWriteXContent}), ignored-source
+     * filtering ({@code IgnoredSourceFieldMapper#nameValueToMapped} via {@code getXContentType}), and the fallback block loaders
+     * ({@code FallbackSyntheticSourceBlockLoader} via {@code decodeType}). JSON blobs written by earlier versions therefore coexist
+     * with SMILE blobs in the same index. The {@code _source} returned to users stays JSON either way, because reconstruction
+     * copies the blob into the caller's builder ({@code SourceLoader.Synthetic}'s leaf builds JSON).
+     */
+    static final XContentType COLUMNAR_BLOB_XCONTENT_TYPE = XContentType.SMILE;
+
+    /**
      * Rebuilds the {@code _source} of one {@code columnar_stored} document from its Lucene fields and returns it in the encoding the
      * whole-document {@code _ignored_source} entry stores. Both the row path ({@link #postParse}) and the columnar batch path
      * ({@link #postColumnarParse}) build the entry's value here, so that they cannot drift apart.
@@ -530,7 +546,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      */
     private BytesRef encodeColumnarSource(MappingLookup mappingLookup, List<LuceneDocument> allDocs, LuceneDocument doc)
         throws IOException {
-        try (var builder = XContentFactory.jsonBuilder()) {
+        try (var builder = XContentFactory.contentBuilder(COLUMNAR_BLOB_XCONTENT_TYPE)) {
             columnarSourceWriter.write(mappingLookup, allDocs, doc, builder);
             return XContentDataHelper.encodeXContentBuilder(builder);
         }

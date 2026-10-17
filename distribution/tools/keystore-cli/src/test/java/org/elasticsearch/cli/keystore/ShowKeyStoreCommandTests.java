@@ -117,7 +117,6 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testRetrieveFromUnprotectedKeystore() throws Exception {
-        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         final String name = randomAlphaOfLengthBetween(6, 12);
         final String value = randomAlphaOfLengthBetween(6, 12);
         createKeystore("", name, value);

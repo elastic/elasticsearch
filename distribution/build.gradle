@@ -302,7 +302,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherNativeX64', 'libsServerLauncherNativeAarch64', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherNativeX64', 'libsServerLauncherNativeAarch64', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent', 'libsFips'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -357,6 +357,59 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsNative project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')
     libsEntitlementAgent project(':libs:entitlement:agent')
     libsEntitlementBridge project(':libs:entitlement:bridge')
+
+    // The Bouncy Castle FIPS 140-3 provider, shipped dormant in lib/fips by the Linux distributions and activated by
+    // ES_FIPS_MODE=true (see src/bin/elasticsearch-env). Keep these versions in step with elasticsearch.fips.gradle
+    // (FIPS test clusters) and distribution/docker/build.gradle (the cloud_ess_fips image).
+    libsFips 'org.bouncycastle:bc-fips:2.0.2'
+    libsFips 'org.bouncycastle:bctls-fips:2.0.24'
+    libsFips 'org.bouncycastle:bcutil-fips:2.0.7'
+  }
+
+  /*****************************************************************************
+   *                         FIPS 140 trust store                              *
+   *****************************************************************************/
+
+  // In approved-only mode the JDK's own PKCS#12 CA bundle cannot be opened, so each Linux distribution ships its bundled JDK's
+  // cacerts converted to BCFKS, using the BC FIPS provider that the distribution itself ships. The store password must be at
+  // least 14 characters for the provider to accept it; it protects nothing secret, this is a bundle of public certificates.
+  ['x64', 'aarch64'].each { String architecture ->
+    tasks.register("buildFipsCacerts_${architecture}", Exec) {
+      def jdk = project.jdks."bundled_linux_${architecture}"
+      def output = layout.buildDirectory.file("fips-cacerts/${architecture}/cacerts.bcfks").get().asFile
+      dependsOn jdk
+      inputs.files(configurations.libsFips).withPropertyName('bcFipsJars').withNormalizer(ClasspathNormalizer)
+      inputs.property('jdkVersion', jdk.version)
+      outputs.file(output).withPropertyName('cacerts')
+      executable = "${buildParams.runtimeJavaHome.get()}/bin/keytool"
+      // keytool reports every imported alias on stderr; only surface its output when the conversion fails
+      def keytoolOutput = new ByteArrayOutputStream()
+      standardOutput = keytoolOutput
+      errorOutput = keytoolOutput
+      ignoreExitValue = true
+      doLast {
+        if (executionResult.get().exitValue != 0) {
+          throw new GradleException("keytool failed to convert cacerts to BCFKS:\n${keytoolOutput}")
+        }
+      }
+      doFirst {
+        delete(output)
+        output.parentFile.mkdirs()
+        File jdkHome = new File(jdk.binJavaPath.toString()).parentFile.parentFile
+        File bcFipsJar = configurations.libsFips.files.find { it.name.startsWith('bc-fips-') }
+        args '-importkeystore',
+          '-noprompt',
+          '-srckeystore', new File(jdkHome, 'lib/security/cacerts').path,
+          '-srcstoretype', 'PKCS12',
+          '-srcstorepass', 'changeit', // the JDK's cacerts has no integrity password, but keytool insists on being given one
+          '-destkeystore', output.path,
+          '-deststoretype', 'BCFKS',
+          '-deststorepass', 'passwordcacert',
+          '-providerclass', 'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
+          '-providerpath', bcFipsJar.path,
+          '-destprovidername', 'BCFIPS'
+      }
+    }
   }
 
   project.ext {
@@ -422,6 +475,19 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         into('entitlement-bridge') {
           from(configurations.libsEntitlementBridge)
+        }
+        // FIPS 140: the Bouncy Castle FIPS provider, a java.security replacement and the bundled JDK's CA bundle in BCFKS
+        // form, dormant until ES_FIPS_MODE=true (see src/bin/elasticsearch-env). A subdirectory of lib is neither on the
+        // server module path nor matched by the CLI class path wildcard, so a node that is not in FIPS mode never loads it.
+        if (os == 'linux') {
+          into('fips') {
+            from(configurations.libsFips)
+            from('../src/fips/fips_java.security')
+            from(tasks.named("buildFipsCacerts_${architecture}"))
+            filePermissions {
+              unix 0644
+            }
+          }
         }
       }
     }

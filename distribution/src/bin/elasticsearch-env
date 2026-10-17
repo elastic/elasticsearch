@@ -92,3 +92,27 @@ ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 ES_DISTRIBUTION_TYPE=@es.distribution.type@
 
 cd "$ES_HOME"
+
+# FIPS 140 mode. ES_FIPS_MODE=true runs the server and the command line tools on
+# the Bouncy Castle FIPS provider shipped in lib/fips, in approved-only mode, with
+# the JDK's own providers replaced (java.security.properties==) and the bundled
+# JDK's CA bundle in BCFKS form as the default trust store. elasticsearch.yml must
+# also enable xpack.security.fips_mode (see the FIPS 140 section there). Values
+# the caller sets in CLI_JAVA_OPTS and ES_JAVA_OPTS are kept and take precedence.
+if [ "$ES_FIPS_MODE" = "true" ]; then
+  ES_FIPS_LIB="$ES_HOME/lib/fips"
+  if [ ! -f "$ES_FIPS_LIB/fips_java.security" ]; then
+    echo "ES_FIPS_MODE=true but $ES_FIPS_LIB does not contain the FIPS provider; FIPS mode is available in the Linux distributions" >&2
+    exit 1
+  fi
+  ES_FIPS_JAVA_OPTS="-Djava.security.properties==$ES_FIPS_LIB/fips_java.security \
+-Dorg.bouncycastle.fips.approved_only=true \
+-Djavax.net.ssl.keyStoreType=BCFKS \
+-Djavax.net.ssl.trustStoreType=BCFKS \
+-Djavax.net.ssl.trustStore=$ES_FIPS_LIB/cacerts.bcfks \
+-Djavax.net.ssl.trustStorePassword=passwordcacert"
+  # the server launcher puts lib/fips on the server module path when es.fips.enabled is set
+  CLI_JAVA_OPTS="--module-path $ES_FIPS_LIB --add-modules=ALL-MODULE-PATH $ES_FIPS_JAVA_OPTS \
+-Des.fips.enabled=true $CLI_JAVA_OPTS"
+  export ES_JAVA_OPTS="$ES_FIPS_JAVA_OPTS $ES_JAVA_OPTS"
+fi

@@ -20,6 +20,7 @@ public class Distribution {
     public final boolean hasJdk;
     public final String baseVersion;
     public final String version;
+    private final boolean fipsActivation;
 
     public Distribution(Path path) {
         this.path = path;
@@ -44,6 +45,16 @@ public class Distribution {
         this.hasJdk = filename.contains("no-jdk") == false;
         this.baseVersion = filename.split("-", 3)[1];
         this.version = filename.contains("-SNAPSHOT") ? this.baseVersion + "-SNAPSHOT" : this.baseVersion;
+        this.fipsActivation = Boolean.getBoolean("tests.fips.activation");
+    }
+
+    /**
+     * @return whether the tests activate FIPS mode in place: {@code ES_FIPS_MODE=true} in the environment of every command and the
+     * FIPS settings appended to {@code elasticsearch.yml} at install time. Security auto-configuration then writes BCFKS keystores.
+     * Driven by the {@code tests.fips.activation} system property, set for the Linux archives by {@code DistroTestPlugin}.
+     */
+    public boolean isFipsActivated() {
+        return fipsActivation;
     }
 
     public boolean isArchive() {

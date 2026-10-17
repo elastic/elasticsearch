@@ -52,8 +52,12 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertKeystoreUpgradeWithPassword("/format-v5-with-password-elasticsearch.keystore", KeyStoreWrapper.LE_VERSION);
     }
 
+    public void testKeystoreUpgradeV7() throws Exception {
+        assertKeystoreUpgrade("/format-v7-elasticsearch.keystore", KeyStoreWrapper.CIPHER_KEY_BITS_256_VERSION);
+    }
+
     private void assertKeystoreUpgrade(String file, int version) throws Exception {
-        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
+        assumeFalse("Legacy unprotected keystore cannot be read on a FIPS JVM", inFipsJvm());
         assertKeystoreUpgrade(file, version, null);
     }
 

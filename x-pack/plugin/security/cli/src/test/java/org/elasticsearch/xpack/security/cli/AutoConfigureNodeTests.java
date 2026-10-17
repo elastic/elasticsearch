@@ -18,7 +18,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
@@ -26,9 +25,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.elasticsearch.xpack.core.security.HttpResponse;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
+import org.elasticsearch.xpack.security.cli.bc.KeyStoreFormat;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -40,6 +42,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyStore;
+import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.List;
@@ -54,6 +57,7 @@ import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.AUTO_CONFIG
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.anyRemoteHostNodeAddress;
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.removePreviousAutoconfiguration;
 import static org.elasticsearch.xpack.security.cli.CertGenUtilsTests.assertExpectedKeyUsage;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -162,6 +166,35 @@ public class AutoConfigureNodeTests extends ESTestCase {
             Tuple<X509Certificate, X509Certificate> generatedCerts = runAutoConfigAndReturnCertificates(tempDir, Settings.EMPTY);
             assertThat(checkSubjectAndIssuerDN(generatedCerts.v1(), "CN=dummy.test.hostname", AUTO_CONFIG_HTTP_ALT_DN), is(true));
             assertThat(checkSubjectAndIssuerDN(generatedCerts.v2(), "CN=dummy.test.hostname", AUTO_CONFIG_TRANSPORT_ALT_DN), is(true));
+        } finally {
+            deleteDirectory(tempDir);
+        }
+    }
+
+    /**
+     * A node configured for FIPS mode is expected to run with an approved-only FIPS provider, which cannot open PKCS#12.
+     * Auto-configuration must therefore emit BCFKS keystores (and matching paths) for such a node, while remaining
+     * PKCS#12 for everything else. The container choice is driven solely by the setting, not by the JVM running the tool.
+     */
+    public void testKeyStoreFormatFollowsFipsModeSetting() throws Exception {
+        final boolean fipsMode = randomBoolean();
+        final Path tempDir = createTempDir();
+        try {
+            Files.createDirectory(tempDir.resolve("config"));
+            Files.write(tempDir.resolve("config").resolve("elasticsearch.yml"), List.of(), CREATE_NEW);
+            final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), fipsMode).build();
+            // the helper asserts the configured paths and keystore types match the expected container for these settings
+            Tuple<X509Certificate, X509Certificate> generatedCerts = runAutoConfigAndReturnCertificates(tempDir, settings);
+            assertThat(checkSubjectAndIssuerDN(generatedCerts.v1(), "CN=dummy.test.hostname", AUTO_CONFIG_HTTP_ALT_DN), is(true));
+            assertThat(checkSubjectAndIssuerDN(generatedCerts.v2(), "CN=dummy.test.hostname", AUTO_CONFIG_TRANSPORT_ALT_DN), is(true));
+
+            final Path certsDir = tempDir.resolve("config").resolve("certs");
+            final String expectedExtension = fipsMode ? ".bcfks" : ".p12";
+            final String unexpectedExtension = fipsMode ? ".p12" : ".bcfks";
+            assertThat(Files.exists(certsDir.resolve("http" + expectedExtension)), is(true));
+            assertThat(Files.exists(certsDir.resolve("transport" + expectedExtension)), is(true));
+            assertThat(Files.exists(certsDir.resolve("http" + unexpectedExtension)), is(false));
+            assertThat(Files.exists(certsDir.resolve("transport" + unexpectedExtension)), is(false));
         } finally {
             deleteDirectory(tempDir);
         }
@@ -563,22 +596,40 @@ public class AutoConfigureNodeTests extends ESTestCase {
         final String httpKeystorePath = newSettings.get("xpack.security.http.ssl.keystore.path");
         final String transportKeystorePath = newSettings.get("xpack.security.transport.ssl.keystore.path");
 
-        KeyStore httpKeystore = KeyStoreUtil.readKeyStore(
+        // the container type follows xpack.security.fips_mode.enabled, and the configured path must carry the matching extension
+        final KeyStoreFormat expectedFormat = XPackSettings.FIPS_MODE_ENABLED.get(settings) ? KeyStoreFormat.BCFKS : KeyStoreFormat.PKCS12;
+        assertThat(httpKeystorePath, endsWith(expectedFormat.extension()));
+        assertThat(transportKeystorePath, endsWith(expectedFormat.extension()));
+
+        KeyStore httpKeystore = expectedFormat.readKeyStore(
             configDir.resolve("config").resolve(httpKeystorePath),
-            "PKCS12",
             httpKeystorePassword.getChars()
         );
+        assertThat(httpKeystore.getType(), equalTo(expectedFormat.type()));
 
-        KeyStore transportKeystore = KeyStoreUtil.readKeyStore(
+        KeyStore transportKeystore = expectedFormat.readKeyStore(
             configDir.resolve("config").resolve(transportKeystorePath),
-            "PKCS12",
             transportKeystorePassword.getChars()
         );
+        assertThat(transportKeystore.getType(), equalTo(expectedFormat.type()));
 
         X509Certificate httpCertificate = (X509Certificate) httpKeystore.getCertificate("http");
         X509Certificate transportCertificate = (X509Certificate) transportKeystore.getCertificate("transport");
 
+        // node enrollment finds each layer's CA through the key entry's chain, so the CA must be stored in the chain and not only
+        // as a separate trusted entry (PKCS#12 would reconstruct the chain on load, other keystore types such as BCFKS do not)
+        assertCaInKeyEntryChain(httpKeystore, "http", "http_ca");
+        assertCaInKeyEntryChain(transportKeystore, "transport", "transport_ca");
+
         return new Tuple<>(httpCertificate, transportCertificate);
+    }
+
+    private static void assertCaInKeyEntryChain(KeyStore keyStore, String keyAlias, String caAlias) throws Exception {
+        final Certificate[] chain = keyStore.getCertificateChain(keyAlias);
+        assertThat(chain.length, equalTo(2));
+        final X509Certificate caCertificate = (X509Certificate) chain[1];
+        assertThat(caCertificate.getBasicConstraints(), not(equalTo(-1)));
+        assertThat(caCertificate, equalTo(keyStore.getCertificate(caAlias)));
     }
 
     private void deleteDirectory(Path directory) throws IOException {

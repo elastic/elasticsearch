@@ -322,6 +322,18 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(prepareLaunchCalled.get(), is(true));
     }
 
+    public void testJvmArgsModulePath() {
+        Path lib = esHomeDir.resolve("lib");
+        assertThat(ServerCli.getJvmArgs(new ProcessInfo(sysprops, envVars, esHomeDir)), hasItem(lib.toString()));
+
+        // with FIPS mode activated the dormant provider directory joins the module path
+        sysprops.put(ServerCli.FIPS_ENABLED_SYSPROP, "true");
+        assertThat(
+            ServerCli.getJvmArgs(new ProcessInfo(sysprops, envVars, esHomeDir)),
+            hasItem(lib + System.getProperty("path.separator") + lib.resolve("fips"))
+        );
+    }
+
     public void testSecureSettingsLoaderChoice() throws Exception {
         var loader = loadWithMockSecureSettingsLoader();
         assertTrue(loader.loaded);
@@ -575,9 +587,6 @@ public class ServerCliTests extends CommandTestCase {
         @Override
         public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
             this.bootstrapped = true;
-            if (inFipsJvm() && (password == null || password.isEmpty())) {
-                return KeyStoreWrapper.create();
-            }
             return super.bootstrap(environment, password);
         }
     }

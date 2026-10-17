@@ -1,5 +1,20 @@
-// PromQL changes() is intentionally not exposed as an ES|QL aggregate. These
-// tests exercise it through PROMQL command integration only.
+changes_of_double_ts
+required_capability: ts_command_v0
+required_capability: promql_changes
+// tag::changes[]
+TS k8s
+| STATS cost_changes = SUM(CHANGES(network.cost)) BY time_bucket = TBUCKET(1 minute)
+// end::changes[]
+| SORT time_bucket
+| LIMIT 3;
+
+// tag::changes-result[]
+cost_changes:long | time_bucket:datetime
+1                 | 2024-05-10T00:00:00.000Z
+0                 | 2024-05-10T00:01:00.000Z
+2                 | 2024-05-10T00:02:00.000Z
+// end::changes-result[]
+;
 
 changes_of_double_promql_expanded
 required_capability: promql_command_v0

@@ -799,6 +799,91 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
     }
 
     /**
+     * Verifies that, in columnar_stored mode, nothing of one document leaks into the source blob of the next one. The source of every
+     * document is rebuilt with a source loader that is reused for all the documents a thread indexes, so this indexes documents with
+     * random subsets of the fields (single values, arrays, fields of an object, and values that end up in {@code _ignored_source} because
+     * of {@code ignore_above}) one after the other, and checks that each one reads back exactly as it was indexed.
+     */
+    public void testColumnarStoredSourceDoesNotLeakStateBetweenDocuments() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("kwd").field("type", "keyword").endObject();
+            b.startObject("ignored").field("type", "keyword").field("ignore_above", 3).endObject();
+            b.startObject("num").field("type", "long").endObject();
+            b.startObject("z_id").field("type", "keyword").endObject();
+            b.startObject("obj");
+            {
+                b.startObject("properties");
+                b.startObject("inner").field("type", "keyword").endObject();
+                b.startObject("inner_num").field("type", "long").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        int numDocs = between(20, 50);
+        List<Map<String, Object>> expectedSources = new ArrayList<>();
+        List<ParsedDocument> parsedDocs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            // The index may end up in several segments, and in any order, so every document says which one it is.
+            Map<String, Object> doc = new LinkedHashMap<>();
+            doc.put("z_id", Integer.toString(i));
+            if (randomBoolean()) {
+                doc.put("kwd", randomKeywords(1, 6));
+            }
+            if (randomBoolean()) {
+                doc.put("ignored", randomKeywords(1, 6));
+            }
+            if (randomBoolean()) {
+                doc.put("num", randomIntBetween(0, 1000));
+            }
+            // The source of a columnar index reads back with the dotted names of the fields, so that is how they are indexed too.
+            if (randomBoolean()) {
+                doc.put("obj.inner", randomKeywords(1, 6));
+            }
+            if (randomBoolean()) {
+                doc.put("obj.inner_num", randomIntBetween(0, 1000));
+            }
+            expectedSources.add(doc);
+            parsedDocs.add(mapperService.documentMapper().parse(source(b -> b.mapContents(doc))));
+        }
+
+        withLuceneIndex(mapperService, iw -> {
+            for (ParsedDocument parsed : parsedDocs) {
+                iw.addDocument(parsed.rootDoc());
+            }
+        }, reader -> {
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+            int checked = 0;
+            for (LeafReaderContext leaf : reader.leaves()) {
+                int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
+                LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
+                for (int docId : docIds) {
+                    sfLoader.advanceTo(docId);
+                    Map<String, Object> source = sourceLeaf.source(sfLoader, docId).source();
+                    int id = Integer.parseInt((String) source.get("z_id"));
+                    assertThat("doc " + id, source, equalTo(expectedSources.get(id)));
+                    checked++;
+                }
+            }
+            assertThat(checked, equalTo(numDocs));
+        });
+    }
+
+    /** One keyword, or an array of two or three (a single value reads back as a scalar, so there are no one-element arrays). */
+    private static Object randomKeywords(int minLength, int maxLength) {
+        if (randomBoolean()) {
+            return randomAlphaOfLengthBetween(minLength, maxLength);
+        }
+        return IntStream.range(0, between(2, 3)).mapToObj(i -> randomAlphaOfLengthBetween(minLength, maxLength)).toList();
+    }
+
+    /**
      * Verifies that in columnar_stored mode a nested field round-trips: the source blob is materialized at index time
      * from the in-memory document tree (children reconstructed by parent-pointer match), and read back from the blob.
      */

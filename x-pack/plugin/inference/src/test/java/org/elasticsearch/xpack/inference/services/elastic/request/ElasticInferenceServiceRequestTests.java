@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -49,8 +49,8 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
 
-        assertThat(httpRequest.httpRequestBase().getHeaders(HttpHeaders.AUTHORIZATION).length, equalTo(1));
-        assertThat(httpRequest.httpRequestBase().getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(apiKey(secret)));
+        assertThat(httpRequest.httpRequest().getHeaders(HttpHeaders.AUTHORIZATION).length, equalTo(1));
+        assertThat(httpRequest.httpRequest().getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(apiKey(secret)));
     }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithProductOrigin() {
@@ -59,10 +59,10 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
             new ElasticInferenceServiceRequestMetadata(new InferenceProductContext(null, productOrigin), null)
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
-        var productOriginHeader = httpRequest.httpRequestBase().getFirstHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+        var productOriginHeader = httpRequest.httpRequest().getFirstHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
 
         // Make sure the product origin header only exists once
-        assertThat(httpRequest.httpRequestBase().getHeaders(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER).length, equalTo(1));
+        assertThat(httpRequest.httpRequest().getHeaders(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER).length, equalTo(1));
         assertThat(productOriginHeader.getValue(), equalTo(productOrigin));
     }
 
@@ -95,9 +95,9 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
             var httpRequest = RequestTests.getHttpRequestSync(
                 getDummyElasticInferenceServiceRequest(new ElasticInferenceServiceRequestMetadata(testCase.context(), null))
             );
-            var header = httpRequest.httpRequestBase().getFirstHeader(testCase.headerName());
+            var header = httpRequest.httpRequest().getFirstHeader(testCase.headerName());
 
-            assertThat(httpRequest.httpRequestBase().getHeaders(testCase.headerName()).length, equalTo(1));
+            assertThat(httpRequest.httpRequest().getHeaders(testCase.headerName()).length, equalTo(1));
             assertThat(header.getValue(), equalTo(testCase.expectedValue()));
         }
     }
@@ -108,9 +108,9 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
 
-        assertNull(httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER));
-        assertNull(httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER));
-        assertNull(httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER));
+        assertNull(httpRequest.httpRequest().getFirstHeader(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER));
+        assertNull(httpRequest.httpRequest().getFirstHeader(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER));
+        assertNull(httpRequest.httpRequest().getFirstHeader(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER));
     }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithEsVersion() {
@@ -119,10 +119,10 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
             new ElasticInferenceServiceRequestMetadata(InferenceProductContext.EMPTY, esVersion)
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
-        var productUseCaseHeader = httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_ES_VERSION);
+        var productUseCaseHeader = httpRequest.httpRequest().getFirstHeader(X_ELASTIC_ES_VERSION);
 
         // Make sure the product use case header only exists once
-        assertThat(httpRequest.httpRequestBase().getHeaders(X_ELASTIC_ES_VERSION).length, equalTo(1));
+        assertThat(httpRequest.httpRequest().getHeaders(X_ELASTIC_ES_VERSION).length, equalTo(1));
         assertThat(productUseCaseHeader.getValue(), equalTo(esVersion));
     }
 
@@ -134,11 +134,10 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
-        var header = httpRequest.httpRequestBase()
-            .getFirstHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER);
+        var header = httpRequest.httpRequest().getFirstHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER);
 
         assertThat(header.getValue(), equalTo("aws:eu-west-1,aws:us-east-1"));
-        assertNull(httpRequest.httpRequestBase().getFirstHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_GEOS_HEADER));
+        assertNull(httpRequest.httpRequest().getFirstHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_GEOS_HEADER));
     }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithAllowedGeosHeader() {
@@ -149,10 +148,10 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
-        var header = httpRequest.httpRequestBase().getFirstHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_GEOS_HEADER);
+        var header = httpRequest.httpRequest().getFirstHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_GEOS_HEADER);
 
         assertThat(header.getValue(), equalTo("eu,us"));
-        assertNull(httpRequest.httpRequestBase().getFirstHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER));
+        assertNull(httpRequest.httpRequest().getFirstHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER));
     }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithoutRegionPolicy_NoHeaders() {
@@ -163,8 +162,8 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
 
-        assertNull(httpRequest.httpRequestBase().getFirstHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER));
-        assertNull(httpRequest.httpRequestBase().getFirstHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_GEOS_HEADER));
+        assertNull(httpRequest.httpRequest().getFirstHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_REGIONS_HEADER));
+        assertNull(httpRequest.httpRequest().getFirstHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_GEOS_HEADER));
     }
 
     private static ElasticInferenceServiceRequest getDummyElasticInferenceServiceRequest(
@@ -180,8 +179,8 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
     ) {
         return new ElasticInferenceServiceRequest(requestMetadata, preferences, authApplier) {
             @Override
-            protected HttpRequestBase createHttpRequestBase() {
-                return new HttpGet("http://localhost:8080");
+            protected SimpleHttpRequest createSimpleHttpRequest() {
+                return SimpleRequestBuilder.get("http://localhost:8080").build();
             }
 
             @Override

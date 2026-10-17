@@ -2569,6 +2569,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "ai-index-ds":
             case "ai-index-idx-managed":
             case "ai-index-ds-managed":
+            case "ai-memory-managed":
                 return true;
             default:
                 return false;

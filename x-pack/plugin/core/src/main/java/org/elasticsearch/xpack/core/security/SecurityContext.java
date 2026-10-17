@@ -145,6 +145,10 @@ public class SecurityContext {
         IndicesAccessControl indicesAccessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(getThreadContext());
         assert indicesAccessControl != null : "thread context does not contain index access control";
         readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.getKey(), indicesAccessControl);
+        final String profileUid = AuthorizationServiceField.PROFILE_UID_VALUE.get(getThreadContext());
+        if (profileUid != null) {
+            readerContext.putInContext(AuthorizationServiceField.PROFILE_UID_VALUE.getKey(), profileUid);
+        }
     }
 
     public void copyIndicesAccessControlFromReaderContext(ReaderContext readerContext) {
@@ -153,6 +157,10 @@ public class SecurityContext {
         );
         assert scrollIndicesAccessControl != null : "scroll does not contain index access control";
         AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.set(getThreadContext(), scrollIndicesAccessControl);
+        final String profileUid = readerContext.getFromContext(AuthorizationServiceField.PROFILE_UID_VALUE.getKey());
+        if (profileUid != null) {
+            AuthorizationServiceField.PROFILE_UID_VALUE.set(getThreadContext(), profileUid);
+        }
     }
 
     /**

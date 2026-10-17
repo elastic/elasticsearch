@@ -753,6 +753,7 @@ public final class IndicesPermission {
         boolean queriesCopied = false;
         boolean allowAllDocuments = false;
         boolean hasExplicitDlsFls = false;
+        boolean requiresProfileUid = false;
 
         for (Group group : groups) {
             // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
@@ -786,6 +787,7 @@ public final class IndicesPermission {
                                 }
                                 queries.addAll(query);
                             }
+                            requiresProfileUid |= group.queryRequiresProfileUid();
                         }
                     } else {
                         // if more than one permission matches for a concrete index here and if
@@ -802,7 +804,15 @@ public final class IndicesPermission {
                 }
             }
         }
-        return granted ? new IndexAccess(fieldPermissions, allowAllDocuments, queries, hasExplicitDlsFls) : null;
+        return granted
+            ? new IndexAccess(
+                fieldPermissions,
+                allowAllDocuments,
+                queries,
+                hasExplicitDlsFls,
+                allowAllDocuments == false && requiresProfileUid
+            )
+            : null;
     }
 
     /** One {@code IndexAccessControl} per granted name; names sharing an {@code IndexAccess} share the object. */
@@ -1050,6 +1060,8 @@ public final class IndicesPermission {
         // declared in a role. Implicit groups are excluded from DLS/FLS license enforcement and
         // feature-usage tracking; see IndicesPermission#authorize and IndicesAccessControl.
         private final boolean implicitlyGranted;
+        // Computed once here so authorization need not rescan the queries; see DocumentPermissions#requiresProfileUid.
+        private final boolean queryRequiresProfileUid;
 
         public Group(
             IndexPrivilege privilege,
@@ -1078,6 +1090,7 @@ public final class IndicesPermission {
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
+            this.queryRequiresProfileUid = query != null && DocumentPermissions.anyRequiresProfileUid(query);
         }
 
         public IndexPrivilege privilege() {
@@ -1086,6 +1099,10 @@ public final class IndicesPermission {
 
         public String[] indices() {
             return indices;
+        }
+
+        boolean queryRequiresProfileUid() {
+            return queryRequiresProfileUid;
         }
 
         @Nullable
@@ -1175,6 +1192,8 @@ public final class IndicesPermission {
         private final Set<BytesReference> queries;
         /** A group declared in the role contributed DLS or FLS; decides {@code dlsFlsImplicit}. */
         private final boolean hasExplicitDlsFls;
+        /** A query in {@link #queries} is a template over the profile uid; see {@link DocumentPermissions#requiresProfileUid()}. */
+        private final boolean requiresProfileUid;
         @Nullable
         private IndicesAccessControl.IndexAccessControl indexAccessControl;
 
@@ -1182,14 +1201,17 @@ public final class IndicesPermission {
             Set<FieldPermissions> fieldPermissions,
             boolean allowAllDocuments,
             @Nullable Set<BytesReference> queries,
-            boolean hasExplicitDlsFls
+            boolean hasExplicitDlsFls,
+            boolean requiresProfileUid
         ) {
             assert fieldPermissions.isEmpty() == false : "granted access carries at least one group's field permissions";
             assert allowAllDocuments == (queries == null) : "queries are tracked only while documents are restricted";
+            assert requiresProfileUid == false || allowAllDocuments == false : "profile uid is only needed while documents are restricted";
             this.fieldPermissions = fieldPermissions;
             this.allowAllDocuments = allowAllDocuments;
             this.queries = queries;
             this.hasExplicitDlsFls = hasExplicitDlsFls;
+            this.requiresProfileUid = requiresProfileUid;
         }
 
         /**
@@ -1208,7 +1230,8 @@ public final class IndicesPermission {
                 Sets.union(a.fieldPermissions, b.fieldPermissions),
                 allowAllDocuments,
                 allowAllDocuments ? null : Sets.union(a.queries, b.queries),
-                a.hasExplicitDlsFls || b.hasExplicitDlsFls
+                a.hasExplicitDlsFls || b.hasExplicitDlsFls,
+                allowAllDocuments == false && (a.requiresProfileUid || b.requiresProfileUid)
             );
         }
 
@@ -1216,7 +1239,8 @@ public final class IndicesPermission {
         private boolean covers(IndexAccess other) {
             return fieldPermissions.containsAll(other.fieldPermissions)
                 && (allowAllDocuments || (other.allowAllDocuments == false && queries.containsAll(other.queries)))
-                && (hasExplicitDlsFls || other.hasExplicitDlsFls == false);
+                && (hasExplicitDlsFls || other.hasExplicitDlsFls == false)
+                && (requiresProfileUid || other.requiresProfileUid == false);
         }
 
         IndicesAccessControl.IndexAccessControl toIndexAccessControl(FieldPermissionsCache fieldPermissionsCache) {
@@ -1232,7 +1256,7 @@ public final class IndicesPermission {
                 : fieldPermissionsCache.union(fieldPermissions);
             final DocumentPermissions documentPermissions = allowAllDocuments
                 ? DocumentPermissions.allowAll()
-                : DocumentPermissions.filteredBy(queries);
+                : DocumentPermissions.filteredBy(queries, requiresProfileUid);
             // dlsFlsImplicit: this IAC carries DLS or FLS, and every contributing group with DLS or
             // FLS was itself implicit. If any explicit DLS/FLS group covered this index, the IAC is
             // treated as explicit and downstream license checks apply normally.

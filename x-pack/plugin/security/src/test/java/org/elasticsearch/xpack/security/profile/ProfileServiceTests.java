@@ -37,6 +37,9 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -86,6 +89,7 @@ import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -95,6 +99,7 @@ import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
@@ -114,6 +119,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -191,6 +197,7 @@ public class ProfileServiceTests extends ESTestCase {
     private Client client;
     private SecurityIndexManager profileIndex;
     private ProfileService profileService;
+    private final AtomicReference<ProjectId> projectId = new AtomicReference<>(Metadata.DEFAULT_PROJECT_ID);
     Function<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefLookup;
 
     @Before
@@ -216,7 +223,14 @@ public class ProfileServiceTests extends ESTestCase {
         Realms realms = mock(Realms.class);
         when(realms.getDomainConfig(anyString())).then(args -> new DomainConfig(args.getArgument(0), Set.of(), false, null));
         when(realms.getRealmRef(any(RealmConfig.RealmIdentifier.class))).then(args -> realmRefLookup.apply(args.getArgument(0)));
-        this.profileService = new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, realms);
+        this.profileService = new ProfileService(
+            Settings.EMPTY,
+            Clock.systemUTC(),
+            client,
+            profileIndex,
+            realms,
+            TestProjectResolvers.singleProject(projectId::get)
+        );
     }
 
     @After
@@ -444,6 +458,122 @@ public class ProfileServiceTests extends ESTestCase {
         assertThat(e1.getMessage(), containsString("profile is supported for user only"));
     }
 
+    public void testResolveProfileUidSkipsLookupForSubjectsWithoutProfiles() {
+        final List<Authentication> authentications = List.of(
+            // The default realm lookup knows no realm, so the key's owner cannot be resolved on this node.
+            AuthenticationTestHelper.builder().apiKey().build(),
+            AuthenticationTestHelper.builder()
+                .apiKey()
+                .metadata(
+                    Map.of(
+                        AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+                        ServiceAccountSettings.REALM_NAME,
+                        AuthenticationField.API_KEY_CREATOR_REALM_TYPE,
+                        ServiceAccountSettings.REALM_TYPE
+                    )
+                )
+                .build(),
+            AuthenticationTestHelper.builder().serviceAccount().build(),
+            AuthenticationTestHelper.builder().internal().build(),
+            AuthenticationTestHelper.builder().anonymous().build(),
+            AuthenticationTestHelper.builder().realm().runAs().build()
+        );
+        for (Authentication authentication : authentications) {
+            final PlainActionFuture<String> future = new PlainActionFuture<>();
+            profileService.resolve(authentication, future);
+            assertThat(authentication.toString(), future.actionGet(), nullValue());
+        }
+        verify(client, never()).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+    }
+
+    public void testResolveProfileUidForApiKeyLooksUpTheOwner() {
+        realmRefLookup = identifier -> new Authentication.RealmRef(identifier.getName(), identifier.getType(), "node");
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
+            var resp = new MultiSearchResponse(
+                new MultiSearchResponse.Item[] {
+                    new MultiSearchResponse.Item(SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(), null) },
+                1L
+            );
+            try {
+                listener.onResponse(resp);
+            } finally {
+                resp.decRef();
+            }
+            return null;
+        }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+
+        final User owner = new User("alice");
+        final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey().user(owner).build();
+        final String creatorRealmType = (String) apiKeyAuthentication.getEffectiveSubject()
+            .getMetadata()
+            .get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
+
+        final PlainActionFuture<String> future = new PlainActionFuture<>();
+        profileService.resolve(apiKeyAuthentication, future);
+        assertThat(future.actionGet(), nullValue());
+
+        // The lookup is for the owner in the creator realm, not for the API key subject.
+        final ArgumentCaptor<MultiSearchRequest> captor = ArgumentCaptor.forClass(MultiSearchRequest.class);
+        verify(client).execute(eq(TransportMultiSearchAction.TYPE), captor.capture(), anyActionListener());
+        final String query = Strings.toString(captor.getValue().requests().get(0).source().query());
+        assertThat(query, containsString("\"user_profile.user.username.keyword\":{\"value\":\"alice\""));
+        assertThat(query, containsString("\"user_profile.user.realm.type\":{\"value\":\"" + creatorRealmType + "\""));
+    }
+
+    public void testResolveProfileUidCachesHitsAndMissesPerProject() {
+        final AtomicReference<SearchHits> hits = new AtomicReference<>(SearchHits.EMPTY_WITH_TOTAL_HITS);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
+            var resp = new MultiSearchResponse(
+                new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(SearchResponseUtils.successfulResponse(hits.get()), null) },
+                1L
+            );
+            try {
+                listener.onResponse(resp);
+            } finally {
+                resp.decRef();
+            }
+            return null;
+        }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+
+        final Authentication.RealmRef realm = new Authentication.RealmRef("realm_name_1", "realm_type_1", "node");
+        final Authentication alice = AuthenticationTestHelper.builder().user(new User("alice")).realmRef(realm).build(false);
+        final Authentication bob = AuthenticationTestHelper.builder().user(new User("bob")).realmRef(realm).build(false);
+
+        // No profile document: the miss is cached, so repeated requests share one search.
+        for (int i = 0; i < 3; i++) {
+            final PlainActionFuture<String> future = new PlainActionFuture<>();
+            profileService.resolve(alice, future);
+            assertThat(future.actionGet(), nullValue());
+        }
+        verify(client, times(1)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+
+        final SearchHit hit = SearchHit.unpooled(0, "profile_u_bob");
+        hit.sourceRef(new BytesArray(getSampleProfileDocumentSource("u_bob", "bob", List.of("role_a"), 1L)));
+        final SearchHits bobHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+        try {
+            hits.set(bobHits);
+            for (int i = 0; i < 3; i++) {
+                final PlainActionFuture<String> future = new PlainActionFuture<>();
+                profileService.resolve(bob, future);
+                assertThat(future.actionGet(), equalTo("u_bob"));
+            }
+            verify(client, times(2)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+
+            // Profiles are per project, so the same subject in another project is looked up again.
+            projectId.set(ProjectId.fromId("other"));
+            final PlainActionFuture<String> future = new PlainActionFuture<>();
+            profileService.resolve(bob, future);
+            assertThat(future.actionGet(), equalTo("u_bob"));
+            verify(client, times(3)).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+        } finally {
+            bobHits.decRef();
+        }
+    }
+
     public void testActivateProfileShouldFailForInternalUser() {
         final Authentication authentication = AuthenticationTestHelper.builder().internal().build();
 
@@ -483,7 +613,14 @@ public class ProfileServiceTests extends ESTestCase {
         final Subject subject = new Subject(AuthenticationTestHelper.randomUser(), AuthenticationTestHelper.randomRealmRef(true));
         Realms realms = mock(Realms.class);
         when(realms.getDomainConfig(anyString())).then(args -> new DomainConfig(args.getArgument(0), Set.of(), true, "suffix"));
-        final ProfileService service = new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, realms);
+        final ProfileService service = new ProfileService(
+            Settings.EMPTY,
+            Clock.systemUTC(),
+            client,
+            profileIndex,
+            realms,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
         final PlainActionFuture<Profile> future = new PlainActionFuture<>();
         service.maybeIncrementDifferentiatorAndCreateNewProfile(
             subject,
@@ -634,7 +771,9 @@ public class ProfileServiceTests extends ESTestCase {
                 return new DomainConfig(domainName, Set.of(), true, "suffix");
             }
         });
-        final ProfileService service = spy(new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, realms));
+        final ProfileService service = spy(
+            new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, realms, TestProjectResolvers.DEFAULT_PROJECT_ONLY)
+        );
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")

@@ -94,7 +94,7 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
      * the set of action strings held under that resource. Resources across multiple grants for the
      * same resource are unioned.
      */
-    private static Map<String, Set<String>> collectResourcesAndActions(Collection<ResolvedApplicationPrivilege> applicationPrivileges) {
+    static Map<String, Set<String>> collectResourcesAndActions(Collection<ResolvedApplicationPrivilege> applicationPrivileges) {
         Map<String, Set<String>> resourcesToActions = new HashMap<>();
         for (ResolvedApplicationPrivilege resolved : applicationPrivileges) {
             final ApplicationPrivilege privilege = resolved.privilege();
@@ -140,6 +140,15 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
      *         in which case no implicit privilege is granted at all.
      */
     static String buildDlsQuery(Map<String, Set<String>> resourcesToActions) {
+        BoolQueryBuilder query = buildDlsQueryBuilder(resourcesToActions);
+        return query == null ? null : Strings.toString(query);
+    }
+
+    /**
+     * The unserialised form of {@link #buildDlsQuery}, so other providers over Elastic-managed AI indices can
+     * compose further clauses with the space and privilege check.
+     */
+    static BoolQueryBuilder buildDlsQueryBuilder(Map<String, Set<String>> resourcesToActions) {
         Set<String> globalActions = resourcesToActions.getOrDefault(ALL_RESOURCES, Set.of());
 
         // Group spaces by their effective action set so spaces sharing one share a clause. Spaces are
@@ -175,14 +184,11 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
             return null;
         }
 
-        return Strings.toString(
-            QueryBuilders.boolQuery()
-                .should(
-                    QueryBuilders.boolQuery()
-                        .mustNot(QueryBuilders.nestedQuery(PRIVILEGES_PATH, QueryBuilders.matchAllQuery(), ScoreMode.None))
-                )
-                .should(QueryBuilders.nestedQuery(PRIVILEGES_PATH, spaceClauses, ScoreMode.None))
-        );
+        return QueryBuilders.boolQuery()
+            .should(
+                QueryBuilders.boolQuery().mustNot(QueryBuilders.nestedQuery(PRIVILEGES_PATH, QueryBuilders.matchAllQuery(), ScoreMode.None))
+            )
+            .should(QueryBuilders.nestedQuery(PRIVILEGES_PATH, spaceClauses, ScoreMode.None));
     }
 
     /**

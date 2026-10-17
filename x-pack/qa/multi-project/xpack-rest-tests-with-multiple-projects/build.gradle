@@ -28,6 +28,7 @@ tasks.named("yamlRestTest").configure {
     // Writes to `.ai-index-*` reach ShardBulkInferenceActionFilter (semantic_text fields), which is not yet
     // project-aware and throws MultiProjectPendingException before the mapper can reject the unmapped field.
     '^ai-index/10_ai_index_templates/Elastic-managed AI index rejects unmapped fields',
+    '^ai-index/20_ai_memory_templates/Elastic-managed memory AI index accepts scope_id and rejects unmapped fields',
     // These analytics tests work in MP mode, they just don't work with security enabled.
     '^analytics/boxplot/*',
     '^analytics/histogram/*',

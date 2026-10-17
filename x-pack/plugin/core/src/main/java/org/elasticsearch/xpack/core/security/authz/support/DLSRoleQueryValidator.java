@@ -148,6 +148,29 @@ public final class DLSRoleQueryValidator {
         return null;
     }
 
+    /**
+     * As {@link #evaluateAndVerifyRoleQuery(BytesReference, ScriptService, NamedXContentRegistry, User)}, additionally
+     * exposing the user's profile uid to the template.
+     */
+    @Nullable
+    public static QueryBuilder evaluateAndVerifyRoleQuery(
+        BytesReference query,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        User user,
+        @Nullable String profileUid
+    ) {
+        if (query != null) {
+            String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(query.utf8ToString(), scriptService, user, profileUid);
+            try {
+                return evaluateAndVerifyRoleQuery(templateResult, xContentRegistry);
+            } catch (ElasticsearchParseException | ParsingException | XContentParseException | IOException e) {
+                throw new ElasticsearchParseException("failed to parse field 'query' from the role descriptor", e);
+            }
+        }
+        return null;
+    }
+
     @Nullable
     public static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) throws IOException {
         if (query != null) {

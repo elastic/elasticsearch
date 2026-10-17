@@ -54,6 +54,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -523,8 +524,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     /**
      * Rebuilds the {@code _source} of one {@code columnar_stored} document from its Lucene fields and returns it in the encoding the
-     * whole-document {@code _ignored_source} entry stores. Both the row path ({@link #postParse}) and the columnar batch path
-     * ({@link #postColumnarParse}) build the entry's value here, so that they cannot drift apart.
+     * whole-document {@code _ignored_source} entry stores. The row path ({@link #postParse}) builds the entry's value here; the
+     * columnar batch path ({@link #postColumnarParse}) streams the same {@link ColumnarSourceWriter} output into a reused buffer
+     * behind the {@link #columnarStoredBlobPrefix} bytes, which that method derives from the encoders used here so that the two
+     * paths cannot drift apart.
      *
      * @param allDocs the root document plus its nested children in shard-index order; just {@code [doc]} without nested fields
      */
@@ -533,6 +536,37 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         try (var builder = XContentFactory.jsonBuilder()) {
             columnarSourceWriter.write(mappingLookup, allDocs, doc, builder);
             return XContentDataHelper.encodeXContentBuilder(builder);
+        }
+    }
+
+    /**
+     * The constant prefix of every whole-document blob entry that {@link #postColumnarParse} stores: the
+     * {@link IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding} header for name {@link #NAME} at parent offset 0, followed by
+     * the {@link XContentDataHelper} type byte of a JSON builder. The bytes are derived through the production encoders — an empty
+     * builder encodes to exactly its type byte — rather than assembled by hand, so they stay identical to what the row path
+     * ({@link #encodeColumnarSource} wrapped by {@code SingularIgnoredSourceEncoding.encode}) puts in front of the JSON.
+     */
+    private static byte[] columnarStoredBlobPrefix() throws IOException {
+        try (var builder = XContentFactory.jsonBuilder()) {
+            final BytesRef typeByte = XContentDataHelper.encodeXContentBuilder(builder);
+            final BytesRef prefix = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
+                // The encoding reads only the name, parent offset and value; there is no document to pass on the batch path.
+                new IgnoredSourceFieldMapper.NameValue(NAME, 0, typeByte, null)
+            );
+            assert prefix.offset == 0 && prefix.length == prefix.bytes.length;
+            return prefix.bytes;
+        }
+    }
+
+    /**
+     * The buffer the batch path builds every blob of one batch in: {@link ByteArrayOutputStream} already grows and
+     * {@link ByteArrayOutputStream#reset() resets}, and the subclass exposes the written bytes in place, where
+     * {@link ByteArrayOutputStream#toByteArray()} would copy them. In-place exposure is safe because the consumer
+     * ({@link EscfColumnBuilder#setBinary}) copies the bytes before the next document overwrites them.
+     */
+    private static final class ReusableBlobBuffer extends ByteArrayOutputStream {
+        BytesRef bytesRef() {
+            return new BytesRef(buf, 0, count);
         }
     }
 
@@ -706,17 +740,23 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         blobs.lockScalar(EscfColumnKind.BINARY);
         try (blobs) {
             final MappedColumns.RowCursor rows = context.rowCursor(SourceFieldMapper::isReadByColumnarSourceWriter);
+            // Every blob of the batch is built in this one buffer: the constant entry prefix is written first, the JSON streams in
+            // behind it, and the finished bytes are handed to the column builder, which copies them before the next document
+            // overwrites the buffer. This collapses the two intermediate copies that encoding the builder bytes
+            // (XContentDataHelper.encodeXContentBuilder) and wrapping them in the entry header (SingularIgnoredSourceEncoding.encode)
+            // would make per document, and reuses the buffer that XContentFactory.jsonBuilder() would allocate per document.
+            final byte[] blobPrefix = columnarStoredBlobPrefix();
+            final ReusableBlobBuffer blobBuffer = new ReusableBlobBuffer();
             for (int d = 0; d < docCount; d++) {
                 rows.advance();
                 // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
                 final LuceneDocument doc = new LuceneDocument(rows.fields());
-                final BytesRef encodedValue = encodeColumnarSource(context.mappingLookup(), List.of(doc), doc);
-                blobs.setBinary(
-                    d,
-                    IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
-                        new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, doc)
-                    )
-                );
+                blobBuffer.reset();
+                blobBuffer.write(blobPrefix, 0, blobPrefix.length);
+                try (var builder = new XContentBuilder(XContentType.JSON.xContent(), blobBuffer)) {
+                    columnarSourceWriter.write(context.mappingLookup(), List.of(doc), doc, builder);
+                }
+                blobs.setBinary(d, blobBuffer.bytesRef());
             }
             // Same pruning as postParse: the blob subsumes the per-field fallback columns, and the leftover _ignored_source columns
             // would otherwise collide with the blob's.

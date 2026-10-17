@@ -1,5 +1,6 @@
 org.elasticsearch.security:
   - set_https_connection_properties # for CommandLineHttpClient
+  - outbound_network
   - files:
       - relative_path: ""
         relative_to: config
@@ -36,6 +37,12 @@ org.elasticsearch.security:
         basedir_if_relative: config
         mode: read
         exclusive: true
+      - path_setting: xpack.inference.elastic.http.ssl.certificate
+        basedir_if_relative: config
+        mode: read
+      - path_setting: xpack.inference.elastic.http.ssl.key
+        basedir_if_relative: config
+        mode: read
 
 io.netty.transport:
   - manage_threads

@@ -71,7 +71,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
 
-        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR);
+        List<IndexMode> modes = List.of(IndexMode.STANDARD, IndexMode.COLUMNAR, IndexMode.LOGSDB);
 
         for (IndexMode indexMode : modes) {
             for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
@@ -253,7 +253,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var specification = buildSpecification(customDataSourceHandlers, params.indexMode);
 
         var mapping = new MappingGenerator(specification).generate(template);
-        runner.document(new DocumentGenerator(specification).generate(template, mapping));
+        runner.document(decorateWithRequiredFields(new DocumentGenerator(specification).generate(template, mapping)));
 
         runner.fieldName(getFieldNameToLoad(fieldName, getFieldValue(runner.mapDoc(), fieldName)));
 
@@ -263,6 +263,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             new TestContext(false, false)
         );
 
+        decorateMappingWithRequiredFields(mapping);
         var settings = getSettingsForParams();
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         runner.mapperService(createMapperService(settings.build(), mappingXContent));
@@ -312,7 +313,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
         var specification = buildSpecification(customDataSourceHandlers, params.indexMode);
         var mapping = new MappingGenerator(specification).generate(template);
-        runner.document(new DocumentGenerator(specification).generate(template, mapping));
+        runner.document(decorateWithRequiredFields(new DocumentGenerator(specification).generate(template, mapping)));
 
         TestContext testContext = new TestContext(false, false);
 
@@ -327,6 +328,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             testContext = new TestContext(true, false);
         }
 
+        decorateMappingWithRequiredFields(mapping);
+
         var settings = getSettingsForParams();
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         runner.mapperService(createMapperService(settings.build(), mappingXContent));
@@ -340,6 +343,31 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         );
 
         configureRunner(runner, settings, mapping).run(expected);
+    }
+
+    protected Map<String, Object> decorateWithRequiredFields(Map<String, Object> document) {
+        return decorateWithRequiredFields(document, params.indexMode);
+    }
+
+    public static Map<String, Object> decorateWithRequiredFields(Map<String, Object> document, IndexMode indexMode) {
+        if (indexMode == IndexMode.LOGSDB) {
+            document.putIfAbsent("@timestamp", randomMillisUpToYear9999());
+        }
+        return document;
+    }
+
+    protected void decorateMappingWithRequiredFields(Mapping mapping) {
+        IndexMode indexMode = params.indexMode;
+        decorateMappingWithRequiredFields(mapping, indexMode);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void decorateMappingWithRequiredFields(Mapping mapping, IndexMode indexMode) {
+        if (indexMode == IndexMode.LOGSDB) {
+            var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
+            var mappingProperties = (Map<String, Object>) docMapping.get("properties");
+            mappingProperties.putIfAbsent("@timestamp", Map.of("type", "date"));
+        }
     }
 
     protected boolean supportsMultiField() {
@@ -419,7 +447,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         @SuppressWarnings("unchecked")
         var fieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.lookup().get("parent").get("fields")).get("mf");
 
-        runner.document(new DocumentGenerator(specification).generate(template, mapping));
+        decorateMappingWithRequiredFields(mapping);
+
+        runner.document(decorateWithRequiredFields(new DocumentGenerator(specification).generate(template, mapping)));
 
         Object expected = expected(fieldMapping, getFieldValue(runner.mapDoc(), "parent"), new TestContext(false, true));
         var settings = getSettingsForParams();

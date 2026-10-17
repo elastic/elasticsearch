@@ -64,7 +64,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
         if (source == ValueSource.DOC_VALUES) {
             // Columnar index modes preserve arrival order via offsets; standard mode returns doc values sorted.
-            boolean preserveOrder = params.indexMode().isColumnar();
+            boolean preserveOrder = params.indexMode().isStrictColumnar();
             var stream = ((List<Object>) value).stream().map(v -> convert(v, nullValue, fieldMapping, source)).filter(Objects::nonNull);
             var resultList = preserveOrder ? stream.toList() : stream.sorted().toList();
             return maybeFoldList(resultList);
@@ -235,7 +235,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
         String value = "\u1a90";
 
-        runner.document(Map.of("field", value));
+        runner.document(decorateWithRequiredFields(new HashMap<>(Map.of("field", value))));
         runner.fieldName("field");
 
         var fieldMapping = new HashMap<String, Object>();
@@ -245,13 +245,17 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
             fieldMapping.put("scaling_factor", "1");
         }
 
-        var mapping = new Mapping(Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping))), Map.of("field", fieldMapping));
+        var mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", new HashMap<>(Map.of("field", fieldMapping)))),
+            Map.of("field", fieldMapping)
+        );
+        decorateMappingWithRequiredFields(mapping);
 
         Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
 
         var settings = getSettingsForParams();
         runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
-        runner.run(expected);
+        configureRunner(runner, settings, mapping).run(expected);
     }
 
     public void testBlockLoaderNonLatinDigit_parseFromSource() throws IOException {
@@ -261,7 +265,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
         String value = "\u1a90";
 
-        runner.document(Map.of("field", value));
+        runner.document(decorateWithRequiredFields(new HashMap<>(Map.of("field", value))));
         runner.fieldName("field");
 
         var fieldMapping = new HashMap<String, Object>();
@@ -272,7 +276,11 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
             fieldMapping.put("scaling_factor", "1");
         }
 
-        var mapping = new Mapping(Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping))), Map.of("field", fieldMapping));
+        var mapping = new Mapping(
+            new HashMap<>(Map.of("_doc", new HashMap<>(Map.of("properties", new HashMap<>(Map.of("field", fieldMapping)))))),
+            Map.of("field", fieldMapping)
+        );
+        decorateMappingWithRequiredFields(mapping);
 
         Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
 

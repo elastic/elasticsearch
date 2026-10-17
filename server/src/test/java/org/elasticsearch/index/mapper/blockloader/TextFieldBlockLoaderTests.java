@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 
@@ -122,6 +123,12 @@ public class TextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
 
                 return maybeFoldList(indexed);
             }
+        }
+
+        // In logsdb a text field within a multi-field gets no synthetic source fallback field (the parent is responsible for synthetic
+        // source), so unless it has doc values of its own it is loaded from _source, which keeps source order.
+        if (params.indexMode() == IndexMode.LOGSDB && testContext.isMultifield() && fieldMapping.containsKey("doc_values") == false) {
+            return valuesInSourceOrder(value);
         }
 
         // Loading from binary doc values

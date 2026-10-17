@@ -158,7 +158,13 @@ public abstract class ViewResolutionBenchmarkBase {
         TransportVersion minimumVersion = TransportVersion.current();
 
         parser = new EsqlParser(new EsqlConfig(functionRegistry));
-        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), inferenceSettings, viewName, ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT).plan();
+        viewParser = (query, viewName) -> parser.parseView(
+            query,
+            new QueryParams(),
+            inferenceSettings,
+            viewName,
+            ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
+        ).plan();
 
         LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
         for (int i = 0; i < 5; i++) {

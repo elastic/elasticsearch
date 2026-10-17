@@ -122,8 +122,8 @@ name:keyword | age:long
 
 // Aggregates over a declared column across the glob, run cold then warm by the harness, so the declaration is
 // asserted against the coordinator's per-file schema cache as well as the cold scan. The columns are RENAMED via
-// `path` deliberately: a declaration that merely restated the files' own names would produce the same table an
-// undeclared read can produce under either reconciliation mode, and would assert nothing about the declared path.
+// `rename_from` deliberately: a declaration that merely restated the files' own names would produce the same table
+// an undeclared read can produce under either reconciliation mode, and would assert nothing about the rename.
 // Declared mappings pin the schema, so schema_resolution is irrelevant. No undeclared read can yield a column
 // called `years`.
 strictDeclaredSchemaAggregatesAcrossFilesColdAndWarm
@@ -131,7 +131,7 @@ required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_declared_multifile_renamed: "{{employees_multifile_ubn}}" WITH {"header_row": true, "mappings": {"dynamic": "false", "properties": {"who": {"type": "keyword", "path": "name"}, "years": {"type": "long", "path": "age"}}}}
+dataset: employees_declared_multifile_renamed: "{{employees_multifile_ubn}}" WITH {"header_row": true, "mappings": {"dynamic": "false", "properties": {"who": {"type": "keyword", "rename_from": "name"}, "years": {"type": "long", "rename_from": "age"}}}}
 
 FROM employees_declared_multifile_renamed
 | STATS rows = COUNT(*), youngest = MIN(years), oldest = MAX(years);

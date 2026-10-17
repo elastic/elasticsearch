@@ -438,7 +438,7 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         spec.emitListingNotices(Set.of("year"), List.of(), null, Map.of("start", "@timestamp"), notices::add);
         assertThat(notices, hasItem(containsString("binds [start]")));
         assertThat(notices, hasItem(containsString("mapping field [@timestamp]")));
-        assertThat(notices, hasItem(containsString("renames with path")));
+        assertThat(notices, hasItem(containsString("is renamed from")));
         assertThat(notices, hasItem(containsString("bind [@timestamp]")));
     }
 

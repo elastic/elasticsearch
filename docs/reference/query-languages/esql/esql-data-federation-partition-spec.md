@@ -114,7 +114,7 @@ PUT /_query/dataset/vpc_flow
   },
   "mappings": {
     "properties": {
-      "@timestamp": { "type": "date", "path": "start", "format": "epoch_second" },
+      "@timestamp": { "type": "date", "rename_from": "start", "format": "epoch_second" },
       "end": { "type": "date", "format": "epoch_second" }
     }
   }
@@ -130,7 +130,7 @@ literal such as `vpcflowlogs` stays a required path segment. VPC Flow Logs have 
 `"header_row": false`. `delimiter` is a single character; space is valid.
 
 With `"header_row": false`, generated names are `col0`, `col1`, … (`column_prefix`). `partition_spec` binds a file
-column by that name, so declare `start` in `mappings` with `path` set to its position or prune never fires. Default
+column by that name, so declare `start` in `mappings` with `rename_from` set to its position or prune never fires. Default
 VPC Flow Logs put `start` at `col10`.
 
 ```console
@@ -148,7 +148,7 @@ PUT /_query/dataset/vpc_flow_text
   },
   "mappings": {
     "properties": {
-      "start": { "type": "long", "path": "col10" }
+      "start": { "type": "long", "rename_from": "col10" }
     }
   }
 }
@@ -157,8 +157,8 @@ PUT /_query/dataset/vpc_flow_text
 ### Use mapped date fields
 
 When a mapping exposes the file column as `@timestamp`, bind `@timestamp` and omit the unit because
-the column is already a date. If the mapping renames a source column with `path`, the partition spec
-must use the mapped field name. For example, when `@timestamp` has `path=start`, use
+the column is already a date. If the mapping renames a source column with `rename_from`, the partition spec
+must use the mapped field name. For example, when `@timestamp` is renamed from `start`, use
 `year(@timestamp)`. The `PUT` request rejects `year(start)`.
 
 A spec saved before the mapping rename continues to reference `start`, so it cannot prune filters on
@@ -179,7 +179,7 @@ PUT /_query/dataset/vpc_flow_mapped
   },
   "mappings": {
     "properties": {
-      "@timestamp": { "type": "date", "path": "col10", "format": "epoch_second" }
+      "@timestamp": { "type": "date", "rename_from": "col10", "format": "epoch_second" }
     }
   }
 }

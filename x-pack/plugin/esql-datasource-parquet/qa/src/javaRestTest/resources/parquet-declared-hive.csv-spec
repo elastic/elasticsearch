@@ -19,7 +19,7 @@
 // lost silently.
 strictDeclaredSchemaComposesWithHivePartitionColumn
 required_capability: dataset_in_from_command
-dataset: employees_hive_declared: "{{employees_hive}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}}}}
+dataset: employees_hive_declared: "{{employees_hive}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}}}}
 
 FROM employees_hive_declared
 | STATS count = COUNT(*), ids = COUNT(id) BY lang
@@ -39,7 +39,7 @@ count:long | ids:long | lang:integer
 // is actually populated for the pruned partition rather than null-filling.
 strictDeclaredPayloadReadsUnderHivePartitionFilter
 required_capability: dataset_in_from_command
-dataset: employees_hive_declared: "{{employees_hive}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}}}}
+dataset: employees_hive_declared: "{{employees_hive}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}}}}
 
 FROM employees_hive_declared
 | WHERE lang == 3

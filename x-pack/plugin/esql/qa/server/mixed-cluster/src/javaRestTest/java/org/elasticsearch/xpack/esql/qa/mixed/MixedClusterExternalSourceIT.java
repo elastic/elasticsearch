@@ -334,6 +334,11 @@ public class MixedClusterExternalSourceIT extends ESRestTestCase {
             "s3://" + BUCKET + "/" + CACHE_AGGREGATE_PREFIX + "/part-1.csv",
             null
         );
+        // Declared entirely with `path`, the older spelling of the rename setting, and deliberately NOT with
+        // `rename_from`. This PUT is parsed by whichever node the REST client happens to pick, and an old node that
+        // predates `rename_from` rejects it as an unknown field -- so sending the current spelling here would 400 on a
+        // coin flip rather than exercise anything. `path` is understood by every version, which is why it is kept, and
+        // reading it the same way on both node versions is the property this suite is here to pin.
         DatasetRegistry.ensureDataset(client(), DECLARED_DATASET, DATA_SOURCE, s3Glob(DECLARED_PREFIX), """
             {
               "mappings": {

@@ -186,6 +186,39 @@ public class DatasetRegistryTests extends ESTestCase {
         );
     }
 
+    /**
+     * The harness guards cases that use {@code rename_from} off this predicate, so it must answer on the key only:
+     * a setting of the same name, a value equal to the name, a column literally called {@code rename_from}, or
+     * the former spelling {@code path} must not fire it.
+     */
+    public void testDeclaresRenamFromAnswersOnTheKeyNotTheText() {
+        assertTrue(
+            DatasetRegistry.declaresRenameFrom("{\"mappings\":{\"properties\":{\"col\":{\"type\":\"keyword\",\"rename_from\":\"raw\"}}}}")
+        );
+        assertTrue(
+            "second column spelling",
+            DatasetRegistry.declaresRenameFrom(
+                "{\"mappings\":{\"properties\":{\"a\":{\"type\":\"keyword\"},\"b\":{\"type\":\"keyword\",\"rename_from\":\"raw\"}}}}"
+            )
+        );
+
+        assertFalse(DatasetRegistry.declaresRenameFrom(null));
+        assertFalse(DatasetRegistry.declaresRenameFrom("{}"));
+        assertFalse(DatasetRegistry.declaresRenameFrom("{\"mappings\":{\"properties\":{\"col\":{\"type\":\"keyword\"}}}}"));
+        assertFalse(
+            "path spelling does not fire (no capability gate needed for it)",
+            DatasetRegistry.declaresRenameFrom("{\"mappings\":{\"properties\":{\"col\":{\"type\":\"keyword\",\"path\":\"raw\"}}}}")
+        );
+        assertFalse(
+            "a column named rename_from is not a rename",
+            DatasetRegistry.declaresRenameFrom("{\"mappings\":{\"properties\":{\"rename_from\":{\"type\":\"keyword\"}}}}")
+        );
+        assertFalse(
+            "a top-level setting named rename_from is not a column rename",
+            DatasetRegistry.declaresRenameFrom("{\"rename_from\":\"raw\",\"mappings\":{\"properties\":{\"col\":{\"type\":\"keyword\"}}}}")
+        );
+    }
+
     /** A one-column strict declaration, in the shape {@code DatasetMapping} parses. */
     private static Map<String, Object> declaration(String column, String type) {
         Map<String, Object> mappings = new LinkedHashMap<>();

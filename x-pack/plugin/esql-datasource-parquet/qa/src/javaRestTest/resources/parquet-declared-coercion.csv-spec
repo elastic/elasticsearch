@@ -16,7 +16,7 @@
 strictDeclaredStringReadsAsDoubleOnParquetUnderNullFieldPolicy
 required_capability: dataset_in_from_command
 required_capability: external_dataset_messages
-dataset: employees_declared_parse: "{{employees_no_mv}}" WITH {"error_mode": "null_field", "mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "change": {"type": "double", "path": "salary_change.keyword"}}}}
+dataset: employees_declared_parse: "{{employees_no_mv}}" WITH {"error_mode": "null_field", "mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "change": {"type": "double", "rename_from": "salary_change.keyword"}}}}
 
 FROM employees_declared_parse
 | SORT id
@@ -36,7 +36,7 @@ id:long | change:double
 // boolean, so the declared type is what produces text here.
 strictDeclaredNumericAndBooleanReadAsKeywordOnParquet
 required_capability: dataset_in_from_command
-dataset: employees_declared_tostring: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "pay_text": {"type": "keyword", "path": "salary"}, "hired_text": {"type": "keyword", "path": "still_hired"}}}}
+dataset: employees_declared_tostring: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "pay_text": {"type": "keyword", "rename_from": "salary"}, "hired_text": {"type": "keyword", "rename_from": "still_hired"}}}}
 
 FROM employees_declared_tostring
 | SORT id
@@ -54,7 +54,7 @@ id:long | pay_text:keyword | hired_text:keyword
 // licensed long->datetime coercion. Inference cannot produce this column at all: it reports a long.
 strictDeclaredLongReadsAsDatetimeOnParquet
 required_capability: dataset_in_from_command
-dataset: employees_declared_epoch: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "worked": {"type": "date", "path": "avg_worked_seconds"}}}}
+dataset: employees_declared_epoch: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "rename_from": "emp_no"}, "worked": {"type": "date", "rename_from": "avg_worked_seconds"}}}}
 
 FROM employees_declared_epoch
 | SORT id

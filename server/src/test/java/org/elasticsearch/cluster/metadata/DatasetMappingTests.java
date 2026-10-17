@@ -98,6 +98,23 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
     }
 
     /**
+     * A dataset registered before the rename has {@code "path"} in its stored definition, and an upgraded node has to
+     * load it — this is gateway metadata, so a parse failure here is a node that will not start. Both spellings are
+     * asserted side by side so neither can regress alone.
+     */
+    public void testStoredMappingsAcceptEitherSpellingOfTheRename() throws IOException {
+        for (String key : new String[] { "path", "rename_from" }) {
+            String json = "{\"dynamic\":\"false\",\"properties\":{\"when\":{\"type\":\"date\",\"" + key + "\":\"ts\"}}}";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+                parser.nextToken();
+                DatasetMapping.Mappings mappings = DatasetMapping.parseStoredMappings(parser);
+                assertEquals("spelling [" + key + "] must load from stored state", "ts", mappings.properties().get("when").renameFrom());
+                assertEquals("date", mappings.properties().get("when").type());
+            }
+        }
+    }
+
+    /**
      * A 9.5 node wrote {@code {"path": "<column>"}} and nothing else. The parser matches the block by key and skips
      * its contents unexamined, so the other two shapes cost nothing to tolerate and cover 9.5 having been laxer than
      * it looks. The rest of the block must survive, or an upgraded node cannot load its own gateway metadata.
@@ -148,7 +165,7 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
         DatasetMapping mapping = new DatasetMapping(mappings);
         DatasetMapping copy = copyInstance(mapping);
         assertEquals(mapping, copy);
-        assertEquals("ts", copy.mappings().properties().get("when").path());
+        assertEquals("ts", copy.mappings().properties().get("when").renameFrom());
         assertEquals(java.util.List.of("when", "amount"), java.util.List.copyOf(copy.mappings().properties().keySet()));
     }
 }

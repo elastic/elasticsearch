@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
@@ -14,6 +16,9 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
@@ -21,19 +26,30 @@ import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class IndexPrivilegeTests extends ESTestCase {
 
@@ -558,6 +574,77 @@ public class IndexPrivilegeTests extends ESTestCase {
             + " actions";
 
         assertEquals(expectedFullErrorMessage, exception.getMessage());
+    }
+
+    /**
+     * The cache is static and shared with other test classes in the same JVM. Start every test with an empty cache of the default size,
+     * and leave one behind for whoever runs next.
+     */
+    @Before
+    @After
+    public void resetIndexPrivilegeCache() {
+        IndexPrivilege.updateConfiguration(Settings.EMPTY);
+    }
+
+    public void testResolvedPrivilegesAreCached() {
+        final Set<String> names = Set.copyOf(randomSubsetOf(randomIntBetween(2, 5), IndexPrivilege.names()));
+
+        final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(names);
+        assertThat(IndexPrivilege.resolveBySelectorAccess(names), sameInstance(resolved));
+        // the cache key is the set of names, regardless of the set implementation used by the caller
+        assertThat(IndexPrivilege.resolveBySelectorAccess(new HashSet<>(names)), sameInstance(resolved));
+        assertThat(IndexPrivilege.resolveBySelectorAccess(new TreeSet<>(names)), sameInstance(resolved));
+    }
+
+    public void testCacheIsBoundedByMemory() {
+        final List<String> allNames = List.copyOf(IndexPrivilege.names());
+        // large enough to hold a few resolved privilege sets, small enough that 100 distinct sets do not fit
+        final ByteSizeValue maxSize = ByteSizeValue.ofKb(randomIntBetween(100, 500));
+        IndexPrivilege.updateConfiguration(Settings.builder().put(IndexPrivilege.CACHE_SIZE_SETTING.getKey(), maxSize).build());
+        final Cache<Set<String>, Set<IndexPrivilege>> cache = IndexPrivilege.getCache();
+        assertThat(cache.count(), equalTo(0));
+
+        final Set<Set<String>> distinctNames = new HashSet<>();
+        while (distinctNames.size() < 100) {
+            final Set<String> names = Set.copyOf(randomSubsetOf(randomIntBetween(1, allNames.size()), allNames));
+            if (distinctNames.add(names) == false) {
+                continue;
+            }
+            final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(names);
+            assertThat(resolved, not(empty()));
+            assertThat(cache.weight(), lessThanOrEqualTo(maxSize.getBytes()));
+        }
+
+        assertThat(cache.count(), lessThan(distinctNames.size()));
+        assertThat(cache.stats().getEvictions(), greaterThan(0L));
+        assertThat(cache.weight(), lessThanOrEqualTo(maxSize.getBytes()));
+
+        // evicted entries are transparently resolved again
+        for (Set<String> names : randomSubsetOf(10, distinctNames)) {
+            final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(names);
+            assertThat(
+                resolved.stream().map(IndexPrivilege::name).flatMap(Set::stream).collect(Collectors.toSet()),
+                equalTo(names.stream().map(n -> n.toLowerCase(Locale.ROOT)).collect(Collectors.toSet()))
+            );
+        }
+    }
+
+    public void testCacheWeightIsEstimatedMemoryOfResolvedPrivileges() {
+        final Cache<Set<String>, Set<IndexPrivilege>> cache = IndexPrivilege.getCache();
+        assertThat(cache.count(), equalTo(0));
+
+        final Set<String> names = Set.of("read", "write", "manage_failure_store");
+        final Set<IndexPrivilege> resolved = IndexPrivilege.resolveBySelectorAccess(names);
+        // one privilege for the data selector (read + write) and one for the failures selector, both built for this entry
+        assertThat(resolved, hasSize(2));
+        assertThat(cache.count(), equalTo(1));
+        // the key, the value set and the privileges, which sizeOfCollection sums through their ramBytesUsed
+        final long expectedWeight = RamUsageEstimator.sizeOfCollection(names) + RamUsageEstimator.sizeOfCollection(resolved);
+        assertThat(cache.weight(), equalTo(expectedWeight));
+        for (IndexPrivilege privilege : resolved) {
+            // the run automaton backing the predicate dominates the footprint and must be accounted for
+            assertThat(privilege.ramBytesUsed(), greaterThanOrEqualTo(new CharacterRunAutomaton(privilege.getAutomaton()).ramBytesUsed()));
+        }
     }
 
     public static IndexPrivilege resolvePrivilegeAndAssertSingleton(Set<String> names) {

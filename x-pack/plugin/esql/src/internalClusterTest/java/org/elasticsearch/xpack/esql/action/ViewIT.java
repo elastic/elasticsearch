@@ -110,6 +110,23 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testTsWithoutStatsIsRejected() {
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("view [ts-view] uses TS, which must be followed by a STATS command"),
+            () -> createView("ts-view", "TS metrics | WHERE cpu > 1 | KEEP cpu")
+        );
+    }
+
+    public void testTsWithStatsIsAccepted() {
+        assertAcked(createView("ts-view", "TS metrics | STATS max(cpu) BY host"));
+    }
+
+    public void testPromqlIsAccepted() {
+        assertAcked(createView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu))"));
+        assertAcked(createView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | WHERE cpu_avg > 1 | KEEP cpu_avg"));
+    }
+
     public void testCannotCreateAliasToView() {
         assertAcked(createView("my-view", "FROM not-validated"));
 

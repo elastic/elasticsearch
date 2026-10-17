@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.elasticsearch.lucene.store.DirectMonotonicLocator;
 
 import java.io.IOException;
 
@@ -94,7 +95,9 @@ public final class TSDBDocValuesBlockReader {
                     }
                 }
                 final int blockShift = Integer.numberOfTrailingZeros(entry.blockSize);
-                entry.indexMeta = DirectMonotonicReader.loadMeta(meta, 1 + ((entry.numValues - 1) >>> blockShift), indexBlockShift);
+                var index = DirectMonotonicLocator.load(meta, 1 + ((entry.numValues - 1) >>> blockShift), indexBlockShift);
+                entry.indexMeta = index.meta();
+                entry.indexLocator = index.locator();
             }
             entry.indexOffset = meta.readLong();
             entry.indexLength = meta.readLong();

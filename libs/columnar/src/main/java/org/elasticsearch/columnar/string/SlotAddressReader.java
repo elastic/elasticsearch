@@ -13,6 +13,7 @@ import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.numeric.LongBlocks;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
+import org.elasticsearch.lucene.store.PrefetchRanges;
 
 import java.io.IOException;
 
@@ -51,6 +52,36 @@ final class SlotAddressReader {
             addressing.bases().dataOffset(),
             addressing.bases().dataLength()
         );
+    }
+
+    /** Asks for all blocks of counts if they lie within a single read unit. */
+    boolean prefetchAllIfWithinOneUnit(PrefetchRanges prefetches) throws IOException {
+        return counts.prefetchAllIfWithinOneUnit(prefetches);
+    }
+
+    /**
+     * Asks for the blocks of counts that the documents at {@code ranks[0, count)}, in ascending order, read.
+     *
+     * @return whether it asked for anything
+     */
+    boolean prefetch(long[] ranks, int count) throws IOException {
+        long runStart = -1;
+        long runEnd = -1;
+        for (int i = 0; i < count; i++) {
+            final long block = ranks[i] >>> blockShift;
+            if (runStart >= 0 && block <= runEnd + 1) {
+                runEnd = block;
+                continue;
+            }
+            if (runStart >= 0) {
+                counts.prefetchBlocks(runStart, runEnd);
+            }
+            runStart = runEnd = block;
+        }
+        if (runStart >= 0) {
+            counts.prefetchBlocks(runStart, runEnd);
+        }
+        return runStart >= 0;
     }
 
     /** The value address of the document at {@code rank}. */

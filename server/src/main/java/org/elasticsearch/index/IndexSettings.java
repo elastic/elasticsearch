@@ -29,7 +29,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
@@ -1161,22 +1160,6 @@ public final class IndexSettings {
     }
 
     /**
-     * Controls whether the ColumNAR doc values codec is used for a given index.
-     * Defaults to {@code true} for indices created at or after
-     * {@link IndexVersions#COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF}; {@code false} for older indices,
-     * preserving backward compatibility with segments written before the codec was the default.
-     * This setting is only registered while the {@code columnar_codec} feature flag is enabled,
-     * so a release build without the flag does not expose it; the full gating is enforced in
-     * {@code ColumnarDocValuesFormatSelector}.
-     */
-    public static final Setting<Boolean> COLUMNAR_CODEC_ENABLED_SETTING = Setting.boolSetting("index.columnar_codec.enabled", settings -> {
-        if (settings == null) {
-            return Boolean.FALSE.toString();
-        }
-        return Boolean.toString(SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF));
-    }, Property.IndexScope, Property.Final);
-
-    /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
      */
@@ -1506,7 +1489,6 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean timeSeriesEs95CodecEnabled;
-    private final boolean columnarCodecEnabled;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
@@ -1743,8 +1725,6 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
-        columnarCodecEnabled = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-            && scopedSettings.get(COLUMNAR_CODEC_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -2612,16 +2592,6 @@ public final class IndexSettings {
      */
     public boolean isTimeSeriesEs95CodecEnabled() {
         return timeSeriesEs95CodecEnabled;
-    }
-
-    /**
-     * Checks if this index opts into the ColumNAR doc values codec, as resolved from
-     * {@link #COLUMNAR_CODEC_ENABLED_SETTING}.
-     *
-     * @return {@code true} if the index opts into ColumNAR; {@code false} otherwise.
-     */
-    public boolean isColumnarCodecEnabled() {
-        return columnarCodecEnabled;
     }
 
     /**

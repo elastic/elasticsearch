@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 /**
  * Describes one keyword doc-values layout in a duel: the settings that select it, the expected {@code FieldInfo}
@@ -41,12 +43,19 @@ public final class KeywordIndexConfig {
         this.enforceColumnarSelectorGuard = enforceColumnarSelectorGuard;
     }
 
+    /**
+     * A columnar index created just before {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG}, the last version whose
+     * columnar indices write keyword doc values with ES819 rather than the ColumNAR codec.
+     */
     public static KeywordIndexConfig es819(final String indexName) {
         return new KeywordIndexConfig(
             indexName,
             "es819",
             baseSettings(IndexMode.COLUMNAR).put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
-                .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false)
+                .put(
+                    IndexMetadata.SETTING_VERSION_CREATED,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
+                )
                 .build(),
             "ES8193TSDB",
             false
@@ -57,9 +66,7 @@ public final class KeywordIndexConfig {
         return new KeywordIndexConfig(
             indexName,
             "columnar",
-            baseSettings(IndexMode.COLUMNAR).put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
-                .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
-                .build(),
+            baseSettings(IndexMode.COLUMNAR).put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true).build(),
             "ColumNAR",
             true
         );

@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -67,6 +68,29 @@ public class AllocationActionListenerTests extends ESTestCase {
         }
 
         assertThat(completed.get(), equalTo(true));
+    }
+
+    /**
+     * A master that steps down after the cluster state update task executed but before it was committed fails the
+     * cluster state update with a publish failure and the pending reroute with {@code NotMasterException}. The delegate
+     * must still be failed only once, otherwise e.g. {@code TransportMasterNodeAction} schedules two retries.
+     */
+    public void testShouldDelegateFailureOnceWhenBothFail() {
+        var failures = new AtomicInteger();
+        var listener = new AllocationActionListener<AcknowledgedResponse>(ActionListener.wrap(ignore -> {
+            throw new AssertionError("Should not complete in test");
+        }, exception -> failures.incrementAndGet()), createEmptyThreadContext());
+
+        for (var action : shuffledList(
+            List.<Runnable>of(
+                () -> listener.clusterStateUpdate().onFailure(new RuntimeException("cluster-state-update-failed")),
+                () -> listener.reroute().onFailure(new RuntimeException("reroute-failed"))
+            )
+        )) {
+            action.run();
+        }
+
+        assertThat(failures.get(), equalTo(1));
     }
 
     public void testShouldExecuteWithCorrectContext() {

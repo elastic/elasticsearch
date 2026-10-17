@@ -20,6 +20,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -960,9 +962,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             b.endArray();
         }));
 
-        BytesRef blob = doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
-        String encoded = new BytesArray(blob).utf8ToString();
-        assertThat(encoded.substring(encoded.indexOf('{')), equalTo("{\"kwd\":\"a\",\"nested\":[{\"kwd\":\"b\"},{\"kwd\":\"c\"}]}"));
+        assertThat(columnarBlobAsJson(doc), equalTo("{\"kwd\":\"a\",\"nested\":[{\"kwd\":\"b\"},{\"kwd\":\"c\"}]}"));
     }
 
     /**
@@ -989,9 +989,23 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             vectorValues(b);
         }));
 
-        BytesRef blob = doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
-        String encoded = new BytesArray(blob).utf8ToString();
-        assertThat(encoded.substring(encoded.indexOf('{')), equalTo("{\"kwd\":\"a\"}"));
+        assertThat(columnarBlobAsJson(doc), equalTo("{\"kwd\":\"a\"}"));
+    }
+
+    /**
+     * Decodes the whole-document blob entry of {@code doc} and renders it as JSON, dispatching on the blob's
+     * {@link XContentDataHelper} type byte exactly as the production read path does: the blob is stored in
+     * {@link SourceFieldMapper#COLUMNAR_BLOB_XCONTENT_TYPE} (SMILE), not JSON, so its bytes cannot be compared as a string.
+     */
+    static String columnarBlobAsJson(ParsedDocument doc) throws IOException {
+        BytesRef entry = doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
+        BytesRef value = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(entry).value();
+        XContentType type = XContentDataHelper.decodeType(value).orElseThrow();
+        assertEquals(SourceFieldMapper.COLUMNAR_BLOB_XCONTENT_TYPE, type);
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentDataHelper.decodeAndWriteXContent(XContentParserConfiguration.EMPTY, builder, type, value);
+            return Strings.toString(builder);
+        }
     }
 
     /** One field per storage layout a vector can use: the vector index, binary doc values, and a stored field. */

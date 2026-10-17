@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.column.Column;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocValuesSkipIndexType;
@@ -40,6 +41,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.sourcebatch.LuceneColumn;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -76,8 +78,43 @@ final class ColumnarSourceWriter {
      *                fields it is just {@code [doc]} and nothing downstream looks at it.
      */
     void write(MappingLookup mappingLookup, List<LuceneDocument> allDocs, LuceneDocument doc, XContentBuilder builder) throws IOException {
-        // It is safe to reuse synthetic loader and leaf loader for each thread per index.
-        // Because a new mapping will result into a new instance of this class and otherwise materialized mappings stay immutable.
+        PerThreadResources perThread = perThreadResources(mappingLookup);
+
+        perThread.leafReader().setAllDocs(allDocs);
+        perThread.leafReader().repopulate(doc);
+        perThread.fieldLoader().reset();
+        final SourceLoader.Leaf leaf = perThread.sourceLoaderLeaf();
+        final LeafReaderContext leafCtx = perThread.leafReader.getContext();
+
+        // A new leaf loader per document: it remembers the last doc it read, and every document reuses DOC_ID.
+        var storedFieldLoader = perThread.storedFieldLoader().getLoader(leafCtx, DOC_IDS);
+        storedFieldLoader.advanceTo(DOC_ID);
+        leaf.write(storedFieldLoader, DOC_ID, builder);
+    }
+
+    /**
+     * Creates a writer that rebuilds the {@code _source} of every document of one batch, in document order, straight from the mapped
+     * columns. It binds each column to the leaf-reader slot(s) its values fill once up front, so that per document the values flow
+     * directly from the column cursors into the slots. This replaces, per document, the {@code IndexableField} assembly of
+     * {@code MappedColumns.RowCursor} and the per-field map lookups and type dispatch of
+     * {@link ReusableColumnarStoredLeafReader#repopulate} that reading those fields back would cost. Columns whose fields no loader
+     * reads (no slot was registered for their name, nothing stored) are skipped entirely.
+     *
+     * <p>The returned writer is bound to the calling thread's loader resources: it must be used on the calling thread and not
+     * interleaved with {@link #write}.
+     *
+     * @param columns the columns to rebuild documents from — exactly those whose fields the row path would feed to
+     *                {@link ReusableColumnarStoredLeafReader#repopulate}
+     */
+    BatchWriter batchWriter(MappingLookup mappingLookup, List<LuceneColumn> columns) throws IOException {
+        return new BatchWriter(perThreadResources(mappingLookup), columns);
+    }
+
+    /**
+     * It is safe to reuse the synthetic loader and leaf loader for each thread per index, because a new mapping results in a new
+     * instance of this class and otherwise materialized mappings stay immutable.
+     */
+    private PerThreadResources perThreadResources(MappingLookup mappingLookup) throws IOException {
         PerThreadResources perThread = cachedColumnarPerThread.get();
         if (perThread == null) {
             final Mapping mapping = mappingLookup.getMapping();
@@ -99,18 +136,86 @@ final class ColumnarSourceWriter {
             perThread = new PerThreadResources(sourceLoader, fieldLoader, leaf, leafReader, storedFieldLoader);
             cachedColumnarPerThread.set(perThread);
         }
+        return perThread;
+    }
 
-        perThread.leafReader().setAllDocs(allDocs);
-        perThread.leafReader().repopulate(doc);
-        perThread.fieldLoader().reset();
-        final SourceLoader.Synthetic sourceLoader = perThread.sourceLoader;
-        final SourceLoader.Leaf leaf = perThread.sourceLoaderLeaf();
-        final LeafReaderContext leafCtx = perThread.leafReader.getContext();
+    /**
+     * Rebuilds the {@code _source} of one batch's documents from its columns, one document per {@link #writeNext} call.
+     *
+     * @see #batchWriter(MappingLookup, List)
+     */
+    static final class BatchWriter {
 
-        // A new leaf loader per document: it remembers the last doc it read, and every document reuses DOC_ID.
-        var storedFieldLoader = perThread.storedFieldLoader().getLoader(leafCtx, DOC_IDS);
-        storedFieldLoader.advanceTo(DOC_ID);
-        leaf.write(storedFieldLoader, DOC_ID, builder);
+        private final PerThreadResources perThread;
+        private final LuceneColumn.RowValueCursor[] valueCursors;
+        private final LuceneColumn.RowValueSink[] valueSinks;
+        private final int[] valueHeads;
+        private final LuceneColumn.RowFieldCursor[] storedFieldCursors;
+        private final int[] storedFieldHeads;
+        private int doc;
+
+        private BatchWriter(PerThreadResources perThread, List<LuceneColumn> columns) {
+            this.perThread = perThread;
+            final ReusableColumnarStoredLeafReader reader = perThread.leafReader();
+            // No per-document LuceneDocument tree exists on this path; the batch path does not support nested fields, which are the
+            // only consumers of allDocs and the current document.
+            reader.setAllDocs(List.of());
+            final List<LuceneColumn.RowValueCursor> cursors = new ArrayList<>(columns.size());
+            final List<LuceneColumn.RowValueSink> sinks = new ArrayList<>(columns.size());
+            final List<LuceneColumn.RowFieldCursor> storedCursors = new ArrayList<>();
+            for (LuceneColumn column : columns) {
+                final Column luceneColumn = column.toLuceneColumn();
+                final LuceneColumn.RowValueSink sink = reader.slotSink(luceneColumn.name(), luceneColumn.fieldType().docValuesType());
+                if (sink != null) {
+                    cursors.add(column.rowValueCursor());
+                    sinks.add(sink);
+                }
+                // Mirrors repopulate: a stored field joins the reader's stored-fields list regardless of its doc values. Stored
+                // fields keep the field-cursor form, as that list is read through a StoredFieldVisitor over IndexableFields.
+                if (luceneColumn.fieldType().stored()) {
+                    storedCursors.add(column.rowFieldCursor());
+                }
+            }
+            this.valueCursors = cursors.toArray(new LuceneColumn.RowValueCursor[0]);
+            this.valueSinks = sinks.toArray(new LuceneColumn.RowValueSink[0]);
+            this.valueHeads = new int[valueCursors.length];
+            for (int c = 0; c < valueCursors.length; c++) {
+                valueHeads[c] = valueCursors[c].nextDoc();
+            }
+            this.storedFieldCursors = storedCursors.toArray(new LuceneColumn.RowFieldCursor[0]);
+            this.storedFieldHeads = new int[storedFieldCursors.length];
+            for (int c = 0; c < storedFieldCursors.length; c++) {
+                storedFieldHeads[c] = storedFieldCursors[c].nextDoc();
+            }
+        }
+
+        /**
+         * Rebuilds the next document's {@code _source} into {@code builder}. Must be called exactly once per document of the batch,
+         * in document order, including for documents that will not be written.
+         */
+        void writeNext(XContentBuilder builder) throws IOException {
+            final ReusableColumnarStoredLeafReader reader = perThread.leafReader();
+            reader.beginDoc();
+            for (int c = 0; c < valueCursors.length; c++) {
+                while (valueHeads[c] == doc) {
+                    valueCursors[c].appendCurrentValue(valueSinks[c]);
+                    valueHeads[c] = valueCursors[c].nextDoc();
+                }
+            }
+            for (int c = 0; c < storedFieldCursors.length; c++) {
+                while (storedFieldHeads[c] == doc) {
+                    storedFieldCursors[c].appendCurrentFields(reader.storedFields);
+                    storedFieldHeads[c] = storedFieldCursors[c].nextDoc();
+                }
+            }
+            doc++;
+
+            perThread.fieldLoader().reset();
+            // A new leaf loader per document: it remembers the last doc it read, and every document reuses DOC_ID.
+            var storedFieldLoader = perThread.storedFieldLoader().getLoader(reader.getContext(), DOC_IDS);
+            storedFieldLoader.advanceTo(DOC_ID);
+            perThread.sourceLoaderLeaf().write(storedFieldLoader, DOC_ID, builder);
+        }
     }
 
     /**
@@ -219,14 +324,8 @@ final class ColumnarSourceWriter {
          * build so that the slot map is fully initialized.
          */
         void repopulate(LuceneDocument doc) {
+            beginDoc();
             this.currentDoc = doc;
-            // Clear the slots the previous document filled. Only those can hold state, and there are typically far fewer of them
-            // than registered slots, so this avoids visiting every slot of the mapping for every document.
-            for (int i = 0; i < dirtySlots.size(); i++) {
-                dirtySlots.get(i).clear();
-            }
-            dirtySlots.clear();
-            storedFields.clear();
 
             // Fill slots from this document's fields.
             for (IndexableField field : doc.getFields()) {
@@ -305,6 +404,123 @@ final class ColumnarSourceWriter {
                     storedFields.add(field);
                 }
             }
+        }
+
+        /**
+         * Clears everything the previous document left behind: the slots it filled, its stored fields, and the current document
+         * reference. Only the previously filled slots can hold state, and there are typically far fewer of them than registered
+         * slots, so this avoids visiting every slot of the mapping for every document. {@link #repopulate} calls this before
+         * reading a parsed document's fields; the batch path ({@code BatchWriter}) calls it directly before pushing one document's
+         * column values into the slots.
+         */
+        void beginDoc() {
+            this.currentDoc = null;
+            for (int i = 0; i < dirtySlots.size(); i++) {
+                dirtySlots.get(i).clear();
+            }
+            dirtySlots.clear();
+            storedFields.clear();
+        }
+
+        /**
+         * Resolves the sink that feeds {@code fieldName}'s values into the slot(s) registered for that name, or {@code null} when
+         * no loader registered one (the batch path then skips the column entirely, as {@link #repopulate} would ignore its fields).
+         * One resolution per column per batch replaces the per-field-per-document map lookups and type dispatch of
+         * {@link #repopulate}; each sink mirrors that method's dirty tracking and its first-value-wins semantics for single-valued
+         * slots. Must only be called after the one-time {@link SourceLoader.Synthetic#leaf} build, like {@link #repopulate}.
+         */
+        LuceneColumn.RowValueSink slotSink(String fieldName, DocValuesType dvType) {
+            return switch (dvType) {
+                case NUMERIC -> {
+                    if (fieldName.endsWith(COUNT_FIELD_SUFFIX)) {
+                        final CountsCompanionSlot slot = countsSlots.get(fieldName);
+                        yield slot == null ? null : new LuceneColumn.RowValueSink() {
+                            @Override
+                            public void longValue(long value) {
+                                if (slot.present == false) {
+                                    slot.value = value;
+                                    slot.present = true;
+                                    dirtySlots.add(slot);
+                                }
+                            }
+                        };
+                    }
+                    final NumericSlot slot = numericSlots.get(fieldName);
+                    yield slot == null ? null : new LuceneColumn.RowValueSink() {
+                        @Override
+                        public void longValue(long value) {
+                            if (slot.present == false) {
+                                slot.value = value;
+                                slot.present = true;
+                                dirtySlots.add(slot);
+                            }
+                        }
+                    };
+                }
+                case BINARY -> {
+                    final BinarySlot slot = binarySlots.get(fieldName);
+                    yield slot == null ? null : new LuceneColumn.RowValueSink() {
+                        @Override
+                        public void binaryValue(BytesRef value) {
+                            if (slot.present == false) {
+                                slot.value = value;
+                                slot.present = true;
+                                dirtySlots.add(slot);
+                            }
+                        }
+                    };
+                }
+                case SORTED -> {
+                    // A SORTED field may be registered as a SortedSetSlot (when first accessed via DocValues.getSortedSet →
+                    // getSortedSetDocValues) or as a SortedSlot (when accessed directly via getSortedDocValues), or both.
+                    final SortedSetSlot sortedSet = sortedSetSlots.get(fieldName);
+                    final SortedSlot sorted = sortedSlots.get(fieldName);
+                    if (sortedSet == null && sorted == null) {
+                        yield null;
+                    }
+                    yield new LuceneColumn.RowValueSink() {
+                        @Override
+                        public void binaryValue(BytesRef value) {
+                            if (sortedSet != null) {
+                                if (sortedSet.count == 0) {
+                                    dirtySlots.add(sortedSet);
+                                }
+                                sortedSet.add(value);
+                            }
+                            if (sorted != null && sorted.present == false) {
+                                sorted.value = value;
+                                sorted.present = true;
+                                dirtySlots.add(sorted);
+                            }
+                        }
+                    };
+                }
+                case SORTED_NUMERIC -> {
+                    final SortedNumericSlot slot = sortedNumericSlots.get(fieldName);
+                    yield slot == null ? null : new LuceneColumn.RowValueSink() {
+                        @Override
+                        public void longValue(long value) {
+                            if (slot.count == 0) {
+                                dirtySlots.add(slot);
+                            }
+                            slot.add(value);
+                        }
+                    };
+                }
+                case SORTED_SET -> {
+                    final SortedSetSlot slot = sortedSetSlots.get(fieldName);
+                    yield slot == null ? null : new LuceneColumn.RowValueSink() {
+                        @Override
+                        public void binaryValue(BytesRef value) {
+                            if (slot.count == 0) {
+                                dirtySlots.add(slot);
+                            }
+                            slot.add(value);
+                        }
+                    };
+                }
+                case NONE -> null;
+            };
         }
 
         // -------------------------------------------------------------------------

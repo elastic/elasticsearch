@@ -495,6 +495,29 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 }
             };
         }
+
+        @Override
+        public LuceneColumn.RowValueCursor rowValueCursor() {
+            // The value behind the field the row path emits is the uid itself; the backing array's BytesRefs are stable, which
+            // satisfies the cursor's stays-valid-after-advance contract without copying.
+            return new LuceneColumn.RowValueCursor() {
+                private int srcIdx = from - 1;
+
+                @Override
+                public int nextDoc() {
+                    srcIdx++;
+                    while (srcIdx < from + count && (uids[srcIdx] == null || (filter != null && filter.get(srcIdx - from) == false))) {
+                        srcIdx++;
+                    }
+                    return srcIdx < from + count ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;
+                }
+
+                @Override
+                public void appendCurrentValue(LuceneColumn.RowValueSink sink) {
+                    sink.binaryValue(uids[srcIdx]);
+                }
+            };
+        }
     }
 
 }

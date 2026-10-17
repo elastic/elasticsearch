@@ -26,7 +26,8 @@ import org.elasticsearch.sourcebatch.LuceneColumn;
  *
  * <p>Only the {@link #rowFieldCursor() row cursor} differs. The column handed to {@code IndexWriter.addBatch} is the plain
  * doc-values column: a batch settles a field's index options on the column carrying the values, and Lucene rejects a second column
- * claiming the same for one field.
+ * claiming the same for one field. The inherited {@link #rowValueCursor() value cursor} also stands: a valueless document differs
+ * only in the field type it reports to Lucene, never in its payload bytes.
  */
 public final class ColumnarPayloadColumn extends LuceneBinaryColumn {
 

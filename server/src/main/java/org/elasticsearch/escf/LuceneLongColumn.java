@@ -191,6 +191,23 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
     }
 
     @Override
+    public LuceneColumn.RowValueCursor rowValueCursor() {
+        // tuples() applies any active filter transparently and is element-granular for arrays, exactly like rowFieldCursor().
+        final LongTupleCursor cursor = tuples();
+        return new LuceneColumn.RowValueCursor() {
+            @Override
+            public int nextDoc() {
+                return cursor.nextDoc();
+            }
+
+            @Override
+            public void appendCurrentValue(LuceneColumn.RowValueSink sink) {
+                sink.longValue(cursor.longValue());
+            }
+        };
+    }
+
+    @Override
     public LongTupleCursor tuples() {
         LongTupleCursor inner = data.longCursor();
         if (filter == null) {

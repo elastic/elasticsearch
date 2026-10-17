@@ -131,6 +131,33 @@ public class LuceneBinaryColumn extends BinaryColumn implements LuceneColumn {
         };
     }
 
+    @Override
+    public LuceneColumn.RowValueCursor rowValueCursor() {
+        // retainValues=true: the sink may hold the BytesRef past the cursor position (multi-value rows push several values before
+        // any is consumed, and a consumer reads the row's values only after every column advanced past it).
+        final ObjectTupleCursor<BytesRef> cursor = data.bytesRefCursor(true);
+        return new LuceneColumn.RowValueCursor() {
+            @Override
+            public int nextDoc() {
+                if (filter == null) {
+                    return cursor.nextDoc();
+                }
+                int next;
+                while ((next = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    if (filter.get(next)) {
+                        return next;
+                    }
+                }
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public void appendCurrentValue(LuceneColumn.RowValueSink sink) {
+                sink.binaryValue(cursor.value());
+            }
+        };
+    }
+
     /**
      * The field the {@link #rowFieldCursor() row cursor} emits for one of {@code doc}'s values. Subclasses override this to emit a
      * field of their own for some documents; see {@code ColumnarPayloadColumn}.

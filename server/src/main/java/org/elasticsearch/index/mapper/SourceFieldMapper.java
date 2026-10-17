@@ -537,6 +537,18 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     /**
+     * The batch counterpart of {@link #encodeColumnarSource(MappingLookup, List, LuceneDocument)}: the next document of
+     * {@code batchWriter}'s batch instead of a parsed {@link LuceneDocument}, with the same builder and encoding so the two paths
+     * cannot drift apart in the bytes they store.
+     */
+    private static BytesRef encodeColumnarSource(ColumnarSourceWriter.BatchWriter batchWriter) throws IOException {
+        try (var builder = XContentFactory.jsonBuilder()) {
+            batchWriter.writeNext(builder);
+            return XContentDataHelper.encodeXContentBuilder(builder);
+        }
+    }
+
+    /**
      * Returns {@code true} for Lucene fields that exist only to support per-field synthetic-source reconstruction and are therefore
      * redundant once {@link #postParse}, or {@link #postColumnarParse} on the batch path, has materialized the whole-document source blob
      * into {@code _ignored_source}.
@@ -705,16 +717,20 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final EscfColumnBuilder blobs = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.MERGE, context.recycler());
         blobs.lockScalar(EscfColumnKind.BINARY);
         try (blobs) {
-            final MappedColumns.RowCursor rows = context.rowCursor(SourceFieldMapper::isReadByColumnarSourceWriter);
+            // The batch writer reads the columns directly: each column is bound to the slot its values fill once, instead of
+            // assembling every document's IndexableFields through a row cursor and reading them back field by field.
+            final ColumnarSourceWriter.BatchWriter batchWriter = columnarSourceWriter.batchWriter(
+                context.mappingLookup(),
+                context.luceneColumns(SourceFieldMapper::isReadByColumnarSourceWriter)
+            );
             for (int d = 0; d < docCount; d++) {
-                rows.advance();
-                // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
-                final LuceneDocument doc = new LuceneDocument(rows.fields());
-                final BytesRef encodedValue = encodeColumnarSource(context.mappingLookup(), List.of(doc), doc);
+                final BytesRef encodedValue = encodeColumnarSource(batchWriter);
                 blobs.setBinary(
                     d,
                     IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
-                        new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, doc)
+                        // The encoding reads only the name, parent offset and value; there is no per-document LuceneDocument on
+                        // this path to pass along.
+                        new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, null)
                     )
                 );
             }
@@ -739,8 +755,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     /**
      * Whether {@link ColumnarSourceWriter} can read the fields of {@code column}: it only looks at doc values and stored fields, as
-     * {@code ReusableColumnarStoredLeafReader#repopulate} ignores every other field. Columns that only index terms (the inverted index
-     * of a text field, for instance) are left out, so that the row cursor does not build their fields for nothing.
+     * {@code ReusableColumnarStoredLeafReader} ignores every other field. Columns that only index terms (the inverted index
+     * of a text field, for instance) are left out, so that the batch writer does not bind or advance them for nothing.
      */
     private static boolean isReadByColumnarSourceWriter(LuceneColumn column) {
         final IndexableFieldType fieldType = column.toLuceneColumn().fieldType();

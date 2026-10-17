@@ -597,6 +597,7 @@ public final class PromqlDocsSupport {
             case TIME_EXTRACTION -> FunctionDocCategory.DATE_TIME;
             case VECTOR_CONVERSION, SCALAR_CONVERSION -> FunctionDocCategory.CONVERSION;
             case METADATA_MANIPULATION -> FunctionDocCategory.METADATA;
+            case RESULT_ORDERING -> FunctionDocCategory.SORTING;
             case SCALAR -> throw new IllegalStateException(
                 "PromQL function ["
                     + def.name()
@@ -831,6 +832,7 @@ public final class PromqlDocsSupport {
             case VALUE_TRANSFORMATION -> "value_transformation";
             case VECTOR_CONVERSION -> "vector_conversion";
             case SCALAR_CONVERSION -> "scalar_conversion";
+            case RESULT_ORDERING -> "result_ordering";
         };
     }
 
@@ -976,7 +978,8 @@ public final class PromqlDocsSupport {
         MATH("math"),
         DATE_TIME("date-time"),
         CONVERSION("conversion"),
-        METADATA("metadata");
+        METADATA("metadata"),
+        SORTING("sorting");
 
         final String slug;
 

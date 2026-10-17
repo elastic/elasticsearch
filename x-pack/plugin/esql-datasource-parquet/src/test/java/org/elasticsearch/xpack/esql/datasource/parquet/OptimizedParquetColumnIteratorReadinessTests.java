@@ -25,16 +25,22 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -43,10 +49,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
@@ -62,8 +70,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -77,6 +87,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongPredicate;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.datasource.parquet.OptimizedParquetColumnIterator.ReadinessPhase;
 import static org.hamcrest.Matchers.lessThan;
@@ -88,8 +99,22 @@ import static org.hamcrest.Matchers.lessThan;
  */
 public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
 
+    /**
+     * Footer byte cache budget that admits no entry. The fixtures here fit the footer prefetch, so with the
+     * default cache the footer parse stores each file whole and the scan is served from that entry with no
+     * I/O; these tests observe the scan's own GETs, tickets and injected failures, so the cache must stay out.
+     */
+    private static final Settings NO_FOOTER_BYTE_CACHE = Settings.builder()
+        .put(ExternalSourceCacheSettings.FOOTER_CACHE_SIZE.getKey(), "1b")
+        .build();
+
     private BlockFactory blockFactory;
     private ExecutorService asyncIo;
+
+    /** Optimized reader whose footer byte cache admits nothing; see {@link #NO_FOOTER_BYTE_CACHE}. */
+    private ParquetFormatReader optimizedReader() {
+        return new ParquetFormatReader(NO_FOOTER_BYTE_CACHE, blockFactory);
+    }
 
     @Before
     public void init() {
@@ -100,6 +125,33 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     @After
     public void stop() throws Exception {
         terminate(asyncIo);
+    }
+
+    /**
+     * Guard: a forgotten {@code isExhausted} on a {@code waitForReady} override is silent drain EOF.
+     */
+    public void testWaitForReadyOverridesAlsoDeclareIsExhausted() throws Exception {
+        assertWaitForReadyOverrideDeclaresIsExhausted(OptimizedParquetColumnIterator.class);
+        assertWaitForReadyOverrideDeclaresIsExhausted(
+            Class.forName("org.elasticsearch.xpack.esql.datasource.parquet.ParquetFormatReader$DeferredWarnProducer")
+        );
+    }
+
+    private static void assertWaitForReadyOverrideDeclaresIsExhausted(Class<?> clazz) {
+        boolean waitForReady = false;
+        boolean isExhausted = false;
+        for (Method method : clazz.getMethods()) {
+            if (method.getDeclaringClass() != clazz || method.getParameterCount() != 0) {
+                continue;
+            }
+            if ("waitForReady".equals(method.getName())) {
+                waitForReady = true;
+            } else if ("isExhausted".equals(method.getName())) {
+                isExhausted = true;
+            }
+        }
+        assertTrue(clazz.getName() + " must override waitForReady", waitForReady);
+        assertTrue(clazz.getName() + " overrides waitForReady without isExhausted", isExhausted);
     }
 
     public void testWaitForReadyParksUntilFirstGroupIoCompletes() throws Exception {
@@ -164,9 +216,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     public void testAllFilteredStillReachesDoneWithoutBlockingHasNextAfterReady() throws Exception {
         byte[] parquet = smallFile();
         ImmediateAsyncStorage storage = new ImmediateAsyncStorage(parquet, asyncIo);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(
-            FilterCompat.get(FilterApi.eq(FilterApi.intColumn("id"), -1))
-        );
+        ParquetFormatReader reader = optimizedReader().withPushedFilter(FilterCompat.get(FilterApi.eq(FilterApi.intColumn("id"), -1)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
             assertNull(iter.tryAdvance());
@@ -245,9 +295,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         GatedOnDemandStorage storage = new GatedOnDemandStorage(parquet, asyncIo, gatePhase2, allowPhase2);
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(
-            new ParquetPushedExpressions(List.of(filter))
-        );
+        ParquetFormatReader reader = optimizedReader().withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
             gatePhase2.set(true);
@@ -293,6 +341,311 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             assertEquals(1, storage.failures.get());
             assertTrue(storage.successes.get() >= 1);
         }
+    }
+
+    /**
+     * Mid-file ticket: a TopN bound that dominates the waiting row group must advance readiness
+     * so the consumer can skip remaining groups and reach {@code DONE}.
+     */
+    public void testDominatedGroupTicketGrantAdvancesReadiness() throws Exception {
+        byte[] parquet = multiRowGroupFile();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        SharedNumericThreshold channel = new SharedNumericThreshold.Supplier(false, false).get();
+        channel.offer(0L);
+        DynamicThreshold threshold = descIntThreshold(channel);
+        try (
+            threshold;
+            CloseableIterator<Page> iter = openThreshold(
+                new ImmediateAsyncStorage(parquet, EsExecutors.DIRECT_EXECUTOR_SERVICE),
+                watermark,
+                threshold
+            )
+        ) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertTrue(iter.waitForReady().isDone());
+            Page first = iter.tryAdvance();
+            assertNotNull(first);
+            first.releaseBlocks();
+
+            NodeByteBudget.Hold blocker = occupyOvershoot(watermark);
+            try {
+                Page prefetched;
+                int drained = 0;
+                while (drained < 8 && (prefetched = iter.tryAdvance()) != null) {
+                    prefetched.releaseBlocks();
+                    drained++;
+                }
+                assertTrue("fixture must contain multiple row groups", drained > 0);
+                assertEquals(ReadinessPhase.GROUP_TICKET_PENDING, opci.readinessPhase());
+                channel.offer(100L);
+                SubscribableListener<Void> granted = iter.waitForReady();
+                assertFalse(granted.isDone());
+                releaseOvershoot(watermark, blocker);
+                blocker = null;
+                assertTrue(granted.isDone());
+
+                assertNull(iter.tryAdvance());
+                SubscribableListener<Void> resumed = iter.waitForReady();
+                assertTrue("dominated grant must advance readiness", resumed.isDone());
+                assertNull(iter.tryAdvance());
+                assertEquals(ReadinessPhase.DONE, opci.readinessPhase());
+            } finally {
+                if (blocker != null) {
+                    releaseOvershoot(watermark, blocker);
+                }
+            }
+        }
+        assertLedgerClear(watermark);
+    }
+
+    /**
+     * Constructor ticket ({@code OPEN_PENDING}): dominating the first group must skip it and
+     * still emit the rest. A "ready, null" EOF would truncate to zero rows.
+     */
+    public void testDominatedFirstGroupGrantDoesNotStrandOpen() throws Exception {
+        byte[] parquet = multiRowGroupFile();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1);
+        SharedNumericThreshold channel = new SharedNumericThreshold.Supplier(false, false).get();
+        channel.offer(0L);
+        DynamicThreshold threshold = descIntThreshold(channel);
+        NodeByteBudget.Hold blocker = occupyOvershoot(watermark);
+        DeterministicTaskQueue queue = new DeterministicTaskQueue();
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1 << 20);
+        PlainActionFuture<Void> drained = new PlainActionFuture<>();
+        ImmediateAsyncStorage storage = new ImmediateAsyncStorage(parquet, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        try (threshold; CloseableIterator<Page> iter = openThreshold(storage, watermark, threshold)) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertEquals(ReadinessPhase.OPEN_PENDING, opci.readinessPhase());
+            channel.offer(1L);
+            try {
+                ExternalSourceDrainUtils.drainPagesAsync(iter, buffer, queue.getThreadPool().generic(), buffer::readCancelled, drained);
+                queue.runAllRunnableTasks();
+                assertFalse(drained.isDone());
+                releaseOvershoot(watermark, blocker);
+                blocker = null;
+                assertDrainCompletes(queue, drained, () -> drainState(opci, watermark));
+                assertEquals(List.of(1, 2, 3, 4, 5, 6, 7), collectIds(buffer));
+            } finally {
+                buffer.finish(true);
+                queue.runAllRunnableTasks();
+            }
+        } finally {
+            if (blocker != null) {
+                releaseOvershoot(watermark, blocker);
+            }
+        }
+        assertLedgerClear(watermark);
+    }
+
+    /**
+     * Production drain park: after a dominated mid-file grant, the DTQ drain must finish with
+     * every row that the tightened bound does not dominate.
+     */
+    public void testDominatedGrantThroughDrainCompletes() throws Exception {
+        byte[] parquet = multiRowGroupFile();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        SharedNumericThreshold channel = new SharedNumericThreshold.Supplier(false, false).get();
+        channel.offer(0L);
+        DynamicThreshold threshold = descIntThreshold(channel);
+        DeterministicTaskQueue queue = new DeterministicTaskQueue();
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1 << 20);
+        PlainActionFuture<Void> drained = new PlainActionFuture<>();
+        ImmediateAsyncStorage storage = new ImmediateAsyncStorage(parquet, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        try (threshold; CloseableIterator<Page> iter = openThreshold(storage, watermark, threshold)) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertTrue(iter.waitForReady().isDone());
+            NodeByteBudget.Hold blocker = occupyOvershoot(watermark);
+            try {
+                ExternalSourceDrainUtils.drainPagesAsync(iter, buffer, queue.getThreadPool().generic(), buffer::readCancelled, drained);
+                queue.runAllRunnableTasks();
+                assertFalse(drained.isDone());
+                assertEquals(ReadinessPhase.GROUP_TICKET_PENDING, opci.readinessPhase());
+                List<Integer> emitted = collectIds(buffer);
+                assertFalse("drain must emit at least the constructor-queued group", emitted.isEmpty());
+                int k = emitted.stream().mapToInt(Integer::intValue).max().orElseThrow() + 1;
+                List<Integer> prefix = new ArrayList<>(k);
+                for (int id = 0; id < k; id++) {
+                    prefix.add(id);
+                }
+                assertEquals("drain prefix must be the constructor-queued groups", prefix, emitted);
+                assertTrue("fixture must leave groups after the ticket", k <= 5);
+                channel.offer(k + 2L);
+                releaseOvershoot(watermark, blocker);
+                blocker = null;
+                assertDrainCompletes(queue, drained, () -> drainState(opci, watermark));
+                List<Integer> all = new ArrayList<>(emitted);
+                all.addAll(collectIds(buffer));
+                List<Integer> expected = new ArrayList<>(emitted);
+                for (int id = k + 2; id < 8; id++) {
+                    expected.add(id);
+                }
+                assertEquals(expected, all);
+            } finally {
+                if (blocker != null) {
+                    releaseOvershoot(watermark, blocker);
+                }
+                buffer.finish(true);
+                queue.runAllRunnableTasks();
+            }
+        }
+        assertLedgerClear(watermark);
+    }
+
+    /**
+     * Local / non-native-async storage: the required group tickets through {@code admitRequiredSync}
+     * rather than constructor prefetch. Same dominated-grant hang, same wake.
+     */
+    public void testDominatedGrantOnSyncStorageAdvancesReadiness() throws Exception {
+        byte[] parquet = multiRowGroupFile();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        SharedNumericThreshold channel = new SharedNumericThreshold.Supplier(false, false).get();
+        channel.offer(0L);
+        DynamicThreshold threshold = descIntThreshold(channel);
+        try (threshold; CloseableIterator<Page> iter = openThreshold(new SyncLocalStorage(parquet), watermark, threshold)) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertTrue(iter.waitForReady().isDone());
+            Page first = iter.tryAdvance();
+            assertNotNull(first);
+            first.releaseBlocks();
+
+            NodeByteBudget.Hold blocker = occupyOvershoot(watermark);
+            try {
+                assertNull(iter.tryAdvance());
+                assertEquals(ReadinessPhase.GROUP_TICKET_PENDING, opci.readinessPhase());
+                channel.offer(100L);
+                SubscribableListener<Void> granted = iter.waitForReady();
+                assertFalse(granted.isDone());
+                releaseOvershoot(watermark, blocker);
+                blocker = null;
+                assertTrue(granted.isDone());
+
+                assertNull(iter.tryAdvance());
+                SubscribableListener<Void> resumed = iter.waitForReady();
+                assertTrue("dominated sync-path grant must advance readiness", resumed.isDone());
+                assertNull(iter.tryAdvance());
+                assertEquals(ReadinessPhase.DONE, opci.readinessPhase());
+            } finally {
+                if (blocker != null) {
+                    releaseOvershoot(watermark, blocker);
+                }
+            }
+        }
+        assertLedgerClear(watermark);
+    }
+
+    /**
+     * Inline re-ticket grant: the bind hook dominates the waiting group after
+     * {@code fillPrefetchQueue} has already decided to ticket it. Discarding that grant must
+     * skip the group, not throw "async storage I/O failed for required row group".
+     */
+    public void testDominatedInlineReticketGrantDoesNotFailQuery() throws Exception {
+        byte[] parquet = multiRowGroupFile();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        SharedNumericThreshold channel = new SharedNumericThreshold.Supplier(false, false).get();
+        channel.offer(0L);
+        DynamicThreshold threshold = descIntThreshold(channel);
+        ImmediateAsyncStorage storage = new ImmediateAsyncStorage(parquet, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        AtomicInteger maxSeen = new AtomicInteger(-1);
+        List<Integer> emitted = new ArrayList<>();
+        DeterministicTaskQueue queue = new DeterministicTaskQueue();
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1 << 20);
+        PlainActionFuture<Void> drained = new PlainActionFuture<>();
+        long charged = watermark.limit();
+        try (threshold; CloseableIterator<Page> iter = openThreshold(storage, watermark, threshold)) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertTrue(iter.waitForReady().isDone());
+            watermark.nodeByteBudget().add(charged, null);
+            storage.onBind.set(() -> channel.offer(maxSeen.get() + 2L));
+            try {
+                for (int i = 0; i < 8; i++) {
+                    Page page;
+                    try {
+                        page = iter.tryAdvance();
+                    } catch (ElasticsearchException e) {
+                        throw new AssertionError(
+                            "inline re-ticket grant for a group dominated mid-ticket must not fail the query: " + e.getMessage(),
+                            e
+                        );
+                    }
+                    if (page == null) {
+                        break;
+                    }
+                    try {
+                        IntBlock block = page.getBlock(0);
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            int id = block.getInt(p);
+                            emitted.add(id);
+                            maxSeen.set(Math.max(maxSeen.get(), id));
+                        }
+                    } finally {
+                        page.releaseBlocks();
+                    }
+                }
+                assertFalse("constructor-queued group must emit before the re-ticket", emitted.isEmpty());
+                int k = maxSeen.get() + 1;
+                assertEquals("tiny INT32 groups are prefetch depth 1", 1, opci.prefetchDepth());
+                assertTrue("re-ticket must leave a live group to skip", k < 8);
+                ExternalSourceDrainUtils.drainPagesAsync(iter, buffer, queue.getThreadPool().generic(), buffer::readCancelled, drained);
+                assertDrainCompletes(queue, drained, () -> drainState(opci, watermark));
+                List<Integer> all = new ArrayList<>(emitted);
+                all.addAll(collectIds(buffer));
+                List<Integer> expected = new ArrayList<>(emitted);
+                for (int id = k + 1; id < 8; id++) {
+                    expected.add(id);
+                }
+                assertEquals(expected, all);
+                assertEquals(7, all.size());
+                assertEquals(ReadinessPhase.DONE, opci.readinessPhase());
+            } finally {
+                buffer.finish(true);
+                queue.runAllRunnableTasks();
+                watermark.nodeByteBudget().release(charged, null);
+            }
+        }
+        assertLedgerClear(watermark);
+    }
+
+    /**
+     * No sort-column statistics: {@code rowGroupDominatedByThreshold} cannot skip. Marking
+     * {@code noFurtherCandidates} before the empty-queue re-ticket must be EOF, not a GET-miss
+     * error — {@code fillPrefetchQueue} breaks before issuing I/O.
+     */
+    public void testNoStatsNoFurtherCandidatesReticketIsEof() throws Exception {
+        byte[] parquet = multiRowGroupFileNoStats();
+        ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
+        SharedNumericThreshold channel = new SharedNumericThreshold.Supplier(false, false).get();
+        channel.offer(0L);
+        DynamicThreshold threshold = descIntThreshold(channel);
+        ImmediateAsyncStorage storage = new ImmediateAsyncStorage(parquet, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DeterministicTaskQueue queue = new DeterministicTaskQueue();
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1 << 20);
+        PlainActionFuture<Void> drained = new PlainActionFuture<>();
+        long charged = watermark.limit();
+        try (threshold; CloseableIterator<Page> iter = openThreshold(storage, watermark, threshold)) {
+            OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
+            assertTrue(iter.waitForReady().isDone());
+            watermark.nodeByteBudget().add(charged, null);
+            try {
+                Page first = iter.tryAdvance();
+                assertNotNull(first);
+                first.releaseBlocks();
+                channel.markNoFurtherCandidates();
+                try {
+                    assertNull(iter.tryAdvance());
+                } catch (ElasticsearchException e) {
+                    fail("no-statistics re-ticket after markNoFurtherCandidates must not fail the query: " + e.getMessage());
+                }
+                ExternalSourceDrainUtils.drainPagesAsync(iter, buffer, queue.getThreadPool().generic(), buffer::readCancelled, drained);
+                assertDrainCompletes(queue, drained, () -> drainState(opci, watermark));
+                assertTrue(collectIds(buffer).isEmpty());
+                assertEquals(ReadinessPhase.DONE, opci.readinessPhase());
+            } finally {
+                buffer.finish(true);
+                queue.runAllRunnableTasks();
+                watermark.nodeByteBudget().release(charged, null);
+            }
+        }
+        assertLedgerClear(watermark);
     }
 
     public void testUnsupportedOnlyProjectionEmitsNullsWithoutSyncFallbackAssert() throws Exception {
@@ -385,9 +738,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         GatedOnDemandStorage storage = new GatedOnDemandStorage(parquet, asyncIo, gatePhase2, allowPhase2);
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(
-            new ParquetPushedExpressions(List.of(filter))
-        );
+        ParquetFormatReader reader = optimizedReader().withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
@@ -417,7 +768,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         NodeByteBudget.Hold overshoot = null;
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
@@ -462,7 +813,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             assertBusy(() -> assertTrue(iter.waitForReady().isDone()), 5, TimeUnit.SECONDS);
@@ -500,7 +851,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         );
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         int rows = 0;
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
@@ -659,7 +1010,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
@@ -695,7 +1046,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new Equals(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 5L, DataType.LONG), null);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
@@ -730,7 +1081,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 20L, DataType.LONG), null);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         ParquetIoWatermark.AdmitHold eater = null;
         try (CloseableIterator<Page> iter = reader.read(new ImmediateAsyncStorage(parquet, asyncIo), FormatReadContext.of(null, 64))) {
@@ -813,7 +1164,7 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
         Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 4L, DataType.LONG), null);
         ParquetIoWatermark watermark = new ParquetIoWatermark(1 << 20);
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withIoWatermark(watermark)
+        ParquetFormatReader reader = optimizedReader().withIoWatermark(watermark)
             .withPushedFilter(new ParquetPushedExpressions(List.of(filter)));
         try (CloseableIterator<Page> iter = reader.read(storage, FormatReadContext.of(null, 64))) {
             OptimizedParquetColumnIterator opci = (OptimizedParquetColumnIterator) iter;
@@ -879,11 +1230,57 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     }
 
     private CloseableIterator<Page> open(StorageObject storage, ParquetIoWatermark watermark) throws IOException {
-        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true);
+        ParquetFormatReader reader = optimizedReader();
         if (watermark != null) {
             reader = reader.withIoWatermark(watermark);
         }
         return reader.read(storage, FormatReadContext.of(null, 64));
+    }
+
+    private CloseableIterator<Page> openThreshold(StorageObject storage, ParquetIoWatermark watermark, DynamicThreshold threshold)
+        throws IOException {
+        ParquetFormatReader reader = (ParquetFormatReader) optimizedReader().withIoWatermark(watermark).withDynamicThreshold(threshold);
+        return reader.read(storage, FormatReadContext.of(null, 64));
+    }
+
+    private static DynamicThreshold descIntThreshold(SharedNumericThreshold channel) {
+        return new DynamicThreshold("id", ElementType.INT, false, false, channel);
+    }
+
+    private static List<Integer> collectIds(AsyncExternalSourceBuffer buffer) {
+        List<Integer> ids = new ArrayList<>();
+        Page page;
+        while ((page = buffer.pollPage()) != null) {
+            try {
+                IntBlock block = page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    ids.add(block.getInt(i));
+                }
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+        return ids;
+    }
+
+    private static void assertDrainCompletes(DeterministicTaskQueue queue, PlainActionFuture<Void> future, Supplier<String> state) {
+        queue.runAllRunnableTasks();
+        assertFalse(queue.hasRunnableTasks());
+        assertTrue("drain parked with nothing outstanding after quiescence: " + state.get(), future.isDone());
+        future.actionGet();
+    }
+
+    private static String drainState(OptimizedParquetColumnIterator opci, ParquetIoWatermark watermark) {
+        return "phase="
+            + opci.readinessPhase()
+            + " pendingPrefetch="
+            + opci.pendingPrefetchCount()
+            + " waiters="
+            + watermark.waiterCount()
+            + " used="
+            + watermark.used()
+            + " owner="
+            + watermark.overshootOwner();
     }
 
     /**
@@ -954,20 +1351,29 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
     }
 
     private static byte[] multiRowGroupFile() throws IOException {
+        return multiRowGroupFile(true);
+    }
+
+    private static byte[] multiRowGroupFileNoStats() throws IOException {
+        return multiRowGroupFile(false);
+    }
+
+    private static byte[] multiRowGroupFile(boolean statistics) throws IOException {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("id").named("ready");
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
-                .withConf(new PlainParquetConfiguration())
-                .withCodecFactory(new PlainCompressionCodecFactory())
-                .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
-                .withRowGroupSize(1)
-                .withRowGroupRowCountLimit(1)
-                .withPageSize(128)
-                .build()
-        ) {
+        ExampleParquetWriter.Builder builder = ExampleParquetWriter.builder(outputFile(out))
+            .withConf(new PlainParquetConfiguration())
+            .withCodecFactory(new PlainCompressionCodecFactory())
+            .withType(schema)
+            .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+            .withRowGroupSize(1)
+            .withRowGroupRowCountLimit(1)
+            .withPageSize(128);
+        if (statistics == false) {
+            builder = builder.withStatisticsEnabled("id", false);
+        }
+        try (ParquetWriter<Group> writer = builder.build()) {
             for (int i = 0; i < 8; i++) {
                 writer.write(factory.newGroup().append("id", i));
             }
@@ -1180,15 +1586,29 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
         final byte[] data;
         final ExecutorService asyncIo;
         volatile RowGroupIo boundLease;
+        final AtomicReference<Runnable> onBind = new AtomicReference<>();
 
         private ImmediateAsyncStorage(byte[] data, ExecutorService asyncIo) {
             this.data = data;
             this.asyncIo = asyncIo;
         }
 
+        /**
+         * A version, so this object's footer cache key is non-null. Without one the key is null, nothing is ever
+         * stored or read, and NO_FOOTER_BYTE_CACHE stops being what keeps the cache out of these tests.
+         */
+        @Override
+        public String version() {
+            return "v1";
+        }
+
         @Override
         public void bindRowGroup(RowGroupIo io) {
             boundLease = io;
+            Runnable hook = onBind.getAndSet(null);
+            if (hook != null) {
+                hook.run();
+            }
         }
 
         @Override
@@ -1235,6 +1655,21 @@ public class OptimizedParquetColumnIteratorReadinessTests extends ESTestCase {
             ActionListener<DirectReadBuffer> listener
         ) {
             fillAsync(data, position, length, factory, asyncIo, listener);
+        }
+    }
+
+    /**
+     * Local-file style storage: {@code supportsNativeAsync()} is false, so the required group
+     * tickets through {@code admitRequiredSync} instead of constructor prefetch.
+     */
+    private static final class SyncLocalStorage extends ImmediateAsyncStorage {
+        private SyncLocalStorage(byte[] data) {
+            super(data, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        }
+
+        @Override
+        public boolean supportsNativeAsync() {
+            return false;
         }
     }
 

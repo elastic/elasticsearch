@@ -432,9 +432,9 @@ esac
     expect(r.report).toBe("");
   });
 
-  test("a failed jq comparison produces Not compared", () => {
+  test("a failed JSON field extraction produces Not compared", () => {
     writeFileSync(join(dir, "bin", "jq"), `#!/bin/bash
-for arg in "$@"; do [[ $arg == --slurpfile ]] && exit 5; done
+[[ $1 == -jn ]] && exit 5
 exec "${JQ}" "$@"
 `, { mode: 0o755 });
     const r = run(STABLE, STABLE);
@@ -506,12 +506,12 @@ exec "${JQ}" "$@"
     expect(git(repo, "worktree", "list", "--porcelain").match(/^worktree /gm)).toHaveLength(1);
   });
 
-  test("cleanup removes the control worktree after an unhandled rendering failure", () => {
+  test("cleanup removes the control worktree after an unhandled artifact write failure", () => {
     writeFileSync(join(dir, "bin", "jq"), `#!/bin/bash
-[[ $1 == -r ]] && exit 2
+[[ $1 == -cn ]] && exit 2
 exec "${JQ}" "$@"
 `, { mode: 0o755 });
-    const r = run(STABLE, STABLE);
+    const r = run([["001", "match", "up"]], [["001", "error4xx", "up"]]);
     expect(r.status).toBe(2);
     expect(git(repo, "worktree", "list", "--porcelain").match(/^worktree /gm)).toHaveLength(1);
     expect(r.report).not.toContain("No regressions");

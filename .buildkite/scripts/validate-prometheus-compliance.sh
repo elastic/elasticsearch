@@ -20,7 +20,7 @@
 
 # Requires Bash 4.4+ (the Buildkite agent runs Linux).
 set -euo pipefail
-shopt -s inherit_errexit
+shopt -s inherit_errexit lastpipe
 
 log() {
   printf '%s\n' "$*" >&2
@@ -38,7 +38,7 @@ configure() {
   for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH; do
     [[ -n "${!var:-}" ]] || die "$var must be set"
   done
-  for cmd in curl git jq tee; do
+  for cmd in curl git jq tee sort; do
     command -v "$cmd" >/dev/null 2>&1 || die "$cmd must be on the PATH"
   done
   if [[ ! "$PROMCHECK_TEST_INSTANCE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
@@ -157,71 +157,169 @@ summary() {
   jq -ec 'select(.type == "summary") | . + {errors: (.es_4xx + .es_5xx + .error)}' -- "$1"
 }
 
-# Join query records by case ID and classify each pair directly from JSONL.
-compare_results() {
-  jq -n --slurpfile control "$1" --slurpfile tested "$2" '
-    def state:
-      if .status == "skipped" then
-        if .skip_reason == "flaky" then "flaky" else "filtered" end
-      elif .status == "error" and .es_status >= 500 then "error5xx"
-      elif .status == "error" and .es_status >= 400 then "error4xx"
-      else .status end;
-    def severity: {match: 0, mismatch: 1, error4xx: 2, error5xx: 3, error: 3}[.];
-    def category($before; $after):
-      if $before == "flaky" or $after == "flaky" then "flaky"
-      elif $before == "filtered" or $after == "filtered" then null
-      elif ($before | severity) < ($after | severity) then "regression"
-      elif ($before | severity) > ($after | severity) then "improvement"
-      else null end;
-
-    INDEX($control[] | select(.type == "query"); .name) as $before |
-    [$tested[] | select(.type == "query") |
-      . as $query | $before[.name] | select(. != null) |
-      state as $old | ($query | state) as $new |
-      category($old; $new) as $category | select($category != null) |
-      {name: $query.name, before: $old, after: $new, category: $category, query: ($query.query // "")}
-    ] | sort_by(.name | tonumber)
-  '
+# NUL-delimited fields preserve tabs, newlines, and backslashes in query text.
+# lastpipe fills the caller's array; pipefail propagates jq failures.
+read_queries() {
+  jq -jn 'inputs | select(.type == "query") |
+    .name, .status, (.es_status // 0 | tostring), (.skip_reason // ""), (.query // "") |
+    ., "\u0000"' -- "$1" | mapfile -d '' -t "$2"
 }
 
-# Keep query text intact in the JSON artifact; escape it only for the Markdown table.
-render_changes() {
-  local changes_file="$1"
-  local base="$2"
-  local revision="$3"
-  jq -r --arg base "$base" --arg revision "$revision" --argjson max "$MAX_ROWS" --arg full "$CHANGES_LINK" '
-    def status_label:
-      {match: "PASS", mismatch: "FAIL", error4xx: "ERROR 4xx", error5xx: "ERROR 5xx", flaky: "FLAKY"}[.] // "ERROR";
-    def count($one; $many): "\(.) \(if . == 1 then $one else $many end)";
-    def code:
-      gsub("[\t\r\n]"; " ") | gsub("\\|"; "\\|") |
-      if contains("`") then "`` \(.) ``" else "`\(.)`" end;
-    def section($title; $rows):
-      if ($rows | length) == 0 then "" else
-        "### \($title)\n\n| Case | Result | Query |\n|---:|:---:|---|\n" +
-        ([$rows[:$max][] | "| \(.name) | `\(.before | status_label) -> \(.after | status_label)` | \(.query | code) |\n"] | join("")) +
-        (if ($rows | length) > $max then "\n_\(($rows | length) - $max) more in \($full)._\n" else "" end) + "\n"
-      end;
+query_status() {
+  case "$1" in
+    skipped)
+      if [[ "$3" == flaky ]]; then printf flaky; else printf filtered; fi ;;
+    error)
+      if (( $2 >= 500 )); then printf error5xx
+      elif (( $2 >= 400 )); then printf error4xx
+      else printf error; fi ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
 
-    map(select(.category == "regression")) as $regressions |
-    map(select(.category == "improvement")) as $improvements |
-    map(select(.category == "flaky")) as $flaky |
-    "**\(if ($regressions | length) > 0 then "Regression detected" else "No regressions" end)**\n\n" +
-    (if length == 0 then "No query compatibility changes detected.\n\n" else
-      "\($regressions | length | count("regression"; "regressions")), " +
-      "\($improvements | length | count("improvement"; "improvements")), " +
-      "\($flaky | length | count("flaky case"; "flaky cases"))\n\n" +
-      "<details>\n<summary><strong>Show changed queries</strong></summary>\n\n" +
-      section("Regressions"; $regressions) + section("Improvements"; $improvements) + section("Flaky"; $flaky) +
-      "</details>\n\n"
-    end) + "**Compared** `\($base[:10])` -> `\($revision[:10])`  "
-  ' -- "$changes_file"
+classify() {
+  local -Ar severity=([match]=0 [mismatch]=1 [error4xx]=2 [error5xx]=3 [error]=3)
+  case "$1:$2" in
+    flaky:*|*:flaky) printf flaky ;;
+    filtered:*|*:filtered) printf stable ;;
+    *)
+      if (( severity[$1] < severity[$2] )); then printf regression
+      elif (( severity[$1] > severity[$2] )); then printf improvement
+      else printf stable; fi ;;
+  esac
+}
+
+# Each result has five fields: case ID, previous status, current status, category, query.
+compare_results() {
+  local -n results_ref="$3"
+  local -a control_records tested_records
+  local -A previous=()
+  local i id old new category
+  read_queries "$1" control_records || return
+  read_queries "$2" tested_records || return
+  for ((i = 0; i < ${#control_records[@]}; i += 5)); do
+    previous[${control_records[i]}]=$(query_status "${control_records[i+1]}" "${control_records[i+2]}" "${control_records[i+3]}")
+  done
+  for ((i = 0; i < ${#tested_records[@]}; i += 5)); do
+    id=${tested_records[i]}
+    [[ -n "${previous[$id]+present}" ]] || continue
+    old=${previous[$id]}
+    new=$(query_status "${tested_records[i+1]}" "${tested_records[i+2]}" "${tested_records[i+3]}")
+    category=$(classify "$old" "$new")
+    [[ "$category" == stable ]] || results_ref+=("$id" "$old" "$new" "$category" "${tested_records[i+4]}")
+  done
+}
+
+write_changes() {
+  local -n rows_ref="$1"
+  local i separator=""
+  printf '[\n'
+  for ((i = 0; i < ${#rows_ref[@]}; i += 5)); do
+    printf '%s' "$separator"
+    jq -cn --arg name "${rows_ref[i]}" --arg before "${rows_ref[i+1]}" --arg after "${rows_ref[i+2]}" \
+      --arg category "${rows_ref[i+3]}" --arg query "${rows_ref[i+4]}" \
+      '{name: $name, before: $before, after: $after, category: $category, query: $query}'
+    separator=,
+  done
+  printf ']\n'
+}
+
+count_category() {
+  local -n rows_ref="$1"
+  local category="$2" i count=0
+  for ((i = 3; i < ${#rows_ref[@]}; i += 5)); do
+    if [[ "${rows_ref[i]}" == "$category" ]]; then ((count += 1)); fi
+  done
+  printf '%d' "$count"
+}
+
+status_label() {
+  case "$1" in
+    match) printf PASS ;;
+    mismatch) printf FAIL ;;
+    error4xx) printf 'ERROR 4xx' ;;
+    error5xx) printf 'ERROR 5xx' ;;
+    flaky) printf FLAKY ;;
+    *) printf ERROR ;;
+  esac
+}
+
+# Backticks below are literal Markdown delimiters.
+# shellcheck disable=SC2016
+print_code() {
+  local text="$1"
+  text=${text//$'\n'/ }
+  text=${text//$'\r'/ }
+  text=${text//$'\t'/ }
+  text=${text//|/\\|}
+  if [[ "$text" == *'`'* ]]; then printf '`` %s ``' "$text"; else printf '`%s`' "$text"; fi
+}
+
+print_count() {
+  if (( $1 == 1 )); then printf '%d %s' "$1" "$2"; else printf '%d %s' "$1" "$3"; fi
+}
+
+# shellcheck disable=SC2016
+render_section() {
+  local -n rows_ref="$1"
+  local category="$2" title="$3" total="$4" i id sorted_ids shown=0
+  local -A positions=()
+  local -a ids=()
+  (( total > 0 )) || return 0
+  # Sort only case IDs; query strings never pass through a line-oriented format.
+  for ((i = 0; i < ${#rows_ref[@]}; i += 5)); do
+    if [[ "${rows_ref[i+3]}" == "$category" ]]; then
+      id=${rows_ref[i]}
+      positions[$id]=$i
+      ids+=("$id")
+    fi
+  done
+  printf '### %s\n\n| Case | Result | Query |\n|---:|:---:|---|\n' "$title"
+  sorted_ids=$(printf '%s\n' "${ids[@]}" | sort -n)
+  while IFS= read -r id; do
+    i=${positions[$id]}
+    if (( shown < MAX_ROWS )); then
+      printf '| %s | `%s -> %s` | ' "$id" "$(status_label "${rows_ref[i+1]}")" "$(status_label "${rows_ref[i+2]}")"
+      print_code "${rows_ref[i+4]}"
+      printf ' |\n'
+      ((shown += 1))
+    fi
+  done <<< "$sorted_ids"
+  if (( total > MAX_ROWS )); then printf '\n_%d more in %s._\n' "$((total - MAX_ROWS))" "$CHANGES_LINK"; fi
+  printf '\n'
+}
+
+# shellcheck disable=SC2016
+render_changes() {
+  local rows_name="$1" base="$2" revision="$3" regressions improvements flaky
+  regressions=$(count_category "$rows_name" regression)
+  improvements=$(count_category "$rows_name" improvement)
+  flaky=$(count_category "$rows_name" flaky)
+  if (( regressions > 0 )); then printf '**Regression detected**\n\n'; else printf '**No regressions**\n\n'; fi
+  if (( regressions + improvements + flaky == 0 )); then
+    printf 'No query compatibility changes detected.\n\n'
+  else
+    print_count "$regressions" regression regressions
+    printf ', '
+    print_count "$improvements" improvement improvements
+    printf ', '
+    print_count "$flaky" 'flaky case' 'flaky cases'
+    printf '\n\n<details>\n<summary><strong>Show changed queries</strong></summary>\n\n'
+    render_section "$rows_name" regression Regressions "$regressions"
+    render_section "$rows_name" improvement Improvements "$improvements"
+    render_section "$rows_name" flaky Flaky "$flaky"
+    printf '</details>\n\n'
+  fi
+  printf '**Compared** `%s` -> `%s`  \n' "${base:0:10}" "${revision:0:10}"
 }
 
 # A subshell keeps main's locals available to the EXIT trap on errexit as well as explicit exit.
 main() (
   local control_dir="" release arch base revision control_summary test_summary regressions
   local style=success status=0
+  # Populated and consumed through namerefs in the helpers.
+  # shellcheck disable=SC2034
+  local -a changes=()
   configure
   trap 'cleanup "$control_dir"' EXIT
 
@@ -267,10 +365,11 @@ main() (
   test_summary=$(summary "$TEST_LOG") || not_compared "The test run printed no promcheck summary"
 
   log "--- Reporting"
-  compare_results "$CONTROL_LOG" "$TEST_LOG" > "$CHANGES_FILE" || not_compared "Could not compare promcheck results"
-  render_changes "$CHANGES_FILE" "$base" "$revision" | report > "$REPORT_FILE"
+  compare_results "$CONTROL_LOG" "$TEST_LOG" changes || not_compared "Could not compare promcheck results"
+  write_changes changes > "$CHANGES_FILE"
+  render_changes changes "$base" "$revision" | report > "$REPORT_FILE"
 
-  regressions=$(jq 'map(select(.category == "regression")) | length' -- "$CHANGES_FILE")
+  regressions=$(count_category changes regression)
   if (( regressions > 0 )); then
     style=error
     status=1

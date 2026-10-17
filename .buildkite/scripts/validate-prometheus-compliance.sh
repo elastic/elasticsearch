@@ -38,7 +38,7 @@ configure() {
   for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH; do
     [[ -n "${!var:-}" ]] || die "$var must be set"
   done
-  for cmd in awk curl git jq tee; do
+  for cmd in curl git jq tee; do
     command -v "$cmd" >/dev/null 2>&1 || die "$cmd must be on the PATH"
   done
   if [[ ! "$PROMCHECK_TEST_INSTANCE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
@@ -63,10 +63,8 @@ configure() {
   declare -gr PROMCHECK_BIN="$WORK_DIR/promcheck"
   declare -gr BUNDLE="$WORK_DIR/$CORPUS.tar.gz"
   declare -gr CONTROL_LOG="$OUTPUT_DIR/@$CORPUS-control.log"
-  declare -gr CONTROL_OUTCOMES="$OUTPUT_DIR/@$CORPUS-control.tsv"
-  declare -gr TEST_OUTCOMES="$OUTPUT_DIR/@$CORPUS-test.tsv"
   declare -gr TEST_LOG="$OUTPUT_DIR/@$CORPUS-test.log"
-  declare -gr CHANGES_FILE="$OUTPUT_DIR/@$CORPUS-changes.tsv"
+  declare -gr CHANGES_FILE="$OUTPUT_DIR/@$CORPUS-changes.json"
   declare -gr REPORT_FILE="$OUTPUT_DIR/@$CORPUS-report.md"
   # Artifacts keep their absolute path without the leading slash.
   declare -gr CHANGES_LINK="<a href=\"artifact://${CHANGES_FILE#/}\">${CHANGES_FILE##*/}</a>"
@@ -159,90 +157,65 @@ summary() {
   jq -ec 'select(.type == "summary") | . + {errors: (.es_4xx + .es_5xx + .error)}' -- "$1"
 }
 
-# Every executed query as "<case>\t<status>\t<expression>". Flatten whitespace
-# for the Markdown table while preserving literal backslashes in PromQL.
-outcomes() {
-  jq -nr '
-    inputs | select(.type == "query") |
-    (if .status == "skipped" then
-       if .skip_reason == "flaky" then "flaky" else "filtered" end
-     elif .status == "error" and .es_status >= 500 then "error5xx"
-     elif .status == "error" and .es_status >= 400 then "error4xx"
-     else .status end) as $status |
-    [.name, $status, ((.query // "") | gsub("[\t\r\n]"; " "))] | join("\t")
-  ' -- "$1"
+# Join query records by case ID and classify each pair directly from JSONL.
+compare_results() {
+  jq -n --slurpfile control "$1" --slurpfile tested "$2" '
+    def state:
+      if .status == "skipped" then
+        if .skip_reason == "flaky" then "flaky" else "filtered" end
+      elif .status == "error" and .es_status >= 500 then "error5xx"
+      elif .status == "error" and .es_status >= 400 then "error4xx"
+      else .status end;
+    def severity: {match: 0, mismatch: 1, error4xx: 2, error5xx: 3, error: 3}[.];
+    def category($before; $after):
+      if $before == "flaky" or $after == "flaky" then "flaky"
+      elif $before == "filtered" or $after == "filtered" then null
+      elif ($before | severity) < ($after | severity) then "regression"
+      elif ($before | severity) > ($after | severity) then "improvement"
+      else null end;
+
+    INDEX($control[] | select(.type == "query"); .name) as $before |
+    [$tested[] | select(.type == "query") |
+      . as $query | $before[.name] | select(. != null) |
+      state as $old | ($query | state) as $new |
+      category($old; $new) as $category | select($category != null) |
+      {name: $query.name, before: $old, after: $new, category: $category, query: ($query.query // "")}
+    ] | sort_by(.name | tonumber)
+  '
 }
 
-# Compare by case ID. Flaky on either side takes precedence; filtered cases
-# do not participate. The last column records the comparison category.
-changes() {
-  awk -F $'\t' '
-    function severity(s) {
-      return s == "match" ? 0 : s == "mismatch" ? 1 : s == "error4xx" ? 2 : 3
-    }
-    FILENAME == ARGV[1] { before[$1] = $2; next }
-    $1 in before {
-      old = before[$1]
-      if (old == "flaky" || $2 == "flaky") category = "flaky"
-      else if (old == "filtered" || $2 == "filtered") next
-      else if (severity(old) < severity($2)) category = "regression"
-      else if (severity(old) > severity($2)) category = "improvement"
-      else next
-      printf "%s\t%s\t%s\t%s\t%s\n", $1, old, $2, $3, category
-    }
-  ' "$1" "$2" | sort -t $'\t' -k1,1n
-}
-
-# The report body, in GitHub markdown: the result first, the changed queries collapsed, the comparison last.
-# Stable cases are omitted. Flaky cases are shown separately, even when flaky in both runs.
+# Keep query text intact in the JSON artifact; escape it only for the Markdown table.
 render_changes() {
   local changes_file="$1"
   local base="$2"
   local revision="$3"
-  awk -F $'\t' -v base="$base" -v revision="$revision" -v max="$MAX_ROWS" -v full="$CHANGES_LINK" '
-    function label(s) { return s == "match" ? "PASS" : s == "mismatch" ? "FAIL" : s == "error4xx" ? "ERROR 4xx" : s == "error5xx" ? "ERROR 5xx" : s == "flaky" ? "FLAKY" : "ERROR" }
-    # n + 0: a section with no rows never set its counter, which awk would print as "".
-    function count(n, one, many) { return (n + 0) " " (n == 1 ? one : many) }
-    # Inline code: pipes escaped for the table, a backtick in the query widens the fence.
-    function code(s) {
-      gsub(/\|/, "\\|", s)
-      return index(s, "`") ? "`` " s " ``" : "`" s "`"
-    }
-    function section(title, rows, n,   i, f) {
-      if (!n) return
-      printf "### %s\n\n| Case | Result | Query |\n|---:|:---:|---|\n", title
-      for (i = 1; i <= n && i <= max; i++) {
-        split(rows[i], f, "\t")
-        printf "| %s | `%s -> %s` | %s |\n", f[1], label(f[2]), label(f[3]), code(f[4])
-      }
-      if (n > max) printf "\n_%d more in %s._\n", n - max, full
-      printf "\n"
-    }
-    $5 == "regression" { regressions[++nr] = $0 }
-    $5 == "improvement" { improvements[++ni] = $0 }
-    $5 == "flaky" { flaky[++nk] = $0 }
-    END {
-      printf "**%s**\n\n", nr ? "Regression detected" : "No regressions"
-      if (nr + ni + nk == 0) {
-        printf "No query compatibility changes detected.\n\n"
-      } else {
-        printf "%s, %s, %s\n\n", count(nr, "regression", "regressions"), count(ni, "improvement", "improvements"),
-          count(nk, "flaky case", "flaky cases")
-        printf "<details>\n<summary><strong>Show changed queries</strong></summary>\n\n"
-        section("Regressions", regressions, nr)
-        section("Improvements", improvements, ni)
-        section("Flaky", flaky, nk)
-        printf "</details>\n\n"
-      }
-      printf "**Compared** `%s` -> `%s`  \n", substr(base, 1, 10), substr(revision, 1, 10)
-    }
-  ' "$changes_file"
-}
+  jq -r --arg base "$base" --arg revision "$revision" --argjson max "$MAX_ROWS" --arg full "$CHANGES_LINK" '
+    def status_label:
+      {match: "PASS", mismatch: "FAIL", error4xx: "ERROR 4xx", error5xx: "ERROR 5xx", flaky: "FLAKY"}[.] // "ERROR";
+    def count($one; $many): "\(.) \(if . == 1 then $one else $many end)";
+    def code:
+      gsub("[\t\r\n]"; " ") | gsub("\\|"; "\\|") |
+      if contains("`") then "`` \(.) ``" else "`\(.)`" end;
+    def section($title; $rows):
+      if ($rows | length) == 0 then "" else
+        "### \($title)\n\n| Case | Result | Query |\n|---:|:---:|---|\n" +
+        ([$rows[:$max][] | "| \(.name) | `\(.before | status_label) -> \(.after | status_label)` | \(.query | code) |\n"] | join("")) +
+        (if ($rows | length) > $max then "\n_\(($rows | length) - $max) more in \($full)._\n" else "" end) + "\n"
+      end;
 
-count_category() {
-  local category="$1"
-  local changes_file="$2"
-  awk -F $'\t' -v category="$category" '$5 == category { n++ } END { print n + 0 }' "$changes_file"
+    map(select(.category == "regression")) as $regressions |
+    map(select(.category == "improvement")) as $improvements |
+    map(select(.category == "flaky")) as $flaky |
+    "**\(if ($regressions | length) > 0 then "Regression detected" else "No regressions" end)**\n\n" +
+    (if length == 0 then "No query compatibility changes detected.\n\n" else
+      "\($regressions | length | count("regression"; "regressions")), " +
+      "\($improvements | length | count("improvement"; "improvements")), " +
+      "\($flaky | length | count("flaky case"; "flaky cases"))\n\n" +
+      "<details>\n<summary><strong>Show changed queries</strong></summary>\n\n" +
+      section("Regressions"; $regressions) + section("Improvements"; $improvements) + section("Flaky"; $flaky) +
+      "</details>\n\n"
+    end) + "**Compared** `\($base[:10])` -> `\($revision[:10])`  "
+  ' -- "$changes_file"
 }
 
 # A subshell keeps main's locals available to the EXIT trap on errexit as well as explicit exit.
@@ -294,12 +267,10 @@ main() (
   test_summary=$(summary "$TEST_LOG") || not_compared "The test run printed no promcheck summary"
 
   log "--- Reporting"
-  outcomes "$CONTROL_LOG" > "$CONTROL_OUTCOMES" || not_compared "Could not parse control outcomes"
-  outcomes "$TEST_LOG" > "$TEST_OUTCOMES" || not_compared "Could not parse test outcomes"
-  changes "$CONTROL_OUTCOMES" "$TEST_OUTCOMES" > "$CHANGES_FILE"
+  compare_results "$CONTROL_LOG" "$TEST_LOG" > "$CHANGES_FILE" || not_compared "Could not compare promcheck results"
   render_changes "$CHANGES_FILE" "$base" "$revision" | report > "$REPORT_FILE"
 
-  regressions=$(count_category regression "$CHANGES_FILE")
+  regressions=$(jq 'map(select(.category == "regression")) | length' -- "$CHANGES_FILE")
   if (( regressions > 0 )); then
     style=error
     status=1

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 const SCRIPT = resolve(`${import.meta.dirname}/validate-prometheus-compliance.sh`);
 const CORPUS = "grafanalabs-top100";
+const JQ = execFileSync("sh", ["-c", "command -v jq"], { encoding: "utf8" }).trim();
 const VERSION = "0.9.5+prometheus-3.13.1";
 
 type Status = "match" | "mismatch" | "error" | "error4xx" | "error5xx" | "flaky" | "filtered";
@@ -149,6 +150,7 @@ esac
       stdout: result.stdout,
       stderr: result.stderr,
       report: read(report),
+      changes: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${CORPUS}-changes.json`)),
       agent: read(join(dir, "agent.log")),
       controlHead: read(join(dir, "control.head")).trim(),
       args: read(join(dir, "args.log")),
@@ -406,7 +408,7 @@ esac
       ids.map((id) => [id, "mismatch", `m${id}`] as Case)
     );
     expect(r.report.match(/^\| \d{3} \|/gm)).toHaveLength(50);
-    expect(r.report).toContain(`_2 more in <a href="artifact://${join(dir, "tmp").slice(1)}/validate-prometheus-compliance-output/@${CORPUS}-changes.tsv">`);
+    expect(r.report).toContain(`_2 more in <a href="artifact://${join(dir, "tmp").slice(1)}/validate-prometheus-compliance-output/@${CORPUS}-changes.json">`);
   });
 
   test("a control run that crashes is reported as not compared without failing the job", () => {
@@ -422,17 +424,33 @@ esac
     expect(r.report).toBe("");
   });
 
-  test.each(["control", "test"] as const)("%s query parsing failures produce Not compared", (side) => {
-    const malformed = promcheckLog(STABLE).split("\n").filter(Boolean).map((line) => {
-      const row = JSON.parse(line);
-      if (row.type === "query") row.query = {};
-      return JSON.stringify(row);
-    }).join("\n") + "\n";
+  test.each(["control", "test"] as const)("malformed %s JSON produces Not compared", (side) => {
+    const malformed = promcheckLog(STABLE) + "{broken\n";
     const r = run(STABLE, STABLE, side === "control" ? { controlLog: malformed } : { testLog: malformed });
     expect(r.status).toBe(0);
     expect(r.agent).toContain("**Not compared**");
-    expect(r.agent).toContain(`Could not parse ${side} outcomes`);
     expect(r.report).toBe("");
+  });
+
+  test("a failed jq comparison produces Not compared", () => {
+    writeFileSync(join(dir, "bin", "jq"), `#!/bin/bash
+for arg in "$@"; do [[ $arg == --slurpfile ]] && exit 5; done
+exec "${JQ}" "$@"
+`, { mode: 0o755 });
+    const r = run(STABLE, STABLE);
+    expect(r.status).toBe(0);
+    expect(r.agent).toContain("**Not compared**");
+    expect(r.agent).toContain("Could not compare promcheck results");
+    expect(r.report).toBe("");
+  });
+
+  test("the JSON changes artifact preserves full query text", () => {
+    const query = 'sum(\n\tup{job=~"a\\\\.b|c"})';
+    const r = run([["001", "match", query]], [["001", "error4xx", query]]);
+    expect(r.status).toBe(1);
+    expect(JSON.parse(r.changes)).toEqual([{
+      name: "001", before: "match", after: "error4xx", category: "regression", query,
+    }]);
   });
 
   test("tee failure prevents a truncated log from being compared", () => {
@@ -488,12 +506,15 @@ esac
     expect(git(repo, "worktree", "list", "--porcelain").match(/^worktree /gm)).toHaveLength(1);
   });
 
-  test("cleanup removes the control worktree after an unhandled comparison failure", () => {
-    writeFileSync(join(dir, "bin", "awk"), "#!/bin/bash\nexit 2\n", { mode: 0o755 });
+  test("cleanup removes the control worktree after an unhandled rendering failure", () => {
+    writeFileSync(join(dir, "bin", "jq"), `#!/bin/bash
+[[ $1 == -r ]] && exit 2
+exec "${JQ}" "$@"
+`, { mode: 0o755 });
     const r = run(STABLE, STABLE);
     expect(r.status).toBe(2);
     expect(git(repo, "worktree", "list", "--porcelain").match(/^worktree /gm)).toHaveLength(1);
-    expect(r.report).toBe("");
+    expect(r.report).not.toContain("No regressions");
   });
 
   test("cleanup prunes stale worktree metadata", () => {

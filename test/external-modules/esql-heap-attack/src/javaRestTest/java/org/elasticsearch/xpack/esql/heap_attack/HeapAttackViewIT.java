@@ -37,16 +37,36 @@ public class HeapAttackViewIT extends HeapAttackTestCase {
         initSingleDocIndex();
         String view = "heap_attack_view_";
         int levels = 7;
-        int refsPerView = 8;
+        int refsPerView = 15;
 
         try {
-            createViewsThatReferenceViewsManyTimes(view, levels, refsPerView);
+            createViewsThatReferenceViewsManyTimes(view, "FROM single | WHERE a > 0", levels, refsPerView);
             StringBuilder query = startQuery();
             String viewName = view + levels;
             query.append("FROM ").append(viewName).append(" | STATS c = COUNT(*) \"}");
             assertRejectedWithError(
                 query.toString(),
-                "ES|QL query exceeded the maximum plan size allowed (500 nodes) after expanding views"
+                "ES|QL query exceeded the maximum of [500] plan nodes allowed after expanding views, subqueries and FORKs."
+            );
+        } finally {
+            deleteViews(view, levels);
+        }
+    }
+
+    public void testExpandedWideViews() throws IOException {
+        initSingleDocIndex();
+        String view = "heap_attack_view_";
+        int levels = 7;
+        int refsPerView = 15;
+
+        try {
+            createViewsThatReferenceViewsManyTimes(view, "FROM single", levels, refsPerView);
+            StringBuilder query = startQuery();
+            String viewName = view + levels;
+            query.append("FROM ").append(viewName).append(" | STATS c = COUNT(*) \"}");
+            assertRejectedWithError(
+                query.toString(),
+                "ES|QL query exceeded the maximum of [500] plan nodes allowed after expanding views, subqueries and FORKs."
             );
         } finally {
             deleteViews(view, levels);
@@ -54,7 +74,7 @@ public class HeapAttackViewIT extends HeapAttackTestCase {
     }
 
     /**
-     * Wide expressions in a tree of distinct views that stays below {@code ViewResolver.MAX_QUERY_AST_SIZE} plan nodes, so it is not
+     * Wide expressions in a tree of distinct views that stays below {@code EsqlFlags.ESQL_MAX_COMMAND_COUNT} plan nodes, so it is not
      * rejected by the plan size check. It is rejected later, by the branch limit, before the expanded plan can use much heap.
      * Expression nodes do not count towards the plan size.
      */
@@ -108,15 +128,15 @@ public class HeapAttackViewIT extends HeapAttackTestCase {
         return name;
     }
 
-    private void createViewsThatReferenceViewsManyTimes(String prefix, int levels, int referencesPerView) throws IOException {
-        createView(prefix + 1, "FROM single | WHERE a > 0");
+    private void createViewsThatReferenceViewsManyTimes(String prefix, String viewDefinition, int levels, int referencesPerView)
+        throws IOException {
+        createView(prefix + 1, viewDefinition);
         for (int level = 2; level <= levels; level++) {
             String reference = "(FROM " + prefix + (level - 1) + ")";
             StringBuilder query = new StringBuilder("FROM ").append(reference);
             for (int i = 1; i < referencesPerView; i++) {
                 query.append(", ").append(reference);
             }
-            query.append(" | WHERE a > 0");
             createView(prefix + level, query.toString());
         }
     }

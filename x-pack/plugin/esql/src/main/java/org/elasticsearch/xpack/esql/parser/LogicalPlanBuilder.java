@@ -161,7 +161,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private int queryDepth = 0;
 
-    /** Commands seen so far in the main query and in all its subqueries, see {@link ParsingContext#maxQueryAstSize()} */
+    /** Commands seen so far in the main query and in all its subqueries, see {@link ParsingContext#maxCommandCount()} */
     private int commandCount = 0;
 
     protected EsqlStatement statement(ParseTree ctx) {
@@ -234,11 +234,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
         commandCount++;
-        if (commandCount > context.maxQueryAstSize()) {
+        if (commandCount > context.maxCommandCount()) {
             throw new ParsingException(
-                "ES|QL statement exceeded the maximum query size allowed ({}): [{}]",
-                context.maxQueryAstSize(),
-                ctx.getText()
+                "ES|QL statement exceeded the maximum of [{}] commands allowed, including the commands in its subqueries",
+                context.maxCommandCount()
             );
         }
         try {
@@ -463,12 +462,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitSubquery(EsqlBaseParser.SubqueryContext ctx) {
         // Subquery commands are parsed as a flat list rather than through visitCompositeQuery, so the limits are enforced here.
         commandCount += ctx.processingCommand().size();
-        if (commandCount > context.maxQueryAstSize()) {
+        if (commandCount > context.maxCommandCount()) {
             throw new ParsingException(
                 source(ctx),
-                "ES|QL statement exceeded the maximum query size allowed ({}): [{}]",
-                context.maxQueryAstSize(),
-                ctx.getText()
+                "ES|QL statement exceeded the maximum of [{}] commands allowed, including the commands in its subqueries",
+                context.maxCommandCount()
             );
         }
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());

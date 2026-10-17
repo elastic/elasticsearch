@@ -64,11 +64,11 @@ public class EsqlFlags {
 
     /**
      * Cluster-wide cap on the number of commands a statement may have, counting the main query and all its subqueries together.
-     * An explicit {@link QueryPragmas#MAX_QUERY_AST_SIZE} pragma overrides this value for that query.
+     * An explicit {@link QueryPragmas#MAX_COMMAND_COUNT} pragma overrides this value for that query.
      */
-    public static final Setting<Integer> ESQL_MAX_QUERY_AST_SIZE = Setting.intSetting(
-        "esql.query.max_query_ast_size",
-        QueryPragmas.MAX_QUERY_AST_SIZE.getDefault(Settings.EMPTY),
+    public static final Setting<Integer> ESQL_MAX_COMMAND_COUNT = Setting.intSetting(
+        "esql.query.max_command_count",
+        QueryPragmas.MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
         500,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -121,7 +121,7 @@ public class EsqlFlags {
         ESQL_STRING_LIKE_ON_INDEX,
         ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
         ESQL_MAX_BRANCH_COUNT,
-        ESQL_MAX_QUERY_AST_SIZE,
+        ESQL_MAX_COMMAND_COUNT,
         ESQL_MAX_BRANCH_LEVEL,
         ESQL_MAX_BRANCH_COUNT_PER_MERGE,
         ESQL_MAX_FILLNULL_FIELDS
@@ -138,7 +138,7 @@ public class EsqlFlags {
         ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
         ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
         ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
-        ESQL_MAX_QUERY_AST_SIZE.getDefault(Settings.EMPTY)
+        ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY)
     );
 
     private final boolean stringLikeOnIndex;
@@ -153,7 +153,7 @@ public class EsqlFlags {
 
     private final int maxFillNullFields;
 
-    private final int maxQueryAstSize;
+    private final int maxCommandCount;
 
     /**
      * Constructor for tests.
@@ -258,7 +258,7 @@ public class EsqlFlags {
             maxBranchLevel,
             maxBranchCountPerMerge,
             maxFillNullFields,
-            ESQL_MAX_QUERY_AST_SIZE.getDefault(Settings.EMPTY)
+            ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY)
         );
     }
 
@@ -269,7 +269,7 @@ public class EsqlFlags {
         int maxBranchLevel,
         int maxBranchCountPerMerge,
         int maxFillNullFields,
-        int maxQueryAstSize
+        int maxCommandCount
     ) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
@@ -277,7 +277,7 @@ public class EsqlFlags {
         this.maxBranchLevel = maxBranchLevel;
         this.maxBranchCountPerMerge = maxBranchCountPerMerge;
         this.maxFillNullFields = maxFillNullFields;
-        this.maxQueryAstSize = maxQueryAstSize;
+        this.maxCommandCount = maxCommandCount;
     }
 
     public EsqlFlags(ClusterSettings settings) {
@@ -288,7 +288,7 @@ public class EsqlFlags {
             settings.get(ESQL_MAX_BRANCH_LEVEL),
             settings.get(ESQL_MAX_BRANCH_COUNT_PER_MERGE),
             settings.get(ESQL_MAX_FILLNULL_FIELDS),
-            settings.get(ESQL_MAX_QUERY_AST_SIZE)
+            settings.get(ESQL_MAX_COMMAND_COUNT)
         );
     }
 
@@ -321,8 +321,8 @@ public class EsqlFlags {
         return maxFillNullFields;
     }
 
-    public int maxQueryAstSize() {
-        return maxQueryAstSize;
+    public int maxCommandCount() {
+        return maxCommandCount;
     }
 
     @Override
@@ -335,7 +335,8 @@ public class EsqlFlags {
             && maxBranchCount == that.maxBranchCount
             && maxBranchLevel == that.maxBranchLevel
             && maxBranchCountPerMerge == that.maxBranchCountPerMerge
-            && maxFillNullFields == that.maxFillNullFields;
+            && maxFillNullFields == that.maxFillNullFields
+            && maxCommandCount == that.maxCommandCount;
     }
 
     @Override
@@ -346,7 +347,8 @@ public class EsqlFlags {
             maxBranchCount,
             maxBranchLevel,
             maxBranchCountPerMerge,
-            maxFillNullFields
+            maxFillNullFields,
+            maxCommandCount
         );
     }
 
@@ -364,6 +366,8 @@ public class EsqlFlags {
             + maxBranchCountPerMerge
             + ", maxFillNullFields="
             + maxFillNullFields
+            + ", maxCommandCount="
+            + maxCommandCount
             + ']';
     }
 }

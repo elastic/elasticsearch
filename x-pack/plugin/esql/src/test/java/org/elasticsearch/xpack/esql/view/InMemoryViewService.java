@@ -28,6 +28,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -62,6 +63,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
         settings.add(MAX_VIEWS_COUNT_SETTING);
         settings.add(MAX_VIEW_LENGTH_SETTING);
         settings.add(MAX_VIEW_DEPTH_SETTING);
+        settings.add(EsqlFlags.ESQL_MAX_COMMAND_COUNT);
         ALL_SETTINGS = settings;
     }
 

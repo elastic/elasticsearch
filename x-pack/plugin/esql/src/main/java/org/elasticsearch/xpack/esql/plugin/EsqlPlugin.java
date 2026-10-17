@@ -729,7 +729,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT,
-                EsqlFlags.ESQL_MAX_QUERY_AST_SIZE,
+                EsqlFlags.ESQL_MAX_COMMAND_COUNT,
                 EsqlFlags.ESQL_MAX_BRANCH_LEVEL,
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE,
                 EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,

@@ -26,6 +26,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.junit.After;
 import org.junit.Before;
 
@@ -55,7 +58,7 @@ public class ViewServiceTests extends ESTestCase {
             threadPool,
             ProjectId.DEFAULT,
             Settings.EMPTY,
-            Set.of(ViewService.MAX_VIEWS_COUNT_SETTING, ViewService.MAX_VIEW_LENGTH_SETTING)
+            Set.of(ViewService.MAX_VIEWS_COUNT_SETTING, ViewService.MAX_VIEW_LENGTH_SETTING, EsqlFlags.ESQL_MAX_COMMAND_COUNT)
         );
         // The default test publisher never acknowledges, so acked tasks would not complete their listeners.
         var publisher = ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService());
@@ -228,6 +231,30 @@ public class ViewServiceTests extends ESTestCase {
 
         assertThat(future.actionGet(10, TimeUnit.SECONDS).isAcknowledged(), is(true));
         assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view").query(), equalTo("FROM other-index"));
+    }
+
+    /**
+     * A PUT request carries no pragmas, so the cluster setting is the only source of the command limit when a view is validated.
+     */
+    public void testPutViewValidatesAgainstConfiguredCommandLimit() {
+        assumeTrue("Requires subqueries in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        int defaultLimit = EsqlFlags.ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
+        // Each pipeline stays below the per-pipeline depth limit, only their sum exceeds the command limit.
+        String pipes = " | WHERE a > 0".repeat(defaultLimit / 2 + 1);
+        View view = new View("big-view", "FROM some-index, (FROM foo" + pipes + "), (FROM bar" + pipes + ")", null);
+        var project = clusterService.state().metadata().getProject(ProjectId.DEFAULT);
+
+        expectThrows(
+            ParsingException.class,
+            containsString(
+                "ES|QL statement exceeded the maximum of [" + defaultLimit + "] commands allowed, including the commands in its subqueries"
+            ),
+            () -> viewService.validatePutView(project, view)
+        );
+
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(EsqlFlags.ESQL_MAX_COMMAND_COUNT.getKey(), defaultLimit + 100).build());
+        viewService.validatePutView(project, view);
     }
 
     private PlainActionFuture<AcknowledgedResponse> ensureReservedViewExists(String name, String query, String description) {

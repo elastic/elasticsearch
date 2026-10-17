@@ -144,10 +144,10 @@ public final class QueryPragmas implements Writeable {
     /**
      * Cap on how many commands a statement may have, counting the main query and all its subqueries together. The parser enforces it.
      * <p>
-     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_QUERY_AST_SIZE} supplies the cap. An explicit value overrides the cluster
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_COMMAND_COUNT} supplies the cap. An explicit value overrides the cluster
      * setting for this query only.
      */
-    public static final Setting<Integer> MAX_QUERY_AST_SIZE = Setting.intSetting("max_query_ast_size", 500, 500);
+    public static final Setting<Integer> MAX_COMMAND_COUNT = Setting.intSetting("max_command_count", 500, 500);
 
     /**
      * Inclusive upper bound of {@link #MAX_BRANCH_COUNT_PER_MERGE} and {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE}. Parse-time
@@ -267,7 +267,7 @@ public final class QueryPragmas implements Writeable {
         IN_SUBQUERY_HASH_JOIN_THRESHOLD,
         BRANCH_PARALLEL_DEGREE,
         MAX_BRANCH_COUNT,
-        MAX_QUERY_AST_SIZE,
+        MAX_COMMAND_COUNT,
         MAX_BRANCH_COUNT_PER_MERGE,
         MAX_BRANCH_LEVEL,
         PARSING_PARALLELISM,
@@ -445,10 +445,10 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
-     * Effective statement size cap: an explicit {@link #MAX_QUERY_AST_SIZE} pragma overrides {@code clusterDefault}.
+     * Effective statement size cap: an explicit {@link #MAX_COMMAND_COUNT} pragma overrides {@code clusterDefault}.
      */
-    public int maxQueryAstSize(int clusterDefault) {
-        return settings.hasValue(MAX_QUERY_AST_SIZE.getKey()) ? MAX_QUERY_AST_SIZE.get(settings) : clusterDefault;
+    public int maxCommandCount(int clusterDefault) {
+        return settings.hasValue(MAX_COMMAND_COUNT.getKey()) ? MAX_COMMAND_COUNT.get(settings) : clusterDefault;
     }
 
     /**

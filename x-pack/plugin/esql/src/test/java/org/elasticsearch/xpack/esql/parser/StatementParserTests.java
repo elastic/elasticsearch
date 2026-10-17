@@ -1478,7 +1478,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         query("from foo, (from bar" + pipes + ")");
         expectThrows(
             ParsingException.class,
-            containsString("ES|QL statement exceeded the maximum query size allowed"),
+            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
             () -> query("from foo, (from bar" + pipes + " | where a > 0)")
         );
     }
@@ -1490,12 +1490,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         query("from foo, (from bar" + pipes + ")" + pipes);
         expectThrows(
             ParsingException.class,
-            containsString("ES|QL statement exceeded the maximum query size allowed"),
+            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
             () -> query("from foo, (from bar" + pipes + "), (from baz" + pipes + "), (from qux | where a > 0)")
         );
         expectThrows(
             ParsingException.class,
-            containsString("ES|QL statement exceeded the maximum query size allowed"),
+            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
             () -> query("from foo, (from bar" + pipes + ")" + pipes + " | where a > 0")
         );
     }
@@ -1505,7 +1505,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 5);
         expectThrows(
             ParsingException.class,
-            containsString("ES|QL statement exceeded the maximum query size allowed (4)"),
+            containsString("ES|QL statement exceeded the maximum of [4] commands allowed, including the commands in its subqueries"),
             () -> TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 4)
         );
     }

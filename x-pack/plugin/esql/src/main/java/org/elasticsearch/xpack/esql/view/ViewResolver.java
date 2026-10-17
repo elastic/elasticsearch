@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.analysis.PlanSize;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -42,12 +43,10 @@ import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
@@ -66,7 +65,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.Stack;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -108,10 +106,9 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 public class ViewResolver {
 
     /**
-     * Maximum number of commands (pipes) the query may have while views are expanded. Bounds the size of the plan that nested or
-     * repeated view references can produce. Source commands and the wrappers views are expanded into are not counted.
+     * Maximum number of planning nodes the query may have while views are expanded.
      */
-    public static final int DEFAULT_MAX_EXPANDED_AST_SIZE = QueryPragmas.MAX_QUERY_AST_SIZE.getDefault(Settings.EMPTY);
+    public static final int DEFAULT_MAX_PLAN_NODES_COUNT = QueryPragmas.MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
 
     protected Logger log = LogManager.getLogger(getClass());
     private final Executor executor;
@@ -196,7 +193,7 @@ public class ViewResolver {
         IndexViewOrigins indexViewOrigins
     ) {}
 
-    // Only for testing, it passes a default value for maxPlanExpandedSize
+    // Only for testing, it passes a default value for maxPlanNodesCount
     public void replaceViews(
         LogicalPlan plan,
         String projectRouting,
@@ -205,7 +202,7 @@ public class ViewResolver {
         boolean preserveViewBoundaries,
         ActionListener<ViewResolutionResult> listener
     ) {
-        replaceViews(plan, projectRouting, wildcardsMatchViews, parser, preserveViewBoundaries, DEFAULT_MAX_EXPANDED_AST_SIZE, listener);
+        replaceViews(plan, projectRouting, wildcardsMatchViews, parser, preserveViewBoundaries, DEFAULT_MAX_PLAN_NODES_COUNT, listener);
     }
 
     /**
@@ -233,7 +230,7 @@ public class ViewResolver {
      *                               Pass {@code false} when the request carries no DSL filter: the
      *                               old optimizations then apply in full, with single-branch
      *                               {@link BranchPlan}s collapsing to their sole child.
-     * @param maxPlanExpandedSize The maximum number of nodes the planning can have when expanded
+     * @param maxPlanNodesCount The maximum number of nodes the planning can have when expanded
      * @param listener callback that receives the {@link ViewResolutionResult}
      */
     public void replaceViews(
@@ -242,7 +239,7 @@ public class ViewResolver {
         boolean wildcardsMatchViews,
         BiFunction<String, String, LogicalPlan> parser,
         boolean preserveViewBoundaries,
-        int maxPlanExpandedSize,
+        int maxPlanNodesCount,
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
@@ -253,7 +250,7 @@ public class ViewResolver {
         // provided by the ActionListener plumbing, the same way the viewQueries map threaded through these callbacks is.
         Holder<Boolean> hasInSubquery = new Holder<>(false);
         // Running total of plan nodes: starts with the unexpanded query and grows with every view body expanded into it.
-        PlanSize planSize = new PlanSize(countNodes(plan), maxPlanExpandedSize);
+        PlanSize planSize = new PlanSize(PlanSize.countNodes(plan), maxPlanNodesCount);
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
         if (noViews && InSubqueryResolver.hasInSubquery(plan) == false) {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries, false, IndexViewOrigins.EMPTY));
@@ -339,7 +336,7 @@ public class ViewResolver {
                     })
                 );
                 case Filter filter -> {
-                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
+                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter, planSize);
                     if (resolved == filter) {
                         // No InSubquery in this filter — let transformDown process its children normally.
                         planListener.onResponse(filter);
@@ -347,7 +344,6 @@ public class ViewResolver {
                         // InSubquery rewritten to SemiJoin/AntiJoin/MarkJoin — record it for telemetry, then resolve any view
                         // references introduced in the subquery plans.
                         hasInSubquery.set(true);
-                        planSize.add(countNodes(resolved) - countNodes(filter));
                         replaceViews(
                             resolved,
                             projectRouting,
@@ -368,7 +364,7 @@ public class ViewResolver {
                     }
                 }
                 case Eval eval -> {
-                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval);
+                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval, planSize);
                     if (resolved == eval) {
                         // No InSubquery in this eval — let transformDown process its children normally.
                         planListener.onResponse(eval);
@@ -376,7 +372,6 @@ public class ViewResolver {
                         // InSubquery rewritten to MarkJoin — record it for telemetry, then resolve any view
                         // references introduced in the new subquery plans.
                         hasInSubquery.set(true);
-                        planSize.add(countNodes(resolved) - countNodes(eval));
                         replaceViews(
                             resolved,
                             projectRouting,
@@ -397,7 +392,7 @@ public class ViewResolver {
                     }
                 }
                 case Aggregate aggregate -> {
-                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
+                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate, planSize);
                     if (resolved == aggregate) {
                         // No InSubquery in the aggregate filters — let transformDown process its children normally.
                         planListener.onResponse(aggregate);
@@ -405,7 +400,6 @@ public class ViewResolver {
                         // InSubquery rewritten to MarkJoin(s) below the aggregate — record it for telemetry, then resolve any view
                         // references introduced in the subquery plans.
                         hasInSubquery.set(true);
-                        planSize.add(countNodes(resolved) - countNodes(aggregate));
                         replaceViews(
                             resolved,
                             projectRouting,
@@ -733,7 +727,7 @@ public class ViewResolver {
                         viewQueries,
                         MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields())
                     );
-                    planSize.add(countNodes(viewBody));
+                    planSize.add(PlanSize.countNodes(viewBody));
                     replaceViews(
                         viewBody,
                         projectRouting,
@@ -930,56 +924,6 @@ public class ViewResolver {
         }
 
         return result;
-    }
-
-    /**
-     * Whether a node is one command of the query. Leaves are the source command, which is not a pipe, and the wrappers that views and
-     * subqueries are expanded into are not commands either.
-     */
-    private static boolean isCounted(LogicalPlan plan) {
-        return plan instanceof LeafPlan == false
-            && plan instanceof Subquery == false
-            && plan instanceof UnionAll == false
-            && plan instanceof UnresolvedMetadata == false;
-    }
-
-    private static int countNodes(LogicalPlan plan) {
-        int count = 0;
-        Stack<LogicalPlan> pending = new Stack<>();
-        pending.push(plan);
-        while (pending.isEmpty() == false) {
-            LogicalPlan node = pending.pop();
-            if (isCounted(node)) {
-                count++;
-            }
-            node.children().forEach(pending::push);
-        }
-        return count;
-    }
-
-    /**
-     * Running total of commands in the query being expanded, checked against the maximum allowed. Written from inside the async
-     * resolution callbacks, with cross-thread visibility provided by the ActionListener plumbing like the other threaded state.
-     */
-    private static final class PlanSize {
-        private final int max;
-        private int size;
-
-        PlanSize(int initialSize, int max) {
-            this.size = initialSize;
-            this.max = max;
-        }
-
-        void add(int addedNodes) {
-            size += addedNodes;
-            if (size > max) {
-                throw new VerificationException(
-                    "ES|QL query exceeded the maximum plan size allowed ({} nodes) after expanding views: found [{}] nodes",
-                    max,
-                    size
-                );
-            }
-        }
     }
 
     private void validateViewReferenceAndMarkSeen(String viewName, LinkedHashSet<String> seenViews) {

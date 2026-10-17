@@ -455,7 +455,7 @@ public class EsqlSession {
             parser,
             SettingsValidationContext.from(crossProjectModeDecider),
             inferenceService.inferenceSettings(),
-            request.pragmas().maxQueryAstSize(flags.maxQueryAstSize())
+            request.pragmas().maxCommandCount(flags.maxCommandCount())
         );
         // Unwrap EXPLAIN right after parsing: Explain is a leaf plan holding the target query as a
         // field rather than a child, so plan traversals do not descend into it. It must be removed
@@ -512,11 +512,11 @@ public class EsqlSession {
                     request.params(),
                     inferenceService.inferenceSettings(),
                     viewName,
-                    request.pragmas().maxQueryAstSize(flags.maxQueryAstSize())
+                    request.pragmas().maxCommandCount(flags.maxCommandCount())
                 ).plan()
             ),
             preserveViewBoundaries,
-            request.pragmas().maxQueryAstSize(flags.maxQueryAstSize()),
+            request.pragmas().maxCommandCount(flags.maxCommandCount()),
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());

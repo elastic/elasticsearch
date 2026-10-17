@@ -40,12 +40,15 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests for {@link InSubqueryResolver}, which converts {@link InSubquery} expressions in
@@ -3980,7 +3983,64 @@ public class InSubqueryResolverTests extends ESTestCase {
         );
     }
 
+    public void testPlanSizeStopsEvalRewriteAtTheLimit() {
+        StringBuilder query = new StringBuilder("FROM main | EVAL ");
+        for (int i = 0; i < 1_000; i++) {
+            query.append(i == 0 ? "" : ", ").append("a").append(i).append(" = x IN (FROM sub)");
+        }
+        Eval eval = as(TEST_PARSER.parseQuery(query.toString()), Eval.class);
+        assertStopsAtLimit(eval, planSize -> InSubqueryResolver.resolveInSubqueryInEval(eval, planSize));
+    }
+
+    public void testPlanSizeStopsFilterRewriteAtTheLimit() {
+        String query = "FROM main | WHERE " + String.join(" OR ", Collections.nCopies(200, "x IN (FROM sub)"));
+        Filter filter = as(TEST_PARSER.parseQuery(query), Filter.class);
+        assertStopsAtLimit(filter, planSize -> InSubqueryResolver.resolveInSubqueryInFilter(filter, planSize));
+    }
+
+    public void testPlanSizeStopsAggregateRewriteAtTheLimit() {
+        StringBuilder query = new StringBuilder("FROM main | STATS ");
+        for (int i = 0; i < 200; i++) {
+            query.append(i == 0 ? "" : ", ").append("c").append(i).append(" = COUNT(*) WHERE x IN (FROM sub)");
+        }
+        Aggregate aggregate = as(TEST_PARSER.parseQuery(query.toString()), Aggregate.class);
+        assertStopsAtLimit(aggregate, planSize -> InSubqueryResolver.resolveInSubqueryInAggregate(aggregate, planSize));
+    }
+
+    public void testPlanSizeCountsNestedSubqueriesOnce() {
+        Eval eval = as(TEST_PARSER.parseQuery("FROM main | EVAL a = x IN (FROM sub | WHERE y IN (FROM sub2) AND z > 0)"), Eval.class);
+        int initialSize = PlanSize.countNodes(eval);
+        int addedNodes = 5;
+
+        LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval, new PlanSize(initialSize, initialSize + addedNodes));
+        assertEquals(initialSize + addedNodes, PlanSize.countNodes(resolved));
+        expectThrows(
+            VerificationException.class,
+            () -> InSubqueryResolver.resolveInSubqueryInEval(eval, new PlanSize(initialSize, initialSize + addedNodes - 1))
+        );
+    }
+
     // ---- helpers ----
+
+    private static final class CountingPlanSize extends PlanSize {
+        private int adds;
+
+        CountingPlanSize(int initialSize, int max) {
+            super(initialSize, max);
+        }
+
+        @Override
+        public void add(int addedNodes) {
+            adds++;
+            super.add(addedNodes);
+        }
+    }
+
+    private static void assertStopsAtLimit(LogicalPlan plan, Consumer<PlanSize> rewrite) {
+        CountingPlanSize planSize = new CountingPlanSize(PlanSize.countNodes(plan), 100);
+        expectThrows(VerificationException.class, () -> rewrite.accept(planSize));
+        assertThat(planSize.adds, lessThanOrEqualTo(51));
+    }
 
     private static LogicalPlan resolve(String query) {
         return InSubqueryResolver.resolve(TEST_PARSER.parseQuery(query));

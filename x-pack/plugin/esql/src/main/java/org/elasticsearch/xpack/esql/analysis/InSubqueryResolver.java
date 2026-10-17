@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -103,6 +104,10 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 public class InSubqueryResolver {
 
     /**
+     * Use for testing only!
+     * TODO: Add planSize as parameter and move to a testing package
+     *
+     * <p>
      * Resolves all {@link InSubquery} expressions in {@link Filter} conditions, {@link Eval} field
      * definitions, and {@code STATS} / {@code INLINE STATS} per-aggregate {@code WHERE} filters, and
      * validates the result. Throws a {@link VerificationException} when an {@link InSubquery} survived
@@ -121,7 +126,8 @@ public class InSubqueryResolver {
      * traversals.
      */
     public static LogicalPlan resolve(LogicalPlan plan) {
-        LogicalPlan resolved = resolveInSubqueries(plan);
+        PlanSize planSize = new PlanSize(0, Integer.MAX_VALUE);
+        LogicalPlan resolved = resolveInSubqueries(plan, planSize);
         verify(resolved);
         return resolved;
     }
@@ -131,13 +137,13 @@ public class InSubqueryResolver {
      * and {@link #resolveInSubqueryInAggregate} to every {@link Aggregate} — including the one owned by an
      * {@link InlineStats}, whose per-aggregate {@code WHERE} filters are resolved the same way.
      */
-    private static LogicalPlan resolveInSubqueries(LogicalPlan plan) {
+    private static LogicalPlan resolveInSubqueries(LogicalPlan plan, PlanSize planSize) {
         // Note: rewriting an Aggregate must always yield an Aggregate (resolveInSubqueryInAggregate uses Aggregate#with) — an
         // InlineStats parent rebuilds itself with a hard cast of its child to Aggregate.
         return plan.transformUp(p -> switch (p) {
-            case Filter filter -> resolveInSubqueryInFilter(filter);
-            case Eval eval -> resolveInSubqueryInEval(eval);
-            case Aggregate aggregate -> resolveInSubqueryInAggregate(aggregate);
+            case Filter filter -> resolveInSubqueryInFilter(filter, planSize);
+            case Eval eval -> resolveInSubqueryInEval(eval, planSize);
+            case Aggregate aggregate -> resolveInSubqueryInAggregate(aggregate, planSize);
             default -> p;
         });
     }
@@ -179,7 +185,7 @@ public class InSubqueryResolver {
     /**
      * Make this public, so that {@link org.elasticsearch.xpack.esql.view.ViewResolver} can drive IN subquery resolution.
      */
-    public static LogicalPlan resolveInSubqueryInFilter(Filter filter) {
+    public static LogicalPlan resolveInSubqueryInFilter(Filter filter, PlanSize planSize) {
         Expression condition = filter.condition();
 
         List<Expression> conjuncts = Predicates.splitAnd(condition);
@@ -198,13 +204,13 @@ public class InSubqueryResolver {
         List<Alias> syntheticEvals = new ArrayList<>();
 
         for (Expression conjunct : conjuncts) {
-            if (tryResolveAsSemiOrAntiJoin(conjunct, semiOrAntiJoins, syntheticEvals)) {
+            if (tryResolveAsSemiOrAntiJoin(conjunct, semiOrAntiJoins, syntheticEvals, planSize)) {
                 continue;
             }
             // Either no InSubquery in the conjunct (passes through unchanged), or InSubquery is
             // nested inside a supported boolean expression (rewritten with MarkJoin), or
             // InSubquery sits directly under an unsupported wrapper (left for {@link #verify}).
-            Expression rewritten = rewriteInSubqueries(conjunct, true, markJoins, syntheticEvals);
+            Expression rewritten = rewriteInSubqueries(conjunct, true, markJoins, syntheticEvals, planSize);
             remaining.add(rewritten);
         }
 
@@ -216,6 +222,7 @@ public class InSubqueryResolver {
 
         // If any constants need materialization, insert an Eval to create the synthetic attributes.
         if (syntheticEvals.isEmpty() == false) {
+            planSize.add(1);
             current = new Eval(filter.source(), current, syntheticEvals);
         }
 
@@ -256,9 +263,10 @@ public class InSubqueryResolver {
      * lower {@link Eval} so the LHS field is in scope for the {@link MarkJoin}. When no such dependency exists, a single {@link MarkJoin}
      * is stacked below the whole {@link Eval} regardless of how many aliases it defines.
      * <p>
-     * Make this public, so that {@link org.elasticsearch.xpack.esql.view.ViewResolver} can drive IN subquery resolution.
+     * Make this public, so that {@link org.elasticsearch.xpack.esql.view.ViewResolver} can drive IN subquery resolution. Every node the
+     * rewrite adds is added to {@code planSize} as soon as it is created, so the rewrite stops at the first IN subquery that exceeds it.
      */
-    public static LogicalPlan resolveInSubqueryInEval(Eval eval) {
+    public static LogicalPlan resolveInSubqueryInEval(Eval eval, PlanSize planSize) {
         // LinkedHashMap preserves insertion order (needed when flushing into an Eval) and exposes
         // its keySet() as the name-lookup set — a single structure instead of a parallel List+Set pair.
         LinkedHashMap<String, Alias> pending = new LinkedHashMap<>();
@@ -274,7 +282,7 @@ public class InSubqueryResolver {
         for (Alias field : eval.fields()) {
             int marksBefore = allMarks.size();
             int constsBefore = allConsts.size();
-            Expression rewritten = rewriteInSubqueries(field.child(), true, allMarks, allConsts);
+            Expression rewritten = rewriteInSubqueries(field.child(), true, allMarks, allConsts, planSize);
             List<MarkJoinSpec> fieldMarks = new ArrayList<>(allMarks.subList(marksBefore, allMarks.size()));
             List<Alias> fieldConsts = new ArrayList<>(allConsts.subList(constsBefore, allConsts.size()));
 
@@ -292,12 +300,14 @@ public class InSubqueryResolver {
             // without the flush, pending.put() would silently overwrite the prior alias, losing its NameId from the plan
             // while other pending fields still reference it, producing dangling references.
             if (pending.isEmpty() == false && (referencesPendingName(fieldMarks, pending.keySet()) || pending.containsKey(field.name()))) {
+                planSize.add(1);
                 current = new Eval(eval.source(), current, new ArrayList<>(pending.values()));
                 pending = new LinkedHashMap<>();
             }
 
             // Materialize any foldable LHS constants (e.g. EVAL b = 10001 IN (sub)).
             if (fieldConsts.isEmpty() == false) {
+                planSize.add(1);
                 current = new Eval(eval.source(), current, fieldConsts);
             }
 
@@ -331,9 +341,10 @@ public class InSubqueryResolver {
      * The mark attributes are consumed by the aggregate filters and do not leak into the output — an {@link Aggregate}'s output is its
      * aggregates plus groupings. Returns the same instance when nothing was rewritten (callers rely on identity).
      * <p>
-     * Public so that {@link org.elasticsearch.xpack.esql.view.ViewResolver} can drive IN subquery resolution.
+     * Public so that {@link ViewResolver} can drive IN subquery resolution. Every node the rewrite adds is
+     * added to {@code planSize} as soon as it is created, so the rewrite stops at the first IN subquery that exceeds it.
      */
-    public static LogicalPlan resolveInSubqueryInAggregate(Aggregate aggregate) {
+    public static LogicalPlan resolveInSubqueryInAggregate(Aggregate aggregate, PlanSize planSize) {
         List<MarkJoinSpec> markJoins = new ArrayList<>();
         List<Alias> syntheticEvals = new ArrayList<>();
         Set<String> groupingAliasNames = groupingAliasNames(aggregate);
@@ -347,7 +358,7 @@ public class InSubqueryResolver {
             if (ne instanceof Alias alias
                 && alias.child() instanceof FilteredExpression filteredExpression
                 && shadowedGroupingAlias(filteredExpression.filter(), groupingAliasNames) == null) {
-                Expression newFilter = rewriteInSubqueries(filteredExpression.filter(), true, markJoins, syntheticEvals);
+                Expression newFilter = rewriteInSubqueries(filteredExpression.filter(), true, markJoins, syntheticEvals, planSize);
                 if (newFilter != filteredExpression.filter()) {
                     ne = alias.replaceChild(new FilteredExpression(filteredExpression.source(), filteredExpression.delegate(), newFilter));
                     if (newAggregates == null) {
@@ -368,6 +379,7 @@ public class InSubqueryResolver {
         LogicalPlan child = aggregate.child();
         // If any constants need materialization, insert an Eval to create the synthetic attributes.
         if (syntheticEvals.isEmpty() == false) {
+            planSize.add(1);
             child = new Eval(aggregate.source(), child, syntheticEvals);
         }
         for (MarkJoinSpec mj : markJoins) {
@@ -467,7 +479,8 @@ public class InSubqueryResolver {
     private static boolean tryResolveAsSemiOrAntiJoin(
         Expression conjunct,
         List<SemiOrAntiJoinSpec> semiOrAntiJoins,
-        List<Alias> syntheticEvals
+        List<Alias> syntheticEvals,
+        PlanSize planSize
     ) {
         boolean negated = false;
         Expression expr = conjunct;
@@ -497,7 +510,8 @@ public class InSubqueryResolver {
         // resolveInSubqueries is reused here: nested subquery plans are not reachable by the
         // outer transformUp (they live inside InSubquery expressions, not as plan children), so
         // they need their own traversal — but the traversal strategy is identical to the outer one.
-        LogicalPlan subquery = resolveInSubqueries(subqueryPlan);
+        planSize.add(1 + PlanSize.countNodes(subqueryPlan));
+        LogicalPlan subquery = resolveInSubqueries(subqueryPlan, planSize);
         JoinConfig config = new JoinConfig(negated ? JoinTypes.ANTI : JoinTypes.SEMI, leftFields, emptyList(), null);
         semiOrAntiJoins.add(new SemiOrAntiJoinSpec(source, subquery, config, negated));
         return true;
@@ -544,13 +558,14 @@ public class InSubqueryResolver {
         Expression expr,
         boolean rewriteCurrentInSubquery,
         List<MarkJoinSpec> joins,
-        List<Alias> syntheticEvals
+        List<Alias> syntheticEvals,
+        PlanSize planSize
     ) {
         if (expr instanceof InSubquery inSubquery) {
-            return rewriteCurrentInSubquery ? rewriteAsMarkJoin(inSubquery, joins, syntheticEvals) : inSubquery;
+            return rewriteCurrentInSubquery ? rewriteAsMarkJoin(inSubquery, joins, syntheticEvals, planSize) : inSubquery;
         }
         if (expr instanceof MultiColumnInSubquery inSubquery) {
-            return rewriteCurrentInSubquery ? rewriteAsMarkJoin(inSubquery, joins, syntheticEvals) : inSubquery;
+            return rewriteCurrentInSubquery ? rewriteAsMarkJoin(inSubquery, joins, syntheticEvals, planSize) : inSubquery;
         }
         if (isInSubqueryRewriteBoundary(expr)) {
             return expr;
@@ -561,7 +576,7 @@ public class InSubqueryResolver {
         List<Expression> rewritten = null;
         for (int i = 0; i < children.size(); i++) {
             Expression child = children.get(i);
-            Expression r = rewriteInSubqueries(child, rewriteChildren, joins, syntheticEvals);
+            Expression r = rewriteInSubqueries(child, rewriteChildren, joins, syntheticEvals, planSize);
             if (rewritten != null) {
                 rewritten.add(r);
             } else if (r != child) {
@@ -612,7 +627,12 @@ public class InSubqueryResolver {
      * Returns the original {@link InSubquery} unchanged when the LHS is neither an attribute
      * nor foldable — those cases are surfaced as errors by {@link #verify}.
      */
-    private static Expression rewriteAsMarkJoin(InSubquery inSubquery, List<MarkJoinSpec> joins, List<Alias> syntheticEvals) {
+    private static Expression rewriteAsMarkJoin(
+        InSubquery inSubquery,
+        List<MarkJoinSpec> joins,
+        List<Alias> syntheticEvals,
+        PlanSize planSize
+    ) {
         List<Attribute> leftFields = resolveSingleColumn(inSubquery.value(), inSubquery.subquery(), syntheticEvals);
         if (leftFields == null) {
             return inSubquery;
@@ -620,7 +640,8 @@ public class InSubqueryResolver {
         // resolveInSubqueries is reused here: nested subquery plans are not reachable by the
         // outer transformUp (they live inside InSubquery expressions, not as plan children), so
         // they need their own traversal — but the traversal strategy is identical to the outer one.
-        LogicalPlan subquery = resolveInSubqueries(inSubquery.subquery());
+        planSize.add(1 + PlanSize.countNodes(inSubquery.subquery()));
+        LogicalPlan subquery = resolveInSubqueries(inSubquery.subquery(), planSize);
         Attribute markAttribute = new ReferenceAttribute(
             inSubquery.source(),
             null,
@@ -641,13 +662,19 @@ public class InSubqueryResolver {
      * Returns the original {@link MultiColumnInSubquery} unchanged when any LHS value is neither
      * an attribute nor foldable — those cases are surfaced as errors by {@link #verify}.
      */
-    private static Expression rewriteAsMarkJoin(MultiColumnInSubquery mcs, List<MarkJoinSpec> joins, List<Alias> syntheticEvals) {
+    private static Expression rewriteAsMarkJoin(
+        MultiColumnInSubquery mcs,
+        List<MarkJoinSpec> joins,
+        List<Alias> syntheticEvals,
+        PlanSize planSize
+    ) {
         List<Attribute> leftFields = resolveMultiColumn(mcs.values(), mcs.subquery(), syntheticEvals);
         if (leftFields == null) {
             return mcs;
         }
         // resolveInSubqueries is reused here: see the single-column overload for the rationale.
-        LogicalPlan subquery = resolveInSubqueries(mcs.subquery());
+        planSize.add(1 + PlanSize.countNodes(mcs.subquery()));
+        LogicalPlan subquery = resolveInSubqueries(mcs.subquery(), planSize);
         Attribute markAttribute = new ReferenceAttribute(
             mcs.source(),
             null,

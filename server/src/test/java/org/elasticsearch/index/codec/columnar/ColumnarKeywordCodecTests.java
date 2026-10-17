@@ -33,9 +33,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
@@ -277,6 +279,140 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
                     valuesInIndexOrder(index)
                 );
             }
+        }
+    }
+
+    /**
+     * An index sorted by a multi-valued keyword with a {@code min} or {@code max} sort mode, merged from several segments that hold
+     * deleted documents. The flushed segments are sorted from the indexing buffer, but the merged segment is sorted from the column
+     * and the deletes shift the document ids it is read through, so a wrong merged order would go unnoticed by anything that only
+     * looks at one segment. The merged order is checked against the order the values themselves dictate, which holds whatever
+     * doc-values format the index's codec picks for the keyword.
+     */
+    public void testIndexSortedByMultiValuedKeywordAcrossMergeWithDeletes() throws IOException {
+        final boolean max = randomBoolean();
+        final boolean descending = randomBoolean();
+        final boolean missingFirst = randomBoolean();
+        final String mapping = """
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword"}}}""";
+
+        final int numDocs = between(100, 300);
+        final List<List<String>> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            docs.add(switch (i % 7) {
+                case 0 -> null;
+                case 1 -> List.of();
+                case 2 -> Arrays.asList((String) null);
+                case 3 -> List.of("term-" + (i % 5));
+                case 4 -> Arrays.asList("term-" + (i % 5), null, "value-" + randomAlphaOfLength(between(1, 6)));
+                case 5 -> List.of("", "term-" + (i % 3));
+                default -> {
+                    final List<String> values = new ArrayList<>();
+                    for (int v = between(2, 5); v > 0; v--) {
+                        values.add(randomBoolean() ? "term-" + between(0, 4) : "value-" + randomAlphaOfLength(between(1, 8)));
+                    }
+                    yield values;
+                }
+            });
+        }
+        final List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            order.add(i);
+        }
+        Collections.shuffle(order, random());
+        final Set<String> deleted = new HashSet<>();
+        for (int i = 0; i < numDocs; i++) {
+            if (randomInt(4) == 0) {
+                deleted.add(Integer.toString(i));
+            }
+        }
+        final int batches = between(3, 5);
+
+        final String index = INDEX + "-multi-sorted";
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
+            .put("index.sort.field", "kw")
+            .put("index.sort.mode", max ? "max" : "min")
+            .put("index.sort.order", descending ? "desc" : "asc")
+            .put("index.sort.missing", missingFirst ? "_first" : "_last")
+            .build();
+        indicesAdmin().prepareCreate(index).setSettings(settings).setMapping(mapping).get();
+        final int perBatch = (numDocs + batches - 1) / batches;
+        for (int from = 0; from < numDocs; from += perBatch) {
+            final BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = from; i < Math.min(from + perBatch, numDocs); i++) {
+                final int doc = order.get(i);
+                final Map<String, Object> source = new LinkedHashMap<>();
+                source.put("@timestamp", "2024-01-01T00:00:00Z");
+                if (docs.get(doc) != null) {
+                    source.put("kw", docs.get(doc));
+                }
+                bulk.add(prepareIndex(index).setId(Integer.toString(doc)).setSource(source));
+            }
+            final var response = bulk.get();
+            assertFalse(response.buildFailureMessage(), response.hasFailures());
+            indicesAdmin().prepareRefresh(index).get();
+        }
+        for (String id : deleted) {
+            client().prepareDelete(index, id).get();
+        }
+        indicesAdmin().prepareRefresh(index).get();
+        indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+        indicesAdmin().prepareRefresh(index).get();
+
+        final String description = "max=" + max + " desc=" + descending + " missingFirst=" + missingFirst;
+        final Map<String, List<String>> merged = valuesByIdInIndexOrder(index, numDocs);
+        assertEquals(description, numDocs - deleted.size(), merged.size());
+        for (String id : deleted) {
+            assertFalse("deleted [" + id + "] is gone", merged.containsKey(id));
+        }
+
+        // The sort keys the surviving documents have, in the order the merged segment holds them, against the order the keys dictate.
+        final List<String> actualKeys = new ArrayList<>();
+        for (List<String> values : merged.values()) {
+            actualKeys.add(sortKey(values, max));
+        }
+        final List<String> expectedKeys = new ArrayList<>(actualKeys);
+        final Comparator<String> byKey = descending ? Comparator.<String>reverseOrder() : Comparator.<String>naturalOrder();
+        expectedKeys.sort(Comparator.nullsFirst(byKey));
+        if (missingFirst == false) {
+            final long nulls = expectedKeys.stream().filter(k -> k == null).count();
+            expectedKeys.removeIf(k -> k == null);
+            for (long n = 0; n < nulls; n++) {
+                expectedKeys.add(null);
+            }
+        }
+        assertEquals("merged sort keys, " + description, expectedKeys, actualKeys);
+    }
+
+    /** The one value of {@code values} that the sort looks at, or {@code null} where the document has none. */
+    private static String sortKey(List<String> values, boolean max) {
+        return values.stream()
+            .filter(v -> v != null)
+            .reduce((a, b) -> (max ? a.compareTo(b) >= 0 : a.compareTo(b) <= 0) ? a : b)
+            .orElse(null);
+    }
+
+    /** Each live document's {@code kw} values by id, in the order the one segment of {@code index} holds them. */
+    private Map<String, List<String>> valuesByIdInIndexOrder(String index, int size) {
+        final var response = client().prepareSearch(index).addSort("_doc", org.elasticsearch.search.sort.SortOrder.ASC).setSize(size).get();
+        try {
+            final Map<String, List<String>> ordered = new LinkedHashMap<>();
+            for (var hit : response.getHits().getHits()) {
+                final Object kw = hit.getSourceAsMap().get("kw");
+                final List<String> values = new ArrayList<>();
+                if (kw instanceof List<?> list) {
+                    for (Object value : list) {
+                        values.add((String) value);
+                    }
+                } else if (kw != null) {
+                    values.add((String) kw);
+                }
+                ordered.put(hit.getId(), values);
+            }
+            return ordered;
+        } finally {
+            response.decRef();
         }
     }
 

@@ -35,6 +35,8 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.QueryUtils;
+import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -49,6 +51,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * The width-neutral scenarios run against both {@code integer} and {@code long} fields, since
@@ -603,6 +606,113 @@ public class BitmapBKDQueryTests extends ESTestCase {
                     assertThat(searcher.count(query(type, 0, 4)), equalTo(1200));
                     assertThat(searcher.count(query(type, 7)), equalTo(0));
                     QueryUtils.check(random(), query(type, 1, 3), searcher);
+                }
+            }
+        }
+    }
+
+    public void testStreamingIntoBitSet() throws IOException {
+        for (NumberType type : NumberType.values()) {
+            try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(type, dir)) {
+                int numDocs = atLeast(500);
+                int maxValue = randomIntBetween(50, 400);
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    type.addSortableField(doc, randomIntBetween(0, maxValue));
+                    w.addDocument(doc);
+                }
+                // One segment, so a single streaming iterator walks the whole tree.
+                w.forceMerge(1);
+                try (IndexReader reader = w.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertSortingOptimizationApplies(searcher.getIndexReader());
+                    Query query = query(type, randomQueriedValues(maxValue));
+                    Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                    for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+                        ScorerSupplier reference = weight.scorerSupplier(context);
+                        if (reference == null) {
+                            continue;
+                        }
+                        int maxDoc = context.reader().maxDoc();
+                        String message = "type=" + type + " leaf=" + context.ord;
+
+                        FixedBitSet expected = new FixedBitSet(maxDoc);
+                        DocIdSetIterator plain = reference.get(Long.MAX_VALUE).iterator();
+                        for (int doc = plain.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = plain.nextDoc()) {
+                            expected.set(doc);
+                        }
+
+                        FixedBitSet actual = new FixedBitSet(maxDoc);
+                        DocIdSetIterator windowed = weight.scorerSupplier(context).get(Long.MAX_VALUE).iterator();
+                        if (windowed.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                            while (windowed.docID() != DocIdSetIterator.NO_MORE_DOCS) {
+                                // offset <= docID() is the only constraint intoBitSet places on it; a window
+                                // starting at the current doc gives the tightest legal shift to exercise.
+                                int offset = randomBoolean() ? windowed.docID() : 0;
+                                int upTo = Math.min(maxDoc, windowed.docID() + randomIntBetween(1, 64));
+                                FixedBitSet shifted = new FixedBitSet(maxDoc);
+                                windowed.intoBitSet(upTo, shifted, offset);
+                                DocIdSetIterator bits = new BitSetIterator(shifted, shifted.cardinality());
+                                for (int bit = bits.nextDoc(); bit != DocIdSetIterator.NO_MORE_DOCS; bit = bits.nextDoc()) {
+                                    actual.set(bit + offset);
+                                }
+                            }
+                        }
+
+                        assertEquals(message, expected, actual);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testStreamingDocIDRunEnd() throws IOException {
+        for (NumberType type : NumberType.values()) {
+            try (Directory dir = newDirectory(); RandomIndexWriter w = sortedWriter(type, dir)) {
+                // Many docs per value, so a whole leaf shares one value and its matching docs are a contiguous run.
+                for (int value = 0; value < 8; value++) {
+                    for (int i = 0; i < 300; i++) {
+                        Document doc = new Document();
+                        type.addSortableField(doc, value);
+                        w.addDocument(doc);
+                    }
+                }
+                w.forceMerge(1);
+                try (IndexReader reader = w.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertSortingOptimizationApplies(searcher.getIndexReader());
+                    // A subset of the indexed values, so some leaves match whole and others not at all.
+                    Query query = query(type, 1, 2, 5, 7);
+                    Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                    for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+                        ScorerSupplier supplier = weight.scorerSupplier(context);
+                        if (supplier == null) {
+                            continue;
+                        }
+                        int maxDoc = context.reader().maxDoc();
+                        String message = "type=" + type + " leaf=" + context.ord;
+
+                        FixedBitSet matches = new FixedBitSet(maxDoc);
+                        DocIdSetIterator reference = weight.scorerSupplier(context).get(Long.MAX_VALUE).iterator();
+                        for (int doc = reference.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = reference.nextDoc()) {
+                            matches.set(doc);
+                        }
+
+                        long maxRun = 0;
+                        DocIdSetIterator it = supplier.get(Long.MAX_VALUE).iterator();
+                        for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS;) {
+                            int runEnd = it.docIDRunEnd();
+                            assertEquals(message + " docIDRunEnd moved the iterator at doc " + doc, doc, it.docID());
+                            assertThat(message + " run end past doc " + doc, runEnd, greaterThan(doc));
+                            assertThat(message + " run end within maxDoc", runEnd, lessThanOrEqualTo(maxDoc));
+                            for (int d = doc; d < runEnd; d++) {
+                                assertTrue(message + " doc " + d + " in run [" + doc + ", " + runEnd + ") does not match", matches.get(d));
+                            }
+                            maxRun = Math.max(maxRun, runEnd - doc);
+                            doc = runEnd < maxDoc ? it.advance(runEnd) : DocIdSetIterator.NO_MORE_DOCS;
+                        }
+                        assertThat(message + " no run longer than one doc was reported", maxRun, greaterThan(1L));
+                    }
                 }
             }
         }

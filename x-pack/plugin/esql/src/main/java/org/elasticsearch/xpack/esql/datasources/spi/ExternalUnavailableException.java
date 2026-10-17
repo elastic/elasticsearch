@@ -93,7 +93,8 @@ public final class ExternalUnavailableException extends ExternalException {
     /**
      * Structured constructor. The condition should be {@link Condition#STORE_UNAVAILABLE} for
      * plain transient failures, {@link Condition#STORE_THROTTLED} for back-pressure from the store (429/503), or
-     * {@link Condition#LOCAL_CAPACITY} when this node's own concurrency limit was reached and the store is not at fault.
+     * {@link Condition#LOCAL_CAPACITY} when this node's own concurrency limit was reached and the store is not at fault, or
+     * {@link Condition#CREDENTIALS_NOT_READY} when this node cannot decrypt the data source credentials yet.
      * Only the object name (last path segment) appears in the message — the full URI is never
      * included.
      *

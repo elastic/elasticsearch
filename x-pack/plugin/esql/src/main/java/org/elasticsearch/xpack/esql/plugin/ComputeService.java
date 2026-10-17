@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -228,7 +229,8 @@ public class ComputeService {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
-        FormatReaderRegistry formatReaderRegistry
+        FormatReaderRegistry formatReaderRegistry,
+        @Nullable DataSourceCredentials dataSourceCredentials
     ) {
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
@@ -257,7 +259,8 @@ public class ComputeService {
             searchService,
             transportService,
             exchangeService,
-            searchExecutor
+            searchExecutor,
+            dataSourceCredentials
         );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,

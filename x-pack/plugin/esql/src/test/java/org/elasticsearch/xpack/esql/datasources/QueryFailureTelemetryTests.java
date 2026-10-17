@@ -64,6 +64,7 @@ public class QueryFailureTelemetryTests extends ESTestCase {
         EXPECTED_BY_CONDITION.put(Condition.LISTING_FAILED, "discovery");
         EXPECTED_BY_CONDITION.put(Condition.CLOCK_SKEW, "storage_auth");
         EXPECTED_BY_CONDITION.put(Condition.CLIENT_BUG, "other");
+        EXPECTED_BY_CONDITION.put(Condition.CREDENTIALS_NOT_READY, "other");
     }
 
     public void testEveryConditionHasAnExpectedErrorType() {

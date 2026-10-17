@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalVerifier;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
@@ -991,14 +992,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         return " | WHERE a > 0".repeat(count);
     }
 
-    private static final String maxPlanNodesError =
+    private static final String MAX_PLAN_NODES_ERROR =
         "ES|QL query exceeded the maximum of [500] plan nodes allowed after expanding views, subqueries and FORKs.";
 
     public void testMaxPlanNodesCountWithDeepView() {
         addView("long_view", "FROM emp" + pipes(300));
         String q = "FROM long_view" + pipes(150);
         replaceViews(query(q));
-        expectThrows(VerificationException.class, startsWith(maxPlanNodesError), () -> replaceViews(query(q + pipes(50))));
+        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> replaceViews(query(q + pipes(50))));
     }
 
     /**
@@ -1014,7 +1015,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_b", "FROM view_c" + pipes(100));
         addView("view_a", "FROM view_b" + pipes(100));
         replaceViews(query("FROM view_a" + pipes(150)));
-        expectThrows(VerificationException.class, startsWith(maxPlanNodesError), () -> replaceViews(query("FROM view_a" + pipes(200))));
+        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> replaceViews(query("FROM view_a" + pipes(200))));
     }
 
     public void testMaxPlanNodesCountWithDeepSubqueriesAndViews() {
@@ -1022,19 +1023,23 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         replaceViews(query("FROM emp1, (FROM long_view" + pipes(50) + ")" + pipes(100)));
         expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
+            startsWith(MAX_PLAN_NODES_ERROR),
             () -> replaceViews(query("FROM emp1, (FROM long_view" + pipes(50) + ")" + pipes(150)))
         );
         expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
+            startsWith(MAX_PLAN_NODES_ERROR),
             () -> replaceViews(query("FROM emp1, (FROM long_view" + pipes(200) + ")" + pipes(50)))
         );
 
         addView("inner_view", "FROM emp" + pipes(200));
         addView("outer_view", "FROM emp1, (FROM inner_view" + pipes(100) + ")" + pipes(100));
         replaceViews(query("FROM outer_view" + pipes(50)));
-        expectThrows(VerificationException.class, startsWith(maxPlanNodesError), () -> replaceViews(query("FROM outer_view" + pipes(100))));
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query("FROM outer_view" + pipes(100)))
+        );
     }
 
     public void testMaxPlanNodesCountWithDeepInSubqueriesAndViews() {
@@ -1043,14 +1048,18 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         expectThrows(VerificationException.class, () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM long_view" + pipes(200) + ")")));
         expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
+            startsWith(MAX_PLAN_NODES_ERROR),
             () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM long_view" + pipes(100) + ")" + pipes(100)))
         );
 
         addView("inner_view", "FROM emp" + pipes(150));
         addView("outer_view", "FROM emp1 | WHERE x IN (FROM inner_view" + pipes(100) + ")" + pipes(50));
         replaceViews(query("FROM outer_view" + pipes(150)));
-        expectThrows(VerificationException.class, startsWith(maxPlanNodesError), () -> replaceViews(query("FROM outer_view" + pipes(200))));
+        expectThrows(
+            VerificationException.class,
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViews(query("FROM outer_view" + pipes(200)))
+        );
 
         addView("view_1", "FROM emp2" + pipes(200));
         addView("view_2", "FROM emp3" + pipes(250));
@@ -1059,7 +1068,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("bigger_view_1", "FROM emp2" + pipes(250));
         expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
+            startsWith(MAX_PLAN_NODES_ERROR),
             () -> replaceViews(query("FROM emp1 | WHERE x IN (FROM bigger_view_1) | WHERE y IN (FROM view_2)"))
         );
     }
@@ -1070,7 +1079,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         replaceViews(query(Strings.format(first, pipes(100))));
         expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
+            startsWith(MAX_PLAN_NODES_ERROR),
             () -> replaceViews(query(Strings.format(first, pipes(200))))
         );
 
@@ -1078,7 +1087,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         replaceViews(query(Strings.format(second, pipes(100))));
         expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
+            startsWith(MAX_PLAN_NODES_ERROR),
             () -> replaceViews(query(Strings.format(second, pipes(200))))
         );
     }
@@ -1088,7 +1097,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         replaceViews(query("FROM view_with_in_subquery" + pipes(150)));
         expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
+            startsWith(MAX_PLAN_NODES_ERROR),
             () -> replaceViews(query("FROM view_with_in_subquery" + pipes(200)))
         );
     }
@@ -1104,12 +1113,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         replaceViews(query("FROM view_a, (FROM view_b), (FROM view_c" + pipes(75) + ")" + pipes(75)));
         expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
+            startsWith(MAX_PLAN_NODES_ERROR),
             () -> replaceViews(query("FROM view_a, view_b" + pipes(300)))
         );
         expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
+            startsWith(MAX_PLAN_NODES_ERROR),
             () -> replaceViews(query("FROM view_a, (FROM view_b), (FROM view_c" + pipes(100) + ")" + pipes(100)))
         );
     }
@@ -1121,7 +1130,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         replaceViews(query("FROM long_view" + pipes(100) + fork));
         expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
+            startsWith(MAX_PLAN_NODES_ERROR),
             () -> replaceViews(query("FROM long_view" + pipes(150) + fork))
         );
     }
@@ -1131,7 +1140,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("outer_view", "FROM row_view" + pipes(150));
         addView("too_long_outer_view", "FROM row_view" + pipes(200));
         replaceViews(query("FROM outer_view"));
-        expectThrows(VerificationException.class, startsWith(maxPlanNodesError), () -> replaceViews(query("FROM too_long_outer_view")));
+        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> replaceViews(query("FROM too_long_outer_view")));
     }
 
     public void testMaxPlanNodesCountWithExponentialViewsAndSubqueries() {
@@ -1142,7 +1151,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // about 5,000 nodes, four for each pipe: the command, the comparison, and its two operands
         expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
+            startsWith(MAX_PLAN_NODES_ERROR),
             () -> replaceViews(query(inSubqueriesOfGrowingViews(maxDepth)))
         );
     }
@@ -1179,7 +1188,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     public void testMaxPlanNodesCountWithWideInSubqueries() {
         addView("some_view", "FROM emp");
         int count = 30_000;
-        int MaxPlanNodesCount = 500;
+        int maxPlanNodesCount = 500;
 
         StringBuilder eval = new StringBuilder("FROM emp1 | EVAL ");
         for (int i = 0; i < count; i++) {
@@ -1187,30 +1196,30 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
         var e = expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
-            () -> replaceViewsWithMaxPlanNodesCount(query(eval.toString()), MaxPlanNodesCount)
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViewsWithMaxPlanNodesCount(query(eval.toString()), maxPlanNodesCount)
         );
-        assertExpansionStaysCloseToMaxNodes(e, MaxPlanNodesCount);
+        assertExpansionStaysCloseToMaxNodes(e, maxPlanNodesCount);
     }
 
     public void testMaxPlanNodesCountWithWideInSubqueriesInFilter() {
         addView("some_view", "FROM emp");
         int count = 280;
-        int MaxPlanNodesCount = 500;
+        int maxPlanNodesCount = 500;
 
         String filter = "FROM emp1 | WHERE " + String.join(" AND ", Collections.nCopies(count, "x IN (FROM emp2)"));
         var e = expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
-            () -> replaceViewsWithMaxPlanNodesCount(query(filter), MaxPlanNodesCount)
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViewsWithMaxPlanNodesCount(query(filter), maxPlanNodesCount)
         );
-        assertExpansionStaysCloseToMaxNodes(e, MaxPlanNodesCount);
+        assertExpansionStaysCloseToMaxNodes(e, maxPlanNodesCount);
     }
 
     public void testMaxPlanNodesCountWithWideInSubqueriesInStats() {
         addView("some_view", "FROM emp");
         int count = 10_000;
-        int MaxPlanNodesCount = 500;
+        int maxPlanNodesCount = 500;
 
         StringBuilder stats = new StringBuilder("FROM emp1 | STATS ");
         for (int i = 0; i < count; i++) {
@@ -1218,20 +1227,20 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
         var e = expectThrows(
             VerificationException.class,
-            startsWith(maxPlanNodesError),
-            () -> replaceViewsWithMaxPlanNodesCount(query(stats.toString()), MaxPlanNodesCount)
+            startsWith(MAX_PLAN_NODES_ERROR),
+            () -> replaceViewsWithMaxPlanNodesCount(query(stats.toString()), maxPlanNodesCount)
         );
-        assertExpansionStaysCloseToMaxNodes(e, MaxPlanNodesCount);
+        assertExpansionStaysCloseToMaxNodes(e, maxPlanNodesCount);
     }
 
     // To check when expanding the views / subqueries we do not go massively over the max number of allowed planning nodes
-    private static void assertExpansionStaysCloseToMaxNodes(VerificationException e, int MaxPlanNodesCount) {
+    private static void assertExpansionStaysCloseToMaxNodes(VerificationException e, int maxPlanNodesCount) {
         var foundNodesPattern = Pattern.compile("Found at least \\[(\\d+)\\] plan nodes").matcher(e.getMessage());
         assertTrue(e.getMessage(), foundNodesPattern.find());
         var numExpandedNodes = Integer.parseInt(foundNodesPattern.group(1));
         // We check when expanding the query inside InSubqueryResolver we don't blow up the planning tree exponentially
         // The bound <= 2 * MaxPlanNodesCount is quite generous so the tests using this are not frail.
-        assertThat(numExpandedNodes, lessThanOrEqualTo(2 * MaxPlanNodesCount));
+        assertThat(numExpandedNodes, lessThanOrEqualTo(2 * maxPlanNodesCount));
     }
 
     public void testCircularViewSelfReference() {
@@ -3185,9 +3194,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         return COMPACTION.apply(replaceViewsWithoutCompaction(plan, resolver));
     }
 
-    private LogicalPlan replaceViewsWithMaxPlanNodesCount(LogicalPlan plan, int MaxPlanNodesCount) {
+    private LogicalPlan replaceViewsWithMaxPlanNodesCount(LogicalPlan plan, int maxPlanNodesCount) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(plan, null, true, false, this::parse, ViewBoundaryPreservation.NONE, MaxPlanNodesCount, future);
+        viewResolver.replaceViews(plan, null, true, false, this::parse, ViewBoundaryPreservation.NONE, maxPlanNodesCount, future);
         return COMPACTION.apply(future.actionGet().plan());
     }
 
@@ -3305,8 +3314,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan parse(String query, String viewName) {
-        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName, ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT)
-            .plan();
+        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName, EsqlParser.DEFAULT_MAX_COMMAND_COUNT).plan();
     }
 
     /**

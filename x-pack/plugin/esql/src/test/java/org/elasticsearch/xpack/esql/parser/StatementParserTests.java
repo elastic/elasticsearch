@@ -1473,7 +1473,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEqualsIgnoringIds(new Explain(EMPTY, PROCESSING_CMD_INPUT), query("explain ( row a = 1 )"));
     }
 
-    private final int DEFAULT_MAX_COMMAND_COUNT = EsqlFlags.ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
+    private static final int DEFAULT_MAX_COMMAND_COUNT = EsqlFlags.ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
 
     public void testDeepSubqueryFailsMaxCommandCount() {
         assumeTrue("Requires subqueries in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());

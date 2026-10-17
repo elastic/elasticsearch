@@ -65,6 +65,10 @@ public class EsqlFlags {
     /**
      * Cluster-wide cap on the number of commands a statement may have, counting the main query and all its subqueries together.
      * An explicit {@link QueryPragmas#MAX_COMMAND_COUNT} pragma overrides this value for that query.
+     * <p>
+     * The main pipeline is also bounded by {@code LogicalPlanBuilder#MAX_QUERY_DEPTH} (500), a fixed recursion guard in the parser.
+     * Raising this setting above 500 only lets subqueries and expanded views use the extra budget; a main pipeline with more than
+     * 500 commands is still rejected.
      */
     public static final Setting<Integer> ESQL_MAX_COMMAND_COUNT = Setting.intSetting(
         "esql.query.max_command_count",

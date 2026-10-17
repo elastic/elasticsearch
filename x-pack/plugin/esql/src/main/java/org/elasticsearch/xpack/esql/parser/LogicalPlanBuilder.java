@@ -148,7 +148,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.TIM
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
     /**
-     * Maximum number of commands allowed per query or subquery
+     * Maximum number of commands allowed per query
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
@@ -1405,6 +1405,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return list;
     }
 
+    // TODO: FORK branch commands are not added to commandCount, so they do not count towards ParsingContext#maxCommandCount.
+    // See https://github.com/elastic/esql-planning/issues/2322
     @Override
     public PlanFactory visitForkSubQuery(EsqlBaseParser.ForkSubQueryContext ctx) {
         var subCtx = ctx.forkSubQueryCommand();

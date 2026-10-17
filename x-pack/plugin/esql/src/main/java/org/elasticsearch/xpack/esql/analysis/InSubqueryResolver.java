@@ -103,9 +103,8 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  */
 public class InSubqueryResolver {
 
+    // for testing only
     /**
-     * Use for testing only!
-     * TODO: Add planSize as parameter and move to a testing package
      *
      * <p>
      * Resolves all {@link InSubquery} expressions in {@link Filter} conditions, {@link Eval} field
@@ -183,7 +182,7 @@ public class InSubqueryResolver {
     private record ShadowedLHS(Expression subquery, String name) {}
 
     /**
-     * Make this public, so that {@link org.elasticsearch.xpack.esql.view.ViewResolver} can drive IN subquery resolution.
+     * Make this public, so that {@link ViewResolver} can drive IN subquery resolution.
      */
     public static LogicalPlan resolveInSubqueryInFilter(Filter filter, PlanSize planSize) {
         Expression condition = filter.condition();
@@ -266,7 +265,7 @@ public class InSubqueryResolver {
      * lower {@link Eval} so the LHS field is in scope for the {@link MarkJoin}. When no such dependency exists, a single {@link MarkJoin}
      * is stacked below the whole {@link Eval} regardless of how many aliases it defines.
      * <p>
-     * Make this public, so that {@link org.elasticsearch.xpack.esql.view.ViewResolver} can drive IN subquery resolution. Every node the
+     * Make this public, so that {@link ViewResolver} can drive IN subquery resolution. Every node the
      * rewrite adds is added to {@code planSize} as soon as it is created, so the rewrite stops at the first IN subquery that exceeds it.
      */
     public static LogicalPlan resolveInSubqueryInEval(Eval eval, PlanSize planSize) {

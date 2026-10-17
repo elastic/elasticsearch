@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
@@ -62,7 +63,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
-import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -674,11 +674,11 @@ public class TestAnalyzer {
      * such as SORT).
      */
     public LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
-        PlanSize planSize = new PlanSize(0, Integer.MAX_VALUE);
         if (views.isEmpty()) {
             // No views to expand, resolve and validate IN subqueries directly
             return InSubqueryResolver.resolve(plan);
         }
+        PlanSize planSize = new PlanSize(0, Integer.MAX_VALUE);
         LogicalPlan resolved = resolveViews(plan, planSize);
         InSubqueryResolver.verify(resolved);
         return resolved;
@@ -803,7 +803,7 @@ public class TestAnalyzer {
                     new QueryParams(),
                     new InferenceSettings(Settings.EMPTY),
                     entry.getKey(),
-                    ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
+                    EsqlParser.DEFAULT_MAX_COMMAND_COUNT
                 ).plan()
             );
         }

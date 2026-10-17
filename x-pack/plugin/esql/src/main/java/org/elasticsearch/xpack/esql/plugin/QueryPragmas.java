@@ -146,8 +146,11 @@ public final class QueryPragmas implements Writeable {
      * <p>
      * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_COMMAND_COUNT} supplies the cap. An explicit value overrides the cluster
      * setting for this query only.
+     * <p>
+     * The main pipeline is also bounded by {@code LogicalPlanBuilder#MAX_QUERY_DEPTH} (500), a fixed recursion guard in the parser, so
+     * values above 500 only apply to subqueries and expanded views.
      */
-    public static final Setting<Integer> MAX_COMMAND_COUNT = Setting.intSetting("max_command_count", 500, 500);
+    public static final Setting<Integer> MAX_COMMAND_COUNT = Setting.intSetting("max_command_count", 500, 1);
 
     /**
      * Inclusive upper bound of {@link #MAX_BRANCH_COUNT_PER_MERGE} and {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE}. Parse-time

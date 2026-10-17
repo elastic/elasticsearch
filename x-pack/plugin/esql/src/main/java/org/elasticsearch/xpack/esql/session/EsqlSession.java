@@ -452,11 +452,12 @@ public class EsqlSession {
         listener = wrapForAnonymizedFailureLog(listener);
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
+        int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
         EsqlStatement statement = request.parse(
             parser,
             SettingsValidationContext.from(crossProjectModeDecider),
             inferenceService.inferenceSettings(),
-            request.pragmas().maxCommandCount(flags.maxCommandCount())
+            maxCommandCount
         );
         // Unwrap EXPLAIN right after parsing: Explain is a leaf plan holding the target query as a
         // field rather than a child, so plan traversals do not descend into it. It must be removed
@@ -518,7 +519,6 @@ public class EsqlSession {
         )) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_IDENTITY;
         }
-        int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
         viewResolver.replaceViews(
             parsedPlan,
             QuerySettings.PROJECT_ROUTING.get(resolved),

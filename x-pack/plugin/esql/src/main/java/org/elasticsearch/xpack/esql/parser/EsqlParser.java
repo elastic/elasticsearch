@@ -45,7 +45,7 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 public class EsqlParser {
 
     /** Maximum number of commands in a statement when the caller does not provide one. */
-    private static final int DEFAULT_MAX_COMMAND_COUNT = QueryPragmas.MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
+    public static final int DEFAULT_MAX_COMMAND_COUNT = QueryPragmas.MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
 
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 

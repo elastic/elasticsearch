@@ -33,7 +33,7 @@ public class HeapAttackViewIT extends HeapAttackTestCase {
      * Views that reference the view below them several times each expand to {@code refsPerView ^ levels} leaves
      * The query must be rejected due to excess of planning nodes
      */
-    public void testExpandedDeepViews() throws IOException {
+    public void testExponentialViewsExpansionRejected() throws IOException {
         initSingleDocIndex();
         String view = "heap_attack_view_";
         int levels = 7;
@@ -53,7 +53,11 @@ public class HeapAttackViewIT extends HeapAttackTestCase {
         }
     }
 
-    public void testExpandedWideViews() throws IOException {
+    /**
+     * Same shape as {@link #testExponentialViewsExpansionRejected} but every view body is a bare source command. Such bodies add no
+     * processing commands, so the parser-side command count never trips; only the plan node count after expansion rejects them.
+     */
+    public void testExponentialViewsExpansionWithOnlySourceCommandsRejected() throws IOException {
         initSingleDocIndex();
         String view = "heap_attack_view_";
         int levels = 7;

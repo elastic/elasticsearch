@@ -45,6 +45,13 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
      */
     private final AtomicBoolean downstreamReady = new AtomicBoolean(false);
     private final AtomicBoolean downstreamCancelled = new AtomicBoolean(false);
+    /**
+     * The number of items the downstream has requested that have not been answered by {@link #emitNext} yet. Unlike {@link #demand}, which
+     * is reset whenever an event starts being processed, this is only decremented when an item is really sent downstream. Terminal errors
+     * are only signalled while this is positive, because downstream subscribers (e.g. the REST SSE subscriber) only expect signals in
+     * response to a request. An error that arrives with no outstanding request is parked and delivered by the next request.
+     */
+    private final AtomicLong downstreamDemand = new AtomicLong(0);
 
     volatile Flow.Subscription upstream;
 
@@ -84,20 +91,32 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
             amazonBedrockRuntimeException
         );
         error.set(wrappedException);
-        // Errors are not subject to backpressure, so they are delivered without regard to the demand counter, which is zeroed when
-        // pending requests are forwarded upstream. If the downstream is not ready yet, subscribe() replays the stored error.
-        if (isDone.compareAndSet(false, true)) {
-            deliverErrorIfPending();
-        }
+        isDone.set(true);
+        deliverErrorIfPending();
     }
 
+    /**
+     * Sends the stored error downstream if there is one and the downstream is able to receive it: it has returned from onSubscribe, has
+     * not cancelled, has an outstanding request and has not been completed. Otherwise the error stays stored and this is retried when the
+     * downstream subscribes or requests. Safe to call repeatedly, the error is only ever delivered once.
+     */
     private void deliverErrorIfPending() {
         if (downstreamReady.get()
             && downstreamCancelled.get() == false
             && error.get() != null
+            && downstreamDemand.get() > 0
+            && onCompleteCalled.get() == false
             && onErrorCalled.compareAndSet(false, true)) {
             runOnUtilityThreadPool(() -> downstream.onError(error.get()));
         }
+    }
+
+    /**
+     * Sends an item downstream, consuming one of the downstream's outstanding requests.
+     */
+    void emitNext(T item) {
+        downstreamDemand.updateAndGet(i -> i > 0 ? i - 1 : 0);
+        downstream.onNext(item);
     }
 
     private boolean checkAndResetDemand() {
@@ -131,14 +150,21 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
                     var sum = i + n;
                     return sum >= 0 ? sum : Long.MAX_VALUE;
                 });
+                downstreamDemand.updateAndGet(i -> {
+                    var sum = i + n;
+                    return sum >= 0 ? sum : Long.MAX_VALUE;
+                });
+                if (error.get() != null) {
+                    // a stored error always wins over completion, even if its delivery has already been queued
+                    deliverErrorIfPending();
+                    return;
+                }
                 if (upstream == null) {
                     // wait for upstream to subscribe before forwarding request
                     return;
                 }
                 if (upstreamIsRunning()) {
                     requestOnMlThread(n);
-                } else if (error.get() != null && onErrorCalled.compareAndSet(false, true)) {
-                    downstream.onError(error.get());
                 } else if (onCompleteCalled.compareAndSet(false, true)) {
                     downstream.onComplete();
                 }

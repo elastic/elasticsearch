@@ -529,28 +529,24 @@ public class EsqlSession {
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());
-                rejectViewsForExemplars(resolved, viewResolution);
+                if (QuerySettings.EXEMPLARS.get(resolved).enabled()) {
+                    verifyExemplarsQuery(viewResolution);
+                }
                 viewResolutionProfile.stop();
                 analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, l);
             }))
         );
     }
 
-    /**
-     * Rejects views in a query run with {@code SET exemplars=true}.
-     * <p>
-     * TODO: support views with the exemplars setting, with explicit tests. View resolution has inlined the view bodies by now, so the
-     * exemplar rewrite (see {@link ExemplarsRewriter}) would derive exemplar data streams from a {@code TS} or {@code PROMQL} query
-     * inside a view body, while dropping the view boundary and every operation applied to the view's output. Whether that is the
-     * intended behavior has not been decided, so views are rejected until it is.
-     */
-    private static void rejectViewsForExemplars(ResolvedSettings resolved, ViewResolver.ViewResolutionResult viewResolution) {
-        if (QuerySettings.EXEMPLARS.get(resolved).enabled() && viewResolution.viewQueries().isEmpty() == false) {
+    private static void verifyExemplarsQuery(ViewResolver.ViewResolutionResult viewResolution) {
+        // TODO support views with exemplars. There's no technical reason to not support them, we just need to check them with tests
+        if (viewResolution.viewQueries().isEmpty() == false) {
             throw new VerificationException(
                 "The exemplars setting does not support views yet, found view(s) [{}]",
                 String.join(", ", new TreeSet<>(viewResolution.viewQueries().keySet()))
             );
         }
+        ExemplarsRewriter.verifyMetricsQuery(viewResolution.plan());
     }
 
     private void analyseAndExecute(
@@ -3089,9 +3085,11 @@ public class EsqlSession {
         LogicalPlan plan = analyzer.analyze(parsed);
         ExemplarsSettings exemplarsSettings = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings());
         if (exemplarsSettings.enabled()) {
-            // The analyzed metrics query is not executed. The initial rewrite replaces it with the relation over all resolved exemplar
-            // data streams; that relation is analyzed in turn to resolve its fields.
-            plan = analyzer.analyze(ExemplarsRewriter.exemplarsQuery(plan, r.exemplarsResolution(), exemplarsSettings));
+            // The analyzed metrics query is not executed. It is replaced with a query over the resolved exemplar data streams for the
+            // metrics it aggregates; that query is analyzed in turn to resolve its fields.
+            plan = analyzer.analyze(
+                ExemplarsRewriter.exemplarsQuery(plan, r.indexResolution().values(), r.exemplarsResolution(), exemplarsSettings)
+            );
         }
         plan.setAnalyzed();
         return plan;

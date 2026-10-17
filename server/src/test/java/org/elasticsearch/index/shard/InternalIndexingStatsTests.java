@@ -142,7 +142,7 @@ public class InternalIndexingStatsTests extends ESTestCase {
                 new IndexRequest("index").id("doc-" + d).source(new BytesArray("{\"n\":" + d + "}"), XContentType.JSON)
             );
         }
-        return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L);
+        return IndexOperationBatch.initFromBulk(items, 0, docCount, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null);
     }
 
     private static Engine.IndexResult randomResult(ShardId shardId, String id) {

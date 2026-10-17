@@ -80,3 +80,15 @@
 # Allow wildcard deletion of indices:
 #
 #action.destructive_requires_name: false
+#
+# ---------------------------------- FIPS 140 ----------------------------------
+#
+# The Linux distributions ship the Bouncy Castle FIPS provider in lib/fips. Enabling
+# the settings below runs this node, and the command line tools, on that provider
+# in FIPS 140 approved-only mode. FIPS mode requires a Platinum, Enterprise or
+# Trial license; a self-generated Basic license fails the FIPS license check when
+# the node restarts.
+#
+#xpack.security.fips_mode.enabled: true
+#xpack.security.fips_mode.required_providers: [BCFIPS, BCJSSE]
+#xpack.license.self_generated.type: trial

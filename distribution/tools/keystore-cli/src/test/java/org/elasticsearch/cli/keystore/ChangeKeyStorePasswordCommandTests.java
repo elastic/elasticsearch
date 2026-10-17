@@ -32,14 +32,13 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
     }
 
     public void testSetKeyStorePassword() throws Exception {
-        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         createKeystore("");
         loadKeystore("");
-        terminal.addSecretInput("thepassword");
-        terminal.addSecretInput("thepassword");
+        terminal.addSecretInput("the-new-password");
+        terminal.addSecretInput("the-new-password");
         // Prompted twice for the new password, since we didn't have an existing password
         execute();
-        loadKeystore("thepassword");
+        loadKeystore("the-new-password");
     }
 
     public void testChangeKeyStorePassword() throws Exception {
@@ -54,7 +53,6 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
     }
 
     public void testChangeKeyStorePasswordToEmpty() throws Exception {
-        assumeFalse("Cannot set empty keystore password on FIPS JVM", inFipsJvm());
         createKeystore("theoldpassword");
         loadKeystore("theoldpassword");
         terminal.addSecretInput("theoldpassword");

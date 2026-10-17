@@ -11,11 +11,6 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.apache.lucene.util.SetOnce;
-import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.asn1.x509.KeyPurposeId;
-import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
@@ -49,6 +44,11 @@ import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.elasticsearch.xpack.core.security.HttpResponse;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
+import org.elasticsearch.xpack.security.cli.bc.KeyPurpose;
+import org.elasticsearch.xpack.security.cli.bc.KeyStoreFormat;
+import org.elasticsearch.xpack.security.cli.bc.PemWriter;
+import org.elasticsearch.xpack.security.cli.bc.SubjectAlternativeNames;
 
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
@@ -102,7 +102,6 @@ import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
-import static org.elasticsearch.xpack.security.cli.CertGenUtils.buildKeyUsage;
 import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.DEFAULT_CA_KEY_USAGE;
 import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.DEFAULT_CERT_KEY_USAGE;
 
@@ -449,7 +448,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     true,
                     HTTP_CA_CERTIFICATE_DAYS,
                     SIGNATURE_ALGORITHM,
-                    buildKeyUsage(DEFAULT_CA_KEY_USAGE),
+                    DEFAULT_CA_KEY_USAGE,
                     Set.of()
                 );
             } catch (Throwable t) {
@@ -476,8 +475,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 false,
                 HTTP_CERTIFICATE_DAYS,
                 SIGNATURE_ALGORITHM,
-                buildKeyUsage(DEFAULT_CERT_KEY_USAGE),
-                Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
+                DEFAULT_CERT_KEY_USAGE,
+                Set.of(KeyPurpose.SERVER_AUTH)
             );
 
             // the HTTP CA PEM file is provided "just in case". The node doesn't use it, but clients (configured manually, outside of the
@@ -488,12 +487,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 false,
                 inReconfigureMode ? ELASTICSEARCH_GROUP_OWNER : null,
                 stream -> {
-                    try (
-                        JcaPEMWriter pemWriter = new JcaPEMWriter(
-                            new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))
-                        )
-                    ) {
-                        pemWriter.writeObject(httpCaCert);
+                    try (PemWriter pemWriter = new PemWriter(new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8)))) {
+                        pemWriter.writeCertificate(httpCaCert);
                     }
                 }
             );
@@ -545,33 +540,34 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     "Aborting auto configuration because the node keystore contains password settings already"
                 );
             }
+            final KeyStoreFormat keyStoreFormat = keyStoreFormat(env);
             try (SecureString transportKeystorePassword = newKeystorePassword()) {
-                KeyStore transportKeystore = KeyStore.getInstance("PKCS12");
-                transportKeystore.load(null);
-                // the PKCS12 keystore and the contained private key use the same password
+                KeyStore transportKeystore = keyStoreFormat.newKeyStore();
+                // the keystore and the contained private key use the same password
+                // the CA certificate is stored in the key's chain as well as in its own entry: node enrollment locates the
+                // transport CA through the key entry's chain, and only PKCS#12 rebuilds chains from the other entries on load
                 transportKeystore.setKeyEntry(
                     TRANSPORT_KEY_KEYSTORE_ENTRY,
                     transportKey,
                     transportKeystorePassword.getChars(),
-                    new Certificate[] { transportCert }
+                    new Certificate[] { transportCert, transportCaCert }
                 );
                 transportKeystore.setCertificateEntry(TRANSPORT_CA_CERT_KEYSTORE_ENTRY, transportCaCert);
                 fullyWriteFile(
                     tempGeneratedTlsCertsDir,
-                    TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12",
+                    TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + keyStoreFormat.extension(),
                     false,
                     inReconfigureMode ? ELASTICSEARCH_GROUP_OWNER : null,
                     stream -> transportKeystore.store(stream, transportKeystorePassword.getChars())
                 );
                 nodeKeystore.setString("xpack.security.transport.ssl.keystore.secure_password", transportKeystorePassword.getChars());
-                // we use the same PKCS12 file for the keystore and the truststore
+                // we use the same keystore file for the keystore and the truststore
                 nodeKeystore.setString("xpack.security.transport.ssl.truststore.secure_password", transportKeystorePassword.getChars());
             }
             try (SecureString httpKeystorePassword = newKeystorePassword()) {
-                KeyStore httpKeystore = KeyStore.getInstance("PKCS12");
-                httpKeystore.load(null);
+                KeyStore httpKeystore = keyStoreFormat.newKeyStore();
                 // the keystore contains both the node's and the CA's private keys
-                // both keys are encrypted using the same password as the PKCS12 keystore they're contained in
+                // both keys are encrypted using the same password as the keystore they're contained in
                 httpKeystore.setKeyEntry(
                     HTTP_CA_KEY_KEYSTORE_ENTRY,
                     httpCaKey,
@@ -586,7 +582,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 );
                 fullyWriteFile(
                     tempGeneratedTlsCertsDir,
-                    HTTP_AUTOGENERATED_KEYSTORE_NAME + ".p12",
+                    HTTP_AUTOGENERATED_KEYSTORE_NAME + keyStoreFormat.extension(),
                     false,
                     inReconfigureMode ? ELASTICSEARCH_GROUP_OWNER : null,
                     stream -> httpKeystore.store(stream, httpKeystorePassword.getChars())
@@ -707,6 +703,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // final Environment to be used in the lambda below
             final Environment localFinalEnv = env;
             final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss", Locale.ROOT);
+            final String keyStoreExtension = keyStoreFormat(env).extension();
             List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
             fullyWriteFile(env.configDir(), "elasticsearch.yml", true, stream -> {
                 try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
@@ -749,7 +746,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     bw.newLine();
                     bw.write("  enabled: true");
                     bw.newLine();
-                    bw.write("  keystore.path: " + TLS_GENERATED_CERTS_DIR_NAME + "/" + HTTP_AUTOGENERATED_KEYSTORE_NAME + ".p12");
+                    bw.write(
+                        "  keystore.path: " + TLS_GENERATED_CERTS_DIR_NAME + "/" + HTTP_AUTOGENERATED_KEYSTORE_NAME + keyStoreExtension
+                    );
                     bw.newLine();
                     bw.newLine();
                     bw.write("# Enable encryption and mutual authentication between cluster nodes");
@@ -760,12 +759,20 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     bw.newLine();
                     bw.write("  verification_mode: certificate");
                     bw.newLine();
-                    bw.write("  keystore.path: " + TLS_GENERATED_CERTS_DIR_NAME + "/" + TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12");
+                    bw.write(
+                        "  keystore.path: " + TLS_GENERATED_CERTS_DIR_NAME + "/" + TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + keyStoreExtension
+                    );
                     bw.newLine();
                     // we use the keystore as a truststore in order to minimize the number of auto-generated resources,
                     // and also because a single file is more idiomatic to the scheme of a shared secret between the cluster nodes
                     // no one should only need the TLS cert without the associated key for the transport layer
-                    bw.write("  truststore.path: " + TLS_GENERATED_CERTS_DIR_NAME + "/" + TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12");
+                    bw.write(
+                        "  truststore.path: "
+                            + TLS_GENERATED_CERTS_DIR_NAME
+                            + "/"
+                            + TRANSPORT_AUTOGENERATED_KEYSTORE_NAME
+                            + keyStoreExtension
+                    );
                     if (inEnrollmentMode) {
                         bw.newLine();
                         bw.write("# Discover existing nodes in the cluster");
@@ -983,15 +990,15 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    private static GeneralNames getSubjectAltNames(Settings settings) throws IOException {
-        Set<GeneralName> generalNameSet = new HashSet<>();
+    private static SubjectAlternativeNames getSubjectAltNames(Settings settings) throws IOException {
+        final SubjectAlternativeNames.Builder builder = SubjectAlternativeNames.builder();
         for (InetAddress ip : NetworkUtils.getAllAddresses()) {
             String ipString = NetworkAddress.format(ip);
-            generalNameSet.add(new GeneralName(GeneralName.iPAddress, ipString));
+            builder.addIpAddress(ipString);
         }
-        generalNameSet.add(new GeneralName(GeneralName.dNSName, "localhost"));
+        builder.addDnsName("localhost");
         // HOSTNAME should always be set by start-up scripts, and this code is always invoked only by the said startup scripts
-        generalNameSet.add(new GeneralName(GeneralName.dNSName, System.getenv("HOSTNAME")));
+        builder.addDnsName(System.getenv("HOSTNAME"));
         for (List<String> publishAddresses : List.of(
             NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.exists(settings)
                 ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings)
@@ -1002,18 +1009,27 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         )) {
             for (String publishAddress : publishAddresses) {
                 if (InetAddresses.isInetAddress(publishAddress)) {
-                    generalNameSet.add(new GeneralName(GeneralName.iPAddress, publishAddress));
+                    builder.addIpAddress(publishAddress);
                 } else {
-                    generalNameSet.add(new GeneralName(GeneralName.dNSName, publishAddress));
+                    builder.addDnsName(publishAddress);
                 }
             }
         }
-        return new GeneralNames(generalNameSet.toArray(new GeneralName[0]));
+        return builder.build();
     }
 
     // for tests
     SecureString newKeystorePassword() {
         return UUIDs.randomBase64UUIDSecureString();
+    }
+
+    /**
+     * The generated keystores must be loadable by the node they are configured for. A node running in FIPS mode
+     * ({@code xpack.security.fips_mode.enabled: true}) is expected to be restricted to an approved-mode FIPS provider,
+     * which cannot open PKCS#12 keystores, so BCFKS is generated instead. Everything else uses the JDK's PKCS#12.
+     */
+    static KeyStoreFormat keyStoreFormat(Environment env) {
+        return XPackSettings.FIPS_MODE_ENABLED.get(env.settings()) ? KeyStoreFormat.BCFKS : KeyStoreFormat.PKCS12;
     }
 
     /*

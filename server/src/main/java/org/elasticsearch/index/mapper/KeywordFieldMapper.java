@@ -1678,6 +1678,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean guaranteesSingleValue() {
+        return docValuesParameters.multiValue() == false && docValuesParameters.onFailure() == DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    @Override
     protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
         return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || fieldType().nullValue != null);
     }

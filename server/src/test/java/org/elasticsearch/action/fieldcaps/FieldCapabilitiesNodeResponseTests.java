@@ -174,6 +174,13 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             "passthrough flag requires transport version " + FieldCapabilities.FIELD_CAPS_PASSTHROUGH,
             hasPassthrough == false || version.supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
         );
+        final boolean hasSingleValued = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(IndexFieldCapabilities::isStaticallySingleValued);
+        assumeTrue(
+            "single valued flag requires transport version " + FieldCapabilities.FIELD_CAPS_SINGLE_VALUED,
+            hasSingleValued == false || version.supports(FieldCapabilities.FIELD_CAPS_SINGLE_VALUED)
+        );
 
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);
         assertThat(outNode.getFailures().keySet(), equalTo(inNode.getFailures().keySet()));

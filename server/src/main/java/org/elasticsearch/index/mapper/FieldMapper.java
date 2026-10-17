@@ -561,6 +561,17 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Whether every document is guaranteed to hold at most one value for this field, because the mapping rejects any document with
+     * more than one ({@code doc_values.multi_value=false} with {@code on_failure=fail}). Readers such as field caps may rely on it.
+     * <p>
+     * Defaults to {@code false}, which only means "not guaranteed". A mapper returns {@code true} only if it rejects a second value
+     * at parse time on every path, and the guarantee cannot be removed later: {@code multi_value} is not updateable.
+     */
+    protected boolean guaranteesSingleValue() {
+        return false;
+    }
+
+    /**
      * Whether this mapper enforces single-value semantics on the columnar batch path, analogous to
      * {@link #shouldEnforceSingleValue(XContentParser.Token)} for the row path. When {@code true},
      * {@link #mapColumnBatch} scans the source column upfront and throws {@link UnsupportedOperationException}

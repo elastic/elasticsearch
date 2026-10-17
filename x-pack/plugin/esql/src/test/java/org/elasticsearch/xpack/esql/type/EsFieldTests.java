@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType;
@@ -75,6 +76,17 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
         assertThat(copyInstance(field, EsField.ESQL_SERIALIZE_PASSTHROUGH_FIELD).isPassthrough(), is(true));
     }
 
+    public void testSingleValuedSerialization() throws Exception {
+        EsField field = new EsField("age", DataType.LONG, Map.of(), true, false, TimeSeriesFieldType.NONE, false, true);
+        assertThat(copyInstance(field, EsField.ESQL_SERIALIZE_SINGLE_VALUED_FIELD).isStaticallySingleValued(), is(true));
+        // A node that cannot read the flag sees "not guaranteed".
+        assertThat(
+            copyInstance(field, TransportVersionUtils.getPreviousVersion(EsField.ESQL_SERIALIZE_SINGLE_VALUED_FIELD))
+                .isStaticallySingleValued(),
+            is(false)
+        );
+    }
+
     @Override
     protected EsField mutateInstance(EsField instance) {
         String name = instance.getName();
@@ -84,7 +96,8 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
         boolean isAlias = instance.isAlias();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
         boolean isPassthrough = instance.isPassthrough();
-        switch (between(0, 6)) {
+        boolean isStaticallySingleValued = instance.isStaticallySingleValued();
+        switch (between(0, 7)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> esDataType = randomValueOtherThan(esDataType, () -> randomFrom(DataType.types()));
             case 2 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
@@ -92,8 +105,9 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
             case 4 -> isAlias = false == isAlias;
             case 5 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             case 6 -> isPassthrough = false == isPassthrough;
+            case 7 -> isStaticallySingleValued = false == isStaticallySingleValued;
             default -> throw new IllegalArgumentException();
         }
-        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType, isPassthrough);
+        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType, isPassthrough, isStaticallySingleValued);
     }
 }

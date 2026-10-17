@@ -795,7 +795,8 @@ public class IndexModuleTests extends ESTestCase {
                 DiscoveryNodeUtils.create("_node_id", "_node_id"),
                 null,
                 IndexShardTestCase.NOOP_GCP_SYNCER,
-                RetentionLeaseSyncer.EMPTY
+                RetentionLeaseSyncer.EMPTY,
+                0
             );
             closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
             indexShard.markAsRecovering("test");

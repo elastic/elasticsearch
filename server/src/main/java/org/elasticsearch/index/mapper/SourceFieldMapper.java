@@ -530,8 +530,23 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      */
     private BytesRef encodeColumnarSource(MappingLookup mappingLookup, List<LuceneDocument> allDocs, LuceneDocument doc)
         throws IOException {
+        return encodeColumnarSource(mappingLookup, allDocs, doc, null);
+    }
+
+    /**
+     * Like {@link #encodeColumnarSource(MappingLookup, List, LuceneDocument)}, with the loader pruning that
+     * {@link ColumnarSourceWriter#write(MappingLookup, List, LuceneDocument, XContentBuilder, Set)} applies when
+     * {@code batchColumnNames} is non-null. Only the batch path passes a set: it knows the columns of the whole batch up front,
+     * whereas on the row path any field of the mapping may appear in any document.
+     */
+    private BytesRef encodeColumnarSource(
+        MappingLookup mappingLookup,
+        List<LuceneDocument> allDocs,
+        LuceneDocument doc,
+        @Nullable Set<String> batchColumnNames
+    ) throws IOException {
         try (var builder = XContentFactory.jsonBuilder()) {
-            columnarSourceWriter.write(mappingLookup, allDocs, doc, builder);
+            columnarSourceWriter.write(mappingLookup, allDocs, doc, builder, batchColumnNames);
             return XContentDataHelper.encodeXContentBuilder(builder);
         }
     }
@@ -706,11 +721,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         blobs.lockScalar(EscfColumnKind.BINARY);
         try (blobs) {
             final MappedColumns.RowCursor rows = context.rowCursor(SourceFieldMapper::isReadByColumnarSourceWriter);
+            // The names of the columns the cursor reads, collected once per batch: no document of this batch can carry a field of any
+            // other column, which lets the writer prune the synthetic loaders of the rest of the mapping instead of walking them
+            // once per document.
+            final Set<String> batchColumnNames = context.columnNames(SourceFieldMapper::isReadByColumnarSourceWriter);
             for (int d = 0; d < docCount; d++) {
                 rows.advance();
                 // The cursor's field list is only valid until the next advance(), which is fine: the blob is built before then.
                 final LuceneDocument doc = new LuceneDocument(rows.fields());
-                final BytesRef encodedValue = encodeColumnarSource(context.mappingLookup(), List.of(doc), doc);
+                final BytesRef encodedValue = encodeColumnarSource(context.mappingLookup(), List.of(doc), doc, batchColumnNames);
                 blobs.setBinary(
                     d,
                     IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(

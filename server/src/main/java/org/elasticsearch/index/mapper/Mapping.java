@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -164,8 +165,21 @@ public final class Mapping implements ToXContentFragment {
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter, boolean columnarStored) {
+        return syntheticFieldLoader(filter, columnarStored, null);
+    }
+
+    /**
+     * Like {@link #syntheticFieldLoader(SourceFilter, boolean)}, but prunes the loaders of the regular field mappers whose path fails
+     * {@code leafFieldPredicate}. See {@link ObjectMapper#syntheticFieldLoader(SourceFilter, java.util.function.Predicate)} for the
+     * pruning contract.
+     */
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+        @Nullable SourceFilter filter,
+        boolean columnarStored,
+        @Nullable Predicate<String> leafFieldPredicate
+    ) {
         var mappers = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream()).toList();
-        return root.syntheticFieldLoader(filter, mappers, false, columnarStored);
+        return root.syntheticFieldLoader(filter, mappers, false, columnarStored, leafFieldPredicate);
     }
 
     public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {

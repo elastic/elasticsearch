@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162338
+pr: 162351
+summary: Rebuild dense BulkScorer when ranges are scored out of order
+type: bug

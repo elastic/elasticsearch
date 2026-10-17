@@ -2241,96 +2241,97 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertEquals("sub", sub.indexPattern().indexPattern());
     }
 
-    // ---- positive: EVAL IN subquery — name-collision flush ----
+    // ---- positive: EVAL IN subquery — overwrite is appended, not replaced ----
 
     /**
-     * {@code FROM main | EVAL a = 1, z = a + 1, a = y IN (FROM sub)}: the third field reuses name {@code a},
-     * which is already in {@code pending}. Without the name-collision flush the first {@code Alias(a,1,NameId1)}
-     * would be silently overwritten and {@code z}'s reference to {@code NameId1} would become dangling.
-     * Expected plan: {@code Eval[a=$$mark] → MarkJoin[y→$$mark] → Eval[a=1, z=a+1] → Relation[main]}.
+     * {@code FROM main | EVAL a = 1, z = a + 1, a = y IN (FROM sub)}: the third field reuses name {@code a}. The overwrite is appended on
+     * the same Eval, matching ordinary EVAL. Expected plan: {@code Eval[a=1, z=a+1, a=$$mark] → MarkJoin[y→$$mark] → Relation[main]}.
      */
     public void testInSubqueryInEvalNameCollisionFlushesInterveningAlias() {
         LogicalPlan plan = resolve("FROM main | EVAL a = 1, z = a + 1, a = y IN (FROM sub)");
 
-        // Upper Eval: just the redefined `a`
-        Eval upperEval = as(plan, Eval.class);
-        assertEquals(1, upperEval.fields().size());
-        assertEquals("a", upperEval.fields().get(0).name());
-        Attribute mark = as(upperEval.fields().get(0).child(), Attribute.class);
+        Eval eval = as(plan, Eval.class);
+        assertEquals(3, eval.fields().size());
+        assertEquals("a", eval.fields().get(0).name());
+        assertEquals("z", eval.fields().get(1).name());
+        assertEquals("a", eval.fields().get(2).name());
+        Attribute mark = as(eval.fields().get(2).child(), Attribute.class);
 
-        // MarkJoin with left field "y"
-        MarkJoin join = as(upperEval.child(), MarkJoin.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
         assertEquals("y", join.config().leftFields().get(0).name());
         assertEquals(mark.id(), join.markAttribute().id());
-
-        // Lower Eval: a=1 and z=a+1 were flushed together
-        Eval lowerEval = as(join.left(), Eval.class);
-        assertEquals(2, lowerEval.fields().size());
-        assertEquals("a", lowerEval.fields().get(0).name());
-        assertEquals("z", lowerEval.fields().get(1).name());
-
-        assertEquals("main", as(lowerEval.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
         assertEquals("sub", as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern());
     }
 
     /**
-     * {@code FROM main | EVAL a = 1, a = y IN (FROM sub)}: simpler name collision with no
-     * dependent field between the two definitions.
-     * Expected plan: {@code Eval[a=$$mark] → MarkJoin[y→$$mark] → Eval[a=1] → Relation[main]}.
+     * {@code FROM main | EVAL a = 1, a = y IN (FROM sub)}: simpler name collision with no dependent field between the two definitions.
+     * The overwrite is appended on the same Eval. Expected plan: {@code Eval[a=1, a=$$mark] → MarkJoin[y→$$mark] → Relation[main]}.
      */
     public void testInSubqueryInEvalNameCollisionNoInterveningField() {
         LogicalPlan plan = resolve("FROM main | EVAL a = 1, a = y IN (FROM sub)");
 
-        Eval upperEval = as(plan, Eval.class);
-        assertEquals(1, upperEval.fields().size());
-        assertEquals("a", upperEval.fields().get(0).name());
-        Attribute mark = as(upperEval.fields().get(0).child(), Attribute.class);
+        Eval eval = as(plan, Eval.class);
+        assertEquals(2, eval.fields().size());
+        assertEquals("a", eval.fields().get(0).name());
+        assertEquals("a", eval.fields().get(1).name());
+        Attribute mark = as(eval.fields().get(1).child(), Attribute.class);
 
-        MarkJoin join = as(upperEval.child(), MarkJoin.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
         assertEquals("y", join.config().leftFields().get(0).name());
         assertEquals(mark.id(), join.markAttribute().id());
-
-        Eval lowerEval = as(join.left(), Eval.class);
-        assertEquals(1, lowerEval.fields().size());
-        assertEquals("a", lowerEval.fields().get(0).name());
-
-        assertEquals("main", as(lowerEval.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
         assertEquals("sub", as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern());
     }
 
     /**
-     * {@code FROM main | EVAL a = x IN (FROM sub1), a = y IN (FROM sub2)}: both definitions use
-     * InSubquery; the second must flush the first's pending entry before stacking its own MarkJoin.
-     * Expected plan:
-     * {@code Eval[a=$$m2] → MarkJoin[y→$$m2,sub2] → Eval[a=$$m1] → MarkJoin[x→$$m1,sub1] → Relation[main]}.
+     * {@code FROM main | EVAL a = x IN (FROM sub1), a = y IN (FROM sub2)}: both definitions use InSubquery. Neither LHS names a pending
+     * alias, so both marks stack below one Eval that keeps both {@code a} assignments. Expected plan:
+     * {@code Eval[a=$$m1, a=$$m2] → MarkJoin[y→$$m2,sub2] → MarkJoin[x→$$m1,sub1] → Relation[main]}.
      */
     public void testInSubqueryInEvalNameCollisionBothInSubquery() {
         LogicalPlan plan = resolve("FROM main | EVAL a = x IN (FROM sub1), a = y IN (FROM sub2)");
 
-        // Upper Eval: a = $$m2
-        Eval upperEval = as(plan, Eval.class);
-        assertEquals(1, upperEval.fields().size());
-        assertEquals("a", upperEval.fields().get(0).name());
-        Attribute mark2 = as(upperEval.fields().get(0).child(), Attribute.class);
+        Eval eval = as(plan, Eval.class);
+        assertEquals(2, eval.fields().size());
+        assertEquals("a", eval.fields().get(0).name());
+        assertEquals("a", eval.fields().get(1).name());
+        Attribute mark1 = as(eval.fields().get(0).child(), Attribute.class);
+        Attribute mark2 = as(eval.fields().get(1).child(), Attribute.class);
 
-        // Outer MarkJoin: y → $$m2, right=sub2
-        MarkJoin outerJoin = as(upperEval.child(), MarkJoin.class);
+        // Outer MarkJoin is the second IN (y → $$m2, right=sub2), stacked last
+        MarkJoin outerJoin = as(eval.child(), MarkJoin.class);
         assertEquals("y", outerJoin.config().leftFields().get(0).name());
         assertEquals(mark2.id(), outerJoin.markAttribute().id());
         assertEquals("sub2", as(outerJoin.right(), UnresolvedRelation.class).indexPattern().indexPattern());
 
-        // Middle Eval: a = $$m1 (flushed when the second `a` was encountered)
-        Eval middleEval = as(outerJoin.left(), Eval.class);
-        assertEquals(1, middleEval.fields().size());
-        assertEquals("a", middleEval.fields().get(0).name());
-        Attribute mark1 = as(middleEval.fields().get(0).child(), Attribute.class);
-
-        // Inner MarkJoin: x → $$m1, right=sub1
-        MarkJoin innerJoin = as(middleEval.child(), MarkJoin.class);
+        MarkJoin innerJoin = as(outerJoin.left(), MarkJoin.class);
         assertEquals("x", innerJoin.config().leftFields().get(0).name());
         assertEquals(mark1.id(), innerJoin.markAttribute().id());
         assertEquals("sub1", as(innerJoin.right(), UnresolvedRelation.class).indexPattern().indexPattern());
         assertEquals("main", as(innerJoin.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL a = 1, z = 2, a = 3, m = x IN (FROM sub)}: a non-IN overwrite in an IN-bearing EVAL must stay appended, not
+     * replaced in place. Expected plan: {@code Eval[a=1, z=2, a=3, m=$$mark] → MarkJoin[x→$$mark] → Relation[main]}.
+     */
+    public void testInSubqueryInEvalNonInOverwriteIsAppended() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = 1, z = 2, a = 3, m = x IN (FROM sub)");
+
+        Eval eval = as(plan, Eval.class);
+        assertEquals(4, eval.fields().size());
+        assertEquals("a", eval.fields().get(0).name());
+        assertEquals("z", eval.fields().get(1).name());
+        assertEquals("a", eval.fields().get(2).name());
+        assertEquals("m", eval.fields().get(3).name());
+        Attribute mark = as(eval.fields().get(3).child(), Attribute.class);
+
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals("x", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub", as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern());
     }
 
     /**

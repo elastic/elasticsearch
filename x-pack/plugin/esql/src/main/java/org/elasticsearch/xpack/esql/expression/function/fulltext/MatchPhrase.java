@@ -122,7 +122,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
 
             **`MATCH_PHRASE` on expressions**
 
-            {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
+            {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
             `MATCH_PHRASE` can also search `text` and `keyword` expressions that are not backed by an index,
             such as computed columns produced by `EVAL`, `STATS`, or other commands.
             When the target is not an indexed field, the search evaluates by scanning

@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -257,6 +258,18 @@ public abstract class FieldMapper extends Mapper {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return false;
             }
+            // Outside strict-columnar modes (which reject the setting), the row path copies every value of a field under
+            // synthetic_source_keep: all, scalars included, into _ignored_source, as it does for a field with no synthetic source of its
+            // own (SYNTHETIC_FALLBACK). The batch path writes neither, so such a field must stay on the row path. No mapper that gets
+            // this far reports FALLBACK today (copy_to, scripts and normalizers are refused above or by the mapper), so that half of the
+            // check guards mappers added later.
+            if (indexSettings.getMode().isStrictColumnar() == false
+                && FallbackPostMapper.capturesScalarValues(
+                    syntheticSourceMode() == SyntheticSourceMode.FALLBACK,
+                    FallbackPostMapper.effectiveKeepMode(sourceKeepMode(), indexSettings)
+                )) {
+                return false;
+            }
         }
         if (doSupportsColumnarParse(indexSettings) == false) {
             return false;
@@ -340,6 +353,20 @@ public abstract class FieldMapper extends Mapper {
         if (isNullable() == false && source.hasNullOrAbsentDoc()) {
             throw new UnsupportedOperationException(
                 "mapColumnBatch: nullability=false field [" + fullPath() + "] has a null or absent value"
+            );
+        }
+        // Outside strict-columnar modes (which reject the setting), a non-default synthetic_source_keep makes the row path keep array
+        // source as-is, either as positional offsets or in _ignored_source, neither of which the batch path writes.
+        // Fields under keep: all are kept off the batch path by supportsColumnarParse, and ShardBatchMapper does the same for
+        // objects with keep: all; arrays under keep: arrays are the case that can only be recognised per batch, here.
+        if (source.kind() == EscfColumnKind.ARRAY
+            && ctx.indexSettings().getMode().isStrictColumnar() == false
+            && FallbackPostMapper.mayKeepArraySource(
+                syntheticSourceMode() == SyntheticSourceMode.FALLBACK,
+                FallbackPostMapper.effectiveKeepMode(sourceKeepMode(), ctx.indexSettings())
+            )) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: field [" + fullPath() + "] may keep array source outside a strict-columnar index mode"
             );
         }
         doMapColumnBatch(ctx, source);

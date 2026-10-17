@@ -1,65 +1,81 @@
 #!/bin/bash
 
-# Compares PromQL compliance with Prometheus between the PR and its merge base, using the promcheck Go binary
-# (https://github.com/elastic/promcheck), and reports the queries whose result changed on the build and the PR.
-# The elasticsearch-pull-request-validate-prometheus-compliance pipeline (catalog-info.yaml) runs it with the PR's
-# GITHUB_PR_* variables, so that the build bot also posts the report as a PR comment.
+# Detects mismatches between Prometheus and Elasticsearch with promcheck
+# (https://github.com/elastic/promcheck) on the PR and its merge base, then reports
+# regressions, improvements, and flaky cases on the build and the PR.
+# Regressions fail the step; comparisons that cannot run are reported as warnings.
+# The grafanalabs-top100.tar.gz release asset supplies the dataset and queries.
 #
-# The step never fails on the result. Buildkite's GitHub commit status mirrors the step state and ignores
-# soft_fail (see flakiness-detection/runners/never-fail.sh), so a regression, or a comparison that could not
-# run, is annotated and the step exits 0. Only a misconfigured pipeline fails it.
-#
-# The testcase bundle is fixed: grafanalabs-top100.tar.gz from the promcheck release carries the seeded
-# dataset plus the queries, piped whole into the binary. No Python, no Docker: Prometheus runs in-process.
+# Required environment:
+#   PROMCHECK_VER                    promcheck release version without the v prefix.
+#   PROMCHECK_TEST_INSTANCE_TIMEOUT  Elasticsearch startup timeout in seconds.
+#   GITHUB_PR_TARGET_BRANCH          PR target branch used to find the merge base.
+#   GH_TOKEN or GITHUB_TOKEN         GitHub token for release asset downloads.
+# Optional environment:
+#   PROMETHEUS_COMPLIANCE_TMPDIR     Scratch/artifact parent directory (default /tmp).
+#   BUILDKITE_BUILD_URL              Build link included in the report.
+#   BUILDKITE_JOB_ID                 Job anchor added to the build link.
+# When buildkite-agent is available, the report is annotated and saved as PR-comment
+# metadata for the build bot (the pipeline enables ELASTIC_PR_COMMENTS_ENABLED).
 
+# Requires Bash 4.4+ (the Buildkite agent runs Linux).
 set -euo pipefail
+shopt -s inherit_errexit lastpipe
 
-readonly CORPUS=grafanalabs-top100
+log() {
+  printf '%s\n' "$*" >&2
+}
 
-for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH; do
-  [[ -n "${!var:-}" ]] || { echo "$var must be set" >&2; exit 1; }
-done
-for cmd in awk curl git jq tee; do
-  command -v "$cmd" >/dev/null 2>&1 || { echo "$cmd must be on the PATH" >&2; exit 1; }
-done
-if [[ ! "$PROMCHECK_TEST_INSTANCE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
-  echo "PROMCHECK_TEST_INSTANCE_TIMEOUT must be a positive integer: $PROMCHECK_TEST_INSTANCE_TIMEOUT" >&2
+die() {
+  log "$*"
   exit 1
-fi
+}
 
-readonly GITHUB_API_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
-if [[ -z "$GITHUB_API_TOKEN" ]]; then
-  echo "GH_TOKEN or GITHUB_TOKEN must be set" >&2
-  exit 1
-fi
+configure() {
+  declare -gr CORPUS=grafanalabs-top100
 
-readonly RELEASE_URL="https://github.com/elastic/promcheck/releases/tag/v$PROMCHECK_VER"
-readonly ANNOTATION_CONTEXT="ctx-validate-prometheus-compliance"
-readonly PR_COMMENT_KEY="pr_comment:validate-prometheus-compliance:body"
-# Changed queries listed per section; the full list is the changes artifact.
-readonly MAX_ROWS=50
+  local var cmd build_url
+  for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH; do
+    [[ -n "${!var:-}" ]] || die "$var must be set"
+  done
+  for cmd in curl git jq tee sort; do
+    command -v "$cmd" >/dev/null 2>&1 || die "$cmd must be on the PATH"
+  done
+  if [[ ! "$PROMCHECK_TEST_INSTANCE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
+    die "PROMCHECK_TEST_INSTANCE_TIMEOUT must be a positive integer: $PROMCHECK_TEST_INSTANCE_TIMEOUT"
+  fi
 
-# The pipeline uploads OUTPUT_DIR as artifacts. Tests point TMP_ROOT at a scratch directory.
-readonly TMP_ROOT="${PROMETHEUS_COMPLIANCE_TMPDIR:-/tmp}"
-readonly WORK_DIR="$TMP_ROOT/validate-prometheus-compliance"
-readonly OUTPUT_DIR="$TMP_ROOT/validate-prometheus-compliance-output"
-readonly PROMCHECK_BIN="$WORK_DIR/promcheck"
-readonly BUNDLE="$WORK_DIR/$CORPUS.tar.gz"
-readonly CONTROL_LOG="$OUTPUT_DIR/@$CORPUS-control.log"
-readonly TEST_LOG="$OUTPUT_DIR/@$CORPUS-test.log"
-readonly CHANGES_FILE="$OUTPUT_DIR/@$CORPUS-changes.tsv"
-readonly REPORT_FILE="$OUTPUT_DIR/@$CORPUS-report.md"
-# Artifacts keep their absolute path without the leading slash.
-readonly CHANGES_LINK="<a href=\"artifact://${CHANGES_FILE#/}\">${CHANGES_FILE##*/}</a>"
+  if [[ -z "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]]; then
+    die "GH_TOKEN or GITHUB_TOKEN must be set"
+  fi
 
-# The exact job this comparison ran in.
-build_url="${BUILDKITE_BUILD_URL:-}"
-if [[ -n "$build_url" && -n "${BUILDKITE_JOB_ID:-}" ]]; then
-  build_url+="#$BUILDKITE_JOB_ID"
-fi
-readonly BUILD_URL="$build_url"
+  declare -gr GITHUB_API_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+  declare -gr RELEASE_URL="https://github.com/elastic/promcheck/releases/tag/v$PROMCHECK_VER"
+  declare -gr ANNOTATION_CONTEXT="ctx-validate-prometheus-compliance"
+  declare -gr PR_COMMENT_KEY="pr_comment:validate-prometheus-compliance:body"
+  # Changed queries listed per section; the full list is the changes artifact.
+  declare -gr MAX_ROWS=50
 
-control_dir=""
+  # The pipeline uploads OUTPUT_DIR as artifacts. Tests point TMP_ROOT at a scratch directory.
+  declare -gr TMP_ROOT="${PROMETHEUS_COMPLIANCE_TMPDIR:-/tmp}"
+  declare -gr WORK_DIR="$TMP_ROOT/validate-prometheus-compliance"
+  declare -gr OUTPUT_DIR="$TMP_ROOT/validate-prometheus-compliance-output"
+  declare -gr PROMCHECK_BIN="$WORK_DIR/promcheck"
+  declare -gr BUNDLE="$WORK_DIR/$CORPUS.tar.gz"
+  declare -gr CONTROL_LOG="$OUTPUT_DIR/@$CORPUS-control.log"
+  declare -gr TEST_LOG="$OUTPUT_DIR/@$CORPUS-test.log"
+  declare -gr CHANGES_FILE="$OUTPUT_DIR/@$CORPUS-changes.json"
+  declare -gr REPORT_FILE="$OUTPUT_DIR/@$CORPUS-report.md"
+  # Artifacts keep their absolute path without the leading slash.
+  declare -gr CHANGES_LINK="<a href=\"artifact://${CHANGES_FILE#/}\">${CHANGES_FILE##*/}</a>"
+
+  # The exact job this comparison ran in.
+  build_url="${BUILDKITE_BUILD_URL:-}"
+  if [[ -n "$build_url" && -n "${BUILDKITE_JOB_ID:-}" ]]; then
+    build_url+="#$BUILDKITE_JOB_ID"
+  fi
+  declare -gr BUILD_URL="$build_url"
+}
 
 # Shows the report on the build and sets it as pr_comment meta-data, which the Buildkite build bot posts in its PR
 # comment for pipelines that enable it (ELASTIC_PR_COMMENTS_ENABLED).
@@ -67,10 +83,10 @@ annotate() {
   local style="$1"
   local annotation="$2"
   if command -v buildkite-agent >/dev/null 2>&1; then
-    printf '%s\n' "$annotation" | buildkite-agent annotate --context "$ANNOTATION_CONTEXT" --style "$style" \
-      || echo "Failed to annotate the build"
-    printf '%s\n' "$annotation" | buildkite-agent meta-data set "$PR_COMMENT_KEY" \
-      || echo "Failed to set the PR comment"
+    buildkite-agent annotate --context "$ANNOTATION_CONTEXT" --style "$style" <<< "$annotation" \
+      || log "Failed to annotate the build"
+    buildkite-agent meta-data set "$PR_COMMENT_KEY" <<< "$annotation" \
+      || log "Failed to set the PR comment"
   fi
 }
 
@@ -88,16 +104,26 @@ report() {
 # The comparison could not run. It is reported like a result rather than failing the PR.
 not_compared() {
   local reason="$1"
-  echo "Not compared: $reason"
+  log "Not compared: $reason"
   annotate warning "$(printf '**Not compared**\n\n%s.\n\n' "$reason" | report)"
   exit 0
 }
 
+# Called indirectly by the EXIT trap in main.
+# shellcheck disable=SC2329
 cleanup() {
+  local control_dir="$1"
   if [[ -n "$control_dir" ]]; then
-    git worktree remove --force "$control_dir" >/dev/null 2>&1 || true
-    rm -rf "$control_dir"
+    git worktree remove --force -- "$control_dir" >/dev/null 2>&1 || true
+    rm -rf -- "$control_dir"
   fi
+  git worktree prune || log "Failed to prune worktrees"
+}
+
+# Keep the authorization header out of curl's process arguments.
+github_curl() {
+  printf 'Authorization: Bearer %s\n' "$GITHUB_API_TOKEN" |
+    curl -fsSL --retry 3 --retry-delay 2 -H @- "$@"
 }
 
 # Downloads a promcheck release asset by name.
@@ -108,10 +134,7 @@ download_asset() {
   local url
   url=$(jq -er --arg name "$name" '.assets[] | select(.name == $name) | .url' <<< "$release") \
     || not_compared "The promcheck v$PROMCHECK_VER release has no $name"
-  curl -fsSL --retry 3 --retry-delay 2 \
-    -H "Authorization: Bearer $GITHUB_API_TOKEN" \
-    -H "Accept: application/octet-stream" \
-    -o "$target" "$url" \
+  github_curl -H "Accept: application/octet-stream" -o "$target" -- "$url" \
     || not_compared "Could not download $name"
 }
 
@@ -119,173 +142,245 @@ download_asset() {
 # is a result; any other exit code means the run itself failed.
 run_promcheck() {
   local workspace="$1"
-  local log="$2"
-  local rc
-  set +e
+  local log_file="$2"
+  local -a statuses
   NO_COLOR=1 "$PROMCHECK_BIN" \
     --elasticsearch "$workspace" \
     --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
-    --verbose < "$BUNDLE" 2>&1 | tee "$log"
-  rc=${PIPESTATUS[0]}
-  set -e
-  (( rc == 0 || rc == 1 ))
+    --output json < "$BUNDLE" | tee -- "$log_file"
+  statuses=("${PIPESTATUS[@]}")
+  (( (statuses[0] == 0 || statuses[0] == 1) && statuses[1] == 0 ))
 }
 
-# The promcheck summary of a run, or a failure when the run did not get as far as printing it. The verdict line
-# reads "<total> inspected: <ok> match, <fail> mismatch, <4xx> 4xx, <5xx> 5xx" with optional memos for errors,
-# filters, and flaky skips; the counts must add up to the total.
+# Trust promcheck's summary; combine the error buckets for the console output.
 summary() {
-  awk '
-    /^[0-9]+ inspected/ {
-      line = $0
-      gsub(/,/, "", line)
-      n = split(line, f, /[ \t]+/)
-      total = f[1]
-      ok = fail = ""
-      err4 = err5 = err = skip = 0
-      for (i = 2; i <= n; i++) {
-        if (f[i] == "match") ok = f[i - 1]
-        else if (f[i] == "mismatch") fail = f[i - 1]
-        else if (f[i] == "4xx") err4 = f[i - 1]
-        else if (f[i] == "5xx") err5 = f[i - 1]
-        else if (f[i] == "error") err = f[i - 1]
-        else if (f[i] == "flaky") skip = f[i - 1]
-        else if (f[i] == "response-filtered") skip += f[i - 1]
-      }
-    }
-    END {
-      if (total !~ /^[0-9]+$/ || ok !~ /^[0-9]+$/ || fail !~ /^[0-9]+$/)
-        exit 1
-      err = err4 + err5 + err
-      if (total != ok + fail + err + skip)
-        exit 2
-      printf "ok=%d fail=%d err=%d skip=%d total=%d\n", ok, fail, err, skip, total
-    }
-  ' "$1"
+  jq -ec 'select(.type == "summary") | . + {errors: (.es_4xx + .es_5xx + .error)}' -- "$1"
 }
 
-# Every query of a promcheck log as "<case>\t<status>\t<expression>", colour codes stripped.
-outcomes() {
-  awk '
-    { gsub(/\033\[[0-9;]*m/, "") }
-    /^\[[0-9]+\] [A-Z]+/ { id = substr($1, 2, length($1) - 2); status[id] = $2; order[++n] = id; next }
-    n && /^[[:space:]]+expr:/ { e = $0; sub(/^[[:space:]]+expr:[[:space:]]*/, "", e); expr[order[n]] = e }
-    END { for (i = 1; i <= n; i++) printf "%s\t%s\t%s\n", order[i], status[order[i]], expr[order[i]] }
-  ' "$1"
+# NUL-delimited fields preserve tabs, newlines, and backslashes in query text.
+# lastpipe fills the caller's array; pipefail propagates jq failures.
+read_queries() {
+  jq -jn 'inputs | select(.type == "query") |
+    .name, .status, (.es_status // 0 | tostring), (.skip_reason // ""), (.query // "") |
+    ., "\u0000"' -- "$1" | mapfile -d '' -t "$2"
 }
 
-# Queries that pass in one run and not the other, by case id: "<case>\t<before>\t<after>\t<expression>".
-changes() {
-  awk -F'\t' '
-    NR == FNR { before[$1] = $2; next }
-    ($1 in before) && ((before[$1] == "OK") != ($2 == "OK")) { printf "%s\t%s\t%s\t%s\n", $1, before[$1], $2, $3 }
-  ' <(outcomes "$1") <(outcomes "$2") | sort -t "$(printf '\t')" -k1,1n
+query_status() {
+  case "$1" in
+    skipped)
+      if [[ "$3" == flaky ]]; then printf flaky; else printf filtered; fi ;;
+    error)
+      if (( $2 >= 500 )); then printf error5xx
+      elif (( $2 >= 400 )); then printf error4xx
+      else printf error; fi ;;
+    *) printf '%s' "$1" ;;
+  esac
 }
 
-# The report body, in GitHub markdown: the result first, the changed queries collapsed, the comparison last.
-# Regressions and fixes are told apart by the transition, so a new promcheck state only needs a label. Same input,
-# same output.
+classify() {
+  local -Ar severity=([match]=0 [mismatch]=1 [error4xx]=2 [error5xx]=3 [error]=3)
+  case "$1:$2" in
+    flaky:*|*:flaky) printf flaky ;;
+    filtered:*|*:filtered) printf stable ;;
+    *)
+      if (( severity[$1] < severity[$2] )); then printf regression
+      elif (( severity[$1] > severity[$2] )); then printf improvement
+      else printf stable; fi ;;
+  esac
+}
+
+# Each result has five fields: case ID, previous status, current status, category, query.
+compare_results() {
+  local -n results_ref="$3"
+  local -a control_records tested_records
+  local -A previous=()
+  local i id old new category
+  read_queries "$1" control_records || return
+  read_queries "$2" tested_records || return
+  for ((i = 0; i < ${#control_records[@]}; i += 5)); do
+    previous[${control_records[i]}]=$(query_status "${control_records[i+1]}" "${control_records[i+2]}" "${control_records[i+3]}")
+  done
+  for ((i = 0; i < ${#tested_records[@]}; i += 5)); do
+    id=${tested_records[i]}
+    [[ -n "${previous[$id]+present}" ]] || continue
+    old=${previous[$id]}
+    new=$(query_status "${tested_records[i+1]}" "${tested_records[i+2]}" "${tested_records[i+3]}")
+    category=$(classify "$old" "$new")
+    [[ "$category" == stable ]] || results_ref+=("$id" "$old" "$new" "$category" "${tested_records[i+4]}")
+  done
+}
+
+write_changes() {
+  local -n rows_ref="$1"
+  local i separator=""
+  printf '[\n'
+  for ((i = 0; i < ${#rows_ref[@]}; i += 5)); do
+    printf '%s' "$separator"
+    jq -cn --arg name "${rows_ref[i]}" --arg before "${rows_ref[i+1]}" --arg after "${rows_ref[i+2]}" \
+      --arg category "${rows_ref[i+3]}" --arg query "${rows_ref[i+4]}" \
+      '{name: $name, before: $before, after: $after, category: $category, query: $query}'
+    separator=,
+  done
+  printf ']\n'
+}
+
+count_category() {
+  local -n rows_ref="$1"
+  local category="$2" i count=0
+  for ((i = 3; i < ${#rows_ref[@]}; i += 5)); do
+    if [[ "${rows_ref[i]}" == "$category" ]]; then ((count += 1)); fi
+  done
+  printf '%d' "$count"
+}
+
+status_label() {
+  case "$1" in
+    match) printf PASS ;;
+    mismatch) printf FAIL ;;
+    error4xx) printf 'ERROR 4xx' ;;
+    error5xx) printf 'ERROR 5xx' ;;
+    flaky) printf FLAKY ;;
+    *) printf ERROR ;;
+  esac
+}
+
+# Backticks below are literal Markdown delimiters.
+# shellcheck disable=SC2016
+print_code() {
+  local text="$1"
+  text=${text//$'\n'/ }
+  text=${text//$'\r'/ }
+  text=${text//$'\t'/ }
+  text=${text//|/\\|}
+  if [[ "$text" == *'`'* ]]; then printf '`` %s ``' "$text"; else printf '`%s`' "$text"; fi
+}
+
+print_count() {
+  if (( $1 == 1 )); then printf '%d %s' "$1" "$2"; else printf '%d %s' "$1" "$3"; fi
+}
+
+# shellcheck disable=SC2016
+render_section() {
+  local -n rows_ref="$1"
+  local category="$2" title="$3" total="$4" i id sorted_ids shown=0
+  local -A positions=()
+  local -a ids=()
+  (( total > 0 )) || return 0
+  # Sort only case IDs; query strings never pass through a line-oriented format.
+  for ((i = 0; i < ${#rows_ref[@]}; i += 5)); do
+    if [[ "${rows_ref[i+3]}" == "$category" ]]; then
+      id=${rows_ref[i]}
+      positions[$id]=$i
+      ids+=("$id")
+    fi
+  done
+  printf '### %s\n\n| Case | Result | Query |\n|---:|:---:|---|\n' "$title"
+  sorted_ids=$(printf '%s\n' "${ids[@]}" | sort -n)
+  while IFS= read -r id; do
+    i=${positions[$id]}
+    if (( shown < MAX_ROWS )); then
+      printf '| %s | `%s -> %s` | ' "$id" "$(status_label "${rows_ref[i+1]}")" "$(status_label "${rows_ref[i+2]}")"
+      print_code "${rows_ref[i+4]}"
+      printf ' |\n'
+      ((shown += 1))
+    fi
+  done <<< "$sorted_ids"
+  if (( total > MAX_ROWS )); then printf '\n_%d more in %s._\n' "$((total - MAX_ROWS))" "$CHANGES_LINK"; fi
+  printf '\n'
+}
+
+# shellcheck disable=SC2016
 render_changes() {
-  local base="$1"
-  local revision="$2"
-  awk -F'\t' -v base="$base" -v revision="$revision" -v max="$MAX_ROWS" -v full="$CHANGES_LINK" '
-    function passing(s) { return s == "OK" }
-    function label(s) { return s == "OK" ? "PASS" : s == "ERR" ? "ERROR" : s }
-    # n + 0: a section with no rows never set its counter, which awk would print as "".
-    function count(n, one, many) { return (n + 0) " " (n == 1 ? one : many) }
-    # Inline code: pipes escaped for the table, a backtick in the query widens the fence.
-    function code(s) {
-      gsub(/\|/, "\\|", s)
-      return index(s, "`") ? "`` " s " ``" : "`" s "`"
-    }
-    function section(title, rows, n,   i, f) {
-      if (!n) return
-      printf "### %s\n\n| Case | Result | Query |\n|---:|:---:|---|\n", title
-      for (i = 1; i <= n && i <= max; i++) {
-        split(rows[i], f, "\t")
-        printf "| %s | `%s -> %s` | %s |\n", f[1], label(f[2]), label(f[3]), code(f[4])
-      }
-      if (n > max) printf "\n_%d more in %s._\n", n - max, full
-      printf "\n"
-    }
-    passing($2) { regressions[++nr] = $0; next }
-    { fixes[++nf] = $0 }
-    END {
-      printf "**%s**\n\n", nr ? "Regression detected" : "No regressions"
-      if (nr + nf == 0) {
-        printf "No query compatibility changes detected.\n\n"
-      } else {
-        printf "%s, %s, %s\n\n", count(nr, "regression", "regressions"), count(nf, "fix", "fixes"),
-          count(nr + nf, "changed case", "changed cases")
-        printf "<details>\n<summary><strong>Show changed queries</strong></summary>\n\n"
-        section("Regressions", regressions, nr)
-        section("Fixed", fixes, nf)
-        printf "</details>\n\n"
-      }
-      printf "**Compared** `%s` -> `%s`  \n", substr(base, 1, 10), substr(revision, 1, 10)
-    }
-  ' "$CHANGES_FILE"
+  local rows_name="$1" base="$2" revision="$3" regressions improvements flaky
+  regressions=$(count_category "$rows_name" regression)
+  improvements=$(count_category "$rows_name" improvement)
+  flaky=$(count_category "$rows_name" flaky)
+  if (( regressions > 0 )); then printf '**Regression detected**\n\n'; else printf '**No regressions**\n\n'; fi
+  if (( regressions + improvements + flaky == 0 )); then
+    printf 'No query compatibility changes detected.\n\n'
+  else
+    print_count "$regressions" regression regressions
+    printf ', '
+    print_count "$improvements" improvement improvements
+    printf ', '
+    print_count "$flaky" 'flaky case' 'flaky cases'
+    printf '\n\n<details>\n<summary><strong>Show changed queries</strong></summary>\n\n'
+    render_section "$rows_name" regression Regressions "$regressions"
+    render_section "$rows_name" improvement Improvements "$improvements"
+    render_section "$rows_name" flaky Flaky "$flaky"
+    printf '</details>\n\n'
+  fi
+  printf '**Compared** `%s` -> `%s`  \n' "${base:0:10}" "${revision:0:10}"
 }
 
-rm -rf "$WORK_DIR" "$OUTPUT_DIR"
-mkdir -p "$WORK_DIR" "$OUTPUT_DIR"
+# A subshell keeps main's locals available to the EXIT trap on errexit as well as explicit exit.
+main() (
+  local control_dir="" release arch base revision control_summary test_summary regressions
+  local style=success status=0
+  # Populated and consumed through namerefs in the helpers.
+  # shellcheck disable=SC2034
+  local -a changes=()
+  configure
+  trap 'cleanup "$control_dir"' EXIT
 
-# Show up on the build as soon as the comparison starts. The final
-# report reuses the same annotation context and comment key, so it
-# replaces this note instead of adding a second one.
-annotate info "$(printf '**Promcheck running**\n\nComparing PromQL coverage between the merge base and this PR with promcheck v%s. The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" | report)"
+  rm -rf -- "$WORK_DIR" "$OUTPUT_DIR"
+  mkdir -p -- "$WORK_DIR" "$OUTPUT_DIR"
 
-echo "--- Downloading promcheck v$PROMCHECK_VER"
-release=$(
-  curl -fsSL --retry 3 --retry-delay 2 \
-    -H "Accept: application/vnd.github+json" \
-    -H "Authorization: Bearer $GITHUB_API_TOKEN" \
-    "https://api.github.com/repos/elastic/promcheck/releases/tags/v$PROMCHECK_VER"
-) || not_compared "Could not fetch the promcheck v$PROMCHECK_VER release"
-case "$(uname -m)" in
-  x86_64) arch=amd64 ;;
-  aarch64 | arm64) arch=arm64 ;;
-  *) not_compared "Unsupported architecture $(uname -m)" ;;
-esac
-download_asset "$release" "promcheck-linux-$arch" "$PROMCHECK_BIN"
-download_asset "$release" "$CORPUS.tar.gz" "$BUNDLE"
-chmod +x "$PROMCHECK_BIN"
+  # Show up on the build as soon as the comparison starts. The final
+  # report reuses the same annotation context and comment key, so it
+  # replaces this note instead of adding a second one.
+  annotate info "$(printf '**Promcheck running**\n\nChecking Prometheus/Elasticsearch mismatches on the merge base and this PR with promcheck v%s. The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" | report)"
 
-echo "--- Checking out the merge base with $GITHUB_PR_TARGET_BRANCH"
-git fetch --no-tags origin "$GITHUB_PR_TARGET_BRANCH" \
-  || not_compared "Could not fetch $GITHUB_PR_TARGET_BRANCH"
-# The control is where this PR branched off, not the tip of the target branch: a PromQL change that landed there
-# since would otherwise count as this PR's regression or fix.
-base=$(git merge-base "origin/$GITHUB_PR_TARGET_BRANCH" HEAD) \
-  || not_compared "This PR has no merge base with $GITHUB_PR_TARGET_BRANCH"
-revision=$(git rev-parse HEAD)
-control_dir=$(mktemp -d "$TMP_ROOT/validate-prometheus-compliance-control-XXXXXX")
-trap cleanup EXIT
-git worktree add --detach "$control_dir" "$base" || not_compared "Could not check out the merge base $base"
+  log "--- Downloading promcheck v$PROMCHECK_VER"
+  release=$(
+    github_curl -H "Accept: application/vnd.github+json" \
+      -- "https://api.github.com/repos/elastic/promcheck/releases/tags/v$PROMCHECK_VER"
+  ) || not_compared "Could not fetch the promcheck v$PROMCHECK_VER release"
+  case "$(uname -m)" in
+    x86_64) arch=amd64 ;;
+    aarch64 | arm64) arch=arm64 ;;
+    *) not_compared "Unsupported architecture $(uname -m)" ;;
+  esac
+  download_asset "$release" "promcheck-linux-$arch" "$PROMCHECK_BIN"
+  download_asset "$release" "$CORPUS.tar.gz" "$BUNDLE"
+  chmod -- +x "$PROMCHECK_BIN"
 
-echo "--- Running promcheck on the merge base $base"
-run_promcheck "$control_dir" "$CONTROL_LOG" || not_compared "The control run failed"
-control_summary=$(summary "$CONTROL_LOG") || not_compared "The control run printed no promcheck summary"
+  log "--- Checking out the merge base with $GITHUB_PR_TARGET_BRANCH"
+  git fetch --no-tags -- origin "+refs/heads/$GITHUB_PR_TARGET_BRANCH:refs/remotes/origin/$GITHUB_PR_TARGET_BRANCH" \
+    || not_compared "Could not fetch $GITHUB_PR_TARGET_BRANCH"
+  # The control is where this PR branched off, not the tip of the target branch: a PromQL change that landed there
+  # since would otherwise count as this PR's regression or fix.
+  base=$(git merge-base "origin/$GITHUB_PR_TARGET_BRANCH" HEAD) \
+    || not_compared "This PR has no merge base with $GITHUB_PR_TARGET_BRANCH"
+  revision=$(git rev-parse HEAD)
+  control_dir=$(mktemp -d "$TMP_ROOT/validate-prometheus-compliance-control-XXXXXX")
+  git worktree add --detach -- "$control_dir" "$base" || not_compared "Could not check out the merge base $base"
 
-echo "--- Running promcheck on the PR $revision"
-run_promcheck "$PWD" "$TEST_LOG" || not_compared "The test run failed"
-test_summary=$(summary "$TEST_LOG") || not_compared "The test run printed no promcheck summary"
+  log "--- Running promcheck on the merge base $base"
+  run_promcheck "$control_dir" "$CONTROL_LOG" || not_compared "The control run failed"
+  control_summary=$(summary "$CONTROL_LOG") || not_compared "The control run printed no promcheck summary"
 
-echo "--- Reporting"
-changes "$CONTROL_LOG" "$TEST_LOG" > "$CHANGES_FILE"
-render_changes "$base" "$revision" | report > "$REPORT_FILE"
+  log "--- Running promcheck on the PR $revision"
+  run_promcheck "$PWD" "$TEST_LOG" || not_compared "The test run failed"
+  test_summary=$(summary "$TEST_LOG") || not_compared "The test run printed no promcheck summary"
 
-# A query that passed on the merge base and changed is a regression.
-regressions=$(awk -F'\t' '$2 == "OK" { n++ } END { print n + 0 }' "$CHANGES_FILE")
-fixes=$(awk -F'\t' '$2 != "OK" { n++ } END { print n + 0 }' "$CHANGES_FILE")
-if (( regressions > 0 )); then
-  annotate error "$(cat "$REPORT_FILE")"
-else
-  annotate success "$(cat "$REPORT_FILE")"
-fi
+  log "--- Reporting"
+  compare_results "$CONTROL_LOG" "$TEST_LOG" changes || not_compared "Could not compare promcheck results"
+  write_changes changes > "$CHANGES_FILE"
+  render_changes changes "$base" "$revision" | report > "$REPORT_FILE"
 
-echo "Merge base: $control_summary"
-echo "PR: $test_summary"
-echo "Regressions: $regressions"
-echo "Fixes: $fixes"
-echo "Report: $REPORT_FILE"
+  regressions=$(count_category changes regression)
+  if (( regressions > 0 )); then
+    style=error
+    status=1
+  fi
+  annotate "$style" "$(< "$REPORT_FILE")"
+
+  log "Merge base: $control_summary"
+  log "PR: $test_summary"
+  log "Regressions: $regressions"
+  log "Report: $REPORT_FILE"
+  exit "$status"
+)
+
+main "$@"

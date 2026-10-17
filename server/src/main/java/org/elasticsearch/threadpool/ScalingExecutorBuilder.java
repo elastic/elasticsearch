@@ -187,6 +187,13 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         return Arrays.asList(coreSetting, maxSetting, keepAliveSetting);
     }
 
+    /**
+     * The maximum number of threads of this pool, as configured in the given settings or else its default.
+     */
+    int getMaxThreads(Settings settings) {
+        return maxSetting.get(settings);
+    }
+
     @Override
     ScalingExecutorSettings getSettings(Settings settings) {
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);

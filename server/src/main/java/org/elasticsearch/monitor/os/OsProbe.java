@@ -776,6 +776,23 @@ public class OsProbe {
     }
 
     /**
+     * The control group of the Elasticsearch process in the unified cgroups v2 hierarchy.
+     *
+     * @return the control group, or {@code null} if the process is not in a cgroups v2 hierarchy
+     * @throws IOException if an I/O exception occurs reading {@code /proc/self/cgroup}
+     */
+    @Nullable
+    String getCgroupV2ControlGroup() throws IOException {
+        final Map<String, String> controllerMap = getControlGroups();
+        return controllerMap.size() == 1 && controllerMap.containsKey("") ? controllerMap.get("") : null;
+    }
+
+    @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu.pressure")
+    List<String> readCgroupV2CpuPressure(final String controlGroup) throws IOException {
+        return Files.readAllLines(PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.pressure"));
+    }
+
+    /**
      * Basic cgroup stats.
      *
      * @return basic cgroup stats, or {@code null} if an I/O exception occurred reading the cgroup stats

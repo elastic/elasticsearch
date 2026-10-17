@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.elasticsearch.xpack.core.security.HttpResponse;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

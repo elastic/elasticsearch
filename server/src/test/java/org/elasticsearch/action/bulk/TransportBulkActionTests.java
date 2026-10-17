@@ -99,7 +99,6 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -696,14 +695,12 @@ public class TransportBulkActionTests extends ESTestCase {
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             threadContext.putHeader("large-header", headerValue);
             threadContext.putTransient("accountable", (Accountable) () -> accountableBytes);
+            final long contextBytes = threadContext.estimatedRequestContextBytes();
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             future.actionGet();
+            assertThat(lastCoordinatingOperationBytes.get(), equalTo(payloadBytes + contextBytes));
         }
-        assertThat(
-            lastCoordinatingOperationBytes.get(),
-            greaterThanOrEqualTo(payloadBytes + "large-header".length() + headerValue.length() + accountableBytes)
-        );
     }
 
     public void testRejectionAfterCreateIndexIsPropagated() {

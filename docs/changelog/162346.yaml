@@ -1,5 +1,5 @@
-pr: 162346
-summary: Limit ES|QL query size after view and subquery expansion
 area: ES|QL
-type: enhancement
 issues: []
+pr: 162346
+summary: Limits nodes after view expansion and in parsing
+type: enhancement

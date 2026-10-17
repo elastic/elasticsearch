@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -29,8 +30,10 @@ import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
@@ -71,6 +74,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -697,5 +701,108 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
             releaseCommitUploads.countDown();
             setNodeRepositoryStrategy(oldIndexNode, StatelessMockRepositoryStrategy.DEFAULT);
         }
+    }
+
+    /// A search shard can recover from a commit that the relocation target uploaded after accepting the handoff, and register it
+    /// with the relocation source, which has not yet received the handoff response and is still the primary in the routing table.
+    /// The target keeps the primary term, so that commit can have the same term and generation as a BCC that is pending upload on
+    /// the source but paused above `maxGenerationToUpload`. The source cannot hand that paused BCC, since it never uploads it.
+    /// The registration should instead fail as too new, and is retried against the target once the relocation completes.
+    public void testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource() throws Exception {
+        final Settings indexNodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), Boolean.FALSE)
+            .build();
+
+        final var oldIndexNode = startMasterAndIndexNode(indexNodeSettings);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+        final int docCount = randomIntBetween(10, 100);
+        indexDocs(indexName, docCount);
+        flush(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var sourceShard = findIndexShard(index, 0, oldIndexNode);
+        final var shardId = sourceShard.shardId();
+        final var newIndexNode = startIndexNode(indexNodeSettings);
+
+        // Hold the handoff response, so that the old primary keeps its commit state open and stays the primary in the
+        // routing table, while the new primary has already opened its engine.
+        final var handoffProcessed = new CountDownLatch(1);
+        final var releaseHandoffResponse = new SubscribableListener<Void>();
+        final var newNodeTransportService = MockTransportService.getInstance(newIndexNode);
+        newNodeTransportService.addRequestHandlingBehavior(
+            PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+            (handler, request, channel, task) -> handler.messageReceived(
+                request,
+                new TestTransportChannel(new ChannelActionListener<>(channel).<TransportResponse>delegateFailure((l, response) -> {
+                    handoffProcessed.countDown();
+                    releaseHandoffResponse.addListener(l.map(ignored -> response));
+                })),
+                task
+            )
+        );
+
+        // Capture the outcome of the first registration that reaches the old primary.
+        final var firstRegistrationOnOldNode = new SubscribableListener<RegisterCommitResponse>();
+        final var oldNodeTransportService = MockTransportService.getInstance(oldIndexNode);
+        oldNodeTransportService.addRequestHandlingBehavior(
+            TransportRegisterCommitForRecoveryAction.NAME,
+            (handler, request, channel, task) -> handler.messageReceived(request, new TestTransportChannel(ActionListener.wrap(response -> {
+                firstRegistrationOnOldNode.onResponse((RegisterCommitResponse) response);
+                channel.sendResponse(response);
+            }, e -> {
+                firstRegistrationOnOldNode.onFailure(e);
+                channel.sendResponse(e);
+            })), task)
+        );
+
+        final var sourceCommitService = internalCluster().getInstance(StatelessCommitService.class, oldIndexNode);
+
+        logger.info("--> moving index shard from {} to {}", oldIndexNode, newIndexNode);
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, oldIndexNode, newIndexNode));
+        try {
+            logger.info("--> waiting for the new node to process the relocation handoff");
+            safeAwait(handoffProcessed);
+
+            final long maxGenerationToUpload = sourceCommitService.getMaxGenerationToUpload(shardId);
+            assertThat("upload bound expected to be pinned", maxGenerationToUpload, lessThan(Long.MAX_VALUE));
+
+            logger.info("--> flushing on the old node to create a paused commit above maxGenerationToUpload");
+            // The old node never uploads this commit, so do not wait for the flush to be durable.
+            sourceShard.getEngineOrNull().flush(true, true, ActionListener.noop());
+            final long pausedGeneration = maxGenerationToUpload + 1;
+            assertThat(sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration(), equalTo(pausedGeneration));
+            assertThat(sourceCommitService.getCurrentVirtualBcc(shardId), nullValue());
+            assertThat(sourceCommitService.getMaxPendingOrUploadedGeneration(shardId), equalTo(pausedGeneration));
+
+            logger.info("--> flushing on the new node to upload a commit with the same term and generation");
+            final var targetShard = findIndexShard(index, 0, newIndexNode);
+            assertThat(targetShard.getOperationPrimaryTerm(), equalTo(sourceShard.getOperationPrimaryTerm()));
+            safeAwait(SubscribableListener.<Engine.FlushResult>newForked(l -> targetShard.getEngineOrNull().flush(true, true, l)));
+            assertThat(targetShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration(), equalTo(pausedGeneration));
+            final var targetCommitService = internalCluster().getInstance(StatelessCommitService.class, newIndexNode);
+            safeAwait((ActionListener<Void> l) -> targetCommitService.addListenerForUploadedGeneration(shardId, pausedGeneration, l));
+
+            logger.info("--> starting a search shard, which registers the new node's commit with the old node");
+            startSearchNode();
+            updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+            assertThat(
+                "a paused BCC must not be treated as available to a recovering search shard",
+                safeAwaitFailure(firstRegistrationOnOldNode),
+                instanceOf(RecoveryCommitTooNewException.class)
+            );
+        } finally {
+            releaseHandoffResponse.onResponse(null);
+            newNodeTransportService.clearAllRules();
+            oldNodeTransportService.clearAllRules();
+        }
+
+        ensureGreen(indexName);
+        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertEquals(docCount, searchResponse.getHits().getTotalHits().value());
+        });
     }
 }

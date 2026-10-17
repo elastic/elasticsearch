@@ -12,15 +12,6 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 
-import org.bouncycastle.asn1.DERIA5String;
-import org.bouncycastle.asn1.x509.GeneralName;
-import org.bouncycastle.asn1.x509.GeneralNames;
-import org.bouncycastle.asn1.x509.KeyUsage;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.openssl.PEMEncryptor;
-import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
-import org.bouncycastle.openssl.jcajce.JcePEMEncryptorBuilder;
-import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MultiCommand;
@@ -45,6 +36,12 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
+import org.elasticsearch.xpack.security.cli.bc.CertificateSigningRequest;
+import org.elasticsearch.xpack.security.cli.bc.KeyStoreFormat;
+import org.elasticsearch.xpack.security.cli.bc.PemEncryption;
+import org.elasticsearch.xpack.security.cli.bc.PemWriter;
+import org.elasticsearch.xpack.security.cli.bc.SubjectAlternativeNames;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -70,10 +67,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -94,8 +89,7 @@ class CertificateTool extends MultiCommand {
     private static final String DEFAULT_CSR_ZIP = "csr-bundle.zip";
     private static final String DEFAULT_CERT_ZIP = "certificate-bundle.zip";
     private static final String DEFAULT_CA_ZIP = "elastic-stack-ca.zip";
-    private static final String DEFAULT_CA_P12 = "elastic-stack-ca.p12";
-    private static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
+    private static final String DEFAULT_CA_KEYSTORE_BASENAME = "elastic-stack-ca";
 
     static final String DEFAULT_CERT_NAME = "instance";
 
@@ -207,6 +201,7 @@ class CertificateTool extends MultiCommand {
         OptionSpec<String> caKeyUsageSpec;
 
         OptionSpec<Void> pemFormatSpec;
+        OptionSpec<Void> bcfksFormatSpec;
         OptionSpec<Integer> daysSpec;
 
         OptionSpec<String> caPkcs12PathSpec;
@@ -231,13 +226,15 @@ class CertificateTool extends MultiCommand {
 
         final void acceptCertificateGenerationOptions() {
             pemFormatSpec = parser.accepts("pem", "output certificates and keys in PEM format instead of PKCS#12");
+            bcfksFormatSpec = parser.accepts("bcfks", "output certificates and keys in a BCFKS keystore instead of PKCS#12")
+                .availableUnless(pemFormatSpec);
             daysSpec = parser.accepts("days", "number of days that the generated certificates are valid")
                 .withRequiredArg()
                 .ofType(Integer.class);
         }
 
         final void acceptsCertificateAuthority() {
-            caPkcs12PathSpec = parser.accepts("ca", "path to an existing ca key pair (in PKCS#12 format)").withRequiredArg();
+            caPkcs12PathSpec = parser.accepts("ca", "path to an existing ca key pair (in PKCS#12 or BCFKS format)").withRequiredArg();
             caCertPathSpec = parser.accepts("ca-cert", "path to an existing ca certificate")
                 .availableUnless(caPkcs12PathSpec)
                 .withRequiredArg();
@@ -351,6 +348,13 @@ class CertificateTool extends MultiCommand {
             return options.has(pemFormatSpec);
         }
 
+        /**
+         * The keystore format to write when not using PEM: PKCS#12 by default, or BCFKS if {@code --bcfks} was given.
+         */
+        KeyStoreFormat keyStoreFormat(OptionSet options) {
+            return bcfksFormatSpec != null && options.has(bcfksFormatSpec) ? KeyStoreFormat.BCFKS : KeyStoreFormat.PKCS12;
+        }
+
         boolean useOutputPassword(OptionSet options) {
             return options.has(outputPasswordSpec);
         }
@@ -375,7 +379,7 @@ class CertificateTool extends MultiCommand {
          */
         CAInfo getCAInfo(Terminal terminal, OptionSet options, Environment env) throws Exception {
             if (options.has(caPkcs12PathSpec)) {
-                return loadPkcs12CA(terminal, options, env);
+                return loadKeyStoreCA(terminal, options, env);
             } else if (options.has(caCertPathSpec)) {
                 return loadPemCA(terminal, options, env);
             } else {
@@ -386,15 +390,16 @@ class CertificateTool extends MultiCommand {
             }
         }
 
-        private CAInfo loadPkcs12CA(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        private CAInfo loadKeyStoreCA(Terminal terminal, OptionSet options, Environment env) throws Exception {
             Path path = resolvePath(options, caPkcs12PathSpec);
+            final KeyStoreFormat format = KeyStoreFormat.forFileName(path.getFileName().toString());
             char[] passwordOption = getChars(caPasswordSpec.value(options));
             Map<Certificate, Key> keys = withPassword(
                 "CA (" + path + ")",
                 passwordOption,
                 terminal,
                 false,
-                password -> CertParsingUtils.readPkcs12KeyPairs(path, password, a -> password)
+                password -> CertParsingUtils.readKeyPairsFromKeystore(format.readKeyStore(path, password), a -> password)
             );
 
             if (keys.size() != 1) {
@@ -426,8 +431,7 @@ class CertificateTool extends MultiCommand {
             }
             X500Principal x500Principal = new X500Principal(dn);
             KeyPair keyPair = CertGenUtils.generateKeyPair(getKeySize(options));
-            final KeyUsage caKeyUsage = CertGenUtils.buildKeyUsage(getCaKeyUsage(options));
-            X509Certificate caCert = CertGenUtils.generateCACertificate(x500Principal, keyPair, getDays(options), caKeyUsage);
+            X509Certificate caCert = CertGenUtils.generateCACertificate(x500Principal, keyPair, getDays(options), getCaKeyUsage(options));
 
             if (options.hasArgument(caPasswordSpec)) {
                 char[] password = getChars(caPasswordSpec.value(options));
@@ -546,24 +550,23 @@ class CertificateTool extends MultiCommand {
          * @param info         the certificate authority information
          * @param includeKey   if true, write the CA key in PEM format
          */
-        static void writeCAInfo(ZipOutputStream outputStream, JcaPEMWriter pemWriter, CAInfo info, boolean includeKey) throws Exception {
+        static void writeCAInfo(ZipOutputStream outputStream, PemWriter pemWriter, CAInfo info, boolean includeKey) throws Exception {
             final String caDirName = createCaDirectory(outputStream);
             outputStream.putNextEntry(new ZipEntry(caDirName + "ca.crt"));
-            pemWriter.writeObject(info.certAndKey.cert);
+            pemWriter.writeCertificate(info.certAndKey.cert);
             pemWriter.flush();
             outputStream.closeEntry();
             if (includeKey) {
                 outputStream.putNextEntry(new ZipEntry(caDirName + "ca.key"));
                 if (info.password != null && info.password.length > 0) {
                     try {
-                        PEMEncryptor encryptor = getEncrypter(info.password);
-                        pemWriter.writeObject(info.certAndKey.key, encryptor);
+                        pemWriter.writeEncryptedPrivateKey(info.certAndKey.key, info.password, PEM_KEY_ENCRYPTION);
                     } finally {
                         // we can safely nuke the password chars now
                         Arrays.fill(info.password, (char) 0);
                     }
                 } else {
-                    pemWriter.writeObject(info.certAndKey.key);
+                    pemWriter.writePrivateKey(info.certAndKey.key);
                 }
                 pemWriter.flush();
                 outputStream.closeEntry();
@@ -578,7 +581,8 @@ class CertificateTool extends MultiCommand {
             return caDirName;
         }
 
-        static void writePkcs12(
+        static void writeKeyStore(
+            KeyStoreFormat format,
             String fileName,
             OutputStream output,
             String alias,
@@ -587,18 +591,17 @@ class CertificateTool extends MultiCommand {
             char[] password,
             Terminal terminal
         ) throws Exception {
-            final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
-            pkcs12.load(null);
-            withPassword(fileName, password, terminal, true, p12Password -> {
-                if (isAscii(p12Password)) {
-                    pkcs12.setKeyEntry(alias, pair.key, p12Password, new Certificate[] { pair.cert });
+            final KeyStore keyStore = format.newKeyStore();
+            withPassword(fileName, password, terminal, true, storePassword -> {
+                if (isAscii(storePassword)) {
+                    keyStore.setKeyEntry(alias, pair.key, storePassword, new Certificate[] { pair.cert });
                     if (caCert != null) {
-                        pkcs12.setCertificateEntry("ca", caCert);
+                        keyStore.setCertificateEntry("ca", caCert);
                     }
-                    pkcs12.store(output, p12Password);
+                    keyStore.store(output, storePassword);
                     return null;
                 } else {
-                    throw new UserException(ExitCodes.CONFIG, "PKCS#12 passwords must be plain ASCII");
+                    throw new UserException(ExitCodes.CONFIG, format.description() + " passwords must be plain ASCII");
                 }
             });
         }
@@ -626,7 +629,7 @@ class CertificateTool extends MultiCommand {
             Terminal terminal,
             OptionSet options,
             ZipOutputStream outputStream,
-            JcaPEMWriter pemWriter,
+            PemWriter pemWriter,
             String keyFileName,
             PrivateKey privateKey
         ) throws IOException {
@@ -635,11 +638,11 @@ class CertificateTool extends MultiCommand {
             outputStream.putNextEntry(new ZipEntry(keyFileName));
             if (usePassword) {
                 withPassword(keyFileName, outputPassword, terminal, true, password -> {
-                    pemWriter.writeObject(privateKey, getEncrypter(password));
+                    pemWriter.writeEncryptedPrivateKey(privateKey, password, PEM_KEY_ENCRYPTION);
                     return null;
                 });
             } else {
-                pemWriter.writeObject(privateKey);
+                pemWriter.writePrivateKey(privateKey);
             }
             pemWriter.flush();
             outputStream.closeEntry();
@@ -713,12 +716,12 @@ class CertificateTool extends MultiCommand {
             fullyWriteZipFile(output, (outputStream, pemWriter) -> {
                 for (CertificateInformation certificateInformation : certInfo) {
                     KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
-                    GeneralNames sanList = getSubjectAlternativeNamesValue(
+                    SubjectAlternativeNames sanList = SubjectAlternativeNames.of(
                         certificateInformation.ipAddresses,
                         certificateInformation.dnsNames,
                         certificateInformation.commonNames
                     );
-                    PKCS10CertificationRequest csr = CertGenUtils.generateCSR(keyPair, certificateInformation.name.x500Principal, sanList);
+                    CertificateSigningRequest csr = CertGenUtils.generateCSR(keyPair, certificateInformation.name.x500Principal, sanList);
 
                     final String dirName = certificateInformation.name.filename + "/";
                     ZipEntry zipEntry = new ZipEntry(dirName);
@@ -727,7 +730,7 @@ class CertificateTool extends MultiCommand {
 
                     // write csr
                     outputStream.putNextEntry(new ZipEntry(dirName + certificateInformation.name.filename + ".csr"));
-                    pemWriter.writeObject(csr);
+                    pemWriter.writeCertificateSigningRequest(csr);
                     pemWriter.flush();
                     outputStream.closeEntry();
 
@@ -775,7 +778,8 @@ class CertificateTool extends MultiCommand {
             terminal.println("");
             terminal.println(CA_EXPLANATION);
             terminal.println("");
-            terminal.println("By default the 'cert' mode produces a single PKCS#12 output file which holds:");
+            final KeyStoreFormat keyStoreFormat = keyStoreFormat(options);
+            terminal.println("By default the 'cert' mode produces a single " + keyStoreFormat.description() + " output file which holds:");
             terminal.println("    * The instance certificate");
             terminal.println("    * The private key for the instance certificate");
             terminal.println("    * The CA certificate");
@@ -796,9 +800,9 @@ class CertificateTool extends MultiCommand {
             if (writeZipFile) {
                 outputName = DEFAULT_CERT_ZIP;
             } else if (options.has(nameSpec)) {
-                outputName = nameSpec.value(options) + ".p12";
+                outputName = nameSpec.value(options) + keyStoreFormat.extension();
             } else {
-                outputName = "elastic-certificates.p12";
+                outputName = "elastic-certificates" + keyStoreFormat.extension();
             }
             final Path output = resolveOutputPath(terminal, options, outputName);
 
@@ -822,13 +826,19 @@ class CertificateTool extends MultiCommand {
                     terminal.println("Each instance has a certificate and private key.");
                     filesDescription = "the certificate, key, and CA certificate";
                 } else {
-                    terminal.println("Each instance has a single PKCS#12 (.p12) file containing the instance");
+                    terminal.println(
+                        "Each instance has a single "
+                            + keyStoreFormat.description()
+                            + " ("
+                            + keyStoreFormat.extension()
+                            + ") file containing the instance"
+                    );
                     terminal.println("certificate, instance private key and the CA certificate");
-                    filesDescription = "this '.p12' file";
+                    filesDescription = "this '" + keyStoreFormat.extension() + "' file";
                 }
             } else {
                 terminal.println("This file is a self contained file and can be copied and used 'as is'");
-                filesDescription = "this '.p12' file";
+                filesDescription = "this '" + keyStoreFormat.extension() + "' file";
             }
             terminal.println("For each Elastic product that you wish to configure, you should copy");
             terminal.println(filesDescription + " to the relevant configuration directory");
@@ -849,10 +859,11 @@ class CertificateTool extends MultiCommand {
         }
 
         /**
-         * Generates signed certificates in either PKCS#12 format or PEM format, wrapped in a zip file if necessary.
+         * Generates signed certificates in either keystore format (see {@link #keyStoreFormat(OptionSet)}) or PEM format,
+         * wrapped in a zip file if necessary.
          *
-         * @param output       the output file (either zip, or PKCS#12)
-         * @param writeZipFile if true, output a zip file, otherwise output a single PKCS#12 file
+         * @param output       the output file (either zip, or keystore)
+         * @param writeZipFile if true, output a zip file, otherwise output a single keystore file
          * @param options      the current command line options
          * @param certs        the certificates to write to the file
          * @param caInfo       the CA information to sign the certificates with
@@ -871,6 +882,7 @@ class CertificateTool extends MultiCommand {
 
             final int keySize = getKeySize(options);
             final int days = getDays(options);
+            final KeyStoreFormat keyStoreFormat = keyStoreFormat(options);
             if (writeZipFile) {
                 final boolean usePem = usePemFormat(options);
                 fullyWriteZipFile(output, (outputStream, pemWriter) -> {
@@ -887,17 +899,18 @@ class CertificateTool extends MultiCommand {
                         if (usePem) {
                             // write cert
                             outputStream.putNextEntry(new ZipEntry(entryBase + ".crt"));
-                            pemWriter.writeObject(pair.cert);
+                            pemWriter.writeCertificate(pair.cert);
                             pemWriter.flush();
                             outputStream.closeEntry();
 
                             // write private key
                             writePemPrivateKey(terminal, options, outputStream, pemWriter, entryBase + ".key", pair.key);
                         } else {
-                            final String fileName = entryBase + ".p12";
+                            final String fileName = entryBase + keyStoreFormat.extension();
                             final char[] outputPassword = super.getOutputPassword(options);
                             outputStream.putNextEntry(new ZipEntry(fileName));
-                            writePkcs12(
+                            writeKeyStore(
+                                keyStoreFormat,
                                 fileName,
                                 outputStream,
                                 certificateInformation.name.originalName,
@@ -917,7 +930,8 @@ class CertificateTool extends MultiCommand {
                 CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days, terminal);
                 fullyWriteFile(
                     output,
-                    stream -> writePkcs12(
+                    stream -> writeKeyStore(
+                        keyStoreFormat,
                         output.getFileName().toString(),
                         stream,
                         certificateInformation.name.originalName,
@@ -942,7 +956,7 @@ class CertificateTool extends MultiCommand {
             if (caInfo != null) {
                 certificate = CertGenUtils.generateSignedCertificate(
                     certificateInformation.name.x500Principal,
-                    getSubjectAlternativeNamesValue(
+                    SubjectAlternativeNames.of(
                         certificateInformation.ipAddresses,
                         certificateInformation.dnsNames,
                         certificateInformation.commonNames
@@ -956,7 +970,7 @@ class CertificateTool extends MultiCommand {
             } else {
                 certificate = CertGenUtils.generateSignedCertificate(
                     certificateInformation.name.x500Principal,
-                    getSubjectAlternativeNamesValue(
+                    SubjectAlternativeNames.of(
                         certificateInformation.ipAddresses,
                         certificateInformation.dnsNames,
                         certificateInformation.commonNames
@@ -993,7 +1007,8 @@ class CertificateTool extends MultiCommand {
             terminal.println("Use the 'ca-dn' option if you wish to configure the 'distinguished name'");
             terminal.println("of the certificate authority");
             terminal.println("");
-            terminal.println("By default the 'ca' mode produces a single PKCS#12 output file which holds:");
+            final KeyStoreFormat keyStoreFormat = keyStoreFormat(options);
+            terminal.println("By default the 'ca' mode produces a single " + keyStoreFormat.description() + " output file which holds:");
             terminal.println("    * The CA certificate");
             terminal.println("    * The CA's private key");
             terminal.println("");
@@ -1003,11 +1018,21 @@ class CertificateTool extends MultiCommand {
 
             CAInfo caInfo = generateCA(terminal, options);
             final boolean writeZipFile = usePemFormat(options);
-            final Path output = resolveOutputPath(terminal, options, writeZipFile ? DEFAULT_CA_ZIP : DEFAULT_CA_P12);
-            writeCertificateAuthority(output, caInfo, writeZipFile, terminal);
+            final Path output = resolveOutputPath(
+                terminal,
+                options,
+                writeZipFile ? DEFAULT_CA_ZIP : DEFAULT_CA_KEYSTORE_BASENAME + keyStoreFormat.extension()
+            );
+            writeCertificateAuthority(output, caInfo, writeZipFile, keyStoreFormat, terminal);
         }
 
-        private void writeCertificateAuthority(Path output, CAInfo caInfo, boolean writePemZip, Terminal terminal) throws Exception {
+        private void writeCertificateAuthority(
+            Path output,
+            CAInfo caInfo,
+            boolean writePemZip,
+            KeyStoreFormat keyStoreFormat,
+            Terminal terminal
+        ) throws Exception {
             checkDirectory(output, terminal);
             if (writePemZip) {
                 fullyWriteZipFile(output, (outputStream, pemWriter) -> writeCAInfo(outputStream, pemWriter, caInfo, true));
@@ -1015,7 +1040,16 @@ class CertificateTool extends MultiCommand {
                 final String fileName = output.getFileName().toString();
                 fullyWriteFile(
                     output,
-                    outputStream -> writePkcs12(fileName, outputStream, "ca", caInfo.certAndKey, null, caInfo.password, terminal)
+                    outputStream -> writeKeyStore(
+                        keyStoreFormat,
+                        fileName,
+                        outputStream,
+                        "ca",
+                        caInfo.certAndKey,
+                        null,
+                        caInfo.password,
+                        terminal
+                    )
                 );
             }
         }
@@ -1063,9 +1097,10 @@ class CertificateTool extends MultiCommand {
         }
     }
 
-    static PEMEncryptor getEncrypter(char[] password) {
-        return new JcePEMEncryptorBuilder("AES-128-CBC").setProvider(BC_PROV).build(password);
-    }
+    /**
+     * The algorithm used when writing password protected PEM private keys
+     */
+    static final PemEncryption PEM_KEY_ENCRYPTION = PemEncryption.AES_128_CBC;
 
     /**
      * Checks whether the supplied password exceeds the maximum length supported by older OpenSSL versions.
@@ -1127,7 +1162,7 @@ class CertificateTool extends MultiCommand {
         fullyWriteFile(file, outputStream -> {
             try (
                 ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream, StandardCharsets.UTF_8);
-                JcaPEMWriter pemWriter = new JcaPEMWriter(new OutputStreamWriter(zipOutputStream, StandardCharsets.UTF_8))
+                PemWriter pemWriter = new PemWriter(new OutputStreamWriter(zipOutputStream, StandardCharsets.UTF_8))
             ) {
                 writer.write(zipOutputStream, pemWriter);
             }
@@ -1216,26 +1251,6 @@ class CertificateTool extends MultiCommand {
         }
     }
 
-    static GeneralNames getSubjectAlternativeNamesValue(List<String> ipAddresses, List<String> dnsNames, List<String> commonNames) {
-        Set<GeneralName> generalNameList = new HashSet<>();
-        for (String ip : ipAddresses) {
-            generalNameList.add(new GeneralName(GeneralName.iPAddress, ip));
-        }
-
-        for (String dns : dnsNames) {
-            generalNameList.add(new GeneralName(GeneralName.dNSName, dns));
-        }
-
-        for (String cn : commonNames) {
-            generalNameList.add(CertGenUtils.createCommonName(cn));
-        }
-
-        if (generalNameList.isEmpty()) {
-            return null;
-        }
-        return new GeneralNames(generalNameList.toArray(new GeneralName[0]));
-    }
-
     static boolean isAscii(char[] str) {
         return ASCII_ENCODER.canEncode(CharBuffer.wrap(str));
     }
@@ -1268,7 +1283,7 @@ class CertificateTool extends MultiCommand {
                 }
             }
             for (String dnsName : dnsNames) {
-                if (DERIA5String.isIA5String(dnsName) == false) {
+                if (CertGenUtils.isIA5String(dnsName) == false) {
                     errors.add("[" + dnsName + "] is not a valid DNS name");
                 }
             }
@@ -1370,7 +1385,7 @@ class CertificateTool extends MultiCommand {
     }
 
     private interface Writer {
-        void write(ZipOutputStream zipOutputStream, JcaPEMWriter pemWriter) throws Exception;
+        void write(ZipOutputStream zipOutputStream, PemWriter pemWriter) throws Exception;
     }
 
 }

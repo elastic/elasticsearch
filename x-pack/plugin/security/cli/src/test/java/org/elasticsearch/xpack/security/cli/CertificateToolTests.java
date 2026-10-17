@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.NonOptionArgumentSpec;
+import joptsimple.OptionException;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
@@ -57,6 +58,8 @@ import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateCommand;
 import org.elasticsearch.xpack.security.cli.CertificateTool.CertificateInformation;
 import org.elasticsearch.xpack.security.cli.CertificateTool.GenerateCertificateCommand;
 import org.elasticsearch.xpack.security.cli.CertificateTool.Name;
+import org.elasticsearch.xpack.security.cli.bc.CertGenUtils;
+import org.elasticsearch.xpack.security.cli.bc.KeyStoreFormat;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -415,12 +418,7 @@ public class CertificateToolTests extends ESTestCase {
 
         KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
         List<String> caKeyUsage = randomBoolean() ? null : CertificateTool.DEFAULT_CA_KEY_USAGE;
-        X509Certificate caCert = CertGenUtils.generateCACertificate(
-            new X500Principal("CN=test ca"),
-            keyPair,
-            days,
-            CertGenUtils.buildKeyUsage(caKeyUsage)
-        );
+        X509Certificate caCert = CertGenUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair, days, caKeyUsage);
 
         final boolean selfSigned = randomBoolean();
         final String keyPassword = randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD : null;
@@ -860,6 +858,73 @@ public class CertificateToolTests extends ESTestCase {
         final X509Certificate node3x509Certificate = (X509Certificate) certificateChain[0];
         assertEquals(1, certificateChain.length);
         assertEquals(node3x509Certificate.getSubjectX500Principal(), node3x509Certificate.getIssuerX500Principal());
+    }
+
+    /**
+     * {@code --bcfks} selects the keystore container in the same way {@code --pem} does, so a CA can be created as BCFKS,
+     * read back as a CA (by file extension) when signing, and the signed certificate can itself be written as BCFKS or PKCS#12.
+     * None of this requires a FIPS JVM: BCFKS is provided by the bundled Bouncy Castle.
+     */
+    public void testCreateBcfksCaAndCertificates() throws Exception {
+        final Path tempDir = initTempDir();
+
+        final MockTerminal terminal = MockTerminal.create();
+        final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
+
+        final Path caFile = tempDir.resolve("ca.bcfks");
+        final String caPassword = randomAlphaOfLengthBetween(8, 16);
+        final CertificateAuthorityCommand caCommand = new PathAwareCertificateAuthorityCommand(caFile);
+        final OptionSet caOptions = caCommand.getParser()
+            .parse("-ca-dn", "CN=My ElasticSearch Cluster", "-pass", caPassword, "-out", caFile.toString(), "--bcfks");
+        caCommand.execute(terminal, caOptions, env, processInfo);
+        assertThat(caFile, pathExists());
+        assertThat(terminal.getOutput(), containsString("BCFKS"));
+
+        final KeyStore caKeyStore = KeyStoreFormat.BCFKS.readKeyStore(caFile, caPassword.toCharArray());
+        assertThat(caKeyStore.getType(), equalTo("BCFKS"));
+        assertThat(caKeyStore.isKeyEntry("ca"), is(true));
+
+        // sign one certificate into each container type, using the BCFKS CA
+        final Path bcfksNodeFile = tempDir.resolve("node1.bcfks").toAbsolutePath();
+        final String bcfksNodePassword = randomFrom("", randomAlphaOfLengthBetween(4, 16));
+        final GenerateCertificateCommand bcfksGenCommand = new PathAwareGenerateCertificateCommand(caFile, bcfksNodeFile);
+        final OptionSet bcfksGenOptions = bcfksGenCommand.getParser()
+            .parse("-ca", "<ca>", "-ca-pass", caPassword, "-pass", bcfksNodePassword, "-out", "<node1>", "-name", "node01", "--bcfks");
+        bcfksGenCommand.execute(terminal, bcfksGenOptions, env, processInfo);
+        assertThat(bcfksNodeFile, pathExists());
+
+        final Path p12NodeFile = tempDir.resolve("node2.p12").toAbsolutePath();
+        final String p12NodePassword = randomFrom("", randomAlphaOfLengthBetween(4, 16));
+        final GenerateCertificateCommand p12GenCommand = new PathAwareGenerateCertificateCommand(caFile, p12NodeFile);
+        final OptionSet p12GenOptions = p12GenCommand.getParser()
+            .parse("-ca", "<ca>", "-ca-pass", caPassword, "-pass", p12NodePassword, "-out", "<node2>", "-name", "node02");
+        p12GenCommand.execute(terminal, p12GenOptions, env, processInfo);
+        assertThat(p12NodeFile, pathExists());
+
+        final KeyStore bcfksNodeKeyStore = KeyStoreFormat.BCFKS.readKeyStore(bcfksNodeFile, bcfksNodePassword.toCharArray());
+        assertThat(bcfksNodeKeyStore.getType(), equalTo("BCFKS"));
+        final KeyStore p12NodeKeyStore = KeyStoreUtil.readKeyStore(p12NodeFile, "PKCS12", p12NodePassword.toCharArray());
+
+        final Certificate bcfksNodeCert = bcfksNodeKeyStore.getCertificate("node01");
+        assertThat(bcfksNodeCert, instanceOf(X509Certificate.class));
+        assertThat(
+            ((X509Certificate) bcfksNodeCert).getIssuerX500Principal(),
+            equalTo(((X509Certificate) caKeyStore.getCertificate("ca")).getSubjectX500Principal())
+        );
+
+        // both certificates descend from the same CA and must trust each other, irrespective of container type
+        checkTrust(bcfksNodeKeyStore, bcfksNodePassword.toCharArray(), p12NodeKeyStore, true);
+        checkTrust(p12NodeKeyStore, p12NodePassword.toCharArray(), bcfksNodeKeyStore, true);
+    }
+
+    public void testBcfksAndPemAreMutuallyExclusive() {
+        final CertificateAuthorityCommand caCommand = new CertificateAuthorityCommand();
+        final OptionException e = expectThrows(OptionException.class, () -> caCommand.getParser().parse("--pem", "--bcfks"));
+        assertThat(e.getMessage(), containsString("bcfks"));
+
+        final GenerateCertificateCommand certCommand = new GenerateCertificateCommand();
+        expectThrows(OptionException.class, () -> certCommand.getParser().parse("--pem", "--bcfks"));
     }
 
     /**

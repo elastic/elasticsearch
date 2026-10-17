@@ -722,8 +722,8 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
     /**
      * Verifies that, in columnar_stored mode, nothing of one document leaks into the source blob of the next one. The source of every
      * document is rebuilt with a source loader that is reused for all the documents a thread indexes, so this indexes documents with
-     * random subsets of the fields (single values, arrays, fields of an object, and values that end up in {@code _ignored_source} because of
-     * {@code ignore_above}) one after the other, and checks that each one reads back exactly as it was indexed.
+     * random subsets of the fields (single values, arrays, fields of an object, and values that end up in {@code _ignored_source} because
+     * of {@code ignore_above}) one after the other, and checks that each one reads back exactly as it was indexed.
      */
     public void testColumnarStoredSourceDoesNotLeakStateBetweenDocuments() throws IOException {
         Settings settings = Settings.builder()

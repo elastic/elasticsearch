@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SliceTermQueries;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -29,6 +30,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 
@@ -117,7 +119,19 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return FeatureField.newLinearQuery(name(), indexedValueForSearch(value), DEFAULT_BOOST);
+            return featureQuery(
+                indexedValueForSearch(value),
+                context,
+                feature -> FeatureField.newLinearQuery(name(), feature, DEFAULT_BOOST)
+            );
+        }
+
+        /**
+         * A query over one of this field's features, asking each targeted slice for its own copy of the feature's term. The
+         * {@code rank_feature} query comes through here too, so the slice is put on in one place.
+         */
+        public Query featureQuery(String feature, SearchExecutionContext context, Function<String, Query> build) {
+            return SliceTermQueries.singleTermShape(name(), feature, context, build);
         }
 
         private static String indexedValueForSearch(Object value) {

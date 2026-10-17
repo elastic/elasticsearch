@@ -12,8 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -51,7 +51,18 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     @Override
     public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
         failIfNotIndexed();
+        // The slice is matched exactly: folding its case could reach a slice whose name differs only in case.
         final BytesRef valueForSearch = indexedValueForSearch(value);
+        if (SliceTermQueries.scope(name(), context) != SliceTermQueries.Scope.PLAIN) {
+            // Lucene's case folding works on code points, so it is converted to bytes before the slice, which is
+            // matched byte for byte, is put in front of it.
+            return SliceTermQueries.automatonQuery(
+                name(),
+                SliceTermQueries.binary(Automata.makeCaseInsensitiveString(valueForSearch.utf8ToString())),
+                null,
+                context
+            );
+        }
         // check if valueForSearch is the same as an empty string
         // if we have a length of zero, just do a regular term query
         if (valueForSearch.length == 0) {
@@ -68,17 +79,18 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
         failIfNotIndexed();
-        return new TermQuery(new Term(name(), indexedValueForSearch(value)));
+        return SliceTermQueries.termQuery(name(), indexedValueForSearch(value), context);
     }
 
     @Override
     public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
         failIfNotIndexed();
         List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
-        TermInSetQuery query = new TermInSetQuery(name(), bytesRefs);
-        if (context != null) {
+        Query query = SliceTermQueries.termsQuery(name(), bytesRefs, context);
+        // A search across every slice has no term to ask for and comes back as an automaton, which this does not size.
+        if (context != null && query instanceof TermInSetQuery termsInSet) {
             context.addCircuitBreakerMemory(
-                new TermsQueryCostEstimator(query.ramBytesUsed()).estimate(),
+                new TermsQueryCostEstimator(termsInSet.ramBytesUsed()).estimate(),
                 ChildMemoryCircuitBreaker.CATEGORY_TERMS
             );
             context.markQueryMemoryPreCharged(query);

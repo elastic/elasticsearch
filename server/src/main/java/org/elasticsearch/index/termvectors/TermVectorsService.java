@@ -30,6 +30,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.SliceTermVectors;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentParser;
@@ -95,6 +97,11 @@ public class TermVectorsService {
             Engine.Searcher searcher = indexShard.acquireExternalSearcher("term_vector", request.getSplitShardCountSummary())
         ) {
             Fields topLevelFields = fields(get.searcher() != null ? get.searcher().getIndexReader() : searcher.getIndexReader());
+            if (indexShard.indexSettings().isSliceEnabled()) {
+                // The statistics of a term are read straight off the dictionary, where they belong to the slice the
+                // document is in; the request is routed by its slice, so that is the one to look in.
+                topLevelFields = SliceTermVectors.inSlice(topLevelFields, request.routing());
+            }
             DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {
@@ -106,6 +113,10 @@ public class TermVectorsService {
             else if (docIdAndVersion != null) {
                 // fields with stored term vectors
                 termVectorsByField = docIdAndVersion.reader.termVectors().get(docIdAndVersion.docId);
+                if (indexShard.indexSettings().isSliceEnabled()) {
+                    // What was indexed carries the slice; what the user asked for does not.
+                    termVectorsByField = SliceTermVectors.withoutSlice(termVectorsByField);
+                }
                 Set<String> selectedFields = request.selectedFields();
                 // generate tvs for fields where analyzer is overridden
                 if (selectedFields == null && request.perFieldAnalyzer() != null) {
@@ -333,6 +344,7 @@ public class TermVectorsService {
         DocumentParser documentParser = indexShard.mapperService().documentParser();
         MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
         ParsedDocument parsedDocument = documentParser.parseDocument(source, mappingLookup);
+        final boolean sliceEnabled = indexShard.indexSettings().isSliceEnabled();
         // select the right fields and generate term vectors
         final Set<String> seenFields = new HashSet<>();
         final Collection<DocumentField> documentFields = new HashSet<>();
@@ -349,6 +361,11 @@ public class TermVectorsService {
                     continue;
                 } else {
                     seenFields.add(field.name());
+                }
+                if (sliceEnabled && SliceIndexing.prefixesTerms(field.name())) {
+                    // An indexed value carries the slice, which is not what the user asked to analyze. The field stays
+                    // in seenFields, so generateTermVectors reads its value from the document's source instead.
+                    continue;
                 }
                 @SuppressWarnings("unchecked")
                 List<Object> values = (List) getValues(doc.getFields(field.name()));

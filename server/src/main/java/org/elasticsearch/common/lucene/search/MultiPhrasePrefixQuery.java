@@ -69,6 +69,14 @@ public class MultiPhrasePrefixQuery extends Query {
         return slop;
     }
 
+    public int getMaxExpansions() {
+        return maxExpansions;
+    }
+
+    public String getField() {
+        return field;
+    }
+
     /**
      * Add a single term at the next position in the phrase.
      *

@@ -18,6 +18,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SliceTermQueries;
 import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -101,6 +102,13 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
             }
         });
         if (termsList.size() != 1) {
+            if (SliceTermQueries.scope(fieldName, context) != SliceTermQueries.Scope.PLAIN) {
+                // A slice index spells a term with the slice it belongs to, and a span matches that one term, so the
+                // search has to say which slice to look in.
+                throw new IllegalArgumentException(
+                    "[" + NAME + "] on field [" + fieldName + "] of a slice index must be scoped to a single slice"
+                );
+            }
             // This is for safety, but we have called mapper.termQuery above: we really should get one and only one term from the query?
             throw new IllegalArgumentException("Cannot extract a term from a query of type " + termQuery.getClass() + ": " + termQuery);
         }

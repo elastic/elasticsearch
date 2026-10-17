@@ -17,6 +17,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SliceTermQueries;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
@@ -59,15 +60,7 @@ public final class WeightedTokensUtils {
         }
 
         for (var token : tokens) {
-            boolean keep = shouldKeepToken(
-                fieldName,
-                tokenPruningConfig,
-                context.getIndexReader(),
-                token,
-                fieldDocCount,
-                averageTokenFreqRatio,
-                bestWeight
-            );
+            boolean keep = shouldKeepToken(fieldName, tokenPruningConfig, context, token, fieldDocCount, averageTokenFreqRatio, bestWeight);
             keep ^= tokenPruningConfig != null && tokenPruningConfig.isOnlyScorePrunedTokens();
             if (keep) {
                 qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
@@ -109,7 +102,7 @@ public final class WeightedTokensUtils {
     private static boolean shouldKeepToken(
         String fieldName,
         TokenPruningConfig tokenPruningConfig,
-        IndexReader reader,
+        SearchExecutionContext context,
         WeightedToken token,
         int fieldDocCount,
         float averageTokenFreqRatio,
@@ -118,7 +111,13 @@ public final class WeightedTokensUtils {
         if (tokenPruningConfig == null) {
             return true;
         }
-        int docFreq = reader.docFreq(new Term(fieldName, token.token()));
+        final IndexReader reader = context.getIndexReader();
+        int docFreq = 0;
+        // On a slice index the token is indexed under the slice it belongs to, so its frequency is read from the slices the
+        // search targets rather than from a plain term, which would not be in the dictionary at all.
+        for (String term : SliceTermQueries.statisticTerms(fieldName, token.token(), context)) {
+            docFreq += reader.docFreq(new Term(fieldName, term));
+        }
         if (docFreq == 0) {
             return false;
         }

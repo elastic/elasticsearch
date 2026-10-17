@@ -1129,7 +1129,7 @@ public final class DocumentParser {
             } else {
                 this.parser = parserDecorator.decorate(parser, mapping);
             }
-            this.document = new LuceneDocument();
+            this.document = newRootDocument(indexSettings, source);
             this.documents.add(document);
             this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;

@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -35,9 +36,11 @@ import java.util.Set;
 public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     private final Set<String> metadataFields;
+    private final SourceFilter sourceFilter;
 
     public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
         this.metadataFields = lookupTimeSeriesMetadataFieldNames(context, loadMetrics);
+        this.sourceFilter = metadataFields.isEmpty() ? null : new SourceFilter(metadataFields.toArray(String[]::new), null);
     }
 
     private static Set<String> lookupTimeSeriesMetadataFieldNames(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
@@ -84,7 +87,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new TimeSeriesReader(breaker);
+        return new TimeSeriesReader(breaker, sourceFilter);
     }
 
     @Override
@@ -111,8 +114,11 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     private static final class TimeSeriesReader extends BlockStoredFieldsReader {
-        private TimeSeriesReader(CircuitBreaker breaker) {
+        private final SourceFilter sourceFilter;
+
+        private TimeSeriesReader(CircuitBreaker breaker, SourceFilter sourceFilter) {
             super(breaker);
+            this.sourceFilter = sourceFilter;
         }
 
         /**
@@ -146,7 +152,10 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            ((BytesRefBuilder) builder).appendBytesReference(toJson(storedFields.source()));
+            // Readers share the union of their requested source fields. Apply this reader's exclusions independently.
+            ((BytesRefBuilder) builder).appendBytesReference(
+                toJson(sourceFilter != null ? storedFields.source().filter(sourceFilter) : Source.empty(XContentType.JSON))
+            );
         }
 
         @Override

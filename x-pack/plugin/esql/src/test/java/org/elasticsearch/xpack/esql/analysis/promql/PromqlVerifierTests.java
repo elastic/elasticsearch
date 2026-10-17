@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.esql.analysis.promql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -444,7 +446,6 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testVectorMatchingRequiresInstantVectors() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         // Mirrors Prometheus: on/ignoring describe how two labelsets match, and a scalar operand has no labelset.
         tsdb.error("PROMQL index=test step=5m foo / on(bar) 1", containsString("vector matching only allowed between instant vectors"));
     }
@@ -457,21 +458,11 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     /**
-     * An unmatched operator computes its two source-backed operands in one shared aggregation, so both must be aggregated alike:
-     * both per series, or both one level across series. Each other pairing is rejected with a message naming its shape.
+     * Fused operators require compatible aggregation levels. Vector matching can instead evaluate a raw vector
+     * and an aggregate independently, while scalar/vector mixing and unsupported nested aggregations remain rejected.
      */
     public void testUnmatchedOperandsMustAggregateAlike() {
         String query = "PROMQL index=test step=5m ";
-        for (String rejected : List.of(
-            "sum(network.bytes_in) / network.connections",
-            "network.connections * max by (host) (network.bytes_in)",
-            "stddev(network.bytes_in) + network.connections"
-        )) {
-            tsdb.error(
-                query + rejected,
-                containsString("binary operations between an aggregated and a raw vector are not supported at this time")
-            );
-        }
         for (String rejected : List.of(
             "scalar(sum(network.bytes_in)) * network.connections",
             "network.connections / scalar(network.bytes_in)",
@@ -490,8 +481,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "bottomk(1, network.bytes_in) / bottomk(1, network.connections)",
             "limitk(1, network.bytes_in) / limitk(1, network.connections)",
             "limit_ratio(0.5, network.bytes_in) / network.connections",
-            "topk(2, network.bytes_in) * network.connections",
-            "sum by (host) (network.bytes_in) / topk(2, network.connections)"
+            "topk(2, network.bytes_in) * network.connections"
         )) {
             tsdb.error(
                 query + rejected,
@@ -520,9 +510,30 @@ public class PromqlVerifierTests extends ESTestCase {
         }
     }
 
+    public void testUnmatchedOperandsWithMultipleMetadataProjections() {
+        for (TransportVersion version : List.of(
+            TransportVersion.current(),
+            TransportVersionUtils.getPreviousVersion(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA)
+        )) {
+            tsdb.minimumTransportVersion(version);
+            for (String expression : List.of(
+                "sum(network.bytes_in) / network.connections",
+                "network.connections * max by (host) (network.bytes_in)",
+                "stddev(network.bytes_in) + network.connections",
+                "sum by (host) (network.bytes_in) / topk(2, network.connections)"
+            )) {
+                String query = "PROMQL index=test step=5m " + expression;
+                if (version.supports(TranslationContext.PROMQL_MULTIPLE_TIMESERIES_METADATA)) {
+                    tsdb.query(query);
+                } else {
+                    tsdb.error(query, containsString("Multiple time-series metadata projections require a newer version"));
+                }
+            }
+        }
+    }
+
     /** A vector-matched operator computes each operand on its own, so a reduction in one operand is accepted. */
     public void testMatchedOperandsMayUseReduction() {
-        assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         assertNotNull(
             tsdb.query("PROMQL index=test step=5m sum by (host) (network.bytes_in) / on(host) topk(1, sum by (host) (network.connections))")
         );

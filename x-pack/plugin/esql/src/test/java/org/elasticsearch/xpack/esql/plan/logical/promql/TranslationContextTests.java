@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -61,7 +62,7 @@ public class TranslationContextTests extends ESTestCase {
         TranslationSchema lifted = intersect(child, List.of("pod"));
 
         // every column the parent required, apart from the dropped label, comes back; so does the regroup's own
-        // packing, which already excludes the dropped label and fixes the grain of the result
+        // metadata projection, which already excludes the dropped label and fixes the grain of the result
         assertThat(lifted.labels(), contains("cluster"));
         assertThat(lifted.skips(), containsInAnyOrder(Set.of("region", "pod"), Set.of("pod")));
         // the regroup's own full label space does not survive dropping a label it still carries
@@ -79,20 +80,32 @@ public class TranslationContextTests extends ESTestCase {
         assertThat(retained.skips(), contains(Set.of("pod")));
     }
 
-    public void testPackedNameDerivesFromTheSkipSet() {
-        assertThat(TranslationContext.mapOpen(Set.of()), equalTo(MetadataAttribute.TIMESERIES));
-        assertThat(TranslationContext.mapOpen(Set.of("region", "pod")), equalTo(MetadataAttribute.TIMESERIES + "$pod$region"));
-        assertThat(TranslationContext.mapOpen(Set.of("pod", "region")), equalTo(TranslationContext.mapOpen(Set.of("region", "pod"))));
+    public void testMetadataAliasesSharedByChildren() {
+        var context = new TranslationContext(null, null);
+        var exclusions = new LinkedHashSet<>(List.of("region", "pod"));
+        var metadata = new TimeSeriesWithout(Source.EMPTY, List.of(attr("region"), attr("pod")));
+        var alias = context.metadataAlias(exclusions, metadata);
+        assertSame(metadata, alias.child());
+        exclusions.clear();
+        var child = context.withRequired(open(Set.of("pod")));
+        assertSame(
+            alias,
+            child.metadataAlias(Set.of("pod", "region"), new TimeSeriesWithout(Source.EMPTY, List.of(attr("pod"), attr("region"))))
+        );
+        var other = child.metadataAlias(Set.of("cluster"), new TimeSeriesWithout(Source.EMPTY, List.of(attr("cluster"))));
+        assertNotEquals(alias.id(), other.id());
+        assertNotEquals(alias.name(), other.name());
+        assertSame(other, context.metadataAliases().get(Set.of("cluster")));
     }
 
     public void testFindByNameMatchesCanonicalNamesAndPrefersPassthroughFields() {
         Attribute bare = attr("cluster");
         Attribute prefixed = new ReferenceAttribute(Source.EMPTY, "labels.cluster", DataType.KEYWORD);
-        Attribute packed = attr(TranslationContext.mapOpen(Set.of("pod")));
+        Attribute metadata = attr("metadata");
 
         assertThat(TranslationContext.find(List.of(bare, prefixed), "cluster"), sameInstance(prefixed));
         assertThat(TranslationContext.find(List.of(bare), "cluster"), sameInstance(bare));
-        assertThat(TranslationContext.find(List.of(bare, packed), TranslationContext.mapOpen(Set.of("pod"))), sameInstance(packed));
+        assertThat(TranslationContext.find(List.of(bare, metadata), metadata.name()), sameInstance(metadata));
         assertNull(TranslationContext.find(List.of(bare), "pod"));
         assertThat(TranslationContext.mapFinite(List.of(bare, prefixed, attr("pod"))), contains("cluster", "pod"));
     }

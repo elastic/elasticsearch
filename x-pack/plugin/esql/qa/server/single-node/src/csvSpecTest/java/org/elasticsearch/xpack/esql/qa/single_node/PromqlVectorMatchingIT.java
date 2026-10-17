@@ -70,7 +70,7 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
     public void requirePromqlVectorMatching() {
         assumeTrue(
             "PromQL vector matching capability is required",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.capabilityName()))
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V1.capabilityName()))
         );
     }
 
@@ -127,6 +127,21 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
                 + "sum by (cluster, pod) (network.eth0.rx)) "
                 + "| KEEP result, cluster, pod, step",
             List.of()
+        );
+    }
+
+    public void testOpaqueBuildDuplicatesFail() throws IOException {
+        // Distinct pods must not collapse into one build row merely because on(cluster) ignores them.
+        assertPromqlError(
+            "PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) / on (cluster) group_left network.eth0.rx)",
+            "found a duplicate row"
+        );
+    }
+
+    public void testOpaqueProbeDuplicatesFailForOneToOne() throws IOException {
+        assertPromqlError(
+            "PROMQL index=k8s step=10m result=(network.eth0.tx / on (cluster) sum by (cluster) (network.eth0.rx))",
+            "input must not have duplicates"
         );
     }
 

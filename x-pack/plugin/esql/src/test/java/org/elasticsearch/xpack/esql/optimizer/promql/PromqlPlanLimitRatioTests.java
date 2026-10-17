@@ -153,12 +153,12 @@ public class PromqlPlanLimitRatioTests extends AbstractPromqlPlanOptimizerTests 
     }
 
     /**
-     * A label already carried inside a packing adds no identity: regrouping its table only
-     * narrows which packed rows survive, so the outer grouping must not append the label.
-     * Here the outer {@code sum by (pod)} regroups packed {@code _timeseries$region} rows that
+     * A label already carried inside metadata adds no identity: regrouping its table only
+     * narrows which metadata rows survive, so the outer grouping must not append the label.
+     * Here the outer {@code sum by (pod)} regroups metadata rows excluding {@code region} that
      * already determine pod, sampling exactly the inner identity -- like the bare query.
      */
-    public void testLimitRatioIgnoresPackingCoveredOuterGrouping() {
+    public void testLimitRatioIgnoresMetadataCoveredOuterGrouping() {
         var bare = hashOffset("PROMQL index=k8s step=1h result=(limit_ratio(0.5, sum without (region) (network.bytes_in)))");
         var regrouped = hashOffset(
             "PROMQL index=k8s step=1h result=(sum by (pod) (limit_ratio(0.5, sum without (region) (network.bytes_in))))"

@@ -62,9 +62,21 @@ def remoteDatasetInvisibleTest = tasks.register("remoteDatasetInvisibleTest", St
     includeTestsMatching remoteDatasetInvisibleTestPattern
   }
 }
+// Run metadata projection tests on current clusters as well as through the BWC newToOld/oldToNew tasks.
+def promqlMetadataTest = tasks.register("promqlMetadataTest", StandaloneRestIntegTestTask) {
+  systemProperty("tests.version.remote_cluster", currentVersion)
+  systemProperty("tests.version.local_cluster", currentVersion)
+  maxParallelForks = 1
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  filter {
+    includeTestsMatching "org.elasticsearch.xpack.esql.ccq.MultiClusterTimeSeriesIT.testPromqlMetadata*"
+  }
+}
 tasks.named("check").configure {
   dependsOn remoteDatasetInvisibleTest
   dependsOn currentToCurrent
+  dependsOn promqlMetadataTest
 }
 
 def supportedVersion = bwcVersion -> {

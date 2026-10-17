@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 
@@ -42,11 +40,11 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
     }
 
     private static EsRelation addLoweredAttributes(EsRelation relation, Iterable<TimeSeriesMetadataAttribute> loweredAttributes) {
-        var existingIds = relation.outputSet();
+        var existingAttributes = relation.outputSet();
         List<Attribute> attributes = new ArrayList<>(relation.output());
         boolean changed = false;
         for (TimeSeriesMetadataAttribute loweredAttribute : loweredAttributes) {
-            if (existingIds.contains(loweredAttribute) == false) {
+            if (existingAttributes.contains(loweredAttribute) == false) {
                 attributes.add(loweredAttribute);
                 changed = true;
             }
@@ -67,12 +65,8 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
 
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate aggregate, AnalyzerContext context) {
-        // Collect TimeSeriesWithout groupings and lower each into a TimeSeriesMetadataAttribute
-        // that carries the excluded dimension names.
-        var replacements = new LinkedHashMap<NameId, TimeSeriesMetadataAttribute>();
-        // Lowered attributes that stay hidden behind a user alias: they are added to the source relation but
-        // never substituted into the aggregates, which keep referencing the alias by its original id.
-        var aliasedLowered = new ArrayList<TimeSeriesMetadataAttribute>();
+        // Keep metadata source fields canonical and preserve each grouping's identity through an alias.
+        var loweredAttributes = new ArrayList<TimeSeriesMetadataAttribute>();
         var newGroupings = new ArrayList<Expression>(aggregate.groupings().size());
 
         for (Expression grouping : aggregate.groupings()) {
@@ -88,63 +82,33 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
                     }
                 }
 
-                // The grouping is a named expression (Alias) wrapping the WITHOUT function; resolve its
-                // attribute so the lowered _timeseries attribute can preserve the original identity (name id).
                 Attribute groupingAttribute = Expressions.attribute(grouping);
                 assert groupingAttribute != null : "time-series grouping must be a named expression";
-
-                // A user alias (BY dims = WITHOUT(...)) must survive as the grouping's output name. The lowered
-                // attribute then gets a fresh id and sits behind the alias, which keeps the user's id, so references to
-                // the grouping resolved before this rule ran still point at a column named by the user.
-                boolean keepAlias = grouping instanceof Alias alias && alias.name().equals(MetadataAttribute.TIMESERIES) == false;
-                TimeSeriesMetadataAttribute lowered;
-                if (groupingAttribute instanceof TimeSeriesMetadataAttribute t && excludedFields.equals(t.excludedFields())) {
-                    lowered = t;
-                } else {
-                    String parentName = groupingAttribute instanceof FieldAttribute fieldAttribute ? fieldAttribute.parentName() : null;
-                    lowered = new TimeSeriesMetadataAttribute(
-                        groupingAttribute.source(),
-                        parentName,
-                        groupingAttribute.qualifier(),
-                        MetadataAttribute.TIMESERIES,
-                        timeSeriesField(),
-                        groupingAttribute.nullable(),
-                        keepAlias ? new NameId() : groupingAttribute.id(),
-                        groupingAttribute.synthetic(),
-                        excludedFields
-                    );
-                }
-
-                if (keepAlias) {
-                    Alias alias = (Alias) grouping;
-                    aliasedLowered.add(lowered);
-                    newGroupings.add(new Alias(alias.source(), alias.name(), lowered, alias.id()));
-                } else {
-                    replacements.put(lowered.id(), lowered);
-                    newGroupings.add(lowered);
-                }
+                var lowered = new TimeSeriesMetadataAttribute(
+                    grouping.source(),
+                    null,
+                    null,
+                    MetadataAttribute.TIMESERIES,
+                    timeSeriesField(),
+                    groupingAttribute.nullable(),
+                    new NameId(),
+                    groupingAttribute.synthetic(),
+                    excludedFields
+                );
+                loweredAttributes.add(lowered);
+                newGroupings.add(
+                    new Alias(grouping.source(), groupingAttribute.name(), lowered, groupingAttribute.id(), groupingAttribute.synthetic())
+                );
             } else {
                 newGroupings.add(grouping);
             }
         }
 
-        if (replacements.isEmpty() && aliasedLowered.isEmpty()) {
+        if (loweredAttributes.isEmpty()) {
             return aggregate;
         }
 
-        // Propagate the lowered attributes into aggregate expressions that reference the old grouping ids.
-        List<NamedExpression> newAggregates = new ArrayList<>(aggregate.aggregates().size());
-        for (NamedExpression agg : aggregate.aggregates()) {
-            newAggregates.add((NamedExpression) agg.transformDown(Attribute.class, attribute -> {
-                Attribute replacement = replacements.get(attribute.id());
-                return replacement != null ? replacement : attribute;
-            }));
-        }
-
-        // Add the new _timeseries attributes to the EsRelation so field extraction can find them.
-        var allLowered = new ArrayList<>(replacements.values());
-        allLowered.addAll(aliasedLowered);
-        LogicalPlan newChild = addLoweredAttributesToTimeSeriesSource(aggregate.child(), allLowered);
-        return aggregate.with(newChild, newGroupings, newAggregates);
+        LogicalPlan newChild = addLoweredAttributesToTimeSeriesSource(aggregate.child(), loweredAttributes);
+        return aggregate.with(newChild, newGroupings, aggregate.aggregates());
     }
 }

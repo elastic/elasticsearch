@@ -59,7 +59,6 @@ import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.inference.completion.Template;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1122,10 +1121,16 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             String productSolution = "security";
             String productFeature = "attack_discovery";
             String interactionId = "interaction-id";
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, productSolution);
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, productFeature);
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, interactionId);
+            String traceId = "trace-id";
+            String userId = "user-id";
+            String spaceId = "space-id";
+            threadPool.getThreadContext().putHeader("X-elastic-product-use-case", productUseCase);
+            threadPool.getThreadContext().putHeader("X-elastic-product-solution", productSolution);
+            threadPool.getThreadContext().putHeader("X-elastic-product-feature", productFeature);
+            threadPool.getThreadContext().putHeader("X-Elastic-Inference-Interaction-Id", interactionId);
+            threadPool.getThreadContext().putHeader("X-Elastic-Trace-Id", traceId);
+            threadPool.getThreadContext().putHeader("X-Elastic-User-Id", userId);
+            threadPool.getThreadContext().putHeader("X-Elastic-Space-Id", spaceId);
 
             var model = ElasticInferenceServiceRerankModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
@@ -1151,14 +1156,14 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
             // Check that the product use case header was set correctly
-            var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var productUseCaseHeaders = request.getHeaders().get("X-elastic-product-use-case");
             assertThat(productUseCaseHeaders, contains(productUseCase));
-            assertThat(request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER), contains(productSolution));
-            assertThat(request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER), contains(productFeature));
-            assertThat(
-                request.getHeaders().get(InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER),
-                contains(interactionId)
-            );
+            assertThat(request.getHeaders().get("X-elastic-product-solution"), contains(productSolution));
+            assertThat(request.getHeaders().get("X-elastic-product-feature"), contains(productFeature));
+            assertThat(request.getHeaders().get("X-Elastic-Inference-Interaction-Id"), contains(interactionId));
+            assertThat(request.getHeaders().get("X-Elastic-Trace-Id"), contains(traceId));
+            assertThat(request.getHeaders().get("X-Elastic-User-Id"), contains(userId));
+            assertThat(request.getHeaders().get("X-Elastic-Space-Id"), contains(spaceId));
         }
     }
 
@@ -1185,7 +1190,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             // Set up the product use case in the thread context
             String productUseCase = "test-product-use-case";
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader("X-elastic-product-use-case", productUseCase);
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
@@ -1211,7 +1216,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
             // Check that the product use case header was set correctly
-            var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var productUseCaseHeaders = request.getHeaders().get("X-elastic-product-use-case");
             assertThat(productUseCaseHeaders, contains("internal_search", productUseCase));
 
             // Verify request body
@@ -1243,7 +1248,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             String productUseCase = "test-product-use-case";
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader("X-elastic-product-use-case", productUseCase);
 
             // Create completion model
             var model = ElasticInferenceServiceCompletionModelTests.createModel(
@@ -1267,7 +1272,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var httpRequest = webServer.requests().getFirst();
 
             // Check that the product use case header was set correctly
-            assertThat(httpRequest.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+            assertThat(httpRequest.getHeader("X-elastic-product-use-case"), is(productUseCase));
         }
     }
 
@@ -1783,7 +1788,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
 
             String productUseCase = "test-product-use-case";
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader("X-elastic-product-use-case", productUseCase);
 
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             // 2 inputs
@@ -1810,7 +1815,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
 
             // Check that the product use case header was set correctly
-            var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var productUseCaseHeaders = request.getHeaders().get("X-elastic-product-use-case");
             assertThat(productUseCaseHeaders, contains("internal_ingest", productUseCase));
 
         }
@@ -1841,7 +1846,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             String productUseCase = "test-product-use-case";
-            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader("X-elastic-product-use-case", productUseCase);
 
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.embeddingInfer(
@@ -1856,10 +1861,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             // Check that the product use case header was set correctly
-            var productUseCaseHeaders = webServer.requests()
-                .getFirst()
-                .getHeaders()
-                .get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var productUseCaseHeaders = webServer.requests().getFirst().getHeaders().get("X-elastic-product-use-case");
             assertThat(productUseCaseHeaders, contains("internal_ingest", productUseCase));
         }
 

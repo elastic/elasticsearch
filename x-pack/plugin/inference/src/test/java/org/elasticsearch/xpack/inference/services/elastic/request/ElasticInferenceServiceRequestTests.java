@@ -13,9 +13,8 @@ import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.telemetry.InferenceProductContext;
-import org.elasticsearch.inference.telemetry.InferenceProductContextTests;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.regionpolicy.CspRegion;
@@ -28,10 +27,14 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationA
 import java.net.URI;
 import java.util.List;
 
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.INTERACTION_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_FEATURE;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_ORIGIN;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_SOLUTION;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.SPACE_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.TRACE_ID;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.USER_ID;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,7 +46,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         var secret = "secret";
         var productOrigin = "elastic";
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(new InferenceProductContext(null, productOrigin), null),
+            new ElasticInferenceServiceRequestMetadata(InferenceRequestMetadata.builder().put(PRODUCT_ORIGIN, productOrigin).build(), null),
             null,
             new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(new SecureString(secret.toCharArray()))
         );
@@ -56,7 +59,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithProductOrigin() {
         var productOrigin = "elastic";
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(new InferenceProductContext(null, productOrigin), null)
+            new ElasticInferenceServiceRequestMetadata(InferenceRequestMetadata.builder().put(PRODUCT_ORIGIN, productOrigin).build(), null)
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
         var productOriginHeader = httpRequest.httpRequestBase().getFirstHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
@@ -67,56 +70,47 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
     }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithAttributionHeaders() {
-        record Case(InferenceProductContext context, String headerName, String expectedValue) {}
-
-        var productUseCase = "ai assistant";
-        var productSolution = "security";
-        var productFeature = "attack_discovery";
-        var interactionId = "interaction-id";
+        record Case(InferenceRequestMetadata.Field field, String expectedValue) {}
 
         for (var testCase : List.of(
-            new Case(new InferenceProductContext(productUseCase, null), X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase),
-            new Case(
-                new InferenceProductContext(null, null, productSolution, null, null),
-                X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER,
-                productSolution
-            ),
-            new Case(
-                new InferenceProductContext(null, null, null, productFeature, null),
-                X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER,
-                productFeature
-            ),
-            new Case(
-                new InferenceProductContext(null, null, null, null, interactionId),
-                X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER,
-                interactionId
-            )
+            new Case(PRODUCT_USE_CASE, "ai assistant"),
+            new Case(PRODUCT_SOLUTION, "security"),
+            new Case(PRODUCT_FEATURE, "attack_discovery"),
+            new Case(INTERACTION_ID, "interaction-id"),
+            new Case(TRACE_ID, "trace-id"),
+            new Case(USER_ID, "user-id"),
+            new Case(SPACE_ID, "space-id")
         )) {
-            var httpRequest = RequestTests.getHttpRequestSync(
-                getDummyElasticInferenceServiceRequest(new ElasticInferenceServiceRequestMetadata(testCase.context(), null))
+            var metadata = new ElasticInferenceServiceRequestMetadata(
+                InferenceRequestMetadata.builder().put(testCase.field(), testCase.expectedValue()).build(),
+                null
             );
-            var header = httpRequest.httpRequestBase().getFirstHeader(testCase.headerName());
+            var httpRequest = RequestTests.getHttpRequestSync(getDummyElasticInferenceServiceRequest(metadata));
+            var header = httpRequest.httpRequestBase().getFirstHeader(testCase.field().httpHeader());
 
-            assertThat(httpRequest.httpRequestBase().getHeaders(testCase.headerName()).length, equalTo(1));
+            assertThat(httpRequest.httpRequestBase().getHeaders(testCase.field().httpHeader()).length, equalTo(1));
             assertThat(header.getValue(), equalTo(testCase.expectedValue()));
         }
     }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithoutOptionalAttributionHeaders() {
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(new InferenceProductContext("", null, "", "", ""), null)
+            new ElasticInferenceServiceRequestMetadata(InferenceRequestMetadata.EMPTY, null)
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
 
-        assertNull(httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER));
-        assertNull(httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER));
-        assertNull(httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER));
+        assertNull(httpRequest.httpRequestBase().getFirstHeader(PRODUCT_SOLUTION.httpHeader()));
+        assertNull(httpRequest.httpRequestBase().getFirstHeader(PRODUCT_FEATURE.httpHeader()));
+        assertNull(httpRequest.httpRequestBase().getFirstHeader(INTERACTION_ID.httpHeader()));
+        assertNull(httpRequest.httpRequestBase().getFirstHeader(TRACE_ID.httpHeader()));
+        assertNull(httpRequest.httpRequestBase().getFirstHeader(USER_ID.httpHeader()));
+        assertNull(httpRequest.httpRequestBase().getFirstHeader(SPACE_ID.httpHeader()));
     }
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithEsVersion() {
         var esVersion = "1.2.3";
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(InferenceProductContext.EMPTY, esVersion)
+            new ElasticInferenceServiceRequestMetadata(InferenceRequestMetadata.EMPTY, esVersion)
         );
         var httpRequest = RequestTests.getHttpRequestSync(elasticInferenceServiceRequestWrapper);
         var productUseCaseHeader = httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_ES_VERSION);
@@ -129,7 +123,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithAllowedRegionsHeader() {
         var regionPolicy = new RegionPolicy(null, List.of(new CspRegion("aws", "eu-west-1"), new CspRegion("aws", "us-east-1")));
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(InferenceProductContext.EMPTY, null),
+            new ElasticInferenceServiceRequestMetadata(InferenceRequestMetadata.EMPTY, null),
             new InferencePreferences(regionPolicy),
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
@@ -144,7 +138,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithAllowedGeosHeader() {
         var regionPolicy = new RegionPolicy(List.of("eu", "us"), null);
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(InferenceProductContext.EMPTY, null),
+            new ElasticInferenceServiceRequestMetadata(InferenceRequestMetadata.EMPTY, null),
             new InferencePreferences(regionPolicy),
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
@@ -157,7 +151,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithoutRegionPolicy_NoHeaders() {
         var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
-            new ElasticInferenceServiceRequestMetadata(InferenceProductContext.EMPTY, null),
+            new ElasticInferenceServiceRequestMetadata(InferenceRequestMetadata.EMPTY, null),
             InferencePreferences.EMPTY,
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
@@ -213,7 +207,10 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
 
     public static ElasticInferenceServiceRequestMetadata randomElasticInferenceServiceRequestMetadata() {
         return new ElasticInferenceServiceRequestMetadata(
-            InferenceProductContextTests.randomInferenceProductContext(),
+            InferenceRequestMetadata.builder()
+                .put(PRODUCT_USE_CASE, randomAlphaOfLength(10))
+                .put(PRODUCT_ORIGIN, randomFrom(randomAlphaOfLength(10), null))
+                .build(),
             randomFrom(randomAlphaOfLength(10), null)
         );
     }
@@ -225,24 +222,68 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         var productSolution = randomAlphaOfLength(10);
         var productFeature = randomAlphaOfLength(10);
         var interactionId = randomAlphaOfLength(10);
-        threadContext.putHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+        var traceId = randomAlphaOfLength(10);
+        var userId = randomAlphaOfLength(10);
+        var spaceId = randomAlphaOfLength(10);
+        threadContext.putHeader(PRODUCT_USE_CASE.httpHeader(), productUseCase);
         threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, productOrigin);
-        threadContext.putHeader(X_ELASTIC_PRODUCT_SOLUTION_HTTP_HEADER, productSolution);
-        threadContext.putHeader(X_ELASTIC_PRODUCT_FEATURE_HTTP_HEADER, productFeature);
-        threadContext.putHeader(X_ELASTIC_INFERENCE_INTERACTION_ID_HTTP_HEADER, interactionId);
+        threadContext.putHeader(PRODUCT_SOLUTION.httpHeader(), productSolution);
+        threadContext.putHeader(PRODUCT_FEATURE.httpHeader(), productFeature);
+        threadContext.putHeader(INTERACTION_ID.httpHeader(), interactionId);
+        threadContext.putHeader(TRACE_ID.httpHeader(), traceId);
+        threadContext.putHeader(USER_ID.httpHeader(), userId);
+        threadContext.putHeader(SPACE_ID.httpHeader(), spaceId);
 
         var metadata = ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext(threadContext);
 
         assertThat(
-            metadata.context(),
-            equalTo(new InferenceProductContext(productUseCase, productOrigin, productSolution, productFeature, interactionId))
+            metadata.attribution(),
+            equalTo(
+                InferenceRequestMetadata.builder()
+                    .put(PRODUCT_ORIGIN, productOrigin)
+                    .put(PRODUCT_USE_CASE, productUseCase)
+                    .put(PRODUCT_SOLUTION, productSolution)
+                    .put(PRODUCT_FEATURE, productFeature)
+                    .put(INTERACTION_ID, interactionId)
+                    .put(TRACE_ID, traceId)
+                    .put(USER_ID, userId)
+                    .put(SPACE_ID, spaceId)
+                    .build()
+            )
         );
         assertNotNull(metadata.esVersion());
+    }
+
+    public void testCapturedThreadContextForwardsProductOriginExactlyOnce() {
+        var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "Kibana");
+        threadContext.putHeader(PRODUCT_USE_CASE.httpHeader(), "ai assistant");
+        threadContext.putHeader(TRACE_ID.httpHeader(), "trace-id");
+
+        var metadata = ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext(threadContext);
+        var httpRequest = RequestTests.getHttpRequestSync(getDummyElasticInferenceServiceRequest(metadata)).httpRequestBase();
+
+        var originHeaders = httpRequest.getHeaders(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+        assertThat(originHeaders.length, equalTo(1));
+        assertThat(originHeaders[0].getValue(), equalTo("Kibana"));
+        assertThat(httpRequest.getHeaders(PRODUCT_USE_CASE.httpHeader()).length, equalTo(1));
+        assertThat(httpRequest.getFirstHeader(TRACE_ID.httpHeader()).getValue(), equalTo("trace-id"));
     }
 
     public void testExtractRequestMetadataFromThreadContextWithoutOptionalHeaders() {
         var metadata = ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext(new ThreadContext(Settings.EMPTY));
 
-        assertThat(metadata.context(), equalTo(InferenceProductContext.EMPTY));
+        assertThat(metadata.attribution(), equalTo(InferenceRequestMetadata.EMPTY));
+    }
+
+    public void testExtractRequestMetadataSnapshotsThreadContext() {
+        var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(PRODUCT_USE_CASE.httpHeader(), "captured");
+
+        var metadata = ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext(threadContext);
+        threadContext.putHeader(PRODUCT_SOLUTION.httpHeader(), "added-after-capture");
+
+        assertThat(metadata.attribution().get(PRODUCT_USE_CASE), equalTo("captured"));
+        assertThat(metadata.attribution().get(PRODUCT_SOLUTION), equalTo(null));
     }
 }

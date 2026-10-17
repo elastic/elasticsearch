@@ -126,7 +126,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     public static StringColumnReader open(StringColumnMetadata meta, ColumnInputs inputs, IndexInput skipIndex) throws IOException {
         return switch (meta) {
             case StringColumnMetadata.Dictionary column -> new DictionaryStringColumnReader(column, inputs, skipIndex);
-            case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, inputs);
+            case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, inputs, skipIndex);
         };
     }
 

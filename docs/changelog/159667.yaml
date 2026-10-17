@@ -1,0 +1,5 @@
+area: Analysis
+issues: []
+pr: 159667
+summary: Bound heap/allocation growth in analysis-phonetic
+type: enhancement

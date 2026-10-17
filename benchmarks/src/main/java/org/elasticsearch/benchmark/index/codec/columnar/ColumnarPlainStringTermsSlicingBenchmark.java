@@ -16,7 +16,8 @@ import java.io.IOException;
 /**
  * A {@code terms} query over a {@code PLAIN} column, with the plain skip index off and on, over the data shapes
  * {@link ColumnarPlainStringRangeSlicingBenchmark} ranges over. One of the four arrives in term order, so it
- * is bisected by rank, and the others are compared value by value, except the blocks the skip index rules out.
+ * is bisected by rank, and the others are compared value by value. A {@code terms} query does not use the skip
+ * index, so the two formats must measure the same: this is the control that the index costs it nothing.
  *
  * <p>Run with:
  * <pre>

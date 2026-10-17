@@ -226,12 +226,10 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         final BytesRef inBand = docSlots[5 * INTERVAL + 17][0];
         final BytesRef bandStart = new BytesRef("band-06-");
         final BytesRef bandEnd = new BytesRef("band-06.");
-        final NavigableSet<BytesRef> terms = new TreeSet<>(List.of(inBand, docSlots[5 * INTERVAL + 400][0]));
         final List<Query> queries = List.of(
             reader -> reader.matchTerm(inBand),
             reader -> reader.matchRange(bandStart, true, bandEnd, false),
-            reader -> reader.matchPrefix(bandStart),
-            reader -> reader.matchAnyOf(terms, terms)
+            reader -> reader.matchPrefix(bandStart)
         );
         for (Query query : queries) {
             final long[] decoded = new long[2];
@@ -272,6 +270,34 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
                 assertEquals(0, held.get());
             }
         }
+    }
+
+    public void testAnyOfDecodesTheSameBlocksWithAndWithoutTheBounds() throws IOException {
+        final int bands = 12;
+        final BytesRef[][] docSlots = new BytesRef[bands * INTERVAL][];
+        for (int doc = 0; doc < docSlots.length; doc++) {
+            final int band = bands - 1 - doc / INTERVAL;
+            docSlots[doc] = new BytesRef[] { new BytesRef(String.format(Locale.ROOT, "band-%02d-%08d", band, between(0, 99_999_999))) };
+        }
+        final NavigableSet<BytesRef> terms = new TreeSet<>(List.of(docSlots[5 * INTERVAL + 17][0], docSlots[5 * INTERVAL + 400][0]));
+        final long[] decoded = new long[2];
+        final List<List<Integer>> matches = new ArrayList<>();
+        for (int arm = 0; arm < 2; arm++) {
+            final AtomicLong seeks = new AtomicLong();
+            final int index = arm;
+            withColumnAndSkipIndex(
+                docSlots,
+                plain(arm == 0, sizes(128, 4096)),
+                directory -> new SeekCountingDirectory(directory, seeks),
+                (metadata, reader, skip) -> {
+                    final long before = seeks.get();
+                    matches.add(StringMatchOracle.matched(reader.matchAnyOf(terms, terms)));
+                    decoded[index] = seeks.get() - before;
+                }
+            );
+        }
+        assertEquals(matches.get(0), matches.get(1));
+        assertEquals(decoded[0], decoded[1]);
     }
 
     public void testIteratorsOfOneReaderCanBeInterleaved() throws IOException {

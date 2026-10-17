@@ -316,9 +316,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
 
     @Override
     protected DocIdSetIterator unorderedAnyOfMatches(NavigableSet<BytesRef> terms, Set<BytesRef> membership) throws IOException {
-        final ColumnIterator presence = terms.isEmpty()
-            ? iterator()
-            : presenceWithin(PlainSkipBounds.Query.range(terms.first(), true, terms.last(), true));
+        final ColumnIterator presence = iterator();
         final LastSeen lastSeen = new LastSeen();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
             @Override

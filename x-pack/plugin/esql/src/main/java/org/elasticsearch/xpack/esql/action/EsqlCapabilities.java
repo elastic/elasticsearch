@@ -1686,6 +1686,14 @@ public class EsqlCapabilities {
          */
         VIEWS_TELEMETRY,
         /**
+         * The caller's query settings stop at view boundaries: {@code unmapped_fields} no longer
+         * reaches inside view bodies — an outer reference to a column a view does not surface answers null at the
+         * view's output instead of loading from the view's source {@code _source}, and a reference written inside a
+         * view body fails resolution as it would without the setting. Wildcards inside a view body no longer match
+         * views or datasets, whatever the caller's {@code wildcards_match_views}/{@code wildcards_match_datasets} say.
+         */
+        SETTINGS_SCOPED_AT_VIEW_BOUNDARIES,
+        /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
         VIEWS_DEDUPLICATION_BUGFIX,
@@ -4508,6 +4516,13 @@ public class EsqlCapabilities {
          * expression always evaluates to NULL, or a NULL in an IN list never matches.
          */
         WARN_NULL_MISUSE,
+
+        /**
+         * A {@code _score} predicate after a runtime search ({@code MATCH}, {@code MATCH_PHRASE}, runtime {@code KNN}),
+         * in a later {@code WHERE} or combined with it using {@code AND}, sees the score that search contributes, as it
+         * does for a search on an indexed field, rather than the score from before it.
+         */
+        RUNTIME_SCORE_FIX,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

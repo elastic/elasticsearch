@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -55,6 +56,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -104,11 +106,48 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-        return switch (context.unmappedResolution()) {
-            case UnmappedResolution.DEFAULT -> plan;
-            case UnmappedResolution.NULLIFY -> resolveOutsideViews(plan, false);
-            case UnmappedResolution.LOAD, UnmappedResolution.LOAD_ALL -> resolveOutsideViews(plan, true);
+        return applyScope(plan, context.unmappedResolution(), context.viewSettings());
+    }
+
+    /**
+     * Applies {@code resolution} to one scope's territory — the nodes of {@code plan} outside view branches — after
+     * first recursing into every view branch with the resolution that view's own definition {@code SET} (none, when
+     * the definition has no {@code SET}; the caller's never applies in there). Inner scopes go first so a widened
+     * view-branch output is visible when this scope's pass runs. A view branch only contains further view branches
+     * when its own settings required nested view identity, so a definition without {@code SET}s is one flat skip,
+     * exactly as before per-view settings existed.
+     */
+    private static LogicalPlan applyScope(LogicalPlan plan, UnmappedResolution resolution, Map<String, ViewQuerySettings> viewSettings) {
+        LogicalPlan withInnerScopes = transformViewBranches(plan, (viewName, branch) -> {
+            ViewQuerySettings settings = viewName == null ? null : viewSettings.get(viewName);
+            UnmappedResolution viewResolution = settings == null ? UnmappedResolution.DEFAULT : settings.unmappedFields();
+            return applyScope(branch, viewResolution, viewSettings);
+        });
+        return switch (resolution) {
+            case UnmappedResolution.DEFAULT -> withInnerScopes;
+            case UnmappedResolution.NULLIFY -> resolveOutsideViews(withInnerScopes, false);
+            case UnmappedResolution.LOAD, UnmappedResolution.LOAD_ALL -> resolveOutsideViews(withInnerScopes, true);
         };
+    }
+
+    /**
+     * Rewrites every view branch of {@code plan} (outside deeper view branches — those are the inner scopes'
+     * own business) through {@code fn}, which receives the owning view's name ({@code BranchIdentity#settingsViewName},
+     * the innermost view after a nested view is lifted into its parent) and the branch subtree.
+     */
+    private static LogicalPlan transformViewBranches(LogicalPlan plan, BiFunction<String, LogicalPlan, LogicalPlan> fn) {
+        List<LogicalPlan> children = plan.children();
+        List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+        boolean changed = false;
+        for (int i = 0; i < children.size(); i++) {
+            LogicalPlan child = children.get(i);
+            LogicalPlan newChild = isViewBody(plan, i)
+                ? fn.apply(((BranchPlan) plan).branchIdentity(i).settingsViewName(), child)
+                : transformViewBranches(child, fn);
+            changed |= newChild != child;
+            newChildren.add(newChild);
+        }
+        return changed ? plan.replaceChildren(newChildren) : plan;
     }
 
     /**

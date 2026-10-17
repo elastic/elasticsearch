@@ -220,7 +220,8 @@ public class ViewService {
                     entry.getValue().getType().getDisplayName()
                 );
             });
-        // Parse the query to ensure it's syntactically valid; parseView rejects any SET statements
+        // Parse the query to ensure it's syntactically valid. A definition may SET only the settings scoped at view
+        // boundaries; anything else, including unmapped_fields=LOAD_ALL, is rejected here.
         parser.parseView(view.query(), new QueryParams(), new InferenceSettings(Settings.EMPTY), view.name());
     }
 

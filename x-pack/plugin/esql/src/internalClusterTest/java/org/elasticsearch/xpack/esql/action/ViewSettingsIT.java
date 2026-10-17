@@ -28,7 +28,9 @@ import static org.hamcrest.Matchers.not;
  * The caller's query settings stop at view boundaries: a view must produce the same rows
  * whatever the caller SET — a materialized view would have baked its contents in. Covers {@code unmapped_fields}
  * (not reaching inside view bodies, null-filling at the view output instead) and {@code wildcards_match_views}
- * (a wildcard inside a view body never matches views). See also {@code SETTINGS_SCOPED_AT_VIEW_BOUNDARIES}.
+ * (a wildcard inside a view body never matches views). A view definition may {@code SET} those same settings for
+ * its own body; that {@code SET} does not leak into a nested view. See {@code SETTINGS_SCOPED_AT_VIEW_BOUNDARIES}
+ * and {@code SET_IN_VIEW_DEFINITIONS}.
  */
 public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
 
@@ -407,6 +409,148 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             }
         } finally {
             updateClusterSettings(org.elasticsearch.common.settings.Settings.builder().putNull(key));
+        }
+    }
+
+    public void testLoadSetInsideViewLoadsFullyUnmappedField() {
+        setupUnmappedIndices();
+        assertAcked(createView("load_view", """
+            SET unmapped_fields="load";
+            FROM view_source | KEEP id, extra
+            """));
+        // The caller set nothing. The view's own SET loads extra from view_source.
+        try (var resp = run("FROM load_view | SORT id")) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1, "e1"), List.of(2, "e2"))));
+        }
+        // The caller's nullify does not override the definition.
+        try (var resp = run("""
+            SET unmapped_fields="nullify";
+            FROM load_view | SORT id
+            """)) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1, "e1"), List.of(2, "e2"))));
+        }
+    }
+
+    public void testNullifySetInsideViewNullFillsAndIgnoresCallerLoad() {
+        setupUnmappedIndices();
+        assertAcked(createView("null_view", """
+            SET unmapped_fields="nullify";
+            FROM view_source | KEEP id, extra
+            """));
+        try (var resp = run("""
+            SET unmapped_fields="load";
+            FROM null_view | SORT id
+            """)) {
+            assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+        }
+    }
+
+    public void testLoadSetInsideViewDoesNotLeakIntoNestedView() {
+        setupUnmappedIndices();
+        assertAcked(createView("inner_plain", "FROM view_source | KEEP id, extra"));
+        assertAcked(createView("outer_load", """
+            SET unmapped_fields="load";
+            FROM inner_plain
+            """));
+        // extra is referenced in inner_plain, which did not SET load. The enclosing SET must not reach it.
+        expectThrows(VerificationException.class, containsString("Unknown column [extra]"), () -> run("FROM outer_load").close());
+    }
+
+    public void testLoadSetInsideNestedViewAppliesWithoutEnclosingSet() {
+        setupUnmappedIndices();
+        assertAcked(createView("inner_load", """
+            SET unmapped_fields="load";
+            FROM view_source | KEEP id, extra
+            """));
+        assertAcked(createView("outer_plain", "FROM inner_load"));
+        try (var resp = run("FROM outer_plain | SORT id")) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1, "e1"), List.of(2, "e2"))));
+        }
+    }
+
+    public void testLoadSetInsideViewLoadsPartiallyUnmappedField() {
+        setupPunkIndices();
+        assertAcked(createView("punk_load", """
+            SET unmapped_fields="load";
+            FROM punk_a, punk_b | KEEP id, n
+            """));
+        try (var resp = run("FROM punk_load | SORT id")) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1, 10), List.of(2, 20))));
+        }
+    }
+
+    public void testLoadSetInsideViewDoesNotLoadPartiallyUnmappedFieldOfNestedView() {
+        setupPunkIndices();
+        assertAcked(createView("punk_inner", "FROM punk_a, punk_b | KEEP id, n"));
+        assertAcked(createView("punk_outer", """
+            SET unmapped_fields="load";
+            FROM punk_inner
+            """));
+        // n is mapped in punk_a and only in _source in punk_b. The enclosing LOAD must not load punk_b's n.
+        try (var resp = run("FROM punk_outer | SORT id")) {
+            assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, 10), Arrays.asList(2, null))));
+        }
+    }
+
+    /**
+     * {@code FROM a*} sees index {@code abc} and, once the caller SETs {@code wildcards_match_views}, view {@code a_view}.
+     * {@code a_view}'s {@code FROM b*} sees index {@code bcd} and, only once {@code a_view} itself SETs the flag, view
+     * {@code b_view}. {@code b_view}'s {@code FROM c*} likewise sees {@code c_view} only when {@code b_view} SETs the flag.
+     * Each definition stands alone. esql-planning#2321.
+     */
+    public void testWildcardSettingInsideViewResolvesExactlyOneMoreLevel() {
+        String mapping = """
+            {"dynamic": false, "properties": {"id": {"type": "integer"}}}
+            """;
+        for (String index : List.of("abc", "bcd", "cde")) {
+            assertAcked(indicesAdmin().prepareCreate(index).setMapping(mapping));
+        }
+        prepareIndex("abc").setSource("id", 1).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("bcd").setSource("id", 2).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("cde").setSource("id", 3).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // 1003 is the marker that c_view was resolved. 3 is cde itself.
+        assertAcked(createView("c_view", "FROM cde | EVAL id = id + 1000 | KEEP id"));
+        assertAcked(createView("b_view", "FROM c* | KEEP id"));
+        assertAcked(createView("a_view", "FROM b* | KEEP id"));
+
+        try (var resp = run("FROM a* | KEEP id | SORT id")) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1))));
+        }
+
+        // Outer SET opens a_view. a_view did not opt in, so b* matches bcd (id 2) and not b_view (which would add cde's 3).
+        try (var resp = run("""
+            SET wildcards_match_views=true;
+            FROM a* | KEEP id | SORT id
+            """)) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2))));
+        }
+
+        assertAcked(createView("a_view", """
+            SET wildcards_match_views=true;
+            FROM b* | KEEP id
+            """));
+        // a_view now opens b_view. b_view did not opt in, so c* matches cde (id 3) and not c_view (id 1003).
+        try (var resp = run("""
+            SET wildcards_match_views=true;
+            FROM a* | KEEP id | SORT id
+            """)) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2), List.of(3))));
+        }
+
+        assertAcked(createView("b_view", """
+            SET wildcards_match_views=true;
+            FROM c* | KEEP id
+            """));
+        try (var resp = run("""
+            SET wildcards_match_views=true;
+            FROM a* | KEEP id | SORT id
+            """)) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1), List.of(2), List.of(3), List.of(1003))));
+        }
+
+        // The nested definitions opted in, but the outer query did not, so a_view is not opened.
+        try (var resp = run("FROM a* | KEEP id | SORT id")) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1))));
         }
     }
 

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -117,6 +119,8 @@ public class TestAnalyzer {
     private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
     private boolean stripErrorPrefix;
     private Map<String, String> views = new LinkedHashMap<>();
+    /** Per-view SET settings, populated when the view definitions are parsed; mirrors ViewResolver's collection. */
+    private final Map<String, ViewQuerySettings> viewSettings = new HashMap<>();
     private EsqlFlags flags = EsqlFlags.DEFAULTS;
 
     TestAnalyzer() {}
@@ -694,9 +698,12 @@ public class TestAnalyzer {
     /**
      * Single traversal that interleaves view expansion and IN-subquery rewriting, mirroring {@code ViewResolver#replaceViews}.
      *
-     * @param keepViewIdentity keep every view referenced at this level as a view branch of a {@link BranchPlan}, even a lone one,
-     *                         like {@code ViewResolver} does at the top level of a query under
-     *                         {@code ViewBoundaryPreservation.KEEP_VIEW_IDENTITY}; never inside a view body
+     * @param keepViewIdentity keep every view referenced at this level as a view branch of a {@link BranchPlan}, even a lone one.
+     *                         At the top of a query this mirrors {@code ViewBoundaryPreservation.KEEP_VIEW_IDENTITY}. Inside a
+     *                         view body it is that view's own {@link ViewQuerySettings#requiresViewIdentity()}: a nested view
+     *                         stays a boundary only when the enclosing definition's {@code SET}s need one, so those settings
+     *                         do not leak into it. A nested view whose own definition requires identity keeps it regardless
+     *                         ({@link #resolveViewReference}).
      */
     private LogicalPlan resolveViews(LogicalPlan parsed, Map<String, LogicalPlan> viewDefinitions, boolean keepViewIdentity) {
         return parsed.transformDown(p -> {
@@ -718,14 +725,21 @@ public class TestAnalyzer {
             }
             if (p instanceof UnresolvedRelation ur) {
                 LogicalPlan resolved = resolveViewReference(ur, viewDefinitions, keepViewIdentity);
-                // Recurse into the expanded view body so IN subqueries / nested views anywhere in it (including its root) are resolved.
-                return resolved.equals(ur) ? ur : resolveViews(resolved, viewDefinitions, false);
+                // Recurse into the expanded view body so IN subqueries / nested views anywhere in it (including its root) are
+                // resolved. Each expanded view is its own scope: nested views keep identity only when that view's SETs
+                // require it, never because the caller (or an enclosing view) did.
+                return resolved.equals(ur) ? ur : resolveExpandedViewBodies(resolved, viewDefinitions);
             }
             return p;
         });
     }
 
     private LogicalPlan resolveViewReference(UnresolvedRelation ur, Map<String, LogicalPlan> viewDefinitions, boolean keepViewIdentity) {
+        // A view whose own definition SETs a boundary-scoped setting keeps its identity like a caller-side setting
+        // would make it, whatever this level's flag says; mirrors ViewResolver#resolve.
+        keepViewIdentity = keepViewIdentity
+            || Arrays.stream(ur.indexPattern().indexPattern().split("\\s*\\,\\s*"))
+                .anyMatch(name -> viewSettings.getOrDefault(name, ViewQuerySettings.DEFAULTS).requiresViewIdentity());
         List<LogicalPlan> resolved = Arrays.stream(ur.indexPattern().indexPattern().split("\\s*\\,\\s*")).map(indexPattern -> {
             var view = viewDefinitions.get(indexPattern);
             return view == null
@@ -770,6 +784,41 @@ public class TestAnalyzer {
         }
     }
 
+    /**
+     * Resolves views nested inside one expansion. A {@link BranchPlan} view branch is resolved under that view's own
+     * {@link ViewQuerySettings#requiresViewIdentity()}; an inlined body (a view that did not keep identity) nests with
+     * identity off, which is what a definition without boundary-scoped {@code SET}s means.
+     */
+    private LogicalPlan resolveExpandedViewBodies(LogicalPlan resolved, Map<String, LogicalPlan> viewDefinitions) {
+        if (resolved instanceof BranchPlan branchPlan && hasViewBranch(branchPlan)) {
+            List<LogicalPlan> children = branchPlan.children();
+            List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+            boolean changed = false;
+            for (int i = 0; i < children.size(); i++) {
+                LogicalPlan child = children.get(i);
+                boolean nestedIdentity = false;
+                if (branchPlan.isViewBranch(i)) {
+                    String viewName = branchPlan.branchIdentity(i).name();
+                    nestedIdentity = viewSettings.getOrDefault(viewName, ViewQuerySettings.DEFAULTS).requiresViewIdentity();
+                }
+                LogicalPlan resolvedChild = resolveViews(child, viewDefinitions, nestedIdentity);
+                changed |= resolvedChild != child;
+                newChildren.add(resolvedChild);
+            }
+            return changed ? branchPlan.replaceChildren(newChildren) : branchPlan;
+        }
+        return resolveViews(resolved, viewDefinitions, false);
+    }
+
+    private static boolean hasViewBranch(BranchPlan branchPlan) {
+        for (int i = 0; i < branchPlan.children().size(); i++) {
+            if (branchPlan.isViewBranch(i)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static UnresolvedRelation makeUnresolvedRelation(UnresolvedRelation plan, String indexPattern) {
         return new UnresolvedRelation(
             plan.source(),
@@ -782,17 +831,32 @@ public class TestAnalyzer {
         );
     }
 
-    private static Map<String, LogicalPlan> resolveViews(Map<String, String> views) {
+    private Map<String, LogicalPlan> resolveViews(Map<String, String> views) {
         var parsedViews = new HashMap<String, LogicalPlan>();
         for (Map.Entry<String, String> entry : views.entrySet()) {
             // parseView, not parseQuery: production stamps the view name on every Source in a view body, which e.g.
-            // names the view in errors on references inside its body.
-            parsedViews.put(
-                entry.getKey(),
-                TEST_PARSER.parseView(entry.getValue(), new QueryParams(), new InferenceSettings(Settings.EMPTY), entry.getKey()).plan()
+            // names the view in errors on references inside its body, and validates the definition's own SETs.
+            EsqlStatement statement = TEST_PARSER.parseView(
+                entry.getValue(),
+                new QueryParams(),
+                new InferenceSettings(Settings.EMPTY),
+                entry.getKey()
             );
+            viewSettings.put(entry.getKey(), ViewQuerySettings.from(statement));
+            parsedViews.put(entry.getKey(), statement.plan());
         }
         return parsedViews;
+    }
+
+    /** Per-view SET settings of the definitions added with {@link #addView}, available once a query was resolved. */
+    public Map<String, ViewQuerySettings> viewSettings() {
+        return viewSettings;
+    }
+
+    /** Pre-populates the per-view SET settings, for harnesses that resolved views elsewhere (see GoldenTestCase). */
+    public TestAnalyzer viewSettings(Map<String, ViewQuerySettings> settings) {
+        viewSettings.putAll(settings);
+        return this;
     }
 
     /**
@@ -1026,6 +1090,9 @@ public class TestAnalyzer {
      * Prefer {@link #query} or {@link #error} if possible.
      */
     public AnalyzerContext buildContext() {
+        // Parse view definitions before snapshotting viewSettings: statement() builds the analyzer before it resolves
+        // the query, and a view's own SET has to be visible to ResolveUnmapped and to preserveViewBoundaries.
+        resolveViews(views);
         return new AnalyzerContext(
             configuration,
             functionRegistry,
@@ -1043,7 +1110,8 @@ public class TestAnalyzer {
             timestampBounds,
             TEST_IP_LOCATION_RESOLUTION,
             // preserveViewBoundaries, as EsqlSession derives it: view branches must survive compaction for ResolveUnmapped.
-            ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution),
+            ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution, viewSettings),
+            Map.copyOf(viewSettings),
             flags
         );
     }

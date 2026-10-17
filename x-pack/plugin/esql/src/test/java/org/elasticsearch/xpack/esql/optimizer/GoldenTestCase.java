@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
@@ -748,6 +749,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             // SORT inside an IN subquery) fire. When the query references views, register them and run the iterative
             // view/IN-subquery resolution; otherwise resolve IN subqueries only.
             LogicalPlan parsedPlan;
+            Map<String, ViewQuerySettings> viewSettings = Map.of();
             if (views.isEmpty()) {
                 parsedPlan = InSubqueryResolver.resolve(statement.plan());
             } else {
@@ -757,6 +759,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS));
                 views.forEach(viewAnalyzer::addView);
                 parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(statement.plan());
+                viewSettings = viewAnalyzer.viewSettings();
             }
             // Then turn FROM <dataset> targets into UnresolvedExternalRelation, exactly as EsqlSession does. A
             // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
@@ -772,7 +775,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 parsedPlan,
                 datasetMetadata,
                 TestIndexNameExpressionResolver.newInstance(),
-                statement.setting(WILDCARDS_MATCH_DATASETS)
+                statement.setting(WILDCARDS_MATCH_DATASETS),
+                viewSettings
             );
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
@@ -793,7 +797,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .minimumTransportVersion(transportVersion)
                 .externalSourceResolution(externalSourceResolution)
                 .unmappedResolution(unmappedResolution)
-                .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS));
+                .wildcardsMatchDatasets(statement.setting(WILDCARDS_MATCH_DATASETS))
+                .viewSettings(viewSettings);
             boolean trackUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
             loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
                 (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)

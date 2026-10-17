@@ -871,6 +871,50 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 """), allOf(containsString("in view [emp_lang_view]"), containsString("Unknown column [does_not_exist]")));
     }
 
+    // The view's own SET unmapped_fields applies to that definition alone. The caller set nothing.
+    public void testLoadSetInsideViewDefinitionResolvesReferenceInThatBody() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("load_view", """
+            SET unmapped_fields="load";
+            FROM test | KEEP emp_no, does_not_exist
+            """).statement("FROM load_view");
+        assertThat(plan.resolved(), is(true));
+    }
+
+    // A nested view does not inherit the enclosing view's SET. The reference lives in the nested definition, which
+    // did not opt in, so it fails exactly as it would with no setting anywhere.
+    public void testLoadSetInsideViewDoesNotResolveReferenceInsideNestedView() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        test().addView("inner_view", "FROM test | KEEP emp_no, does_not_exist")
+            .addView("outer_view", """
+                SET unmapped_fields="load";
+                FROM inner_view
+                """)
+            .statementError(
+                "FROM outer_view",
+                allOf(containsString("in view [inner_view]"), containsString("Unknown column [does_not_exist]"))
+            );
+    }
+
+    // The nested view opted in itself. The enclosing view did not, and does not have to: each definition stands alone.
+    public void testLoadSetInsideNestedViewResolvesEvenWhenEnclosingViewDoesNot() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("inner_view", """
+            SET unmapped_fields="load";
+            FROM test | KEEP emp_no, does_not_exist
+            """).addView("outer_view", "FROM inner_view").statement("FROM outer_view");
+        assertThat(plan.resolved(), is(true));
+    }
+
+    public void testNullifySetInsideViewDefinitionResolvesReferenceInThatBody() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = test().addView("null_view", """
+            SET unmapped_fields="nullify";
+            FROM test | KEEP emp_no, does_not_exist
+            """).statement("FROM null_view");
+        assertThat(plan.resolved(), is(true));
+    }
+
     public void testLoadModeDisallowsCrossBranchTypeConflict() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().addLanguages().statementError(setUnmappedLoad("""

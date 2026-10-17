@@ -33,7 +33,9 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalVerifier;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -63,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -656,6 +659,60 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // (this test), no view matches `*:view1` (remote pattern), so the relation is returned unchanged.
         // In CPS mode the resolver would create a REQUIRED shadow for the linked-project lookup.
         assertThat(replaceViews(query("FROM *:view1"), false), matchesPlan(query("FROM *:view1")));
+    }
+
+    /**
+     * A wildcard matches views one level at a time. The outer query's {@code wildcards_match_views} resolves the first
+     * view; that view's own {@code SET} resolves the next; a definition without the {@code SET} stops there, whatever
+     * the level above it asked for. Mirrors esql-planning#2321.
+     */
+    public void testWildcardsMatchViewsInsideViewDefinitionsResolveOneMoreLevel() {
+        addIndex("abc");
+        addIndex("bcd");
+        addIndex("cde");
+        addIndex("c_only");
+        addView("c_view", "FROM c_only");
+        addView("b_view", "FROM c*");
+        addView("a_view", "FROM b*");
+
+        // No SET anywhere: the outer wildcard matches the index pattern only, not a_view.
+        assertThat(relationPatterns(replaceViews(query("FROM a*"), false)), equalTo(Set.of("a*")));
+        // An exact name still resolves the view, and that view's body still does not match further views.
+        assertThat(relationPatterns(replaceViews(query("FROM a_view"), false)), equalTo(Set.of("b*")));
+
+        // The outer SET resolves a_view. a_view did not SET the flag, so b* matches the index pattern and not b_view.
+        assertThat(relationPatterns(replaceViews(query("FROM a*"), true)), equalTo(Set.of("a*", "b*")));
+
+        // a_view opts in. b* now matches b_view, whose own body (no SET) matches c* and not c_view.
+        addView("a_view", "SET wildcards_match_views=true; FROM b*");
+        assertThat(relationPatterns(replaceViews(query("FROM a*"), true)), equalTo(Set.of("a*", "b*", "c*")));
+        // The outer SET is what opened a_view. Turning it off hides a_view again, even though a_view itself opted in.
+        assertThat(relationPatterns(replaceViews(query("FROM a*"), false)), equalTo(Set.of("a*")));
+
+        // b_view opts in too, so c* matches c_view and contributes c_only. Each definition stands alone.
+        addView("b_view", "SET wildcards_match_views=true; FROM c*");
+        assertThat(relationPatterns(replaceViews(query("FROM a*"), true)), equalTo(Set.of("a*", "b*", "c*", "c_only")));
+    }
+
+    public void testViewDefinitionAllowsOnlyBoundaryScopedSettings() {
+        ParsingException rejected = expectThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseView("SET time_zone=\"UTC\"; FROM idx", queryParams, EMPTY_INFERENCE_SETTINGS, "v")
+        );
+        assertThat(rejected.getMessage(), containsString("SET [time_zone] is not allowed in views"));
+        assertThat(rejected.getMessage(), containsString("unmapped_fields"));
+
+        ParsingException loadAll = expectThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseView("SET unmapped_fields=\"LOAD_ALL\"; FROM idx", queryParams, EMPTY_INFERENCE_SETTINGS, "v")
+        );
+        assertThat(loadAll.getMessage(), containsString("not supported in views"));
+
+        TEST_PARSER.parseView("SET unmapped_fields=\"load\"; FROM idx", queryParams, EMPTY_INFERENCE_SETTINGS, "v");
+        TEST_PARSER.parseView("SET unmapped_fields=\"nullify\"; FROM idx", queryParams, EMPTY_INFERENCE_SETTINGS, "v");
+        TEST_PARSER.parseView("SET wildcards_match_views=true; FROM idx", queryParams, EMPTY_INFERENCE_SETTINGS, "v");
+        TEST_PARSER.parseView("SET wildcards_match_datasets=false; FROM idx", queryParams, EMPTY_INFERENCE_SETTINGS, "v");
+        TEST_PARSER.parseView("FROM idx", queryParams, EMPTY_INFERENCE_SETTINGS, "v");
     }
 
     public void testMixedViewAndIndexMergedUnresolvedRelation() {
@@ -2998,6 +3055,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private static final ViewCompaction COMPACTION = new ViewCompaction();
 
+    /** Every index-pattern token named by an {@link UnresolvedRelation} in {@code plan}. */
+    private static Set<String> relationPatterns(LogicalPlan plan) {
+        Set<String> patterns = new HashSet<>();
+        plan.forEachDown(UnresolvedRelation.class, ur -> {
+            for (String pattern : ur.indexPattern().indexPattern().split(",")) {
+                patterns.add(pattern.trim());
+            }
+        });
+        return patterns;
+    }
+
     private void addIndex(String name) {
         viewService.addIndex(projectId, name);
     }
@@ -3047,8 +3115,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
-    private LogicalPlan parse(String query, String viewName) {
-        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName).plan();
+    private EsqlStatement parse(String query, String viewName) {
+        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName);
     }
 
     /**

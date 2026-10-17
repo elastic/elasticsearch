@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -52,6 +53,8 @@ public class AnalyzerContext {
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
     private final boolean preserveViewBoundaries;
+    /** Per-view SET settings from each resolved view's definition, keyed by view name; see {@link ViewQuerySettings}. */
+    private final Map<String, ViewQuerySettings> viewSettings;
     private final EsqlFlags flags;
 
     public AnalyzerContext(
@@ -71,6 +74,7 @@ public class AnalyzerContext {
         @Nullable TimestampBounds timestampBounds,
         IpLocationResolution ipLocationResolution,
         boolean preserveViewBoundaries,
+        Map<String, ViewQuerySettings> viewSettings,
         EsqlFlags flags
     ) {
         this.configuration = configuration;
@@ -89,6 +93,7 @@ public class AnalyzerContext {
         this.timestampBounds = timestampBounds;
         this.ipLocationResolution = ipLocationResolution;
         this.preserveViewBoundaries = preserveViewBoundaries;
+        this.viewSettings = viewSettings;
         this.flags = flags;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
@@ -127,6 +132,7 @@ public class AnalyzerContext {
             null,
             IpLocationResolution.SERVICE_UNAVAILABLE,
             false,
+            Map.of(),
             EsqlFlags.DEFAULTS
         );
     }
@@ -187,6 +193,11 @@ public class AnalyzerContext {
 
     public UnmappedResolution unmappedResolution() {
         return unmappedResolution;
+    }
+
+    /** Per-view SET settings from each resolved view's definition, keyed by view name. */
+    public Map<String, ViewQuerySettings> viewSettings() {
+        return viewSettings;
     }
 
     /**
@@ -290,6 +301,7 @@ public class AnalyzerContext {
         @Nullable TimestampBounds timestampBounds,
         IpLocationResolution ipLocationResolution,
         boolean preserveViewBoundaries,
+        Map<String, ViewQuerySettings> viewSettings,
         EsqlFlags flags
     ) {
         this(
@@ -309,6 +321,7 @@ public class AnalyzerContext {
             timestampBounds,
             ipLocationResolution,
             preserveViewBoundaries,
+            viewSettings,
             flags
         );
     }

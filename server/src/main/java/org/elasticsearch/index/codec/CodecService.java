@@ -41,6 +41,15 @@ public class CodecService implements CodecProvider {
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
+        this(mapperService, bigArrays, threadPool, SegmentStatsCollectors.NONE);
+    }
+
+    public CodecService(
+        @Nullable MapperService mapperService,
+        BigArrays bigArrays,
+        @Nullable ThreadPool threadPool,
+        SegmentStatsCollectors segmentStatsCollectors
+    ) {
         final var codecs = new HashMap<String, Codec>();
 
         var bestSpeedCodec = new PerFieldMapperCodec(
@@ -49,7 +58,8 @@ public class CodecService implements CodecProvider {
             ElasticsearchStoredFieldsFormat.Mode.LUCENE,
             mapperService,
             bigArrays,
-            threadPool
+            threadPool,
+            segmentStatsCollectors
         );
         codecs.put(DEFAULT_CODEC, bestSpeedCodec);
         // We can't remove this now
@@ -64,7 +74,8 @@ public class CodecService implements CodecProvider {
             ElasticsearchStoredFieldsFormat.Mode.LUCENE,
             mapperService,
             bigArrays,
-            threadPool
+            threadPool,
+            segmentStatsCollectors
         );
         codecs.put(BEST_COMPRESSION_CODEC, bestCompressionCodec);
         Codec legacyBestCompressionCodec = new PerFieldMapperCodec(
@@ -73,7 +84,8 @@ public class CodecService implements CodecProvider {
             ElasticsearchStoredFieldsFormat.Mode.LUCENE,
             mapperService,
             bigArrays,
-            threadPool
+            threadPool,
+            segmentStatsCollectors
         );
         codecs.put(LEGACY_BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
 

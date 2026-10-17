@@ -27,6 +27,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.SegmentStatsCollectors;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -37,7 +38,8 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 
 /**
- * Fork of {@link PerFieldDocValuesFormat} to allow access FieldsReader's fields field, otherwise no changes.
+ * Fork of {@link PerFieldDocValuesFormat} to allow access FieldsReader's fields field. Additionally, the writer notifies the
+ * {@link SegmentStatsCollectors} of the index before handing a field's doc values to the format that writes them.
  */
 public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
     /** Name of this {@link DocValuesFormat}. */
@@ -76,6 +78,7 @@ public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
         private final Map<String, Integer> suffixes = new HashMap<>();
 
         private final SegmentWriteState segmentWriteState;
+        private SegmentStatsCollectors segmentStatsCollectors;
 
         FieldsWriter(SegmentWriteState state) {
             segmentWriteState = state;
@@ -83,27 +86,43 @@ public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
 
         @Override
         public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
+            notifySegmentStatsCollector(field, valuesProducer);
             getInstance(field).addNumericField(field, valuesProducer);
         }
 
         @Override
         public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
+            notifySegmentStatsCollector(field, valuesProducer);
             getInstance(field).addBinaryField(field, valuesProducer);
         }
 
         @Override
         public void addSortedField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
+            notifySegmentStatsCollector(field, valuesProducer);
             getInstance(field).addSortedField(field, valuesProducer);
         }
 
         @Override
         public void addSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
+            notifySegmentStatsCollector(field, valuesProducer);
             getInstance(field).addSortedNumericField(field, valuesProducer);
         }
 
         @Override
         public void addSortedSetField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
+            notifySegmentStatsCollector(field, valuesProducer);
             getInstance(field).addSortedSetField(field, valuesProducer);
+        }
+
+        private void notifySegmentStatsCollector(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
+            // skip doc values updates, notify SegmentStatsCollectors only of newly flushed segments
+            if (field.getDocValuesGen() != -1) {
+                return;
+            }
+            if (segmentStatsCollectors == null) {
+                segmentStatsCollectors = getSegmentStatsCollectors();
+            }
+            segmentStatsCollectors.onFlush(segmentWriteState.segmentInfo, field, valuesProducer);
         }
 
         @Override
@@ -369,4 +388,12 @@ public abstract class XPerFieldDocValuesFormat extends DocValuesFormat {
      * writing, not when reading.
      */
     public abstract DocValuesFormat getDocValuesFormatForField(String field);
+
+    /**
+     * Returns the {@link SegmentStatsCollectors} that apply to the index and observe doc values as segments are written.
+     * Called once per segment written. The default implementation returns {@link SegmentStatsCollectors#NONE}.
+     */
+    public SegmentStatsCollectors getSegmentStatsCollectors() {
+        return SegmentStatsCollectors.NONE;
+    }
 }

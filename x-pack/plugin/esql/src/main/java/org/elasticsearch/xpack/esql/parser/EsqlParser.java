@@ -173,10 +173,6 @@ public class EsqlParser {
      * so they can be correctly deserialized when the view positions exceed the outer query's length.
      * SET statements are not allowed in view bodies and are rejected with a {@link ParsingException}.
      */
-    public EsqlStatement parseView(String query, QueryParams params, InferenceSettings inferenceSettings, String viewName) {
-        return parseView(query, params, inferenceSettings, viewName, DEFAULT_MAX_COMMAND_COUNT);
-    }
-
     public EsqlStatement parseView(
         String query,
         QueryParams params,

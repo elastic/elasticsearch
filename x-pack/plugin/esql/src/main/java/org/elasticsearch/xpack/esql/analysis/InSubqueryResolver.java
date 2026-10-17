@@ -189,6 +189,9 @@ public class InSubqueryResolver {
         Expression condition = filter.condition();
 
         List<Expression> conjuncts = Predicates.splitAnd(condition);
+        if (conjuncts.stream().allMatch(InSubqueryResolver::isSemiOrAntiJoinConjunct)) {
+            planSize.add(-1);
+        }
 
         List<Expression> remaining = new ArrayList<>();
         // Joins applied AFTER the remaining filter. SemiJoin/AntiJoin filter out rows that don't
@@ -466,6 +469,24 @@ public class InSubqueryResolver {
                     return true;
                 }
             }
+        }
+        return false;
+    }
+
+    /**
+     * Whether {@link #tryResolveAsSemiOrAntiJoin} will turn {@code conjunct} into a {@link SemiJoin} / {@link AntiJoin}. When every
+     * conjunct of a {@link Filter} does, nothing is left to filter and the {@link Filter} node is dropped.
+     */
+    private static boolean isSemiOrAntiJoinConjunct(Expression conjunct) {
+        Expression expr = conjunct;
+        while (expr instanceof Not not) {
+            expr = not.field();
+        }
+        if (expr instanceof InSubquery inSubquery) {
+            return inSubquery.value() instanceof Attribute || inSubquery.value().foldable();
+        }
+        if (expr instanceof MultiColumnInSubquery mcs) {
+            return mcs.values().stream().allMatch(value -> value instanceof Attribute || value.foldable());
         }
         return false;
     }

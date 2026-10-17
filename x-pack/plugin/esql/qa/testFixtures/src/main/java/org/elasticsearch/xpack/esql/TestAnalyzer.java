@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -797,7 +798,13 @@ public class TestAnalyzer {
             // names the view in errors on references inside its body.
             parsedViews.put(
                 entry.getKey(),
-                TEST_PARSER.parseView(entry.getValue(), new QueryParams(), new InferenceSettings(Settings.EMPTY), entry.getKey()).plan()
+                TEST_PARSER.parseView(
+                    entry.getValue(),
+                    new QueryParams(),
+                    new InferenceSettings(Settings.EMPTY),
+                    entry.getKey(),
+                    ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
+                ).plan()
             );
         }
         return parsedViews;

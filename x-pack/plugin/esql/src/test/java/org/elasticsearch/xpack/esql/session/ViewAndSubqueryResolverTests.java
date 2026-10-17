@@ -806,7 +806,8 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan parse(String query, String viewName) {
-        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName).plan();
+        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName, ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT)
+            .plan();
     }
 
     private void addView(String name, String query) {

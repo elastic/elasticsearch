@@ -518,15 +518,17 @@ public class EsqlSession {
         )) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_IDENTITY;
         }
+        int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
         viewResolver.replaceViews(
             parsedPlan,
             QuerySettings.PROJECT_ROUTING.get(resolved),
             QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved),
             (query, viewName) -> planningCpu.meteredCpu(
-                () -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName).plan()
+                () -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName, maxCommandCount).plan()
             ),
             boundaryPreservation,
+            maxCommandCount,
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());

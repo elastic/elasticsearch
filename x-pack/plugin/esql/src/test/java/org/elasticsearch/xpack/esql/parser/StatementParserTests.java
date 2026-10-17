@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -1472,9 +1473,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEqualsIgnoringIds(new Explain(EMPTY, PROCESSING_CMD_INPUT), query("explain ( row a = 1 )"));
     }
 
-    public void testMaxSubqueryDepth() {
+    private final int DEFAULT_MAX_COMMAND_COUNT = EsqlFlags.ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
+
+    public void testDeepSubqueryFailsMaxCommandCount() {
         assumeTrue("Requires subqueries in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        String pipes = " | where a > 0".repeat(LogicalPlanBuilder.MAX_QUERY_DEPTH);
+        String pipes = " | where a > 0".repeat(DEFAULT_MAX_COMMAND_COUNT);
         query("from foo, (from bar" + pipes + ")");
         expectThrows(
             ParsingException.class,
@@ -1483,9 +1486,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testMaxQuerySizeIsSharedAcrossSubqueries() {
-        String pipes = " | where a > 0".repeat(LogicalPlanBuilder.MAX_QUERY_DEPTH / 2);
-        // each subquery and the main query are within the depth limit, together they add up to the size limit
+    public void testMaxCommandCountIsSharedAcrossSubqueries() {
+        String pipes = " | where a > 0".repeat(DEFAULT_MAX_COMMAND_COUNT / 2);
         query("from foo, (from bar" + pipes + "), (from baz" + pipes + ")");
         query("from foo, (from bar" + pipes + ")" + pipes);
         expectThrows(
@@ -1500,7 +1502,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testMaxQuerySizeIsConfigurable() {
+    public void testMaxCommandCountIsConfigurable() {
         String query = "from foo, (from bar" + " | where a > 0".repeat(3) + ")" + " | where a > 0".repeat(2);
         TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 5);
         expectThrows(

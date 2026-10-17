@@ -26,7 +26,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.junit.After;
@@ -237,7 +236,6 @@ public class ViewServiceTests extends ESTestCase {
      * A PUT request carries no pragmas, so the cluster setting is the only source of the command limit when a view is validated.
      */
     public void testPutViewValidatesAgainstConfiguredCommandLimit() {
-        assumeTrue("Requires subqueries in FROM", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         int defaultLimit = EsqlFlags.ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
         // Each pipeline stays below the per-pipeline depth limit, only their sum exceeds the command limit.
         String pipes = " | WHERE a > 0".repeat(defaultLimit / 2 + 1);

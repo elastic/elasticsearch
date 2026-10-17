@@ -44,6 +44,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
@@ -1068,19 +1069,51 @@ public class ObjectMapper extends Mapper {
         boolean isFragment,
         boolean columnarStored
     ) {
+        return syntheticFieldLoader(filter, mappers, isFragment, columnarStored, null);
+    }
+
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+        SourceFilter filter,
+        Collection<Mapper> mappers,
+        boolean isFragment,
+        boolean columnarStored,
+        @Nullable Predicate<String> leafFieldPredicate
+    ) {
         var fields = mappers.stream()
             .sorted(Comparator.comparing(Mapper::fullPath))
-            .map(m -> innerSyntheticFieldLoader(filter, m))
+            .map(m -> innerSyntheticFieldLoader(filter, m, leafFieldPredicate))
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
             .toArray(SourceLoader.SyntheticFieldLoader[]::new);
         return new SyntheticSourceFieldLoader(filter, fields, isFragment, columnarStored);
     }
 
     final SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
-        return syntheticFieldLoader(filter, mappers.values(), false, false);
+        return syntheticFieldLoader(filter, (Predicate<String>) null);
     }
 
-    private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper) {
+    /**
+     * Like {@link #syntheticFieldLoader(SourceFilter)}, but builds no loader for the regular (non-metadata) field mappers whose
+     * {@link Mapper#fullPath()} fails {@code leafFieldPredicate}. Callers that know which Lucene fields their documents can contain
+     * (e.g. the columnar batch path, where the column set is fixed for a whole batch) use it to skip the per-document
+     * {@code advanceToDoc}/{@code prepare}/{@code write} walk over field loaders that can never load a value. Unlike a
+     * {@link SourceFilter}, the predicate only prunes loader construction: object-level loaders — which also merge the
+     * {@code _ignored_source} entries of fallback fields — and metadata field loaders are always kept, so values that do not flow
+     * through a leaf field loader are unaffected.
+     *
+     * @param leafFieldPredicate returns {@code false} for field paths that cannot have a value; {@code null} keeps every loader
+     */
+    final SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+        @Nullable SourceFilter filter,
+        @Nullable Predicate<String> leafFieldPredicate
+    ) {
+        return syntheticFieldLoader(filter, mappers.values(), false, false, leafFieldPredicate);
+    }
+
+    private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(
+        SourceFilter filter,
+        Mapper mapper,
+        @Nullable Predicate<String> leafFieldPredicate
+    ) {
         // We always need the ignored source to load other fields
         if (mapper instanceof IgnoredSourceFieldMapper ignoredSourceMapper) {
             return ignoredSourceMapper.syntheticFieldLoader();
@@ -1093,10 +1126,17 @@ public class ObjectMapper extends Mapper {
         if (mapper instanceof ObjectMapper objectMapper) {
             // columnarStored is not propagated: the single-blob shortcut in write() is guarded by isRoot(),
             // which is only true for RootObjectMapper, never for child object mappers.
-            return objectMapper.syntheticFieldLoader(filter);
+            return objectMapper.syntheticFieldLoader(filter, leafFieldPredicate);
         }
 
         if (mapper instanceof FieldMapper fieldMapper) {
+            // Only regular field mappers are pruned: metadata mappers read fields that do not carry the mapper's path (and are few),
+            // and values of fallback fields flow through the object-level ignored-source merge rather than their own loader.
+            if (leafFieldPredicate != null
+                && mapper instanceof MetadataFieldMapper == false
+                && leafFieldPredicate.test(fieldMapper.fullPath()) == false) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING;
+            }
             return fieldMapper.syntheticFieldLoader();
         }
         return SourceLoader.SyntheticFieldLoader.NOTHING;

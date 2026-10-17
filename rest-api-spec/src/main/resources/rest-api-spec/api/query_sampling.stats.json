@@ -1,0 +1,38 @@
+{
+  "query_sampling.stats": {
+    "documentation": {
+      "url": null,
+      "description": "Get the query sampling stats of the selected nodes"
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.query_sampling_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_sampling/stats",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/_query_sampling/stats/{node_id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "node_id": {
+              "type": "list",
+              "description": "A comma-separated list of node IDs or names to limit the returned information"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

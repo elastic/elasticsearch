@@ -1,0 +1,33 @@
+{
+  "query_sampling.ground_truth": {
+    "documentation": {
+      "url": null,
+      "description": "Compute the ground truth of the stored sampled queries that do not have it"
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.query_sampling_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_sampling/ground_truth",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "max": {
+        "type": "number",
+        "description": "The most queries to compute the ground truth of",
+        "default": 100
+      }
+    }
+  }
+}

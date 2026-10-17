@@ -1,0 +1,33 @@
+{
+  "query_sampling.golden_update": {
+    "documentation": {
+      "url": null,
+      "description": "Bring the golden dataset up to date by a version: add the stored sampled queries that are not in it and compute again the ground truth of the queries whose data changed"
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.query_sampling_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_sampling/golden/update",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "max": {
+        "type": "number",
+        "description": "The most queries of the version that is made",
+        "default": 1000
+      }
+    }
+  }
+}

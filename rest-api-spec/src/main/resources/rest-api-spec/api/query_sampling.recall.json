@@ -1,0 +1,38 @@
+{
+  "query_sampling.recall": {
+    "documentation": {
+      "url": null,
+      "description": "Estimate the recall of the search from the stored sampled queries whose ground truth is known"
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.query_sampling_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query_sampling/recall",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "max": {
+        "type": "number",
+        "description": "The most queries to estimate from, the most recently picked ones if there are more",
+        "default": 10000
+      },
+      "include_samples": {
+        "type": "boolean",
+        "description": "Whether to also return what each of the queries contributed to the estimate",
+        "default": false
+      }
+    }
+  }
+}

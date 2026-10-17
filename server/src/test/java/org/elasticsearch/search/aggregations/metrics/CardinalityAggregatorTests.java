@@ -18,13 +18,18 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -32,6 +37,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -43,6 +49,10 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -55,30 +65,38 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class CardinalityAggregatorTests extends AggregatorTestCase {
 
@@ -1075,6 +1093,282 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             },
             mappedFieldTypes
         );
+    }
+
+    /**
+     * A query that matches no documents on a high-cardinality keyword field. Each execution mode must report a
+     * cardinality of zero, and the memory the aggregator takes from the request breaker while the query runs must
+     * not grow with the number of ordinals in the segment.
+     */
+    public void testQueryMatchesNoDocsHighCardinalityKeyword() throws IOException {
+        final int numValues = 50_000;
+        final MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("str_value");
+        final Query query = new TermQuery(new Term("other", "missing"));
+        final CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < numValues; i++) {
+                final String value = Integer.toString(i);
+                iw.addDocument(
+                    List.of(
+                        new StringField("other", "present", Field.Store.NO),
+                        new StringField("str_value", value, Field.Store.NO),
+                        new SortedDocValuesField("str_value", new BytesRef(value))
+                    )
+                );
+            }
+            iw.forceMerge(1);
+        };
+        withIndex(buildIndex, reader -> {
+            assertEquals(1, reader.leaves().size());
+            // The default execution mode picks segment ordinals for a field with this many distinct values.
+            assertNoOrdinalSizedAllocation(
+                new CardinalityAggregationBuilder("name").field("str_value"),
+                query,
+                reader,
+                numValues,
+                CardinalityAggregator.class,
+                debug -> assertMap(
+                    debug,
+                    matchesMap().entry("ordinals_collectors_used", 1)
+                        .entry("empty_collectors_used", 0)
+                        .entry("string_hashing_collectors_used", 0)
+                        .entry("ordinals_collectors_overhead_too_high", 0)
+                        .entry("numeric_collectors_used", 0)
+                ),
+                fieldType
+            );
+            final CardinalityAggregationBuilder segmentOrdinals = new CardinalityAggregationBuilder("name").field("str_value");
+            segmentOrdinals.executionHint("segment_ordinals");
+            assertNoOrdinalSizedAllocation(
+                segmentOrdinals,
+                query,
+                reader,
+                numValues,
+                CardinalityAggregator.class,
+                debug -> assertMap(debug, matchesMap().extraOk().entry("ordinals_collectors_used", 1)),
+                fieldType
+            );
+            final CardinalityAggregationBuilder globalOrdinals = new CardinalityAggregationBuilder("name").field("str_value");
+            globalOrdinals.executionHint("global_ordinals");
+            assertNoOrdinalSizedAllocation(
+                globalOrdinals,
+                query,
+                reader,
+                numValues,
+                GlobalOrdCardinalityAggregator.class,
+                debug -> assertMap(
+                    debug,
+                    matchesMap().entry("dynamic_pruning_attempted", 0)
+                        .entry("dynamic_pruning_used", 0)
+                        .entry("brute_force_used", 1)
+                        .entry("skipped_due_to_no_data", 0)
+                ),
+                fieldType
+            );
+        });
+        testAggregation(new CardinalityAggregationBuilder("name").field("str_value"), query, buildIndex, card -> {
+            assertEquals(0, card.getValue(), 0);
+            assertFalse(AggregationInspectionHelper.hasValue(card));
+        }, fieldType);
+    }
+
+    /**
+     * A query that matches no documents on a low-cardinality indexed keyword field. Global ordinals with dynamic
+     * pruning are used, which creates the bitset for the top-level bucket when the leaf collector is built.
+     */
+    public void testQueryMatchesNoDocsLowCardinalityKeyword() throws IOException {
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value");
+        final MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("str_value");
+        final Query query = new TermQuery(new Term("other", "missing"));
+        final CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < 500; i++) {
+                final String value = Integer.toString(i);
+                iw.addDocument(
+                    List.of(
+                        new StringField("other", "present", Field.Store.NO),
+                        new StringField("str_value", value, Field.Store.NO),
+                        new SortedDocValuesField("str_value", new BytesRef(value))
+                    )
+                );
+            }
+        };
+
+        testAggregation(aggregationBuilder, query, buildIndex, card -> {
+            assertEquals(0, card.getValue(), 0);
+            assertFalse(AggregationInspectionHelper.hasValue(card));
+        }, fieldType);
+
+        aggregationBuilder.executionHint(null);
+        debugTestCase(
+            aggregationBuilder,
+            query,
+            buildIndex,
+            (InternalCardinality card, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertEquals(0, card.getValue(), 0);
+                assertEquals(GlobalOrdCardinalityAggregator.class, impl);
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("dynamic_pruning_used", greaterThanOrEqualTo(0))
+                            .entry("dynamic_pruning_attempted", greaterThanOrEqualTo(1))
+                            .entry("skipped_due_to_no_data", 0)
+                            .entry("brute_force_used", 0)
+                    )
+                );
+            },
+            fieldType
+        );
+    }
+
+    /**
+     * A cardinality aggregation below a {@code filter} aggregation, with a top-level query that matches no
+     * documents, in every execution mode.
+     */
+    public void testQueryMatchesNoDocsAsSubAggregation() throws IOException {
+        final MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("str_value");
+        final Query query = new TermQuery(new Term("other", "missing"));
+        final CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < 200; i++) {
+                final String value = Integer.toString(i);
+                iw.addDocument(
+                    List.of(
+                        new StringField("other", "present", Field.Store.NO),
+                        new StringField("str_value", value, Field.Store.NO),
+                        new SortedDocValuesField("str_value", new BytesRef(value))
+                    )
+                );
+            }
+        };
+        final List<String> executionHints = new ArrayList<>();
+        executionHints.add(null);
+        for (CardinalityAggregatorFactory.ExecutionMode mode : CardinalityAggregatorFactory.ExecutionMode.values()) {
+            executionHints.add(mode.toString().toLowerCase(Locale.ROOT));
+        }
+        for (String executionHint : executionHints) {
+            final CardinalityAggregationBuilder cardinalityBuilder = new CardinalityAggregationBuilder("cardinality").field("str_value");
+            cardinalityBuilder.executionHint(executionHint);
+            final AggregationBuilder aggregationBuilder = new FilterAggregationBuilder("filter", new MatchAllQueryBuilder()).subAggregation(
+                cardinalityBuilder
+            );
+            testCase(buildIndex, (InternalFilter filter) -> {
+                assertEquals(0, filter.getDocCount());
+                final InternalCardinality cardinality = filter.getAggregations().get("cardinality");
+                assertEquals(0, cardinality.getValue());
+                assertFalse(AggregationInspectionHelper.hasValue(cardinality));
+            }, new AggTestConfig(aggregationBuilder, fieldType).withQuery(query));
+        }
+    }
+
+    /**
+     * Runs {@code aggregationBuilder} as a single aggregator over {@code reader} and checks that the bytes it takes
+     * from the request breaker while the query runs stay well below one {@code long} per ordinal.
+     */
+    private void assertNoOrdinalSizedAllocation(
+        CardinalityAggregationBuilder aggregationBuilder,
+        Query query,
+        IndexReader reader,
+        int maxOrd,
+        Class<? extends Aggregator> expectedImpl,
+        Consumer<Map<String, Object>> verifyDebug,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        final PeakTrackingBreaker breaker = new PeakTrackingBreaker();
+        final AggregationContext context = createAggregationContext(
+            reader,
+            createIndexSettings(),
+            query,
+            breaker.service(),
+            aggregationBuilder.bytesToPreallocate(),
+            DEFAULT_MAX_BUCKETS,
+            false,
+            false,
+            fieldTypes
+        );
+        try {
+            final Aggregator aggregator = createAggregator(aggregationBuilder, context);
+            assertEquals(expectedImpl, aggregator.getClass());
+            aggregator.preCollection();
+            final long usedBeforeSearch = breaker.resetPeak();
+            context.searcher().search(context.query(), new CollectorManager<Collector, Void>() {
+                @Override
+                public Collector newCollector() {
+                    return aggregator.asCollector();
+                }
+
+                @Override
+                public Void reduce(Collection<Collector> collectors) {
+                    return null;
+                }
+            });
+            assertThat(breaker.peak() - usedBeforeSearch, lessThan((long) maxOrd * Long.BYTES / 4));
+            final InternalCardinality result = (InternalCardinality) aggregator.buildTopLevel();
+            assertEquals(0, result.getValue());
+            final Map<String, Object> debug = new HashMap<>();
+            aggregator.collectDebugInfo(debug::put);
+            verifyDebug.accept(debug);
+        } finally {
+            Releasables.close(context);
+        }
+    }
+
+    /**
+     * A request breaker that never trips and records the highest number of bytes it held at once.
+     */
+    private static class PeakTrackingBreaker extends NoopCircuitBreaker {
+        private final AtomicLong used = new AtomicLong();
+        private final AtomicLong peak = new AtomicLong();
+
+        PeakTrackingBreaker() {
+            super(CircuitBreaker.REQUEST);
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            addWithoutBreaking(bytes);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            final long total = used.addAndGet(bytes);
+            peak.accumulateAndGet(total, Math::max);
+        }
+
+        @Override
+        public long getUsed() {
+            return used.get();
+        }
+
+        /**
+         * Sets the peak to the current usage and returns that usage.
+         */
+        long resetPeak() {
+            final long current = used.get();
+            peak.set(current);
+            return current;
+        }
+
+        long peak() {
+            return peak.get();
+        }
+
+        CircuitBreakerService service() {
+            return new CircuitBreakerService() {
+                @Override
+                public CircuitBreaker getBreaker(String name) {
+                    return CircuitBreaker.REQUEST.equals(name) ? PeakTrackingBreaker.this : NoopCircuitBreaker.INSTANCE;
+                }
+
+                @Override
+                public AllCircuitBreakerStats stats() {
+                    return null;
+                }
+
+                @Override
+                public CircuitBreakerStats stats(String name) {
+                    return null;
+                }
+            };
+        }
     }
 
     private void testAggregation(

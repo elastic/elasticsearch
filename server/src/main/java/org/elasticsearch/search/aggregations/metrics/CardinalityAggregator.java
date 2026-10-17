@@ -323,6 +323,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         @Override
         public void postCollect() throws IOException {
+            if (anyBucketCollected() == false) {
+                // No collected document in this segment had a value for the field, so there is nothing to hash. Returning here
+                // keeps the cost of a segment without matches independent of the segment's number of ordinals.
+                return;
+            }
             try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
                 for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                     final BitArray bits = visitedOrds.get(bucket);
@@ -353,6 +358,19 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     }
                 }
             }
+        }
+
+        /**
+         * Whether {@link #collect} saw at least one value. A bucket's bitset is only created when a value is collected
+         * for that bucket, so any non-null bitset has at least one bit set.
+         */
+        private boolean anyBucketCollected() {
+            for (long bucket = 0; bucket < visitedOrds.size(); bucket++) {
+                if (visitedOrds.get(bucket) != null) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override

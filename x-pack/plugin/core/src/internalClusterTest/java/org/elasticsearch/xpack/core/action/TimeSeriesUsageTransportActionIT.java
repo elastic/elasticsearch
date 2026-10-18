@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
+import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -82,7 +84,13 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
      */
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, TestTimeSeriesUsagePlugin.class);
+        return List.of(DataStreamsPlugin.class, TestPlugin.class);
+    }
+
+    @After
+    public void resetClusterSettings() {
+        updateClusterSettings(Settings.builder().putNull(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME));
+
     }
 
     public void testActionNoTimeSeriesDataStreams() throws Exception {
@@ -115,9 +123,10 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
         int withoutLifecycle = randomIntBetween(1, 3);
         int ilm = randomIntBetween(1, 3);
         boolean minimumLifecycleEnabled = randomBoolean();
-        internalCluster().getInstances(DataStreamLifecycleSettings.class)
-            .forEach(settings -> settings.setMinimumLifecycleEnabled(minimumLifecycleEnabled));
-
+        updateClusterSettings(
+            Settings.builder()
+                .put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, minimumLifecycleEnabled ? "true" : "false")
+        );
         updateClusterState(clusterState -> {
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
             Map<String, DataStream> dataStreamMap = new HashMap<>();
@@ -697,13 +706,18 @@ public class TimeSeriesUsageTransportActionIT extends ESIntegTestCase {
     }
 
     /*
-     * This plugin exposes the TimeSeriesUsageTransportAction.
+     * This plugin exposes the TimeSeriesUsageTransportAction and the minimum lifecycle setting.
      */
-    public static final class TestTimeSeriesUsagePlugin extends XPackClientPlugin {
+    public static final class TestPlugin extends XPackClientPlugin {
 
         @Override
         public List<ActionHandler> getActions() {
             return List.of(new ActionHandler(TIME_SERIES_DATA_STREAMS, TimeSeriesUsageTransportAction.class));
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING);
         }
     }
 }

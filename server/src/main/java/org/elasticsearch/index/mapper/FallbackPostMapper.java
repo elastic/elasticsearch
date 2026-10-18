@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Central fallback routing for field values that cannot be indexed normally.
@@ -95,9 +96,7 @@ public final class FallbackPostMapper {
 
         /** Builds a {@link FieldContext} for the regular field parse path ({@code parseObjectOrField}). */
         public static FieldContext forField(DocumentParserContext ctx, FieldMapper mapper) {
-            Mapper.SourceKeepMode mode = mapper.sourceKeepMode().isPresent()
-                ? mapper.sourceKeepMode().get()
-                : ctx.sourceKeepModeFromIndexSettings();
+            Mapper.SourceKeepMode mode = effectiveKeepMode(mapper.sourceKeepMode(), ctx.indexSettings());
             return new FieldContext(
                 ctx.canAddIgnoredField(),
                 false,
@@ -119,12 +118,10 @@ public final class FallbackPostMapper {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean syntheticFallback = false;
             if (mapper instanceof ObjectMapper objectMapper) {
-                mode = objectMapper.sourceKeepMode().isPresent()
-                    ? objectMapper.sourceKeepMode().get()
-                    : ctx.sourceKeepModeFromIndexSettings();
+                mode = effectiveKeepMode(objectMapper.sourceKeepMode(), ctx.indexSettings());
                 // Objects with source_keep:all or source_keep:arrays (non-nested) must pre-capture array
                 // elements because object content cannot be reconstructed field-by-field from doc values.
-                syntheticFallback = mode == Mapper.SourceKeepMode.ALL
+                syntheticFallback = capturesWholeObject(mode)
                     || (mode == Mapper.SourceKeepMode.ARRAYS && objectMapper instanceof NestedObjectMapper == false);
                 // Nested objects natively preserve array structure via Lucene's nested document mechanism;
                 // clear ARRAYS mode so SOURCE_KEEP_ARRAYS_IN_ARRAY pre-capture is not triggered.
@@ -132,9 +129,7 @@ public final class FallbackPostMapper {
                     mode = Mapper.SourceKeepMode.NONE;
                 }
             } else if (mapper instanceof FieldMapper fieldMapper) {
-                mode = fieldMapper.sourceKeepMode().isPresent()
-                    ? fieldMapper.sourceKeepMode().get()
-                    : ctx.sourceKeepModeFromIndexSettings();
+                mode = effectiveKeepMode(fieldMapper.sourceKeepMode(), ctx.indexSettings());
                 syntheticFallback = fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
             }
             return new FieldContext(
@@ -178,6 +173,42 @@ public final class FallbackPostMapper {
     }
 
     /**
+     * The {@code synthetic_source_keep} mode in force for a mapper: its own setting, or else the index default. The row path and the
+     * columnar batch path must resolve this identically for their decisions to agree.
+     */
+    static Mapper.SourceKeepMode effectiveKeepMode(Optional<Mapper.SourceKeepMode> own, IndexSettings indexSettings) {
+        return own.orElse(indexSettings.sourceKeepMode());
+    }
+
+    /**
+     * Whether the row path copies every value of a field to {@code _ignored_source}, even a scalar not inside an array: the field
+     * has no synthetic source of its own, or keeps all source. {@link #resolvePrecaptureReason} reports the same decision as a
+     * {@link Reason}.
+     *
+     * <p>The columnar batch path writes no {@code _ignored_source}, so it must leave fields for which this is true to the row path.
+     */
+    static boolean capturesScalarValues(boolean syntheticFallback, Mapper.SourceKeepMode keepMode) {
+        return syntheticFallback || keepMode == Mapper.SourceKeepMode.ALL;
+    }
+
+    /**
+     * Whether the row path may keep the source of an array value of a field, in {@code _ignored_source} or as positional offsets. It
+     * is a conservative superset of the cases {@link #resolvePrecaptureReason} captures: it ignores whether the mapper rebuilds
+     * arrays itself, because the batch path writes no offsets outside strict-columnar modes either. Refusing more is always safe.
+     */
+    static boolean mayKeepArraySource(boolean syntheticFallback, Mapper.SourceKeepMode keepMode) {
+        return capturesScalarValues(syntheticFallback, keepMode) || keepMode != Mapper.SourceKeepMode.NONE;
+    }
+
+    /**
+     * Whether the row path copies a whole object to {@code _ignored_source}, and with it every leaf beneath, whatever those leaves'
+     * own mappers do. See {@code DocumentParser#parseObjectOrNested}.
+     */
+    static boolean capturesWholeObject(Mapper.SourceKeepMode keepMode) {
+        return keepMode == Mapper.SourceKeepMode.ALL;
+    }
+
+    /**
      * Returns the {@link Reason} to use when pre-capturing a field's XContent to {@code _ignored_source}
      * before the mapper runs, or {@code null} if no pre-capture is needed.
      */
@@ -189,11 +220,8 @@ public final class FallbackPostMapper {
         if (fc.isCopyToDestinationField() && fc.isWithinCopyTo() == false) {
             return Reason.COPY_TO_DESTINATION;
         }
-        if (fc.syntheticFallback()) {
-            return Reason.SYNTHETIC_FALLBACK;
-        }
-        if (fc.sourceKeepMode() == Mapper.SourceKeepMode.ALL) {
-            return Reason.SOURCE_KEEP_ALL;
+        if (capturesScalarValues(fc.syntheticFallback(), fc.sourceKeepMode())) {
+            return fc.syntheticFallback() ? Reason.SYNTHETIC_FALLBACK : Reason.SOURCE_KEEP_ALL;
         }
         if (fc.sourceKeepMode() == Mapper.SourceKeepMode.ARRAYS && fc.inArrayScope() && fc.parsesArrayValue() == false) {
             return Reason.SOURCE_KEEP_ARRAYS_IN_ARRAY;

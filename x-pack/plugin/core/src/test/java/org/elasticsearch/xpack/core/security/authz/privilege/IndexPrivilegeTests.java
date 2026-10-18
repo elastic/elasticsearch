@@ -26,14 +26,17 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 public class IndexPrivilegeTests extends ESTestCase {
 
@@ -558,6 +561,68 @@ public class IndexPrivilegeTests extends ESTestCase {
             + " actions";
 
         assertEquals(expectedFullErrorMessage, exception.getMessage());
+    }
+
+    public void testExpandToNamedPrivilegesAll() {
+        final Set<String> expected = new TreeSet<>(IndexPrivilege.names());
+        expected.remove("none");
+        assertThat(IndexPrivilege.expandToNamedPrivileges(Set.of("all")), equalTo(expected));
+        assertThat(IndexPrivilege.expandToNamedPrivileges(Set.of("all", "read")), equalTo(expected));
+    }
+
+    public void testExpandToNamedPrivilegesComposite() {
+        final Set<String> write = IndexPrivilege.expandToNamedPrivileges(Set.of("write"));
+        assertThat(write, hasItems("write", "index", "create", "create_doc", "delete"));
+        assertThat(write, not(hasItems("all")));
+        assertThat(write, not(hasItems("read")));
+
+        final Set<String> manage = IndexPrivilege.expandToNamedPrivileges(Set.of("manage"));
+        assertThat(manage, hasItems("manage", "monitor", "view_index_metadata", "maintenance", "manage_ilm"));
+        assertThat(manage, not(hasItems("all")));
+    }
+
+    public void testExpandToNamedPrivilegesRespectsSelectors() {
+        final Set<String> read = IndexPrivilege.expandToNamedPrivileges(Set.of("read"));
+        assertThat(read, hasItems("read"));
+        assertThat(read, not(hasItems("read_failure_store")));
+
+        final Set<String> readFailureStore = IndexPrivilege.expandToNamedPrivileges(Set.of("read_failure_store"));
+        assertThat(readFailureStore, hasItems("read_failure_store"));
+        assertThat(readFailureStore, not(hasItems("read")));
+
+        final Set<String> manageFailureStore = IndexPrivilege.expandToNamedPrivileges(Set.of("manage_failure_store"));
+        assertThat(manageFailureStore, hasItems("manage_failure_store"));
+        assertThat(manageFailureStore, not(hasItems("manage")));
+    }
+
+    public void testExpandToNamedPrivilegesRetainsRawActions() {
+        final String searchAction = TransportSearchAction.TYPE.name();
+        assertThat(IndexPrivilege.expandToNamedPrivileges(Set.of(searchAction)), equalTo(Set.of(searchAction)));
+        // read also grants actions outside indices:data/read/*, such as field caps, so it is not implied by this pattern
+        assertThat(IndexPrivilege.expandToNamedPrivileges(Set.of("indices:data/read/*")), equalTo(Set.of("indices:data/read/*")));
+        assertThat(
+            IndexPrivilege.expandToNamedPrivileges(Set.of("indices:data/read/*", "write")),
+            hasItems("indices:data/read/*", "write")
+        );
+    }
+
+    public void testExpandToNamedPrivilegesNone() {
+        assertThat(IndexPrivilege.expandToNamedPrivileges(Set.of()), equalTo(Set.of()));
+        assertThat(IndexPrivilege.expandToNamedPrivileges(Set.of("none")), equalTo(Set.of()));
+    }
+
+    public void testSummarizeNamedPrivilegesExpandsEachIndexEntrySeparately() {
+        final Set<String> expected = new TreeSet<>(IndexPrivilege.expandToNamedPrivileges(Set.of("write")));
+        expected.addAll(IndexPrivilege.expandToNamedPrivileges(Set.of("read")));
+
+        final Set<String> summary = IndexPrivilege.summarizeNamedPrivileges(List.of(Set.of("write"), Set.of("read")));
+        assertThat(summary, equalTo(expected));
+        assertThat(summary, hasItems("write", "index", "create_doc", "delete", "read"));
+        assertThat(summary, not(hasItems("all")));
+    }
+
+    public void testSummarizeNamedPrivilegesEmpty() {
+        assertThat(IndexPrivilege.summarizeNamedPrivileges(List.of()), equalTo(Set.of()));
     }
 
     public static IndexPrivilege resolvePrivilegeAndAssertSingleton(Set<String> names) {

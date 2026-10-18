@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -57,6 +58,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -560,6 +563,56 @@ public final class IndexPrivilege extends Privilege {
             .filter(e -> e.getValue().predicate.test(action))
             .map(Map.Entry::getKey)
             .toList();
+    }
+
+    /**
+     * Expands the given index privilege names and action patterns into every named index privilege they grant, so that composite
+     * privileges such as {@code all} or {@code write} are reported together with the narrower privileges they contain.
+     * A named privilege is granted when its actions are a subset of the actions granted for every selector it applies to.
+     * {@code none} is never included. Raw action patterns in the input are retained as-is.
+     */
+    public static SortedSet<String> expandToNamedPrivileges(Collection<String> names) {
+        final SortedSet<String> expanded = new TreeSet<>();
+        if (names.isEmpty()) {
+            return expanded;
+        }
+        for (String name : names) {
+            if (VALUES.containsKey(name.toLowerCase(Locale.ROOT)) == false) {
+                expanded.add(name);
+            }
+        }
+        final Set<IndexPrivilege> granted = resolveBySelectorAccess(Set.copyOf(names));
+        for (Map.Entry<String, IndexPrivilege> candidate : VALUES.entrySet()) {
+            final IndexPrivilege candidatePrivilege = candidate.getValue();
+            if (Operations.isEmpty(candidatePrivilege.automaton)) {
+                continue;
+            }
+            for (IndexPrivilege grantedPrivilege : granted) {
+                if (coversSelectors(grantedPrivilege.selectorPredicate, candidatePrivilege.selectorPredicate)
+                    && Automatons.subsetOf(candidatePrivilege.automaton, grantedPrivilege.automaton)) {
+                    expanded.add(candidate.getKey());
+                    break;
+                }
+            }
+        }
+        return expanded;
+    }
+
+    /**
+     * Every index privilege held on at least one index, given the privilege names granted for each index entry, with composite
+     * privileges expanded into the privileges they contain. Each entry is expanded on its own so that privileges granted on
+     * different indices are never combined into a privilege that is not held on any single index.
+     */
+    public static SortedSet<String> summarizeNamedPrivileges(Collection<? extends Collection<String>> privilegesPerIndexEntry) {
+        final SortedSet<String> summary = new TreeSet<>();
+        for (Collection<String> privileges : privilegesPerIndexEntry) {
+            summary.addAll(expandToNamedPrivileges(privileges));
+        }
+        return summary;
+    }
+
+    private static boolean coversSelectors(IndexComponentSelectorPredicate granted, IndexComponentSelectorPredicate candidate) {
+        return granted == IndexComponentSelectorPredicate.ALL || granted.names().containsAll(candidate.names());
     }
 
     public IndexComponentSelectorPredicate getSelectorPredicate() {

@@ -1,0 +1,6 @@
+pr: 155100
+summary: "[Inference API] Support Application Default Credentials for Google Vertex AI"
+area: Inference
+type: enhancement
+issues:
+ - 155098

@@ -6672,10 +6672,11 @@ FROM unmapped_compound_outputs
 | KEEP id, parts.domain, parts.port, parts.*, oth*
 | SORT id
 ;
+
 id:keyword | parts.domain:keyword | parts.port:integer | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword | _unmapped_fields:_source
-1 | www.example.com | 8080 | null | /a | null | null | http | null | null | null | "{""other"":""x""}"
-2 | example.org | null | null | /b | null | null | https | null | null | null | "{""other"":""x""}"
-3 | c.example.net | null | null | /c | null | null | http | null | null | null | null
+1          | www.example.com      | 8080               | null                   | /a                 | null                    | null                | http                 | null                    | null                   | null                   | "{""other"":""x""}"
+2          | example.org          | null               | null                   | /b                 | null                    | null                | https                | null                    | null                   | null                   | "{""other"":""x""}"
+3          | c.example.net        | null               | null                   | /c                 | null                    | null                | http                 | null                    | null                   | null                   | null
 ;
 
 // REGISTERED_DOMAIN shadows the unmapped rd.domain leaf in the same way.
@@ -6690,10 +6691,11 @@ FROM unmapped_compound_outputs
 | KEEP id, rd.*, oth*
 | SORT id
 ;
+
 id:keyword | rd.domain:keyword | rd.registered_domain:keyword | rd.top_level_domain:keyword | rd.subdomain:keyword | _unmapped_fields:_source
-1 | www.example.co.uk | example.co.uk | co.uk | www | "{""other"":""x""}"
-2 | mail.example.org | example.org | org | mail | "{""other"":""x""}"
-3 | c.example.net | example.net | net | c | null
+1          | www.example.co.uk | example.co.uk                | co.uk                       | www                  | "{""other"":""x""}"
+2          | mail.example.org  | example.org                  | org                         | mail                 | "{""other"":""x""}"
+3          | c.example.net     | example.net                  | net                         | c                    | null
 ;
 
 // USER_AGENT shadows the unmapped ua.name leaf.
@@ -6708,10 +6710,11 @@ FROM unmapped_compound_outputs
 | KEEP id, ua.name, ua.*, oth*
 | SORT id
 ;
+
 id:keyword | ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword | ua.device.name:keyword | _unmapped_fields:_source
-1 | Chrome | 33.0.1750.149 | Mac OS X | 10.9.2 | Mac OS X 10.9.2 | Mac | "{""other"":""x""}"
-2 | Firefox | 115.0 | Windows | 10 | Windows 10 | null | "{""other"":""x""}"
-3 | curl | 8.0.1 | null | null | null | null | null
+1          | Chrome          | 33.0.1750.149      | Mac OS X           | 10.9.2                | Mac OS X 10.9.2    | Mac                    | "{""other"":""x""}"
+2          | Firefox         | 115.0              | Windows            | 10                    | Windows 10         | null                   | "{""other"":""x""}"
+3          | curl            | 8.0.1              | null               | null                  | null               | null                   | null
 ;
 
 // IP_LOCATION shadows the unmapped g.country_iso_code leaf.
@@ -6726,10 +6729,11 @@ FROM unmapped_compound_outputs
 | KEEP id, g.country_iso_code, g.*, oth*
 | SORT id
 ;
-id:keyword | g.country_iso_code:keyword | g.country_name:keyword | g.continent_name:keyword | g.region_iso_code:keyword | g.region_name:keyword | g.city_name:keyword | g.location:geo_point | _unmapped_fields:_source
-1 | US | United States | North America | null | null | null | POINT (-97.822000 37.751000) | "{""other"":""x""}"
-2 | AU | Australia | Oceania | null | null | null | POINT (143.210400 -33.494000) | "{""other"":""x""}"
-3 | FR | France | Europe | null | null | null | POINT (2.338700 48.858200) | null
+
+id:keyword | g.country_iso_code:keyword | g.country_name:keyword | g.continent_name:keyword | g.region_iso_code:keyword | g.region_name:keyword | g.city_name:keyword | g.location:geo_point          | _unmapped_fields:_source
+1          | US                         | United States          | North America            | null                      | null                  | null                | POINT (-97.822000 37.751000)  | "{""other"":""x""}"
+2          | AU                         | Australia              | Oceania                  | null                      | null                  | null                | POINT (143.210400 -33.494000) | "{""other"":""x""}"
+3          | FR                         | France                 | Europe                   | null                      | null                  | null                | POINT (2.338700 48.858200)    | null
 ;
 
 // FILL_NULL names an unmapped field, which becomes a real column: it is filled where the row has no value and drops out of
@@ -6745,10 +6749,11 @@ FROM unmapped_compound_outputs
 | KEEP id, other, pa*
 | SORT id
 ;
+
 id:keyword | other:keyword | _unmapped_fields:_source
-1 | x | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
-2 | x | "{""parts.domain"":""old.example2"",""parts.port"":""81""}"
-3 | none | null
+1          | x             | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
+2          | x             | "{""parts.domain"":""old.example2"",""parts.port"":""81""}"
+3          | none          | null
 ;
 
 // LIMIT BY groups by an unmapped field and keeps _unmapped_fields on the surviving rows.
@@ -6764,9 +6769,10 @@ FROM unmapped_compound_outputs
 | KEEP id, other, pa*
 | SORT id
 ;
+
 id:keyword | other:keyword | _unmapped_fields:_source
-1 | x | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
-3 | null | null
+1          | x             | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
+3          | null          | null
 ;
 
 // DEDUP compares _unmapped_fields like any other column: rows 1 and 2 hold the same other and tag, so they collapse into one.
@@ -6781,9 +6787,10 @@ FROM unmapped_compound_outputs
 | DEDUP
 | SORT other
 ;
+
 other:keyword | _unmapped_fields:_source
-x | "{""tag"":""t""}"
-null | null
+x             | "{""tag"":""t""}"
+null          | null
 ;
 
 ###########################################################################
@@ -6804,11 +6811,11 @@ FROM unmapped_compound_outputs, unmapped_compound_inputs
 ;
 
 id:keyword | parts.domain:keyword | parts.scheme:keyword
-1 | www.example.com | http
-2 | example.org | https
-3 | c.example.net | http
-b1 | other.example.org | https
-b2 | www.example.com | http
+1          | www.example.com      | http
+2          | example.org          | https
+3          | c.example.net        | http
+b1         | other.example.org    | https
+b2         | www.example.com      | http
 ;
 
 // Same for REGISTERED_DOMAIN over host.
@@ -6825,11 +6832,11 @@ FROM unmapped_compound_outputs, unmapped_compound_inputs
 ;
 
 id:keyword | rd.registered_domain:keyword
-1 | example.co.uk
-2 | example.org
-3 | example.net
-b1 | example.com
-b2 | example.co.uk
+1          | example.co.uk
+2          | example.org
+3          | example.net
+b1         | example.com
+b2         | example.co.uk
 ;
 
 // Same for USER_AGENT over agent.
@@ -6846,11 +6853,11 @@ FROM unmapped_compound_outputs, unmapped_compound_inputs
 ;
 
 id:keyword | ua.name:keyword
-1 | Chrome
-2 | Firefox
-3 | curl
-b1 | Firefox
-b2 | Chrome
+1          | Chrome
+2          | Firefox
+3          | curl
+b1         | Firefox
+b2         | Chrome
 ;
 
 // Same for IP_LOCATION over addr, which is a mapped ip in one index and an unmapped field in the other.
@@ -6867,11 +6874,11 @@ FROM unmapped_compound_outputs, unmapped_compound_inputs
 ;
 
 id:keyword | g.country_iso_code:keyword
-1 | US
-2 | AU
-3 | FR
-b1 | US
-b2 | US
+1          | US
+2          | AU
+3          | FR
+b1         | US
+b2         | US
 ;
 
 // FILL_NULL over two unmapped fields fills each where a row has no value; both leave _unmapped_fields.
@@ -6888,9 +6895,9 @@ FROM unmapped_compound_outputs
 ;
 
 id:keyword | tag:keyword | other:keyword | _unmapped_fields:_source
-1 | t | x | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
-2 | t | x | "{""parts.domain"":""old.example2"",""parts.port"":""81""}"
-3 | n/a | n/a | null
+1          | t           | x             | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
+2          | t           | x             | "{""parts.domain"":""old.example2"",""parts.port"":""81""}"
+3          | n/a         | n/a           | null
 ;
 
 // LIMIT BY groups rows by url across both indices: b2 repeats the url of row 1, so only one of them survives.
@@ -6908,10 +6915,10 @@ FROM unmapped_compound_outputs, unmapped_compound_inputs
 ;
 
 id:keyword | url:keyword
-1 | http://www.example.com:8080/a
-2 | https://example.org/b
-3 | http://c.example.net/c
-b1 | https://other.example.org/x
+1          | http://www.example.com:8080/a
+2          | https://example.org/b
+3          | http://c.example.net/c
+b1         | https://other.example.org/x
 ;
 
 // DEDUP treats a mapped and an unmapped url alike: b2 repeats row 1 on url and tag, so the two collapse into one.
@@ -6927,11 +6934,11 @@ FROM unmapped_compound_outputs, unmapped_compound_inputs
 | SORT url
 ;
 
-url:keyword | _unmapped_fields:_source
-http://c.example.net/c | null
+url:keyword                   | _unmapped_fields:_source
+http://c.example.net/c        | null
 http://www.example.com:8080/a | "{""tag"":""t""}"
-https://example.org/b | "{""tag"":""t""}"
-https://other.example.org/x | null
+https://example.org/b         | "{""tag"":""t""}"
+https://other.example.org/x   | null
 ;
 
 // Each FORK branch adds its own output columns, which the other branch null-fills.
@@ -6951,8 +6958,8 @@ FROM unmapped_compound_outputs
 ;
 
 id:keyword | parts.scheme:keyword | _fork:keyword | rd.registered_domain:keyword
-1 | http | fork1 | null
-1 | null | fork2 | example.co.uk
+1          | http                 | fork1         | null
+1          | null                 | fork2         | example.co.uk
 ;
 
 // An unmapped field that holds something that is not an IP address yields a null location plus the usual warnings, not an error.
@@ -6971,5 +6978,5 @@ warningregex: Line .*: java.lang.IllegalArgumentException:.*
 warningregex: Line .*: evaluation of \[IP_LOCATION.*\] failed, treating result as null.*
 
 id:keyword | g.country_iso_code:keyword
-1 | null
+1          | null
 ;

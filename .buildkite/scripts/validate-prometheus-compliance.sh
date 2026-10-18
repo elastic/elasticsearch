@@ -38,7 +38,7 @@ configure() {
   for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH; do
     [[ -n "${!var:-}" ]] || die "$var must be set"
   done
-  for cmd in curl git jq tee sort; do
+  for cmd in curl git jq tee sort mkfifo; do
     command -v "$cmd" >/dev/null 2>&1 || die "$cmd must be on the PATH"
   done
   if [[ ! "$PROMCHECK_TEST_INSTANCE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
@@ -55,6 +55,7 @@ configure() {
   declare -gr PR_COMMENT_KEY="pr_comment:validate-prometheus-compliance:body"
   # Changed queries listed per section; the full list is the changes artifact.
   declare -gr MAX_ROWS=50
+  declare -gr MAX_QUERY_CHARS=200
 
   # The pipeline uploads OUTPUT_DIR as artifacts. Tests point TMP_ROOT at a scratch directory.
   declare -gr TMP_ROOT="${PROMETHEUS_COMPLIANCE_TMPDIR:-/tmp}"
@@ -141,15 +142,21 @@ download_asset() {
 # Runs promcheck against Elasticsearch built from the given checkout. promcheck exits 1 when queries fail, which
 # is a result; any other exit code means the run itself failed.
 run_promcheck() {
-  local workspace="$1"
-  local log_file="$2"
+  local workspace="$1" log_file="$2"
+  local stderr_log="${2%.log}.stderr.log" fifo="$WORK_DIR/promcheck-stderr.fifo"
+  local stderr_pid stderr_status=0
   local -a statuses
+  mkfifo -- "$fifo" || return
+  tee -- "$stderr_log" < "$fifo" >&2 &
+  stderr_pid=$!
   NO_COLOR=1 "$PROMCHECK_BIN" \
     --elasticsearch "$workspace" \
     --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
-    --output json < "$BUNDLE" | tee -- "$log_file"
+    --output json < "$BUNDLE" 2> "$fifo" | tee -- "$log_file"
   statuses=("${PIPESTATUS[@]}")
-  (( (statuses[0] == 0 || statuses[0] == 1) && statuses[1] == 0 ))
+  wait "$stderr_pid" || stderr_status=$?
+  rm -f -- "$fifo"
+  (( (statuses[0] == 0 || statuses[0] == 1) && statuses[1] == 0 && stderr_status == 0 ))
 }
 
 # Trust promcheck's summary; combine the error buckets for the console output.
@@ -165,27 +172,37 @@ read_queries() {
     ., "\u0000"' -- "$1" | mapfile -d '' -t "$2"
 }
 
+# Return values through namerefs to avoid a subshell for every case.
+# shellcheck disable=SC2034
 query_status() {
-  case "$1" in
+  local -n status_ref="$1"
+  case "$2" in
+    match|mismatch) status_ref="$2" ;;
     skipped)
-      if [[ "$3" == flaky ]]; then printf flaky; else printf filtered; fi ;;
+      case "$4" in
+        flaky) status_ref=flaky ;;
+        response_filtered) status_ref=filtered ;;
+        *) log "Unknown promcheck skip reason: $4"; return 1 ;;
+      esac ;;
     error)
-      if (( $2 >= 500 )); then printf error5xx
-      elif (( $2 >= 400 )); then printf error4xx
-      else printf error; fi ;;
-    *) printf '%s' "$1" ;;
+      if (( $3 >= 500 )); then status_ref=error5xx
+      elif (( $3 >= 400 )); then status_ref=error4xx
+      else status_ref=error; fi ;;
+    *) log "Unknown promcheck status: $2"; return 1 ;;
   esac
 }
 
+# shellcheck disable=SC2034
 classify() {
+  local -n category_ref="$1"
   local -Ar severity=([match]=0 [mismatch]=1 [error4xx]=2 [error5xx]=3 [error]=3)
-  case "$1:$2" in
-    flaky:*|*:flaky) printf flaky ;;
-    filtered:*|*:filtered) printf stable ;;
+  case "$2:$3" in
+    flaky:*|*:flaky) category_ref=flaky ;;
+    filtered:*|*:filtered) category_ref=stable ;;
     *)
-      if (( severity[$1] < severity[$2] )); then printf regression
-      elif (( severity[$1] > severity[$2] )); then printf improvement
-      else printf stable; fi ;;
+      if (( severity[$2] < severity[$3] )); then category_ref=regression
+      elif (( severity[$2] > severity[$3] )); then category_ref=improvement
+      else category_ref=stable; fi ;;
   esac
 }
 
@@ -193,35 +210,45 @@ classify() {
 compare_results() {
   local -n results_ref="$3"
   local -a control_records tested_records
-  local -A previous=()
+  local -A previous=() seen=()
   local i id old new category
   read_queries "$1" control_records || return
   read_queries "$2" tested_records || return
+  if (( ${#control_records[@]} != ${#tested_records[@]} )); then
+    log "Promcheck runs returned different case counts"
+    return 1
+  fi
   for ((i = 0; i < ${#control_records[@]}; i += 5)); do
-    previous[${control_records[i]}]=$(query_status "${control_records[i+1]}" "${control_records[i+2]}" "${control_records[i+3]}")
+    id=${control_records[i]}
+    if [[ -n "${previous[$id]+present}" ]]; then
+      log "Duplicate control case: $id"
+      return 1
+    fi
+    query_status old "${control_records[i+1]}" "${control_records[i+2]}" "${control_records[i+3]}" || return
+    previous[$id]=$old
   done
   for ((i = 0; i < ${#tested_records[@]}; i += 5)); do
     id=${tested_records[i]}
-    [[ -n "${previous[$id]+present}" ]] || continue
+    if [[ -z "${previous[$id]+present}" || -n "${seen[$id]+present}" ]]; then
+      log "Unmatched or duplicate test case: $id"
+      return 1
+    fi
+    seen[$id]=1
     old=${previous[$id]}
-    new=$(query_status "${tested_records[i+1]}" "${tested_records[i+2]}" "${tested_records[i+3]}")
-    category=$(classify "$old" "$new")
+    query_status new "${tested_records[i+1]}" "${tested_records[i+2]}" "${tested_records[i+3]}" || return
+    classify category "$old" "$new"
     [[ "$category" == stable ]] || results_ref+=("$id" "$old" "$new" "$category" "${tested_records[i+4]}")
   done
 }
 
+# Serialize the Bash comparison records in one jq invocation.
 write_changes() {
   local -n rows_ref="$1"
-  local i separator=""
-  printf '[\n'
-  for ((i = 0; i < ${#rows_ref[@]}; i += 5)); do
-    printf '%s' "$separator"
-    jq -cn --arg name "${rows_ref[i]}" --arg before "${rows_ref[i+1]}" --arg after "${rows_ref[i+2]}" \
-      --arg category "${rows_ref[i+3]}" --arg query "${rows_ref[i+4]}" \
-      '{name: $name, before: $before, after: $after, category: $category, query: $query}'
-    separator=,
-  done
-  printf ']\n'
+  {
+    if (( ${#rows_ref[@]} > 0 )); then printf '%s\0' "${rows_ref[@]}"; fi
+  } | jq -Rs 'split("\u0000") | .[:-1] |
+    [range(0; length; 5) as $i |
+      {name: .[$i], before: .[$i+1], after: .[$i+2], category: .[$i+3], query: .[$i+4]}]'
 }
 
 count_category() {
@@ -252,6 +279,7 @@ print_code() {
   text=${text//$'\r'/ }
   text=${text//$'\t'/ }
   text=${text//|/\\|}
+  if (( ${#text} > MAX_QUERY_CHARS )); then text="${text:0:MAX_QUERY_CHARS-3}..."; fi
   if [[ "$text" == *'`'* ]]; then printf '`` %s ``' "$text"; else printf '`%s`' "$text"; fi
 }
 
@@ -305,6 +333,7 @@ render_changes() {
     printf ', '
     print_count "$flaky" 'flaky case' 'flaky cases'
     printf '\n\n<details>\n<summary><strong>Show changed queries</strong></summary>\n\n'
+    printf 'Queries are shortened to %d characters; full text is in %s.\n\n' "$MAX_QUERY_CHARS" "$CHANGES_LINK"
     render_section "$rows_name" regression Regressions "$regressions"
     render_section "$rows_name" improvement Improvements "$improvements"
     render_section "$rows_name" flaky Flaky "$flaky"
@@ -313,15 +342,25 @@ render_changes() {
   printf '**Compared** `%s` -> `%s`  \n' "${base:0:10}" "${revision:0:10}"
 }
 
+# Preserve the failure exit code while replacing any unfinished running note.
+# shellcheck disable=SC2329
+on_exit() {
+  local status="$1" control_dir="$2" final_report="$3"
+  if (( status != 0 )) && [[ "$final_report" != true ]]; then
+    annotate warning "$(printf '**Not compared**\n\nReport generation or setup failed (exit %d). See the build log and artifacts.\n\n' "$status" | report)"
+  fi
+  cleanup "$control_dir"
+}
+
 # A subshell keeps main's locals available to the EXIT trap on errexit as well as explicit exit.
 main() (
   local control_dir="" release arch base revision control_summary test_summary regressions
-  local style=success status=0
+  local style=success status=0 final_report=false
   # Populated and consumed through namerefs in the helpers.
   # shellcheck disable=SC2034
   local -a changes=()
   configure
-  trap 'cleanup "$control_dir"' EXIT
+  trap 'on_exit "$?" "$control_dir" "$final_report"' EXIT
 
   rm -rf -- "$WORK_DIR" "$OUTPUT_DIR"
   mkdir -p -- "$WORK_DIR" "$OUTPUT_DIR"
@@ -375,6 +414,7 @@ main() (
     status=1
   fi
   annotate "$style" "$(< "$REPORT_FILE")"
+  final_report=true
 
   log "Merge base: $control_summary"
   log "PR: $test_summary"

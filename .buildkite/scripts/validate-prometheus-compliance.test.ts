@@ -78,6 +78,7 @@ while (($#)); do [[ $1 == --elasticsearch ]] && { ws=$2; break; }; shift; done
 [[ $(cd "$ws" && pwd -P) == $(pwd -P) ]] && run=test || run=control
 git -C "$ws" rev-parse HEAD > "${dir}/$run.head"
 printf '%s\\n' "$*" >> "${dir}/args.log"
+printf '%s diagnostics\\n' "$run" >&2
 cat "${dir}/$run.log"
 exit "$(cat "${dir}/$run.rc" 2>/dev/null || echo 0)"
 `;
@@ -150,6 +151,9 @@ esac
       stdout: result.stdout,
       stderr: result.stderr,
       report: read(report),
+      controlStderr: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${CORPUS}-control.stderr.log`)),
+      testStderr: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${CORPUS}-test.stderr.log`)),
+      controlLog: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${CORPUS}-control.log`)),
       changes: read(join(dir, "tmp", "validate-prometheus-compliance-output", `@${CORPUS}-changes.json`)),
       agent: read(join(dir, "agent.log")),
       controlHead: read(join(dir, "control.head")).trim(),
@@ -210,7 +214,7 @@ esac
   });
 
   test("error memos and flaky skips add up in the run summaries", () => {
-    const r = run(STABLE, [
+    const r = run([...STABLE, ["003", "match", "b"], ["004", "match", "c"], ["005", "match", "d"]], [
       ["001", "match", "up"],
       ["002", "error", "a"],
       ["003", "error", "b"],
@@ -218,7 +222,7 @@ esac
       ["005", "flaky", "d"],
     ]);
     expect(r.status).toBe(1);
-    expect(r.output).toContain('"match":1,"mismatch":1');
+    expect(r.output).toContain('"match":4,"mismatch":1');
     expect(r.output).toContain('"errors":3');
     expect(r.output).toContain('"flaky":1');
   });
@@ -508,11 +512,14 @@ exec "${JQ}" "$@"
 
   test("cleanup removes the control worktree after an unhandled artifact write failure", () => {
     writeFileSync(join(dir, "bin", "jq"), `#!/bin/bash
-[[ $1 == -cn ]] && exit 2
+[[ $1 == -Rs ]] && exit 2
 exec "${JQ}" "$@"
 `, { mode: 0o755 });
     const r = run([["001", "match", "up"]], [["001", "error4xx", "up"]]);
     expect(r.status).toBe(2);
+    expect(r.agent).toContain("Report generation or setup failed (exit 2)");
+    expect(r.agent).toContain("--style warning");
+    expect(r.agent.lastIndexOf("**Not compared**")).toBeGreaterThan(r.agent.lastIndexOf("**Promcheck running**"));
     expect(git(repo, "worktree", "list", "--porcelain").match(/^worktree /gm)).toHaveLength(1);
     expect(r.report).not.toContain("No regressions");
   });
@@ -540,6 +547,87 @@ exec "${JQ}" "$@"
     expect(r.status).toBe(1);
     expect(r.output).toContain("PROMCHECK_TEST_INSTANCE_TIMEOUT must be a positive integer: soon");
     expect(r.agent).toBe("");
+  });
+
+  test("stderr is streamed to the console and saved separately from JSONL", () => {
+    const r = run(STABLE, STABLE, { controlRc: 2 });
+    expect(r.status).toBe(0);
+    expect(r.controlStderr).toBe("control diagnostics\n");
+    expect(r.stderr).toContain("control diagnostics");
+    expect(r.controlLog).not.toContain("diagnostics");
+    for (const line of r.controlLog.trim().split("\n")) expect(() => JSON.parse(line)).not.toThrow();
+  });
+
+  test("both runs retain stderr artifacts", () => {
+    const r = run(STABLE, STABLE);
+    expect(r.controlStderr).toBe("control diagnostics\n");
+    expect(r.testStderr).toBe("test diagnostics\n");
+  });
+
+  test("stderr tee failure prevents comparison", () => {
+    writeFileSync(join(dir, "bin", "tee"), `#!/bin/bash
+case "$2" in
+  *.stderr.log) cat >/dev/null; exit 3 ;;
+  *) exec /usr/bin/tee "$@" ;;
+esac
+`, { mode: 0o755 });
+    const r = run(STABLE, STABLE);
+    expect(r.status).toBe(0);
+    expect(r.agent).toContain("The control run failed");
+    expect(r.report).toBe("");
+  });
+
+  test.each(["control", "test"] as const)("unknown %s status cannot become stable", (side) => {
+    const unknown = promcheckLog(STABLE).replace('"status":"match"', '"status":"future_status"');
+    const r = run(STABLE, STABLE, side === "control" ? { controlLog: unknown } : { testLog: unknown });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain("Unknown promcheck status: future_status");
+    expect(r.agent).toContain("**Not compared**");
+    expect(r.report).toBe("");
+  });
+
+  test("unknown skip reasons cannot silently filter a case", () => {
+    const cases: Case[] = [["001", "flaky", "up"]];
+    const testLog = promcheckLog(cases).replace('"skip_reason":"flaky"', '"skip_reason":"future_reason"');
+    const r = run(cases, cases, { testLog });
+    expect(r.stderr).toContain("Unknown promcheck skip reason");
+    expect(r.agent).toContain("**Not compared**");
+  });
+
+  test.each([
+    ["missing", [["001", "match", "up"]]],
+    ["extra", [...STABLE, ["003", "match", "up"]]],
+    ["replaced", [["001", "match", "up"], ["003", "match", "up"]]],
+    ["duplicate", [["001", "match", "up"], ["001", "match", "up"]]],
+  ] as [string, Case[]][])("%s test cases prevent comparison", (_, tested) => {
+    const r = run(STABLE, tested);
+    expect(r.status).toBe(0);
+    expect(r.agent).toContain("**Not compared**");
+    expect(r.report).toBe("");
+  });
+
+  test("duplicate control cases prevent comparison", () => {
+    const r = run([STABLE[0], STABLE[0]], STABLE);
+    expect(r.stderr).toContain("Duplicate control case");
+    expect(r.agent).toContain("**Not compared**");
+  });
+
+  test("large reports cap displayed queries and retain every full query in the artifact", () => {
+    const query = 'up{label="' + "|".repeat(1000) + '"}';
+    const before: Case[] = [], after: Case[] = [];
+    for (let i = 0; i < 150; i++) {
+      const id = String(i + 1).padStart(3, "0");
+      before.push([id, i < 50 ? "match" : i < 100 ? "mismatch" : "match", query]);
+      after.push([id, i < 50 ? "mismatch" : i < 100 ? "match" : "flaky", query]);
+    }
+    const r = run(before, after);
+    expect(r.status).toBe(1);
+    expect(r.report.match(/^\| \d{3} \|/gm)).toHaveLength(150);
+    expect(r.report.length).toBeLessThan(50000);
+    expect(r.report).toContain("Queries are shortened to 200 characters");
+    expect(r.report).toContain("...");
+    expect(JSON.parse(r.changes)).toHaveLength(150);
+    expect(JSON.parse(r.changes).every((row: { query: string }) => row.query === query)).toBe(true);
   });
 
   test("the report is ASCII only", () => {

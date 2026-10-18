@@ -168,8 +168,8 @@ summary() {
 # lastpipe fills the caller's array; pipefail propagates jq failures.
 read_queries() {
   jq -jn 'inputs | select(.type == "query") |
-    .name, .status, (.es_status // 0 | tostring), (.skip_reason // ""), (.query // "") |
-    ., "\u0000"' -- "$1" | mapfile -d '' -t "$2"
+    [.name, .status, (.es_status // 0 | tostring), (.skip_reason // ""), (.query // "")] |
+    join("\u0000") + "\u0000"' -- "$1" | mapfile -d '' -t "$2"
 }
 
 # Return values through namerefs to avoid a subshell for every case.
@@ -260,14 +260,16 @@ count_category() {
   printf '%d' "$count"
 }
 
+# shellcheck disable=SC2034
 status_label() {
-  case "$1" in
-    match) printf PASS ;;
-    mismatch) printf FAIL ;;
-    error4xx) printf 'ERROR 4xx' ;;
-    error5xx) printf 'ERROR 5xx' ;;
-    flaky) printf FLAKY ;;
-    *) printf ERROR ;;
+  local -n label_ref="$1"
+  case "$2" in
+    match) label_ref=PASS ;;
+    mismatch) label_ref=FAIL ;;
+    error4xx) label_ref='ERROR 4xx' ;;
+    error5xx) label_ref='ERROR 5xx' ;;
+    flaky) label_ref=FLAKY ;;
+    *) label_ref=ERROR ;;
   esac
 }
 
@@ -290,7 +292,7 @@ print_count() {
 # shellcheck disable=SC2016
 render_section() {
   local -n rows_ref="$1"
-  local category="$2" title="$3" total="$4" i id sorted_ids shown=0
+  local category="$2" title="$3" total="$4" i id sorted_ids before_label after_label shown=0
   local -A positions=()
   local -a ids=()
   (( total > 0 )) || return 0
@@ -306,12 +308,13 @@ render_section() {
   sorted_ids=$(printf '%s\n' "${ids[@]}" | sort -n)
   while IFS= read -r id; do
     i=${positions[$id]}
-    if (( shown < MAX_ROWS )); then
-      printf '| %s | `%s -> %s` | ' "$id" "$(status_label "${rows_ref[i+1]}")" "$(status_label "${rows_ref[i+2]}")"
-      print_code "${rows_ref[i+4]}"
-      printf ' |\n'
-      ((shown += 1))
-    fi
+    status_label before_label "${rows_ref[i+1]}"
+    status_label after_label "${rows_ref[i+2]}"
+    printf '| %s | `%s -> %s` | ' "$id" "$before_label" "$after_label"
+    print_code "${rows_ref[i+4]}"
+    printf ' |\n'
+    ((shown += 1))
+    (( shown < MAX_ROWS )) || break
   done <<< "$sorted_ids"
   if (( total > MAX_ROWS )); then printf '\n_%d more in %s._\n' "$((total - MAX_ROWS))" "$CHANGES_LINK"; fi
   printf '\n'

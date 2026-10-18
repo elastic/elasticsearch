@@ -48,8 +48,8 @@ public class AnalyzerContext {
     private final TransportVersion minimumVersion;
     private final ProjectMetadata projectMetadata;
     private final UnmappedResolution unmappedResolution;
-    private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
-    private final Set<String> subqueryNonLoadableNullFills = new LinkedHashSet<>();
+    private final Set<String> deferredHeaderWarnings;
+    private final Set<String> subqueryNonLoadableNullFills;
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
     private final boolean preserveViewBoundaries;
@@ -90,6 +90,8 @@ public class AnalyzerContext {
         this.externalSourceResolution = externalSourceResolution;
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
+        this.deferredHeaderWarnings = new LinkedHashSet<>();
+        this.subqueryNonLoadableNullFills = new LinkedHashSet<>();
         this.timestampBounds = timestampBounds;
         this.ipLocationResolution = ipLocationResolution;
         this.preserveViewBoundaries = preserveViewBoundaries;
@@ -100,6 +102,37 @@ public class AnalyzerContext {
         assert flags != null : "AnalyzerContext must have flags";
         assert TransportVersion.current().supports(minimumVersion)
             : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
+    }
+
+    /**
+     * A context that resolves names with {@code unmappedResolution} and otherwise shares this one, including the warning sets.
+     * Warnings recorded while resolving a view branch stay visible on the context that started analysis.
+     */
+    AnalyzerContext withUnmappedResolution(UnmappedResolution unmappedResolution) {
+        return new AnalyzerContext(this, unmappedResolution);
+    }
+
+    private AnalyzerContext(AnalyzerContext other, UnmappedResolution unmappedResolution) {
+        this.configuration = other.configuration;
+        this.functionRegistry = other.functionRegistry;
+        this.promqlFunctionRegistry = other.promqlFunctionRegistry;
+        this.analysisRegistry = other.analysisRegistry;
+        this.indexResolution = other.indexResolution;
+        this.lookupResolution = other.lookupResolution;
+        this.linkedResolution = other.linkedResolution;
+        this.enrichResolution = other.enrichResolution;
+        this.inferenceResolution = other.inferenceResolution;
+        this.externalSourceResolution = other.externalSourceResolution;
+        this.minimumVersion = other.minimumVersion;
+        this.projectMetadata = other.projectMetadata;
+        this.unmappedResolution = unmappedResolution;
+        this.deferredHeaderWarnings = other.deferredHeaderWarnings;
+        this.subqueryNonLoadableNullFills = other.subqueryNonLoadableNullFills;
+        this.timestampBounds = other.timestampBounds;
+        this.ipLocationResolution = other.ipLocationResolution;
+        this.preserveViewBoundaries = other.preserveViewBoundaries;
+        this.viewSettings = other.viewSettings;
+        this.flags = other.flags;
     }
 
     // for testing only

@@ -1754,7 +1754,7 @@ public class EsqlSession {
         // in case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with
         // an older node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may
         // cause bugs.
-        PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, requestFilter, configuration)
+        PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, viewSettings, requestFilter, configuration)
             .withMinimumTransportVersion(localClusterMinimumVersion)
             .withIndexViewOrigins(indexViewOrigins);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
@@ -1815,14 +1815,15 @@ public class EsqlSession {
         LogicalPlan parsed,
         PreAnalyzer.PreAnalysis preAnalysis,
         UnmappedResolution unmappedResolution,
+        Map<String, ViewQuerySettings> viewSettings,
         @Nullable QueryBuilder requestFilter,
         Configuration configuration
     ) {
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
-            parsed,
-            preAnalysis.enriches().isEmpty() == false,
-            unmappedResolution.loadsUnmappedFields()
-        );
+        // Parent prefixes let the verifier see flattened parents of a loaded subfield. A view that SETs a loading mode
+        // needs them even when the caller does not.
+        boolean loadsUnmappedFields = unmappedResolution.loadsUnmappedFields()
+            || viewSettings.values().stream().anyMatch(settings -> settings.unmappedFields().loadsUnmappedFields());
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false, loadsUnmappedFields);
         boolean filterAppliesToViewOutput = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
             && parsed.anyMatch(p -> p instanceof BranchPlan vua && vua.viewBranchKeys().isEmpty() == false);
         if (filterAppliesToViewOutput == false || IndexResolver.ALL_FIELDS.equals(result.fieldNames())) {

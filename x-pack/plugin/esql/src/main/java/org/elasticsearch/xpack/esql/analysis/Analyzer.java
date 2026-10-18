@@ -1412,6 +1412,46 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
         private static final Logger log = LogManager.getLogger(ResolveRefs.class);
 
+        /**
+         * {@code KEEP}/{@code DROP}/{@code RENAME} read {@code unmapped_fields} off the context. A view definition's own
+         * {@code SET} has to be that value inside its branch, and the caller's value must not be, so the walk passes a
+         * context carrying that view's mode into the branch. With no views this is the ordinary bottom-up resolution.
+         */
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            if (context.viewSettings().isEmpty()) {
+                return super.apply(plan, context);
+            }
+            return applyInViewScope(plan, context);
+        }
+
+        private LogicalPlan applyInViewScope(LogicalPlan plan, AnalyzerContext context) {
+            List<LogicalPlan> children = plan.children();
+            List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+            boolean changed = false;
+            for (int i = 0; i < children.size(); i++) {
+                AnalyzerContext childContext = context;
+                if (plan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(i)) {
+                    childContext = context.withUnmappedResolution(
+                        resolutionForView(context, branchPlan.branchIdentity(i).settingsViewName())
+                    );
+                }
+                LogicalPlan newChild = applyInViewScope(children.get(i), childContext);
+                changed |= newChild != children.get(i);
+                newChildren.add(newChild);
+            }
+            LogicalPlan current = changed ? plan.replaceChildren(newChildren) : plan;
+            if (current.analyzed() || current.resolved()) {
+                return current;
+            }
+            return rule(current, context);
+        }
+
+        private static UnmappedResolution resolutionForView(AnalyzerContext context, String viewName) {
+            var settings = viewName == null ? null : context.viewSettings().get(viewName);
+            return settings == null ? UnmappedResolution.DEFAULT : settings.unmappedFields();
+        }
+
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             if (plan.childrenResolved() == false) {

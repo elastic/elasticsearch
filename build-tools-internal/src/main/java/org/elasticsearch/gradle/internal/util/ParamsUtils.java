@@ -30,7 +30,8 @@ public class ParamsUtils {
      * registered by the time a subproject plugin calls {@link #loadBuildParams(Project)}.
      */
     public static void applyGlobalBuildInfoIfRoot(Project project) {
-        if (project == project.getRootProject()) {
+        // The root project of a build always has the path ":"; comparing paths avoids navigating the project hierarchy
+        if (Project.PATH_SEPARATOR.equals(project.getPath())) {
             project.getPluginManager().apply(GlobalBuildInfoPlugin.class);
         }
     }

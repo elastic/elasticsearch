@@ -1,0 +1,201 @@
+// The prod/three series has (00:00:51, 9.25) and (00:00:57, 12.125).
+// Its line reaches 15 at 00:01:03, three seconds after the evaluation time.
+predict_linear_two_samples
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], 3)));
+
+prediction:double | step:datetime
+15.0              | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_now
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], 0)));
+
+prediction:double | step:datetime
+13.5625 | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_negative
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], -3)));
+
+prediction:double | step:datetime
+12.125 | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_fractional
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], 0.5)));
+
+prediction:double | step:datetime
+13.802083333333334 | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_offset_uses_original_samples
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:02:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m] offset 1m, 3)));
+
+prediction:double | step:datetime
+43.75             | 2024-05-10T00:02:00.000Z
+;
+
+predict_linear_insufficient_samples
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[4s], 3)));
+
+prediction:double | step:datetime
+;
+
+predict_linear_histogram_only_is_ignored
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=exp_histo_sample step=5m start="2025-09-25T00:05:00.000Z" end="2025-09-25T00:05:00.000Z" prediction=(predict_linear(responseTime{instance="instance-1"}[5m], 3));
+
+prediction:double | step:datetime | _timeseries:keyword
+;
+
+predict_linear_date_nanos
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=datenanos-k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], 3)));
+
+prediction:double | step:datetime
+15.0              | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_short_window
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[15s], 3)));
+
+prediction:double | step:datetime
+15.0              | 2024-05-10T00:01:00.000Z
+;
+
+// The second result fits (51, 9.25), (57, 12.125), (89, 7.625), predicting at 123 seconds.
+// Its exact value is 6699/1252; round to tolerate floating-point reduction order.
+predict_linear_partial_window
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:02:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[90s], 3)))
+| EVAL prediction = ROUND(prediction, 10), step = step
+| SORT step;
+
+prediction:double | step:datetime
+15.0              | 2024-05-10T00:01:00.000Z
+5.3506389776 | 2024-05-10T00:02:00.000Z
+;
+
+predict_linear_integer
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.eth0.currently_connected_clients{cluster="prod",pod="three"}[1m], 3)));
+
+prediction:double | step:datetime
+-91.0              | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_counter
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.total_cost{cluster="prod",pod="three"}[1m], 3)));
+
+prediction:double | step:datetime
+41.625              | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_folded_horizon
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], (1 + 2))));
+
+prediction:double | step:datetime
+15.0              | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_window_excludes_lower_bound
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[9s], 3)));
+
+prediction:double | step:datetime
+;
+
+predict_linear_keeps_series_labels
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(predict_linear(network.cost{cluster="prod",pod="three"}[1m], 3));
+
+prediction:double | step:datetime | _timeseries:keyword
+15.0 | 2024-05-10T00:01:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+;
+
+predict_linear_duration_horizon
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], 3s)));
+
+prediction:double | step:datetime
+15.0              | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_nan_horizon
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], NaN)));
+
+prediction:double | step:datetime
+NaN              | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_infinite_horizon
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], Inf)));
+
+prediction:double | step:datetime
+Infinity              | 2024-05-10T00:01:00.000Z
+;

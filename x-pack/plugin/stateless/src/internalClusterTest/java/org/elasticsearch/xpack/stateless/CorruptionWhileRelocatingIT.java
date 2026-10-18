@@ -42,7 +42,9 @@ import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.TestStatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.RegisterCommitRequest;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
@@ -744,18 +746,22 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
             )
         );
 
-        // Capture the outcome of the first registration that reaches the old primary.
-        final var firstRegistrationOnOldNode = new SubscribableListener<RegisterCommitResponse>();
+        // Capture the first registration that reaches the old primary, and its outcome.
+        final var firstRegistrationRequestOnOldNode = new SubscribableListener<RegisterCommitRequest>();
+        final var firstRegistrationOutcomeOnOldNode = new SubscribableListener<RegisterCommitResponse>();
         final var oldNodeTransportService = MockTransportService.getInstance(oldIndexNode);
         oldNodeTransportService.addRequestHandlingBehavior(
             TransportRegisterCommitForRecoveryAction.NAME,
-            (handler, request, channel, task) -> handler.messageReceived(request, new TestTransportChannel(ActionListener.wrap(response -> {
-                firstRegistrationOnOldNode.onResponse((RegisterCommitResponse) response);
-                channel.sendResponse(response);
-            }, e -> {
-                firstRegistrationOnOldNode.onFailure(e);
-                channel.sendResponse(e);
-            })), task)
+            (handler, request, channel, task) -> {
+                firstRegistrationRequestOnOldNode.onResponse((RegisterCommitRequest) request);
+                handler.messageReceived(request, new TestTransportChannel(ActionListener.wrap(response -> {
+                    firstRegistrationOutcomeOnOldNode.onResponse((RegisterCommitResponse) response);
+                    channel.sendResponse(response);
+                }, e -> {
+                    firstRegistrationOutcomeOnOldNode.onFailure(e);
+                    channel.sendResponse(e);
+                })), task);
+            }
         );
 
         final var sourceCommitService = internalCluster().getInstance(StatelessCommitService.class, oldIndexNode);
@@ -789,8 +795,12 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
             startSearchNode();
             updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
             assertThat(
+                safeAwait(firstRegistrationRequestOnOldNode).getCompoundCommitPrimaryTermAndGeneration(),
+                equalTo(new PrimaryTermAndGeneration(sourceShard.getOperationPrimaryTerm(), pausedGeneration))
+            );
+            assertThat(
                 "a paused BCC must not be treated as available to a recovering search shard",
-                safeAwaitFailure(firstRegistrationOnOldNode),
+                safeAwaitFailure(firstRegistrationOutcomeOnOldNode),
                 instanceOf(RecoveryCommitTooNewException.class)
             );
         } finally {

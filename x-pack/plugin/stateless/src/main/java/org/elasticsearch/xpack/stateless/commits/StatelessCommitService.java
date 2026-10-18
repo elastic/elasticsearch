@@ -3326,9 +3326,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // node may have seen it before we process that the upload succeeded. This is also reasonable, because only timing
             // means it is not yet considered uploaded here.
             // A pending generation above the relocation upload bound is paused and never uploaded by this node. A search
-            // shard could theoretically be registering at or above it saw a same-term commit uploaded by the relocation target,
-            // so it must not be treated as available here. The registration then fails with RecoveryCommitTooNewException
-            // and is retried against the target.
+            // shard registering at that generation may have seen a same-term commit uploaded by the relocation target,
+            // which must not be treated as available by the relocation source. In that case, the registration then fails
+            // with RecoveryCommitTooNewException and is retried against the target.
             Optional<VirtualBatchedCompoundCommit> latestUploading = pendingUploadBccGenerations.values()
                 .stream()
                 .filter(pending -> pauseUpload(pending.commit().getMaxGeneration()) == false)

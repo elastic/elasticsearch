@@ -5717,3 +5717,33 @@ f1 | flattened_paths_mapped | "{""env"":""prod"",""host"":""a""}" | "{""attribut
 f2 | flattened_paths_mapped | "{""host"":""c""}" | "{""attributes_info.total"":""1""}"
 u1 | flattened_paths_unmapped | null | "{""attributes.host"":""d"",""attributes.env"":""dev"",""attributes_info.total"":""2""}"
 ;
+
+// A leaf declared under a nested parent is a field of the shard that maps it, so it is not discovered there. The same path is a plain
+// unmapped field on a shard that does not map it. Nothing is hidden across the FROM just because another index maps the path as nested.
+nestedPathsMappedLeavesAreHiddenPerShard
+required_capability: optional_fields_load_all_single_source_column
+required_capability: fix_nested_subfield_extraction
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_mapped, nested_paths_unmapped
+| KEEP id, order.items.*
+| SORT id
+;
+
+id:keyword | _unmapped_fields:_source
+m | "{""order.items.qty"":[""1"",""2""],""order.items.parts.color"":[""red"",""blue""]}"
+u | "{""order.items.name"":[""a"",""b""],""order.items.qty"":[""1"",""2""],""order.items.parts.pn"":[""p1"",""p2""],""order.items.parts.color"":[""red"",""blue""]}"
+;
+
+nestedPathsMappedIndexAlone
+required_capability: optional_fields_load_all_single_source_column
+required_capability: fix_nested_subfield_extraction
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM nested_paths_mapped
+| KEEP id, order.items.*
+;
+
+id:keyword | _unmapped_fields:_source
+m | "{""order.items.qty"":[""1"",""2""],""order.items.parts.color"":[""red"",""blue""]}"
+;

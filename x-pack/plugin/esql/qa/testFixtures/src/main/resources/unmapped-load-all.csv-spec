@@ -6654,3 +6654,82 @@ message:keyword | _unmapped_fields:_source
 42              | "{""unmapped_message"":""43""}"
 42              | null
 ;
+
+###############################################
+# CHANGE_POINT under LOAD_ALL (#157189)       #
+###############################################
+
+// CHANGE_POINT appends type and pvalue. Those columns shadow the unmapped type and pvalue leaves, exactly as they would shadow a mapped
+// column of the same name, so only the other leaves stay in _unmapped_fields. Rows 12 and 13 straddle the step in the series.
+changePointOutputShadowsUnmappedLeaves
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped
+| CHANGE_POINT v ON k
+| WHERE k >= 12 AND k <= 13
+| SORT k
+;
+
+k:long | v:long | _unmapped_fields:_source                                              | type:keyword | pvalue:double
+12     | 10     | "{""ctype"":""c12"",""cp"":""q12"",""ukey"":""12"",""note"":""n12""}" | null         | null
+13     | 51     | "{""ctype"":""c13"",""cp"":""q13"",""ukey"":""13"",""note"":""n13""}" | step_change  | 0..1E-20
+;
+
+// With AS the output columns take other names, and those are the leaves that get shadowed: ctype and cp leave _unmapped_fields while type
+// and pvalue, no longer outputs, stay.
+changePointAsNamesShadowUnmappedLeaves
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped
+| CHANGE_POINT v ON k AS ctype, cp
+| WHERE k >= 12 AND k <= 13
+| SORT k
+;
+
+k:long | v:long | _unmapped_fields:_source                                                 | ctype:keyword | cp:double
+12     | 10     | "{""type"":""t12"",""pvalue"":""p12"",""ukey"":""12"",""note"":""n12""}" | null          | null
+13     | 51     | "{""type"":""t13"",""pvalue"":""p13"",""ukey"":""13"",""note"":""n13""}" | step_change   | 0..1E-20
+;
+
+// ukey is an unmapped keyword. Naming it as the key promotes it to a column, so it leaves _unmapped_fields; the other leaves stay.
+changePointOnUnmappedKey
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped
+| CHANGE_POINT v ON ukey
+| WHERE k >= 12 AND k <= 13
+| SORT k
+;
+
+k:long | v:long | ukey:keyword | _unmapped_fields:_source                              | type:keyword | pvalue:double
+12     | 10     | 12           | "{""ctype"":""c12"",""cp"":""q12"",""note"":""n12""}" | null         | null
+13     | 51     | 13           | "{""ctype"":""c13"",""cp"":""q13"",""note"":""n13""}" | step_change  | 0..1E-20
+;
+
+// Unmapped fields load as keyword, so they are cast to numbers before CHANGE_POINT; the casts shadow the originals out of _unmapped_fields.
+changePointOnCastUnmappedValueAndKey
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_unmapped
+| EVAL v = TO_LONG(v), k = TO_LONG(k)
+| CHANGE_POINT v ON k
+| WHERE k >= 12 AND k <= 13
+| SORT k
+;
+
+id:keyword | _unmapped_fields:_source | v:long | k:long | type:keyword | pvalue:double
+u12        | "{""note"":""n12""}"     | 10     | 12     | null         | null
+u13        | "{""note"":""n13""}"     | 51     | 13     | step_change  | 0..1E-20
+;

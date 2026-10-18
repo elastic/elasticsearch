@@ -126,6 +126,9 @@ class GitInfoPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
+        // Since Gradle 8.0 the build path follows the directory hierarchy of included builds, so the build at
+        // 'elasticsearch/build-tools' is addressed as ':elasticsearch:build-tools' although both are included from the root
+        // settings. See https://docs.gradle.org/current/userguide/upgrading_version_7.html ("Changes to paths of included builds")
         def result = gradleRunner(
             ":lib-a:printGitInfo",
             ":elasticsearch:lib:printGitInfo",

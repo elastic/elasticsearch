@@ -49,19 +49,11 @@ public class CoordinatorHeapPressureIT extends SearchHeapPressureTestCase {
         indexLargeDocuments(INDEX, SHARDS, SOURCE_ONLY_KEYWORD, "x".repeat(DOC_BYTES));
     }
 
-    public void testSmallRequestsSucceed() throws IOException {
-        assertSucceeds(search(INDEX, """
-            {"size": 10}
-            """));
-        assertSucceeds(search(INDEX, topHitsPerTag(10, "true")));
-        assertSucceeds(multiSearch(2, 10));
-    }
-
     /** The fetch results of all shards together do not fit. The request fails as a whole rather than return the hits that did. */
     public void testFetchedHitsTripBreaker() throws IOException {
-        assertCircuitBreaks(search(INDEX, Strings.format("""
+        assertTripsOnlyWhenLarge(size -> search(INDEX, Strings.format("""
             {"size": %d}
-            """, LARGE_DOCS)), "fetch[chunk]");
+            """, size)), 10, LARGE_DOCS, "fetch[chunk]");
     }
 
     /**
@@ -78,7 +70,7 @@ public class CoordinatorHeapPressureIT extends SearchHeapPressureTestCase {
 
     /** Every bucket comes from a different shard, so the reduce keeps all of their hits. */
     public void testTopHitsReduceTripsBreaker() throws IOException {
-        assertCircuitBreaks(search(INDEX, topHitsPerTag(LARGE_DOCS, "true")), "<reduce_aggs>");
+        assertTripsOnlyWhenLarge(tags -> search(INDEX, topHitsPerTag(tags, "true")), 10, LARGE_DOCS, "<reduce_aggs>");
     }
 
     /**
@@ -86,6 +78,7 @@ public class CoordinatorHeapPressureIT extends SearchHeapPressureTestCase {
      * multi-search, while fetching the hits of a search still running fails only that search, so either label can trip.
      */
     public void testMultiSearchResponsesTripBreaker() throws IOException {
+        assertMultiSearchSucceeds(multiSearch(2, 50));
         assertCircuitBreaksInPart(multiSearch(20, 50), "msearch[response]", "fetch[chunk]");
     }
 
@@ -96,9 +89,14 @@ public class CoordinatorHeapPressureIT extends SearchHeapPressureTestCase {
     public void testMultiSearchResponsesUnderLimitSucceed() throws IOException {
         Request multiSearch = multiSearch(8, 50);
         multiSearch.addParameter("max_concurrent_searches", "1");
+        assertMultiSearchSucceeds(multiSearch);
+    }
+
+    /** Multi-search reports a failed search in its response rather than failing the request. */
+    private void assertMultiSearchSucceeds(Request multiSearch) throws IOException {
         Map<String, Object> body = entityAsMap(client().performRequest(multiSearch));
         assertFalse("expected every search to succeed, but got: " + body, body.toString().contains("error"));
-        assertNodesAlive();
+        assertNodeAlive();
     }
 
     private static Request multiSearch(int searches, int size) {

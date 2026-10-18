@@ -60,36 +60,24 @@ public class FetchHeapPressureIT extends SearchHeapPressureTestCase {
         );
     }
 
-    /** Small requests over the fixture are unaffected. */
-    public void testSmallRequestsSucceed() throws IOException {
-        assertSucceeds(search(INDEX, """
-            {"size": 10}
-            """));
-        assertSucceeds(search(INDEX, """
-            {"size": 10, "_source": false, "fields": ["big"], "stored_fields": ["big"]}
-            """));
-        assertSucceeds(search(INDEX, highlightEveryWord(10)));
-        assertSucceeds(search(NESTED_INDEX, nestedInnerHits(10)));
-    }
-
     public void testSourcesTripBreaker() throws IOException {
-        assertCircuitBreaks(search(INDEX, Strings.format("""
+        assertTripsOnlyWhenLarge(size -> search(INDEX, Strings.format("""
             {"size": %d}
-            """, LARGE_DOCS)), "fetch[source]");
+            """, size)), 10, LARGE_DOCS, "fetch[source]");
     }
 
     /** {@code fields} copies the value out of {@code _source} into each hit. The source is not returned, so it is not what trips. */
     public void testFieldValuesTripBreaker() throws IOException {
-        assertCircuitBreaks(search(INDEX, Strings.format("""
+        assertTripsOnlyWhenLarge(size -> search(INDEX, Strings.format("""
             {"size": %d, "_source": false, "fields": ["big"]}
-            """, LARGE_DOCS)), "fetch[hit_fields]");
+            """, size)), 10, LARGE_DOCS, "fetch[hit_fields]");
     }
 
     /** Stored fields come from the stored fields of the document, not from {@code _source}. */
     public void testStoredFieldsTripBreaker() throws IOException {
-        assertCircuitBreaks(search(INDEX, Strings.format("""
+        assertTripsOnlyWhenLarge(size -> search(INDEX, Strings.format("""
             {"size": %d, "_source": false, "stored_fields": ["big"]}
-            """, LARGE_DOCS)), "fetch[hit_fields]");
+            """, size)), 10, LARGE_DOCS, "fetch[hit_fields]");
     }
 
     /**
@@ -97,7 +85,7 @@ public class FetchHeapPressureIT extends SearchHeapPressureTestCase {
      * source.
      */
     public void testHighlightsTripBreaker() throws IOException {
-        assertCircuitBreaks(search(INDEX, highlightEveryWord(LARGE_DOCS)), "fetch[hit_fields]");
+        assertTripsOnlyWhenLarge(size -> search(INDEX, highlightEveryWord(size)), 10, LARGE_DOCS, "fetch[hit_fields]");
     }
 
     /**
@@ -105,7 +93,7 @@ public class FetchHeapPressureIT extends SearchHeapPressureTestCase {
      * nested ones are the only payload.
      */
     public void testNestedInnerHitsTripBreaker() throws IOException {
-        assertCircuitBreaks(search(NESTED_INDEX, nestedInnerHits(LARGE_DOCS)), "fetch[source]");
+        assertTripsOnlyWhenLarge(size -> search(NESTED_INDEX, nestedInnerHits(size)), 10, LARGE_DOCS, "fetch[source]");
     }
 
     private static String nestedInnerHits(int size) {

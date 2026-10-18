@@ -10,7 +10,6 @@
 package org.elasticsearch.search.heappressure;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -21,11 +20,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.IntFunction;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -51,31 +46,31 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
     protected static final String SOURCE_ONLY_KEYWORD = """
         {"type": "keyword", "index": false, "doc_values": false}""";
 
-    protected abstract ElasticsearchCluster cluster();
+    // Set this to true to turn the breakers off and check that each case that trips one runs a node out of memory instead.
+    private static final boolean VALIDATE_OOM = false;
 
     /**
      * Settings every node of a subclass cluster shares, before the nodes and their heaps are added.
      */
     protected static LocalClusterSpecBuilder<ElasticsearchCluster> heapConstrainedCluster() {
         return ElasticsearchCluster.local()
-            // The base class unblocks the pausable field after every case, which needs the module.
-            .module("test-pausable-field")
             // An OutOfMemoryError must end the node so the test sees it.
             .jvmArg("-XX:+ExitOnOutOfMemoryError")
             .jvmArg("-XX:-HeapDumpOnOutOfMemoryError")
             // Only charged bytes count towards the parent breaker. Real memory accounting would also trip on uncharged memory, which hides
             // the accounting gaps these tests look for.
-            .setting("indices.breaker.total.use_real_memory", "false");
+            .setting("indices.breaker.total.use_real_memory", "false")
+            .apply(c -> {
+                if (VALIDATE_OOM) {
+                    c.setting("indices.breaker.request.limit", "-1");
+                    c.setting("indices.breaker.total.limit", "100gb");
+                }
+            });
     }
 
     /** A single node with a {@code heapSize} heap that holds the data and coordinates the requests. */
     protected static LocalClusterSpecBuilder<ElasticsearchCluster> heapConstrainedNode(String heapSize) {
         return heapConstrainedCluster().nodes(1).jvmArg("-Xms" + heapSize).jvmArg("-Xmx" + heapSize);
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster().getHttpAddresses();
     }
 
     /** Fixtures are expensive to index, so every case of the class shares them. */
@@ -190,7 +185,7 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
         Map<String, Object> body = errorBodyOrNull(request);
         assertNotNull("expected a circuit breaker to reject the request, but it succeeded", body);
         assertCircuitBreakingException(body, label);
-        assertNodesAlive();
+        assertNodeAlive();
     }
 
     /**
@@ -200,22 +195,26 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
     protected void assertCircuitBreaksInPart(Request request, String... labels) throws IOException {
         Map<String, Object> body;
         try {
-            body = entityAsMap(performOrFailOnExit(request));
+            body = entityAsMap(client().performRequest(request));
         } catch (ResponseException e) {
             body = entityAsMap(e.getResponse());
         }
         assertCircuitBreakingException(body, labels);
-        assertNodesAlive();
+        assertNodeAlive();
+    }
+
+    /**
+     * Asserts that {@code request} succeeds at size {@code small} and is rejected under {@code label} at size {@code large}, so a case
+     * cannot pass on a node that rejects every such request.
+     */
+    protected void assertTripsOnlyWhenLarge(IntFunction<Request> request, int small, int large, String label) throws IOException {
+        assertSucceeds(request.apply(small));
+        assertCircuitBreaks(request.apply(large), label);
     }
 
     /** Asserts that the request succeeds and that every node survives it. */
     protected void assertSucceeds(Request request) throws IOException {
         assertNull("expected the request to succeed", errorBodyOrNull(request));
-        assertNodesAlive();
-    }
-
-    protected void assertNodesAlive() throws IOException {
-        assertTrue("a node exited, most likely on an OutOfMemoryError", nodesAreAlive());
         assertNodeAlive();
     }
 
@@ -233,91 +232,5 @@ public abstract class SearchHeapPressureTestCase extends HeapPressureTestCase {
                 + ", but got: "
                 + text.substring(0, Math.min(text.length(), 4096))
         );
-    }
-
-    /** As in the base class, but a node exit is reported as the failure instead of the bare I/O error. */
-    @Override
-    protected Map<String, Object> errorBodyOrNull(Request request) throws IOException {
-        try {
-            performOrFailOnExit(request);
-            return null;
-        } catch (ResponseException e) {
-            return entityAsMap(e.getResponse());
-        }
-    }
-
-    /** Reports a connection lost because a node exited as such, rather than as the bare I/O error. */
-    private Response performOrFailOnExit(Request request) throws IOException {
-        try {
-            return client().performRequest(request);
-        } catch (ResponseException e) {
-            throw e;
-        } catch (IOException e) {
-            if (aNodeExits()) {
-                throw new AssertionError("a node exited while serving the request, most likely on an OutOfMemoryError", e);
-            }
-            throw e;
-        }
-    }
-
-    private boolean nodesAreAlive() {
-        for (int node = 0; node < cluster().getNumNodes(); node++) {
-            if (nodeProcess(node).map(ProcessHandle::isAlive).orElse(false) == false) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** A node killed by an {@link OutOfMemoryError} can drop its connections a moment before its process is gone, so wait for it. */
-    private boolean aNodeExits() {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-        for (int node = 0; node < cluster().getNumNodes(); node++) {
-            Optional<ProcessHandle> process = nodeProcess(node);
-            if (process.isEmpty()) {
-                return true;
-            }
-            try {
-                process.get().onExit().get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
-                return true;
-            } catch (TimeoutException e) {
-                // check the next node
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
-        }
-        return false;
-    }
-
-    private Optional<ProcessHandle> nodeProcess(int node) {
-        try {
-            return ProcessHandle.of(cluster().getPid(node));
-        } catch (RuntimeException e) {
-            logger.info("could not read the pid of node [{}]", node, e);
-            return Optional.empty();
-        }
-    }
-
-    /** The breaker error is nested at a depth that depends on the phase that failed, so search the whole body. */
-    private static boolean containsCircuitBreakingException(Object obj, String reasonFragment) {
-        if (obj instanceof Map<?, ?> map) {
-            if ("circuit_breaking_exception".equals(map.get("type"))
-                && map.get("reason") instanceof String reason
-                && reason.contains(reasonFragment)) {
-                return true;
-            }
-            for (Object value : map.values()) {
-                if (containsCircuitBreakingException(value, reasonFragment)) {
-                    return true;
-                }
-            }
-        } else if (obj instanceof List<?> list) {
-            for (Object item : list) {
-                if (containsCircuitBreakingException(item, reasonFragment)) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 }

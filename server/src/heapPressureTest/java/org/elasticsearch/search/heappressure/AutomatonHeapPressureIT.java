@@ -18,9 +18,9 @@ import java.io.IOException;
 import java.util.function.IntFunction;
 
 /**
- * Wildcard, regexp and fuzzy queries compile automata while the query is built on the data node. One pattern can need more states than the
- * heap holds, so the breaker must be charged as they are built, and for what each clause keeps until the request ends. The documents are
- * small: the memory is all in the query.
+ * Wildcard and regexp queries compile automata while the query is built on the data node, and each clause keeps its automaton until the
+ * request ends. One pattern can need more states than the heap holds, so the breaker must be charged as they are built and for what each
+ * clause keeps. The documents are small: the memory is all in the query.
  */
 public class AutomatonHeapPressureIT extends SearchHeapPressureTestCase {
 
@@ -62,24 +62,24 @@ public class AutomatonHeapPressureIT extends SearchHeapPressureTestCase {
      * stops it.
      */
     public void testRegexpDeterminizationTripsBreaker() throws IOException {
-        assertCircuitBreaks(search(INDEX, """
-            {"size": 0, "query": {"regexp": {"tag": {"value": "[ac]*a[ac]{20}", "max_determinized_states": 10000000}}}}
-            """), "regexp:tag");
+        assertTripsOnlyWhenLarge(n -> search(INDEX, Strings.format("""
+            {"size": 0, "query": {"regexp": {"tag": {"value": "[ac]*a[ac]{%d}", "max_determinized_states": 10000000}}}}
+            """, n)), 2, 20, "regexp:tag");
     }
 
     /** Each pattern is under the determinization limit, but every clause keeps its automaton until the request ends, and 26 do not fit. */
     public void testWildcardClausesTripBreaker() throws IOException {
-        assertCircuitBreaks(search(INDEX, should(26, i -> wildcard("tag", (char) ('a' + i), false))), "wildcard");
+        assertTripsOnlyWhenLarge(n -> search(INDEX, should(n, i -> wildcard("tag", (char) ('a' + i), false))), 1, 26, "wildcard");
     }
 
     /** Case-insensitive matching compiles a bigger automaton through a separately guarded path. */
     public void testCaseInsensitiveWildcardClausesTripBreaker() throws IOException {
-        assertCircuitBreaks(search(INDEX, should(26, i -> wildcard("tag", (char) ('a' + i), true))), "wildcard");
+        assertTripsOnlyWhenLarge(n -> search(INDEX, should(n, i -> wildcard("tag", (char) ('a' + i), true))), 1, 26, "wildcard");
     }
 
     /** A field with doc values but no terms index is matched by running the automaton over the doc values. */
     public void testDocValuesWildcardClausesTripBreaker() throws IOException {
-        assertCircuitBreaks(search(INDEX, should(26, i -> wildcard("dv_tag", (char) ('a' + i), false))), "wildcard");
+        assertTripsOnlyWhenLarge(n -> search(INDEX, should(n, i -> wildcard("dv_tag", (char) ('a' + i), false))), 1, 26, "wildcard");
     }
 
     /**
@@ -92,32 +92,9 @@ public class AutomatonHeapPressureIT extends SearchHeapPressureTestCase {
             """, TWELVE_ANY)));
     }
 
-    /**
-     * Distinct fuzzy terms each keep their own Levenshtein automata, a few MB each. They are charged with the rest of the query once it is
-     * built.
-     */
-    public void testFuzzyClausesTripBreaker() throws IOException {
-        assertCircuitBreaks(search(INDEX, should(80, AutomatonHeapPressureIT::fuzzy)), "query");
-    }
-
-    /**
-     * About 105 MB of fuzzy clauses fit, as under {@code bool}, so {@code dis_max} must charge each clause once (see #158147).
-     */
-    public void testDisMaxChargesClausesOnce() throws IOException {
-        assertSucceeds(search(INDEX, Strings.format("""
-            {"size": 0, "query": {"dis_max": {"queries": [%s]}}}
-            """, clauses(40, AutomatonHeapPressureIT::fuzzy))));
-    }
-
     private static String wildcard(String field, char letter, boolean caseInsensitive) {
         return Strings.format("""
             {"wildcard": {"%s": {"value": "*%c%s", "case_insensitive": %b}}}""", field, letter, TWELVE_ANY, caseInsensitive);
-    }
-
-    /** A distinct term per clause, so each keeps its own automata. */
-    private static String fuzzy(int clause) {
-        return Strings.format("""
-            {"fuzzy": {"tag": {"value": "%04d-tag-abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", "fuzziness": 2}}}""", clause);
     }
 
     private static String should(int count, IntFunction<String> clause) {

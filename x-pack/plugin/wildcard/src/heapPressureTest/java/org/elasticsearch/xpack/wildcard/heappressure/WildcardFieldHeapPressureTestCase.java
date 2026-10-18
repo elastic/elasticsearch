@@ -54,8 +54,8 @@ public abstract class WildcardFieldHeapPressureTestCase extends HeapPressureTest
         .build();
 
     @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+    protected ElasticsearchCluster cluster() {
+        return cluster;
     }
 
     @Before

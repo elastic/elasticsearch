@@ -36,14 +36,9 @@ public class AggregationHeapPressureIT extends SearchHeapPressureTestCase {
         indexLargeDocuments(INDEX, 1, SOURCE_ONLY_KEYWORD, "x".repeat(DOC_BYTES));
     }
 
-    /** Small requests over the fixture are unaffected. */
-    public void testSmallRequestsSucceed() throws IOException {
-        assertSucceeds(search(INDEX, topHitsPerTag(10, "true")));
-    }
-
     /** {@code top_hits} charges the hits its buckets keep, so a bucket per document returning its source is rejected. */
     public void testTopHitsSourcesTripBreaker() throws IOException {
-        assertCircuitBreaks(search(INDEX, topHitsPerTag(LARGE_DOCS, "true")), "<agg [top]>");
+        assertTripsOnlyWhenLarge(tags -> search(INDEX, topHitsPerTag(tags, "true")), 10, LARGE_DOCS, "<agg [top]>");
     }
 
     /**

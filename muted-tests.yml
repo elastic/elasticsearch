@@ -182,6 +182,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
   method: testLookupJoinUnsupported
   issue: https://github.com/elastic/elasticsearch/issues/162403
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/delete_expired_data/Test delete expired data with no body}
+  issue: https://github.com/elastic/elasticsearch/issues/162417
 
 # Examples:
 #

@@ -609,6 +609,15 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
+        /** Defines a range-vector function whose scalar parameter follows the range vector. */
+        public PromqlFunctionDefinition.Builder withinSeriesRangeFirst(PromqlParamInfo parameter, FunctionBuilder builder) {
+            this.functionType = FunctionType.WITHIN_SERIES_AGGREGATION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.params = List.of(RANGE_VECTOR, parameter);
+            this.builder = builder;
+            return this;
+        }
+
         public PromqlFunctionDefinition.Builder withinSeriesOverTime(FunctionDefinition.TernaryBuilder<? extends Expression> ctorRef) {
             this.functionType = FunctionType.WITHIN_SERIES_AGGREGATION;
             this.arity = PromqlFunctionArity.ONE;

@@ -186,7 +186,12 @@ if (extraProjects.exists()) {
 include 'qa:vector'
 
 gradle.lifecycle.beforeProject { Project project ->
-  if (project == project.rootProject) return
+  if (project == project.rootProject) {
+    // Subprojects must not apply plugins to the root project (Isolated Projects). Apply it here as
+    // plugins like develocity can trigger subproject configuration before the root build script runs.
+    project.pluginManager.apply('elasticsearch.global-build-info')
+    return
+  }
   project.pluginManager.apply('elasticsearch.base')
   project.pluginManager.apply('elasticsearch.formatting')
 }

@@ -188,6 +188,8 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
   method: testGetAllModels
   issue: https://github.com/elastic/elasticsearch/issues/162424
+- class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/162427
 
 # Examples:
 #

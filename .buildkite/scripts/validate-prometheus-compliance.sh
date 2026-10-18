@@ -94,6 +94,7 @@ annotate() {
 # links to the run and the promcheck release.
 report() {
   printf '<!-- promcheck-pr-report -->\n## Promcheck\n\n'
+  printf '**Synthetic report test:** five case outcomes are deliberately overridden below; these are not Elasticsearch findings.\n\n'
   cat
   if [[ -n "$BUILD_URL" ]]; then
     printf '[Buildkite run](%s) | ' "$BUILD_URL"
@@ -205,6 +206,14 @@ compare_results() {
     [[ -n "${previous[$id]+present}" ]] || continue
     old=${previous[$id]}
     new=$(query_status "${tested_records[i+1]}" "${tested_records[i+2]}" "${tested_records[i+3]}")
+    # Temporary fault injection for the report workflow; removed after this build.
+    case "$id" in
+      001) new=mismatch ;;
+      002) new=flaky ;;
+      011) new=match ;;
+      012) new=error5xx ;;
+      562) new=match ;;
+    esac
     category=$(classify "$old" "$new")
     [[ "$category" == stable ]] || results_ref+=("$id" "$old" "$new" "$category" "${tested_records[i+4]}")
   done

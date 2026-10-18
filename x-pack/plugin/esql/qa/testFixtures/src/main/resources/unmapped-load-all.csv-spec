@@ -5734,7 +5734,7 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime | verb:keyword
+@timestamp:datetime      | verb:keyword
 2024-10-23T12:15:03.360Z | Connected
 2024-10-23T12:27:28.948Z | Connected
 2024-10-23T13:33:34.937Z | 42
@@ -5756,14 +5756,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime | a:keyword | b:keyword
-2024-10-23T12:15:03.360Z | Connected | to 10.1.0.3!
-2024-10-23T12:27:28.948Z | Connected | to 10.1.0.2!
-2024-10-23T13:33:34.937Z | null | null
+@timestamp:datetime      | a:keyword  | b:keyword
+2024-10-23T12:15:03.360Z | Connected  | to 10.1.0.3!
+2024-10-23T12:27:28.948Z | Connected  | to 10.1.0.2!
+2024-10-23T13:33:34.937Z | null       | null
 2024-10-23T13:51:54.732Z | Connection | error?
 2024-10-23T13:52:55.015Z | Connection | error?
 2024-10-23T13:53:55.832Z | Connection | error?
-2024-10-23T13:55:01.543Z | Connected | to 10.1.0.1!
+2024-10-23T13:55:01.543Z | Connected  | to 10.1.0.1!
 ;
 
 // GROK reads an unmapped field by name (unmapped_message), proving LOAD_ALL exposes unmapped leaves as GROK/DISSECT input.
@@ -5778,7 +5778,7 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime | w:keyword
+@timestamp:datetime      | w:keyword
 2024-10-23T12:15:03.360Z | Disconnected
 2024-10-23T12:27:28.948Z | Disconnected
 2024-10-23T13:33:34.937Z | 43
@@ -5800,14 +5800,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime | a:keyword | b:keyword
-2024-10-23T12:15:03.360Z | Disconnected | from 10.1.0.3
-2024-10-23T12:27:28.948Z | Disconnected | from 10.1.0.2
-2024-10-23T13:33:34.937Z | null | null
+@timestamp:datetime      | a:keyword     | b:keyword
+2024-10-23T12:15:03.360Z | Disconnected  | from 10.1.0.3
+2024-10-23T12:27:28.948Z | Disconnected  | from 10.1.0.2
+2024-10-23T13:33:34.937Z | null          | null
 2024-10-23T13:51:54.732Z | Disconnection | error
 2024-10-23T13:52:55.015Z | Disconnection | error
 2024-10-23T13:53:55.832Z | Disconnection | error
-2024-10-23T13:55:01.543Z | Disconnected | from 10.1.0.1
+2024-10-23T13:55:01.543Z | Disconnected  | from 10.1.0.1
 ;
 
 // A GROK output column named like an unmapped field (language_code) shadows it: the column holds the GROK value and language_code is
@@ -5822,14 +5822,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | language_code:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232 | Connected to 10.1.0.3! | "{""unmapped_message"":""Disconnected from 10.1.0.3"",""unmapped_event_duration"":""3450234"",""unmapped.nested"":""g""}" | Connected
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888 | Connected to 10.1.0.2! | "{""unmapped_message"":""Disconnected from 10.1.0.2"",""unmapped_event_duration"":""2764890"",""unmapped.nested"":""f""}" | Connected
-2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e""}" | 42
-2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d""}" | Connection
-2024-10-23T13:52:55.015Z | 173.21.3.15 | 8268152 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c""}" | Connection
-2024-10-23T13:53:55.832Z | 173.21.3.15 | 5033754 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""5033756"",""unmapped.nested"":""b""}" | Connection
-2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a""}" | Connected
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:_source                                                                                                  | language_code:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""unmapped_message"":""Disconnected from 10.1.0.3"",""unmapped_event_duration"":""3450234"",""unmapped.nested"":""g""}" | Connected
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""unmapped_message"":""Disconnected from 10.1.0.2"",""unmapped_event_duration"":""2764890"",""unmapped.nested"":""f""}" | Connected
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e""}"                         | 42
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d""}"         | Connection
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c""}"        | Connection
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""5033756"",""unmapped.nested"":""b""}"        | Connection
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a""}" | Connected
 ;
 
 // A leaf declared under a nested parent is a field of the shard that maps it, so it is not discovered there. The same path is a plain
@@ -5845,8 +5845,8 @@ FROM nested_paths_mapped, nested_paths_unmapped
 ;
 
 id:keyword | _unmapped_fields:_source
-m | "{""order.items.qty"":[""1"",""2""],""order.items.parts.color"":[""red"",""blue""]}"
-u | "{""order.items.name"":[""a"",""b""],""order.items.qty"":[""1"",""2""],""order.items.parts.pn"":[""p1"",""p2""],""order.items.parts.color"":[""red"",""blue""]}"
+m          | "{""order.items.qty"":[""1"",""2""],""order.items.parts.color"":[""red"",""blue""]}"
+u          | "{""order.items.name"":[""a"",""b""],""order.items.qty"":[""1"",""2""],""order.items.parts.pn"":[""p1"",""p2""],""order.items.parts.color"":[""red"",""blue""]}"
 ;
 
 nestedPathsMappedIndexAlone
@@ -5859,7 +5859,7 @@ FROM nested_paths_mapped
 ;
 
 id:keyword | _unmapped_fields:_source
-m | "{""order.items.qty"":[""1"",""2""],""order.items.parts.color"":[""red"",""blue""]}"
+m          | "{""order.items.qty"":[""1"",""2""],""order.items.parts.color"":[""red"",""blue""]}"
 ;
 
 // A DISSECT output column named like an unmapped field (language_code) shadows it: the column holds the GROK value and language_code is
@@ -5874,14 +5874,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | language_code:keyword | rest:keyword
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232 | Connected to 10.1.0.3! | "{""unmapped_message"":""Disconnected from 10.1.0.3"",""unmapped_event_duration"":""3450234"",""unmapped.nested"":""g""}" | Connected | to 10.1.0.3!
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888 | Connected to 10.1.0.2! | "{""unmapped_message"":""Disconnected from 10.1.0.2"",""unmapped_event_duration"":""2764890"",""unmapped.nested"":""f""}" | Connected | to 10.1.0.2!
-2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e""}" | null | null
-2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d""}" | Connection | error?
-2024-10-23T13:52:55.015Z | 173.21.3.15 | 8268152 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c""}" | Connection | error?
-2024-10-23T13:53:55.832Z | 173.21.3.15 | 5033754 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""5033756"",""unmapped.nested"":""b""}" | Connection | error?
-2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a""}" | Connected | to 10.1.0.1!
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:_source                                                                                                  | language_code:keyword | rest:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""unmapped_message"":""Disconnected from 10.1.0.3"",""unmapped_event_duration"":""3450234"",""unmapped.nested"":""g""}" | Connected             | to 10.1.0.3!
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""unmapped_message"":""Disconnected from 10.1.0.2"",""unmapped_event_duration"":""2764890"",""unmapped.nested"":""f""}" | Connected             | to 10.1.0.2!
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e""}"                         | null                  | null
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d""}"         | Connection            | error?
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c""}"        | Connection            | error?
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""5033756"",""unmapped.nested"":""b""}"        | Connection            | error?
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a""}" | Connected             | to 10.1.0.1!
 ;
 
 ###############################################
@@ -5902,7 +5902,7 @@ FROM partial_mapping_mv_sample_data
 | LIMIT 20
 ;
 
-@timestamp:datetime | unmapped_mv:keyword
+@timestamp:datetime      | unmapped_mv:keyword
 2024-10-23T12:15:03.360Z | k
 2024-10-23T12:15:03.360Z | l
 2024-10-23T12:15:03.360Z | m
@@ -5931,9 +5931,9 @@ FROM partial_mapping_mv_sample_data
 | SORT unmapped_mv
 ;
 
-@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | unmapped_mv:keyword | _unmapped_fields:_source
-2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | h | "{""unmapped_message"":""43""}"
-2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | i | "{""unmapped_message"":""43""}"
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | unmapped_mv:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | h                   | "{""unmapped_message"":""43""}"
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | i                   | "{""unmapped_message"":""43""}"
 ;
 
 // MV_EXPAND of a mapped multivalued column (here built with EVAL) repeats the whole _unmapped_fields object across the produced rows.
@@ -5949,9 +5949,9 @@ FROM partial_mapping_sample_data
 | SORT pair
 ;
 
-@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | pair:keyword
-2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""language_code"":""1""}" | CONNECTED TO 10.1.0.1!
-2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""language_code"":""1""}" | Connected to 10.1.0.1!
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:_source                                                                                                                          | pair:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""language_code"":""1""}" | CONNECTED TO 10.1.0.1!
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""language_code"":""1""}" | Connected to 10.1.0.1!
 ;
 
 ###############################################
@@ -5970,14 +5970,14 @@ FROM partial_mapping_sample_data
 | SORT @timestamp
 ;
 
-@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source
-2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232 | Connected to 10.1.0.3! | "{""unmapped_message"":""Disconnected from 10.1.0.3"",""unmapped_event_duration"":""3450234"",""unmapped.nested"":""g"",""language_code"":""4""}"
-2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888 | Connected to 10.1.0.2! | "{""unmapped_message"":""Disconnected from 10.1.0.2"",""unmapped_event_duration"":""2764890"",""unmapped.nested"":""f"",""language_code"":""3""}"
-2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
-2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d"",""language_code"":""1""}"
-2024-10-23T13:52:55.015Z | 173.21.3.15 | 8268152 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c"",""language_code"":""3""}"
-2024-10-23T13:53:55.832Z | 173.21.3.15 | 5033754 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""5033756"",""unmapped.nested"":""b"",""language_code"":""2""}"
-2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""language_code"":""1""}"
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:_source
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | "{""unmapped_message"":""Disconnected from 10.1.0.3"",""unmapped_event_duration"":""3450234"",""unmapped.nested"":""g"",""language_code"":""4""}"
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | "{""unmapped_message"":""Disconnected from 10.1.0.2"",""unmapped_event_duration"":""2764890"",""unmapped.nested"":""f"",""language_code"":""3""}"
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d"",""language_code"":""1""}"
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c"",""language_code"":""3""}"
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""5033756"",""unmapped.nested"":""b"",""language_code"":""2""}"
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""language_code"":""1""}"
 ;
 
 // SAMPLE composes with the rest of the pipeline: an (almost) full sample followed by a WHERE on a mapped field and a KEEP that names an
@@ -5993,7 +5993,7 @@ FROM partial_mapping_sample_data
 | KEEP @timestamp, unmapped_message
 ;
 
-@timestamp:datetime | unmapped_message:keyword
+@timestamp:datetime      | unmapped_message:keyword
 2024-10-23T13:33:34.937Z | 43
 ;
 
@@ -6015,9 +6015,9 @@ FROM partial_mapping_sample_data, no_mapping_sample_data METADATA _index
 | SORT _index
 ;
 
-_index:keyword | verb:keyword | _unmapped_fields:_source
-no_mapping_sample_data | Connected | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
-partial_mapping_sample_data | Connected | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
+_index:keyword              | verb:keyword | _unmapped_fields:_source
+no_mapping_sample_data      | Connected    | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
+partial_mapping_sample_data | Connected    | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
 ;
 
 // GROK in one FORK branch adds a column that the other branch null-fills; _unmapped_fields stays per branch.
@@ -6034,9 +6034,9 @@ FROM partial_mapping_sample_data
 | SORT _fork
 ;
 
-@timestamp:datetime | verb:keyword | _fork:keyword | _unmapped_fields:_source
-2024-10-23T13:33:34.937Z | 42 | fork1 | "{""unmapped_message"":""43""}"
-2024-10-23T13:33:34.937Z | null | fork2 | "{""unmapped_message"":""43""}"
+@timestamp:datetime      | verb:keyword | _fork:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | 42           | fork1         | "{""unmapped_message"":""43""}"
+2024-10-23T13:33:34.937Z | null         | fork2         | "{""unmapped_message"":""43""}"
 ;
 
 // MV_EXPAND and SAMPLE each in a FORK branch.
@@ -6053,10 +6053,10 @@ FROM partial_mapping_mv_sample_data
 | SORT _fork, unmapped_mv
 ;
 
-@timestamp:datetime | unmapped_mv:keyword | _fork:keyword | _unmapped_fields:_source
-2024-10-23T13:33:34.937Z | h | fork1 | "{""unmapped_message"":""43""}"
-2024-10-23T13:33:34.937Z | i | fork1 | "{""unmapped_message"":""43""}"
-2024-10-23T13:33:34.937Z | [i, h] | fork2 | "{""unmapped_message"":""43""}"
+@timestamp:datetime      | unmapped_mv:keyword | _fork:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | h                   | fork1         | "{""unmapped_message"":""43""}"
+2024-10-23T13:33:34.937Z | i                   | fork1         | "{""unmapped_message"":""43""}"
+2024-10-23T13:33:34.937Z | [i, h]              | fork2         | "{""unmapped_message"":""43""}"
 ;
 
 // DISSECT inside one subquery of a FROM over a mapped and an unmapped index.
@@ -6072,9 +6072,9 @@ FROM (FROM partial_mapping_sample_data | WHERE @timestamp == "2024-10-23T13:55:0
 | SORT a
 ;
 
-a:keyword | b:keyword | _unmapped_fields:_source
+a:keyword | b:keyword    | _unmapped_fields:_source
 Connected | to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
-null | null | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
+null      | null         | "{""unmapped_message"":""Disconnected from 10.1.0.1""}"
 ;
 
 // MV_EXPAND of a field that is multivalued and mapped in one index and unmapped in the other, with single-valued, valueless and
@@ -6091,14 +6091,14 @@ FROM mv_expand_mapped, mv_expand_unmapped
 ;
 
 id:keyword | tags:keyword
-m1 | a
-m1 | b
-m2 | c
-m3 | null
-u1 | d
-u1 | e
-u2 | null
-u3 | f
+m1         | a
+m1         | b
+m2         | c
+m3         | null
+u1         | d
+u1         | e
+u2         | null
+u3         | f
 ;
 
 // The unmapped deep.items leaf is repeated across the rows tags expands into, and is absent where the row has no such leaf.
@@ -6114,14 +6114,14 @@ FROM mv_expand_mapped, mv_expand_unmapped
 ;
 
 id:keyword | tags:keyword | _unmapped_fields:_source
-m1 | a | null
-m1 | b | null
-m2 | c | null
-m3 | null | null
-u1 | d | "{""deep.items"":[""x"",""y""]}"
-u1 | e | "{""deep.items"":[""x"",""y""]}"
-u2 | null | null
-u3 | f | "{""deep.items"":""z""}"
+m1         | a            | null
+m1         | b            | null
+m2         | c            | null
+m3         | null         | null
+u1         | d            | "{""deep.items"":[""x"",""y""]}"
+u1         | e            | "{""deep.items"":[""x"",""y""]}"
+u2         | null         | null
+u3         | f            | "{""deep.items"":""z""}"
 ;
 
 // An unmapped field with a dotted name expands like any other, and drops out of _unmapped_fields once it is a column.
@@ -6137,10 +6137,10 @@ FROM mv_expand_unmapped
 ;
 
 id:keyword | deep.items:keyword | _unmapped_fields:_source
-u1 | x | "{""tags"":[""d"",""e""]}"
-u1 | y | "{""tags"":[""d"",""e""]}"
-u2 | null | null
-u3 | z | "{""tags"":""f""}"
+u1         | x                  | "{""tags"":[""d"",""e""]}"
+u1         | y                  | "{""tags"":[""d"",""e""]}"
+u2         | null               | null
+u3         | z                  | "{""tags"":""f""}"
 ;
 
 // GROK on a field no index has yields a null column rather than an error.
@@ -6156,7 +6156,7 @@ FROM partial_mapping_sample_data
 | LIMIT 2
 ;
 
-@timestamp:datetime | w:keyword
+@timestamp:datetime      | w:keyword
 2024-10-23T12:15:03.360Z | null
 2024-10-23T12:27:28.948Z | null
 ;

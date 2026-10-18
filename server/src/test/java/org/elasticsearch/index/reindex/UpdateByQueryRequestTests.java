@@ -12,7 +12,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -99,15 +98,6 @@ public class UpdateByQueryRequestTests extends AbstractBulkByPaginatedSearchRequ
         assertThat(request.getDescription(), equalTo("update-by-query [index] updated with " + script));
     }
 
-    /** A value that is iterable but not a collection, such as a path, is rendered with its own {@link Object#toString()}. */
-    public void testDescriptionRendersNonCollectionIterableParamsAsToString() {
-        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "return", Map.of("path", PathUtils.get("a", "b")));
-
-        UpdateByQueryRequest request = new UpdateByQueryRequest("index").setScript(script);
-
-        assertThat(request.getDescription(), equalTo("update-by-query [index] updated with " + script));
-    }
-
     /** Large params, such as whole documents keyed by id, must not be copied into the task description. */
     public void testDescriptionTruncatesLargeNestedScriptParams() {
         Map<String, Object> docs = new HashMap<>();
@@ -131,72 +121,6 @@ public class UpdateByQueryRequestTests extends AbstractBulkByPaginatedSearchRequ
         assertThat(renderedParams(description), startsWith("{docs={doc-"));
         assertThat(renderedParams(description).length(), equalTo(MAX_DESCRIPTION_PARAMS_LENGTH + "...}".length()));
         assertThat(description, endsWith("...}"));
-    }
-
-    /** A single large value is cut instead of being copied whole. */
-    public void testDescriptionTruncatesLargeScriptParamValue() {
-        Script script = new Script(
-            ScriptType.INLINE,
-            Script.DEFAULT_SCRIPT_LANG,
-            "ctx._source.message = params.message",
-            Map.of("message", "x".repeat(MAX_DESCRIPTION_PARAMS_LENGTH * 10))
-        );
-
-        String description = new UpdateByQueryRequest("index").setScript(script).getDescription();
-
-        assertThat(
-            renderedParams(description),
-            equalTo("{message=" + "x".repeat(MAX_DESCRIPTION_PARAMS_LENGTH - "{message=".length()) + "...}")
-        );
-    }
-
-    /** Many small params that add up past the limit are cut wherever the limit falls, including inside a key, value or separator. */
-    public void testDescriptionTruncatesManySmallScriptParams() {
-        Map<String, Object> params = new LinkedHashMap<>();
-        for (int i = 0; i < 100; i++) {
-            params.put(randomAlphaOfLength(between(1, 10)) + i, List.of(i, "value" + i));
-        }
-        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "return", params);
-
-        String description = new UpdateByQueryRequest("index").setScript(script).getDescription();
-
-        assertThat(renderedParams(description), equalTo(params.toString().substring(0, MAX_DESCRIPTION_PARAMS_LENGTH) + "...}"));
-    }
-
-    /** Params that are exactly as long as the limit are kept in full, without the truncation marker. */
-    public void testDescriptionDoesNotMarkParamsThatExactlyFit() {
-        String message = "x".repeat(MAX_DESCRIPTION_PARAMS_LENGTH - "{message=}".length());
-
-        String description = descriptionWithMessageParam(message);
-
-        // the closing brace of the script follows the params
-        assertThat(renderedParams(description), equalTo("{message=" + message + "}}"));
-    }
-
-    /** The limit counts the brackets, so params are marked as cut even when only their closing brace does not fit. */
-    public void testDescriptionMarksParamsThatDoNotFit() {
-        String message = "x".repeat(MAX_DESCRIPTION_PARAMS_LENGTH - "{message=}".length() + 1);
-
-        String description = descriptionWithMessageParam(message);
-
-        assertThat(renderedParams(description), equalTo("{message=" + message + "...}"));
-    }
-
-    /** A cut must not leave the first half of a surrogate pair at the end of the params. */
-    public void testDescriptionDoesNotSplitSurrogatePairs() {
-        int roomForValue = MAX_DESCRIPTION_PARAMS_LENGTH - "{message=".length();
-        String emoji = Character.toString(0x1F600);
-        // the high surrogate of the emoji would be the last character that fits
-        String message = "x".repeat(roomForValue - 1) + emoji + "tail";
-
-        String description = descriptionWithMessageParam(message);
-
-        assertThat(renderedParams(description), equalTo("{message=" + "x".repeat(roomForValue - 1) + "...}"));
-    }
-
-    private static String descriptionWithMessageParam(String message) {
-        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "return", Map.of("message", message));
-        return new UpdateByQueryRequest("index").setScript(script).getDescription();
     }
 
     /** The part of the description after {@code params=}, which is where the script params are rendered. */

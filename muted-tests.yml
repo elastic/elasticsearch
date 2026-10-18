@@ -185,6 +185,9 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with no body}
   issue: https://github.com/elastic/elasticsearch/issues/162417
+- class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
+  method: testGetAllModels
+  issue: https://github.com/elastic/elasticsearch/issues/162424
 
 # Examples:
 #

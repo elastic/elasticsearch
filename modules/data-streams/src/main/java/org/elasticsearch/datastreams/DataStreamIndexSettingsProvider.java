@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DIMENSIONS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
@@ -63,6 +64,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         Setting.Property.NodeScope
     );
 
+    private static final Set<String> AFFECTED_SETTINGS = Set.of(
+        IndexSettings.TIME_SERIES_START_TIME.getKey(),
+        IndexSettings.TIME_SERIES_END_TIME.getKey(),
+        IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+        IndexSettings.SYNTHETIC_ID.getKey(),
+        INDEX_DIMENSIONS.getKey(),
+        INDEX_ROUTING_PATH.getKey()
+    );
+
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
     private final boolean supportSeqNoDisabled;
     private final boolean supportSyntheticId;
@@ -75,6 +85,11 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         this.mapperServiceFactory = mapperServiceFactory;
         this.supportSeqNoDisabled = SUPPORT_SEQ_NO_DISABLED.get(settings);
         this.supportSyntheticId = SUPPORT_SYNTHETIC_ID.get(settings);
+    }
+
+    @Override
+    public Set<String> affectedSettings() {
+        return AFFECTED_SETTINGS;
     }
 
     @Override

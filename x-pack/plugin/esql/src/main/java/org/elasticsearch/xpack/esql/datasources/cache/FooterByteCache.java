@@ -11,6 +11,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 
@@ -30,13 +31,13 @@ import java.util.concurrent.ExecutionException;
  *       expires an entry the configured TTL ({@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) after it
  *       was last read — a working set that keeps being read keeps its entries, and entries no longer all expire
  *       together at one TTL. A write cap ({@link #WRITE_CAP_MULTIPLIER} × TTL) forces expiry at most
- *       {@code WRITE_CAP_MULTIPLIER × TTL} after an entry was written, regardless of reads. The cap bounds how
- *       long a stale footer (one for a same-length overwritten object) may be served; the access clock is the
- *       normal release path — see {@link Key}.</li>
+ *       {@code WRITE_CAP_MULTIPLIER × TTL} after an entry was written, regardless of reads. The clocks bound
+ *       memory, not staleness: the key carries the object's version, so a rewritten object misses the entry
+ *       whatever the clocks — see {@link Key}.</li>
  * </ul>
  *
  * <h2>Why one instance per root format reader instead of per-query?</h2>
- * A per-query cache would avoid cross-query staleness entirely (no need for TTL) and is the
+ * A per-query cache would avoid cross-query sharing entirely (no need for TTL) and is the
  * cleaner design. However, the current architecture makes it impractical:
  * <ol>
  *   <li>A single query fans out into ~N independent split readers (one per thread), each of which
@@ -53,23 +54,16 @@ import java.util.concurrent.ExecutionException;
  * reader ({@code withConfig}, {@code withPushedFilter}, ...) shares the root's instance via its
  * copy constructor, so all concurrent queries on a node coalesce on one cache. When a
  * query-scoped context is introduced into the format reader API, this cache should migrate to an
- * instance held by that context. Until then cross-query staleness is bounded by the write cap
- * (six times {@link ExternalSourceCacheSettings#FOOTER_CACHE_TTL}) rather than by the key — see
- * the next section.
+ * instance held by that context. Until then, the version in the key keeps a rewritten object from reading another
+ * version's footer, and the two clocks bound memory.
  *
  * <h2>Cache key design</h2>
- * The key is {@code (storageIdentity, path, fileLength)}. It names the object, not the version of it, so
- * two versions of an object at the same byte length share an entry and the earlier one's footer answers for
- * the later. That is a property of the key and it is tracked as elastic/esql-planning#2094. The write cap
- * above bounds staleness at {@code 6 × TTL}: every entry is force-expired by then whether or not it is
- * still being read, discarding footers that did not move alongside the ones that did. The fix belongs in
- * the key (see #2094).
- * <p>
- * A version component was once rejected on cost: range splits come from
- * {@code StorageProvider.newObject(path, length)} with no modification time in hand, and calling
- * {@code lastModified()} would mean a HEAD request per split. That objection would be answered by taking
- * the version from the listing, or from the probe that already resolves a single file, rather than asking
- * the store again — that is the design tracked in #2094, not yet implemented here.
+ * The key is {@code (storageIdentity, path, fileLength, version)}. The version is the object's
+ * {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#version()}: an ETag, generation or
+ * modification time that the listing or a probe already supplied, so no request is spent on it. A rewritten
+ * object has a new version, so it misses and its footer is read again. An object without a version is not
+ * cached at all. Modification time alone was not used, because it has one-second resolution on some stores,
+ * and a same-second rewrite would keep the old version.
  *
  * <p>Cached {@code byte[]} entries must be treated as immutable by all callers.
  */
@@ -89,14 +83,12 @@ public class FooterByteCache {
     static final long WRITE_CAP_MULTIPLIER = 6L;
 
     /**
-     * Cache key identifying a file by its storage configuration, path, and total length. Uses
-     * {@code (storageIdentity, path, length)} — the storage identity is set by the storage provider to encode endpoint
-     * and credential identity so that two data sources pointing at different stores never share an
-     * entry for an object at the same path with the same length. {@code lastModified} is excluded
-     * so that all range splits of the same file share one cache entry regardless of any timing
-     * jitter in {@code StorageObject.lastModified()}.
+     * Cache key identifying one version of a file by its storage configuration, path, total length and version.
+     * The storage identity encodes endpoint and credential identity, so two data sources pointing at different
+     * stores never share an entry for an object at the same path with the same length and version. The
+     * modification time is excluded so that all range splits of the same version share one cache entry.
      */
-    public record Key(StorageIdentity storageIdentity, String path, long fileLength) {
+    public record Key(StorageIdentity storageIdentity, String path, long fileLength, String version) {
 
         /**
          * Rejects a null identity: {@link StorageIdentity} is a plugin SPI, and a {@code null} from any
@@ -104,17 +96,30 @@ public class FooterByteCache {
          */
         public Key {
             Objects.requireNonNull(storageIdentity, "storageIdentity must not be null");
+            Objects.requireNonNull(version, "version must not be null");
         }
 
         /**
          * Creates a key from a {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject},
-         * using its storage identity, path string, and
+         * using its storage identity, path string, version, and
          * {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}.
          * Prefer this over {@link #keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject, long)} so range
          * views ({@code RangeStorageObject}) share one entry per file.
+         *
+         * @return the key, or {@code null} when the object has no version, in which case its footer is not cached
          */
+        @Nullable
         public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject) throws IOException {
-            return new Key(storageObject.storageIdentity(), storageObject.path().toString(), storageObject.lengthForFooterCacheKey());
+            String version = storageObject.version();
+            if (version == null) {
+                return null;
+            }
+            return new Key(
+                storageObject.storageIdentity(),
+                storageObject.path().toString(),
+                storageObject.lengthForFooterCacheKey(),
+                version
+            );
         }
 
         /**
@@ -124,9 +129,16 @@ public class FooterByteCache {
          * {@code length} must be the full file size
          * ({@link org.elasticsearch.xpack.esql.datasources.spi.StorageObject#lengthForFooterCacheKey()}),
          * not a range-view span.
+         *
+         * @return the key, or {@code null} when the object has no version
          */
+        @Nullable
         public static Key keyFor(org.elasticsearch.xpack.esql.datasources.spi.StorageObject storageObject, long length) {
-            return new Key(storageObject.storageIdentity(), storageObject.path().toString(), length);
+            String version = storageObject.version();
+            if (version == null) {
+                return null;
+            }
+            return new Key(storageObject.storageIdentity(), storageObject.path().toString(), length, version);
         }
     }
 

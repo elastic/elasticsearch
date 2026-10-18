@@ -36,8 +36,9 @@ export interface ClassifiedTest {
 // Contract 1: flakiness-refs.json (bootstrap -> Java resolver)
 //
 // Heterogeneous input references. A changed-file ref carries a repo-relative path; an unmute ref carries
-// a class name (+ optional method descriptor); an explicit ref carries a developer-supplied spec. The Java
-// resolver (build-tools-internal) turns these into a plan.
+// a class name (+ optional method descriptor, plus optional task filters when only some tasks were unmuted);
+// an explicit ref carries a developer-supplied spec. The Java resolver (build-tools-internal) turns these
+// into a plan.
 // ---------------------------------------------------------------------------
 export interface FlakinessRef {
   source: "changed-file" | "unmute" | "explicit";
@@ -45,6 +46,8 @@ export interface FlakinessRef {
   className?: string; // unmute
   method?: string; // unmute
   spec?: string; // explicit
+  includeTasks?: string[]; // unmute
+  excludeTasks?: string[]; // unmute
 }
 
 export interface FlakinessRefsFile {

@@ -67,7 +67,7 @@ public class LetResolverTests extends ESTestCase {
         return relation;
     }
 
-    /** Asserts that {@code plan} is a Limit directly over a relation with the given pattern, the shape of every {@code FROM x | LIMIT n} body. */
+    /** Asserts that {@code plan} is a Limit directly over a relation with the given pattern, i.e. {@code FROM x | LIMIT n}. */
     private static void assertLimitOver(LogicalPlan plan, String indexPattern) {
         assertThat(plan, instanceOf(Limit.class));
         assertUnresolvedRelation(((Limit) plan).child(), indexPattern);

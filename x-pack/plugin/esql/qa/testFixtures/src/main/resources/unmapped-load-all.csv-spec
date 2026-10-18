@@ -6980,3 +6980,63 @@ warningregex: Line .*: evaluation of \[IP_LOCATION.*\] failed, treating result a
 id:keyword | g.country_iso_code:keyword
 1          | null
 ;
+
+// FILL_NULL over a wildcard fills the null tag and other of row 3. The _unmapped_fields column cannot take the fill value, so it is left
+// unchanged and a warning says so.
+fillNullOnWildcard
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| KEEP id, tag, other, pa*
+| FILLNULL "n/a" ON *
+| SORT id
+;
+warningregex: Line .*: \[FILLNULL\] the fill value could not be applied to the following fields, which were left unchanged: \[_unmapped_fields\]
+
+id:keyword | tag:keyword | other:keyword | _unmapped_fields:_source
+1          | t           | x             | "{""parts.domain"":""old.example"",""parts.port"":""80""}"
+2          | t           | x             | "{""parts.domain"":""old.example2"",""parts.port"":""81""}"
+3          | n/a         | n/a           | null
+;
+
+// A properties option limits the columns IP_LOCATION adds, and only those shadow unmapped leaves: g.country_name is produced, so
+// g.country_iso_code, which is not, stays in _unmapped_fields.
+ipLocationWithPropertiesOption
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: ip_location_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| IP_LOCATION g = addr WITH { "properties": ["country_name"] }
+| KEEP id, g.*, oth*
+| SORT id
+;
+
+id:keyword | g.country_name:keyword | _unmapped_fields:_source
+1          | United States          | "{""g.country_iso_code"":""XX"",""other"":""x""}"
+2          | Australia              | "{""g.country_iso_code"":""YY"",""other"":""x""}"
+3          | France                 | null
+;
+
+// An option can add a column: extract_device_type adds ua.device.type next to ua.name, which still shadows the unmapped ua.name leaf.
+userAgentWithDeviceTypeOption
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: user_agent_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM unmapped_compound_outputs
+| USER_AGENT ua = agent WITH { "extract_device_type": true }
+| KEEP id, ua.name, ua.device.type, oth*
+| SORT id
+;
+
+id:keyword | ua.name:keyword | ua.device.type:keyword | _unmapped_fields:_source
+1          | Chrome          | Desktop                | "{""other"":""x""}"
+2          | Firefox         | Desktop                | "{""other"":""x""}"
+3          | curl            | Other                  | null
+;

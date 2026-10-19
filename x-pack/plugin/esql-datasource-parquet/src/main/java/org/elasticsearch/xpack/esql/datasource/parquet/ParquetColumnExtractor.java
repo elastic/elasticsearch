@@ -911,33 +911,29 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     }
 
     /**
-     * Coerces one stitched physical-type block to the caller's target (planner/declared) type
-     * through {@link DeclaredTypeCoercions#castBlock} — the identical engine, formatter (the
-     * column's declared date {@code format} via
-     * {@link ParquetFormatReader#declaredDateFormatterFor}), and policy-aware failure behavior
-     * ({@link #castBlockWarnings}) as the eager decode paths, so a deferred column reads exactly
-     * like an eagerly scanned one — including the declared-vs-inferred null-fill decision: the lossy
-     * {@link DeclaredTypeCoercions#supports} escape (which admits narrowing) is honored only for a
-     * DECLARED column, mirroring {@code validatePlannerTypesAgainstFile}. An inferred target may only
-     * widen ({@link ParquetFormatReader#plannerTypeCompatibleWithFileDerivedType}); a narrowing or a
-     * drifted-glob pair reads the column as all-null rather than downcasting (which would disagree
-     * with the eager scan of the same file). Always consumes {@code physical} and returns a fresh
-     * caller-owned block.
-     */
-    /**
-     * The eager reader's gate (validatePlannerTypesAgainstFile), in one place because both the native-decode retype
-     * in {@link #extract} and {@link #coerceToTarget} must answer it the same way. {@code castBlock} only functions
-     * on a {@link DeclaredTypeCoercions#supports} pair, so that stays the precondition; the lossy narrowing it admits
-     * is licensed only for a DECLARED column, an inferred target may coerce only when the pair also widens. So an
-     * inferred narrowing (supports true, not widening, not declared) null-fills instead of downcasting, agreeing with
-     * the eager scan of the same file. {@code columnName} is physical here (the extractor projects physical names),
-     * matching the declared-column set.
+     * The eager reader's gate ({@code validatePlannerTypesAgainstFile}), in one place because both the native-decode
+     * retype in {@link #extract} and {@link #coerceToTarget} must answer it the same way. {@code castBlock} only
+     * functions on a {@link DeclaredTypeCoercions#supports} pair, so that stays the precondition; the lossy narrowing
+     * it admits is licensed only for a DECLARED column, an inferred target may coerce only when the pair also widens.
+     * So an inferred narrowing (supports true, not widening, not declared) null-fills instead of downcasting,
+     * agreeing with the eager scan of the same file. {@code columnName} is physical here (the extractor projects
+     * physical names), matching the declared-column set.
      */
     private boolean coercionAdmissible(DataType fileType, DataType target, String columnName) {
         return DeclaredTypeCoercions.supports(fileType, target)
             && (ParquetFormatReader.plannerTypeCompatibleWithFileDerivedType(target, fileType) || reader.isDeclaredTypeColumn(columnName));
     }
 
+    /**
+     * Coerces one stitched physical-type block to the caller's target (planner/declared) type through
+     * {@link DeclaredTypeCoercions#castBlock} — the identical engine, formatter (the column's declared date
+     * {@code format} via {@link ParquetFormatReader#declaredDateFormatterFor}) and policy-aware failure behaviour
+     * ({@link #castBlockWarnings}) as the eager decode paths, so a deferred column reads exactly like an eagerly
+     * scanned one. Runs for every supported pair {@link DeclaredTypeCoercions#fusedInDecode} does NOT accept; a
+     * fused pair is decoded natively instead and skips this, the view's type being the target already. A pair
+     * {@link #coercionAdmissible} rejects reads as all-null rather than downcasting. Always consumes
+     * {@code physical} and returns a fresh caller-owned block.
+     */
     private Block coerceToTarget(Block physical, DataType fileType, DataType target, String columnName, int count, BlockFactory factory) {
         try {
             if (coercionAdmissible(fileType, target, columnName)) {

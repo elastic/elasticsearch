@@ -7927,22 +7927,6 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Guard: every {@code DeclaredTypeCoercions.fusedInDecode} pair must decode NATIVELY in this reader -- a fused pair
-     * is never routed through {@code castBlock}, so a pair wired into only one reader's decode loops would silent-null
-     * (or garbage-decode) in the other. It must do so for every PHYSICAL shape that renders the pair's {@code from}
-     * type: the predicate is keyed on ESQL types while the decode arms see Parquet primitives, and nothing else forces
-     * the two keyings to agree. Both decoders are exercised, since each carries its own copy of the dispatch, and the
-     * axis that reaches the second one is {@link ParquetFormatReader#withBaselinePath()} rather than the iterator
-     * flag: every shape here is flat, and {@code ParquetColumnIterator} builds a {@link PageColumnReader} for every
-     * flat column of a row group it reads without a record filter, so the flag alone would run the vectorized
-     * dispatch twice and leave the row-at-a-time copy -- the one this guard exists to protect -- unentered.
-     *
-     * <p>Enumerates the fused pairs mechanically, from {@code DataType.values()} crossed with itself, so a NEW fused
-     * pair fails loudly until its author wires the native arm (in BOTH readers -- the ORC suite carries the twin of
-     * this guard) and gives it a shape in {@link #fusedShapesFor}. The shapes themselves are enumerated by hand, with
-     * the consequences stated there.
-     */
-    /**
      * Guard: for every {@code fusedInDecode} pair and physical shape, the three routes that can produce a column
      * must produce the same value. There are three -- the vectorized reader, the row-at-a-time reader, and the
      * deferred extractor a plan uses when it materializes a column only for the rows a TopN kept. All three honour
@@ -8042,6 +8026,22 @@ public class ParquetFormatReaderTests extends ESTestCase {
         };
     }
 
+    /**
+     * Guard: every {@code DeclaredTypeCoercions.fusedInDecode} pair must decode NATIVELY in this reader -- a fused pair
+     * is never routed through {@code castBlock}, so a pair wired into only one reader's decode loops would silent-null
+     * (or garbage-decode) in the other. It must do so for every PHYSICAL shape that renders the pair's {@code from}
+     * type: the predicate is keyed on ESQL types while the decode arms see Parquet primitives, and nothing else forces
+     * the two keyings to agree. Both decoders are exercised, since each carries its own copy of the dispatch, and the
+     * axis that reaches the second one is {@link ParquetFormatReader#withBaselinePath()} rather than the iterator
+     * flag: every shape here is flat, and {@code ParquetColumnIterator} builds a {@link PageColumnReader} for every
+     * flat column of a row group it reads without a record filter, so the flag alone would run the vectorized
+     * dispatch twice and leave the row-at-a-time copy -- the one this guard exists to protect -- unentered.
+     *
+     * <p>Enumerates the fused pairs mechanically, from {@code DataType.values()} crossed with itself, so a NEW fused
+     * pair fails loudly until its author wires the native arm (in BOTH readers -- the ORC suite carries the twin of
+     * this guard) and gives it a shape in {@link #fusedShapesFor}. The shapes themselves are enumerated by hand, with
+     * the consequences stated there.
+     */
     public void testEveryFusedInDecodePairDecodesNatively() throws Exception {
         for (DataType from : DataType.values()) {
             for (DataType to : DataType.values()) {

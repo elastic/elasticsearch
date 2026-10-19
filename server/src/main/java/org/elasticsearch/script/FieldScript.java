@@ -13,13 +13,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * A script to produce dynamic values for return fields.
@@ -30,7 +28,6 @@ public abstract class FieldScript extends DocBasedScript {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
 
-    @SuppressWarnings("unchecked")
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
         deprecationLogger.warn(
             DeprecationCategory.SCRIPTING,
@@ -46,7 +43,7 @@ public abstract class FieldScript extends DocBasedScript {
                 + "is deprecated in favor of directly accessing [doc]."
         );
         return value;
-    }, "_source", value -> ((Supplier<Source>) value).get().source());
+    }, "_source", DynamicMap.SOURCE_FUNCTION);
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;

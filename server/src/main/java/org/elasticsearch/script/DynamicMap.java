@@ -9,10 +9,14 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.search.lookup.Source;
+
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * DynamicMap is used to wrap a Map for a script parameter. A set of
@@ -21,6 +25,35 @@ import java.util.function.Function;
  * corresponding key.
  */
 public final class DynamicMap implements Map<String, Object> {
+
+    /**
+     * A function whose value is built from stored bytes, and that can say how many without building it.
+     */
+    public interface StoredFunction extends Function<Object, Object> {
+        /** The number of stored bytes {@link #apply} would build the value from, or -1 if not known. Does not build it. */
+        long storedLength(Object value);
+    }
+
+    /**
+     * The {@code _source} entry the script contexts share. The stored value is the document behind a supplier. Reading it
+     * parses the document. Asking for the stored length loads the document but does not parse it.
+     */
+    public static final StoredFunction SOURCE_FUNCTION = new StoredFunction() {
+        @Override
+        @SuppressWarnings("unchecked")
+        public Object apply(Object value) {
+            return ((Supplier<Source>) value).get().source();
+        }
+
+        @Override
+        public long storedLength(Object value) {
+            if (value instanceof Supplier<?> supplier && supplier.get() instanceof Source source) {
+                BytesReference bytes = source.internalSourceRef();
+                return bytes == null ? -1 : bytes.length();
+            }
+            return -1;
+        }
+    };
 
     private final Map<String, Object> delegate;
 
@@ -62,11 +95,11 @@ public final class DynamicMap implements Map<String, Object> {
     }
 
     /**
-     * The value stored under {@code key} before any function is applied to it, so a caller can see what {@link #get} would
-     * compute from without computing it.
+     * The number of stored bytes {@link #get} would build the value under {@code key} from, or -1 when the map cannot say
+     * without building it.
      */
-    public Object getRaw(String key) {
-        return delegate.get(key);
+    public long storedLength(String key) {
+        return functions.get(key) instanceof StoredFunction stored ? stored.storedLength(delegate.get(key)) : -1;
     }
 
     @Override

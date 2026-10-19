@@ -9,22 +9,19 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.script.DynamicMap;
-import org.elasticsearch.search.lookup.Source;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * The {@code params} map of a script with allocation tracking on. A read of {@code _source} makes the server load the stored
  * document and parse it into maps and lists, and no allowlist method sees that. This wrapper charges it in two steps. Before
- * the parse it charges the loaded bytes and the least the parse can cost, so a document too big for the budget stops the
- * script before the parse runs. After the parse it walks the tree and charges whatever the floor missed. The server keeps one
- * document per doc id, so later reads in the same execution get the same objects back and are not charged again. Every other
- * key goes straight through.
+ * the parse it charges the stored bytes and the least the parse can cost, so a document too big for the budget stops the
+ * script before the parse runs. After the parse it walks the tree and charges whatever the floor missed. One wrapper lives
+ * for one execution, which is one document, so the floor is paid once. The server hands back the same parsed map on later
+ * reads, and that is not charged again. Every other key goes straight through.
  */
 public final class ChargedParams implements Map<String, Object> {
 
@@ -32,8 +29,9 @@ public final class ChargedParams implements Map<String, Object> {
 
     private final PainlessScript script;
     private final Map<String, Object> delegate;
-    /** The loaded document this execution has already paid the floor for, and that floor. */
-    private Object loaded;
+    /** True once this execution has paid the stored bytes and the parse floor. */
+    private boolean paidFloor;
+    /** The part of the floor still to take off the charge for the parsed tree. */
     private long floor;
     /** The parsed source map this execution has already paid for. */
     private Object charged;
@@ -45,7 +43,8 @@ public final class ChargedParams implements Map<String, Object> {
 
     @Override
     public Object get(Object key) {
-        if (SOURCE.equals(key)) {
+        if (SOURCE.equals(key) && paidFloor == false) {
+            paidFloor = true;
             chargeFloor();
         }
         Object value = delegate.get(key);
@@ -58,17 +57,13 @@ public final class ChargedParams implements Map<String, Object> {
     }
 
     /**
-     * Charges the loaded bytes and the parse floor, once per document. The server's params map keeps the document behind a
-     * supplier and parses it in {@code get}, so this looks at the raw value first. Stored and synthetic source both hand over
-     * bytes, so asking for the length does not parse. A plain map has no raw value and pays only after the parse.
+     * Charges the stored bytes and the parse floor. The server's params map can say how long the stored document is without
+     * parsing it. A plain map cannot, and pays only after the parse.
      */
     private void chargeFloor() {
-        if (delegate instanceof DynamicMap dynamic && dynamic.getRaw(SOURCE) instanceof Supplier<?> supplier) {
-            Object document = supplier.get();
-            if (document != loaded && document instanceof Source source) {
-                loaded = document;
-                BytesReference bytes = source.internalSourceRef();
-                long length = bytes == null ? 0L : bytes.length();
+        if (delegate instanceof DynamicMap dynamic) {
+            long length = dynamic.storedLength(SOURCE);
+            if (length >= 0) {
                 floor = AllocationEstimators.parseFloorBytes(length);
                 script.$checkAllocBytes(AllocSizes.addSat(length, floor));
             }

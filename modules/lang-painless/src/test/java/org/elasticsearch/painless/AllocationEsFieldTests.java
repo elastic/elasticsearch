@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -225,13 +224,6 @@ public class AllocationEsFieldTests extends AllocationTestCase {
     private static final String SOURCE_JSON =
         "{\"name\":\"kimchy\",\"age\":42,\"score\":1.5,\"ok\":true,\"tags\":[\"a\",\"b\"],\"nested\":{\"x\":null}}";
 
-    /** The lookup function the server's script contexts put on {@code _source}: parse the document behind the supplier. */
-    @SuppressWarnings("unchecked")
-    private static final Map<String, Function<Object, Object>> SOURCE_FUNCTION = Map.of(
-        "_source",
-        value -> ((Supplier<Source>) value).get().source()
-    );
-
     /** A parsed document as the server hands it to {@code params._source}: ordered maps, lists, Strings and boxed numbers. */
     private static Map<String, Object> parsedSource() {
         return XContentHelper.convertToMap(new BytesArray(SOURCE_JSON), true).v2();
@@ -272,7 +264,7 @@ public class AllocationEsFieldTests extends AllocationTestCase {
     private static Map<String, Object> serverParams(Supplier<Source> document) {
         Map<String, Object> backing = new HashMap<>();
         backing.put("_source", document);
-        return new DynamicMap(backing, SOURCE_FUNCTION);
+        return new DynamicMap(backing, Map.of("_source", DynamicMap.SOURCE_FUNCTION));
     }
 
     public void testSourceReadChargesLoadedBytesAndParseFloorBeforeTheParse() {
@@ -280,6 +272,12 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         long floor = AllocationEstimators.parseFloorBytes(length);
         long parsed = AllocationEstimators.parsedSourceBytes(parsedSource());
         assertThat(parsed, greaterThan(floor));
+        // The server map gives the stored length without parsing, and says so when it cannot.
+        RecordingSource measured = new RecordingSource();
+        DynamicMap params = (DynamicMap) serverParams(() -> measured);
+        assertEquals(length, params.storedLength("_source"));
+        assertFalse(measured.parsed);
+        assertEquals(-1L, params.storedLength("other"));
         // The whole read: the loaded bytes, the parse floor, then what the real tree costs beyond the floor.
         RecordingSource document = new RecordingSource();
         assertEquals(length + parsed, allocatedBytes("return params._source.name;", serverParams(() -> document)));
@@ -296,19 +294,19 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         );
     }
 
-    public void testChargedParamsChargesEachNewDocumentOnce() {
-        // The wrapper tells documents apart by the loaded and parsed objects, which the server keeps per doc id.
+    public void testChargedParamsPaysTheFloorOncePerExecution() {
+        // One wrapper lives for one execution, so the floor is paid once. A new parsed map is still charged after its parse.
         PainlessScript script = (PainlessScript) compile("return null;", "1mb");
         long length = new RecordingSource().bytes.length();
-        long one = length + AllocationEstimators.parsedSourceBytes(parsedSource());
+        long parsed = AllocationEstimators.parsedSourceBytes(parsedSource());
         Source[] current = { new RecordingSource() };
         ChargedParams params = new ChargedParams(script, serverParams(() -> current[0]));
         params.get("_source");
         params.get("_source");
-        assertEquals(one, script.getAllocBytes());
+        assertEquals(length + parsed, script.getAllocBytes());
         current[0] = new RecordingSource();
         params.get("_source");
-        assertEquals(2L * one, script.getAllocBytes());
+        assertEquals(length + 2 * parsed, script.getAllocBytes());
     }
 
     public void testParsedSourceEstimatorSizesEveryNode() {

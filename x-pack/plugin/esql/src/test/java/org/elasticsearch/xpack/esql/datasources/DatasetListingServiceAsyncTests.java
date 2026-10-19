@@ -71,6 +71,7 @@ public class DatasetListingServiceAsyncTests extends ESTestCase {
             () -> false,
             4,
             executor,
+            k -> {},
             ListingExtents.UNBOUNDED,
             future
         );

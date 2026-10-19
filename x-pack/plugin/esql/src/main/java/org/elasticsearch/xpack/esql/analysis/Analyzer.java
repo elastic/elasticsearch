@@ -2092,14 +2092,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
             // FORK always copies a mention to siblings. LOAD_ALL subqueries do too. LOAD does not: a mention in one
             // independent-source branch loads that branch and Eval-nulls siblings.
-            // TODO: VIEW-kind branches (BranchPlan.branchIdentity) should be excluded from
-            // unmapped-field materialization here — _source loading must not reach through the view boundary; the view
-            // branch should null-fill like a dataset would, pending the design discussion.
             boolean alignMentionedUnmapped = alignUnmappedAcrossBranches
                 || (mergePlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields());
             Set<String> materializedUnmappedFieldNames = alignMentionedUnmapped ? materializedUnmappedFieldNames(mergePlan) : Set.of();
 
-            for (LogicalPlan logicalPlan : mergePlan.children()) {
+            List<LogicalPlan> branches = mergePlan.children();
+            for (int i = 0; i < branches.size(); i++) {
+                LogicalPlan logicalPlan = branches.get(i);
                 Source source = logicalPlan.source();
 
                 // find the missing columns
@@ -2114,34 +2113,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Alias> aliases = new ArrayList<>(missing.size());
                 List<FieldAttribute> toLoad = new ArrayList<>();
                 for (Attribute attr : missing) {
-                    // This branch does not have the column. A sibling mapped it, and this branch never named it, so it is a
-                    // LOAD_ALL extra: cast the keyword read from _source when a cast exists, otherwise null-fill and warn.
-                    // A field this branch already named stays a keyword and conflicts below, same as load.
-                    FieldAttribute mapped = mappedSiblingField(attr);
-                    if (mapped != null
-                        && mergePlan instanceof UnionAll
-                        && unmappedResolution.loadsAllUnmappedFields()
-                        && branchCanSurfaceLoadedField(logicalPlan, attr.name())) {
-                        FieldAttribute loaded = unmappedKeyword(attr);
-                        AbstractConvertFunction cast = implicitCastFromKeyword(mapped.dataType(), loaded, context.configuration());
-                        if (cast != null) {
-                            toLoad.add(loaded);
-                            if (cast.isNoop() == false) {
-                                aliases.add(new Alias(source, attr.name(), cast));
-                            }
-                        } else {
-                            aliases.add(nullFillNonLoadable(source, mapped, context));
-                        }
-                        continue;
-                    }
-                    // An unmapped field materialized in a sibling branch is materialized here too (rather than null-filled), unless this
-                    // branch can't surface it: loaded from _source under LOAD/LOAD_ALL, null-typed under nullify. This keeps the branches'
-                    // source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it.
-                    // FORK: always. UnionAll: LOAD_ALL only. LOAD Eval-nulls siblings of an in-branch mention.
-                    if (alignMentionedUnmapped
-                        && materializedUnmappedFieldNames.contains(attr.name())
-                        && branchCanSurfaceLoadedField(logicalPlan, attr.name())) {
-                        toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
+                    if (loadMissingFromSource(
+                        mergePlan,
+                        i,
+                        attr,
+                        alignMentionedUnmapped,
+                        materializedUnmappedFieldNames,
+                        aliases,
+                        toLoad,
+                        context
+                    )) {
                         continue;
                     }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
@@ -2157,14 +2138,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // materialize the unmapped fields in this branch's own source relation so they surface in its output
                 if (toLoad.isEmpty() == false) {
-                    LogicalPlan withLoaded = logicalPlan.transformUp(EsRelation.class, esr -> {
-                        if (esr.indexMode() == IndexMode.LOOKUP) {
-                            return esr;
-                        }
-                        Set<String> existingNames = new HashSet<>(Expressions.names(esr.output()));
-                        List<FieldAttribute> newFields = toLoad.stream().filter(field -> existingNames.add(field.name())).toList();
-                        return esr.withAdditionalAttributes(newFields);
-                    });
+                    LogicalPlan withLoaded = logicalPlan.transformUp(
+                        EsRelation.class,
+                        esr -> withAdditionalAttributesUnlessLookup(esr, toLoad, false)
+                    );
                     // mark changed only if the relation gained fields, else the fixed-point iteration never terminates
                     if (withLoaded != logicalPlan) {
                         logicalPlan = withLoaded;
@@ -2367,6 +2344,66 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
+         * The ways of {@code LOAD} and {@code LOAD_ALL} to give branch {@code branchIndex} of a merge a column {@code attr} that it
+         * lacks, by reading it from the branch's own {@code _source} where every other merge null-fills it. Either adds what the
+         * relation needs to {@code toLoad} (and, to convert it, an alias to {@code aliases}) and returns {@code true}, or leaves
+         * the null-fill to the caller and returns {@code false}.
+         * <ul>
+         *   <li>A {@code LOAD_ALL} extra: a sibling mapped the column and this branch never named it, so the keyword read from
+         *   {@code _source} is cast to the sibling's type when a cast exists, and otherwise null-filled with a warning. A field this
+         *   branch already named stays a keyword and conflicts further down, same as load.</li>
+         *   <li>A field materialized in a sibling branch is materialized here too (rather than null-filled), unless this branch
+         *   cannot surface it: loaded from {@code _source} under {@code LOAD}/{@code LOAD_ALL}, null-typed under nullify. This keeps
+         *   the branches' source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...)
+         *   doesn't hide it. FORK: always. UnionAll: {@code LOAD_ALL} only; {@code LOAD} Eval-nulls siblings of an in-branch
+         *   mention.</li>
+         * </ul>
+         * Never for a view branch, whatever a sibling mapped or materialized: a view is a virtual index with no {@code _source} of
+         * its own and the setting ends at its boundary. ResolveUnmapped already answers outer references at a view branch's output
+         * with null and collects no view-internal mentions, so a view branch only gets the null-fill.
+         */
+        private boolean loadMissingFromSource(
+            MergePlan mergePlan,
+            int branchIndex,
+            Attribute attr,
+            boolean alignMentionedUnmapped,
+            Set<String> materializedUnmappedFieldNames,
+            List<Alias> aliases,
+            List<FieldAttribute> toLoad,
+            AnalyzerContext context
+        ) {
+            if (mergePlan instanceof BranchPlan branchPlan && branchPlan.isViewBranch(branchIndex)) {
+                return false;
+            }
+            UnmappedResolution unmappedResolution = context.unmappedResolution();
+            LogicalPlan branch = mergePlan.children().get(branchIndex);
+            FieldAttribute mapped = mappedSiblingField(attr);
+            if (mapped != null
+                && mergePlan instanceof UnionAll
+                && unmappedResolution.loadsAllUnmappedFields()
+                && branchCanSurfaceLoadedField(branch, attr.name())) {
+                FieldAttribute loaded = unmappedKeyword(attr);
+                AbstractConvertFunction cast = implicitCastFromKeyword(mapped.dataType(), loaded, context.configuration());
+                if (cast != null) {
+                    toLoad.add(loaded);
+                    if (cast.isNoop() == false) {
+                        aliases.add(new Alias(branch.source(), attr.name(), cast));
+                    }
+                } else {
+                    aliases.add(nullFillNonLoadable(branch.source(), mapped, context));
+                }
+                return true;
+            }
+            if (alignMentionedUnmapped
+                && materializedUnmappedFieldNames.contains(attr.name())
+                && branchCanSurfaceLoadedField(branch, attr.name())) {
+                toLoad.add(unmappedResolution.loadsUnmappedFields() ? unmappedKeyword(attr) : nullifyField(attr));
+                return true;
+            }
+            return false;
+        }
+
+        /**
          * Whether a field named {@code name} materialized at this branch's source would reach the branch output. A
          * {@link ResolvingProject} is asked whether the terms it was written with admit the name, so {@code KEEP *} lets it through
          * while a pattern-less {@code KEEP} does not. Any other {@link Project} has no pattern to consult and an {@link Aggregate}
@@ -2505,6 +2542,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 name,
                 new PotentiallyUnmappedKeywordEsField(leafName)
             );
+        }
+
+        /**
+         * Adds {@code fields} to the output of {@code esr}, which is how a field is loaded from {@code _source} (or nullified) at the
+         * relation: {@code ResolveUnmapped} and the alignment of union branches both do it, so both use this. Not for a lookup index,
+         * which has no unmapped fields to load; and a field that the relation already has is not added again. With
+         * {@code replaceNoFieldsMarker}, the no-fields marker of an empty-mapping relation does not remain in its output once real
+         * fields are added; the merge alignment keeps it, as the marker is part of the branch output it aligns.
+         */
+        public static EsRelation withAdditionalAttributesUnlessLookup(
+            EsRelation esr,
+            List<? extends Attribute> fields,
+            boolean replaceNoFieldsMarker
+        ) {
+            if (esr.indexMode() == IndexMode.LOOKUP) {
+                return esr;
+            }
+            Set<String> existingNames = new HashSet<>(Expressions.names(esr.output()));
+            List<Attribute> newFields = fields.stream().filter(field -> existingNames.add(field.name())).collect(Collectors.toList());
+            if (newFields.isEmpty()) {
+                return esr;
+            }
+            return replaceNoFieldsMarker && esr.output().equals(NO_FIELDS)
+                ? esr.withAttributes(newFields)
+                : esr.withAdditionalAttributes(newFields);
         }
 
         /**

@@ -80,9 +80,7 @@ final class AshUtils {
      */
     public static float[] randomGaussians(Random random, int dims) {
         float[] v = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            v[i] = (float) random.nextGaussian();
-        }
+        randomGaussians(random, v, 0, dims);
         return v;
     }
 
@@ -109,6 +107,15 @@ final class AshUtils {
             out[outOffset + i] = (byte) Math.clamp(Math.round(v[offset + i] * inverseScale), -INT8_MAX, INT8_MAX);
         }
         return max / INT8_MAX;
+    }
+
+    /**
+     * Populates an array of floats each with a Gaussian distribution around 0.0
+     */
+    public static void randomGaussians(Random random, float[] v, int offset, int length) {
+        for (int i = 0; i < length; i++) {
+            v[offset + i] = (float) random.nextGaussian();
+        }
     }
 
     /**
@@ -248,10 +255,8 @@ final class AshUtils {
     public static float[] completeBasis(float[] bT, int n, int have, int want, Random random, TaskExecutor executor) {
         assert bT.length == have * n;
         assert have <= want && want <= n;
-        float[] full = new float[want * n];
-        System.arraycopy(bT, 0, full, 0, have * n);
-        float[] extra = randomGaussians(random, (want - have) * n);
-        System.arraycopy(extra, 0, full, have * n, extra.length);
+        float[] full = Arrays.copyOf(bT, want * n);
+        randomGaussians(random, full, have * n, (want - have) * n);
         orthonormalizeRows(full, n, want, executor);
         return full;
     }
@@ -344,11 +349,22 @@ final class AshUtils {
     }
 
     static void orthonormalizeRows(float[] vT, int n, int k, int blockSize, TaskExecutor executor) {
-        for (int start = 0; start < k; start += blockSize) {
-            int rows = Math.min(blockSize, k - start);
-            // the multiplications need exactly-sized operands
-            float[] block = Arrays.copyOfRange(vT, start * n, (start + rows) * n);
-            float[] originalNormSq = new float[rows];
+        int iterationSize = Math.min(blockSize, k);
+        float[] block = new float[iterationSize * n];
+        float[] originalNormSq = new float[iterationSize];
+        float[] projection = new float[iterationSize * n];
+
+        for (int start = 0; start < k; start += iterationSize) {
+            int rows = Math.min(iterationSize, k - start);
+            if (rows < iterationSize) {
+                // the multiplications need exactly-sized operands, so resize for the last iteration
+                block = Arrays.copyOfRange(vT, start * n, (start + rows) * n);
+                originalNormSq = new float[rows];
+                projection = new float[rows * n];
+            } else {
+                System.arraycopy(vT, start * n, block, 0, rows * n);
+            }
+
             for (int i = 0; i < rows; i++) {
                 originalNormSq[i] = ESVectorUtil.dotProduct(block, i * n, block, i * n, n);
             }
@@ -356,7 +372,6 @@ final class AshUtils {
             if (previous != null) {
                 float[] previousT = ESVectorUtil.transposeMatrix(previous, start, n);     // (n x start)
                 float[] coefficients = new float[rows * start];
-                float[] projection = new float[rows * n];
                 for (int pass = 0; pass < 2; pass++) {
                     ESVectorUtil.matrixMultiply(block, previousT, rows, n, start, coefficients, executor);
                     ESVectorUtil.matrixMultiply(coefficients, previous, rows, start, n, projection, executor);
@@ -383,8 +398,7 @@ final class AshUtils {
             float remainingNormSq = ESVectorUtil.dotProduct(block, row, block, row, n);
             if (remainingNormSq <= EXACT_DEPENDENCE * originalNormSq[i]) {
                 // seeded by the position of the row in the whole matrix, so that two such rows never get the same direction
-                float[] direction = randomGaussians(new Random(31L * (previousRows + i) + n), n);
-                System.arraycopy(direction, 0, block, row, n);
+                randomGaussians(new Random(31L * (previousRows + i) + n), block, row, n);
                 for (int pass = 0; pass < 2; pass++) {
                     if (previous != null) {
                         projectOff(block, row, n, previous, previousRows);

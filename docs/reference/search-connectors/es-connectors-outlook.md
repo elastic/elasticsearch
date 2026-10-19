@@ -9,6 +9,10 @@ mapped_pages:
 
 The Elastic Outlook connector is built with the Elastic connector framework and is available as a self-managed [self-managed connector](/reference/search-connectors/self-managed-connectors.md).
 
+::::{note}
+The `outlook_server` data source (on-premises Exchange Server) is deprecated. Use the [Exchange Server connector](/reference/search-connectors/es-connectors-exchange-server.md) instead.
+::::
+
 ## **Self-managed connector reference** [es-connectors-outlook-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-outlook-client-availability-and-prerequisites]

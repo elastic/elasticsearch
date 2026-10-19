@@ -15,11 +15,12 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 
 /**
- * Describes one keyword doc-values layout in a duel: the settings that select it, the expected {@code FieldInfo}
- * format name, and whether the ColumNAR selector guard must be asserted for it. The two layouts under test are
- * the {@link #es819} columnar-mode baseline and the {@link #columnar} ColumNAR contender.
+ * Describes one doc-values layout in a duel: the index mode and settings that select it, the expected
+ * {@code FieldInfo} format name, and whether the ColumNAR selector guard must be asserted for it. The two layouts
+ * under test are the {@link #es819} baseline and the {@link #columnar} ColumNAR contender, both in the same
+ * strict columnar index mode.
  */
-public final class KeywordIndexConfig {
+public final class DuelIndexConfig {
 
     private final String indexName;
     private final String layoutLabel;
@@ -27,7 +28,7 @@ public final class KeywordIndexConfig {
     private final String expectedDocValuesFormatName;
     private final boolean enforceColumnarSelectorGuard;
 
-    private KeywordIndexConfig(
+    private DuelIndexConfig(
         final String indexName,
         final String layoutLabel,
         final Settings settings,
@@ -41,11 +42,11 @@ public final class KeywordIndexConfig {
         this.enforceColumnarSelectorGuard = enforceColumnarSelectorGuard;
     }
 
-    public static KeywordIndexConfig es819(final String indexName) {
-        return new KeywordIndexConfig(
+    public static DuelIndexConfig es819(final String indexName, final IndexMode mode) {
+        return new DuelIndexConfig(
             indexName,
-            "es819",
-            baseSettings(IndexMode.COLUMNAR).put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+            "es819/" + mode.getName(),
+            baseSettings(mode).put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
                 .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false)
                 .build(),
             "ES8193TSDB",
@@ -53,11 +54,11 @@ public final class KeywordIndexConfig {
         );
     }
 
-    public static KeywordIndexConfig columnar(final String indexName) {
-        return new KeywordIndexConfig(
+    public static DuelIndexConfig columnar(final String indexName, final IndexMode mode) {
+        return new DuelIndexConfig(
             indexName,
-            "columnar",
-            baseSettings(IndexMode.COLUMNAR).put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+            "columnar/" + mode.getName(),
+            baseSettings(mode).put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
                 .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
                 .build(),
             "ColumNAR",
@@ -70,8 +71,8 @@ public final class KeywordIndexConfig {
      * @return a copy of this layout under a different index name, used to create a second baseline index for
      *         baseline-versus-baseline validation. Every other part of the contract is preserved.
      */
-    public KeywordIndexConfig withIndexName(final String newIndexName) {
-        return new KeywordIndexConfig(newIndexName, layoutLabel, settings, expectedDocValuesFormatName, enforceColumnarSelectorGuard);
+    public DuelIndexConfig withIndexName(final String newIndexName) {
+        return new DuelIndexConfig(newIndexName, layoutLabel, settings, expectedDocValuesFormatName, enforceColumnarSelectorGuard);
     }
 
     public String indexName() {
@@ -92,7 +93,7 @@ public final class KeywordIndexConfig {
     }
 
     /**
-     * @return the doc-values format name this layout must record for the keyword field on every segment, so a
+     * @return the doc-values format name this layout must record for the field on every segment, so a
      *         duel can assert the exact codec that encoded it rather than only that it differs from ColumNAR.
      */
     public String expectedDocValuesFormatName() {
@@ -112,6 +113,7 @@ public final class KeywordIndexConfig {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode.getName())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put("index.queries.cache.enabled", false);
     }
 }

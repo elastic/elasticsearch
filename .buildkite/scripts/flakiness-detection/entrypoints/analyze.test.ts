@@ -181,7 +181,7 @@ describe("isPullRequestBuild", () => {
     expect(isPullRequestBuild("false")).toBe(false);
   });
 
-  test("an unset value is not a PR build, which errs towards blocking", () => {
+  test("an unset value is not a PR build, so proven flakiness fails it", () => {
     expect(isPullRequestBuild("")).toBe(false);
     expect(isPullRequestBuild("  ")).toBe(false);
   });

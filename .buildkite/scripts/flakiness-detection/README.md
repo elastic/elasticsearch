@@ -273,7 +273,7 @@ Proven flakiness fails the build in three cases, checked in this order:
 3. A PR carrying a label from `BLOCKING_LABELS` in `domain.ts`. A team that trusts the signal opts its own PRs in by adding its GitHub label there.
 
 A build is a PR build when `BUILDKITE_PULL_REQUEST` holds a PR number; Buildkite sets it to `false` on every other build.
-An unset value counts as a non-PR build, which errs towards blocking.
+An unset value counts as a non-PR build, so proven flakiness fails it.
 The labels stay in place while `BLOCK_ALL_PRS` is on, so turning it back off restores the per-team opt-in.
 
 Nothing else about the run changes: detection, resolution, batching and reporting never look at any of this, so a blocking build and a non-blocking one execute identically and produce the same artifacts.

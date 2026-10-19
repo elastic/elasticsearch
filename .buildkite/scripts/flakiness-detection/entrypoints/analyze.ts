@@ -390,8 +390,8 @@ export function provenFlakinessJobs<T extends { outcome: string }>(payloads: T[]
 }
 
 /**
- * Reads `BUILDKITE_PULL_REQUEST`. Both `"false"` and unset mean not a PR, so a missing value errs towards
- * blocking.
+ * Reads `BUILDKITE_PULL_REQUEST`. Both `"false"` and unset mean not a PR, so on a build where the variable
+ * is missing, proven flakiness fails the build.
  */
 export function isPullRequestBuild(pullRequest: string): boolean {
   const value = pullRequest.trim();

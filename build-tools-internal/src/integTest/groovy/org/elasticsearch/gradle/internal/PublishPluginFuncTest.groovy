@@ -64,6 +64,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
         buildFile << """
             plugins {
+                id 'elasticsearch.global-build-info'
                 id 'com.gradleup.nmcp.aggregation'
             }
 
@@ -257,6 +258,7 @@ def "dra snapshot aggregation renames timestamped snapshot filenames and generat
 
     buildFile << """
         plugins {
+            id 'elasticsearch.global-build-info'
             id 'com.gradleup.nmcp.aggregation'
             id 'elasticsearch.dra-maven-aggregation'
         }
@@ -323,6 +325,7 @@ def "dra release aggregation is a plain sync without maven-metadata"() {
 
     buildFile << """
         plugins {
+            id 'elasticsearch.global-build-info'
             id 'com.gradleup.nmcp.aggregation'
             id 'elasticsearch.dra-maven-aggregation'
         }

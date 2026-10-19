@@ -517,15 +517,3 @@ tests:
 - class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
   method: testIpOnColumnarIndex
   issue: https://github.com/elastic/elasticsearch/issues/162510
-- class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
-  method: testTextOnColumnarIndex
-  issue: https://github.com/elastic/elasticsearch/issues/162510
-- class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
-  method: testMatchOnlyTextOnColumnarIndex
-  issue: https://github.com/elastic/elasticsearch/issues/162510
-- class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
-  method: testTextWithDocValuesOnStandardIndex
-  issue: https://github.com/elastic/elasticsearch/issues/162510
-- class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
-  method: testMatchOnlyTextWithDocValuesOnStandardIndex
-  issue: https://github.com/elastic/elasticsearch/issues/162510

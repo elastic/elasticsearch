@@ -38,7 +38,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-// NOTE: The tests listed for this class in muted-tests.yml fail until https://github.com/elastic/elasticsearch/issues/162510 is fixed.
+// NOTE: The keyword and ip tests for a columnar index are muted until https://github.com/elastic/elasticsearch/issues/162510 is
+// fixed. The text, match_only_text and binary tests expect a rejection because the top_metrics reference does not list them.
 public class TopMetricsColumnarIT extends ESRestTestCase {
 
     @ClassRule
@@ -91,20 +92,28 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
         assertOnColumnarIndex(mapping("ip"), TopMetricsColumnarIT::randomIpAddress);
     }
 
-    public void testTextOnColumnarIndex() throws IOException {
-        assertOnColumnarIndex(mapping("text"), TopMetricsColumnarIT::randomString);
+    public void testTextIsRejectedOnColumnarIndex() throws IOException {
+        assertRejected("columnar", COLUMNAR, mapping("text"), "text");
     }
 
-    public void testMatchOnlyTextOnColumnarIndex() throws IOException {
-        assertOnColumnarIndex(mapping("match_only_text"), TopMetricsColumnarIT::randomString);
+    public void testMatchOnlyTextIsRejectedOnColumnarIndex() throws IOException {
+        assertRejected("columnar", COLUMNAR, mapping("match_only_text"), "match_only_text");
     }
 
-    public void testTextWithDocValuesOnStandardIndex() throws IOException {
-        assertOnStandardIndex(mappingWithDocValues("text"), TopMetricsColumnarIT::randomString);
+    public void testBinaryIsRejectedOnColumnarIndex() throws IOException {
+        assertRejected("columnar", COLUMNAR, mapping("binary"), "binary");
     }
 
-    public void testMatchOnlyTextWithDocValuesOnStandardIndex() throws IOException {
-        assertOnStandardIndex(mappingWithDocValues("match_only_text"), TopMetricsColumnarIT::randomString);
+    public void testTextWithDocValuesIsRejectedOnStandardIndex() throws IOException {
+        assertRejected("standard", Settings.EMPTY, mappingWithDocValues("text"), "text");
+    }
+
+    public void testMatchOnlyTextWithDocValuesIsRejectedOnStandardIndex() throws IOException {
+        assertRejected("standard", Settings.EMPTY, mappingWithDocValues("match_only_text"), "match_only_text");
+    }
+
+    public void testBinaryWithDocValuesIsRejectedOnStandardIndex() throws IOException {
+        assertRejected("standard", Settings.EMPTY, mappingWithDocValues("binary"), "binary");
     }
 
     public void testTextWithFielddataOnStandardIndex() throws IOException {
@@ -282,6 +291,13 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
               "metric": %s
             }
             """, metricMapping));
+    }
+
+    private void assertRejected(String index, Settings indexSettings, String metricMapping, String type) throws IOException {
+        createMetricIndex(index, indexSettings, metricMapping);
+        indexDocuments(index, List.of(new Document(1, SAMPLE_VALUES.get(type))));
+        ResponseException e = expectThrows(ResponseException.class, () -> search(index, true));
+        assertEquals(e.getMessage(), 400, e.getResponse().getStatusLine().getStatusCode());
     }
 
     private void assertRejectedWithoutDocValues(String index, Settings indexSettings, String type, Object sample) throws IOException {

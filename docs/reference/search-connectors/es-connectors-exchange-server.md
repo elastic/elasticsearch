@@ -102,7 +102,12 @@ For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-co
 
 ### Connecting to Exchange Server [es-connectors-exchange-server-client-connecting-to-exchange-server]
 
-In order to connect to Exchange Server, the connector fetches Active Directory users with the help of the `ldap3` Python library, then reads each mailbox through Exchange Web Services (EWS).
+To connect to Exchange Server, the connector fetches Active Directory users with the help of the `ldap3` Python library, then reads each mailbox through Exchange Web Services (EWS).
+
+The account you configure in `username` and `password` needs:
+
+* Permission to read user objects from Active Directory.
+* The Exchange `ApplicationImpersonation` role for the mailboxes you want to sync. The connector opens each mailbox with impersonation, so valid credentials alone are not enough.
 
 
 ### Configuration [es-connectors-exchange-server-client-configuration]
@@ -146,7 +151,7 @@ In order to connect to Exchange Server, the connector fetches Active Directory u
 `Index full raw email (including headers)`
 :   Toggle to index the full raw MIME message. Default value is `False`. When off, only the email body (preferring `text/plain` over `text/html`) and a minimal set of headers (`Subject`, `From`, `Reply-To`, `To`, `Cc`, `Bcc`, `Date`, `Message-ID`) are indexed. Routing/authentication headers and binary attachments are dropped. Enable this toggle to restore the passthrough behavior when body extraction misses content.
 
-`document_level_security`
+`use_document_level_security`
 :   Toggle to enable [Document level security (DLS)](/reference/search-connectors/document-level-security.md). When enabled:
 
     * Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
@@ -193,7 +198,7 @@ connectors:
 
 Using the `elasticsearch.api_key` is the recommended authentication method. However, you can also use `elasticsearch.username` and `elasticsearch.password` to authenticate with your Elasticsearch instance.
 
-Note: You can change other default configurations by simply uncommenting specific settings in the configuration file and modifying their values.
+Note: You can change other default configurations by uncommenting specific settings in the configuration file and modifying their values.
 
 ::::
 
@@ -300,7 +305,7 @@ Advanced sync rules are not available for this connector in the present version.
 
 #### Known issues [es-connectors-exchange-server-client-known-issues]
 
-Refer to [Known issues](/release-notes/known-issues.md) for a list of known issues for all connectors. Known issues listed for the Outlook connector that relate to Exchange Server (on-premises) can also affect this connector.
+Refer to [Known issues](/reference/search-connectors/es-connectors-known-issues.md) for a list of known issues for all connectors. Known issues listed for the Outlook connector that relate to Exchange Server (on-premises) can also affect this connector.
 
 
 ### Troubleshooting [es-connectors-exchange-server-client-troubleshooting]

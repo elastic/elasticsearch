@@ -1276,7 +1276,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(512))
                         .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean())
                         .put(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING.getKey(), randomBoolean())
-                        .put(SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING.getKey(), randomDoubleBetween(0, 1, true))
                         .build();
                 }
 
@@ -1637,11 +1636,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     public void testIdLookupPreWarming() throws Exception {
         final boolean preWarmEnabled = usually();
         final boolean preWarmRequested = usually();
-        final double ratio = randomDoubleBetween(0.0, 1.0, true);
         final boolean shouldPreWarmForIdLookup = preWarmEnabled && preWarmRequested;
         final long regionSize = SharedBytes.PAGE_SIZE;
 
-        try (var node = createFakeNodeForPreWarming(ByteSizeValue.ofMb(4), regionSize, SharedBytes.PAGE_SIZE, preWarmEnabled, ratio)) {
+        try (var node = createFakeNodeForPreWarming(ByteSizeValue.ofMb(4), regionSize, SharedBytes.PAGE_SIZE, preWarmEnabled)) {
             final IndexShard indexShard = mockIndexShard(node);
             final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
             final var blobFile = new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen);
@@ -1689,11 +1687,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 randomRegionTimestampMillis()
             );
 
-            // For each file, verify the expected caching behavior based on shouldPreWarmForIdLookup and ratio.
+            // For each file, verify the expected caching behavior based on shouldPreWarmForIdLookup.
             // When shouldPreWarmForIdLookup:
             // .tip/.bfi: fully cached
-            // .tim: header = max(ratio * fileLength, 1024)
-            // .dvd: header = 1024
+            // .tim/.dvd: header = 1024
             // When disabled:
             // all files: header = 1024 only
             for (var entry : commitFiles.entrySet()) {
@@ -1717,17 +1714,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         );
                     }
                 } else {
-                    // Only the header portion should be cached.
-                    // For .tim with id lookup pre-warm: header = max(ratio * fileLength, 1024)
-                    // Otherwise: header = 1024 (BUFFER_SIZE)
-                    long headerPreWarmSize;
-                    if (shouldPreWarmForIdLookup && ext == LuceneFilesExtensions.TIM) {
-                        headerPreWarmSize = Math.max((long) (ratio * loc.fileLength()), BUFFER_SIZE);
-                    } else {
-                        headerPreWarmSize = BUFFER_SIZE;
-                    }
+                    // Only the header portion (BUFFER_SIZE) should be cached.
                     int startRegion = node.sharedCacheService.getRegion(loc.offset());
-                    int lastHeaderRegion = node.sharedCacheService.getEndingRegion(loc.offset() + headerPreWarmSize);
+                    int lastHeaderRegion = node.sharedCacheService.getEndingRegion(loc.offset() + BUFFER_SIZE);
                     // All regions covering the header should be cached
                     for (int r = startRegion; r <= lastHeaderRegion; r++) {
                         long rStart = (long) r * regionSize;
@@ -1757,21 +1746,14 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     }
 
     private FakeStatelessNode createFakeNodeForMinimisingRange(long rangeSize, long stepSize) throws IOException {
-        return createFakeNodeForPreWarming(
-            ByteSizeValue.ofBytes(2L * rangeSize),
-            rangeSize,
-            stepSize,
-            false,
-            randomDoubleBetween(0, 1, true)
-        );
+        return createFakeNodeForPreWarming(ByteSizeValue.ofBytes(2L * rangeSize), rangeSize, stepSize, false);
     }
 
     private FakeStatelessNode createFakeNodeForPreWarming(
         ByteSizeValue cacheSize,
         long rangeSize,
         long stepSize,
-        boolean preWarmForIdLookupEnabled,
-        double idLookupPreWarmRatio
+        boolean preWarmForIdLookupEnabled
     ) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
             @Override
@@ -1788,7 +1770,6 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.getKey(), "false")
                     .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), "false")
                     .put(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING.getKey(), preWarmForIdLookupEnabled)
-                    .put(SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING.getKey(), idLookupPreWarmRatio)
                     .build();
             }
 

@@ -416,7 +416,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 ActionListener<Void> shardActionListener
             ) {
                 assertThat(replica, equalTo(failedReplica));
-                shardActionListener.onFailure(new NoLongerPrimaryShardException(replica.shardId(), "the king is dead"));
+                shardActionListener.onFailure(new ShardStateAction.NoLongerPrimaryShardException(replica.shardId(), "the king is dead"));
             }
         };
         final AtomicBoolean primaryFailed = new AtomicBoolean();

@@ -55,6 +55,7 @@ import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedTemplateUnifiedCompletionException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedDocumentExtractionOperation;
@@ -246,6 +247,12 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     ) {
         if (model instanceof SageMakerModel == false) {
             listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        if (request.body().containsTemplate()) {
+            // This service does not extend SenderService, so the template gate there does not apply and the body would otherwise
+            // be forwarded to SageMaker with no messages.
+            listener.onFailure(createUnsupportedTemplateUnifiedCompletionException(NAME));
             return;
         }
         timeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, TaskType.CHAT_COMPLETION);

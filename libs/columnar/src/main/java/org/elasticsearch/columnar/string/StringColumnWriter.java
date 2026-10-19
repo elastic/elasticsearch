@@ -92,7 +92,7 @@ public final class StringColumnWriter {
      * @param outputs                   values to its data, per-document tables to its addressing, per-block
      *                                  and per-chunk tables to its navigation
      * @param skipIndex                 where a dictionary column without escapes writes the ordinal bounds of
-     *                                  its intervals, and a plain column the bounds of its blocks
+     *                                  its intervals, and a plain column the bounds of its chunks
      */
     public static StringColumnMetadata write(
         int maxDoc,
@@ -204,7 +204,7 @@ public final class StringColumnWriter {
         long valueAddress = 0;
         final StringColumnValues values = cursors.get();
         final PlainSkipBounds.Writer bounds = options.enablePlainSkipIndex() && skipIndex != null
-            ? new PlainSkipBounds.Writer(directory, context, outputs.data().getName(), valuesPerBlock, numValues)
+            ? new PlainSkipBounds.Writer(directory, context, outputs.data().getName(), numValues)
             : null;
         final StringColumnMetadata.Plain.Skipper skipper;
         boolean finished = false;
@@ -247,7 +247,7 @@ public final class StringColumnWriter {
                             nulls++;
                             stream.addNull();
                             if (bounds != null) {
-                                bounds.add(valueAddress, doc, null);
+                                bounds.add(valueAddress, doc, stream.ownerChunk(), null);
                             }
                         } else {
                             if (sorted) {
@@ -260,7 +260,7 @@ public final class StringColumnWriter {
                             }
                             stream.add(value);
                             if (bounds != null) {
-                                bounds.add(valueAddress, doc, value);
+                                bounds.add(valueAddress, doc, stream.ownerChunk(), value);
                             }
                         }
                         valueAddress++;

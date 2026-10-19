@@ -46,7 +46,9 @@ public class PlainStringColumnTempFileTests extends ColumnarStringTestCase {
                 docSlots.length,
                 totals(docSlots),
                 cursors,
-                StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).withPlainSkipIndex(eligible),
+                StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE)
+                    .withSizes(PlainStringColumnSkipperTests.sizes(128, 256))
+                    .withPlainSkipIndex(eligible),
                 null,
                 dir,
                 IOContext.DEFAULT,

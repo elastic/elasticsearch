@@ -273,7 +273,7 @@ public class PlainRangePresenceTests extends ESTestCase {
         }
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 4)) {
             final BytesRef b = new BytesRef("b");
-            try (PlainSkipFixture corrupt = fixture.withByte(dir, 12, (byte) 0)) {
+            try (PlainSkipFixture corrupt = fixture.withByte(dir, 28, (byte) 0)) {
                 final PlainRangePresence presence = corrupt.presence(PlainSkipBounds.Query.range(b, true, b, true));
                 expectThrows(CorruptIndexException.class, presence::nextDoc);
             }
@@ -284,7 +284,7 @@ public class PlainRangePresenceTests extends ESTestCase {
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = twoBlocks(dir)) {
             final PlainSkipBounds.Query keepFirstBlock = PlainSkipBounds.Query.range(new BytesRef("a"), true, new BytesRef("a"), true);
             for (int stored : new int[] { 0, 1, 4, 100 }) {
-                try (PlainSkipFixture corrupt = fixture.withByte(dir, 12, (byte) stored)) {
+                try (PlainSkipFixture corrupt = fixture.withByte(dir, 28, (byte) stored)) {
                     final PlainRangePresence presence = corrupt.presence(keepFirstBlock);
                     assertEquals(0, presence.nextDoc());
                     assertEquals(4, presence.docIDRunEnd());
@@ -303,7 +303,7 @@ public class PlainRangePresenceTests extends ESTestCase {
             final PlainSkipBounds.Query skipFirstBlock = PlainSkipBounds.Query.range(new BytesRef("b"), true, new BytesRef("b"), true);
             assertEquals(List.of(4, 5, 6, 7), collect(fixture.presence(skipFirstBlock)));
             for (int stored : new int[] { 0, 6, 8, 100 }) {
-                try (PlainSkipFixture corrupt = fixture.withByte(dir, 12, (byte) stored)) {
+                try (PlainSkipFixture corrupt = fixture.withByte(dir, 28, (byte) stored)) {
                     final PlainRangePresence presence = corrupt.presence(skipFirstBlock);
                     expectThrows(CorruptIndexException.class, presence::nextDoc);
                 }

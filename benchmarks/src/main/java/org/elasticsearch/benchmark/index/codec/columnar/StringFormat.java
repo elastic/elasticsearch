@@ -35,6 +35,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
@@ -288,13 +289,29 @@ public enum StringFormat {
         if (column.shape().startsWith("plain") == false) {
             throw new IllegalStateException(this + " produced a non-plain layout: " + column.shape());
         }
-        final long minimumRegion = (long) (numDocs / StringColumnOptions.DEFAULT_VALUES_PER_BLOCK) * (Integer.BYTES + Long.BYTES);
-        final boolean hasBounds = column.skipIndexBytes() >= minimumRegion;
+        final boolean hasBounds = column.skipIndexBytes() >= emptySkipIndexBytes() + MIN_PLAIN_BOUNDS_BYTES;
         final boolean expectsBounds = this == COLUMNAR_PLAIN_BOUNDED && column.shape().contains("+sorted") == false;
         if (hasBounds != expectsBounds) {
             throw new IllegalStateException(
                 this + " wrote a skip index of " + column.skipIndexBytes() + " bytes for " + numDocs + " documents: " + column.shape()
             );
+        }
+    }
+
+    /** One directory entry of a long, an int and a long, and the flag byte of its bounds. */
+    private static final long MIN_PLAIN_BOUNDS_BYTES = Long.BYTES + Integer.BYTES + Long.BYTES + Byte.BYTES;
+
+    /** The size of a skip index with nothing in it, which is what a plain column without bounds leaves. */
+    private static long emptySkipIndexBytes() throws IOException {
+        try (Directory directory = new ByteBuffersDirectory()) {
+            COLUMNAR_PLAIN.write(directory, new BytesRef[] { new BytesRef("a") });
+            long bytes = 0;
+            for (String file : directory.listAll()) {
+                if (file.endsWith(".cns")) {
+                    bytes += directory.fileLength(file);
+                }
+            }
+            return bytes;
         }
     }
 

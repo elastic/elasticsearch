@@ -30,10 +30,10 @@ final class PlainBlockOracle {
     }
 
     private static BytesRef[] extremes(PlainSkipFixture fixture, boolean smallest) {
-        final BytesRef[] result = new BytesRef[fixture.blockCount()];
+        final BytesRef[] result = new BytesRef[fixture.entryCount()];
         for (int address = 0; address < fixture.slotValues.length; address++) {
             final BytesRef value = fixture.slotValues[address];
-            final int block = address / fixture.valuesPerBlock;
+            final int block = fixture.entryOfSlot[address];
             if (value == null) {
                 continue;
             }
@@ -76,7 +76,7 @@ final class PlainBlockOracle {
         final List<Integer> kept = new ArrayList<>();
         int last = -1;
         for (int address = 0; address < fixture.slotValues.length; address++) {
-            final int block = address / fixture.valuesPerBlock;
+            final int block = fixture.entryOfSlot[address];
             final int doc = fixture.slotDocs[address];
             if (doc != last && excludes(mins[block], maxes[block], query) == false) {
                 kept.add(doc);

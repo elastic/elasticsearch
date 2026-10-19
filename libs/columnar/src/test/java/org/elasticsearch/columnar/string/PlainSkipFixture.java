@@ -28,7 +28,9 @@ import java.util.List;
 final class PlainSkipFixture implements Closeable {
 
     final BytesRef[][] docSlots;
-    final int valuesPerBlock;
+    final int[] ownerOfSlot;
+    final int[] entryOfSlot;
+    final long[] entryFirstSlot;
     final long numValues;
     final StringColumnMetadata.Plain.Skipper skipper;
     final IndexInput input;
@@ -41,13 +43,13 @@ final class PlainSkipFixture implements Closeable {
 
     private PlainSkipFixture(
         BytesRef[][] docSlots,
-        int valuesPerBlock,
+        int[] ownerOfSlot,
         StringColumnMetadata.Plain.Skipper skipper,
         IndexInput input,
         long leadingBytes
     ) {
         this.docSlots = docSlots;
-        this.valuesPerBlock = valuesPerBlock;
+        this.ownerOfSlot = ownerOfSlot;
         this.skipper = skipper;
         this.input = input;
         this.leadingBytes = leadingBytes;
@@ -58,6 +60,16 @@ final class PlainSkipFixture implements Closeable {
             }
         }
         this.numValues = total;
+        this.entryOfSlot = new int[(int) total];
+        final long[] firsts = new long[(int) total];
+        int entries = 0;
+        for (int slot = 0; slot < total; slot++) {
+            if (slot == 0 || ownerOfSlot[slot] != ownerOfSlot[slot - 1]) {
+                firsts[entries++] = slot;
+            }
+            entryOfSlot[slot] = entries - 1;
+        }
+        this.entryFirstSlot = Arrays.copyOf(firsts, entries);
         this.slotValues = new BytesRef[(int) total];
         this.slotDocs = new int[(int) total];
         for (int doc = 0, address = 0; doc < docSlots.length; doc++) {
@@ -83,12 +95,51 @@ final class PlainSkipFixture implements Closeable {
      * A document with a null entry in {@code docSlots} holds no slot and is not present; one with an empty array is
      * present and holds none. A null element is a null slot.
      */
-    static PlainSkipFixture build(Directory dir, BytesRef[][] docSlots, int valuesPerBlock) throws IOException {
-        return build(dir, docSlots, valuesPerBlock, false);
+    static PlainSkipFixture build(Directory dir, BytesRef[][] docSlots, int slotsPerEntry) throws IOException {
+        return build(dir, docSlots, slotsPerEntry, false);
     }
 
     /** As above; with {@code reuseBuffer} every value is handed over in one shared array that is overwritten right after. */
-    static PlainSkipFixture build(Directory dir, BytesRef[][] docSlots, int valuesPerBlock, boolean reuseBuffer) throws IOException {
+    static PlainSkipFixture build(Directory dir, BytesRef[][] docSlots, int slotsPerEntry, boolean reuseBuffer) throws IOException {
+        return build(dir, docSlots, evenOwners(docSlots, slotsPerEntry), reuseBuffer);
+    }
+
+    /** Owners that start a new chunk every {@code slotsPerEntry} slots. */
+    static int[] evenOwners(BytesRef[][] docSlots, int slotsPerEntry) {
+        int total = 0;
+        for (BytesRef[] slots : docSlots) {
+            total += slots == null ? 0 : slots.length;
+        }
+        final int[] owners = new int[total];
+        for (int slot = 0; slot < total; slot++) {
+            owners[slot] = slot / slotsPerEntry;
+        }
+        return owners;
+    }
+
+    /** The owners a real column written with {@code sizes} gets, from the rules of the chunk writer. */
+    static int[] realOwners(BytesRef[][] docSlots, StringColumnOptions.Sizes sizes) {
+        final List<BytesRef> slots = new ArrayList<>();
+        for (BytesRef[] docSlot : docSlots) {
+            if (docSlot != null) {
+                slots.addAll(Arrays.asList(docSlot));
+            }
+        }
+        return PlainChunkModel.owners(slots, sizes.plainChunks(), sizes.valuesPerBlock(), sizes.lengthBlockSize());
+    }
+
+    static int entriesOf(int[] owners) {
+        int entries = 0;
+        for (int slot = 0; slot < owners.length; slot++) {
+            if (slot == 0 || owners[slot] != owners[slot - 1]) {
+                entries++;
+            }
+        }
+        return entries;
+    }
+
+    /** As above, with the chunk that owns each slot given; it must never go back. */
+    static PlainSkipFixture build(Directory dir, BytesRef[][] docSlots, int[] owners, boolean reuseBuffer) throws IOException {
         final BytesRef shared = new BytesRef(new byte[8192]);
         final int leading = ESTestCase.between(0, 9);
         long total = 0;
@@ -100,7 +151,7 @@ final class PlainSkipFixture implements Closeable {
             for (int i = 0; i < leading; i++) {
                 out.writeByte((byte) i);
             }
-            try (PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "fixture", valuesPerBlock, total)) {
+            try (PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "fixture", total)) {
                 long address = 0;
                 for (int doc = 0; doc < docSlots.length; doc++) {
                     if (docSlots[doc] == null) {
@@ -108,46 +159,47 @@ final class PlainSkipFixture implements Closeable {
                     }
                     for (BytesRef value : docSlots[doc]) {
                         if (value == null) {
-                            writer.add(address++, doc, null);
+                            writer.add(address, doc, owners[(int) address++], null);
                         } else if (reuseBuffer) {
                             shared.bytes = ArrayUtil.grow(shared.bytes, value.length + 8);
                             System.arraycopy(value.bytes, value.offset, shared.bytes, 4, value.length);
                             shared.offset = 4;
                             shared.length = value.length;
-                            writer.add(address++, doc, shared);
+                            writer.add(address, doc, owners[(int) address++], shared);
                             Arrays.fill(shared.bytes, (byte) 0xAA);
                         } else {
-                            writer.add(address++, doc, PlainSkipTestValues.maybeOffset(value));
+                            writer.add(address, doc, owners[(int) address++], PlainSkipTestValues.maybeOffset(value));
                         }
                     }
                 }
                 skipper = writer.finish(out, true);
             }
         }
-        return new PlainSkipFixture(docSlots, valuesPerBlock, skipper, dir.openInput("fixture.cns", IOContext.DEFAULT), leading);
+        return new PlainSkipFixture(docSlots, owners, skipper, dir.openInput("fixture.cns", IOContext.DEFAULT), leading);
     }
 
-    /** What the region holds for one block, read straight from the bytes: a null bound is a block of nulls. */
-    record Parsed(int firstDoc, BytesRef min, BytesRef max) {}
+    /** What the region holds for one entry, read straight from the bytes: a null bound is an entry of nulls. */
+    record Parsed(long firstSlot, int firstDoc, BytesRef min, BytesRef max) {}
 
     /**
      * Reads the region the way the format documents it, without going through the reader: a directory of entries
-     * of an int and a long, then a payload of a flag byte and, for a block with a value, two ints and the bytes.
+     * of a long, an int and a long, then a payload of a flag byte and, for an entry with a value, two ints and the bytes.
      */
     static List<Parsed> parse(IndexInput file, StringColumnMetadata.Plain.Skipper skipper) throws IOException {
-        final long directoryBytes = (long) skipper.blockCount() * 12;
+        final long directoryBytes = (long) skipper.entryCount() * 20;
         final byte[] region = new byte[(int) (directoryBytes + skipper.payloadLength())];
         file.seek(skipper.dataOffset());
         file.readBytes(region, 0, region.length);
         final ByteArrayDataInput in = new ByteArrayDataInput(region);
         final List<Parsed> parsed = new ArrayList<>();
-        for (int block = 0; block < skipper.blockCount(); block++) {
-            in.setPosition(block * 12);
+        for (int entry = 0; entry < skipper.entryCount(); entry++) {
+            in.setPosition(entry * 20);
+            final long firstSlot = in.readLong();
             final int firstDoc = in.readInt();
             final long offset = in.readLong();
             in.setPosition((int) (directoryBytes + offset));
             if (in.readByte() == 0) {
-                parsed.add(new Parsed(firstDoc, null, null));
+                parsed.add(new Parsed(firstSlot, firstDoc, null, null));
                 continue;
             }
             final int minLength = in.readInt();
@@ -156,7 +208,7 @@ final class PlainSkipFixture implements Closeable {
             in.readBytes(min, 0, minLength);
             final byte[] max = new byte[maxLength];
             in.readBytes(max, 0, maxLength);
-            parsed.add(new Parsed(firstDoc, new BytesRef(min), new BytesRef(max)));
+            parsed.add(new Parsed(firstSlot, firstDoc, new BytesRef(min), new BytesRef(max)));
         }
         return parsed;
     }
@@ -175,23 +227,19 @@ final class PlainSkipFixture implements Closeable {
     }
 
     PlainSkipFixture over(IndexInput other) {
-        return new PlainSkipFixture(docSlots, valuesPerBlock, skipper, other, leadingBytes);
+        return new PlainSkipFixture(docSlots, ownerOfSlot, skipper, other, leadingBytes);
     }
 
     static int randomValuesPerBlock() {
         return 1 << ESTestCase.between(0, 7);
     }
 
-    int blockCount() {
-        return PlainSkipBounds.blockCount(numValues, valuesPerBlock);
-    }
-
-    int blockShift() {
-        return Integer.numberOfTrailingZeros(valuesPerBlock);
+    int entryCount() {
+        return entryFirstSlot.length;
     }
 
     PlainSkipBounds.Reader reader() throws IOException {
-        return new PlainSkipBounds.Reader(skipper, input);
+        return new PlainSkipBounds.Reader(skipper, numValues, input);
     }
 
     PlainRangePresence.Slots slots() {
@@ -218,7 +266,7 @@ final class PlainSkipFixture implements Closeable {
     }
 
     PlainRangePresence presence(PlainSkipBounds.Query query) throws IOException {
-        return new PlainRangePresence(presence(), reader(), query, slots(), blockShift());
+        return new PlainRangePresence(presence(), reader(), query, slots());
     }
 
     @Override

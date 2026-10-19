@@ -341,8 +341,8 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             assertQueriesMatch(index, values);
             bytes.put(variant, skipIndexBytes(index));
         }
-        final long directory = 12L * ((numDocs + 127) / 128);
-        assertTrue("descending primary sort writes the bounds: " + bytes, bytes.get("descending") >= bytes.get("ascending") + directory);
+        final long oneEntry = Long.BYTES + Integer.BYTES + Long.BYTES + Byte.BYTES;
+        assertTrue("descending primary sort writes the bounds: " + bytes, bytes.get("descending") >= bytes.get("ascending") + oneEntry);
         assertEquals(
             "documents without the field leave an ascending column bisectable: " + bytes,
             bytes.get("ascending"),

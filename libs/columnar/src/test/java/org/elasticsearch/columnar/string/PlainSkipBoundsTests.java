@@ -42,8 +42,8 @@ public class PlainSkipBoundsTests extends ESTestCase {
                 final BytesRef[] mins = PlainBlockOracle.mins(fixture);
                 final BytesRef[] maxes = PlainBlockOracle.maxes(fixture);
                 final PlainSkipBounds.Reader reader = fixture.reader();
-                assertEquals(fixture.blockCount(), reader.blockCount());
-                for (int block = 0; block < fixture.blockCount(); block++) {
+                assertEquals(fixture.entryCount(), reader.entryCount());
+                for (int block = 0; block < fixture.entryCount(); block++) {
                     if (mins[block] == null) {
                         assertTrue(reader.excludes(block, PlainSkipBounds.Query.range(null, true, null, true)));
                         continue;
@@ -71,7 +71,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
                 final PlainSkipBounds.Reader reader = fixture.reader();
                 for (int i = 0; i < 40; i++) {
                     final PlainSkipBounds.Query query = PlainBlockOracle.randomQuery(pool);
-                    for (int block = 0; block < fixture.blockCount(); block++) {
+                    for (int block = 0; block < fixture.entryCount(); block++) {
                         assertEquals(PlainBlockOracle.excludes(mins[block], maxes[block], query), reader.excludes(block, query));
                     }
                 }
@@ -93,7 +93,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
                     for (int address = 0; address < fixture.slotValues.length; address++) {
                         final BytesRef value = fixture.slotValues[address];
                         if (value != null && PlainBlockOracle.matches(value, query)) {
-                            assertFalse(reader.excludes(address / fixture.valuesPerBlock, query));
+                            assertFalse(reader.excludes(fixture.entryOfSlot[address], query));
                         }
                     }
                 }
@@ -161,9 +161,10 @@ public class PlainSkipBoundsTests extends ESTestCase {
         final List<PlainSkipFixture.Parsed> parsed = PlainSkipFixture.parse(fixture.input.clone(), fixture.skipper);
         final BytesRef[] mins = PlainBlockOracle.mins(fixture);
         final BytesRef[] maxes = PlainBlockOracle.maxes(fixture);
-        assertEquals(fixture.blockCount(), parsed.size());
+        assertEquals(fixture.entryCount(), parsed.size());
         for (int block = 0; block < parsed.size(); block++) {
-            assertEquals(fixture.slotDocs[block * fixture.valuesPerBlock], parsed.get(block).firstDoc());
+            assertEquals(fixture.entryFirstSlot[block], parsed.get(block).firstSlot());
+            assertEquals(fixture.slotDocs[(int) fixture.entryFirstSlot[block]], parsed.get(block).firstDoc());
             if (mins[block] == null) {
                 assertNull(parsed.get(block).min());
                 assertNull(parsed.get(block).max());
@@ -183,8 +184,8 @@ public class PlainSkipBoundsTests extends ESTestCase {
                 PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, PlainSkipFixture.randomValuesPerBlock())
             ) {
                 final PlainSkipBounds.Reader reader = fixture.reader();
-                for (int block = 0; block < fixture.blockCount(); block++) {
-                    assertEquals(fixture.slotDocs[block * fixture.valuesPerBlock], reader.firstDoc(block));
+                for (int block = 0; block < fixture.entryCount(); block++) {
+                    assertEquals(fixture.slotDocs[(int) fixture.entryFirstSlot[block]], reader.firstDoc(block));
                 }
             }
         }
@@ -197,10 +198,10 @@ public class PlainSkipBoundsTests extends ESTestCase {
             { new BytesRef(new byte[3000]) },
             { new BytesRef() } };
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 2)) {
-            final long directory = 3L * 12;
+            final long directory = 3L * 20;
             final long payload = (1 + 8 + 3 + 1) + (1 + 8 + 3000 + 3000) + (1 + 8);
-            assertEquals(3, fixture.blockCount());
-            assertEquals(3, fixture.skipper.blockCount());
+            assertEquals(3, fixture.entryCount());
+            assertEquals(3, fixture.skipper.entryCount());
             assertEquals(payload, fixture.skipper.payloadLength());
             assertEquals(fixture.leadingBytes + directory + payload, fixture.input.length());
         }
@@ -214,7 +215,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
         final BytesRef value = new BytesRef(huge);
         final BytesRef[][] docSlots = new BytesRef[][] { { value }, { new BytesRef("a") } };
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 2)) {
-            assertEquals(1, fixture.blockCount());
+            assertEquals(1, fixture.entryCount());
             assertEquals(1 + 8 + 300_000 + 1, fixture.skipper.payloadLength());
             assertSerializedBoundsAreExact(fixture);
             assertFalse(fixture.reader().excludes(0, PlainSkipBounds.Query.range(value, true, value, true)));
@@ -225,16 +226,16 @@ public class PlainSkipBoundsTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             final int before = dir.listAll().length;
             try (IndexOutput out = dir.createOutput("kept.cns", IOContext.DEFAULT)) {
-                final PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "kept", 1, 2);
-                writer.add(0, 0, new BytesRef("a"));
-                writer.add(1, 1, new BytesRef("b"));
+                final PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "kept", 2);
+                writer.add(0, 0, 0, new BytesRef("a"));
+                writer.add(1, 1, 1, new BytesRef("b"));
                 assertNull(writer.finish(out, false));
                 assertEquals(0, out.getFilePointer());
             }
             assertEquals(before + 1, dir.listAll().length);
             try (IndexOutput out = dir.createOutput("never.cns", IOContext.DEFAULT)) {
-                final PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "never", 1, 2);
-                writer.add(0, 0, new BytesRef("a"));
+                final PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "never", 2);
+                writer.add(0, 0, 0, new BytesRef("a"));
                 writer.close();
                 writer.close();
                 assertEquals(0, out.getFilePointer());
@@ -243,28 +244,34 @@ public class PlainSkipBoundsTests extends ESTestCase {
         }
     }
 
-    public void testSlotsMustArriveOneBlockAfterAnother() throws IOException {
-        try (
-            Directory dir = newDirectory();
-            PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "w", 2, 8)
-        ) {
-            writer.add(0, 0, new BytesRef("a"));
-            writer.add(1, 0, new BytesRef("b"));
-            expectThrows(IllegalStateException.class, () -> writer.add(4, 2, new BytesRef("c")));
+    public void testSlotsMustArriveInOrderAndTheOwnerNeverGoesBack() throws IOException {
+        try (Directory dir = newDirectory(); PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "w", 8)) {
+            writer.add(0, 0, 0, new BytesRef("a"));
+            writer.add(1, 0, 0, new BytesRef("b"));
+            expectThrows(IllegalStateException.class, () -> writer.add(3, 2, 0, new BytesRef("c")));
         }
+        try (Directory dir = newDirectory(); PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "w", 8)) {
+            writer.add(0, 0, 0, new BytesRef("a"));
+            writer.add(1, 1, 3, new BytesRef("b"));
+            expectThrows(IllegalStateException.class, () -> writer.add(2, 1, 2, new BytesRef("c")));
+        }
+    }
+
+    public void testFewerSlotsThanExpectedCannotBeFinished() throws IOException {
         try (
             Directory dir = newDirectory();
-            PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "w", 2, 8)
+            IndexOutput out = dir.createOutput("few.cns", IOContext.DEFAULT);
+            PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "few", 3)
         ) {
-            writer.add(0, 0, new BytesRef("a"));
-            writer.add(2, 1, new BytesRef("b"));
-            expectThrows(IllegalStateException.class, () -> writer.add(1, 1, new BytesRef("c")));
+            writer.add(0, 0, 0, new BytesRef("a"));
+            writer.add(1, 1, 0, new BytesRef("b"));
+            expectThrows(IllegalStateException.class, () -> writer.finish(out, true));
         }
     }
 
     public void testAColumnWithoutSlotsWritesNoRegion() throws IOException {
         try (Directory dir = newDirectory(); IndexOutput out = dir.createOutput("none.cns", IOContext.DEFAULT)) {
-            try (PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "none", 128, 0)) {
+            try (PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "none", 0)) {
                 assertNull(writer.finish(out, true));
             }
             assertEquals(0, out.getFilePointer());
@@ -280,7 +287,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
         final AtomicLong bytesRead = new AtomicLong();
         try (Directory delegate = newDirectory(); Directory dir = new ReadCountingDirectory(delegate, bytesRead)) {
             try (PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 4)) {
-                assertEquals(blocks, fixture.skipper.blockCount());
+                assertEquals(blocks, fixture.skipper.entryCount());
                 final long afterBuild = bytesRead.get();
                 final PlainSkipBounds.Reader reader = fixture.reader();
                 assertEquals("opening reads nothing", afterBuild, bytesRead.get());
@@ -299,11 +306,15 @@ public class PlainSkipBoundsTests extends ESTestCase {
             { new BytesRef("d") } };
         final PlainSkipBounds.Query query = PlainSkipBounds.Query.range(null, true, null, true);
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 2)) {
-            final int directory = 2 * 12;
+            final int directory = 2 * 20;
             expectCorrupt(dir, fixture, directory + 0, (byte) 9, reader -> reader.excludes(0, query));
-            expectCorrupt(dir, fixture, 4 + 7, (byte) 0x40, reader -> reader.excludes(0, query));
-            expectCorrupt(dir, fixture, 12 + 4 + 7, (byte) 0x7F, reader -> reader.excludes(1, query));
-            expectCorrupt(dir, fixture, 3, (byte) 0x80, reader -> reader.firstDoc(0));
+            expectCorrupt(dir, fixture, 12 + 7, (byte) 0x40, reader -> reader.excludes(0, query));
+            expectCorrupt(dir, fixture, 20 + 12 + 7, (byte) 0x7F, reader -> reader.excludes(1, query));
+            expectCorrupt(dir, fixture, 8 + 3, (byte) 0x80, reader -> reader.firstDoc(0));
+            expectCorrupt(dir, fixture, 7, (byte) 0x80, reader -> reader.firstSlot(0));
+            expectCorrupt(dir, fixture, 0, (byte) 1, reader -> reader.firstSlot(0));
+            expectCorrupt(dir, fixture, 20, (byte) 0, reader -> reader.endSlot(0));
+            expectCorrupt(dir, fixture, 20, (byte) 9, reader -> reader.entryOf(3));
             expectCorrupt(dir, fixture, directory + 1 + 3, (byte) 0x7F, reader -> reader.excludes(0, query));
             expectCorrupt(dir, fixture, directory + 1, (byte) 0x7F, reader -> reader.excludes(0, query));
             final PlainSkipBounds.Reader reader = fixture.reader();
@@ -315,7 +326,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
     public void testBoundsWhoseMinimumExceedsTheMaximumNeverPrune() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[][] { { new BytesRef("a"), new BytesRef("z") } };
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 2)) {
-            final long minimumByte = 12 + 1 + 8;
+            final long minimumByte = 20 + 1 + 8;
             try (
                 PlainSkipFixture lowered = fixture.withByte(dir, minimumByte, (byte) 'z');
                 PlainSkipFixture reversed = lowered.withByte(dir, minimumByte + 1, (byte) 'a')
@@ -339,11 +350,11 @@ public class PlainSkipBoundsTests extends ESTestCase {
     public void testEntriesThatOverlapOrDoNotStartAtTheBeginningAreCorrupt() throws IOException {
         final PlainSkipBounds.Query everything = PlainSkipBounds.Query.range(null, true, null, true);
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = threeBlocks(dir)) {
-            expectCorrupt(dir, fixture, 12 + 4, (byte) 0, reader -> reader.excludes(1, everything));
-            expectCorrupt(dir, fixture, 12 + 4, (byte) 0, reader -> reader.excludes(0, everything));
-            expectCorrupt(dir, fixture, 24 + 4, (byte) 12, reader -> reader.excludes(1, everything));
-            expectCorrupt(dir, fixture, 24 + 4, (byte) 12, reader -> reader.excludes(2, everything));
-            expectCorrupt(dir, fixture, 4, (byte) 1, reader -> reader.excludes(0, everything));
+            expectCorrupt(dir, fixture, 20 + 12, (byte) 0, reader -> reader.excludes(1, everything));
+            expectCorrupt(dir, fixture, 20 + 12, (byte) 0, reader -> reader.excludes(0, everything));
+            expectCorrupt(dir, fixture, 40 + 12, (byte) 12, reader -> reader.excludes(1, everything));
+            expectCorrupt(dir, fixture, 40 + 12, (byte) 12, reader -> reader.excludes(2, everything));
+            expectCorrupt(dir, fixture, 12, (byte) 1, reader -> reader.excludes(0, everything));
             final PlainSkipBounds.Reader intact = fixture.reader();
             for (int block = 0; block < 3; block++) {
                 assertFalse(intact.excludes(block, everything));
@@ -355,7 +366,8 @@ public class PlainSkipBoundsTests extends ESTestCase {
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = threeBlocks(dir)) {
             final StringColumnMetadata.Plain.Skipper skipper = fixture.skipper;
             final PlainSkipBounds.Reader shorter = new PlainSkipBounds.Reader(
-                new StringColumnMetadata.Plain.Skipper(skipper.dataOffset(), skipper.blockCount(), skipper.payloadLength() - 1),
+                new StringColumnMetadata.Plain.Skipper(skipper.dataOffset(), skipper.entryCount(), skipper.payloadLength() - 1),
+                fixture.numValues,
                 fixture.input
             );
             expectThrows(CorruptIndexException.class, () -> shorter.excludes(2, PlainSkipBounds.Query.range(null, true, null, true)));
@@ -369,7 +381,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
                 new StringColumnMetadata.Plain.Skipper(Long.MAX_VALUE - 5, 3, 10),
                 new StringColumnMetadata.Plain.Skipper(0, 3, Long.MAX_VALUE),
                 new StringColumnMetadata.Plain.Skipper(1, Integer.MAX_VALUE, 0) }) {
-                expectThrows(CorruptIndexException.class, () -> new PlainSkipBounds.Reader(bad, fixture.input));
+                expectThrows(CorruptIndexException.class, () -> new PlainSkipBounds.Reader(bad, fixture.numValues, fixture.input));
             }
         }
     }
@@ -377,36 +389,30 @@ public class PlainSkipBoundsTests extends ESTestCase {
     public void testASkipperPresenceByteMustBeZeroOrOne() throws IOException {
         final ByteBuffersDataOutput none = new ByteBuffersDataOutput();
         none.writeByte((byte) 0);
-        assertNull(StringColumnMetadata.Plain.Skipper.readOptionally(none.toDataInput(), 9, 4));
+        assertNull(StringColumnMetadata.Plain.Skipper.readOptionally(none.toDataInput(), 9));
 
         final StringColumnMetadata.Plain.Skipper skipper = new StringColumnMetadata.Plain.Skipper(5, 3, 40);
         final ByteBuffersDataOutput present = new ByteBuffersDataOutput();
         present.writeByte((byte) 1);
         skipper.writeTo(present);
-        assertEquals(skipper, StringColumnMetadata.Plain.Skipper.readOptionally(present.toDataInput(), 9, 4));
+        assertEquals(skipper, StringColumnMetadata.Plain.Skipper.readOptionally(present.toDataInput(), 9));
 
         for (byte invalid : new byte[] { 2, -1, 127 }) {
             final ByteBuffersDataOutput bad = new ByteBuffersDataOutput();
             bad.writeByte(invalid);
             skipper.writeTo(bad);
-            expectThrows(CorruptIndexException.class, () -> StringColumnMetadata.Plain.Skipper.readOptionally(bad.toDataInput(), 9, 4));
+            expectThrows(CorruptIndexException.class, () -> StringColumnMetadata.Plain.Skipper.readOptionally(bad.toDataInput(), 9));
         }
     }
 
-    public void testBlockCountsNearTheIntegerLimit() {
-        assertEquals(Integer.MAX_VALUE, PlainSkipBounds.blockCount((long) Integer.MAX_VALUE * 128, 128));
-        assertEquals(Integer.MAX_VALUE, PlainSkipBounds.blockCount((long) Integer.MAX_VALUE * 128 - 127, 128));
-        expectThrows(ArithmeticException.class, () -> PlainSkipBounds.blockCount((long) Integer.MAX_VALUE * 128 + 1, 128));
-        assertEquals(0, PlainSkipBounds.blockCount(0, 128));
-        assertEquals(1, PlainSkipBounds.blockCount(1, 128));
-        assertEquals(1, PlainSkipBounds.blockCount(128, 128));
-        assertEquals(2, PlainSkipBounds.blockCount(129, 128));
-    }
-
-    public void testASkipperForMoreBlocksThanAColumnCanHoldIsCorrupt() throws IOException {
-        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        new StringColumnMetadata.Plain.Skipper(0, 1, 1).writeTo(out);
-        expectThrows(CorruptIndexException.class, () -> StringColumnMetadata.Plain.Skipper.readFrom(out.toDataInput(), Long.MAX_VALUE, 1));
+    public void testASkipperWithNoEntriesOrMoreEntriesThanSlotsIsCorrupt() throws IOException {
+        final ByteBuffersDataOutput none = new ByteBuffersDataOutput();
+        new StringColumnMetadata.Plain.Skipper(0, 0, 1).writeTo(none);
+        expectThrows(CorruptIndexException.class, () -> StringColumnMetadata.Plain.Skipper.readFrom(none.toDataInput(), 9));
+        final ByteBuffersDataOutput many = new ByteBuffersDataOutput();
+        new StringColumnMetadata.Plain.Skipper(0, 10, 1).writeTo(many);
+        expectThrows(CorruptIndexException.class, () -> StringColumnMetadata.Plain.Skipper.readFrom(many.toDataInput(), 9));
+        assertEquals(10, StringColumnMetadata.Plain.Skipper.readFrom(many.toDataInput(), 10).entryCount());
     }
 
     private static PlainSkipFixture threeBlocks(Directory dir) throws IOException {
@@ -419,11 +425,11 @@ public class PlainSkipBoundsTests extends ESTestCase {
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 1)) {
             final StringColumnMetadata.Plain.Skipper skipper = fixture.skipper;
             for (StringColumnMetadata.Plain.Skipper bad : new StringColumnMetadata.Plain.Skipper[] {
-                new StringColumnMetadata.Plain.Skipper(skipper.dataOffset() + 1, skipper.blockCount(), skipper.payloadLength()),
-                new StringColumnMetadata.Plain.Skipper(skipper.dataOffset(), skipper.blockCount() + 1, skipper.payloadLength()),
-                new StringColumnMetadata.Plain.Skipper(skipper.dataOffset(), skipper.blockCount(), skipper.payloadLength() + 1),
-                new StringColumnMetadata.Plain.Skipper(-1, skipper.blockCount(), skipper.payloadLength()) }) {
-                expectThrows(CorruptIndexException.class, () -> new PlainSkipBounds.Reader(bad, fixture.input));
+                new StringColumnMetadata.Plain.Skipper(skipper.dataOffset() + 1, skipper.entryCount(), skipper.payloadLength()),
+                new StringColumnMetadata.Plain.Skipper(skipper.dataOffset(), skipper.entryCount() + 1, skipper.payloadLength()),
+                new StringColumnMetadata.Plain.Skipper(skipper.dataOffset(), skipper.entryCount(), skipper.payloadLength() + 1),
+                new StringColumnMetadata.Plain.Skipper(-1, skipper.entryCount(), skipper.payloadLength()) }) {
+                expectThrows(CorruptIndexException.class, () -> new PlainSkipBounds.Reader(bad, fixture.numValues, fixture.input));
             }
         }
     }
@@ -432,9 +438,9 @@ public class PlainSkipBoundsTests extends ESTestCase {
         final StringColumnMetadata.Plain.Skipper skipper = new StringColumnMetadata.Plain.Skipper(5, 3, 40);
         final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         skipper.writeTo(out);
-        assertEquals(skipper, StringColumnMetadata.Plain.Skipper.readFrom(out.toDataInput(), 9, 4));
-        expectThrows(CorruptIndexException.class, () -> StringColumnMetadata.Plain.Skipper.readFrom(out.toDataInput(), 13, 4));
-        expectThrows(CorruptIndexException.class, () -> StringColumnMetadata.Plain.Skipper.readFrom(out.toDataInput(), 9, 2));
+        assertEquals(skipper, StringColumnMetadata.Plain.Skipper.readFrom(out.toDataInput(), 9));
+        assertEquals(skipper, StringColumnMetadata.Plain.Skipper.readFrom(out.toDataInput(), 3));
+        expectThrows(CorruptIndexException.class, () -> StringColumnMetadata.Plain.Skipper.readFrom(out.toDataInput(), 2));
     }
 
     private interface Access {

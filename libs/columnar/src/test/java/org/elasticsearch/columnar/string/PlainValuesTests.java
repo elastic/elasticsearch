@@ -115,7 +115,7 @@ public class PlainValuesTests extends ESTestCase {
                     values.add(value);
                 }
             }
-            final ChunkModel model = new ChunkModel(bounds, valuesPerBlock, lengthBlockSize, numValues);
+            final PlainChunkModel model = new PlainChunkModel(bounds, valuesPerBlock, lengthBlockSize, numValues, true);
             final int chunks = writeChunks(numValues, bounds, valuesPerBlock, lengthBlockSize, (writer, slot) -> {
                 final BytesRef value = values.get(slot);
                 if (value == null) {
@@ -149,57 +149,6 @@ public class PlainValuesTests extends ESTestCase {
                 slots.write(writer, slot);
             }
             return writer.finish().chunks().numChunks();
-        }
-    }
-
-    private static final class ChunkModel {
-        private final ChunkBounds bounds;
-        private final int valuesPerBlock;
-        private final int lengthBlockSize;
-        private final int numValues;
-        private int count;
-        private int chunk;
-        private int pendingBytes;
-        private int pendingValues;
-
-        ChunkModel(ChunkBounds bounds, int valuesPerBlock, int lengthBlockSize, int numValues) {
-            this.bounds = bounds;
-            this.valuesPerBlock = valuesPerBlock;
-            this.lengthBlockSize = lengthBlockSize;
-            this.numValues = numValues;
-        }
-
-        int next(BytesRef value, BytesRef previous) {
-            if (count % valuesPerBlock == 0) {
-                final int values = Math.min(valuesPerBlock, numValues - count);
-                if (pendingBytes > 0 && pendingValues + values > bounds.maxValues()) {
-                    chunk++;
-                    pendingBytes = 0;
-                    pendingValues = 0;
-                }
-                pendingValues += values;
-            }
-            final int owner = chunk;
-            final boolean repeat = value != null && previous != null && previous.bytesEquals(value) && count % lengthBlockSize != 0;
-            if (value != null && repeat == false) {
-                int remaining = value.length;
-                while (remaining > 0) {
-                    final int take = Math.min(bounds.targetBytes() - pendingBytes, remaining);
-                    pendingBytes += take;
-                    remaining -= take;
-                    if (pendingBytes == bounds.targetBytes()) {
-                        chunk++;
-                        pendingBytes = 0;
-                        pendingValues = 0;
-                    }
-                }
-            }
-            count++;
-            return owner;
-        }
-
-        int emittedChunks() {
-            return chunk + (pendingBytes > 0 ? 1 : 0);
         }
     }
 

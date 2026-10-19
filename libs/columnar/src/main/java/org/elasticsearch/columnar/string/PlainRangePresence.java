@@ -16,11 +16,11 @@ import org.elasticsearch.columnar.substrate.ColumnIterator;
 import java.io.IOException;
 
 /**
- * The documents that hold a value, without those whose every slot lies in a block the bounds rule out for a query.
- * A kept document may still not match, so the caller compares its values.
+ * The documents that hold a value, without those whose every slot is owned by an entry the bounds rule out for a
+ * query. A kept document may still not match, so the caller compares its values.
  *
  * <p>It moves forward only, so {@code advanceExact} and {@code ranks} throw. Where every document holds one slot a
- * run ends before the first document of the next block, which the bounds may rule out. Elsewhere a document may
+ * run ends before the first document of the next entry, which the bounds may rule out. Elsewhere a document may
  * hold none and is not returned, so a run is the document alone.
  */
 final class PlainRangePresence extends ColumnIterator {
@@ -37,18 +37,16 @@ final class PlainRangePresence extends ColumnIterator {
     private final PlainSkipBounds.Reader bounds;
     private final PlainSkipBounds.Query query;
     private final Slots slots;
-    private final int blockShift;
     private final boolean oneSlotADocument;
 
-    private int keptBlock = -1;
+    private int keptEntry = -1;
     private int runLimit;
 
-    PlainRangePresence(ColumnIterator presence, PlainSkipBounds.Reader bounds, PlainSkipBounds.Query query, Slots slots, int blockShift) {
+    PlainRangePresence(ColumnIterator presence, PlainSkipBounds.Reader bounds, PlainSkipBounds.Query query, Slots slots) {
         this.presence = presence;
         this.bounds = bounds;
         this.query = query;
         this.slots = slots;
-        this.blockShift = blockShift;
         this.oneSlotADocument = slots.oneSlotADocument();
     }
 
@@ -112,21 +110,21 @@ final class PlainRangePresence extends ColumnIterator {
                 continue;
             }
             final long first = slots.firstAddress(rank);
-            final int firstBlock = (int) (first >>> blockShift);
-            final int lastBlock = (int) ((first + count - 1) >>> blockShift);
-            if (firstBlock == lastBlock && firstBlock == keptBlock) {
-                runLimit = runLimit(doc, first, lastBlock);
+            final int firstEntry = bounds.entryOf(first);
+            final int lastEntry = count == 1 ? firstEntry : bounds.entryOf(first + count - 1);
+            if (firstEntry == lastEntry && firstEntry == keptEntry) {
+                runLimit = runLimit(doc, first, lastEntry);
                 return doc;
             }
-            if (keptIn(firstBlock, lastBlock)) {
-                keep(doc, first, lastBlock);
+            if (keptIn(firstEntry, lastEntry)) {
+                keep(doc, first, lastEntry);
                 return doc;
             }
-            int next = lastBlock + 1;
-            while (next < bounds.blockCount() && bounds.excludes(next, query)) {
+            int next = lastEntry + 1;
+            while (next < bounds.entryCount() && bounds.excludes(next, query)) {
                 next++;
             }
-            if (next >= bounds.blockCount()) {
+            if (next >= bounds.entryCount()) {
                 return presence.advance(NO_MORE_DOCS);
             }
             final int target = bounds.firstDoc(next);
@@ -134,44 +132,44 @@ final class PlainRangePresence extends ColumnIterator {
                 throw corrupt(next, target);
             }
             doc = presence.advance(target);
-            if (doc == NO_MORE_DOCS || ownsBlockStart(next) == false) {
+            if (doc == NO_MORE_DOCS || ownsEntryStart(next) == false) {
                 throw corrupt(next, target);
             }
         }
         return NO_MORE_DOCS;
     }
 
-    private boolean ownsBlockStart(int block) throws IOException {
+    private boolean ownsEntryStart(int entry) throws IOException {
         final int rank = presence.rank();
         final long first = slots.firstAddress(rank);
-        final long start = (long) block << blockShift;
+        final long start = bounds.firstSlot(entry);
         return first <= start && start < first + slots.count(rank);
     }
 
-    private static CorruptIndexException corrupt(int block, int document) {
-        return new CorruptIndexException("plain skip block [" + block + "] starts at the document [" + document + "]", "plain skip bounds");
+    private static CorruptIndexException corrupt(int entry, int document) {
+        return new CorruptIndexException("plain skip entry [" + entry + "] starts at the document [" + document + "]", "plain skip bounds");
     }
 
-    private boolean keptIn(int firstBlock, int lastBlock) throws IOException {
-        for (int block = firstBlock; block <= lastBlock; block++) {
-            if (bounds.excludes(block, query) == false) {
+    private boolean keptIn(int firstEntry, int lastEntry) throws IOException {
+        for (int entry = firstEntry; entry <= lastEntry; entry++) {
+            if (bounds.excludes(entry, query) == false) {
                 return true;
             }
         }
         return false;
     }
 
-    private void keep(int doc, long first, int lastBlock) throws IOException {
-        if (bounds.excludes(lastBlock, query)) {
-            keptBlock = -1;
+    private void keep(int doc, long first, int lastEntry) throws IOException {
+        if (bounds.excludes(lastEntry, query)) {
+            keptEntry = -1;
             runLimit = doc + 1;
             return;
         }
-        keptBlock = lastBlock;
-        runLimit = runLimit(doc, first, lastBlock);
+        keptEntry = lastEntry;
+        runLimit = runLimit(doc, first, lastEntry);
     }
 
-    private int runLimit(int doc, long first, int lastBlock) {
-        return (int) Math.min((long) doc + (((long) lastBlock + 1) << blockShift) - first, NO_MORE_DOCS);
+    private int runLimit(int doc, long first, int lastEntry) throws IOException {
+        return (int) Math.min((long) doc + bounds.endSlot(lastEntry) - first, NO_MORE_DOCS);
     }
 }

@@ -185,36 +185,27 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
         Summary summary
     ) implements StringColumnMetadata {
 
-        /** The skip-index region of the column's block bounds: {@code blockCount} directory entries, then {@code payloadLength} bytes. */
-        record Skipper(long dataOffset, int blockCount, long payloadLength) {
+        /** The skip-index region of the column's chunk bounds: {@code entryCount} directory entries, then {@code payloadLength} bytes. */
+        record Skipper(long dataOffset, int entryCount, long payloadLength) {
 
             void writeTo(DataOutput out) throws IOException {
                 out.writeVLong(dataOffset);
-                out.writeVInt(blockCount);
+                out.writeVInt(entryCount);
                 out.writeVLong(payloadLength);
             }
 
-            static Skipper readOptionally(DataInput in, long numValues, int valuesPerBlock) throws IOException {
+            static Skipper readOptionally(DataInput in, long numValues) throws IOException {
                 final byte present = in.readByte();
                 if (present != 0 && present != 1) {
                     throw new CorruptIndexException("invalid plain skipper presence [" + present + "]", in);
                 }
-                return present == 0 ? null : readFrom(in, numValues, valuesPerBlock);
+                return present == 0 ? null : readFrom(in, numValues);
             }
 
-            static Skipper readFrom(DataInput in, long numValues, int valuesPerBlock) throws IOException {
+            static Skipper readFrom(DataInput in, long numValues) throws IOException {
                 final Skipper skipper = new Skipper(in.readVLong(), in.readVInt(), in.readVLong());
-                final int expectedBlocks;
-                try {
-                    expectedBlocks = PlainSkipBounds.blockCount(numValues, valuesPerBlock);
-                } catch (ArithmeticException e) {
-                    throw new CorruptIndexException("plain skipper for [" + numValues + "] values has too many blocks", in, e);
-                }
-                if (skipper.dataOffset < 0 || skipper.payloadLength < 0 || skipper.blockCount != expectedBlocks) {
-                    throw new CorruptIndexException(
-                        "invalid plain skipper " + skipper + " for [" + numValues + "] values in blocks of [" + valuesPerBlock + "]",
-                        in
-                    );
+                if (skipper.dataOffset < 0 || skipper.payloadLength < 0 || skipper.entryCount < 1 || skipper.entryCount > numValues) {
+                    throw new CorruptIndexException("invalid plain skipper " + skipper + " for [" + numValues + "] values", in);
                 }
                 return skipper;
             }
@@ -507,7 +498,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             case PLAIN -> {
                 final PlainValues.Metadata values = PlainValues.Metadata.readFrom(in);
                 final boolean valuesWorthNaming = in.readByte() != 0;
-                final Plain.Skipper skipper = Plain.Skipper.readOptionally(in, values.numValues(), values.valuesPerBlock());
+                final Plain.Skipper skipper = Plain.Skipper.readOptionally(in, values.numValues());
                 yield plain(
                     iterator,
                     numDocsWithField,

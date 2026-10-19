@@ -23,13 +23,16 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * The exact smallest and largest value of every block of {@code valuesPerBlock} slots of a plain column, in the
- * segment's skip-index file. A block is the unit a read loads as one span. A block ruled out is not loaded for a
- * document whose slots all lie in ruled-out blocks; a kept document still compares every slot it holds.
+ * The exact smallest and largest value of the slots each compressed chunk of a plain column owns, in the segment's
+ * skip-index file. A chunk is the unit that is decompressed. A slot is owned by the chunk holding its first byte, or
+ * by the chunk being filled when it has no bytes (a null, an empty value or a repeat), so the slots of an entry are
+ * contiguous. A value that crosses into the next chunk is bounded by the entry that owns it only. An entry ruled
+ * out is not read for a document whose slots are all owned by ruled-out entries; a kept document still compares
+ * every slot it holds.
  *
- * <p>The region is a directory of fixed size entries, one per block (the document holding its first slot and the
- * offset of its bounds), followed by the bounds: a flag and, for a block with a value, the two lengths and the bytes.
- * A reader reads only the entries it needs and compares the bytes where they lie.
+ * <p>The region is a directory of fixed size entries (the first slot an entry owns, the document holding it and
+ * the offset of its bounds), followed by the bounds: a flag and, for an entry with a value, the two lengths and the
+ * bytes. A reader reads only the entries it needs and compares the bytes where they lie.
  */
 final class PlainSkipBounds {
 
@@ -37,15 +40,15 @@ final class PlainSkipBounds {
 
     private static final byte BOUNDED = 1;
 
-    private static final int ENTRY_BYTES = Integer.BYTES + Long.BYTES;
+    private static final int ENTRY_BYTES = Long.BYTES + Integer.BYTES + Long.BYTES;
+
+    private static final int DOC_FIELD = Long.BYTES;
+
+    private static final int OFFSET_FIELD = Long.BYTES + Integer.BYTES;
 
     private static final int BOUNDED_HEADER_BYTES = Byte.BYTES + 2 * Integer.BYTES;
 
     private PlainSkipBounds() {}
-
-    static int blockCount(long numValues, int valuesPerBlock) {
-        return Math.toIntExact(numValues / valuesPerBlock + (numValues % valuesPerBlock == 0 ? 0 : 1));
-    }
 
     record Query(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper, BytesRef prefix) {
 
@@ -63,20 +66,20 @@ final class PlainSkipBounds {
         private final Directory directory;
         private final IndexOutput directoryOutput;
         private final IndexOutput payloadOutput;
-        private final int blockShift;
-        private final int blockCount;
+        private final long numValues;
         private final BytesRefBuilder min = new BytesRefBuilder();
         private final BytesRefBuilder max = new BytesRefBuilder();
-        private int block = -1;
+        private int ownerChunk = -1;
+        private long firstSlot;
         private int firstDoc;
         private boolean hasValue;
-        private int blocksWritten;
+        private long nextAddress;
+        private int entriesWritten;
         private boolean outputsClosed;
 
-        Writer(Directory directory, IOContext context, String dataName, int valuesPerBlock, long numValues) throws IOException {
+        Writer(Directory directory, IOContext context, String dataName, long numValues) throws IOException {
             this.directory = directory;
-            this.blockShift = Integer.numberOfTrailingZeros(valuesPerBlock);
-            this.blockCount = blockCount(numValues, valuesPerBlock);
+            this.numValues = numValues;
             this.directoryOutput = directory.createTempOutput(dataName, "columnar-plain-bounds-directory", context);
             IndexOutput payload = null;
             try {
@@ -90,15 +93,22 @@ final class PlainSkipBounds {
             this.payloadOutput = payload;
         }
 
-        /** Takes the slot at {@code address}, held by {@code doc}; a null {@code value} is a null slot. */
-        void add(long address, int doc, BytesRef value) throws IOException {
-            final long slotBlock = address >>> blockShift;
-            if (slotBlock != block) {
-                if (slotBlock != block + 1L) {
-                    throw new IllegalStateException("slot [" + address + "] arrived after the block [" + block + "]");
-                }
+        /**
+         * Takes the slot at {@code address}, held by {@code doc} and owned by {@code chunk}; a null {@code value} is a
+         * null slot.
+         */
+        void add(long address, int doc, int chunk, BytesRef value) throws IOException {
+            if (address != nextAddress) {
+                throw new IllegalStateException("slot [" + address + "] arrived when [" + nextAddress + "] was expected");
+            }
+            if (chunk < ownerChunk) {
+                throw new IllegalStateException("slot [" + address + "] is owned by the chunk [" + chunk + "] after [" + ownerChunk + "]");
+            }
+            nextAddress++;
+            if (chunk != ownerChunk) {
                 writeCurrent();
-                block = (int) slotBlock;
+                ownerChunk = chunk;
+                firstSlot = address;
                 firstDoc = doc;
                 hasValue = false;
             }
@@ -119,12 +129,12 @@ final class PlainSkipBounds {
         /** Appends the region to {@code skipIndex} and returns where it went, or null if not {@code keep} or there are no slots. */
         StringColumnMetadata.Plain.Skipper finish(IndexOutput skipIndex, boolean keep) throws IOException {
             writeCurrent();
-            if (blocksWritten != blockCount) {
-                throw new IllegalStateException("wrote [" + blocksWritten + "] blocks for [" + blockCount + "] expected");
+            if (nextAddress != numValues) {
+                throw new IllegalStateException("took [" + nextAddress + "] slots for [" + numValues + "] expected");
             }
             final long payloadLength = payloadOutput.getFilePointer();
             closeOutputs();
-            if (keep == false || blockCount == 0) {
+            if (keep == false || entriesWritten == 0) {
                 close();
                 return null;
             }
@@ -135,7 +145,7 @@ final class PlainSkipBounds {
             } finally {
                 close();
             }
-            return new StringColumnMetadata.Plain.Skipper(offset, blockCount, payloadLength);
+            return new StringColumnMetadata.Plain.Skipper(offset, entriesWritten, payloadLength);
         }
 
         @Override
@@ -161,9 +171,10 @@ final class PlainSkipBounds {
         }
 
         private void writeCurrent() throws IOException {
-            if (block < 0) {
+            if (ownerChunk < 0) {
                 return;
             }
+            directoryOutput.writeLong(firstSlot);
             directoryOutput.writeInt(firstDoc);
             directoryOutput.writeLong(payloadOutput.getFilePointer());
             if (hasValue) {
@@ -175,8 +186,7 @@ final class PlainSkipBounds {
             } else {
                 payloadOutput.writeByte(EMPTY);
             }
-            blocksWritten++;
-            block = -1;
+            entriesWritten++;
             hasValue = false;
         }
     }
@@ -184,7 +194,8 @@ final class PlainSkipBounds {
     static final class Reader {
 
         private final RandomAccessInput region;
-        private final int blockCount;
+        private final int entryCount;
+        private final long numValues;
         private final long directoryBytes;
         private final long payloadLength;
         private boolean bounded;
@@ -193,18 +204,19 @@ final class PlainSkipBounds {
         private long maxPosition;
         private int maxLength;
 
-        Reader(StringColumnMetadata.Plain.Skipper skipper, IndexInput skipIndex) throws IOException {
-            this.blockCount = skipper.blockCount();
+        Reader(StringColumnMetadata.Plain.Skipper skipper, long numValues, IndexInput skipIndex) throws IOException {
+            this.entryCount = skipper.entryCount();
+            this.numValues = numValues;
             this.payloadLength = skipper.payloadLength();
-            this.directoryBytes = (long) blockCount * ENTRY_BYTES;
+            this.directoryBytes = (long) entryCount * ENTRY_BYTES;
             final long room = skipIndex.length() - directoryBytes;
             if (skipper.dataOffset() < 0 || payloadLength < 0 || payloadLength > room || skipper.dataOffset() > room - payloadLength) {
                 throw new CorruptIndexException(
                     "plain skip bounds at ["
                         + skipper.dataOffset()
                         + "] with ["
-                        + blockCount
-                        + "] blocks and ["
+                        + entryCount
+                        + "] entries and ["
                         + payloadLength
                         + "] payload bytes are outside the skip index of ["
                         + skipIndex.length()
@@ -216,27 +228,64 @@ final class PlainSkipBounds {
             this.region = skipIndex.randomAccessSlice(skipper.dataOffset(), length);
         }
 
-        int blockCount() {
-            return blockCount;
+        int entryCount() {
+            return entryCount;
         }
 
-        int firstDoc(int block) throws IOException {
-            checkBlock(block);
-            final int doc = region.readInt((long) block * ENTRY_BYTES);
+        int firstDoc(int entry) throws IOException {
+            checkEntry(entry);
+            final int doc = region.readInt((long) entry * ENTRY_BYTES + DOC_FIELD);
             if (doc < 0) {
-                throw new CorruptIndexException("plain skip block [" + block + "] starts at the document [" + doc + "]", region.toString());
+                throw new CorruptIndexException("plain skip entry [" + entry + "] starts at the document [" + doc + "]", region.toString());
             }
             return doc;
         }
 
-        /** Whether the bounds of {@code block} prove that no slot in it can match {@code query}. */
-        boolean excludes(int block, Query query) throws IOException {
-            load(block);
+        long firstSlot(int entry) throws IOException {
+            checkEntry(entry);
+            final long slot = region.readLong((long) entry * ENTRY_BYTES);
+            if (slot < 0 || slot >= numValues || (entry == 0 && slot != 0)) {
+                throw corrupt(entry, "the first slot is [" + slot + "] of [" + numValues + "]");
+            }
+            return slot;
+        }
+
+        /** The slot after the last one {@code entry} owns. */
+        long endSlot(int entry) throws IOException {
+            final long first = firstSlot(entry);
+            final long end = entry + 1 < entryCount ? firstSlot(entry + 1) : numValues;
+            if (end <= first) {
+                throw corrupt(entry, "the entry ends at the slot [" + end + "] after starting at [" + first + "]");
+            }
+            return end;
+        }
+
+        /** The entry that owns {@code slot}. */
+        int entryOf(long slot) throws IOException {
+            int low = 0;
+            int high = entryCount - 1;
+            while (low < high) {
+                final int middle = (low + high + 1) >>> 1;
+                if (firstSlot(middle) <= slot) {
+                    low = middle;
+                } else {
+                    high = middle - 1;
+                }
+            }
+            if (slot < firstSlot(low) || slot >= endSlot(low)) {
+                throw corrupt(low, "the slot [" + slot + "] is outside the entry");
+            }
+            return low;
+        }
+
+        /** Whether the bounds of {@code entry} prove that no slot it owns can match {@code query}. */
+        boolean excludes(int entry, Query query) throws IOException {
+            load(entry);
             if (bounded == false) {
                 return true;
             }
             if (rulesOut(query)) {
-                requireOrdered(block);
+                requireOrdered(entry);
                 return true;
             }
             return false;
@@ -259,62 +308,62 @@ final class PlainSkipBounds {
             return false;
         }
 
-        private void checkBlock(int block) throws IOException {
-            if (block < 0 || block >= blockCount) {
-                throw new CorruptIndexException("plain skip block [" + block + "] is outside [0, " + blockCount + ")", region.toString());
+        private void checkEntry(int entry) throws IOException {
+            if (entry < 0 || entry >= entryCount) {
+                throw new CorruptIndexException("plain skip entry [" + entry + "] is outside [0, " + entryCount + ")", region.toString());
             }
         }
 
-        private void load(int block) throws IOException {
-            checkBlock(block);
-            final long offset = region.readLong((long) block * ENTRY_BYTES + Integer.BYTES);
+        private void load(int entry) throws IOException {
+            checkEntry(entry);
+            final long offset = region.readLong((long) entry * ENTRY_BYTES + OFFSET_FIELD);
             if (offset < 0 || offset >= payloadLength) {
-                throw corrupt(block, "payload offset [" + offset + "] is outside [0, " + payloadLength + ")");
+                throw corrupt(entry, "payload offset [" + offset + "] is outside [0, " + payloadLength + ")");
             }
-            if (block == 0 && offset != 0) {
-                throw corrupt(block, "the first payload offset is [" + offset + "]");
+            if (entry == 0 && offset != 0) {
+                throw corrupt(entry, "the first payload offset is [" + offset + "]");
             }
-            final long end = block + 1 < blockCount ? region.readLong((long) (block + 1) * ENTRY_BYTES + Integer.BYTES) : payloadLength;
+            final long end = entry + 1 < entryCount ? region.readLong((long) (entry + 1) * ENTRY_BYTES + OFFSET_FIELD) : payloadLength;
             final long at = directoryBytes + offset;
             final byte flag = region.readByte(at);
             if (flag == EMPTY) {
                 if (offset + Byte.BYTES != end) {
-                    throw corrupt(block, "an empty entry at payload offset [" + offset + "] ends at [" + end + "]");
+                    throw corrupt(entry, "an empty entry at payload offset [" + offset + "] ends at [" + end + "]");
                 }
                 bounded = false;
                 return;
             }
             if (flag != BOUNDED || offset + BOUNDED_HEADER_BYTES > payloadLength) {
-                throw corrupt(block, "flag [" + flag + "] at payload offset [" + offset + "]");
+                throw corrupt(entry, "flag [" + flag + "] at payload offset [" + offset + "]");
             }
             minLength = region.readInt(at + Byte.BYTES);
             maxLength = region.readInt(at + Byte.BYTES + Integer.BYTES);
             minPosition = at + BOUNDED_HEADER_BYTES;
             maxPosition = minPosition + minLength;
             if (minLength < 0 || maxLength < 0 || offset + BOUNDED_HEADER_BYTES + (long) minLength + maxLength != end) {
-                throw corrupt(block, "bounds of [" + minLength + ", " + maxLength + "] bytes at payload offset [" + offset + "]");
+                throw corrupt(entry, "bounds of [" + minLength + ", " + maxLength + "] bytes at payload offset [" + offset + "]");
             }
             bounded = true;
         }
 
-        private void requireOrdered(int block) throws IOException {
+        private void requireOrdered(int entry) throws IOException {
             final int common = Math.min(minLength, maxLength);
             for (int i = 0; i < common; i++) {
                 final int diff = (region.readByte(minPosition + i) & 0xFF) - (region.readByte(maxPosition + i) & 0xFF);
                 if (diff != 0) {
                     if (diff > 0) {
-                        throw corrupt(block, "the minimum is larger than the maximum");
+                        throw corrupt(entry, "the minimum is larger than the maximum");
                     }
                     return;
                 }
             }
             if (minLength > maxLength) {
-                throw corrupt(block, "the minimum is larger than the maximum");
+                throw corrupt(entry, "the minimum is larger than the maximum");
             }
         }
 
-        private CorruptIndexException corrupt(int block, String reason) {
-            return new CorruptIndexException("invalid plain skip block [" + block + "]: " + reason, region.toString());
+        private CorruptIndexException corrupt(int entry, String reason) {
+            return new CorruptIndexException("invalid plain skip entry [" + entry + "]: " + reason, region.toString());
         }
 
         private int compareMin(BytesRef other) throws IOException {

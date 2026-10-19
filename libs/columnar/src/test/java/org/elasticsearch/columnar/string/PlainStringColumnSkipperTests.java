@@ -91,9 +91,16 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
                 assertEquals(bisected, column.skipper() == null);
                 assertEquals(bisected, column.valuesSorted() && column.hasValueAddresses() == false);
                 if (bisected == false) {
-                    final long slots = Arrays.stream(docSlots).mapToLong(slotsOfDoc -> slotsOfDoc.length).sum();
-                    assertEquals(PlainSkipBounds.blockCount(slots, 128), column.skipper().blockCount());
-                    assertEquals(with - without, column.skipper().blockCount() * 12L + column.skipper().payloadLength());
+                    final List<BytesRef> slots = new ArrayList<>();
+                    Arrays.stream(docSlots).forEach(slotsOfDoc -> slots.addAll(Arrays.asList(slotsOfDoc)));
+                    final int[] owners = PlainChunkModel.owners(
+                        slots,
+                        sizes.plainChunks(),
+                        sizes.valuesPerBlock(),
+                        sizes.lengthBlockSize()
+                    );
+                    assertEquals(PlainSkipFixture.entriesOf(owners), column.skipper().entryCount());
+                    assertEquals(with - without, column.skipper().entryCount() * 20L + column.skipper().payloadLength());
                 }
             });
             withColumn(
@@ -340,21 +347,22 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
 
     public void testTheSerializedBoundsOfARealColumnAreTheExactBytesOfItsValues() throws IOException {
         for (int round = 0; round < 6; round++) {
-            final int valuesPerBlock = randomValidBlockSize();
+            final StringColumnOptions.Sizes sizes = sizes(randomValidBlockSize(), randomFrom(64, 256, 4096), randomFrom(128, 1000, 16384));
             final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(3, 30));
             final BytesRef[][] docSlots = column(randomFrom(Shape.values()), between(INTERVAL, 2 * INTERVAL), pool);
             docSlots[between(0, docSlots.length - 1)] = new BytesRef[] { null, randomFrom(pool) };
-            assertSerializedBoundsAreExact(docSlots, valuesPerBlock);
+            assertSerializedBoundsAreExact(docSlots, sizes);
         }
     }
 
-    public void testABlockOfNullsHasNoBoundsAndLaterBlocksStayAligned() throws IOException {
+    public void testAChunkOfNullsHasNoBoundsAndLaterChunksStayAligned() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[1000][];
         for (int doc = 0; doc < docSlots.length; doc++) {
             docSlots[doc] = new BytesRef[] { doc < 300 ? new BytesRef("a") : doc < 700 ? null : new BytesRef("z") };
         }
-        assertSerializedBoundsAreExact(docSlots, 128);
-        withColumn(docSlots, plain(true, sizes(128, 4096)), (metadata, reader) -> {
+        final StringColumnOptions.Sizes sizes = sizes(128, 4096, 128);
+        assertSerializedBoundsAreExact(docSlots, sizes);
+        withColumn(docSlots, plain(true, sizes), (metadata, reader) -> {
             assertNotNull(((StringColumnMetadata.Plain) metadata).skipper());
             for (String term : new String[] { "a", "z", "m" }) {
                 final BytesRef value = new BytesRef(term);
@@ -365,8 +373,8 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         });
     }
 
-    private void assertSerializedBoundsAreExact(BytesRef[][] docSlots, int valuesPerBlock) throws IOException {
-        withColumnAndSkipIndex(docSlots, plain(true, sizes(valuesPerBlock, 4096)), (metadata, reader, skip) -> {
+    private void assertSerializedBoundsAreExact(BytesRef[][] docSlots, StringColumnOptions.Sizes sizes) throws IOException {
+        withColumnAndSkipIndex(docSlots, plain(true, sizes), (metadata, reader, skip) -> {
             final StringColumnMetadata.Plain.Skipper skipper = ((StringColumnMetadata.Plain) metadata).skipper();
             assertNotNull(skipper);
             final List<PlainSkipFixture.Parsed> parsed = PlainSkipFixture.parse(skip, skipper);
@@ -380,21 +388,33 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
                     }
                 }
             }
-            assertEquals(PlainSkipBounds.blockCount(slots.size(), valuesPerBlock), parsed.size());
-            for (int block = 0; block < parsed.size(); block++) {
+            final int[] owners = PlainChunkModel.owners(slots, sizes.plainChunks(), sizes.valuesPerBlock(), sizes.lengthBlockSize());
+            int entry = -1;
+            for (int first = 0; first < owners.length; first++) {
+                if (first > 0 && owners[first] == owners[first - 1]) {
+                    continue;
+                }
+                entry++;
+                int end = first + 1;
+                while (end < owners.length && owners[end] == owners[first]) {
+                    end++;
+                }
                 BytesRef min = null;
                 BytesRef max = null;
-                for (int address = block * valuesPerBlock; address < Math.min(slots.size(), (block + 1) * valuesPerBlock); address++) {
+                for (int address = first; address < end; address++) {
                     final BytesRef value = slots.get(address);
                     if (value != null) {
                         min = min == null || value.compareTo(min) < 0 ? value : min;
                         max = max == null || value.compareTo(max) > 0 ? value : max;
                     }
                 }
-                assertEquals(slotDocs.get(block * valuesPerBlock).intValue(), parsed.get(block).firstDoc());
-                assertEquals(min, parsed.get(block).min());
-                assertEquals(max, parsed.get(block).max());
+                assertThat("entries written", parsed.size(), greaterThan(entry));
+                assertEquals(first, parsed.get(entry).firstSlot());
+                assertEquals(slotDocs.get(first).intValue(), parsed.get(entry).firstDoc());
+                assertEquals(min, parsed.get(entry).min());
+                assertEquals(max, parsed.get(entry).max());
             }
+            assertEquals(entry + 1, parsed.size());
         });
     }
 
@@ -456,10 +476,14 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
     }
 
     static StringColumnOptions.Sizes sizes(int valuesPerBlock, int chunkBytes) {
+        return sizes(valuesPerBlock, chunkBytes, StringColumnOptions.DEFAULT_MAX_VALUES_PER_CHUNK);
+    }
+
+    static StringColumnOptions.Sizes sizes(int valuesPerBlock, int chunkBytes, int maxValuesPerChunk) {
         final StringColumnOptions.Sizes defaults = StringColumnOptions.DEFAULT_SIZES;
         return new StringColumnOptions.Sizes(
             valuesPerBlock,
-            new ChunkBounds(chunkBytes, StringColumnOptions.DEFAULT_MAX_VALUES_PER_CHUNK),
+            new ChunkBounds(chunkBytes, maxValuesPerChunk),
             defaults.escapeChunks(),
             defaults.packedOrdinalBlockSize(),
             defaults.compressedOrdinalBlockSize(),

@@ -43,7 +43,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
 
     private final IndexInput skipIndex;
 
-    private final int blockShift;
+    private final long numValues;
 
     PlainStringColumnReader(StringColumnMetadata.Plain column, ColumnInputs inputs, IndexInput skipIndex) throws IOException {
         super(column, inputs, column.values() == null ? StringColumnOptions.DEFAULT_VALUES_PER_BLOCK : column.values().valuesPerBlock());
@@ -52,7 +52,7 @@ public final class PlainStringColumnReader extends StringColumnReader {
         this.hasNullSlots = column.hasNullSlots();
         this.skipper = column.skipper();
         this.skipIndex = skipIndex;
-        this.blockShift = column.values() == null ? 0 : Integer.numberOfTrailingZeros(column.values().valuesPerBlock());
+        this.numValues = column.values() == null ? 0 : column.values().numValues();
     }
 
     private ColumnIterator presenceWithin(PlainSkipBounds.Query query) throws IOException {
@@ -60,22 +60,27 @@ public final class PlainStringColumnReader extends StringColumnReader {
         if (skipper == null) {
             return presence;
         }
-        return new PlainRangePresence(presence, new PlainSkipBounds.Reader(skipper, skipIndex), query, new PlainRangePresence.Slots() {
-            @Override
-            public long firstAddress(int rank) throws IOException {
-                return firstValueAddress(rank);
-            }
+        return new PlainRangePresence(
+            presence,
+            new PlainSkipBounds.Reader(skipper, numValues, skipIndex),
+            query,
+            new PlainRangePresence.Slots() {
+                @Override
+                public long firstAddress(int rank) throws IOException {
+                    return firstValueAddress(rank);
+                }
 
-            @Override
-            public long count(int rank) throws IOException {
-                return valueCount(rank);
-            }
+                @Override
+                public long count(int rank) throws IOException {
+                    return valueCount(rank);
+                }
 
-            @Override
-            public boolean oneSlotADocument() {
-                return hasValueAddresses() == false;
+                @Override
+                public boolean oneSlotADocument() {
+                    return hasValueAddresses() == false;
+                }
             }
-        }, blockShift);
+        );
     }
 
     @Override

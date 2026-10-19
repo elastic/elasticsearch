@@ -20,6 +20,7 @@ import java.util.BitSet;
 import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+import static org.hamcrest.Matchers.lessThan;
 
 public class PlainRangePresenceColumnTests extends ColumnarStringTestCase {
 
@@ -32,85 +33,95 @@ public class PlainRangePresenceColumnTests extends ColumnarStringTestCase {
     public void testMixedNavigationOverRealPresenceFollowsTheOracle() throws IOException {
         for (Presence shape : Presence.values()) {
             for (int round = 0; round < 4; round++) {
-                final int valuesPerBlock = randomValidBlockSize();
+                final StringColumnOptions.Sizes sizes = PlainStringColumnSkipperTests.sizes(
+                    randomValidBlockSize(),
+                    randomFrom(64, 256, 4096),
+                    randomFrom(128, 1000, 16384)
+                );
                 final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(3, 30));
                 final BytesRef[][] docSlots = descending(shape, between(2, 2000), pool);
-                withColumnAndSkipIndex(
-                    docSlots,
-                    PlainStringColumnSkipperTests.plain(true, PlainStringColumnSkipperTests.sizes(valuesPerBlock, 4096)),
-                    (metadata, reader, skip) -> {
-                        final StringColumnMetadata.Plain.Skipper skipper = ((StringColumnMetadata.Plain) metadata).skipper();
-                        assertNotNull(skipper);
-                        try (
-                            Directory dir = newDirectory();
-                            PlainSkipFixture oracle = PlainSkipFixture.build(dir, docSlots, valuesPerBlock)
-                        ) {
-                            final BitSet present = new BitSet();
-                            oracle.docs.forEach(present::set);
-                            for (int q = 0; q < 8; q++) {
-                                final PlainSkipBounds.Query query = PlainBlockOracle.randomQuery(pool);
-                                final PlainRangePresence presence = presence(reader, skipper, skip, query, valuesPerBlock);
-                                navigate(presence, PlainBlockOracle.keptDocs(oracle, query), present, shape != Presence.MULTIVALUED);
-                            }
+                withColumnAndSkipIndex(docSlots, PlainStringColumnSkipperTests.plain(true, sizes), (metadata, reader, skip) -> {
+                    final StringColumnMetadata.Plain column = (StringColumnMetadata.Plain) metadata;
+                    final StringColumnMetadata.Plain.Skipper skipper = column.skipper();
+                    assertNotNull(skipper);
+                    assertEquals(PlainSkipFixture.entriesOf(PlainSkipFixture.realOwners(docSlots, sizes)), skipper.entryCount());
+                    try (
+                        Directory dir = newDirectory();
+                        PlainSkipFixture oracle = PlainSkipFixture.build(dir, docSlots, PlainSkipFixture.realOwners(docSlots, sizes), false)
+                    ) {
+                        final BitSet present = new BitSet();
+                        oracle.docs.forEach(present::set);
+                        for (int q = 0; q < 8; q++) {
+                            final PlainSkipBounds.Query query = PlainBlockOracle.randomQuery(pool);
+                            final PlainRangePresence presence = presence(reader, skipper, column.values().numValues(), skip, query);
+                            navigate(presence, PlainBlockOracle.keptDocs(oracle, query), present, shape != Presence.MULTIVALUED);
                         }
                     }
-                );
+                });
             }
         }
     }
 
-    public void testSingleSlotRunsStopAtTheEndOfTheBlockAndOtherRunsAreOneDocument() throws IOException {
-        final int valuesPerBlock = 128;
+    public void testSingleSlotRunsStopAtTheEndOfTheEntryAndOtherRunsAreOneDocument() throws IOException {
+        final StringColumnOptions.Sizes sizes = PlainStringColumnSkipperTests.sizes(128, 64, 100);
         for (Presence shape : new Presence[] { Presence.DENSE, Presence.MULTIVALUED }) {
             final BytesRef[] pool = PlainSkipTestValues.sortedPool(10);
             final BytesRef[][] docSlots = descending(shape, 600, pool);
-            withColumnAndSkipIndex(
-                docSlots,
-                PlainStringColumnSkipperTests.plain(true, PlainStringColumnSkipperTests.sizes(valuesPerBlock, 4096)),
-                (metadata, reader, skip) -> {
-                    final StringColumnMetadata.Plain.Skipper skipper = ((StringColumnMetadata.Plain) metadata).skipper();
-                    final PlainRangePresence presence = presence(
-                        reader,
-                        skipper,
-                        skip,
-                        PlainSkipBounds.Query.range(null, true, null, true),
-                        valuesPerBlock
-                    );
-                    final int doc = presence.nextDoc();
-                    assertNotEquals(DocIdSetIterator.NO_MORE_DOCS, doc);
-                    if (shape == Presence.DENSE) {
-                        assertEquals(valuesPerBlock, presence.docIDRunEnd());
-                    } else {
-                        assertEquals(doc + 1, presence.docIDRunEnd());
-                    }
+            final int[] owners = PlainSkipFixture.realOwners(docSlots, sizes);
+            int firstEntryEnd = 0;
+            while (firstEntryEnd < owners.length && owners[firstEntryEnd] == owners[0]) {
+                firstEntryEnd++;
+            }
+            assertThat("the column has more than one entry", firstEntryEnd, lessThan(owners.length));
+            final int expectedRunEnd = firstEntryEnd;
+            withColumnAndSkipIndex(docSlots, PlainStringColumnSkipperTests.plain(true, sizes), (metadata, reader, skip) -> {
+                final StringColumnMetadata.Plain column = (StringColumnMetadata.Plain) metadata;
+                final PlainRangePresence presence = presence(
+                    reader,
+                    column.skipper(),
+                    column.values().numValues(),
+                    skip,
+                    PlainSkipBounds.Query.range(null, true, null, true)
+                );
+                final int doc = presence.nextDoc();
+                assertNotEquals(DocIdSetIterator.NO_MORE_DOCS, doc);
+                if (shape == Presence.DENSE) {
+                    assertEquals(expectedRunEnd, presence.docIDRunEnd());
+                } else {
+                    assertEquals(doc + 1, presence.docIDRunEnd());
                 }
-            );
+            });
         }
     }
 
     private PlainRangePresence presence(
         StringColumnReader reader,
         StringColumnMetadata.Plain.Skipper skipper,
+        long numValues,
         IndexInput skip,
-        PlainSkipBounds.Query query,
-        int valuesPerBlock
+        PlainSkipBounds.Query query
     ) throws IOException {
-        return new PlainRangePresence(reader.iterator(), new PlainSkipBounds.Reader(skipper, skip), query, new PlainRangePresence.Slots() {
-            @Override
-            public long firstAddress(int rank) throws IOException {
-                return reader.firstValueAddress(rank);
-            }
+        return new PlainRangePresence(
+            reader.iterator(),
+            new PlainSkipBounds.Reader(skipper, numValues, skip),
+            query,
+            new PlainRangePresence.Slots() {
+                @Override
+                public long firstAddress(int rank) throws IOException {
+                    return reader.firstValueAddress(rank);
+                }
 
-            @Override
-            public long count(int rank) throws IOException {
-                return reader.valueCount(rank);
-            }
+                @Override
+                public long count(int rank) throws IOException {
+                    return reader.valueCount(rank);
+                }
 
-            @Override
-            public boolean oneSlotADocument() {
-                return reader.hasValueAddresses() == false;
+                @Override
+                public boolean oneSlotADocument() {
+                    return reader.hasValueAddresses() == false;
+                }
             }
-        }, Integer.numberOfTrailingZeros(valuesPerBlock));
+        );
     }
 
     private void navigate(PlainRangePresence presence, List<Integer> kept, BitSet present, boolean checkRuns) throws IOException {

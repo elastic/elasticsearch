@@ -107,7 +107,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * bodies are skipped entirely: the rule never fires on a node inside one.
      */
     private static LogicalPlan resolveOutsideViews(LogicalPlan plan, boolean load) {
-        return ViewBodies.transformUpOutsideViews(plan, p -> p.analyzed() || p.resolved() ? p : resolve(p, load));
+        return ViewUtils.transformUpOutsideViews(plan, p -> p.analyzed() || p.resolved() ? p : resolve(p, load));
     }
 
     private static LogicalPlan resolve(LogicalPlan plan, boolean load) {
@@ -154,7 +154,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      */
     private static LogicalPlan nullify(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
         // For EsRelation sources: add null-typed fields to the relation's output
-        var transformed = ViewBodies.transformUpOutsideViews(plan, p -> {
+        var transformed = ViewUtils.transformUpOutsideViews(plan, p -> {
             if (p instanceof EsRelation esr) {
                 List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
                 return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify, true);
@@ -171,7 +171,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * like {@code ROW x = 1 | EVAL y = unmapped_field}.
      */
     private static LogicalPlan nullifyNonEsRelationSources(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
-        return ViewBodies.transformUpOutsideViews(plan, p -> switch (p) {
+        return ViewUtils.transformUpOutsideViews(plan, p -> switch (p) {
             case UnaryPlan unary when unary.child() instanceof LeafPlan leaf && leaf instanceof EsRelation == false ->
                 evalUnresolvedAtopUnary(unary, nullAliases(unresolved));
             case UnaryPlan unary -> unary;
@@ -229,7 +229,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             LogicalPlan newChild;
             if (plan instanceof Join && i > 0) {
                 newChild = child;
-            } else if (ViewBodies.isViewBody(plan, i)) {
+            } else if (ViewUtils.isViewBody(plan, i)) {
                 newChild = nullFillViewOutput(child, unresolved, load);
             } else {
                 newChild = nullFillViewBoundaries(child, unresolved, load);
@@ -265,7 +265,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * {@code ResolveRefs#resolveMergePlan} to null-fill.
      */
     private static LogicalPlan loadIntoSources(LogicalPlan plan, Set<UnresolvedAttribute> toLoad) {
-        return ViewBodies.transformUpOutsideViews(plan, p -> {
+        return ViewUtils.transformUpOutsideViews(plan, p -> {
             if (p instanceof EsRelation esr) {
                 List<FieldAttribute> fieldsToLoad = fieldsToLoad(toLoad, Expressions.names(esr.output()));
                 return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad, true);
@@ -392,7 +392,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * {@link #patchMergePlan} for every merge outside view bodies, bottom-up.
      */
     private static LogicalPlan patchMergePlans(LogicalPlan plan) {
-        return ViewBodies.transformUpOutsideViews(plan, p -> p instanceof MergePlan mergePlan ? patchMergePlan(mergePlan) : p);
+        return ViewUtils.transformUpOutsideViews(plan, p -> p instanceof MergePlan mergePlan ? patchMergePlan(mergePlan) : p);
     }
 
     /**
@@ -404,7 +404,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         boolean changed = false;
         for (int i = 0; i < nAry.children().size(); i++) {
             LogicalPlan child = nAry.children().get(i);
-            if (child instanceof LeafPlan source && source instanceof EsRelation == false && ViewBodies.isViewBody(nAry, i) == false) {
+            if (child instanceof LeafPlan source && source instanceof EsRelation == false && ViewUtils.isViewBody(nAry, i) == false) {
                 assertSourceType(source);
                 child = new Eval(source.source(), source, nullAliases);
                 changed = true;
@@ -502,7 +502,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
             promqlCommand.promqlPlan().forEachExpressionDown(UnresolvedAttribute.class, sink);
         } else {
-            ViewBodies.forEachOutsideViews(plan, node -> collectLoadCandidates(node, sink));
+            ViewUtils.forEachOutsideViews(plan, node -> collectLoadCandidates(node, sink));
         }
         return unresolved;
     }
@@ -570,7 +570,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      */
     private static Set<String> aliasNamesInAggregateGroupings(LogicalPlan plan) {
         Set<String> aliasNames = new HashSet<>();
-        ViewBodies.forEachOutsideViews(plan, p -> {
+        ViewUtils.forEachOutsideViews(plan, p -> {
             if (p instanceof Aggregate agg) {
                 for (var grouping : agg.groupings()) {
                     if (grouping instanceof Alias alias) {

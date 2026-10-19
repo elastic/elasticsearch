@@ -24,8 +24,8 @@ import java.util.function.Predicate;
  * (such as the {@code Source} of a node) would not. It relies on the view branches being kept while such a setting is active; see
  * {@code ViewBoundaryPreservation#KEEP_VIEW_IDENTITY}.
  */
-public final class ViewBodies {
-    private ViewBodies() {}
+public final class ViewUtils {
+    private ViewUtils() {}
 
     /** Whether {@code parent}'s child at {@code childIndex} is a view body: a view branch of a {@link BranchPlan}. */
     public static boolean isViewBody(LogicalPlan parent, int childIndex) {
@@ -34,7 +34,7 @@ public final class ViewBodies {
 
     /** Applies {@code rule} bottom-up to every node of {@code plan} except those inside view bodies, the roots of which included. */
     public static LogicalPlan transformUpOutsideViews(LogicalPlan plan, Function<LogicalPlan, LogicalPlan> rule) {
-        return plan.transformUpSkipBranch(ViewBodies::isViewBody, rule);
+        return plan.transformUpSkipBranch(ViewUtils::isViewBody, rule);
     }
 
     /** {@link #transformUpOutsideViews(LogicalPlan, Function)}, for the nodes of one type. */

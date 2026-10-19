@@ -114,9 +114,9 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             // Project pass before merge finish keeps _unmapped_fields on branch Projects. The pass after
             // picks it up on Projects above the merge, whose child output only includes the column after refresh.
             LogicalPlan annotated = annotate(plan, pattern);
-            result = ViewBodies.transformUpOutsideViews(annotated, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
-            result = ViewBodies.transformUpOutsideViews(result, MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields);
-            result = ViewBodies.transformUpOutsideViews(result, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+            result = ViewUtils.transformUpOutsideViews(annotated, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+            result = ViewUtils.transformUpOutsideViews(result, MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields);
+            result = ViewUtils.transformUpOutsideViews(result, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         }
         return result;
     }
@@ -126,7 +126,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * outputs, not whatever its body had along the way.
      */
     private static boolean hasColumnNamedLikeUnmappedFields(LogicalPlan plan) {
-        return ViewBodies.anyMatchOutsideViews(
+        return ViewUtils.anyMatchOutsideViews(
             plan,
             p -> p.output().stream().anyMatch(a -> a.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME))
         );
@@ -193,7 +193,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             List<LogicalPlan> newChildren = new ArrayList<>(children.size());
             for (int i = 0; i < children.size(); i++) {
                 LogicalPlan child = children.get(i);
-                if (ViewBodies.isViewBody(merge, i)) {
+                if (ViewUtils.isViewBody(merge, i)) {
                     // A view is a virtual index with no _source of its own, and the setting ends at its boundary: it has no
                     // _unmapped_fields column, and where a sibling has one, finishMergeUnmappedFields null-fills the view's.
                     newChildren.add(child);

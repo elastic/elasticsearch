@@ -120,15 +120,16 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     }
 
     @Override
-    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel, Throwable[] additionalSuppressed)
+        throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this, nestedLevel);
+            generateThrowableXContent(builder, params, this, nestedLevel, additionalSuppressed);
         } else {
             // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
             // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
             // be rendered twice (one in the "cause" field, one in "failed_shards")
-            innerToXContent(builder, params, this, getBodyHeaders(), getMetadata(), super.getCause(), nestedLevel);
+            innerToXContent(builder, params, this, getBodyHeaders(), getMetadata(), super.getCause(), nestedLevel, additionalSuppressed);
         }
         return builder;
     }

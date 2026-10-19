@@ -244,7 +244,7 @@ public class AnalyzerContext {
     /**
      * Whether the current request carries a DSL filter that must be applied at view-output
      * boundaries. When {@code true}, {@link org.elasticsearch.xpack.esql.view.ViewCompaction}
-     * preserves {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll} wrappers around
+     * preserves {@link org.elasticsearch.xpack.esql.plan.logical.BranchPlan} wrappers around
      * view branches so that
      * {@link org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter} can apply the
      * filter to the view's output rather than pushing it to the Lucene scan layer.

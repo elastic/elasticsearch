@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.vector.VectorizationInfo;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -39,13 +40,13 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
 
 /**
  * Bare-bones bulk operation benchmark for int4 packed-nibble vector dot product.
- * Dispatches directly to the native BULK / BULK_OFFSETS / BULK_SPARSE implementations
+ * Dispatches directly to the native BULK / BULK_SPARSE / BULK_MASKED implementations
  * via {@link SimdVecLibrary}, bypassing the Lucene scorer / corrective-terms
  * infrastructure so the inner SIMD kernel cost is the dominant signal:
  * <ul>
  *   <li>{@code scoreBulk} — contiguous slice (sequential by construction)</li>
- *   <li>{@code scoreBulkOffsets} — scattered access via int32 offsets array</li>
  *   <li>{@code scoreBulkSparse} — scattered access via pre-resolved address array</li>
+ *   <li>{@code scoreBulkMasked} — the {@code selected} vectors of each block of 32, via a bit mask</li>
  * </ul>
  * {@code scoreSequential} and {@code scoreRandom} are single-pair controls.
  * <p>
@@ -79,6 +80,10 @@ public class VectorScorerInt4BulkOperationBenchmark {
     @Param({ "32", "64", "256", "1024" })
     public int bulkSize;
 
+    // vectors selected in each block of 32 by scoreBulkMasked
+    @Param({ "32", "29", "3" })
+    public int selected;
+
     private Arena arena;
 
     // packed dataset: numVectors * (dims/2) bytes laid out contiguously in native memory
@@ -88,11 +93,12 @@ public class VectorScorerInt4BulkOperationBenchmark {
     // sequential ids and shuffled ordinals
     private int[] ids;
     private int[] ordinals;
+    // one mask per block of 32 consecutive vectors
+    private int[] masks;
     private int numVectorsToScore;
     private int packedLen;
     private long datasetAddress;
-    // native scratch for bulk_offsets (int32 ordinals) and bulk_sparse (int64 addresses)
-    private MemorySegment ordinalsSeg;
+    // native scratch for bulk_sparse (int64 addresses)
     private MemorySegment addressesSeg;
     private MemorySegment resultsSeg;
     // Java-side results, returned to prevent dead-code elimination
@@ -101,6 +107,7 @@ public class VectorScorerInt4BulkOperationBenchmark {
     static final class VectorData extends VectorScorerBulkBenchmark.VectorData {
         private final byte[][] packedVectors;
         private final byte[] queryUnpacked;
+        private final long maskSeed;
 
         VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
             super(numVectors, numVectorsToScore, random, DataAccessPattern.RANDOM);
@@ -112,6 +119,7 @@ public class VectorScorerInt4BulkOperationBenchmark {
             }
             queryUnpacked = new byte[dims];
             randomInt4Bytes(random, queryUnpacked);
+            maskSeed = random.nextLong();
         }
 
         @Override
@@ -141,8 +149,8 @@ public class VectorScorerInt4BulkOperationBenchmark {
 
         ids = IntStream.range(0, numVectors).toArray();
         ordinals = vectorData.ordinals;
+        masks = BenchmarkUtils.generateBlockMasks(numVectorsToScore, selected, new Random(vectorData.maskSeed));
 
-        ordinalsSeg = arena.allocate((long) bulkSize * Integer.BYTES);
         addressesSeg = arena.allocate((long) bulkSize * Long.BYTES);
         resultsSeg = arena.allocate((long) bulkSize * Float.BYTES);
         scores = new float[bulkSize];
@@ -191,18 +199,6 @@ public class VectorScorerInt4BulkOperationBenchmark {
         return scores;
     }
 
-    /** BULK_OFFSETS: scattered access driven by an int32 ordinals array. */
-    @Benchmark
-    public float[] scoreBulkOffsets() {
-        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
-            int count = Math.min(bulkSize, numVectorsToScore - i);
-            MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-            VEC_LIBRARY.dotProductI4BulkWithOffsets(dataset, query, packedLen, packedLen, ordinalsSeg, count, resultsSeg);
-        }
-        MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
-        return scores;
-    }
-
     /** BULK_SPARSE: scattered access driven by a pre-resolved address array. */
     @Benchmark
     public float[] scoreBulkSparse() {
@@ -215,6 +211,31 @@ public class VectorScorerInt4BulkOperationBenchmark {
             VEC_LIBRARY.dotProductI4BulkSparse(addressesSeg, query, packedLen, count, resultsSeg);
         }
         MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
+        return scores;
+    }
+
+    /** BULK_MASKED: in each block of 32 consecutive vectors, only those selected by the block's mask. */
+    @Benchmark
+    public float[] scoreBulkMasked() {
+        for (int b = 0; b < masks.length; b++) {
+            int start = b * Integer.SIZE;
+            int count = Math.min(Integer.SIZE, numVectorsToScore - start);
+            MemorySegment block = dataset.asSlice((long) start * packedLen, (long) count * packedLen);
+            VEC_LIBRARY.dotProductI4BulkMasked(block, query, packedLen, packedLen, masks[b], count, resultsSeg);
+        }
+        MemorySegment.copy(resultsSeg, ValueLayout.JAVA_FLOAT, 0L, scores, 0, scores.length);
+        return scores;
+    }
+
+    /** Test-only: what {@link #scoreBulkMasked} returns, by single-pair scoring. */
+    float[] scoreSingleMasked() {
+        for (int b = 0; b < masks.length; b++) {
+            for (int m = masks[b]; m != 0; m = BulkMask.deselectFirst(m)) {
+                int slot = BulkMask.first(m);
+                MemorySegment vec = dataset.asSlice((long) (b * Integer.SIZE + slot) * packedLen, packedLen);
+                scores[slot] = VEC_LIBRARY.dotProductI4(query, vec, packedLen);
+            }
+        }
         return scores;
     }
 

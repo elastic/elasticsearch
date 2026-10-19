@@ -132,6 +132,7 @@ public class IndexEngine extends InternalEngine {
     );
     // A flag for whether the flush call is originated from a refresh
     private static final ThreadLocal<Boolean> IS_FLUSH_BY_REFRESH = ThreadLocal.withInitial(() -> false);
+    private static final String HOLLOW_FLUSH_REFRESH_SOURCE = "hollow_flush";
 
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
@@ -517,10 +518,18 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+        assert isFlushLockIsHeldByCurrentThread();
         // We must fetch the max uploaded translog file BEFORE performing the commit. Since all of those operations were written to
         // Lucene at this point, it is safe to start with the next file. The flush thread synchronously kicks of the commit upload
         // process, so for now we just store the start file as a thread local.
         translogStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
+        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO && getProcessedLocalCheckpoint() == hollowMaxSeqNo) {
+            // If the commit we'll write is hollow, getCommitExtraUserData() will calculate DOC_STATS and SHARD_FIELD_STATS when Lucene
+            // visits the live commit data. Those stats are read from the internal searcher inside IndexWriter#commit. Refresh before the
+            // commit so documents indexed since the last internal refresh are included in the stats. Note that the refresh may grab
+            // Lucene's full-flush lock, but that should not be held by anyone else since we already hold the flushLock here.
+            refreshInternalSearcher(HOLLOW_FLUSH_REFRESH_SOURCE, true);
+        }
         super.commitIndexWriter(writer, translog);
     }
 

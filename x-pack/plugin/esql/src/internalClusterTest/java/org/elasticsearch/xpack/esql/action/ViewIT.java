@@ -114,6 +114,24 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testTsWithoutStatsIsRejected() {
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("view [ts-view] uses TS, which must be followed by a STATS command"),
+            () -> createView("ts-view", "TS metrics | WHERE cpu > 1 | KEEP cpu")
+        );
+    }
+
+    public void testTsWithStatsIsAccepted() {
+        assertAcked(createView("ts-view", "TS metrics | STATS max(cpu) BY host"));
+        assertAcked(createView("ts-view", "TS metrics | FORK (STATS max(cpu)) (WHERE cpu > 1)"));
+    }
+
+    public void testPromqlIsAccepted() {
+        assertAcked(createView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu))"));
+        assertAcked(createView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | WHERE cpu_avg > 1 | KEEP cpu_avg"));
+    }
+
     public void testCannotCreateAliasToView() {
         assertAcked(createView("my-view", "FROM not-validated"));
 
@@ -191,11 +209,6 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
             containsString("Views are not supported in TS command, found view(s) [ts-view-1]"),
             () -> run("TS ts-source,ts-view-1 | EVAL f2=2").close()
         );
-
-        assertAcked(createView("ts-view-2", "TS ts-source | EVAL f1=1"));
-        try (EsqlQueryResponse response = run("FROM ts-view-2 | STATS total = sum(cpu) BY f1 | EVAL f2=2")) {
-            assertThat(getValuesList(response), equalTo(List.of(List.of(60L, 1, 2))));
-        }
     }
 
     public void testViewOverSystemIndex() {

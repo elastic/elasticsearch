@@ -94,6 +94,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
+// Throw-away change to trigger flakiness detection for #162549. Do not merge.
 public class SearchDirectoryTests extends ESTestCase {
 
     @Override

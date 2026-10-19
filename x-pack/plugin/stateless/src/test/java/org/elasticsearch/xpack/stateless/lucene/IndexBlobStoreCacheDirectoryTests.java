@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
+// Throw-away change to trigger flakiness detection for #162549. Do not merge.
 public class IndexBlobStoreCacheDirectoryTests extends ESTestCase {
 
     public void testOnlyThePerBccMetadataReadDirectoriesClaimOnTheShardReadPool() throws Exception {

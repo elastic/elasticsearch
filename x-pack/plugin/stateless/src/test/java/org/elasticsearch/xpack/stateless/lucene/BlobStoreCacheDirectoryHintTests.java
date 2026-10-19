@@ -35,6 +35,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+// Throw-away change to trigger flakiness detection for #162549. Do not merge.
 public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
 
     private static final int REGION_SIZE = 16 * 1024 * 1024; // 16MB

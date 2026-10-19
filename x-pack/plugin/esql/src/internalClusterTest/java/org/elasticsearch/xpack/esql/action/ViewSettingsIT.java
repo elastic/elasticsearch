@@ -238,7 +238,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
      * in the analyzer before: the reference to an unmapped field resolves one pass after the identical conversion of the WHERE.
      */
     public void testLoadAllSameConversionResolvedOnLaterPassOverViewAndIndex() {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_VIEWS", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_VIEWS.isEnabled());
         setupUnmappedIndices();
         assertAcked(createView("filtered_view", "FROM view_source | WHERE id > 0"));
         try (var resp = run("""
@@ -253,7 +253,7 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testLoadAllViewOutputsNullUnmappedFieldsAndCallerPatternLoadsThem() {
-        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_VIEWS", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_VIEWS.isEnabled());
         setupUnmappedIndices();
         assertAcked(createView("filtered_view", "FROM view_source | WHERE id > 0"));
         try (var resp = run("""

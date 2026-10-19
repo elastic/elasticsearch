@@ -475,7 +475,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
             .withPlainSkipIndex(bounded);
     }
 
-    private static StringColumnOptions dictionary(StringColumnOptions.Sizes sizes) {
+    static StringColumnOptions dictionary(StringColumnOptions.Sizes sizes) {
         return StringColumnOptions.DEFAULT.withPolicies(FORCED, StringColumnOptions.DEFAULT_SUMMARY)
             .withSizes(sizes)
             .withPlainSkipIndex(true);

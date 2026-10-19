@@ -393,6 +393,16 @@ public class PlainSkipBoundsTests extends ESTestCase {
         }
     }
 
+    public void testBlockCountsNearTheIntegerLimit() {
+        assertEquals(Integer.MAX_VALUE, PlainSkipBounds.blockCount((long) Integer.MAX_VALUE * 128, 128));
+        assertEquals(Integer.MAX_VALUE, PlainSkipBounds.blockCount((long) Integer.MAX_VALUE * 128 - 127, 128));
+        expectThrows(ArithmeticException.class, () -> PlainSkipBounds.blockCount((long) Integer.MAX_VALUE * 128 + 1, 128));
+        assertEquals(0, PlainSkipBounds.blockCount(0, 128));
+        assertEquals(1, PlainSkipBounds.blockCount(1, 128));
+        assertEquals(1, PlainSkipBounds.blockCount(128, 128));
+        assertEquals(2, PlainSkipBounds.blockCount(129, 128));
+    }
+
     public void testASkipperForMoreBlocksThanAColumnCanHoldIsCorrupt() throws IOException {
         final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         new StringColumnMetadata.Plain.Skipper(0, 1, 1).writeTo(out);

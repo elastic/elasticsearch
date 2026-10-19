@@ -162,6 +162,45 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
         assertNull(service.getActiveKey());
     }
 
+    public void testKeyLoadFailureDegradesInsteadOfThrowing() {
+        ClusterService clusterService = mockClusterService();
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            () -> Settings.EMPTY
+        );
+        ClusterStateApplier applier = captureApplier(clusterService);
+
+        String keyId = ProjectEncryptionKeyMetadata.generateKeyId();
+        ProjectEncryptionKeyMetadata invalidPek = new ProjectEncryptionKeyMetadata(
+            Map.of(keyId, new ProjectEncryptionKeyMetadata.KeyEntry(new byte[0], 0L)),
+            keyId,
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        ClusterState invalidState = stateWithKey(invalidPek);
+        MockLog.assertThatLogger(
+            () -> applier.applyClusterState(new ClusterChangedEvent("test", invalidState, stateWithoutKey())),
+            ProjectEncryptionKeyService.class,
+            new MockLog.SeenEventExpectation(
+                "load failure",
+                ProjectEncryptionKeyService.class.getName(),
+                Level.WARN,
+                "project encryption key: failed to load key from cluster state*"
+            )
+        );
+        when(clusterService.state()).thenReturn(invalidState);
+        assertEquals(EncryptionServiceState.UNAVAILABLE_KEY_LOAD_FAILED, service.state());
+        assertNull(service.getActiveKey());
+        assertNull(service.getKey(keyId));
+
+        ProjectEncryptionKeyMetadata pek = plaintextPekMetadata(PASSWORD_ID);
+        applier.applyClusterState(new ClusterChangedEvent("test", stateWithKey(pek), invalidState));
+        assertEquals(EncryptionServiceState.READY, service.state());
+        assertNotNull(service.getActiveKey());
+    }
+
     public void testStateDisabledWhenNoPekAndNoPassword() {
         ClusterService clusterService = mockClusterService();
         ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(

@@ -111,8 +111,8 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
      */
     public EncryptionServiceState state() {
         KeyCache snapshot = cache;
-        if (snapshot.degraded()) {
-            return EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED;
+        if (snapshot.unavailableState() != null) {
+            return snapshot.unavailableState();
         }
         if (snapshot.activeKeyId == null) {
             // Awaiting first key install. DISABLED only when no password is configured at all; otherwise READY
@@ -130,6 +130,16 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
     }
 
     private void onClusterStateChanged(ClusterChangedEvent event) {
+        try {
+            updateCache(event);
+        } catch (Exception e) {
+            // appliers must not throw, so degrade encryption on this node rather than fail cluster state application
+            logger.warn("project encryption key: failed to load key from cluster state, encryption/decryption unavailable", e);
+            this.cache = new KeyCache(null, Map.of(), EncryptionServiceState.UNAVAILABLE_KEY_LOAD_FAILED, event.state().version());
+        }
+    }
+
+    private void updateCache(ClusterChangedEvent event) {
         ClusterState state = event.state();
 
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -146,21 +156,21 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
 
         long version = state.version();
         if (metadata == null) {
-            if (cache.activeKeyId() != null || cache.degraded()) {
+            if (cache.activeKeyId() != null || cache.unavailableState() != null) {
                 logger.debug("project encryption key cache cleared after metadata removed");
             }
-            this.cache = new KeyCache(null, Map.of(), false, version);
+            this.cache = new KeyCache(null, Map.of(), null, version);
             return;
         }
 
         if (metadata.isUnwrapFailed()) {
-            if (cache.degraded() == false) {
+            if (cache.unavailableState() != EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED) {
                 logger.warn(
                     "project encryption key: disk recovery failed (degraded state), encryption/decryption unavailable."
                         + " To recover: fix the password and restart, or call POST /_encryption/_reset?accept_data_loss=true"
                 );
             }
-            this.cache = new KeyCache(null, Map.of(), true, version);
+            this.cache = new KeyCache(null, Map.of(), EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED, version);
             return;
         }
 
@@ -168,7 +178,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         for (Map.Entry<String, ProjectEncryptionKeyMetadata.KeyEntry> entry : metadata.getKeys().entrySet()) {
             decryptedKeys.put(entry.getKey(), new SecretKeySpec(entry.getValue().bytes(), "AES"));
         }
-        this.cache = new KeyCache(metadata.getActiveKeyId(), Map.copyOf(decryptedKeys), false, version);
+        this.cache = new KeyCache(metadata.getActiveKeyId(), Map.copyOf(decryptedKeys), null, version);
         logger.debug("project encryption key cache updated: activeKeyId={}", metadata.getActiveKeyId());
     }
 
@@ -201,7 +211,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         KeyCache current = cache;
         ProjectMetadata project = visible.metadata().projects().get(projectResolver.getProjectId());
         ProjectEncryptionKeyMetadata metadata = project == null ? null : project.custom(ProjectEncryptionKeyMetadata.TYPE);
-        if (metadata == null || metadata.isUnwrapFailed()) {
+        if (metadata == null || metadata.isUnwrapFailed() || current.unavailableState() != null) {
             return;
         }
         String id = keyId != null ? keyId : metadata.getActiveKeyId();
@@ -214,11 +224,16 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         }
     }
 
-    private record KeyCache(@Nullable String activeKeyId, Map<String, SecretKey> decryptedKeys, boolean degraded, long stateVersion) {
-        static final KeyCache EMPTY = new KeyCache(null, Map.of(), false, -1L);
+    private record KeyCache(
+        @Nullable String activeKeyId,
+        Map<String, SecretKey> decryptedKeys,
+        @Nullable EncryptionServiceState unavailableState,
+        long stateVersion
+    ) {
+        static final KeyCache EMPTY = new KeyCache(null, Map.of(), null, -1L);
 
         KeyCache {
-            assert degraded || activeKeyId == null || decryptedKeys.containsKey(activeKeyId);
+            assert unavailableState != null || activeKeyId == null || decryptedKeys.containsKey(activeKeyId);
         }
     }
 }

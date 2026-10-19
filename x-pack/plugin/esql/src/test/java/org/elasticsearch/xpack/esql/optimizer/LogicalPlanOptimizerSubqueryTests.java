@@ -587,18 +587,25 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         TestAnalyzer analyzer = subqueryAnalyzer().addView("kept", "FROM test | KEEP *name*")
             .addView("plain", "FROM test")
             .addView("filtered", "FROM test | WHERE emp_no > 0");
+        // With an index next to the views, the union has the column, null for the views.
         for (String query : List.of(
-            "FROM plain",
-            "FROM plain | WHERE emp_no > 1",
             "FROM test, kept | WHERE first_name == \"x\"",
             "FROM test, kept | WHERE first_name == \"x\" | SORT emp_no | LIMIT 2",
-            "FROM kept, plain | WHERE first_name == \"x\"",
-            "FROM plain, filtered",
-            "FROM (FROM plain | WHERE emp_no > 1), (FROM plain | WHERE emp_no < 0) | SORT emp_no",
             "FROM test, (FROM kept | WHERE first_name == \"x\")"
         )) {
             LogicalPlan optimized = optimize(analyzer.statement("SET unmapped_fields=\"load_all\"; " + query));
             assertThat(query, Expressions.names(optimized.output()), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        }
+        // Views only have no column of that name to return.
+        for (String query : List.of(
+            "FROM plain",
+            "FROM plain | WHERE emp_no > 1",
+            "FROM kept, plain | WHERE first_name == \"x\"",
+            "FROM plain, filtered",
+            "FROM (FROM plain | WHERE emp_no > 1), (FROM plain | WHERE emp_no < 0) | SORT emp_no"
+        )) {
+            LogicalPlan optimized = optimize(analyzer.statement("SET unmapped_fields=\"load_all\"; " + query));
+            assertThat(query, Expressions.names(optimized.output()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
         }
     }
 

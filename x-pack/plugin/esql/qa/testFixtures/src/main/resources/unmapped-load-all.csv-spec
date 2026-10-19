@@ -6214,7 +6214,7 @@ message:keyword        | upper:keyword | len:integer
 Connected to 10.1.0.3! | null          | null
 ;
 
-loadAllViewPassthroughNoKeepNullFillsUnmappedFields
+loadAllViewPassthroughNoKeepHasNoUnmappedFieldsColumn
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_no_branching
@@ -6224,8 +6224,8 @@ SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_view
 | WHERE message == "42"
 ;
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | null
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42
 ;
 
 loadAllViewUnmappedFieldInOneBranch
@@ -6409,7 +6409,7 @@ message:keyword        | unmapped_message:keyword
 Connected to 10.1.0.1! | Disconnected from 10.1.0.1
 ;
 
-loadAllViewNoKeepNullFillsUnmappedFields
+loadAllViewsOnlyUnionHasNoUnmappedFieldsColumn
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries
 required_capability: views_with_branching
@@ -6421,9 +6421,9 @@ FROM (FROM partial_mapping_view | WHERE message == "42"),
      (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
 | SORT @timestamp
 ;
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | _unmapped_fields:_source
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | null
-2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | null
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1!
 ;
 
 // event_duration is long on partial_mapping and unmapped in the view. LOAD_ALL does not load the view's _source value, so the view
@@ -6549,9 +6549,9 @@ FROM partial_mapping_view, partial_mapping_view_message_wildcard
 | WHERE message == "42"
 ;
 ignoreOrder:true
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | null
-null                     | null         | null                | 42              | null
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42
+null                     | null         | null                | 42
 ;
 
 loadAllViewWildcardKeepUnionWithNoMappingIndex
@@ -6806,8 +6806,8 @@ SET unmapped_fields="LOAD_ALL"\;
 FROM filtered_partial_mapping_view
 | WHERE message == "42"
 ;
-@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source
-2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | null
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42
 ;
 
 loadAllSubqueryGapLiteralKeepCount

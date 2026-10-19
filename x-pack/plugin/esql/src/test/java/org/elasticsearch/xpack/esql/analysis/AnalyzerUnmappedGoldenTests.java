@@ -1480,8 +1480,8 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).views(Map.of("scaled_emp_view", "FROM employees | EVAL scaled = emp_no * 10")).run();
     }
 
-    // LOAD_ALL over views only: no relation is stamped, and the union still has the _unmapped_fields column, null.
-    public void testViewsOnlyOutputNullUnmappedFieldsUnderLoadAll() throws Exception {
+    // LOAD_ALL over views only: no relation is stamped, and as no branch has the _unmapped_fields column, neither does the union.
+    public void testViewsOnlyHaveNoUnmappedFieldsColumnUnderLoadAll() throws Exception {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
         loadAll("""
             FROM scaled_emp_view, emp_view

@@ -538,10 +538,18 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     // A view is a boundary the setting does not reach into: no relation inside it is annotated, and where the query could have
     // had _unmapped_fields, the view's output carries a null one instead.
 
-    public void testViewAloneIsNotAnnotatedAndOutputsNullUnmappedFields() {
+    public void testViewAloneIsNotAnnotatedAndHasNoUnmappedFieldsColumn() {
         LogicalPlan plan = test().addView("v", "FROM test").statement(setUnmappedLoadAll("FROM v"));
         assertThat(relationsWithUnmappedFields(plan), empty());
-        assertThat(Expressions.names(plan.output()), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        assertThat(Expressions.names(plan.output()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+    }
+
+    public void testViewsOnlyHaveNoUnmappedFieldsColumn() {
+        LogicalPlan plan = test().addView("v", "FROM test")
+            .addView("w", "FROM test | KEEP emp_no")
+            .statement(setUnmappedLoadAll("FROM v, w"));
+        assertThat(relationsWithUnmappedFields(plan), empty());
+        assertThat(Expressions.names(plan.output()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
     }
 
     public void testViewBesideIndexOnlyAnnotatesTheIndex() {

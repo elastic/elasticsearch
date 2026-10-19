@@ -468,9 +468,6 @@ tests:
 - class: org.elasticsearch.index.mapper.DynamicMappingIT
   method: testCombineDynamicMappingUpdatesSettingIsDynamic
   issue: https://github.com/elastic/elasticsearch/issues/162026
-- class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
-  method: testMaxFillNullFieldsSetting
-  issue: https://github.com/elastic/elasticsearch/issues/162061
 - class: org.elasticsearch.xpack.security.authc.TokenAuthIntegTests
   method: testExpiredTokensDeletedAfterExpiration
   issue: https://github.com/elastic/elasticsearch/issues/162103

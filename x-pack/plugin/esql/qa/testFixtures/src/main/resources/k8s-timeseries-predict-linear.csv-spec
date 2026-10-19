@@ -178,6 +178,53 @@ prediction:double | step:datetime
 15.0              | 2024-05-10T00:01:00.000Z
 ;
 
+// For these two samples the prediction is 13.5625 + (23/48)*horizonSeconds.
+predict_linear_one_millisecond_horizon
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], 1ms)))
+| EVAL prediction = ROUND(prediction, 10), step = step;
+
+prediction:double | step:datetime
+13.5629791667 | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_subsecond_duration_horizon
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], 500ms)));
+
+prediction:double | step:datetime
+13.802083333333334 | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_mixed_seconds_milliseconds_horizon
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], 1500ms)));
+
+prediction:double | step:datetime
+14.28125 | 2024-05-10T00:01:00.000Z
+;
+
+predict_linear_negative_millisecond_horizon
+required_capability: promql_command_v0
+required_capability: promql_predict_linear
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=1m start="2024-05-10T00:01:00.000Z" end="2024-05-10T00:01:00.000Z" prediction=(sum(predict_linear(network.cost{cluster="prod",pod="three"}[1m], -500ms)))
+| EVAL prediction = ROUND(prediction, 10), step = step;
+
+prediction:double | step:datetime
+13.3229166667 | 2024-05-10T00:01:00.000Z
+;
+
 predict_linear_nan_horizon
 required_capability: promql_command_v0
 required_capability: promql_predict_linear

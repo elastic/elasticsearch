@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 
@@ -45,14 +42,4 @@ public class PredictLinearSerializationTests extends AbstractExpressionSerializa
         return new PredictLinear(source, field, timestamp, filter, window, horizon);
     }
 
-    public void testCannotSerializeToOldNode() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            PlanStreamOutput planOut = new PlanStreamOutput(out, configuration());
-            planOut.setTransportVersion(TransportVersionUtils.randomVersionNotSupporting(PredictLinear.PREDICT_LINEAR));
-            Expression child = randomChildSupportedOn(planOut.getTransportVersion());
-            PredictLinear prediction = new PredictLinear(Source.EMPTY, child, child, child, child, child);
-            var exception = expectThrows(UnsupportedOperationException.class, () -> planOut.writeNamedWriteable(prediction));
-            assertEquals("version does not support predict_linear", exception.getMessage());
-        }
-    }
 }

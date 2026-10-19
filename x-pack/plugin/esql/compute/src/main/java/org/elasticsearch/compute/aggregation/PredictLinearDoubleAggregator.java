@@ -23,8 +23,19 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 /**
- * Fits a line using relative timestamps so epoch-sized values do not destroy the covariance.
- * Bucket states can be reduced without retaining or sorting the observations.
+ * Predicts a series using ordinary least squares. For each sample, x is the number of seconds since
+ * a local timestamp origin and y is the sample value. The accumulators x, y, xx and xy hold the sums
+ * of x, y, x*x and x*y, with compensation for floating-point rounding. Using relative timestamps
+ * avoids subtracting nearly equal epoch-sized products when computing the slope.
+ * <p>
+ * These four sums and the sample count are sufficient to fit the line:
+ * {@code slope = (sumXY - sumX * sumY / count) / (sumXX - sumX * sumX / count)}.
+ * The line passes through {@code (meanX, meanY)}, so its prediction at a target time is
+ * {@code meanY + slope * (targetX - meanX)}. The target is the evaluation time plus the horizon,
+ * not the last sample time plus the horizon.
+ * <p>
+ * Bucket states can be reduced without retaining or sorting observations. Each bucket may choose
+ * a different timestamp origin; merging first translates its sums to the receiving state's origin.
  */
 @GroupingAggregator(
     {
@@ -134,7 +145,8 @@ class PredictLinearDoubleAggregator {
             } else if (constant != otherConstant) {
                 constant = Double.NaN;
             }
-            // Translate the other partition's moments from x to x + shift, preserving their correction terms.
+            // Shifting every other x by d changes its sums to sumX + n*d, sumXX + 2*d*sumX + n*d*d, sumXY + d*sumY.
+            // The sample values do not change. Translate the compensated sums without discarding their corrections.
             double shift = secondsBetween(otherOrigin, origin);
             x.add(sx, cx).add(n * shift);
             y.add(sy, cy);
@@ -153,6 +165,7 @@ class PredictLinearDoubleAggregator {
             double sxx = xx.value() + xx.delta();
             double sxy = xy.value() + xy.delta();
             double slope = (sxy - sx * sy / count) / (sxx - sx * sx / count);
+            // Express the fitted line relative to evaluationTime, so horizon is the remaining displacement in seconds.
             double intercept = sy / count - slope * (sx / count + secondsBetween(origin, evaluationTime));
             return slope * horizon + intercept;
         }

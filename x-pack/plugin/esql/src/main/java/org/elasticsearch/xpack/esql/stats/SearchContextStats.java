@@ -26,6 +26,7 @@ import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -169,7 +170,7 @@ public class SearchContextStats implements SearchStats {
         if (mayHoldUnmappedFields == null) {
             boolean mayHold = false;
             for (SearchExecutionContext context : contexts) {
-                if (context.mayHoldUnmappedFields()) {
+                if (context.unmappedFields().mayExist()) {
                     mayHold = true;
                     break;
                 }
@@ -181,17 +182,9 @@ public class SearchContextStats implements SearchStats {
 
     @Override
     public boolean mayHoldUnmappedField(FieldName field) {
-        if (mayHoldUnmappedFields()) {
-            return true;
-        }
-        String name = field.string();
-        // A name can lead into the value of a mapped field: span.gte where span is an integer_range.
-        for (int dot = name.lastIndexOf('.'); dot > 0; dot = name.lastIndexOf('.', dot - 1)) {
-            String ancestor = name.substring(0, dot);
-            for (SearchExecutionContext context : contexts) {
-                if (context.isMappedField(ancestor)) {
-                    return true;
-                }
+        for (SearchExecutionContext context : contexts) {
+            if (context.unmappedFields().mayExist(field.string())) {
+                return true;
             }
         }
         return false;
@@ -480,6 +473,20 @@ public class SearchContextStats implements SearchStats {
                     return false;
                 }
             } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean emptyStringReadsAsNull(FieldAttribute.FieldName name) {
+        if (contexts.isEmpty()) {
+            return false;
+        }
+        for (SearchExecutionContext ctx : contexts) {
+            final MappedFieldType type = ctx.getFieldType(name.string());
+            if ((type instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.emptyStringReadsAsNull()) == false) {
                 return false;
             }
         }

@@ -10,11 +10,13 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 import static org.elasticsearch.simdvec.BBQEncoding.D1Q1;
 import static org.elasticsearch.simdvec.BBQEncoding.D1Q4;
@@ -64,6 +66,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     private MemorySegment cachedQuerySegment;
     private float[] cachedScoresArray;
     private MemorySegment cachedScoresSegment;
+    private final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
 
     private NativeBBQDotProduct(IndexInput in, BBQEncoding bbqEncoding, int planeBytes) {
         super(in, bbqEncoding, planeBytes);
@@ -120,7 +123,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
         assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
         MemorySegment querySegment = querySegment(query);
-        MemorySegment scoresSegment = scoresSegment(scores);
+        MemorySegment scoresSegment = scoresScratch.apply(offsetsCount * Float.BYTES);
         MemorySegment offsetsSegment = MemorySegment.ofArray(offsets);
         IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, dataSegment -> {
             switch (encoding.toSwitchValue()) {
@@ -172,20 +175,9 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
                 default -> throw new AssertionError("Unsupported encoding: " + encoding);
             }
         });
-        repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
-    }
-
-    /**
-     * The native methods put their scores all at the start of {@code scores}.
-     * So we need to move each score to the correct position in {@code scores}.
-     */
-    private static void repositionScoresMatchingOffsets(int[] offsets, int offsetsCount, float[] scores) {
-        for (int i = offsetsCount - 1; i >= 0; i--) {
-            int finalScoreIndex = offsets[i];
-            if (i < finalScoreIndex) {
-                scores[finalScoreIndex] = scores[i];
-                scores[i] = 0;
-            }
+        // The native methods put their scores all at the start of the segment, so place each one at its offset in scores
+        for (int i = 0; i < offsetsCount; i++) {
+            scores[offsets[i]] = scoresSegment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
         }
     }
 }

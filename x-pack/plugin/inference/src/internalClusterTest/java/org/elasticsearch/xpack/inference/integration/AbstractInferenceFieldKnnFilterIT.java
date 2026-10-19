@@ -189,6 +189,22 @@ abstract class AbstractInferenceFieldKnnFilterIT extends ESIntegTestCase {
         assertKnnHits(QueryBuilders.nestedQuery("nested_field", QueryBuilders.termQuery("nested_field.tag", "a"), ScoreMode.None), "doc_1");
     }
 
+    /**
+     * Filtered alias with a nested query on a nested field other than the chunks field.
+     */
+    public void testNestedQueryFilteredAlias() throws Exception {
+        String aliasName = randomIdentifier();
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias(
+                    indexName,
+                    aliasName,
+                    QueryBuilders.nestedQuery("nested_field", QueryBuilders.termQuery("nested_field.tag", "a"), ScoreMode.None)
+                )
+        );
+        assertKnnHits(aliasName, knnQuery("inference_field", "document", 10), "doc_1");
+    }
+
     private void indexDocs(Map<String, Map<String, Object>> docs) {
         BulkRequestBuilder bulkRequest = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         docs.forEach((id, source) -> bulkRequest.add(prepareIndex(indexName).setId(id).setSource(source)));
@@ -196,12 +212,15 @@ abstract class AbstractInferenceFieldKnnFilterIT extends ESIntegTestCase {
     }
 
     private void assertKnnHits(QueryBuilder filter, String... expectedIds) throws Exception {
-        KnnVectorQueryBuilder query = knnQuery("inference_field", "document", 10).addFilterQuery(filter);
+        assertKnnHits(indexName, knnQuery("inference_field", "document", 10).addFilterQuery(filter), expectedIds);
+    }
+
+    private void assertKnnHits(String target, QueryBuilder query, String... expectedIds) throws Exception {
         SearchSourceBuilder source = new SearchSourceBuilder().query(query);
 
         // Use the coordinating-only node so that the query is serialized over the wire (coordinating node -> data node)
         assertNoFailuresAndResponse(
-            internalCluster().coordOnlyNodeClient().search(new SearchRequest(new String[] { indexName }, source)),
+            internalCluster().coordOnlyNodeClient().search(new SearchRequest(new String[] { target }, source)),
             response -> assertSearchHits(response, expectedIds)
         );
     }

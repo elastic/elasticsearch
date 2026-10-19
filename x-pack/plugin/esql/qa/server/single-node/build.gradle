@@ -177,6 +177,10 @@ buildParams.bwcVersions.unreleasedWireCompatible
     }
   }
 
+tasks.register('bwcGenerativeTests') {
+  dependsOn tasks.matching { it.name ==~ /v.+#generativeTests/ }
+}
+
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
   // AbstractEsqlSpecIT declares its cluster with shared(true), which is incompatible with parallel forks

@@ -16,10 +16,9 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 /**
- * Thrown on a non-primary copy (replica, peer recovery, or CCR follower) when an in-place doc-values update cannot be applied because
- * the base version of the document it was computed against has not been applied on this copy yet. Recovery and CCR deliver operations
- * concurrently, so a delta can race ahead of its base; failing the operation causes it to be retried, and by then the base — delivered
- * in sequence-number order — is present. This is a transient, retryable condition, not a client error.
+ * Thrown on a non-primary copy when an in-place doc-values update cannot be applied because the base version it was computed against has
+ * not been applied on this copy yet (recovery and CCR deliver operations concurrently, so a delta can race ahead of its base). Failing
+ * the operation causes it to be retried once the base arrives in order. Transient and retryable, not a client error.
  */
 public class DocValuesUpdateBaseNotPresentException extends EngineException {
 

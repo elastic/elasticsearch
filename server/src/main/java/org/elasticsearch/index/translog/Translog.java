@@ -1918,10 +1918,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         private final BytesRef uid;
         private final long version;
-        // The document's identity (sequence number and primary term) when the delta was computed on the primary. The delta is only
-        // valid against that exact version, so a non-primary copy applies it in place only when its live document still carries this
-        // identity; otherwise the live document has moved on (the delta is obsolete) or the base has not arrived yet (see
-        // InternalEngine#planDocValuesUpdateAsNonPrimary). UNASSIGNED on sequence-number-disabled indices, where the check does not apply.
+        // The base version the delta was computed against. A non-primary copy applies it in place only while its live document still
+        // carries this identity (see InternalEngine#planDocValuesUpdateAsNonPrimary). UNASSIGNED on sequence-number-disabled indices.
         private final long baseSeqNo;
         private final long baseTerm;
         private final List<FieldUpdate> updates;

@@ -1072,9 +1072,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Apply an in-place doc-values update on a replica, replaying the primary's {@code seqNo}, {@code opPrimaryTerm}, and {@code version}.
-     * The optimistic-concurrency check was already performed on the primary, so none is repeated here. {@code baseSeqNo}/{@code baseTerm}
-     * are the document identity the delta was computed against on the primary; the engine applies the delta in place only while the live
-     * document still carries that identity, so an out-of-order replica or recovery delivery cannot patch the wrong version.
+     * The optimistic-concurrency check was already performed on the primary. {@code baseSeqNo}/{@code baseTerm} are the base version the
+     * delta was computed against; the engine applies it in place only while the live document still carries that identity, so an
+     * out-of-order delivery cannot patch the wrong version.
      */
     public Engine.DocValuesUpdateResult applyDocValuesUpdateOnReplica(
         long seqNo,

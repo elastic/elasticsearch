@@ -2293,12 +2293,10 @@ public abstract class Engine implements Closeable {
         }
 
         /**
-         * The document's identity (base version) the delta was computed against, captured when the update was prepared. On the primary
-         * it is the optimistic-concurrency precondition: a concurrent delete or reindex changes the document's identity and makes the
-         * update conflict instead of silently patching a document it was not computed against. On a replica, recovery or CCR-follower
-         * operation it is the apply-time safety check: the delta is applied in place only while the live document still carries this
-         * identity (see {@code InternalEngine#planDocValuesUpdateAsNonPrimary}). {@link SequenceNumbers#UNASSIGNED_SEQ_NO} when there is no
-         * base identity, e.g. on sequence-number-disabled indices.
+         * The base version the delta was computed against, captured when the update was prepared. On the primary it is the
+         * optimistic-concurrency precondition; on a replica, recovery or CCR-follower operation it gates the in-place apply, which only
+         * happens while the live document still carries this identity. {@link SequenceNumbers#UNASSIGNED_SEQ_NO} when there is no base
+         * identity, e.g. on sequence-number-disabled indices.
          */
         public long getIfSeqNo() {
             return ifSeqNo;

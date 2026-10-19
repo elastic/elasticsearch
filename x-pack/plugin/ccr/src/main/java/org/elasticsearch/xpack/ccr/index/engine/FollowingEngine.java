@@ -127,9 +127,8 @@ public class FollowingEngine extends InternalEngine {
             );
             return new DocValuesUpdateStrategy(docValuesUpdate, null, skip);
         }
-        // A leader-assigned operation arrives with PRIMARY origin but is really a replayed operation: reuse its leader sequence number
-        // (no optimistic-concurrency check, which the leader already performed) and resolve it against the live document — dedup, base
-        // presence, and obsolete-delta detection — exactly as a replica or recovery operation.
+        // A leader-assigned operation has PRIMARY origin but is a replayed operation: reuse its leader sequence number (the leader
+        // already ran the optimistic-concurrency check) and resolve it against the live document, as a replica operation does.
         advanceMaxSeqNo(docValuesUpdate.seqNo());
         return new DocValuesUpdateStrategy(docValuesUpdate, planDocValuesUpdateAsNonPrimary(docValuesUpdate), null);
     }

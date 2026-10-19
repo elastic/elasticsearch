@@ -499,9 +499,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162245
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/162282
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecPrometheusK8sDeltaIT
-  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162319
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
   method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162369

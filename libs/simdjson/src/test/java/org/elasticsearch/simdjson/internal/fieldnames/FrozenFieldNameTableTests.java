@@ -68,11 +68,11 @@ public class FrozenFieldNameTableTests extends ESTestCase {
         }
     }
 
-    // insert materializes the field name bytes into a new String.
+    // insert materializes the field name bytes into a new String. Names must be distinct because insert's
+    // contract forbids adding a name that is already present (random names may otherwise collide, e.g. on "").
     public void testInsertCreatesStringFromBufferBytes() {
         FrozenFieldNameTable.Child child = new FrozenFieldNameTable().makeChild();
-        for (int i = 0; i < 50; i++) {
-            String name = randomFieldName();
+        for (String name : randomDistinctFieldNames(50)) {
             byte[] buf = toBytes(name);
             int hash = FieldNameHash.hashName(buf, 0, buf.length);
             String result = child.insert(buf, 0, buf.length, hash);

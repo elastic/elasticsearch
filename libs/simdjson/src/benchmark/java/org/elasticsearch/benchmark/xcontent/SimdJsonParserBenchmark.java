@@ -194,16 +194,12 @@ public class SimdJsonParserBenchmark {
 
     @Benchmark
     public int jacksonEncode() throws IOException {
-        try (EscfEncoder encoder = new EscfEncoder(RECYCLER, false)) {
-            return encodeBulk(encoder);
-        }
+        return encodeBulk(false);
     }
 
     @Benchmark
     public int simdJsonEncode() throws IOException {
-        try (EscfEncoder encoder = new EscfEncoder(RECYCLER)) {
-            return encodeBulk(encoder);
-        }
+        return encodeBulk(true);
     }
 
     /**
@@ -215,7 +211,7 @@ public class SimdJsonParserBenchmark {
         EscfEncoder[] encoders = new EscfEncoder[mappingCount];
         try {
             for (int m = 0; m < mappingCount; m++) {
-                encoders[m] = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, allowSimd);
+                encoders[m] = new EscfEncoder(RECYCLER, allowSimd);
             }
 
             for (int i = 0; i < docs.length; i++) {

@@ -514,3 +514,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.blockhash.LongBytesRefBlockHashTests
   method: testLookup
   issue: https://github.com/elastic/elasticsearch/issues/162546
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1MissingIndicesIT
+  method: testSearchesAgainstNonMatchingIndices
+  issue: https://github.com/elastic/elasticsearch/issues/162565

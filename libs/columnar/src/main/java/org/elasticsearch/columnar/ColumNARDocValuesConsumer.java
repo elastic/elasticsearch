@@ -48,6 +48,7 @@ import org.elasticsearch.columnar.string.SummaryMerger;
 import org.elasticsearch.columnar.string.SummaryPolicy;
 import org.elasticsearch.columnar.string.Vocabulary;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.ColumnOutputs;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
@@ -556,6 +557,16 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values));
         }
 
+        // Values are streamed only when every input streams. One unsorted input marks the merged column unsorted, even if
+        // deletions left it in order, which only forgoes a bisection.
+        boolean streams = true;
+        boolean mayBeSorted = true;
+        for (ColumnMergeSub<StringColumnValues> sub : subs) {
+            streams &= sub.values.streamsValues();
+            mayBeSorted &= sub.values.mayBeSorted();
+        }
+        final boolean streamsValues = streams;
+        final boolean valuesMayBeSorted = mayBeSorted;
         DocIDMerger<ColumnMergeSub<StringColumnValues>> merger = DocIDMerger.of(subs, mergeState.needsIndexSort);
         long finalCost = cost;
         StringColumnValues.Totals totals = recorded
@@ -564,6 +575,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         return new StringColumnValues() {
             private ColumnMergeSub<StringColumnValues> current;
             private int docID = -1;
+            /** The input the previous value came from; an input's recorded repeat holds only if it is the current one. */
+            private ColumnMergeSub<StringColumnValues> previousValueFrom;
+            private boolean sameInputAsPrevious;
 
             @Override
             public Totals totals() {
@@ -599,12 +613,34 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
             @Override
             public void nextValue() throws IOException {
+                sameInputAsPrevious = previousValueFrom == current;
+                previousValueFrom = current;
                 current.values.nextValue();
             }
 
             @Override
             public BytesRef value() throws IOException {
                 return current.values.value();
+            }
+
+            @Override
+            public void transferValue(BytesSink sink) throws IOException {
+                current.values.transferValue(sink);
+            }
+
+            @Override
+            public boolean streamsValues() {
+                return streamsValues;
+            }
+
+            @Override
+            public boolean repeatsPrevious() throws IOException {
+                return sameInputAsPrevious && current.values.repeatsPrevious();
+            }
+
+            @Override
+            public boolean mayBeSorted() {
+                return valuesMayBeSorted;
             }
 
             @Override
@@ -706,7 +742,17 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             totals = new StringColumnValues.Totals(numDocsWithField, numValues, numNullSlots, minLength, maxLength, oneSlotADocument);
         }
 
-        StringColumnMetadata metadata = StringColumnWriter.write(maxDoc, totals, cursors, options, known, directory, context, outputs);
+        StringColumnMetadata metadata = StringColumnWriter.write(
+            maxDoc,
+            totals,
+            cursors,
+            options,
+            known,
+            directory,
+            context,
+            outputs,
+            skipIndex
+        );
         fields.add(new FieldEntry(field.number, type, options.singleValued(), metadata));
     }
 

@@ -9,6 +9,10 @@ mapped_pages:
 
 The Elastic Outlook connector is built with the Elastic connector framework and is available as a self-managed [self-managed connector](/reference/search-connectors/self-managed-connectors.md).
 
+::::{note}
+The `outlook_server` data source (on-premises Exchange Server) is deprecated. Use the [Exchange Server connector](/reference/search-connectors/es-connectors-exchange-server.md) instead.
+::::
+
 ## **Self-managed connector reference** [es-connectors-outlook-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-outlook-client-availability-and-prerequisites]
@@ -295,6 +299,7 @@ The connector syncs the following objects and entities:
 * Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 * For Outlook Cloud (Office 365), the connector only discovers mailboxes belonging to **enabled** directory users (`accountEnabled = true`) that have an email address. **Shared mailboxes are not synced by default**, because their backing Entra ID account has sign-in disabled. To sync a shared mailbox, enable sign-in for its account in Entra ID (this may require assigning a license).
+* For Outlook Server (on-premises Exchange), mailbox discovery uses **Active Directory** (LDAP), not Microsoft Graph or `accountEnabled`. The connector considers AD `user` objects that match its LDAP search filters and have a valid **`mail`** attribute, then opens each mailbox through **Exchange Web Services (EWS)**. AD accounts without `mail`, and SMTP addresses with **no mailbox** on Exchange (including many **service accounts**), are **skipped** during sync. **Shared mailboxes** are synced only when their AD user is discovered and Exchange exposes a mailbox for that address.
 
 ::::
 

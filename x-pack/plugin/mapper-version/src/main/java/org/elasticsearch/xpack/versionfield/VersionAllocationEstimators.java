@@ -48,4 +48,72 @@ public final class VersionAllocationEstimators {
         long len = value == null ? 0 : value.length();
         return pad8(OBJECT_HEADER + REFERENCE_SIZE) + byteArrayBytes(len);
     }
+
+    /** Fixed overhead of a new {@link String}: the object plus its backing array header. */
+    private static final long STRING_RESULT_OVERHEAD = 32;
+
+    /** A {@code BytesRef} without its array: header, one reference, offset and length. */
+    private static final long BYTES_REF_SHELL_BYTES = pad8(OBJECT_HEADER + REFERENCE_SIZE + 2L * Integer.BYTES);
+
+    /** A {@code Version}: header plus its two references. */
+    private static final long VERSION_OBJECT_BYTES = pad8(OBJECT_HEADER + 2L * REFERENCE_SIZE);
+
+    /** An empty {@code ArrayList}: header, size, modCount and the array reference. */
+    private static final long ARRAY_LIST_SHELL_BYTES = pad8(OBJECT_HEADER + 2L * Integer.BYTES + REFERENCE_SIZE);
+
+    /**
+     * One version read from doc values: the decoded bytes, their {@code BytesRef}, and the String. Nothing when the index is
+     * out of range, since the real read then throws or returns the default.
+     */
+    private static long decodedVersionBytes(VersionStringDocValuesField field, int index) {
+        if (field == null || index < 0 || index >= field.size()) {
+            return 0;
+        }
+        long encoded = field.encodedLength(index);
+        return addSat(addSat(byteArrayBytes(encoded), BYTES_REF_SHELL_BYTES), STRING_RESULT_OVERHEAD + 2L * encoded);
+    }
+
+    /** {@code VersionScriptDocValues.get(int)}: one decoded version String. */
+    public static long versionReadBytes(VersionScriptDocValues receiver, int index) {
+        return receiver == null ? 0 : decodedVersionBytes(receiver.field(), index);
+    }
+
+    /** {@code VersionScriptDocValues.getValue()}: the first value, decoded. */
+    public static long versionReadBytes(VersionScriptDocValues receiver) {
+        return versionReadBytes(receiver, 0);
+    }
+
+    /** {@code VersionStringDocValuesField.asString(String)}. */
+    public static long versionStringBytes(VersionStringDocValuesField receiver, String defaultValue) {
+        return decodedVersionBytes(receiver, 0);
+    }
+
+    /** {@code VersionStringDocValuesField.asString(int, String)}. */
+    public static long versionStringBytes(VersionStringDocValuesField receiver, int index, String defaultValue) {
+        return decodedVersionBytes(receiver, index);
+    }
+
+    /** {@code VersionStringDocValuesField.asStrings()}: a new list with every value decoded. Empty gives the shared empty list. */
+    public static long versionStringsBytes(VersionStringDocValuesField receiver) {
+        if (receiver == null || receiver.isEmpty()) {
+            return 0;
+        }
+        int count = receiver.size();
+        long bytes = addSat(ARRAY_LIST_SHELL_BYTES, pad8(ARRAY_HEADER + REFERENCE_SIZE * (long) count));
+        for (int index = 0; index < count; index++) {
+            bytes = addSat(bytes, decodedVersionBytes(receiver, index));
+        }
+        return bytes;
+    }
+
+    /** {@code VersionStringDocValuesField.get(Version)}: a Version holding the decoded String. */
+    public static long versionObjectBytes(VersionStringDocValuesField receiver, Version defaultValue) {
+        return versionObjectBytes(receiver, 0, defaultValue);
+    }
+
+    /** {@code VersionStringDocValuesField.get(int, Version)}: a Version holding the decoded String. */
+    public static long versionObjectBytes(VersionStringDocValuesField receiver, int index, Version defaultValue) {
+        long decoded = decodedVersionBytes(receiver, index);
+        return decoded == 0 ? 0 : addSat(decoded, VERSION_OBJECT_BYTES);
+    }
 }

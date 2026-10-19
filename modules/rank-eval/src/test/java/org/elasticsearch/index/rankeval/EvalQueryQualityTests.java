@@ -47,12 +47,14 @@ public class EvalQueryQualityTests extends ESTestCase {
 
     private static final class ParsedEvalQueryQuality {
         double evaluationResult;
+        Long took;
         MetricDetail optionalMetricDetails;
         List<RatedSearchHit> ratedHits = new ArrayList<>();
     }
 
     static {
         PARSER.declareDouble((obj, value) -> obj.evaluationResult = value, EvalQueryQuality.METRIC_SCORE_FIELD);
+        PARSER.declareLong((obj, value) -> obj.took = value, EvalQueryQuality.TOOK_FIELD);
         PARSER.declareObject(
             (obj, value) -> obj.optionalMetricDetails = value,
             (p, c) -> parseMetricDetail(p),
@@ -67,7 +69,16 @@ public class EvalQueryQualityTests extends ESTestCase {
 
     public static EvalQueryQuality parseInstance(XContentParser parser, String queryId) {
         var evalQuality = PARSER.apply(parser, null);
-        return new EvalQueryQuality(queryId, evalQuality.evaluationResult, evalQuality.ratedHits, evalQuality.optionalMetricDetails);
+        EvalQueryQuality result = new EvalQueryQuality(
+            queryId,
+            evalQuality.evaluationResult,
+            evalQuality.ratedHits,
+            evalQuality.optionalMetricDetails
+        );
+        if (evalQuality.took != null) {
+            result.setTook(evalQuality.took);
+        }
+        return result;
     }
 
     private static MetricDetail parseMetricDetail(XContentParser parser) throws IOException {
@@ -108,6 +119,9 @@ public class EvalQueryQualityTests extends ESTestCase {
                 );
                 default -> throw new IllegalArgumentException("illegal randomized value in test");
             }
+        }
+        if (randomBoolean()) {
+            evalQueryQuality.setTook(randomNonNegativeLong());
         }
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
@@ -221,7 +235,8 @@ public class EvalQueryQualityTests extends ESTestCase {
             ratedHits.add(new RatedSearchHit(r.getSearchHit(), r.getRating()));
         }
         MetricDetail metricDetails = original.getMetricDetails();
-        switch (randomIntBetween(0, 3)) {
+        Long took = original.getTook();
+        switch (randomIntBetween(0, 4)) {
             case 0:
                 id = id + "_";
                 break;
@@ -238,11 +253,17 @@ public class EvalQueryQualityTests extends ESTestCase {
             case 3:
                 ratedHits.add(RatedSearchHitTests.randomRatedSearchHit());
                 break;
+            case 4:
+                took = took == null ? randomNonNegativeLong() : null;
+                break;
             default:
-                throw new IllegalStateException("The test should only allow four parameters mutated");
+                throw new IllegalStateException("The test should only allow five parameters mutated");
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(id, metricScore);
         evalQueryQuality.setMetricDetails(metricDetails);
+        if (took != null) {
+            evalQueryQuality.setTook(took);
+        }
         evalQueryQuality.addHitsAndRatings(ratedHits);
         return evalQueryQuality;
     }

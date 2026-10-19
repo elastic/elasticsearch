@@ -493,8 +493,7 @@ public class EsqlSession {
             request.requestSettings(),
             statement,
             SettingsValidationContext.from(crossProjectModeDecider),
-            verifier.licenseState(),
-            plannerSettings.loadAllMaxFields()
+            verifier.licenseState()
         );
         // Resolve LET bindings before view resolution. This is a synchronous, local rewrite that
         // requires no cluster state — it simply substitutes named subquery bodies for their names.

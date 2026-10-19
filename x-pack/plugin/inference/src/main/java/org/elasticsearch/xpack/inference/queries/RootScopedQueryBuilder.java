@@ -24,15 +24,15 @@ import java.util.Objects;
 /**
  * Builds the wrapped query at the root nested scope, regardless of the nested scope it is used in. Unwrapped on serialization.
  */
-public class RootScopedQueryBuilder implements QueryBuilder {
+class RootScopedQueryBuilder implements QueryBuilder {
 
     private final QueryBuilder query;
 
-    public RootScopedQueryBuilder(QueryBuilder query) {
+    RootScopedQueryBuilder(QueryBuilder query) {
         this.query = Objects.requireNonNull(query);
     }
 
-    public QueryBuilder query() {
+    QueryBuilder query() {
         return query;
     }
 

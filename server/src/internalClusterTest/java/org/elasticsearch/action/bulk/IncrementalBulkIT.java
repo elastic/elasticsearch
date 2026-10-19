@@ -205,6 +205,34 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * The handler reserves the REST request's context when it is created, so a node with less headroom than the context rejects the
+     * streaming bulk before any of its items arrive, and leaves nothing reserved.
+     */
+    public void testIndexingPressureRejectsRequestContextOnHandlerCreation() {
+        String index = "test";
+        createIndex(index);
+
+        String nodeName = internalCluster().getRandomNodeName();
+        IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+        IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
+        ThreadContext threadContext = internalCluster().getInstance(ThreadPool.class, nodeName).getThreadContext();
+
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader("large-header", randomAlphaOfLength(4096));
+            long contextBytes = threadContext.estimatedRequestContextBytes();
+            long reservedBytes = indexingPressure.stats().getMemoryLimit() - contextBytes / 2;
+            long rejectionsBefore = indexingPressure.stats().getCoordinatingRejections();
+
+            try (Releasable r = indexingPressure.markCoordinatingOperationStarted(1, reservedBytes, true)) {
+                expectThrows(EsRejectedExecutionException.class, incrementalBulkService::newBulkRequest);
+                assertThat(indexingPressure.stats().getCoordinatingRejections(), equalTo(rejectionsBefore + 1));
+                assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(reservedBytes));
+            }
+            assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+        }
+    }
+
     public void testIncrementalBulkLowWatermarkBackOff() throws Exception {
         String index = "test";
         createIndex(index);

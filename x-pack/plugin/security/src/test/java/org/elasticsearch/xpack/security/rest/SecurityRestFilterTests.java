@@ -98,12 +98,25 @@ public class SecurityRestFilterTests extends ESTestCase {
         channel = mock(RestChannel.class);
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
-        secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService, new AuditTrailService(null, null));
+        secondaryAuditTrail = mock(AuditTrail.class);
+        primaryAuditTrail = mock(AuditTrail.class);
+        secondaryAuthenticator = new SecondaryAuthenticator(
+            Settings.EMPTY,
+            threadContext,
+            authcService,
+            new AuditTrailService(secondaryAuditTrail, TestUtils.newTestLicenseState())
+        );
         filter = getFilter(NOOP_OPERATOR_PRIVILEGES_SERVICE);
     }
 
     private SecurityRestFilter getFilter(OperatorPrivileges.OperatorPrivilegesService privilegesService) {
-        return new SecurityRestFilter(true, threadContext, secondaryAuthenticator, new AuditTrailService(null, null), privilegesService);
+        return new SecurityRestFilter(
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            new AuditTrailService(primaryAuditTrail, TestUtils.newTestLicenseState()),
+            privilegesService
+        );
     }
 
     public void testProcess() throws Exception {

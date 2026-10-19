@@ -334,14 +334,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     }
 
     private AuditTrailService enabledAuditTrailService(AuditTrail auditTrail) {
-        final ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(
-                Settings.builder().put(XPackSettings.AUDIT_ENABLED.getKey(), true).build(),
-                Set.of(XPackSettings.AUDIT_ENABLED)
-            )
-        );
-        return new AuditTrailService(auditTrail, TestUtils.newTestLicenseState(), clusterService);
+        return new AuditTrailService(auditTrail, TestUtils.newTestLicenseState());
     }
 
     private SecondaryAuthentication assertAuthenticateWithBasicAuthentication(Consumer<ActionListener<SecondaryAuthentication>> consumer)

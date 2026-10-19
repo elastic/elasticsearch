@@ -479,7 +479,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private final CompoundTranslog translog;
         private final BlobTranslogFileImpl translogFile;
-        private final RefCounted bytesToClose;
+        private final RefCounted uploadRefs;
         private final AtomicInteger uploadTryNumber = new AtomicInteger(0);
         private static final long UNSET = -1L;
         private long firstAttemptStartMillis = UNSET;
@@ -501,10 +501,15 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             );
             this.translog = translog;
             this.translogFile = new BlobTranslogFileImpl(translog.metadata());
-            this.bytesToClose = new AbstractRefCounted() {
+            // Increment the ref of the translog file to prevent the following scenario: we end up with 2 uploads (one due to hedge),
+            // one upload goes through, then we end up GCing the translog file, and afterwards the second upload also goes through.
+            // In such a scenario we end up with a non-GCed translog file.
+            this.translogFile.incRef();
+            this.uploadRefs = new AbstractRefCounted() {
                 @Override
                 protected void closeInternal() {
-                    translog.bytes().close();
+                    // also retain the bytes to ensure that a cancel call does not corrupt them before upload
+                    Releasables.close(translog.bytes(), translogFile::decRef);
                 }
             };
         }
@@ -524,7 +529,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         // is called, `hedgeTimer` is canceled and hence the hedge upload is never fired.
         private void hedge(ActionListener<UploadTranslogTask> listener) {
             translogUploadHedgesCounter.increment();
-            if (completed || bytesToClose.tryIncRef() == false) {
+            if (completed || uploadRefs.tryIncRef() == false) {
                 return;
             }
 
@@ -537,7 +542,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                         unused -> uploaded(true, listener),
                         e -> logger.info(() -> format("failed hedged upload of translog file [%s]", translog.metadata().name()), e)
                     ),
-                    bytesToClose::decRef
+                    uploadRefs::decRef
                 )
             );
         }
@@ -550,8 +555,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 // we have not yet uploaded the translog
                 hedgeTimer = threadPool.schedule(() -> hedge(listener), uploadHedgeDelay, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }
-            // Retain the bytes to ensure that a cancel call does not corrupt them before upload
-            if (bytesToClose.tryIncRef()) {
+            if (uploadRefs.tryIncRef()) {
                 logger.trace(() -> format("attempt [%s] to upload translog file [%s]", uploadTryNumber, translog.metadata().name()));
                 objectStoreService.uploadTranslogFile(
                     translog.metadata().name(),
@@ -573,7 +577,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                         }
                         listener.onFailure(e);
 
-                    }), bytesToClose::decRef)
+                    }), uploadRefs::decRef)
                 );
             } else {
                 listener.onFailure(new ElasticsearchException("Cannot acquire upload lock."));
@@ -597,7 +601,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             if (hedgeTimer != null) {
                 hedgeTimer.cancel();
             }
-            bytesToClose.decRef();
+            uploadRefs.decRef();
             super.onFinished();
         }
 

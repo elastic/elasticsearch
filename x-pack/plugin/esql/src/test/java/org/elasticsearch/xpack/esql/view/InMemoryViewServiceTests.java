@@ -730,6 +730,24 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         ParsingException loadAll = expectThrows(ParsingException.class, () -> parse("SET unmapped_fields=\"LOAD_ALL\"; FROM idx", "v"));
         assertThat(loadAll.getMessage(), containsString("not supported in views"));
+        assertErrorAt(loadAll, 1, 1);
+
+        // The error points at the offending SET statement, also when it is not the first one.
+        ParsingException secondSet = expectThrows(
+            ParsingException.class,
+            () -> parse("SET wildcards_match_views=true; SET unmapped_fields=\"LOAD_ALL\"; FROM idx", "v")
+        );
+        assertThat(secondSet.getMessage(), containsString("not supported in views"));
+        assertErrorAt(secondSet, 1, 33);
+        assertErrorAt(rejected, 1, 1);
+
+        // Allowed settings still get the normal value validation.
+        ParsingException bogusMode = expectThrows(ParsingException.class, () -> parse("SET unmapped_fields=\"bogus\"; FROM idx", "v"));
+        assertThat(bogusMode.getMessage(), containsString("Error validating setting [unmapped_fields]"));
+        assertErrorAt(bogusMode, 1, 1);
+        ParsingException notBoolean = expectThrows(ParsingException.class, () -> parse("SET wildcards_match_views=\"yes\"; FROM idx", "v"));
+        assertThat(notBoolean.getMessage(), containsString("Setting [wildcards_match_views] must be of type"));
+        assertErrorAt(notBoolean, 1, 1);
 
         parse("SET unmapped_fields=\"load\"; FROM idx", "v");
         parse("SET unmapped_fields=\"nullify\"; FROM idx", "v");
@@ -3399,6 +3417,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         if (err.get() != null) {
             throw new RuntimeException(err.get());
         }
+    }
+
+    private static void assertErrorAt(ParsingException e, int line, int column) {
+        assertThat(e.getMessage(), e.getLineNumber(), equalTo(line));
+        assertThat(e.getMessage(), e.getColumnNumber(), equalTo(column));
     }
 
     private EsqlStatement parse(String query, String viewName) {

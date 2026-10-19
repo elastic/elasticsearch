@@ -505,6 +505,10 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             SET unmapped_fields="nullify";
             FROM view_source | KEEP id, extra
             """));
+        // The view's nullify applies on its own, with no caller SET to keep its view branch.
+        try (var resp = run("FROM null_view | SORT id")) {
+            assertThat(getValuesList(resp), equalTo(List.of(Arrays.asList(1, null), Arrays.asList(2, null))));
+        }
         try (var resp = run("""
             SET unmapped_fields="load";
             FROM null_view | SORT id
@@ -566,6 +570,37 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
                 containsString("Cannot use field [foo] due to ambiguities"),
                 () -> run(query).close()
             );
+        }
+    }
+
+    /**
+     * Loading a subfield of a flattened field is rejected under {@code load}, and a view that SETs {@code load} must reject it
+     * the same way when the caller set nothing. {@code foo} is flattened in {@code flat_a}; {@code foo.bar} is a keyword in
+     * {@code flat_b}, so {@code foo} is type-conflicted over both; {@code flat_c} maps neither, so over {@code flat_a, flat_c}
+     * {@code foo} is flattened in only one index.
+     */
+    public void testLoadSetInsideViewRejectsFlattenedSubfield() {
+        assertAcked(indicesAdmin().prepareCreate("flat_a").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}, "foo": {"type": "flattened"}}}
+            """));
+        assertAcked(indicesAdmin().prepareCreate("flat_b").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}, "foo.bar": {"type": "keyword"}}}
+            """));
+        assertAcked(indicesAdmin().prepareCreate("flat_c").setMapping("""
+            {"dynamic": false, "properties": {"id": {"type": "integer"}}}
+            """));
+        List<List<String>> cases = List.of(
+            List.of("FROM flat_a | KEEP foo.a", "Loading subfield [foo.a] when parent [foo]"),
+            List.of("FROM flat_a, flat_b | WHERE foo.bar == \"x\"", "Loading subfield [foo.bar] when parent [foo]"),
+            List.of("FROM flat_a, flat_c | KEEP foo.a", "Loading subfield [foo.a] when parent [foo]")
+        );
+        for (int i = 0; i < cases.size(); i++) {
+            String body = cases.get(i).get(0);
+            String error = cases.get(i).get(1) + " is of flattened field type is not supported with unmapped_fields=\"load\"";
+            String viewName = "flat_view_" + i;
+            expectThrows(VerificationException.class, containsString(error), () -> run("SET unmapped_fields=\"load\"; " + body).close());
+            assertAcked(createView(viewName, "SET unmapped_fields=\"load\"; " + body));
+            expectThrows(VerificationException.class, containsString(error), () -> run("FROM " + viewName).close());
         }
     }
 

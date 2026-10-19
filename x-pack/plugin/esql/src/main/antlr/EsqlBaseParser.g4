@@ -84,7 +84,7 @@ processingCommand
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
-    | {this.isDevVersion()}? intoCommand
+    | {EsqlCapabilities.Cap.INTO_COMMAND.isEnabled()}? intoCommand
     ;
 
 whereCommand
@@ -406,7 +406,15 @@ dedupCommand
     ;
 
 intoCommand
-    : DEV_INTO indexPattern
+    : DEV_INTO indexPattern intoCommandOptions?
+    ;
+
+intoCommandOptions
+    : intoCommandOption (COMMA intoCommandOption)*
+    ;
+
+intoCommandOption
+    : name=UNQUOTED_SOURCE ASSIGN value=(UNQUOTED_SOURCE | QUOTED_STRING)
     ;
 
 highlightCommand

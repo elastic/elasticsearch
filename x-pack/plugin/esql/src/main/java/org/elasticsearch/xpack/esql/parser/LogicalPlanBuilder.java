@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -175,6 +176,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (p instanceof Explain explain && explain.query().anyMatch(logicalPlan -> logicalPlan instanceof Explain)) {
             // TODO this one is never reached because the Parser fails to understand multiple round brackets
             throw new ParsingException(source(ctx), "EXPLAIN cannot be used inside another EXPLAIN command");
+        }
+        // INTO ends a query, so it may only be the root of the statement: not followed by another command, and not
+        // inside a subquery, a FORK branch or a view, whose plans are also built here.
+        if ((p instanceof Into into ? into.child() : p).anyMatch(logicalPlan -> logicalPlan instanceof Into)) {
+            throw new ParsingException(source(ctx), "INTO must be the last command of the query");
+        }
+        if (p instanceof Explain explain && explain.query().anyMatch(logicalPlan -> logicalPlan instanceof Into)) {
+            throw new ParsingException(source(ctx), "EXPLAIN does not support INTO");
         }
         var errors = this.context.params().parsingErrors();
         if (errors.hasNext() == false) {
@@ -456,6 +465,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (PlanFactory processingCommand : processingCommands) {
             plan = processingCommand.apply(plan);
         }
+        // A subquery is held by its relation rather than as a child, so a misplaced INTO is caught here.
+        if (plan.anyMatch(logicalPlan -> logicalPlan instanceof Into)) {
+            throw new ParsingException(source(ctx), "INTO must be the last command of the query");
+        }
         return plan;
     }
 
@@ -540,9 +553,49 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitIntoCommand(EsqlBaseParser.IntoCommandContext ctx) {
+        if (false == EsqlCapabilities.Cap.INTO_COMMAND.isEnabled()) {
+            // Unreachable while the grammar predicate holds; kept so a prepared statement cannot slip past the flag.
+            throw new ParsingException(source(ctx), "INTO is not enabled; it is behind the [esql_into] feature flag");
+        }
         Source source = source(ctx);
-        String destination = ctx.indexPattern().getText();
-        return input -> new Into(source, input, destination);
+        String destination = visitIndexPattern(List.of(ctx.indexPattern()));
+        if (destination.contains(WILDCARD)) {
+            throw new ParsingException(source(ctx.indexPattern()), "invalid index pattern [{}], * is not allowed in INTO", destination);
+        }
+        if (RemoteClusterAware.splitIndexName(destination).clusterAlias() != null) {
+            throw new ParsingException(
+                source(ctx.indexPattern()),
+                "invalid index pattern [{}], remote clusters are not supported with INTO",
+                destination
+            );
+        }
+        if (destination.contains(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR)) {
+            throw new ParsingException(
+                source(ctx.indexPattern()),
+                "invalid index pattern [{}], index pattern selectors are not supported in INTO",
+                destination
+            );
+        }
+        IntoOptions options = IntoOptions.DEFAULT;
+        if (ctx.intoCommandOptions() != null) {
+            Set<String> seen = new HashSet<>();
+            for (EsqlBaseParser.IntoCommandOptionContext option : ctx.intoCommandOptions().intoCommandOption()) {
+                String name = option.name.getText().toLowerCase(Locale.ROOT);
+                if (seen.add(name) == false) {
+                    throw new ParsingException(source(option), "duplicate option [{}] for INTO", name);
+                }
+                String value = option.value.getType() == EsqlBaseParser.QUOTED_STRING
+                    ? unquote(option.value.getText())
+                    : option.value.getText();
+                try {
+                    options = options.with(name, value);
+                } catch (IllegalArgumentException e) {
+                    throw new ParsingException(source(option), e.getMessage());
+                }
+            }
+        }
+        IntoOptions finalOptions = options;
+        return input -> new Into(source, input, destination, finalOptions);
     }
 
     @Override

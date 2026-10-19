@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -58,7 +59,10 @@ public class IntoScaleIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void onlyWhenAsked() throws IOException {
-        assumeTrue("scale probes are opt-in: -Dtests.into.scale=true", Boolean.getBoolean("tests.into.scale"));
+        assumeTrue(
+            "scale probes are opt-in: -Dtests.into.scale=true",
+            Booleans.parseBoolean(System.getProperty("tests.into.scale", "false"))
+        );
         createStream(SOURCE, """
             {
               "properties": {

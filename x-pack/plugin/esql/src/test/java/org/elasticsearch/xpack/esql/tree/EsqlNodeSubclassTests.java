@@ -17,6 +17,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.InsertEmptyBucketsOperator.DefaultValue;
+import org.elasticsearch.compute.operator.IsBlockedResult;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.PageConsumer;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -64,6 +67,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunc
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -480,6 +484,34 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return makeArg(toBuildClass, wt.getUpperBounds()[0]);
         }
         Class<?> argClass = (Class<?>) argType;
+
+        if (argClass == IntoOptions.class) {
+            // A record, so it cannot be mocked; any combination of its values is a valid one.
+            return new IntoOptions(randomFrom(IntoOptions.Collisions.values()), randomBoolean(), randomBoolean(), randomBoolean());
+        }
+        if (argClass == PageConsumer.class) {
+            // Like OutputExec's consumer: a fresh instance each time, so identity equality tells them apart.
+            return new PageConsumer() {
+                @Override
+                public void accept(Page page) {}
+
+                @Override
+                public IsBlockedResult isBlocked() {
+                    return Operator.NOT_BLOCKED;
+                }
+
+                @Override
+                public void finish() {}
+
+                @Override
+                public boolean isFinished() {
+                    return true;
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
 
         /*
          * Sometimes all of the required type information isn't in the ctor

@@ -19,6 +19,13 @@ import java.util.function.Consumer;
 public interface PageConsumer extends Consumer<Page>, Releasable {
 
     /**
+     * Called with the context of the driver that will hand over the pages, before any page is. A consumer whose work
+     * outlives a page can register it with {@link DriverContext#addAsyncAction()} so the driver waits for it, whether
+     * the query completes or is cancelled.
+     */
+    default void bind(DriverContext driverContext) {}
+
+    /**
      * Whether the driver should wait before handing over another page, and a listener that completes when it may
      * continue. Returning {@link Operator#NOT_BLOCKED} means carry on.
      */

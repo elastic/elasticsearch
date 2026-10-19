@@ -47,6 +47,9 @@ public class OutputOperator extends SinkOperator {
                 return new OutputOperator(columns, mapper, collectedPages::add);
             } else {
                 // Normal execution path: use the provided pageConsumer
+                if (pageConsumer instanceof PageConsumer consumer) {
+                    consumer.bind(driverContext);
+                }
                 return new OutputOperator(columns, mapper, pageConsumer);
             }
         }
@@ -83,9 +86,13 @@ public class OutputOperator extends SinkOperator {
         }
     }
 
+    /**
+     * The driver hands a page over whenever this is true, and only asks {@link #isBlocked()} once nothing moved, so a
+     * {@link PageConsumer} that is falling behind has to say so here as well.
+     */
     @Override
     public boolean needsInput() {
-        return finished == false;
+        return finished == false && isBlocked().listener().isDone();
     }
 
     /** A {@link PageConsumer} that is falling behind parks the driver rather than being handed more pages. */

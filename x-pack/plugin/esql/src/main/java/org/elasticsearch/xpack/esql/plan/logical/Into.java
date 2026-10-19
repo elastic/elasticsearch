@@ -7,9 +7,12 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
 
 import java.io.IOException;
 import java.util.List;
@@ -19,25 +22,33 @@ import java.util.Objects;
  * Names the destination a query's rows are written to, as in {@code FROM source | ... | INTO destination}. Such a
  * query returns how many rows it wrote rather than the rows.
  * <p>
- * Resolved and written on the coordinator, so it is never serialized and not registered with the
+ * Always the root of the query it ends. The session takes it off right after parsing and runs the child as the
+ * query, so it is never analyzed, optimized or serialized, and is not registered with the
  * {@code NamedWriteableRegistry}.
  */
-public class Into extends UnaryPlan {
+public class Into extends UnaryPlan implements TelemetryAware {
 
     private final String destination;
+    private final IntoOptions options;
 
-    public Into(Source source, LogicalPlan child, String destination) {
+    public Into(Source source, LogicalPlan child, String destination, IntoOptions options) {
         super(source, child);
         this.destination = Objects.requireNonNull(destination);
+        this.options = Objects.requireNonNull(options);
     }
 
     public String destination() {
         return destination;
     }
 
+    public IntoOptions options() {
+        return options;
+    }
+
     /**
      * Refuses a query whose rows are sorted without a limit. The order rows are written in is not something the
-     * destination keeps, and sorting them all would mean holding the whole result.
+     * destination keeps, and since an {@code INTO} query is not capped by the implicit result limit, sorting would
+     * mean holding the whole result.
      */
     public static void verifyProducer(LogicalPlan producer, String destination) {
         refuseUnlimitedSort(producer, false, destination);
@@ -45,8 +56,9 @@ public class Into extends UnaryPlan {
 
     private static void refuseUnlimitedSort(LogicalPlan plan, boolean limited, String destination) {
         if (plan instanceof OrderBy && limited == false) {
-            throw new IllegalArgumentException(
-                "[" + destination + "]: SORT has no effect on what INTO writes; remove it, or add an explicit LIMIT"
+            throw new VerificationException(
+                "[{}]: SORT has no effect on what INTO writes; remove it, or add an explicit LIMIT",
+                destination
             );
         }
         final boolean limitedBelow = limited || plan instanceof Limit;
@@ -67,12 +79,12 @@ public class Into extends UnaryPlan {
 
     @Override
     public Into replaceChild(LogicalPlan newChild) {
-        return new Into(source(), newChild, destination);
+        return new Into(source(), newChild, destination, options);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Into::new, child(), destination);
+        return NodeInfo.create(this, Into::new, child(), destination, options);
     }
 
     @Override
@@ -87,7 +99,7 @@ public class Into extends UnaryPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), destination);
+        return Objects.hash(child(), destination, options);
     }
 
     @Override
@@ -99,6 +111,6 @@ public class Into extends UnaryPlan {
             return false;
         }
         Into other = (Into) obj;
-        return Objects.equals(child(), other.child()) && Objects.equals(destination, other.destination);
+        return Objects.equals(child(), other.child()) && destination.equals(other.destination) && options.equals(other.options);
     }
 }

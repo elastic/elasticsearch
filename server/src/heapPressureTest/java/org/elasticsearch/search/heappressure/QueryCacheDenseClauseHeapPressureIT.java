@@ -32,9 +32,6 @@ import java.util.stream.IntStream;
  * {@code CLAUSES} such clauses holds {@code CLAUSES} bitsets at once while its disjunction is built, and concurrent searches over
  * the same segment each build their own. Neither the request breaker nor the cache size limit sees any of it, so a few overlapping
  * searches exhaust a small heap.
- *
- * <p>The segment is merged to one so that its size is the shard's, and {@code index.queries.cache.everything} admits every clause on
- * first use, in place of the repeated use that admits them in production.
  */
 public class QueryCacheDenseClauseHeapPressureIT extends HeapPressureTestCase {
 

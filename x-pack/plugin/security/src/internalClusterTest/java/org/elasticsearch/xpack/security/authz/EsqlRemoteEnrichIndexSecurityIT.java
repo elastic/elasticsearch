@@ -179,10 +179,12 @@ public class EsqlRemoteEnrichIndexSecurityIT extends AbstractMultiClustersTestCa
     }
 
     public void testRemotePlanTargetingEnrichIndexWithoutPolicyIsRejected() {
-        assertTamperedLookupRejected(".enrich-unknown-1700000000000");
+        String index = ".enrich-unknown-1700000000000";
+        ElasticsearchSecurityException e = assertTamperedLookupRejected(index);
+        assertThat(e.getMessage(), containsString("enrich lookup on index [" + index + "] is not allowed"));
     }
 
-    private void assertTamperedLookupRejected(String index) {
+    private ElasticsearchSecurityException assertTamperedLookupRejected(String index) {
         AtomicInteger rewrittenRequests = RemoteEnrichIndexRewriter.rewriteRemoteEnrichIndex(
             cluster(LOCAL_CLUSTER).getInstances(TransportService.class),
             REMOTE_CLUSTER,
@@ -201,6 +203,7 @@ public class EsqlRemoteEnrichIndexSecurityIT extends AbstractMultiClustersTestCa
         assertThat(securityException, notNullValue());
         assertThat(securityException.status(), equalTo(RestStatus.FORBIDDEN));
         assertThat(securityException.getMessage(), containsString("[" + index + "]"));
+        return securityException;
     }
 
     private EsqlQueryResponse runQueryAsTestUser() {

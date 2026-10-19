@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 const SCRIPT = resolve(`${import.meta.dirname}/validate-prometheus-compliance.sh`);
 const CORPUS = "grafanalabs-top100";
 const JQ = execFileSync("sh", ["-c", "command -v jq"], { encoding: "utf8" }).trim();
-const VERSION = "0.9.7+prometheus-3.13.1";
+const VERSION = "0.10.0+prometheus-3.13.1";
 
 type Status = "match" | "mismatch" | "error" | "error4xx" | "error5xx" | "flaky" | "filtered";
 type Case = [id: string, status: Status, expr: string];
@@ -227,7 +227,7 @@ esac
     expect(r.output).toContain('"flaky":1');
   });
 
-  test("the binary gets the checkout, the timeout in seconds, JSONL output, and the remote build cache", () => {
+  test("the binary gets the checkout, the timeout in seconds, JSONL output, concurrency, and the remote build cache", () => {
     const r = run(STABLE, STABLE);
     expect(r.status).toBe(0);
     const lines = r.args.trim().split("\n");
@@ -236,6 +236,7 @@ esac
       expect(args).toContain("--elasticsearch ");
       expect(args).toContain("--elasticsearch-timeout 900s");
       expect(args).toContain("--output json");
+      expect(args).toContain("--concurrency 8 --");
       expect(args).toMatch(
         / -- --build-cache --scan -I \S+\/\.ci\/init\.gradle -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/$/,
       );

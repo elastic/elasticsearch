@@ -56,6 +56,9 @@ configure() {
   # Changed queries listed per section; the full list is the changes artifact.
   declare -gr MAX_ROWS=50
   declare -gr MAX_QUERY_CHARS=200
+  # Cases in flight at once, one per vCPU of the agent. Results are the same as a sequential run; only the query
+  # phase gets shorter.
+  declare -gr PROMCHECK_CONCURRENCY=8
   # The Prometheus plugin and the plugins it extends, transitively, plus the modules its data stream templates and
   # the test cluster settings need. Any missing one fails the node on boot.
   local -a promql_modules=(
@@ -188,6 +191,7 @@ run_promcheck() {
     --elasticsearch "$workspace" \
     --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
     --output json \
+    --concurrency "$PROMCHECK_CONCURRENCY" \
     -- "${gradle_args[@]}" \
     < "$BUNDLE" 2> "$fifo" | tee -- "$log_file"
   statuses=("${PIPESTATUS[@]}")

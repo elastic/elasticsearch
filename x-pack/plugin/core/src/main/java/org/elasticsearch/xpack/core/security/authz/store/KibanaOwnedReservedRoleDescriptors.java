@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivileg
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
@@ -96,6 +98,12 @@ class KibanaOwnedReservedRoleDescriptors {
                 ActivateProfileAction.NAME,
                 SuggestProfilesAction.NAME,
                 ProfileHasPrivilegesAction.NAME,
+                // To show the service account a workload runs as to users who can see the workload but cannot read
+                // security. Read-only actions are named individually because "read_security" also covers users, roles,
+                // API keys and service account tokens, and "manage_service_account" also covers creating and deleting
+                // tokens.
+                QueryServiceAccountAction.NAME,
+                GetServiceAccountAction.NAME,
                 "write_fleet_secrets",
                 // To facilitate ML UI functionality being controlled using Kibana security
                 // privileges
@@ -781,6 +789,11 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".ai-index-idx-elastic-index", ".ai-index-idx-elastic-index-*")
                     .privileges("all")
+                    .build(),
+                // Context Engine AI index backing stores, read by the Kibana usage collector.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("ai-index-idx-*", "ai-index-ds-*", ".ai-index-idx-*", ".ai-index-ds-*")
+                    .privileges("read")
                     .build(),
                 // Context Engine feedback-loop signals. Per-space, regular (non-system)
                 // user indices that Kibana creates and manages via the storage adapter

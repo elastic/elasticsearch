@@ -15,7 +15,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -386,7 +386,7 @@ final class DynamicFieldsBuilder {
 
         @Override
         public boolean newDynamicBinaryField(DocumentParserContext context, String name) throws IOException {
-            return createDynamicField(new BinaryFieldMapper.Builder(name, SourceFieldMapper.isSynthetic(context.indexSettings())), context);
+            return createDynamicField(new BinaryFieldMapper.Builder(name, context.indexSettings()), context);
         }
     }
 
@@ -450,8 +450,7 @@ final class DynamicFieldsBuilder {
     private static final class FlattenedSink implements Strategy {
 
         private static boolean sink(DocumentParserContext context, String name) throws IOException {
-            FlattenedFieldMapper sink = (FlattenedFieldMapper) context.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
-            sink.indexValueAtPath(context, context.path().pathAsText(name));
+            UnmappedSinkFieldMapper.absorb(context, name);
             return true;
         }
 

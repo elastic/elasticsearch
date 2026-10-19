@@ -46,8 +46,8 @@ as they do for
 
 A view that starts with [`TS`](/reference/query-languages/esql/commands/ts.md)
 must also contain a `STATS` command after it. A view without `STATS` is
-rejected when you create it. This avoids spilling time-series semantics
-outside the view definition. `PROMQL` views are not affected.
+rejected when you create or update it. This ensures the view returns plain
+tabular results. A `PROMQL` view must also use an aggregation function.
 
 #### Known issues (tech preview)
 

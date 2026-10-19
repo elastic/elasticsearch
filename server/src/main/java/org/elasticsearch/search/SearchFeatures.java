@@ -120,6 +120,14 @@ public final class SearchFeatures implements FeatureSpecification {
      * mixed BWC clusters that still contain pre-9.6 nodes.
      */
     public static final NodeFeature OPEN_POINT_IN_TIME_SLICE = new NodeFeature("search.point_in_time_slice");
+    /**
+     * Test-only gate for REST tests asserting that a kNN query inside a {@code nested} query applies a filtered alias
+     * to root documents. Older nodes built the alias filter in the kNN query's nested scope, so it failed to match if the alias filter
+     * used a nested query.
+     */
+    public static final NodeFeature KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE = new NodeFeature(
+        "search.vectors.knn_nested_alias_filter_root_scope"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -159,7 +167,8 @@ public final class SearchFeatures implements FeatureSpecification {
                 NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING,
                 NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX,
                 COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
-                COLUMNAR_DEFAULT_FIELD_LENIENCY
+                COLUMNAR_DEFAULT_FIELD_LENIENCY,
+                KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

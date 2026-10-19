@@ -3737,9 +3737,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 } else {
                     filter = filterBySlice(filter, context.sliceFilter());
                 }
-            } else if (context != null && context.sliceSelection().isRestricted()) {
-                // an index without slices holds no document of the selected slices
-                return new MatchNoDocsQuery("index of field [" + name() + "] has no slices");
             }
             return switch (resolved) {
                 case ResolvedVector.Floats(float[] vector, boolean denormalize) -> createKnnFloatQuery(

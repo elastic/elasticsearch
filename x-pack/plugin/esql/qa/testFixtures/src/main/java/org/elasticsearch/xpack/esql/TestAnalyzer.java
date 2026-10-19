@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.analysis.PlanSize;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
@@ -677,18 +679,20 @@ public class TestAnalyzer {
             // No views to expand, resolve and validate IN subqueries directly
             return InSubqueryResolver.resolve(plan);
         }
-        LogicalPlan resolved = resolveViews(plan);
+        PlanSize planSize = new PlanSize(0, Integer.MAX_VALUE);
+        LogicalPlan resolved = resolveViews(plan, planSize);
         InSubqueryResolver.verify(resolved);
         return resolved;
     }
 
     // This most primitive view resolution only works for the simple cases being tested
-    private LogicalPlan resolveViews(LogicalPlan parsed) {
+    private LogicalPlan resolveViews(LogicalPlan parsed, PlanSize planSize) {
         // Mirror ViewBoundaryPreservation.KEEP_VIEW_IDENTITY, which EsqlSession picks whenever the query settings require it.
         return resolveViews(
             parsed,
             resolveViews(views),
-            ViewBoundaryPreservation.settingsRequireViewIdentity(unmappedResolution, wildcardsMatchDatasets)
+            ViewBoundaryPreservation.settingsRequireViewIdentity(unmappedResolution, wildcardsMatchDatasets),
+            planSize
         );
     }
 
@@ -699,28 +703,33 @@ public class TestAnalyzer {
      *                         like {@code ViewResolver} does at the top level of a query under
      *                         {@code ViewBoundaryPreservation.KEEP_VIEW_IDENTITY}; never inside a view body
      */
-    private LogicalPlan resolveViews(LogicalPlan parsed, Map<String, LogicalPlan> viewDefinitions, boolean keepViewIdentity) {
+    private LogicalPlan resolveViews(
+        LogicalPlan parsed,
+        Map<String, LogicalPlan> viewDefinitions,
+        boolean keepViewIdentity,
+        PlanSize planSize
+    ) {
         return parsed.transformDown(p -> {
             if (p instanceof Filter filter) {
-                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter, planSize);
                 // If an IN subquery was rewritten to a Semi/Anti/MarkJoin, recurse so views nested inside the now-exposed subquery
                 // plans (and any IN subqueries those views in turn contain) get resolved too.
-                return resolved == filter ? filter : resolveViews(resolved, viewDefinitions, keepViewIdentity);
+                return resolved == filter ? filter : resolveViews(resolved, viewDefinitions, keepViewIdentity, planSize);
             }
             if (p instanceof Eval eval) {
-                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval);
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval, planSize);
                 // EVAL IN subqueries become MarkJoins; recurse so views in their now-exposed subquery plans are resolved too.
-                return resolved == eval ? eval : resolveViews(resolved, viewDefinitions, keepViewIdentity);
+                return resolved == eval ? eval : resolveViews(resolved, viewDefinitions, keepViewIdentity, planSize);
             }
             if (p instanceof Aggregate aggregate) {
-                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate, planSize);
                 // Recurse into rewritten joins so views referenced by the newly exposed subquery plans are expanded too.
-                return resolved == aggregate ? aggregate : resolveViews(resolved, viewDefinitions, keepViewIdentity);
+                return resolved == aggregate ? aggregate : resolveViews(resolved, viewDefinitions, keepViewIdentity, planSize);
             }
             if (p instanceof UnresolvedRelation ur) {
                 LogicalPlan resolved = resolveViewReference(ur, viewDefinitions, keepViewIdentity);
                 // Recurse into the expanded view body so IN subqueries / nested views anywhere in it (including its root) are resolved.
-                return resolved.equals(ur) ? ur : resolveViews(resolved, viewDefinitions, false);
+                return resolved.equals(ur) ? ur : resolveViews(resolved, viewDefinitions, false, planSize);
             }
             return p;
         });
@@ -797,7 +806,13 @@ public class TestAnalyzer {
             // names the view in errors on references inside its body.
             parsedViews.put(
                 entry.getKey(),
-                TEST_PARSER.parseView(entry.getValue(), new QueryParams(), new InferenceSettings(Settings.EMPTY), entry.getKey()).plan()
+                TEST_PARSER.parseView(
+                    entry.getValue(),
+                    new QueryParams(),
+                    new InferenceSettings(Settings.EMPTY),
+                    entry.getKey(),
+                    EsqlParser.DEFAULT_MAX_COMMAND_COUNT
+                ).plan()
             );
         }
         return parsedViews;

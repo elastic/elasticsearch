@@ -1651,6 +1651,11 @@ public class EsqlCapabilities {
         EVAL_IN_SUBQUERY,
 
         /**
+         * EVAL fields overwritten by an IN subquery are appended at the end of the output, matching ordinary EVAL shadowing.
+         */
+        EVAL_IN_SUBQUERY_OVERWRITE_APPENDED,
+
+        /**
          * Support IN non-correlated subqueries inside the STATS command's per-aggregate WHERE filter, e.g.
          * {@code STATS c = COUNT(*) WHERE id IN (FROM other | KEEP id) BY dept}, including filters that wrap the IN subquery in
          * {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL}. INLINE STATS remains unsupported.
@@ -3752,6 +3757,14 @@ public class EsqlCapabilities {
          * the column of unmapped fields, and a warning says so.
          */
         OPTIONAL_FIELDS_LOAD_ALL_NAME_COLLISION_WARNING,
+
+        /**
+         * {@code unmapped_fields="LOAD_ALL"} may be used with views. A view is a boundary the setting does not reach into, as
+         * for {@code LOAD}: nothing is loaded from {@code _source} inside a view body, so the view's {@code _unmapped_fields}
+         * and the unmapped fields it does not output are null. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is
+         * available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_VIEWS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

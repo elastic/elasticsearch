@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.analysis.PlanSize;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.Federation;
@@ -51,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -103,6 +106,11 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
  *  {@code ViewResolver} and {@code InSubqueryResolver} to do the view and IN subquery resolution respectively.
  */
 public class ViewResolver {
+
+    /**
+     * Maximum number of planning nodes the query may have while views are expanded.
+     */
+    public static final int DEFAULT_MAX_PLAN_NODES_COUNT = QueryPragmas.MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
 
     protected Logger log = LogManager.getLogger(getClass());
     private final Executor executor;
@@ -190,6 +198,28 @@ public class ViewResolver {
         IndexViewOrigins indexViewOrigins
     ) {}
 
+    // Only for testing, it passes a default value for maxPlanNodesCount
+    public void replaceViews(
+        LogicalPlan plan,
+        String projectRouting,
+        boolean wildcardsMatchViews,
+        boolean wildcardsMatchDatasets,
+        BiFunction<String, String, LogicalPlan> parser,
+        ViewBoundaryPreservation boundaryPreservation,
+        ActionListener<ViewResolutionResult> listener
+    ) {
+        replaceViews(
+            plan,
+            projectRouting,
+            wildcardsMatchViews,
+            wildcardsMatchDatasets,
+            parser,
+            boundaryPreservation,
+            DEFAULT_MAX_PLAN_NODES_COUNT,
+            listener
+        );
+    }
+
     /**
      * Entry point for view + IN subquery resolution; see the {@link ViewResolver} class documentation for the traversal model and the
      * node types it intercepts. Produces a {@link ViewResolutionResult} containing the rewritten (uncompacted) plan, the map of
@@ -222,6 +252,7 @@ public class ViewResolver {
         boolean wildcardsMatchDatasets,
         BiFunction<String, String, LogicalPlan> parser,
         ViewBoundaryPreservation boundaryPreservation,
+        int maxPlanNodesCount,
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
@@ -231,6 +262,8 @@ public class ViewResolver {
         // A Holder (not a plain boolean) because it is written from inside the async resolution callbacks; cross-thread visibility is
         // provided by the ActionListener plumbing, the same way the viewQueries map threaded through these callbacks is.
         Holder<Boolean> hasInSubquery = new Holder<>(false);
+        // Running total of plan nodes: starts with the unexpanded query and grows with every view body expanded into it.
+        PlanSize planSize = new PlanSize(PlanSize.countNodes(plan), maxPlanNodesCount);
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
         if (noViews && InSubqueryResolver.hasInSubquery(plan) == false) {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries, false, IndexViewOrigins.EMPTY));
@@ -254,6 +287,7 @@ public class ViewResolver {
             hasInSubquery,
             0,
             boundaryPreservation,
+            planSize,
             listener.delegateFailureAndWrap(
                 (l, rewritten) -> l.onResponse(
                     new ViewResolutionResult(rewritten, viewQueries, hasInSubquery.get(), indexViewOrigins.build())
@@ -274,6 +308,7 @@ public class ViewResolver {
         Holder<Boolean> hasInSubquery,
         int depth,
         ViewBoundaryPreservation boundaryPreservation,
+        PlanSize planSize,
         ActionListener<LogicalPlan> listener
     ) {
         LinkedHashSet<String> seenInner = new LinkedHashSet<>(seenViews);
@@ -309,6 +344,7 @@ public class ViewResolver {
                     hasInSubquery,
                     depth,
                     boundaryPreservation,
+                    planSize,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         result.forEachDown(resolvedPlans::add);
@@ -316,7 +352,7 @@ public class ViewResolver {
                     })
                 );
                 case Filter filter -> {
-                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
+                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter, planSize);
                     if (resolved == filter) {
                         // No InSubquery in this filter — let transformDown process its children normally.
                         planListener.onResponse(filter);
@@ -336,6 +372,7 @@ public class ViewResolver {
                             hasInSubquery,
                             depth,
                             boundaryPreservation,
+                            planSize,
                             planListener.delegateFailureAndWrap((l, result) -> {
                                 result.forEachDown(resolvedPlans::add);
                                 l.onResponse(result);
@@ -344,7 +381,7 @@ public class ViewResolver {
                     }
                 }
                 case Eval eval -> {
-                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval);
+                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval, planSize);
                     if (resolved == eval) {
                         // No InSubquery in this eval — let transformDown process its children normally.
                         planListener.onResponse(eval);
@@ -364,6 +401,7 @@ public class ViewResolver {
                             hasInSubquery,
                             depth,
                             boundaryPreservation,
+                            planSize,
                             planListener.delegateFailureAndWrap((l, result) -> {
                                 result.forEachDown(resolvedPlans::add);
                                 l.onResponse(result);
@@ -372,7 +410,7 @@ public class ViewResolver {
                     }
                 }
                 case Aggregate aggregate -> {
-                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
+                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate, planSize);
                     if (resolved == aggregate) {
                         // No InSubquery in the aggregate filters — let transformDown process its children normally.
                         planListener.onResponse(aggregate);
@@ -392,6 +430,7 @@ public class ViewResolver {
                             hasInSubquery,
                             depth,
                             boundaryPreservation,
+                            planSize,
                             planListener.delegateFailureAndWrap((l, result) -> {
                                 result.forEachDown(resolvedPlans::add);
                                 l.onResponse(result);
@@ -411,6 +450,7 @@ public class ViewResolver {
                     hasInSubquery,
                     depth,
                     boundaryPreservation,
+                    planSize,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
@@ -429,6 +469,7 @@ public class ViewResolver {
                     hasInSubquery,
                     depth,
                     boundaryPreservation,
+                    planSize,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         // Also mark the resolved result subtree so transformDown does not
@@ -454,6 +495,7 @@ public class ViewResolver {
         Holder<Boolean> hasInSubquery,
         int depth,
         ViewBoundaryPreservation boundaryPreservation,
+        PlanSize planSize,
         ActionListener<LogicalPlan> listener
     ) {
         var currentSubplans = mergePlan.children();
@@ -474,6 +516,7 @@ public class ViewResolver {
                     hasInSubquery,
                     depth + 1,
                     boundaryPreservation,
+                    planSize,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan.equals(subplan) == false) {
                             var updatedSubplansInner = updatedSubplans;
@@ -509,6 +552,7 @@ public class ViewResolver {
         Holder<Boolean> hasInSubquery,
         int depth,
         ViewBoundaryPreservation boundaryPreservation,
+        PlanSize planSize,
         ActionListener<LogicalPlan> listener
     ) {
         LogicalPlan origLeft = subqueryJoin.left();
@@ -526,6 +570,7 @@ public class ViewResolver {
                 hasInSubquery,
                 depth + 1,
                 boundaryPreservation,
+                planSize,
                 l.delegateFailureAndWrap((sl, newLeft) -> {
                     if (newLeft instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
                         newLeft = named;
@@ -547,6 +592,7 @@ public class ViewResolver {
                 hasInSubquery,
                 depth + 1,
                 boundaryPreservation,
+                planSize,
                 l.delegateFailureAndWrap((sl, newRight) -> {
                     if (newRight instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
                         newRight = named;
@@ -574,6 +620,7 @@ public class ViewResolver {
         Holder<Boolean> hasInSubquery,
         int depth,
         ViewBoundaryPreservation boundaryPreservation,
+        PlanSize planSize,
         ActionListener<LogicalPlan> listener
     ) {
         indexViewOrigins.record(unresolvedRelation.indexPattern().indexPattern(), seenViews);
@@ -701,14 +748,16 @@ public class ViewResolver {
                             }
                         }
                     }
+                    LogicalPlan viewBody = resolve(
+                        view,
+                        parser,
+                        viewQueries,
+                        MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields())
+                            || boundaryPreservation.keepsPassThroughIdentity()
+                    );
+                    planSize.add(PlanSize.countNodes(viewBody));
                     replaceViews(
-                        resolve(
-                            view,
-                            parser,
-                            viewQueries,
-                            MetadataAttribute.requestsRelationColumn(unresolvedRelation.metadataFields())
-                                || boundaryPreservation.keepsPassThroughIdentity()
-                        ),
+                        viewBody,
                         projectRouting,
                         // Resolving a view's *body*: wildcards inside it never match views or datasets, whatever
                         // the caller's wildcards_match_views/wildcards_match_datasets say. The SET's scope ends at the
@@ -731,6 +780,7 @@ public class ViewResolver {
                         // views included) already belongs to this view, and ResolveUnmapped skips this view's branch
                         // wholesale, nested views and all.
                         ViewBoundaryPreservation.NONE,
+                        planSize,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
                             resolvedViews.put(view.name(), viewPlan);

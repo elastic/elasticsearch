@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 
@@ -30,11 +31,12 @@ public class InMemoryViewResolver extends ViewResolver {
     protected IndexNameExpressionResolver indexNameExpressionResolver;
 
     public InMemoryViewResolver(
+        ThreadPool threadPool,
         ClusterService clusterService,
         Supplier<ViewMetadata> metadata,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
-        super(null, clusterService, DefaultProjectResolver.INSTANCE, null, crossProjectModeDecider);
+        super(threadPool, clusterService, DefaultProjectResolver.INSTANCE, null, crossProjectModeDecider);
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(
             new ThreadContext(Settings.EMPTY),
             EmptySystemIndices.INSTANCE,

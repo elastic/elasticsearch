@@ -7,7 +7,7 @@
 :::{include} brief-summary/predict_linear.md
 :::
 
-Requires at least two float samples and should be used with gauges. Native histogram samples are ignored. Negative and fractional prediction horizons are supported.
+Requires at least two float samples and should be used with gauges. Native histogram samples are ignored. Negative and fractional prediction horizons are supported. Duration literals retain millisecond precision: `500ms` is equivalent to `0.5` seconds.
 
 **Return type**
 

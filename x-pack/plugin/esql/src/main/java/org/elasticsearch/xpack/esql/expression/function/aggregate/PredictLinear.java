@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PredictLinearDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
@@ -44,8 +42,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 /** Forecasts each series at the evaluation time plus a horizon in seconds using ordinary least squares. */
 public class PredictLinear extends TimeSeriesAggregateFunction implements TimestampAware, ToAggregator, AnyNullIsNull {
-    public static final TransportVersion PREDICT_LINEAR = TransportVersion.fromName("esql_predict_linear");
-
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "PredictLinear",
@@ -69,7 +65,8 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements Timest
         .description("Predicts the value of each time series t seconds after the evaluation time using simple linear regression.")
         .extendedDescription(
             "Requires at least two float samples and should be used with gauges. Native histogram samples are ignored. "
-                + "Negative and fractional prediction horizons are supported."
+                + "Negative and fractional prediction horizons are supported. "
+                + "Duration literals retain millisecond precision: `500ms` is equivalent to `0.5` seconds."
         )
         .differenceFromPrometheus(
             "The prediction horizon must be a number, a duration literal, or arithmetic on literals. "
@@ -109,14 +106,6 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements Timest
         Expression window = readWindow(in);
         List<Expression> arguments = in.readNamedWriteableCollectionAsList(Expression.class);
         return new PredictLinear(source, field, arguments.get(0), filter, window, arguments.get(1));
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(PREDICT_LINEAR) == false) {
-            throw new UnsupportedOperationException("version does not support predict_linear");
-        }
-        super.writeTo(out);
     }
 
     @Override

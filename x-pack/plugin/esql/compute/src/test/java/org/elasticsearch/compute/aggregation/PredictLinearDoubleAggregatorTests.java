@@ -36,6 +36,11 @@ public class PredictLinearDoubleAggregatorTests extends ComputeTestCase {
         assertPrediction(new double[] { 0, 3, 0 }, new long[] { 0, 1000, 2000 }, 2000, 1, 1.0);
     }
 
+    public void testMillisecondTimestampsAndHorizon() {
+        // The line y = 1 + 2*t is evaluated at 2.125s plus a 500ms horizon.
+        assertPrediction(new double[] { 1.25, 2.25, 3.75 }, new long[] { 125, 625, 1375 }, 2125, 0.5, 6.25);
+    }
+
     public void testNonFiniteSamplesAndHorizon() {
         for (double nonFinite : new double[] { Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY }) {
             assertPrediction(new double[] { nonFinite, nonFinite }, new long[] { 0, 2000 }, 10_000, 3, Double.NaN);

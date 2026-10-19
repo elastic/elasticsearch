@@ -30,7 +30,13 @@ import java.util.function.Supplier;
 /**
  * A test plugin that makes query execution pausable. A runtime long field with {@code "lang": "pause"} blocks in its script while
  * paused, so a test can hold requests in flight, and everything they have already allocated, for as long as it needs. Pausing and
- * releasing is done with {@code POST /_pause_field/block} and {@code POST /_pause_field/unblock}.
+ * releasing is done with {@code POST /_pause_field/block} and {@code POST /_pause_field/unblock}, and {@code GET /_pause_field/status}
+ * reports how many threads are currently blocked.
+ *
+ * <p>{@code POST /_pause_field/stop} blocks like {@code block}, and also closes an admission gate: every query on the field then waits
+ * while it is being built, before the queries of the clauses that follow it are built, until {@code POST /_pause_field/admit} lets one
+ * of the waiting queries in. A test can so serialize expensive query construction across shards and requests. {@code unblock} removes
+ * the gate too.
  */
 public class PausableFieldPlugin extends Plugin implements ActionPlugin, ScriptPlugin {
 
@@ -65,17 +71,17 @@ public class PausableFieldPlugin extends Plugin implements ActionPlugin, ScriptP
                 Map<String, String> params
             ) {
                 if (context == LongFieldScript.CONTEXT) {
-                    return (FactoryType) (LongFieldScript.Factory) (
-                        fieldName,
-                        p,
-                        searchLookup,
-                        onScriptError) -> ctx -> new LongFieldScript(fieldName, p, searchLookup, onScriptError, ctx) {
+                    return (FactoryType) (LongFieldScript.Factory) (fieldName, p, searchLookup, onScriptError) -> {
+                        // Invoked while a query on the field is built, before the queries of later clauses are.
+                        PausableField.waitForAdmission();
+                        return ctx -> new LongFieldScript(fieldName, p, searchLookup, onScriptError, ctx) {
                             @Override
                             public void execute() {
                                 PausableField.waitForExecutionPermit();
                                 emit(1);
                             }
                         };
+                    };
                 }
                 throw new IllegalStateException("unsupported type " + context);
             }

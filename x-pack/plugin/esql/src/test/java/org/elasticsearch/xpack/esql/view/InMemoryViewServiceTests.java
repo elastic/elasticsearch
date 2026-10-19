@@ -77,6 +77,7 @@ import java.util.function.BiPredicate;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -240,7 +241,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("data-view-extra");
         addView("data-view-origin", "FROM data-index-origin");
         LogicalPlan plan = query("FROM match-nothing-*,-*-view-*,data-view-*");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM data-index-origin,-*-view-*,data-view-*")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM -*-view-*,data-view-*),(FROM data-index-origin)")));
     }
 
     /**
@@ -268,6 +269,22 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("data-view", "FROM index-b*,-*2");
         LogicalPlan plan = query("FROM index-a*,data-view");
         assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM index-a*),(FROM index-b*,-*2)")));
+    }
+
+    public void testOuterExclusionNotAppliedToViewBody() {
+        addIndex("view-index");
+        addIndex("test-index");
+        addView("test-view", "FROM view-index");
+        LogicalPlan plan = query("FROM test-*,-view-index");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM view-index),(FROM test-*,-view-index)")));
+    }
+
+    public void testOuterConcreteExclusionNotAppliedToViewBody() {
+        addIndex("emp1");
+        addIndex("emp2");
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM emp2,view1,-emp1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1),(FROM emp2,-emp1)")));
     }
 
     /**
@@ -463,7 +480,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("viewX");
         addView("view1", "FROM emp1");
         LogicalPlan plan = query("FROM view*, -donotexist");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,view*,-donotexist")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1),(FROM view*,-donotexist)")));
     }
 
     public void testFailureSelector() {
@@ -1122,10 +1139,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     public void testViewBodyUsingTsToReferenceAnotherViewIsRejected() {
         assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
         addView("inner_view", "FROM emp");
-        addView("outer_view", "TS inner_view");
-        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM outer_view")));
-        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
-        assertThat(e.getMessage(), containsString("inner_view"));
+        addView("outer_view", "TS inner_view | STATS max(emp_no)");
+        expectThrows(
+            VerificationException.class,
+            allOf(containsString("Views are not supported in TS command"), containsString("inner_view")),
+            () -> replaceViews(query("FROM outer_view"))
+        );
     }
 
     /**

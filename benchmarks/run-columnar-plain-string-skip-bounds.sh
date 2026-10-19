@@ -75,7 +75,7 @@ EOF
     cat <<EOF
 
 Selection:
-  --method NAME               run only ${BENCHMARK}.NAME
+  --method NAME               run only the benchmark method NAME of the ${BENCHMARK} classes
   --exclude REGEX             JMH -e, skip matching benchmarks
 
 JMH options:
@@ -194,7 +194,7 @@ elif [[ "${DRY_RUN}" == false && ! -d "${ROOT}/${LUCENE_MODULE_PATH}" ]]; then
 fi
 
 SELECTOR="${BENCHMARK}"
-[[ -n "${METHOD}" ]] && SELECTOR="${BENCHMARK}.${METHOD}"
+[[ -n "${METHOD}" ]] && SELECTOR="${BENCHMARK}.*[.]${METHOD}"
 
 ARGS=("${SELECTOR}")
 [[ -n "${EXCLUDE}" ]] && ARGS+=("-e" "${EXCLUDE}")

@@ -458,6 +458,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162240
 - class: org.elasticsearch.search.heappressure.FuzzyHighlightHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/149983
+- class: org.elasticsearch.painless.heappressure.PainlessFieldAllocationIT
+  issue: https://github.com/elastic/elasticsearch/issues/162575
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
   issue: https://github.com/elastic/elasticsearch/issues/162277

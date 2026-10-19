@@ -227,7 +227,7 @@ esac
     expect(r.output).toContain('"flaky":1');
   });
 
-  test("the binary gets the checkout, the timeout in seconds, and JSONL output", () => {
+  test("the binary gets the checkout, the timeout in seconds, JSONL output, and the remote build cache", () => {
     const r = run(STABLE, STABLE);
     expect(r.status).toBe(0);
     const lines = r.args.trim().split("\n");
@@ -236,6 +236,9 @@ esac
       expect(args).toContain("--elasticsearch ");
       expect(args).toContain("--elasticsearch-timeout 900s");
       expect(args).toContain("--output json");
+      expect(args).toMatch(
+        / -- --build-cache --scan -I \S+\/\.ci\/init\.gradle -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/$/,
+      );
     }
   });
 

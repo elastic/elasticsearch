@@ -141,6 +141,8 @@ download_asset() {
 
 # Runs promcheck against Elasticsearch built from the given checkout. promcheck exits 1 when queries fail, which
 # is a result; any other exit code means the run itself failed.
+# Arguments after -- go to promcheck's ./gradlew run. They pull task outputs from the remote build cache that main
+# CI pushes to, which is only configured by .ci/init.gradle, and publish a build scan for each run.
 run_promcheck() {
   local workspace="$1" log_file="$2"
   local stderr_log="${2%.log}.stderr.log" fifo="$WORK_DIR/promcheck-stderr.fifo"
@@ -152,7 +154,13 @@ run_promcheck() {
   NO_COLOR=1 "$PROMCHECK_BIN" \
     --elasticsearch "$workspace" \
     --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
-    --output json < "$BUNDLE" 2> "$fifo" | tee -- "$log_file"
+    --output json \
+    -- \
+    --build-cache \
+    --scan \
+    -I "$workspace/.ci/init.gradle" \
+    -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ \
+    < "$BUNDLE" 2> "$fifo" | tee -- "$log_file"
   statuses=("${PIPESTATUS[@]}")
   wait "$stderr_pid" || stderr_status=$?
   rm -f -- "$fifo"

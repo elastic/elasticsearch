@@ -52,7 +52,11 @@ public class DecisionResultsTests extends AbstractChunkedBWCSerializationTestCas
                                 "choice",
                                 "billing",
                                 "probabilities",
-                                Map.of("billing", 0.91, "shipping", 0.04, "other", 0.05),
+                                List.of(
+                                    Map.of("value", "billing", "probability", 0.91),
+                                    Map.of("value", "shipping", "probability", 0.04),
+                                    Map.of("value", "other", "probability", 0.05)
+                                ),
                                 "confidence",
                                 0.89
                             ),
@@ -89,11 +93,20 @@ public class DecisionResultsTests extends AbstractChunkedBWCSerializationTestCas
                   "team" : {
                     "type" : "choice",
                     "choice" : "billing",
-                    "probabilities" : {
-                      "billing" : 0.91,
-                      "shipping" : 0.04,
-                      "other" : 0.05
-                    },
+                    "probabilities" : [
+                      {
+                        "value" : "billing",
+                        "probability" : 0.91
+                      },
+                      {
+                        "value" : "shipping",
+                        "probability" : 0.04
+                      },
+                      {
+                        "value" : "other",
+                        "probability" : 0.05
+                      }
+                    ],
                     "confidence" : 0.89
                   },
                   "anger" : {

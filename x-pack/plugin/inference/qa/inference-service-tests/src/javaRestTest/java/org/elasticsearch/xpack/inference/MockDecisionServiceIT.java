@@ -75,7 +75,7 @@ public class MockDecisionServiceIT extends InferenceBaseRestTest {
         var team = (Map<String, Object>) answers.get("team");
         assertThat(team.get(DecisionResults.Answer.TYPE), is("choice"));
         assertThat(team.get(DecisionResults.Answer.CHOICE), is(in(List.of("billing", "shipping", "other"))));
-        assertThat((Map<String, Object>) team.get(DecisionResults.Answer.PROBABILITIES), aMapWithSize(3));
+        assertThat((List<Map<String, Object>>) team.get(DecisionResults.Answer.PROBABILITIES), hasSize(3));
         assertThat(team.get(DecisionResults.Answer.CONFIDENCE), notNullValue());
     }
 

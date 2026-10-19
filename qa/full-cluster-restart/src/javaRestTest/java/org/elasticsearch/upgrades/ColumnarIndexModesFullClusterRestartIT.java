@@ -17,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
@@ -55,6 +56,8 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
+        // Temporary: upgrade tests turn the flag off by default, but the codec has to be on for the upgraded cluster to write ColumNAR
+        .feature(FeatureFlag.COLUMNAR_CODEC)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")

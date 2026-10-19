@@ -19,12 +19,14 @@ setup:
           mappings:
             properties: {}
 
-  # Same index with one concrete field, for the tests that need a mapped field alongside the absorbed ones.
+  # Same index with one concrete field, for the tests that need a mapped field alongside the absorbed ones. A single shard so that a fetch-phase
+  # failure fails the whole search instead of returning partial results from the shards without hits (serverless defaults to several shards).
   - do:
       indices.create:
         index: test_mapped
         body:
           settings:
+            index.number_of_shards: 1
             index.mode: columnar
             index.mapping.flattened_unmapped_fields.enabled: true
           mappings:
@@ -69,8 +71,8 @@ setup:
   - match: { hits.total.value: 0 }
 
 ---
-"the sink itself is never exposed as a field":
-  # The sink is internal storage: absent from everything that enumerates field names, and its own name resolves like any other unmapped name.
+"the sink is listed like other internal metadata fields":
+  # The sink behaves like _ignored_source: a metadata field that cannot be searched, aggregated or fetched, with nothing resolvable under it.
   - do:
       index:
         index: test_mapped
@@ -85,6 +87,16 @@ setup:
         index: test_mapped
         fields: "*"
   - is_true: fields.mapped
+  - match: { fields._unmapped._unmapped.metadata_field: true }
+  - match: { fields._unmapped._unmapped.searchable: false }
+  - match: { fields._unmapped._unmapped.aggregatable: false }
+
+  - do:
+      field_caps:
+        index: test_mapped
+        fields: "*"
+        filters: "-metadata"
+  - is_true: fields.mapped
   - is_false: fields._unmapped
 
   - do:
@@ -94,14 +106,20 @@ setup:
   - match: { hits.hits.0.fields.mapped: [ 42 ] }
   - is_false: hits.hits.0.fields._unmapped
 
-  # Requesting the sink explicitly returns no fields object at all, rather than an error.
+  # Requesting the sink explicitly fails, as for every internal metadata field that is not stored.
   - do:
+      catch: /Cannot fetch values for field \[_unmapped\]/
       search:
         index: test_mapped
         body: { query: { match_all: {} }, fields: [ "_unmapped" ] }
-  - is_false: hits.hits.0.fields
 
-  # An absorbed key addressed through the sink's name does not resolve either.
+  - do:
+      catch: /Cannot query field \[_unmapped\]/
+      search:
+        index: test_mapped
+        body: { query: { term: { _unmapped: "bare-value" } } }
+
+  # An absorbed key addressed through the sink's name does not resolve.
   - do:
       search:
         index: test_mapped

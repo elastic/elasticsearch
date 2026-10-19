@@ -75,10 +75,10 @@ public class CommandBuilderTests {
 
         assertThat(byKey(cmds, "flakiness-detection:unit").command(), containsString("-Dtests.iters=7 "));
         assertThat(byKey(cmds, "flakiness-detection:integ").command(), containsString("-Dtests.iters=7 "));
-        // rest kinds use the repeat-rest wrapper with the override as the loop count.
+        // rest kinds use the repeat wrapper with the override as the loop count.
         assertThat(
             byKey(cmds, "flakiness-detection:java-rest").command(),
-            containsString(".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 7 __GRADLE__ ")
+            containsString(".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 7 __GRADLE__ ")
         );
     }
 
@@ -95,7 +95,7 @@ public class CommandBuilderTests {
         assertThat(cmds, hasSize(1));
         assertThat(
             cmds.get(0).command(),
-            equalTo(".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 __GRADLE__ :x:javaRestTest --tests org.FooIT --rerun")
+            equalTo(".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 10 __GRADLE__ :x:javaRestTest --tests org.FooIT --rerun")
         );
     }
 

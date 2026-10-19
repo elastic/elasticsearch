@@ -8,7 +8,7 @@
 # Optional build env vars:
 #   FLAKINESS_ITERS   - positive integer overriding the iteration count for
 #                       unit tests (-Dtests.iters), internalClusterTest
-#                       (-Dtests.iters), and REST batches (repeat-rest-test.sh
+#                       (-Dtests.iters), and REST batches (repeat-gradle-run.sh
 #                       loop). Read by flakinessScan in the orchestration step,
 #                       which bakes the counts into the plan's batch commands.
 #

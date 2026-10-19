@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { analyzeReports } from "../analyzer/junit-reports-analyzer.ts";
 
-const REPEAT_SCRIPT = resolve(`${import.meta.dirname}/repeat-rest-test.sh`);
+const REPEAT_SCRIPT = resolve(`${import.meta.dirname}/repeat-gradle-run.sh`);
 
 // A single passing JUnit testcase. The runner relocates whatever TEST-*.xml a
 // "gradle" invocation leaves behind, so the fake gradle below just has to write
@@ -20,11 +20,11 @@ const PASSING_XML = `<?xml version="1.0" encoding="UTF-8"?>
 // Where the real gradle yamlRestTest task writes its report, relative to cwd.
 const LIVE_XML = "p/build/test-results/yamlRestTest/TEST-org.example.FooIT.xml";
 
-describe("repeat-rest-test.sh", () => {
+describe("repeat-gradle-run.sh", () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "repeat-rest-test-"));
+    dir = mkdtempSync(join(tmpdir(), "repeat-gradle-run-"));
     // Fake "gradle": overwrites the same TEST-*.xml on every call, exactly like a
     // real re-run does. Mirrors the overwrite behaviour that made the analyzer see
     // only the final iteration before per-iteration snapshots were added.
@@ -88,7 +88,7 @@ describe("repeat-rest-test.sh", () => {
         `fi\n`
     );
 
-    // Fails on iteration 2, so repeat-rest-test.sh exits non-zero overall; the
+    // Fails on iteration 2, so repeat-gradle-run.sh exits non-zero overall; the
     // per-iteration XML is still relocated regardless of the run's exit code.
     expect(() =>
       execFileSync("bash", [REPEAT_SCRIPT, "3", "bash", "fake-gradle.sh"], { cwd: dir })

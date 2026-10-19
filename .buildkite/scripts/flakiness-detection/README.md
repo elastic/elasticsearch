@@ -34,7 +34,7 @@ Build environment variables:
 | Variable            | Required | Description                                                                                                                                                                                                                                                 |
 |---------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `FLAKINESS_CLASSES` | yes      | Newline- or comma-separated list of FQCNs. Each spec is one of: `org.foo.BarTests` (whole class), `org.foo.BarTests.testFoo` (resolves to class — method-level filtering deferred), or `org.foo.YamlIT.test {yaml=/10_apm/Test name}` (specific yaml case). |
-| `FLAKINESS_ITERS`   | no       | Positive integer applied uniformly to `-Dtests.iters` (unit + internalClusterTest) and `repeat-rest-test.sh` loop count. Defaults: 100 / 20 / 10 respectively.                                                                                              |
+| `FLAKINESS_ITERS`   | no       | Positive integer applied uniformly to `-Dtests.iters` (unit + internalClusterTest) and `repeat-gradle-run.sh` loop count. Defaults: 100 / 20 / 10 respectively.                                                                                              |
 
 Driver: `entrypoints/manual.ts` invoked from `.buildkite/pipelines/flakiness-detection-manual.yml`. Pipeline registered in `catalog-info.yaml`.
 
@@ -144,7 +144,7 @@ Two implementations, one contract — both consume `RunnableCommand[]`:
 - `runners/buildkite.ts` — `toBuildkitePipeline` (pure) produces a Buildkite pipeline structure; `uploadBuildkitePipeline` (impure) serializes to YAML and shells out to `buildkite-agent pipeline upload`. The function appends a final `flakiness-detection:analyze` step that depends on every batch step with `allow_failure: true`, so the report runs even when batches fail.
 - `runners/local.ts` — `runLocally` executes each command sequentially via `execSync` with inherited stdio. Returns the worst exit code seen (does **not** stop on first failure — the developer sees all batch results).
 
-REST kinds (`javaRestTest` / `yamlRestTestRunner` / `yamlRestTestSuite` / `yamlRestTestCase`) re-run by looping a Gradle invocation `restIters` times inside `runners/repeat-rest-test.sh`, rather than via `-Dtests.iters` (unit / integ). Each Gradle run overwrites the same `build/test-results/**/TEST-*.xml` in place, so the loop relocates every iteration's XML into `flakiness-iters/iter-<i>/<original path>` after it runs. This keeps the `build/test-results/` path segment intact — so the artifact glob and the analyzer walker still match — while ensuring the analyzer sees *all* re-runs, not just the last. Consequently `Iterations attempted` counts case-executions across every re-run (cases × iterations) for these kinds. (Batch jobs run on fresh agents; local runs rely on the analyzer's mtime filter to ignore snapshots from earlier runs.)
+REST kinds (`javaRestTest` / `yamlRestTestRunner` / `yamlRestTestSuite` / `yamlRestTestCase`) re-run by looping a Gradle invocation `restIters` times inside `runners/repeat-gradle-run.sh`, rather than via `-Dtests.iters` (unit / integ). Each Gradle run overwrites the same `build/test-results/**/TEST-*.xml` in place, so the loop relocates every iteration's XML into `flakiness-iters/iter-<i>/<original path>` after it runs. This keeps the `build/test-results/` path segment intact — so the artifact glob and the analyzer walker still match — while ensuring the analyzer sees *all* re-runs, not just the last. Consequently `Iterations attempted` counts case-executions across every re-run (cases × iterations) for these kinds. (Batch jobs run on fresh agents; local runs rely on the analyzer's mtime filter to ignore snapshots from earlier runs.)
 
 ### Module 4: analyzer
 
@@ -304,7 +304,7 @@ flakiness-detection/
   runners/
     buildkite.ts         RunnableCommand[] → BK YAML + upload; toResolvePipeline (orchestration [resolve, compile, scan] + separate generate step)
     local.ts             RunnableCommand[] → sequential execSync
-    repeat-rest-test.sh  REST-loop wrapper: repeats a Gradle run restIters times, preserves each iteration's XML
+    repeat-gradle-run.sh repeat wrapper: repeats a Gradle run N times, preserves each run's XML
   analyzer/
     junit-reports-analyzer.ts   JUnit XML → FlakinessReport
     render.ts                   FlakinessReport → markdown + severity

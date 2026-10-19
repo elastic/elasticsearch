@@ -44,8 +44,8 @@ import java.util.stream.Collectors;
  */
 public final class CommandBuilder {
 
-    /** The REST-loop wrapper: repeats a gradle invocation {@code restIters} times, preserving each run's XML. */
-    static final String REPEAT_REST = ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh";
+    /** The repeat wrapper: runs a gradle invocation a given number of times, preserving each run's XML. */
+    static final String REPEAT_GRADLE_RUN = ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh";
 
     private static final String G = PlanCommand.GRADLE_PLACEHOLDER;
 
@@ -223,16 +223,23 @@ public final class CommandBuilder {
                 + cfg.suiteTimeoutMs()
                 + "! "
                 + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), null);
-            case Kinds.JAVA_REST_TEST -> REPEAT_REST
+            case Kinds.JAVA_REST_TEST -> REPEAT_GRADLE_RUN
                 + " "
                 + cfg.restIters()
                 + " "
                 + G
                 + " "
                 + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), "--rerun");
-            case Kinds.YAML_REST_TEST_RUNNER -> REPEAT_REST + " " + cfg.restIters() + " " + G + " " + batch.get(0).taskPath() + " --rerun";
+            case Kinds.YAML_REST_TEST_RUNNER -> REPEAT_GRADLE_RUN
+                + " "
+                + cfg.restIters()
+                + " "
+                + G
+                + " "
+                + batch.get(0).taskPath()
+                + " --rerun";
             case Kinds.YAML_REST_TEST_SUITE -> yamlSuiteCommand(batch, cfg);
-            case Kinds.YAML_REST_TEST_CASE -> REPEAT_REST
+            case Kinds.YAML_REST_TEST_CASE -> REPEAT_GRADLE_RUN
                 + " "
                 + cfg.restIters()
                 + " "
@@ -258,7 +265,7 @@ public final class CommandBuilder {
             .stream()
             .map(e -> "-Dtests.rest.suite." + e.getKey() + "=" + String.join(",", e.getValue()))
             .collect(Collectors.joining(" "));
-        return REPEAT_REST + " " + cfg.restIters() + " " + G + " " + tasks + " " + suiteProps;
+        return REPEAT_GRADLE_RUN + " " + cfg.restIters() + " " + G + " " + tasks + " " + suiteProps;
     }
 
     /**

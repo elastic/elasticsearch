@@ -69,14 +69,14 @@ describe("withGradleBinary", () => {
     );
   });
 
-  test("replaces every __GRADLE__ occurrence, incl. inside the repeat-rest-test.sh form", () => {
+  test("replaces every __GRADLE__ occurrence, incl. inside the repeat-gradle-run.sh form", () => {
     const cmd =
-      ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 __GRADLE__ :m:a:javaRestTest --rerun";
+      ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 10 __GRADLE__ :m:a:javaRestTest --rerun";
     expect(withGradleBinary(cmd, "buildkite")).toBe(
-      ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :m:a:javaRestTest --rerun"
+      ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 10 .ci/scripts/run-gradle.sh :m:a:javaRestTest --rerun"
     );
     expect(withGradleBinary(cmd, "local")).toBe(
-      ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 ./gradlew :m:a:javaRestTest --rerun"
+      ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 10 ./gradlew :m:a:javaRestTest --rerun"
     );
   });
 
@@ -98,7 +98,7 @@ describe("planCommandsToRunnable", () => {
       label: "java rest tests",
       key: "flakiness-detection:java-rest",
       command:
-        ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 __GRADLE__ :server:javaRestTest --tests org.foo.BarIT --rerun",
+        ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 10 __GRADLE__ :server:javaRestTest --tests org.foo.BarIT --rerun",
     },
   ];
 
@@ -115,9 +115,9 @@ describe("planCommandsToRunnable", () => {
       // before taskPaths existed yields [].
       taskPaths: [],
     });
-    // The wrapped rest form gets the same substitution inside repeat-rest-test.sh.
+    // The wrapped rest form gets the same substitution inside repeat-gradle-run.sh.
     expect(runnable[1].command).toBe(
-      ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :server:javaRestTest --tests org.foo.BarIT --rerun"
+      ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 10 .ci/scripts/run-gradle.sh :server:javaRestTest --tests org.foo.BarIT --rerun"
     );
     // No unresolved tokens remain.
     expect(runnable.every((c) => c.command.includes("__GRADLE__"))).toBe(false);
@@ -129,7 +129,7 @@ describe("planCommandsToRunnable", () => {
       "./gradlew -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.foo.FooTests"
     );
     expect(runnable[1].command).toBe(
-      ".buildkite/scripts/flakiness-detection/runners/repeat-rest-test.sh 10 ./gradlew :server:javaRestTest --tests org.foo.BarIT --rerun"
+      ".buildkite/scripts/flakiness-detection/runners/repeat-gradle-run.sh 10 ./gradlew :server:javaRestTest --tests org.foo.BarIT --rerun"
     );
     expect(runnable.every((c) => c.command.includes("__GRADLE__"))).toBe(false);
   });

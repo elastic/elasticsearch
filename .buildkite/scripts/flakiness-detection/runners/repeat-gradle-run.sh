@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Repeatedly runs a REST test command to surface flakiness. Each Gradle invocation
+# Repeatedly runs a Gradle test command to surface flakiness. Each Gradle invocation
 # overwrites the JUnit XML in place, so after every iteration we relocate
 # the freshly written TEST-*.xml into a per-iteration subtree.
 # This lets the flakiness analyzer see every re-run instead of only the last.

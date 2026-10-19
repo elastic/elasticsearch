@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from "child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
-import { dirname, join, resolve } from "path";
+import { join, resolve } from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 const SCRIPT = resolve(`${import.meta.dirname}/validate-prometheus-compliance.sh`);
@@ -238,28 +238,25 @@ esac
       expect(args).toContain("--output json");
       expect(args).toContain("--concurrency 8 --");
       expect(args).toMatch(
-        / -- --build-cache --scan -I \S+\/\.ci\/init\.gradle -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/ -Dtests\.es\.node\.processors=8$/,
+        / -- --build-cache --scan -I \S+\/\.ci\/init\.gradle -I \S+\/\.buildkite\/scripts\/validate-prometheus-compliance\.init\.gradle -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/ -Dtests\.es\.node\.processors=8 -Drun\.distribution=integ-test -Dpromcheck\.modules=\S+$/,
       );
     }
   });
 
-  test("only a checkout that supports run.modules builds the minimal PromQL distribution", () => {
-    // The PR adds run.modules support; its merge base predates it and must keep the default distribution.
-    const runGradle = join(repo, "build-tools-internal/src/main/groovy/elasticsearch.run.gradle");
-    mkdirSync(dirname(runGradle), { recursive: true });
-    writeFileSync(runGradle, "providers.systemProperty('run.modules')\n");
-    git(repo, "add", ".");
-    git(repo, "commit", "-q", "-m", "run.modules");
+  test("both runs build the minimal PromQL distribution with this checkout's init script", () => {
     const r = run(STABLE, STABLE);
     expect(r.status).toBe(0);
     const [control, tested] = r.args.trim().split("\n");
-    expect(control).not.toContain("-Drun.distribution");
-    expect(control).not.toContain("-Drun.modules");
-    expect(tested).toContain(" -Drun.distribution=integ-test ");
-    const modules = tested.match(/-Drun\.modules=(\S+)$/)?.[1].split(",");
-    expect(modules).toContain(":x-pack:plugin:prometheus");
-    expect(modules).toContain(":x-pack:plugin:esql");
-    expect(new Set(modules).size).toBe(modules?.length);
+    // The merge base has no init script of its own; both runs use the absolute path to this one.
+    const init = (args: string) => args.match(/-I (\S+validate-prometheus-compliance\.init\.gradle)/)?.[1] ?? "";
+    expect(init(control)).toBe(init(tested));
+    expect(init(control).startsWith("/")).toBe(true);
+    expect(existsSync(init(control))).toBe(true);
+    const modules = (args: string) => args.match(/-Dpromcheck\.modules=(\S+)$/)?.[1].split(",") ?? [];
+    expect(modules(control)).toEqual(modules(tested));
+    expect(modules(tested)).toContain(":x-pack:plugin:prometheus");
+    expect(modules(tested)).toContain(":x-pack:plugin:esql");
+    expect(new Set(modules(tested)).size).toBe(modules(tested).length);
   });
 
   test("a regression next to a fix is reported even when the number of passing queries holds", () => {

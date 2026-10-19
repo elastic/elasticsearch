@@ -83,6 +83,10 @@ configure() {
   local modules
   printf -v modules '%s,' "${promql_modules[@]}"
   declare -gr PROMQL_MODULES="${modules%,}"
+  # From this checkout for both runs, since a merge base may predate it. Absolute: Gradle runs in each workspace.
+  local script_dir
+  script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+  declare -gr PROMQL_INIT_SCRIPT="$script_dir/validate-prometheus-compliance.init.gradle"
 
   # The pipeline uploads OUTPUT_DIR as artifacts. Tests point TMP_ROOT at a scratch directory.
   declare -gr TMP_ROOT="${PROMETHEUS_COMPLIANCE_TMPDIR:-/tmp}"
@@ -169,8 +173,9 @@ download_asset() {
 # Runs promcheck against Elasticsearch built from the given checkout. promcheck exits 1 when queries fail, which
 # is a result; any other exit code means the run itself failed.
 # Arguments after -- go to promcheck's ./gradlew run. They pull task outputs from the remote build cache that main
-# CI pushes to, which is only configured by .ci/init.gradle, and publish a build scan for each run. Checkouts that
-# support -Drun.modules build only the modules PromQL needs instead of the default distribution.
+# CI pushes to, which is only configured by .ci/init.gradle, and publish a build scan for each run. Both checkouts
+# build the integ-test distribution with only the modules PromQL needs, added by this script's own init script, which
+# works the same on any merge base.
 run_promcheck() {
   local workspace="$1" log_file="$2"
   local stderr_log="${2%.log}.stderr.log" fifo="$WORK_DIR/promcheck-stderr.fifo"
@@ -179,13 +184,12 @@ run_promcheck() {
     --build-cache
     --scan
     -I "$workspace/.ci/init.gradle"
+    -I "$PROMQL_INIT_SCRIPT"
     -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
     "-Dtests.es.node.processors=$AGENT_CPUS"
+    -Drun.distribution=integ-test
+    "-Dpromcheck.modules=$PROMQL_MODULES"
   )
-  # A merge base older than run.modules support would start the bare integ-test distribution without PromQL.
-  if grep -q "run.modules" -- "$workspace/build-tools-internal/src/main/groovy/elasticsearch.run.gradle" 2>/dev/null; then
-    gradle_args+=(-Drun.distribution=integ-test "-Drun.modules=$PROMQL_MODULES")
-  fi
   mkfifo -- "$fifo" || return
   tee -- "$stderr_log" < "$fifo" >&2 &
   stderr_pid=$!

@@ -1,0 +1,12 @@
+// Installs the module projects listed in -Dpromcheck.modules on the run task's cluster, so promcheck can start the
+// integ-test distribution with just what PromQL needs (-Drun.distribution=integ-test) instead of building the
+// default distribution. It lives outside build-tools-internal on purpose: changing the build logic changes the cache
+// keys of most tasks, which would turn the remote build cache that main CI pushes into misses.
+gradle.rootProject { root ->
+  root.plugins.withId('elasticsearch.run') {
+    def modules = root.providers.systemProperty('promcheck.modules').getOrElse('')
+    root.testClusters.named('runTask').configure { cluster ->
+      modules.split(',').findAll { it }.each { cluster.module(it.trim()) }
+    }
+  }
+}

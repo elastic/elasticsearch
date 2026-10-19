@@ -92,8 +92,8 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
 
     @Override
     public String toString() {
-        return '[' + BccBlobFile.blobNameFromGeneration(primaryTermAndGeneration().generation()) + ']'
-            + lastCompoundCommit().toShortDescription();
+        return '[' + BccBlobFile.blobNameFromGeneration(primaryTermAndGeneration().generation()) + ']' + lastCompoundCommit()
+            .toShortDescription();
     }
 
     /**

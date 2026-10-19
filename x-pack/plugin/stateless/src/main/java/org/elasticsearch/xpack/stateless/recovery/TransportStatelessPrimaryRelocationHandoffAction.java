@@ -193,7 +193,7 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             retentionLeases = new RetentionLeases(in);
             searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
             latestBccBlob = in.readOptionalWriteable(BlobFileWithLength::new);
-            assert latestBccBlob == null || latestBccBlob.blobFile() instanceof BccBlobFile: latestBccBlob;
+            assert latestBccBlob == null || latestBccBlob.blobFile() instanceof BccBlobFile : latestBccBlob;
             otherBlobFiles = in.readCollectionAsSet(BlobFile::readFrom);
             hasRecentIdLookup = in.readBoolean();
             lastCommitBlobs = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)

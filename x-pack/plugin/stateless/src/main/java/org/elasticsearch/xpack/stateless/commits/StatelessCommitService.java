@@ -1659,13 +1659,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     previousBCCBlobs.add(nonRecoveredBlobReference);
                 } else if (nonRecoveredBlobFile instanceof MergeBlobFile mergeBlobFile) {
                     // merge blobs are not tracked yet, so they are ignored
-                    logger.debug(
-                        () -> format(
-                            "%s found merge object store file, ignoring it [%s]",
-                            shardId,
-                            mergeBlobFile
-                        )
-                    );
+                    logger.debug(() -> format("%s found merge object store file, ignoring it [%s]", shardId, mergeBlobFile));
                 } else {
                     logger.warn(
                         () -> format(

@@ -225,7 +225,6 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
                 VPC,
                 ES940DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                false,
                 null,
                 1,
                 true,

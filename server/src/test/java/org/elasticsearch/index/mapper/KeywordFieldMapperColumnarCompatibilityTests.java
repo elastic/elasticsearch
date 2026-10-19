@@ -1142,7 +1142,7 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         final String longValue = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "keyword").field("index", false);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }),
             columnarSettings(),

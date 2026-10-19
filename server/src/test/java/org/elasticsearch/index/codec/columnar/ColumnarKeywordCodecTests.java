@@ -60,7 +60,7 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
 
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         final String mapping = Strings.format("""
-            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":%s}}}}""", randomBoolean());
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","multi_value":%s}}}""", randomBoolean());
         indicesAdmin().prepareCreate(INDEX).setSettings(columnarSettings(mode)).setMapping(mapping).get();
         prepareIndex(INDEX).setSource("@timestamp", "2024-01-01T00:00:00Z", "kw", "hello").get();
         prepareIndex(INDEX).setSource("@timestamp", "2024-01-01T00:00:01Z", "kw", "world").get();
@@ -83,7 +83,7 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
 
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         final String mapping = Strings.format("""
-            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","doc_values":{"multi_value":%s}}}}""", randomBoolean());
+            {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","multi_value":%s}}}""", randomBoolean());
         indicesAdmin().prepareCreate(INDEX).setSettings(columnarSettings(mode)).setMapping(mapping).get();
 
         final Map<String, String> firstBatch = keywordsWithRepeatedShortValues("first");

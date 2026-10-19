@@ -2088,7 +2088,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testEmptyStringDoesNotSatisfyNullabilityFalse() throws IOException {
         final DocumentMapper mapper = emptyStringAsNullColumnar(b -> {
             b.field("type", "keyword");
-            b.startObject("doc_values").field("nullability", false).endObject();
+            b.field("nullability", false);
         }).documentMapper();
 
         final DocumentParsingException e = expectThrows(
@@ -2105,7 +2105,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testEmptyStringUnderNullabilityFalseCanBeIgnored() throws IOException {
         final DocumentMapper mapper = emptyStringAsNullColumnar(b -> {
             b.field("type", "keyword");
-            b.startObject("doc_values").field("nullability", false).field("on_failure", "ignore").endObject();
+            b.field("nullability", false).field("on_failure", "ignore");
         }).documentMapper();
 
         final ParsedDocument doc = mapper.parse(source(b -> b.field("field", "")));

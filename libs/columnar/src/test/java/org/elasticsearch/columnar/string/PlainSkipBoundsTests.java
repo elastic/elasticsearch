@@ -269,6 +269,30 @@ public class PlainSkipBoundsTests extends ESTestCase {
         }
     }
 
+    public void testEveryEntryIsFoundFromEachOfItsSlots() throws IOException {
+        for (int round = 0; round < 20; round++) {
+            final BytesRef[] pool = PlainSkipTestValues.randomPool(between(1, 10));
+            final BytesRef[][] docSlots = randomDocSlots(between(1, 500), pool);
+            final int[] owners = PlainSkipFixture.evenOwners(docSlots, 1);
+            for (int slot = 1, owner = 0; slot < owners.length; slot++) {
+                owner += between(0, 3);
+                owners[slot] = owner;
+            }
+            try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, owners, false)) {
+                final PlainSkipBounds.Reader reader = fixture.reader();
+                assertEquals(fixture.entryFirstSlot.length, reader.entryCount());
+                for (int entry = 0; entry < reader.entryCount(); entry++) {
+                    assertEquals(fixture.entryFirstSlot[entry], reader.firstSlot(entry));
+                    final long end = entry + 1 < reader.entryCount() ? fixture.entryFirstSlot[entry + 1] : fixture.numValues;
+                    assertEquals(end, reader.endSlot(entry));
+                }
+                for (int slot = 0; slot < fixture.numValues; slot++) {
+                    assertEquals("slot " + slot, fixture.entryOfSlot[slot], reader.entryOf(slot));
+                }
+            }
+        }
+    }
+
     public void testAColumnWithoutSlotsWritesNoRegion() throws IOException {
         try (Directory dir = newDirectory(); IndexOutput out = dir.createOutput("none.cns", IOContext.DEFAULT)) {
             try (PlainSkipBounds.Writer writer = new PlainSkipBounds.Writer(dir, IOContext.DEFAULT, "none", 0)) {

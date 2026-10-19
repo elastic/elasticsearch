@@ -455,7 +455,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         return docSlots;
     }
 
-    private static StringColumnOptions.Sizes sizes(int valuesPerBlock, int chunkBytes) {
+    static StringColumnOptions.Sizes sizes(int valuesPerBlock, int chunkBytes) {
         final StringColumnOptions.Sizes defaults = StringColumnOptions.DEFAULT_SIZES;
         return new StringColumnOptions.Sizes(
             valuesPerBlock,
@@ -469,7 +469,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         );
     }
 
-    private static StringColumnOptions plain(boolean bounded, StringColumnOptions.Sizes sizes) {
+    static StringColumnOptions plain(boolean bounded, StringColumnOptions.Sizes sizes) {
         return StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE)
             .withSizes(sizes)
             .withPlainSkipIndex(bounded);

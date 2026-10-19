@@ -319,6 +319,26 @@ public class PlainRangePresenceTests extends ESTestCase {
         return PlainSkipFixture.build(dir, docSlots, 4);
     }
 
+    public void testARunAfterAGapInThePresenceEndsWhereItsBlockEnds() throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[228][];
+        for (int doc = 0; doc < docSlots.length; doc++) {
+            if (doc < 2 || (doc >= 100 && doc < 226)) {
+                docSlots[doc] = new BytesRef[] { new BytesRef("a") };
+            } else if (doc >= 226) {
+                docSlots[doc] = new BytesRef[] { new BytesRef("b") };
+            }
+        }
+        try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 128)) {
+            final BytesRef a = new BytesRef("a");
+            final PlainRangePresence presence = fixture.presence(PlainSkipBounds.Query.range(a, true, a, true));
+            assertEquals(0, presence.nextDoc());
+            assertEquals(2, presence.docIDRunEnd());
+            assertEquals(100, presence.advance(100));
+            assertEquals(226, presence.docIDRunEnd());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, presence.advance(226));
+        }
+    }
+
     public void testTheRankIsThatOfTheWrappedIterator() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[40][];
         for (int doc = 0; doc < docSlots.length; doc += 3) {

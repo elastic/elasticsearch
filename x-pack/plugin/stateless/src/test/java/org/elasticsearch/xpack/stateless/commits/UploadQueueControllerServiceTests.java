@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -22,8 +23,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -329,13 +332,17 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         var sut = new UploadQueueControllerService.IndexingThrottler(indicesService, UploadQueueControllerService.Metrics.NOOP);
 
         // Happy case throttling.
+        var engine1 = mock(Engine.class);
+
         var shard1 = mock(IndexShard.class);
+        when(shard1.tryWithEngineOrNull(any())).then(invocation -> invocation.<Function<Engine, ?>>getArgument(0).apply(engine1));
+
         var shardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
         when(indicesService.getShardOrNull(shardId1)).thenReturn(shard1);
 
         sut.activate(shardId1);
         assertTrue(sut.getThrottledShards().contains(shard1));
-        verify(shard1, times(1)).activateThrottling();
+        verify(engine1, times(1)).activateThrottling();
 
         // Shard doesn't exist.
         var shardId2 = new ShardId(randomIndexName(), randomUUID(), 1);
@@ -344,30 +351,49 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         sut.activate(shardId2);
         assertEquals(1, sut.getThrottledShards().size());
 
+        // There is no engine/engine is closed.
+        var shard3 = mock(IndexShard.class);
+        when(shard3.tryWithEngineOrNull(any())).then(invocation -> invocation.<Function<Engine, ?>>getArgument(0).apply(null));
+
+        var shardId3 = new ShardId(randomIndexName(), randomUUID(), 2);
+        when(indicesService.getShardOrNull(shardId1)).thenReturn(shard1);
+
+        sut.activate(shardId3);
+        assertEquals(1, sut.getThrottledShards().size());
+
         // Deactivate works.
         sut.deactivate(shardId1);
         assertFalse(sut.getThrottledShards().contains(shard1));
-        verify(shard1, times(1)).deactivateThrottling();
+        verify(engine1, times(1)).deactivateThrottling();
 
         // Do not deactivate throttling if it was never applied.
-        var shard3 = mock(IndexShard.class);
-        var shardId3 = new ShardId(randomIndexName(), randomUUID(), 2);
-        when(indicesService.getShardOrNull(shardId3)).thenReturn(shard3);
+        var engine4 = mock(Engine.class);
+
+        var shard4 = mock(IndexShard.class);
+        when(shard4.tryWithEngineOrNull(any())).then(invocation -> invocation.<Function<Engine, ?>>getArgument(0).apply(engine4));
+
+        var shardId4 = new ShardId(randomIndexName(), randomUUID(), 3);
+        when(indicesService.getShardOrNull(shardId4)).thenReturn(shard4);
 
         sut.deactivate(shardId3);
         assertFalse(sut.getThrottledShards().contains(shard3));
-        verify(shard3, never()).deactivateThrottling();
+        verify(engine4, never()).deactivateThrottling();
 
         // closeShard() also works
-        var shard4 = mock(IndexShard.class);
-        var shardId4 = new ShardId(randomIndexName(), randomUUID(), 3);
-        when(indicesService.getShardOrNull(shardId4)).thenReturn(shard4);
+        var engine5 = mock(Engine.class);
+
+        var shard5 = mock(IndexShard.class);
+        when(shard5.tryWithEngineOrNull(any())).then(invocation -> invocation.<Function<Engine, ?>>getArgument(0).apply(engine5));
+
+        var shardId5 = new ShardId(randomIndexName(), randomUUID(), 4);
+        when(indicesService.getShardOrNull(shardId5)).thenReturn(shard5);
 
         sut.activate(shardId4);
         assertTrue(sut.getThrottledShards().contains(shard4));
 
         sut.closeShard(shard4);
         assertFalse(sut.getThrottledShards().contains(shard4));
+        verify(engine5, never()).deactivateThrottling();
     }
 
     static class MemorizingThrottler implements UploadQueueControllerService.Throttler {

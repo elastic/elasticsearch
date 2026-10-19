@@ -83,9 +83,8 @@ record ColumnInfo(
     }
 
     /**
-     * The mirror of {@link #fileTyped()}: a view that decodes straight to {@code target}, keeping this column's own
-     * type as {@link #fileEsqlType} and carrying {@code formatter}, the declared date format the string-parsing arms
-     * read. Only for a {@code DeclaredTypeCoercions.fusedInDecode} pair.
+     * A view that decodes straight to {@code target} rather than the file's own type, carrying the column's
+     * declared date {@code formatter}. Only for a {@code DeclaredTypeCoercions.fusedInDecode} pair.
      */
     ColumnInfo targetTyped(DataType target, @Nullable DateFormatter formatter) {
         if (target == esqlType && formatter == dateFormatter) {

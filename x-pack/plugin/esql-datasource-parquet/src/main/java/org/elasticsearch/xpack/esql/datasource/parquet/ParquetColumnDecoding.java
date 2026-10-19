@@ -74,18 +74,15 @@ final class ParquetColumnDecoding {
 
     static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
         if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-            // All three arms are reachable: `date` over a column rendering date_nanos is a fused pair, so a
-            // TIMESTAMP(MICROS|NANOS) column arrives here instead of narrowing through castBlock. They floor
-            // rather than truncate with `/` to agree with that narrowing, which floors; `/` rounds toward zero and
-            // the two would disagree by a millisecond below the epoch.
+            // floorDiv, not `/`: the two disagree by a millisecond below the epoch, and castBlock's narrowing and
+            // the pruning relation both floor.
             return switch (ts.getUnit()) {
                 case MILLIS -> raw;
                 case MICROS -> Math.floorDiv(raw, 1_000L);
                 case NANOS -> Math.floorDiv(raw, 1_000_000L);
             };
         }
-        // TIME takes the same unit arithmetic. What the value counts from differs -- a TIMESTAMP is an offset from
-        // the epoch, a TIME a time of day -- but the scale is the unit's, not the origin's.
+        // A TIME value counts from midnight rather than the epoch, but the scale is the unit's either way.
         if (logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
             return switch (time.getUnit()) {
                 case MILLIS -> raw;
@@ -163,20 +160,16 @@ final class ParquetColumnDecoding {
             && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS;
         boolean nanosAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts2
             && ts2.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS;
-        // A TIME value is a time of day, so a well-formed one is at most 86_400_000_000 microseconds and neither its
-        // scale nor its narrowing can null. But nothing enforces that a file obeys its own annotation, and on the
-        // inferred date_nanos read a MICROS value past MAX_MICROS_AS_NANOS is still nulled by microsOverflowsNanos,
-        // so only the units with no guard on their path relax here. Trusting the annotation instead would push
-        // IS NULL over a column whose decode can null, which drops rows.
+        // Keyed on the unit, not on TIME's own bound: nothing enforces that a file obeys its annotation, and an
+        // out-of-bound MICROS value is still nulled on the inferred read. Trusting it would push IS NULL over a
+        // column whose decode can null.
         boolean timeAnnotated = logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time2
             && time2.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS;
         return switch (declaredType) {
             // An identity read never nulls, and neither does a narrowing: floorDiv is total over the whole long
-            // domain. The MICROS units decline conservatively, not necessarily: `date` over a column rendering
-            // date_nanos is a fused pair now, so microsOverflowsNanos is off that path. Relaxing them needs the arm
-            // decided by FILE type -- a uint64 column reaches `date` through Numbers.toLong, which throws at or
-            // above 2^63, and a scale-0 DECIMAL through safeDoubleToLong. This gates pruning: a wrong `false` drops
-            // matching rows, a wrong `true` costs a scan.
+            // domain. The MICROS decline is conservative now that the pair is fused; relaxing it needs the arm keyed
+            // on FILE type, since a uint64 or scale-0 DECIMAL column reaching `date` still throws. A wrong `false`
+            // here drops matching rows.
             case DATETIME -> (logical == null || millisAnnotated || nanosAnnotated || timeAnnotated) == false;
             // A bare INT64 widens millis->nanos via castBlock and nulls pre-epoch/post-2262 values; NANOS is the
             // identity; MICROS/MILLIS scale and can overflow.
@@ -565,11 +558,9 @@ final class ParquetColumnDecoding {
      * whose millisecond-of-day needs no scaling. A text column is {@code BINARY} or
      * {@code FIXED_LEN_BYTE_ARRAY}, both of which render ESQL {@code keyword}.
      *
-     * <p>Both decode engines classify here, so neither can key the choice on a different thing. The resulting value
-     * equals what {@link DeclaredTypeCoercions#castBlock} produces over the column's inferred decode wherever that
-     * decode has a value at all: for a {@code TIMESTAMP(MICROS)} column read as {@code date} it does not, the
-     * inferred nanosecond decode nulling outside its own domain, and the fused arm answers there instead. The
-     * deferred route reaches these arms by retyping its column view rather than by relying on that equivalence.
+     * <p>Both decode engines classify here, so neither can key the choice on a different thing. The arms agree with
+     * {@link DeclaredTypeCoercions#castBlock} over the inferred decode wherever that decode has a value; for a
+     * {@code TIMESTAMP(MICROS)} column read as {@code date} it has none, and the fused arm answers instead.
      */
     enum DatetimeDecode {
         /** 12-byte {@code INT96}: Julian day plus nanos-of-day. */
@@ -638,10 +629,8 @@ final class ParquetColumnDecoding {
     /**
      * The value the inferred read of an {@code INT64} column produces: a {@code TIMESTAMP} annotation's unit narrowed
      * to millis, and a bare {@code INT64} unchanged. As with {@link #int32AsInferredLong}, reinterpreting the result
-     * as an epoch is the caller's step. There is no {@code TIME} case here because
-     * {@link #convertTimestampToMillis} carries one: an INT64 {@code TIME} column renders {@code DATE_NANOS}, and a
-     * declared {@code date} over it reaches this method through the fused {@code date_nanos -> datetime} pair, where
-     * the unit scale is the same arithmetic the {@code TIMESTAMP} units take.
+     * as an epoch is the caller's step. {@code TIME} needs no case here: {@link #convertTimestampToMillis} carries
+     * one, and the scale is the same.
      */
     static long int64AsInferredLong(long raw, @Nullable LogicalTypeAnnotation logical) {
         return convertTimestampToMillis(raw, logical);

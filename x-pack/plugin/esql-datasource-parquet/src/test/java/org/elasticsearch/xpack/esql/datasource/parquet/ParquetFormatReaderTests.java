@@ -7779,9 +7779,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     Map.of(DataType.LONG, 41L)
                 )
             );
-            // Every physical shape that renders DATE_NANOS, read as `date`. A TIME unit's value is a time of day,
-            // so its expected millis are one too. The out-of-range TIMESTAMP(MICROS) shape is the one this pair
-            // exists for: the two-step route nulls it, so it also pins that the decode is genuinely one step.
+            // Every physical shape that renders DATE_NANOS. A TIME unit's value is a time of day, so its expected
+            // millis are one too. The out-of-range TIMESTAMP(MICROS) shape is the one the two-step route nulled.
             case DATE_NANOS -> List.of(
                 new FusedShape(
                     "INT64 TIMESTAMP(MICROS)",
@@ -7930,19 +7929,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * Guard: for every {@code fusedInDecode} pair and physical shape, the three routes that can produce a column
      * must produce the same value. There are three -- the vectorized reader, the row-at-a-time reader, and the
      * deferred extractor a plan uses when it materializes a column only for the rows a TopN kept. All three honour
-     * {@code fusedInDecode}: the first two consult it directly, the extractor by retyping its column view. A fused
-     * pair that one route decodes in one step and another in two answers differently depending on the plan's shape
-     * rather than on the data.
+     * {@code fusedInDecode}: the first two consult it directly, the extractor by retyping its column view. A pair
+     * one route decodes in one step and another in two answers by plan shape rather than by data.
      * <p>
-     * That is not hypothetical. While {@code date_nanos -> date} was fused for the eager readers only, the one-step
-     * scale carried values outside the nanosecond domain that the two-step route nulled, so the eager readers
-     * returned an instant where the deferred route returned null, for the same file and the same query. Nothing
-     * failed, because the sibling guard below exercises only the two eager decoders. This test is what fails.
-     * <p>
-     * What it does NOT cover: it varies the physical shape, with one required row, a declared column, no declared
-     * format and a strict policy. The formatter, the policy and the declared-vs-inferred gate the retype has to
-     * carry are pinned by the seven tests at the end of this class, from
-     * {@code testDeferredNativeDecodeHonorsTheDeclaredDateFormat} on.
+     * It varies the physical shape only: one required row, a declared column, no format, a strict policy. The
+     * formatter, the policy and the declared-vs-inferred gate are pinned by the seven tests at the end of this
+     * class instead.
      * <p>
      * It asserts agreement rather than a particular value, so it stays true of whatever the pairs become; the
      * values themselves are the sibling guard's job.
@@ -7960,9 +7952,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
                         shape.writer().accept(g, "x");
                         return List.of(g);
                     });
-                    // A distinct location per shape: these would otherwise all be memory://test.parquet at v1, and
-                    // footerOf goes through a class-level FooterByteCache, so a later shape decodes against an
-                    // earlier shape's footer and the symptom surfaces as a route disagreement.
+                    // A distinct location per shape: footerOf goes through a class-level FooterByteCache, so a
+                    // shared one makes a later shape decode against an earlier shape's footer.
                     StorageObject storageObject = createStorageObject(
                         parquetData,
                         "memory://" + shape.label().replace(' ', '_') + ".parquet"
@@ -11767,10 +11758,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
-    // The deferred route decodes a fusedInDecode pair natively, so it has to carry everything the eager readers'
-    // own column view carries: the declared formatter, the error policy, and the declared-vs-inferred gate. Each of
-    // the four below fails if one of those is dropped, and none of them is a temporal-unit case --
-    // testEveryFusedInDecodePairAgreesAcrossReadRoutes varies the physical shape and is green over all four.
+    // The deferred route decodes a fused pair natively, so it has to carry what the eager readers' view carries:
+    // the formatter, the error policy, and the declared-vs-inferred gate. One test per thing, flat and list.
 
     /** A declared {@code format} reaches the deferred native decode: with it the token parses, without it it throws. */
     public void testDeferredNativeDecodeHonorsTheDeclaredDateFormat() throws Exception {
@@ -11849,9 +11838,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * An INFERRED {@code date} over a file rendering {@code date_nanos} is not a widening pair, so both routes read
-     * the column as null rather than narrowing. Reachable under first_file_wins, where a later file's drift is left
-     * to the readers: fusing on the pair alone would decode here and null on the eager scan of the same rows.
+     * An INFERRED {@code date} over a file rendering {@code date_nanos} is not a widening pair, so both routes null
+     * the column. Reachable under first_file_wins, where a later file's drift is left to the readers.
      */
     public void testInferredDatetimeOverADateNanosFileNullsOnEveryRoute() throws Exception {
         MessageType schema = Types.buildMessage()
@@ -11897,10 +11885,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals("eager vs deferred for an inferred date over a date_nanos file", eager, deferred);
     }
 
-    /**
-     * The LIST twin of {@link #testDeferredNativeDecodeFollowsTheErrorPolicyOnABadToken}: the sink reaches
-     * {@code decodeList} too. Reverting that one argument to {@code null} throws here instead of nulling.
-     */
+    /** The LIST twin: the sink reaches {@code decodeList} too. Reverting that argument to {@code null} throws. */
     public void testDeferredNativeListDecodeFollowsTheErrorPolicy() throws Exception {
         MessageType schema = new MessageType(
             "test_schema",
@@ -11961,10 +11946,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
-    /**
-     * A LIST of {@code TIMESTAMP(MICROS)} elements declared {@code date}, holding a value outside the nanosecond
-     * domain: the list arms take the fused pair the same way the scalar ones do, on both routes.
-     */
+    /** A LIST of {@code TIMESTAMP(MICROS)} declared {@code date}, outside the nanosecond domain, on both routes. */
     public void testDeclaredDateOverListOfMicrosTimestampReadsOutsideTheNanosecondDomain() throws Exception {
         MessageType schema = new MessageType(
             "test_schema",

@@ -1,17 +1,9 @@
-// A Parquet TIMESTAMP(MICROS) column -- the unit Arrow and Spark write by default -- renders date_nanos. Declaring
-// `date` over it asks for a narrowing the declared type covers for the whole int64 microsecond range; going through
-// date_nanos on the way did not, because a value outside 1677-09-21 .. 2262-04-11 has no nanosecond representation
-// and the intermediate step overflowed to null. The pair decodes in one step now, and nothing already readable
-// moves: the two scales agree wherever raw * 1_000 does not overflow, which is the range the two-step route could
-// carry.
+// A Parquet TIMESTAMP(MICROS) column renders date_nanos. Declared `date`, it used to read through date_nanos and
+// null anything outside 1677-09-21 .. 2262-04-11; it scales straight to millis now.
 //
-// Without a declaration the column is read as date_nanos and those rows are still null -- the declared type is what
-// widens the readable range. No case here asserts that; ParquetFormatReaderTests pins it in
-// testReadTimestampMicrosOutOfRangeReturnsNull.
-//
-// {{micros_timestamp}} carries ts over seven rows: 1500-01-01 and the year 3000, outside the nanosecond domain; half
-// a microsecond before 1500-01-01 and one microsecond before the epoch, which separate flooring from truncation; the
-// epoch; a 2024 instant with sub-millisecond digits; and a null. note/qty/ratio shape the deferred case below.
+// {{micros_timestamp}} carries ts over seven rows: 1500-01-01 and the year 3000, outside that window; half a
+// microsecond before 1500-01-01 and one microsecond before the epoch, which separate flooring from truncation; the
+// epoch; a 2024 instant with sub-millisecond digits; and a null.
 
 // The whole microsecond domain, read as the declared type.
 declaredDateOverMicrosTimestampReadsOutsideTheNanosecondDomain
@@ -58,9 +50,8 @@ id:integer | millis:long
 7          | null
 ;
 
-// The deferred path -- columns a per-driver TopN did not need, loaded afterwards for the surviving rows -- decodes
-// the pair in its own loop, and is the one that answered differently while only the eager readers were fused.
-// Sorting on id and keeping four more columns makes this query eligible for that deferral.
+// Sorting on id and keeping four more columns makes this query eligible for deferred extraction, which decodes the
+// pair in its own loop.
 declaredDateOverMicrosTimestampAgreesOnTheDeferredPath
 required_capability: dataset_in_from_command
 required_capability: parquet_declared_date_reads_micros_in_one_step

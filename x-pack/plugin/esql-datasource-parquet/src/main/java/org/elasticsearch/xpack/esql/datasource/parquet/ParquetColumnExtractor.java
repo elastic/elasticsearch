@@ -100,15 +100,11 @@ import java.util.function.Consumer;
  *       bucket-visit order (independent of decode arrival order). A gather permutation then
  *       routes each caller slot to its position in the concatenated block via
  *       {@link Block#filter(boolean, int...)}, replaying duplicate requests for the same row.</li>
- *   <li><b>Coerce to the target type.</b> A pair {@link DeclaredTypeCoercions#fusedInDecode} accepts is decoded
- *       straight to the target, as the eager readers do, on a view retyped in {@link #extract}; every other
- *       non-identity pair decodes at the file's own physical type and the stitched block is coerced through
- *       {@link DeclaredTypeCoercions#castBlock} — the same engine, and therefore the same values and the same
- *       policy-aware failure behavior (warn+null by default, fail the read under {@code fail_fast}), as the eager
- *       decode paths in {@link ParquetFormatReader}. Either way the pair must pass
- *       {@link #coercionAdmissible}: one {@link DeclaredTypeCoercions#supports} rejects, or an inferred pair that
- *       does not widen (a drifted glob file), reads as all-null with a response Warning, mirroring the eager
- *       per-file validation.</li>
+ *   <li><b>Coerce to the target type.</b> A {@link DeclaredTypeCoercions#fusedInDecode} pair decodes straight to
+ *       the target on a view retyped in {@link #extract}; every other non-identity pair decodes at the file's own
+ *       type and the stitched block goes through {@link DeclaredTypeCoercions#castBlock}, the same engine the eager
+ *       paths use. Either way the pair must pass {@link #coercionAdmissible}, and one that does not reads as
+ *       all-null with a Warning.</li>
  * </ol>
  * <p>
  * I/O cost: one async coalesced fetch per visited row group, all dispatched in parallel up to
@@ -269,13 +265,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             infos[c] = ParquetFormatReader.resolveColumnInfo(schema, columnNames[c]);
             if (infos[c] != null) {
                 resolved++;
-                // A fused pair decodes straight to the target here, as the eager readers do: decode-then-coerce
-                // would materialise nanoseconds first and null the instants the one-step scale carries. The view
-                // needs what the eager readers' does -- the gate, so an inferred pair still null-fills, and the
-                // formatter. It also makes the coercion below skip itself, that being guarded on the target.
+                // Decode-then-coerce is not equivalent for a fused pair: date_nanos -> date would materialise
+                // nanoseconds first and null what the one-step scale carries. The view needs the gate and the
+                // formatter for the same reason the eager readers' does.
                 DataType target = targetTypes == null ? null : targetTypes[c];
-                // A column already at the target needs no retype, and skipping it here keeps the formatter lookup
-                // off the identity path.
                 if (target != null && target != infos[c].esqlType() && coercionAdmissible(infos[c].esqlType(), target, columnNames[c])) {
                     DateFormatter declaredFormatter = reader.declaredDateFormatterFor(columnNames[c]);
                     if (DeclaredTypeCoercions.fusedInDecode(infos[c].esqlType(), target, declaredFormatter != null)) {
@@ -911,10 +904,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     }
 
     /**
-     * Whether this pair may coerce at all, asked the same way by the retype in {@link #extract} and by
-     * {@link #coerceToTarget}. Mirrors {@code validatePlannerTypesAgainstFile}: {@code castBlock} needs a
-     * {@link DeclaredTypeCoercions#supports} pair, and the narrowing that admits is licensed only for a DECLARED
-     * column, so an inferred narrowing null-fills rather than downcasting. {@code columnName} is the physical name.
+     * Mirrors {@code validatePlannerTypesAgainstFile}: the narrowing {@link DeclaredTypeCoercions#supports} admits
+     * is licensed only for a DECLARED column, so an inferred narrowing null-fills instead. {@code columnName} is
+     * the physical name.
      */
     private boolean coercionAdmissible(DataType fileType, DataType target, String columnName) {
         return DeclaredTypeCoercions.supports(fileType, target)
@@ -922,14 +914,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     }
 
     /**
-     * Coerces one stitched physical-type block to the caller's target (planner/declared) type through
-     * {@link DeclaredTypeCoercions#castBlock} — the identical engine, formatter (the column's declared date
-     * {@code format} via {@link ParquetFormatReader#declaredDateFormatterFor}) and policy-aware failure behaviour
-     * ({@link #castBlockWarnings}) as the eager decode paths, so a deferred column reads exactly like an eagerly
-     * scanned one. Runs for every supported pair {@link DeclaredTypeCoercions#fusedInDecode} does NOT accept; a
-     * fused pair is decoded natively instead and skips this, the view's type being the target already. A pair
-     * {@link #coercionAdmissible} rejects reads as all-null rather than downcasting. Always consumes
-     * {@code physical} and returns a fresh caller-owned block.
+     * Coerces one stitched block to {@code target} through {@link DeclaredTypeCoercions#castBlock}, with the same
+     * formatter and policy-aware sink the eager paths use. Runs for the supported pairs
+     * {@link DeclaredTypeCoercions#fusedInDecode} does NOT accept; a fused pair is decoded natively and skips this.
+     * Always consumes {@code physical}.
      */
     private Block coerceToTarget(Block physical, DataType fileType, DataType target, String columnName, int count, BlockFactory factory) {
         try {

@@ -227,7 +227,7 @@ esac
     expect(r.output).toContain('"flaky":1');
   });
 
-  test("the binary gets the checkout, the timeout in seconds, JSONL output, concurrency, and the remote build cache", () => {
+  test("the binary gets the checkout, the timeout in seconds, JSONL output, concurrency, the remote build cache, and all agent CPUs", () => {
     const r = run(STABLE, STABLE);
     expect(r.status).toBe(0);
     const lines = r.args.trim().split("\n");
@@ -238,7 +238,7 @@ esac
       expect(args).toContain("--output json");
       expect(args).toContain("--concurrency 8 --");
       expect(args).toMatch(
-        / -- --build-cache --scan -I \S+\/\.ci\/init\.gradle -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/$/,
+        / -- --build-cache --scan -I \S+\/\.ci\/init\.gradle -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/ -Dtests\.es\.node\.processors=8$/,
       );
     }
   });

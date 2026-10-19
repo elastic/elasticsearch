@@ -56,9 +56,10 @@ configure() {
   # Changed queries listed per section; the full list is the changes artifact.
   declare -gr MAX_ROWS=50
   declare -gr MAX_QUERY_CHARS=200
-  # Cases in flight at once, one per vCPU of the agent. Results are the same as a sequential run; only the query
-  # phase gets shorter.
-  declare -gr PROMCHECK_CONCURRENCY=8
+  # vCPUs of the agent (n1-standard-8 in the pipeline). promcheck keeps this many cases in flight, which gives the
+  # same results as a sequential run, only sooner. Elasticsearch gets all of them: test clusters default to
+  # node.processors=2, which sizes its thread pools and caps the JVM at two CPUs for seeding and queries.
+  declare -gr AGENT_CPUS=8
   # The Prometheus plugin and the plugins it extends, transitively, plus the modules its data stream templates and
   # the test cluster settings need. Any missing one fails the node on boot.
   local -a promql_modules=(
@@ -179,6 +180,7 @@ run_promcheck() {
     --scan
     -I "$workspace/.ci/init.gradle"
     -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+    "-Dtests.es.node.processors=$AGENT_CPUS"
   )
   # A merge base older than run.modules support would start the bare integ-test distribution without PromQL.
   if grep -q "run.modules" -- "$workspace/build-tools-internal/src/main/groovy/elasticsearch.run.gradle" 2>/dev/null; then
@@ -191,12 +193,14 @@ run_promcheck() {
     --elasticsearch "$workspace" \
     --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
     --output json \
-    --concurrency "$PROMCHECK_CONCURRENCY" \
+    --concurrency "$AGENT_CPUS" \
     -- "${gradle_args[@]}" \
     < "$BUNDLE" 2> "$fifo" | tee -- "$log_file"
   statuses=("${PIPESTATUS[@]}")
   wait "$stderr_pid" || stderr_status=$?
   rm -f -- "$fifo"
+  # The node log times the build, startup, and seeding of each run; the merge-base worktree is gone after the job.
+  cp -- "$workspace/build/testclusters/runTask-0/logs/runTask.log" "${log_file%.log}.elasticsearch.log" 2>/dev/null || true
   (( (statuses[0] == 0 || statuses[0] == 1) && statuses[1] == 0 && stderr_status == 0 ))
 }
 

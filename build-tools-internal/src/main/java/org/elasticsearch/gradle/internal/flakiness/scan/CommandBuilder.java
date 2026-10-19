@@ -59,8 +59,7 @@ public final class CommandBuilder {
 
         /**
          * Upper bound on {@code -Dtests.iters} within a single gradle run; more iterations are split across
-         * several runs (see {@code CommandBuilder#javaTestCommand}). Unit tests need the split at their
-         * default count, internalClusterTest only when an override raises its count above the default.
+         * several runs (see {@code CommandBuilder#javaTestCommand}).
          */
         public static final int MAX_TEST_ITERS_PER_RUN = 25;
         public static final int MAX_INTERNAL_CLUSTER_TEST_ITERS_PER_RUN = 20;
@@ -254,13 +253,6 @@ public final class CommandBuilder {
     /**
      * A {@code -Dtests.iters} command for the java kinds, split into several gradle runs when {@code iters}
      * exceeds {@code maxItersPerRun}.
-     *
-     * <p>All iterations of a suite within one gradle run share a single per-class temp directory, which
-     * Lucene's {@code TestRuleTemporaryFilesCleanup} only empties when the suite ends, and in which it gives
-     * up once 9999 temp dirs with the same name prefix exist. A test class that creates many temp dirs per
-     * iteration then fails every remaining iteration once that budget is spent - a harness artifact, not
-     * flakiness. Each extra gradle run starts a fresh suite with a fresh temp directory. {@code --rerun}
-     * keeps gradle from treating the later runs as up-to-date.
      *
      * <p>Iterations are spread evenly, rounding up, so the total can exceed {@code iters} by fewer than
      * {@code runs} iterations.

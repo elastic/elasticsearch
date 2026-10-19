@@ -230,9 +230,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedResilienceIT
   method: testConnectionResetRecoveryDuringDistributedQuery
   issue: https://github.com/elastic/elasticsearch/issues/161792
-- class: org.elasticsearch.xpack.security.SecurityRolesMultiProjectIT
-  method: testUpdatingFileBasedRoleAffectsAllProjects
-  issue: https://github.com/elastic/elasticsearch/issues/161852
 - class: org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests
   method: testManyDocsWithManyValues
   issue: https://github.com/elastic/elasticsearch/issues/161955

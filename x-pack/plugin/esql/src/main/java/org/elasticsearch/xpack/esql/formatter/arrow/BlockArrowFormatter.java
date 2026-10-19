@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
@@ -92,8 +93,15 @@ public abstract class BlockArrowFormatter {
      * @param multivalued is this column multivalued? This block may not, but some blocks in that column are.
      * @param bufs arrow buffers, used to track sizes
      * @param bufWriters buffer writers, that will do the actual work of writing the data
+     * @param releasables resources retained until the deferred buffer writers have completed
      */
-    public abstract void convert(Block block, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters);
+    public abstract void convert(
+        Block block,
+        boolean multivalued,
+        List<ArrowBuf> bufs,
+        List<BufWriter> bufWriters,
+        List<Releasable> releasables
+    );
 
     /**
      * Conversion of Double blocks
@@ -105,7 +113,7 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             DoubleBlock block = (DoubleBlock) b;
 
             if (multivalued) {
@@ -149,7 +157,7 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             IntBlock block = (IntBlock) b;
 
             if (multivalued) {
@@ -196,7 +204,7 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             LongBlock block = (LongBlock) b;
 
             if (multivalued) {
@@ -239,7 +247,7 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             BooleanBlock block = (BooleanBlock) b;
 
             if (multivalued) {
@@ -291,7 +299,7 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             BytesRefBlock block = (BytesRefBlock) b;
 
             if (multivalued) {
@@ -394,12 +402,42 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        protected BytesRef getBytesRef(BytesRefBlock block, int valueIndex, BytesRef scratch) {
-            BytesRef bytes = super.getBytesRef(block, valueIndex, scratch);
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+            BytesRefBlock transformed = transformValues((BytesRefBlock) b);
+            releasables.add(transformed);
+            super.convert(transformed, multivalued, bufs, bufWriters, releasables);
+        }
+
+        private BytesRefBlock transformValues(BytesRefBlock block) {
+            try (BytesRefBlock.Builder builder = block.blockFactory().newBytesRefBlockBuilder(block.getPositionCount())) {
+                BytesRef scratch = new BytesRef();
+                for (int position = 0; position < block.getPositionCount(); position++) {
+                    if (block.isNull(position)) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    int start = block.getFirstValueIndex(position);
+                    int end = start + block.getValueCount(position);
+                    if (end - start == 1) {
+                        convertAndAppend(builder, block, start, scratch);
+                        continue;
+                    }
+                    builder.beginPositionEntry();
+                    for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                        convertAndAppend(builder, block, valueIndex, scratch);
+                    }
+                    builder.endPositionEntry();
+                }
+                return builder.build();
+            }
+        }
+
+        private void convertAndAppend(BytesRefBlock.Builder builder, BytesRefBlock block, int valueIndex, BytesRef scratch) {
+            BytesRef bytes = block.getBytesRef(valueIndex, scratch);
             if (bytes.length != 0) {
                 bytes = valueConverter.apply(bytes, scratch);
             }
-            return bytes;
+            builder.appendBytesRef(bytes);
         }
     }
 
@@ -455,7 +493,7 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             LongRangeBlock block = (LongRangeBlock) b;
             int count = block.getPositionCount();
 
@@ -567,7 +605,7 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             DoubleRangeBlock block = (DoubleRangeBlock) b;
             int count = block.getPositionCount();
 
@@ -645,7 +683,13 @@ public abstract class BlockArrowFormatter {
         }
 
         @Override
-        public void convert(Block block, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(
+            Block block,
+            boolean multivalued,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
             // Null vector in arrow has no associated buffers
             // See https://arrow.apache.org/docs/format/Columnar.html#null-layout
         }

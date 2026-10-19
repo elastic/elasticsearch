@@ -27,6 +27,7 @@ import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
+import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -76,6 +78,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -588,6 +591,32 @@ public class ArrowResponseTests extends ESTestCase {
         compareEsqlAndArrow(new TestCase(columns, List.of(new TestPage(blocks))));
     }
 
+    public void testTransformedValuesAreConvertedOnce() throws IOException {
+        AtomicInteger conversionCount = new AtomicInteger();
+        var formatter = new BlockArrowFormatter.TransformedBytesRef(DataType.KEYWORD, Types.MinorType.VARCHAR, (value, scratch) -> {
+            conversionCount.incrementAndGet();
+            return value;
+        });
+        var bufs = new ArrayList<ArrowBuf>();
+        var bufWriters = new ArrayList<BlockArrowFormatter.BufWriter>();
+        var releasables = new ArrayList<Releasable>();
+        try (
+            BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3);
+            BytesRefBlock block = builder.appendBytesRef(new BytesRef("one")).appendNull().appendBytesRef(new BytesRef("two")).build();
+            RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())
+        ) {
+            formatter.convert(block, false, bufs, bufWriters, releasables);
+            assertEquals(2, conversionCount.get());
+
+            for (BlockArrowFormatter.BufWriter writer : bufWriters) {
+                writer.write(out);
+            }
+            assertEquals(2, conversionCount.get());
+        } finally {
+            Releasables.close(releasables);
+        }
+    }
+
     public void testSparseOrdinalBytesRefBlock() throws IOException {
         String version = "1.2.3";
         BytesRefBlock ordinalBlock;
@@ -600,8 +629,13 @@ public class ArrowResponseTests extends ESTestCase {
         }
 
         var bufs = new ArrayList<ArrowBuf>();
-        ArrowResponse.ESQL_FORMATTERS.get(DataType.VERSION).convert(ordinalBlock, false, bufs, new ArrayList<>());
-        assertEquals(version.length(), bufs.getLast().writerIndex());
+        var releasables = new ArrayList<Releasable>();
+        try {
+            ArrowResponse.ESQL_FORMATTERS.get(DataType.VERSION).convert(ordinalBlock, false, bufs, new ArrayList<>(), releasables);
+            assertEquals(version.length(), bufs.getLast().writerIndex());
+        } finally {
+            Releasables.close(releasables);
+        }
 
         TestColumn col = TestColumn.create("col-version", DataType.VERSION, false);
         compareEsqlAndArrow(new TestCase(List.of(col), List.of(new TestPage(List.of(TestBlock.create(col, ordinalBlock))))));

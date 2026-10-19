@@ -7040,3 +7040,24 @@ id:keyword | ua.name:keyword | ua.device.type:keyword | _unmapped_fields:_source
 2          | Firefox         | Desktop                | "{""other"":""x""}"
 3          | curl            | Other                  | null
 ;
+
+// Two commands in different subqueries, one over each of the datasets: each subquery keeps its own output column and its own
+// _unmapped_fields, and the other subquery's column is null-filled.
+compoundOutputCommandsInSubqueries
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_compound_output_fill_null_limit_by_dedup
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: uri_parts_command
+required_capability: registered_domain_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM unmapped_compound_outputs | WHERE id == "1" | URI_PARTS parts = url | KEEP id, parts.scheme, oth*),
+     (FROM unmapped_compound_inputs | WHERE id == "b1" | REGISTERED_DOMAIN rd = host | KEEP id, rd.registered_domain, ta*)
+| SORT id
+;
+
+id:keyword | parts.scheme:keyword | rd.registered_domain:keyword | _unmapped_fields:_source
+1          | http                 | null                         | "{""other"":""x""}"
+b1         | null                 | example.com                  | null
+;

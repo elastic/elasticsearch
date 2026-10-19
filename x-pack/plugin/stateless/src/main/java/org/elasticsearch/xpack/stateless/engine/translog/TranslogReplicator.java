@@ -520,11 +520,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
 
         private void hedge(ActionListener<UploadTranslogTask> listener) {
+            translogUploadHedgesCounter.increment();
             if (completed || bytesToClose.tryIncRef() == false) {
                 return;
             }
+
             hedged = true;
-            translogUploadHedgesCounter.increment();
             objectStoreService.uploadTranslogFile(
                 translog.metadata().name(),
                 translog.bytes().data(),

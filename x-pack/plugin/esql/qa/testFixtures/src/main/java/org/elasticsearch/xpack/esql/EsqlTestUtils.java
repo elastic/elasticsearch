@@ -1919,6 +1919,75 @@ public final class EsqlTestUtils {
      * matches existing behavior.
      */
     public static String convertSubqueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices) {
+        // Strip leading SET clauses (they set configuration, not index names, and pass through unchanged).
+        // After stripping, check whether the remainder starts with LET.
+        List<String> parts = splitIgnoringParentheses(testQuery, ";");
+        int firstNonSet = 0;
+        while (firstNonSet < parts.size() && startsWithCommandKeyword(parts.get(firstNonSet).strip(), SET_COMMAND_PATTERN)) {
+            firstNonSet++;
+        }
+        if (firstNonSet == 0) {
+            // No leading SET clauses — fast path (original behaviour).
+            if (startsWithCommandKeyword(testQuery.strip(), LET_COMMAND_PATTERN)) {
+                return convertLetQueryToRemoteIndices(testQuery, bothClusterIndices);
+            }
+            return convertSubqueryToRemoteIndices(testQuery, bothClusterIndices, Set.of());
+        }
+        // Reconstruct: SET clauses pass through unchanged; remainder is dispatched normally.
+        String setPrefix = String.join(";\n", parts.subList(0, firstNonSet)) + ";\n";
+        String remainder = String.join(";", parts.subList(firstNonSet, parts.size())).strip();
+        if (startsWithCommandKeyword(remainder, LET_COMMAND_PATTERN)) {
+            return setPrefix + convertLetQueryToRemoteIndices(remainder, bothClusterIndices);
+        }
+        return setPrefix + convertSubqueryToRemoteIndices(remainder, bothClusterIndices, Set.of());
+    }
+
+    /**
+     * Rewrites index names inside a LET-prefix query for cross-cluster testing.
+     * Real index names in LET binding bodies are converted to remote patterns ({@code *:index,index}).
+     * LET binding names used as FROM sources in subsequent bindings or the main query are left unchanged.
+     * Each {@code LET name = (subquery);} statement declares exactly one binding.
+     */
+    private static String convertLetQueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices) {
+        // Split at the top-level ';' to separate the LET statements from the main query.
+        List<String> parts = splitIgnoringParentheses(testQuery, ";");
+        int letCount = 0;
+        while (letCount < parts.size() && startsWithCommandKeyword(parts.get(letCount).strip(), LET_COMMAND_PATTERN)) {
+            letCount++;
+        }
+        String mainQuery = String.join(";", parts.subList(letCount, parts.size())).strip();
+
+        // First pass: collect all binding names so we can skip rewriting them as remote indices.
+        Set<String> letBindingNames = new HashSet<>();
+        List<String[]> parsedBindings = new ArrayList<>();
+        for (String letStatement : parts.subList(0, letCount)) {
+            // Strip the "LET" keyword; what remains is "name = (body)".
+            String binding = letStatement.strip().substring(3).strip();
+            int eqIdx = binding.indexOf('=');
+            String name = binding.substring(0, eqIdx).strip();
+            letBindingNames.add(name);
+            parsedBindings.add(new String[] { name, binding.substring(eqIdx + 1).strip() });
+        }
+
+        // Second pass: rewrite each binding body, leaving LET binding name references unchanged.
+        StringBuilder result = new StringBuilder();
+        for (String[] parsedBinding : parsedBindings) {
+            String bodyWithParens = parsedBinding[1];
+            String innerBody = bodyWithParens.startsWith("(") && bodyWithParens.endsWith(")")
+                ? bodyWithParens.substring(1, bodyWithParens.length() - 1)
+                : bodyWithParens;
+            String rewrittenBody = convertSubqueryToRemoteIndices(innerBody, bothClusterIndices, letBindingNames);
+            result.append("LET ").append(parsedBinding[0]).append(" = (").append(rewrittenBody).append(");\n");
+        }
+
+        // Rewrite the main query, treating LET binding names as non-indices.
+        if (mainQuery.isEmpty() == false) {
+            result.append(convertSubqueryToRemoteIndices(mainQuery, bothClusterIndices, letBindingNames));
+        }
+        return result.toString();
+    }
+
+    private static String convertSubqueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices, Set<String> letBindingNames) {
         String query = testQuery;
         // find the main source command, ignoring pipes inside subqueries
         List<String> mainFromCommandAndTheRest = splitIgnoringParentheses(query, "|");
@@ -1950,7 +2019,10 @@ public final class EsqlTestUtils {
         // may contain FROM subqueries that do need rewriting.
         if (startsWithCommandKeyword(mainFrom, ROW_COMMAND_PATTERN)) {
             for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
-                mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices));
+                mainFromCommandAndTheRest.set(
+                    i,
+                    rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices, letBindingNames)
+                );
             }
             return String.join(" | ", mainFromCommandAndTheRest);
         }
@@ -1976,8 +2048,11 @@ public final class EsqlTestUtils {
             if (isSubquery(indexPatternOrSubquery)) {
                 // it's a subquery, we need to process it recursively
                 String subquery = indexPatternOrSubquery.strip().substring(1, indexPatternOrSubquery.length() - 1);
-                String transformedSubquery = convertSubqueryToRemoteIndices(subquery, bothClusterIndices);
+                String transformedSubquery = convertSubqueryToRemoteIndices(subquery, bothClusterIndices, letBindingNames);
                 transformed.add("(" + transformedSubquery + ")");
+            } else if (letBindingNames.contains(unquoteIndexName(indexPatternOrSubquery))) {
+                // This source is a LET binding name, not a real ES index — leave it unchanged.
+                transformed.add(indexPatternOrSubquery);
             } else {
                 // Indices that live on both clusters (enrich source / lookup indices) must become
                 // remote-only (*:index) to avoid double-counting; everything else uses *:index,index.
@@ -1991,7 +2066,10 @@ public final class EsqlTestUtils {
         // that follow the source command. Non-subquery parenthesised groups (value lists, function
         // arguments, boolean groupings) are left structurally unchanged.
         for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
-            mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices));
+            mainFromCommandAndTheRest.set(
+                i,
+                rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices, letBindingNames)
+            );
         }
         // rebuild the whole query
         mainFromCommandAndTheRest.set(0, transformedFrom);
@@ -2014,8 +2092,9 @@ public final class EsqlTestUtils {
      * <p>Like {@link #splitIgnoringParentheses}, this method is not string-literal-aware.
      *
      * @param bothClusterIndices see {@link #convertSubqueryToRemoteIndices(String, Set)}.
+     * @param letBindingNames    LET binding names, which are not real indices and must not be rewritten.
      */
-    private static String rewriteSubqueriesInExpression(String segment, Set<String> bothClusterIndices) {
+    private static String rewriteSubqueriesInExpression(String segment, Set<String> bothClusterIndices, Set<String> letBindingNames) {
         StringBuilder result = new StringBuilder();
         int i = 0;
         while (i < segment.length()) {
@@ -2040,11 +2119,11 @@ public final class EsqlTestUtils {
                     || startsWithCommandKeyword(strippedContent, ROW_COMMAND_PATTERN)) {
                     // This group is a subquery body — rewrite it recursively.
                     // ROW bodies are returned unchanged by convertSubqueryToRemoteIndices.
-                    rewrittenGroup = "(" + convertSubqueryToRemoteIndices(strippedContent, bothClusterIndices) + ")";
+                    rewrittenGroup = "(" + convertSubqueryToRemoteIndices(strippedContent, bothClusterIndices, letBindingNames) + ")";
                 } else {
                     // Not a direct subquery body (value list, function args, boolean grouping, …).
                     // Recurse into the raw content to catch any nested subquery inside it.
-                    rewrittenGroup = "(" + rewriteSubqueriesInExpression(content, bothClusterIndices) + ")";
+                    rewrittenGroup = "(" + rewriteSubqueriesInExpression(content, bothClusterIndices, letBindingNames) + ")";
                 }
                 result.append(rewrittenGroup);
                 i = j;
@@ -2059,6 +2138,8 @@ public final class EsqlTestUtils {
     private static final Pattern FROM_COMMAND_PATTERN = commandPattern("from");
     private static final Pattern TS_COMMAND_PATTERN = commandPattern("ts");
     private static final Pattern ROW_COMMAND_PATTERN = commandPattern("row");
+    private static final Pattern LET_COMMAND_PATTERN = commandPattern("let");
+    private static final Pattern SET_COMMAND_PATTERN = commandPattern("set");
 
     private static Pattern commandPattern(String keyword) {
         return Pattern.compile(Pattern.quote(keyword) + "\\p{javaWhitespace}", Pattern.CASE_INSENSITIVE);

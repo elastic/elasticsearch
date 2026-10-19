@@ -28,6 +28,7 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.hamcrest.Matchers.containsString;
 
 @TestMethodProviders({ EsqlDisruptionIT.LimitedTests.class })
 @ESIntegTestCase.ClusterScope(scope = TEST, minNumDataNodes = 2, maxNumDataNodes = 4)
@@ -77,18 +79,36 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         return plugins;
     }
 
+    private boolean runningWithDisruption;
+
     @Override
     public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
         // IndexResolver currently ignores failures from field-caps responses and can resolve to a smaller set of concrete indices.
         boolean singleIndex = request.queryDescription().startsWith("from test |");
         if (singleIndex) {
-            return runQueryWithDisruption(request);
+            // Fail fast if the retry ever re-enters the disruption path, instead of looping until the suite timeout.
+            assertFalse("runQueryWithDisruption must not re-enter itself", runningWithDisruption);
+            runningWithDisruption = true;
+            try {
+                return runQueryWithDisruption(request, timeout);
+            } finally {
+                runningWithDisruption = false;
+            }
         } else {
             return super.run(request, timeout);
         }
     }
 
-    private EsqlQueryResponse runQueryWithDisruption(EsqlQueryRequest request) {
+    /**
+     * Queries that fail during planning, such as verification errors, must surface to the caller instead of being retried
+     * forever under disruption. {@link LimitedTests} always runs the tests declared here, so a regression fails every run.
+     */
+    public void testVerificationFailureUnderDisruption() {
+        var e = expectThrows(VerificationException.class, () -> run("from test | eval x = unknown_field"));
+        assertThat(e.getMessage(), containsString("Unknown column [unknown_field]"));
+    }
+
+    private EsqlQueryResponse runQueryWithDisruption(EsqlQueryRequest request, TimeValue timeout) {
         final ServiceDisruptionScheme disruptionScheme = addRandomDisruptionScheme();
         logger.info("--> start disruption scheme [{}]", disruptionScheme);
         disruptionScheme.startDisrupting();
@@ -143,8 +163,8 @@ public class EsqlDisruptionIT extends EsqlActionIT {
                 assertTrue(request.allowPartialResults());
             }
         }
-        // re-run the query
-        return super.run(request);
+        // re-run the query without disruption; the one-argument run would dispatch back into this method
+        return super.run(request, timeout);
     }
 
     private ServiceDisruptionScheme addRandomDisruptionScheme() {
@@ -194,7 +214,9 @@ public class EsqlDisruptionIT extends EsqlActionIT {
             long seed = Long.parseUnsignedLong(seedStr.substring(0, Math.min(16, seedStr.length())), 16);
             Random rng = new Random(seed);
             Collections.shuffle(all, rng);
-            return all.subList(0, Math.min(5, all.size()));
+            List<Method> selected = all.stream().filter(m -> m.getDeclaringClass() == suiteClass).collect(Collectors.toList());
+            all.stream().filter(m -> m.getDeclaringClass() != suiteClass).limit(5).forEach(selected::add);
+            return selected;
         }
     }
 }

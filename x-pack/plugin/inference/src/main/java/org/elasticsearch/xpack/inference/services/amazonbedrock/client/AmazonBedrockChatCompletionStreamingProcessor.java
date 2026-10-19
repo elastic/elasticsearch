@@ -178,7 +178,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
 
     private void callDownStreamOnNext(ArrayDeque<ChatCompletionChunkResponse> chunks) {
         if (chunks.isEmpty() == false && downstream != null) {
-            downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
+            emitNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
         } else if (upstream != null) {
             logger.debug("No chunks to send downstream, requesting more items from upstream");
             upstream.request(1);
@@ -336,6 +336,12 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      */
     private Stream<ChatCompletionChunkResponse> handleContentBlockDelta(ContentBlockDeltaEvent event) {
         var type = event.delta().type();
+        if (type == ContentBlockDelta.Type.REASONING_CONTENT) {
+            // Models such as Claude Sonnet 5 stream reasoning content blocks. The unified chat completion response has no place for them
+            // here, so skip them rather than failing the whole stream.
+            logger.trace("skipping reasoning content block delta.");
+            return Stream.empty();
+        }
         var content = event.delta().text();
 
         var message = switch (type) {

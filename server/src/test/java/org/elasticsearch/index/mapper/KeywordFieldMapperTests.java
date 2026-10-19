@@ -2137,7 +2137,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 .build(),
             fieldMapping(b -> b.field("type", "keyword"))
         );
-        assertEquals("{}", syntheticSource(mapperService.documentMapper(), b -> b.field("field", "")));
+        assertEquals("{}", syntheticSource(mapperService, b -> b.field("field", "")));
     }
 
     public void testSearchingForAnEmptyStringAsksForTheDocumentsWithNoValue() throws IOException {

@@ -6606,12 +6606,12 @@ required_capability: subquery_in_from_command
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data, (FROM (FROM (FROM partial_mapping_view | WHERE message == "42") | WHERE message == "42") | WHERE message == "42")
 | WHERE message == "42"
-| KEEP message, unmapped_message
+| KEEP message, unmapped_message*
 ;
 ignoreOrder:true
 
-message:keyword | unmapped_message:keyword
-42              | 43
+message:keyword | _unmapped_fields:_source
+42              | "{""unmapped_message"":""43""}"
 42              | null
 ;
 
@@ -6625,13 +6625,32 @@ required_capability: subquery_in_from_command
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data, (FROM (FROM (FROM nested_partial_mapping_view | WHERE message == "42") | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "42"))
 | WHERE message == "42"
-| KEEP message, unmapped_message
+| KEEP message, unmapped_message*
 ;
 ignoreOrder:true
 
-message:keyword | unmapped_message:keyword
-42              | 43
+message:keyword | _unmapped_fields:_source
+42              | "{""unmapped_message"":""43""}"
 42              | null
 42              | null
+42              | null
+;
+
+loadAllViewAndIndexInDeeplyNestedSubquery
+required_capability: optional_fields_load_all_views
+required_capability: settings_scoped_at_view_boundaries
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM (FROM (FROM partial_mapping_sample_data, partial_mapping_view | WHERE message == "42") | WHERE message == "42") | WHERE message == "42")
+| WHERE message == "42"
+| KEEP message, unmapped_message*
+;
+ignoreOrder:true
+
+message:keyword | _unmapped_fields:_source
+42              | "{""unmapped_message"":""43""}"
 42              | null
 ;

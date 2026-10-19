@@ -12,20 +12,22 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Tracks free-disk shortfalls for snapshot restores that live allocation could not admit.
+ * Tracks snapshot restore shards that live allocation could not admit because of disk capacity.
  * Written from {@link org.elasticsearch.xpack.stateless.allocation.SnapshotRestoreAllocationDecider};
- * autoscaling reads {@link #unmetTotalDiskBytes()}.
+ * autoscaling reads {@link #restoreShardSizes()}.
  */
 public final class SnapshotRestoreDiskPressure {
 
     private static final String DEFAULT_INDEXING_SHARED_CACHE_SIZE = "50%";
 
     private final RelativeByteSizeValue indexingSharedCacheSize;
-    private final ConcurrentHashMap<ShardId, Long> unmetDiskShortfalls = new ConcurrentHashMap<>();
+    private final RelativeByteSizeValue indexingReservedDisk;
+    private final ConcurrentHashMap<ShardId, Long> unplaceableShardSizes = new ConcurrentHashMap<>();
 
     public SnapshotRestoreDiskPressure(Settings settings) {
         this.indexingSharedCacheSize = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings)
@@ -34,44 +36,44 @@ public final class SnapshotRestoreDiskPressure {
                 DEFAULT_INDEXING_SHARED_CACHE_SIZE,
                 SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()
             );
+        this.indexingReservedDisk = IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING.get(settings);
     }
 
     /**
-     * Total disk needed on a new indexing node so free space after the shared-cache carve-out
-     * covers recorded free shortfalls (indexing reserve already included).
+     * Returns one immutable snapshot of the unplaceable restore shards and the disk settings used to evaluate them.
      */
-    public long unmetTotalDiskBytes() {
-        long freeNeeded = unmetDiskShortfalls.values().stream().mapToLong(Long::longValue).sum();
-        if (freeNeeded == 0L) {
-            return 0L;
-        }
-        if (indexingSharedCacheSize.isAbsolute()) {
-            return freeNeeded + indexingSharedCacheSize.getAbsolute().getBytes();
-        }
-        double freeRatio = 1.0d - indexingSharedCacheSize.getRatio().getAsRatio();
-        if (freeRatio <= 0.0d) {
-            throw new IllegalStateException(
-                "indexing shared cache leaves no free disk for restore capacity [cache=" + indexingSharedCacheSize.getStringRep() + "]"
-            );
-        }
-        return (long) Math.ceil(freeNeeded / freeRatio);
+    public RestoreShardSizes restoreShardSizes() {
+        return new RestoreShardSizes(unplaceableShardSizes, indexingSharedCacheSize, indexingReservedDisk);
     }
 
-    public void recordShortfall(ShardId shardId, long shortfallBytes) {
-        if (shortfallBytes <= 0) {
-            throw new IllegalArgumentException("shortfallBytes must be positive, got [" + shortfallBytes + "]");
+    public void recordShardSize(ShardId shardId, long shardSizeBytes) {
+        if (shardSizeBytes < 0) {
+            throw new IllegalArgumentException("shardSizeBytes must be non-negative, got [" + shardSizeBytes + "]");
         }
-        unmetDiskShortfalls.merge(shardId, shortfallBytes, Math::min);
+        unplaceableShardSizes.put(shardId, shardSizeBytes);
     }
 
     public void clear(ShardId shardId) {
-        unmetDiskShortfalls.remove(shardId);
+        unplaceableShardSizes.remove(shardId);
     }
 
     public void retainOnly(Set<ShardId> liveUnassignedSnapshotPrimaries) {
-        if (unmetDiskShortfalls.isEmpty()) {
+        if (unplaceableShardSizes.isEmpty()) {
             return;
         }
-        unmetDiskShortfalls.keySet().removeIf(shardId -> liveUnassignedSnapshotPrimaries.contains(shardId) == false);
+        unplaceableShardSizes.keySet().removeIf(shardId -> liveUnassignedSnapshotPrimaries.contains(shardId) == false);
+    }
+
+    /**
+     * Inputs used by serverless autoscaling to calculate aggregate restore demand and a minimum feasible node size.
+     */
+    public record RestoreShardSizes(
+        Map<ShardId, Long> shardSizes,
+        RelativeByteSizeValue indexingSharedCacheSize,
+        RelativeByteSizeValue indexingReservedDisk
+    ) {
+        public RestoreShardSizes {
+            shardSizes = Map.copyOf(shardSizes);
+        }
     }
 }

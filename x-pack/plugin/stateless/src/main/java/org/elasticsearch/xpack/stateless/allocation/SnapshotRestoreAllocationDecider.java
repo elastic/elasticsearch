@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.stateless.SnapshotRestoreDiskPressure;
 /**
  * Prevents snapshot restores from being admitted without space for their local files and a node-wide reserve.
  * <p>
- * Records disk shortfalls on {@link SnapshotRestoreDiskPressure} only while reconciling a desired balance
+ * Records shard sizes on {@link SnapshotRestoreDiskPressure} only while reconciling a desired balance
  * ({@link RoutingAllocation#isReconciling()}), so autoscaling sees THROTTLEd restores. Simulations and explain
  * must not write — explain uses an immutable allocation with {@code isSimulating() == false}, so
  * {@code !isSimulating()} is not a safe write gate.
@@ -92,9 +92,7 @@ public class SnapshotRestoreAllocationDecider extends AllocationDecider {
             if (fits) {
                 diskPressure.clear(shard.shardId());
             } else {
-                long shortfall = indexingReservedBytes - freeAfterRestore;
-                assert shortfall > 0 : shortfall;
-                diskPressure.recordShortfall(shard.shardId(), shortfall);
+                diskPressure.recordShardSize(shard.shardId(), shardSize);
             }
         }
         return allocation.decision(

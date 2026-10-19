@@ -186,13 +186,12 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         state = service.reroute(state, "disk tight", ActionListener.noop());
         assertTrue(primary(state, "index-0").unassigned());
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
-        // 1 byte free shortfall; default indexing shared cache is 50% → total disk = 2.
-        assertEquals(2L, restore.pressure().unmetTotalDiskBytes());
+        assertEquals(Map.of(primary(state, "index-0").shardId(), 50 * GB), restore.pressure().restoreShardSizes().shardSizes());
 
         info.set(info(70 * GB));
         state = service.reroute(state, "exact fit", ActionListener.noop());
         assertTrue(primary(state, "index-0").initializing());
-        assertEquals(0L, restore.pressure().unmetTotalDiskBytes());
+        assertTrue(restore.pressure().restoreShardSizes().shardSizes().isEmpty());
     }
 
     public void testWaitsWhenDiskStatsMissing() {
@@ -205,8 +204,8 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         state = service.reroute(state, "no disk stats", ActionListener.noop());
         assertTrue(primary(state, "index-0").unassigned());
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
-        // Missing disk stats throttle without a known shortfall magnitude.
-        assertEquals(0L, restore.pressure().unmetTotalDiskBytes());
+        // Missing disk stats throttle without identifying an unplaceable shard.
+        assertTrue(restore.pressure().restoreShardSizes().shardSizes().isEmpty());
     }
 
     public void testIncomingAssignmentsConsumeCapacity() {
@@ -220,17 +219,17 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         state = service.reroute(state, "initial", ActionListener.noop());
         assertEquals(1, state.routingTable().allShards().filter(ShardRouting::initializing).toList().size());
         assertEquals(1, state.getRoutingNodes().unassigned().size());
-        assertTrue(restore.pressure().unmetTotalDiskBytes() > 0);
+        assertEquals(1, restore.pressure().restoreShardSizes().shardSizes().size());
+        assertTrue(restore.pressure().restoreShardSizes().shardSizes().containsValue(50 * GB));
 
         info.set(info(120 * GB));
         state = service.reroute(state, "more capacity", ActionListener.noop());
         assertEquals(0, state.getRoutingNodes().unassigned().size());
-        assertEquals(0L, restore.pressure().unmetTotalDiskBytes());
+        assertTrue(restore.pressure().restoreShardSizes().shardSizes().isEmpty());
     }
 
-    public void testUnmetShortfallsAccumulateAcrossConcurrentThrottledRestores() {
+    public void testShardSizesAccumulateAcrossConcurrentThrottledRestores() {
         // Neither 50 GiB restore fits: free 70-1 leaves less than 20 GiB indexing reserve after one shard.
-        // Each shortfall is 1 byte; default indexing shared cache is 50% → 2 disk bytes each → 4 total.
         var state = restoreState(2);
         var restore = restoreDecider();
         var info = new AtomicReference<>(info(70 * GB - 1));
@@ -241,7 +240,8 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         assertEquals(2, state.getRoutingNodes().unassigned().size());
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-0").unassignedInfo().lastAllocationStatus());
         assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED, primary(state, "index-1").unassignedInfo().lastAllocationStatus());
-        assertEquals(4L, restore.pressure().unmetTotalDiskBytes());
+        assertEquals(2, restore.pressure().restoreShardSizes().shardSizes().size());
+        assertTrue(restore.pressure().restoreShardSizes().shardSizes().values().stream().allMatch(size -> size == 50 * GB));
     }
 
     public void testExplainDoesNotRecordDiskPressure() {
@@ -251,10 +251,10 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         var sizes = new AtomicReference<>(sizes(state, 50 * GB));
         var service = service(restore.decider(), restore.pressure(), info, sizes);
 
-        assertEquals(0L, restore.pressure().unmetTotalDiskBytes());
+        assertTrue(restore.pressure().restoreShardSizes().shardSizes().isEmpty());
         var decision = service.explainShardAllocation(primary(state, "index-0"), state, RoutingAllocation.DebugMode.ON);
         assertTrue(decision.getAllocateDecision().isDecisionTaken());
-        assertEquals(0L, restore.pressure().unmetTotalDiskBytes());
+        assertTrue(restore.pressure().restoreShardSizes().shardSizes().isEmpty());
     }
 
     public void testCancelledRestoreDoesNotLeakDiskPressure() {
@@ -265,14 +265,14 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
         var service = service(restore.decider(), restore.pressure(), info, sizes);
 
         state = service.reroute(state, "first restore throttled", ActionListener.noop());
-        assertEquals(2L, restore.pressure().unmetTotalDiskBytes());
+        assertEquals(Map.of(primary(state, "index-0").shardId(), 50 * GB), restore.pressure().restoreShardSizes().shardSizes());
 
         // Fresh index UUID → different ShardId. Only the live restore may contribute.
         state = restoreState(1);
         sizes.set(sizes(state, 50 * GB));
         state = service.reroute(state, "replacement restore throttled", ActionListener.noop());
         assertEquals(1, state.getRoutingNodes().unassigned().size());
-        assertEquals(2L, restore.pressure().unmetTotalDiskBytes());
+        assertEquals(Map.of(primary(state, "index-0").shardId(), 50 * GB), restore.pressure().restoreShardSizes().shardSizes());
     }
 
     public void testUnmetShortfallNotRecordedWhileFetchingShardSize() {
@@ -288,7 +288,7 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
             UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA,
             primary(state, "index-0").unassignedInfo().lastAllocationStatus()
         );
-        assertEquals(0L, restore.pressure().unmetTotalDiskBytes());
+        assertTrue(restore.pressure().restoreShardSizes().shardSizes().isEmpty());
     }
 
     public void testMonitorReroutesWhenStorageChangesWhileRestorePending() {

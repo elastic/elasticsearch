@@ -660,13 +660,8 @@ public class StringColumnMergeTests extends ESTestCase {
 
     public void testSegmentsOfOneFieldInBothFramingsMergeIntoEitherFraming() throws IOException {
         final int numDocs = between(200, 1500);
-        final String[] values = new String[numDocs];
-        for (int d = 0; d < numDocs; d++) {
-            if (random().nextInt(10) != 0) {
-                values[d] = rarely() ? "rare-" + d : randomFrom("nginx", "apache", "kafka", "");
-            }
-        }
         final int split = between(1, numDocs - 1);
+        final String[] values = randomValuesWithAValueOnEachSideOf(split, numDocs);
         for (boolean mergedSingleValued : new boolean[] { false, true }) {
             final boolean firstSingleValued = randomBoolean();
             try (Directory dir = newDirectory()) {
@@ -690,6 +685,65 @@ public class StringColumnMergeTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testSegmentWithoutTheFieldMergesIntoEitherFraming() throws IOException {
+        final int numEmpty = between(1, 200);
+        final int numValued = between(1, 200);
+        final int numDocs = numEmpty + numValued;
+        for (boolean emptyFirst : new boolean[] { false, true }) {
+            final int valuedFrom = emptyFirst ? numEmpty : 0;
+            final int valuedTo = valuedFrom + numValued;
+            final int split = emptyFirst ? numEmpty : numValued;
+            final String[] values = new String[numDocs];
+            for (int d = valuedFrom; d < valuedTo; d++) {
+                values[d] = rarely() ? "rare-" + d : randomFrom("nginx", "apache", "kafka", "");
+            }
+            for (boolean valuedSingleValued : new boolean[] { false, true }) {
+                for (boolean mergedSingleValued : new boolean[] { false, true }) {
+                    try (Directory dir = newDirectory()) {
+                        writeSegment(dir, valuedSingleValued, values, 0, split);
+                        writeSegment(dir, valuedSingleValued, values, split, numDocs);
+                        try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                            assertEquals("two segments", 2, reader.leaves().size());
+                            assertSegmentValues(
+                                reader.leaves().get(0).reader(),
+                                valuedSingleValued,
+                                Arrays.asList(values).subList(0, split)
+                            );
+                            assertSegmentValues(
+                                reader.leaves().get(1).reader(),
+                                valuedSingleValued,
+                                Arrays.asList(values).subList(split, numDocs)
+                            );
+                        }
+                        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codecFor(mergedSingleValued))
+                            .setMergePolicy(new LogDocMergePolicy());
+                        try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                            writer.forceMerge(1);
+                        }
+                        try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                            assertEquals("force-merged to one segment", 1, reader.leaves().size());
+                            final LeafReader leaf = reader.leaves().get(0).reader();
+                            assertEquals("every document survives", numDocs, leaf.maxDoc());
+                            assertSegmentValues(leaf, mergedSingleValued, Arrays.asList(values));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static String[] randomValuesWithAValueOnEachSideOf(int split, int numDocs) {
+        final String[] values = new String[numDocs];
+        final int valuedBeforeSplit = between(0, split - 1);
+        final int valuedAfterSplit = between(split, numDocs - 1);
+        for (int d = 0; d < numDocs; d++) {
+            if (d == valuedBeforeSplit || d == valuedAfterSplit || random().nextInt(10) != 0) {
+                values[d] = rarely() ? "rare-" + d : randomFrom("nginx", "apache", "kafka", "");
+            }
+        }
+        return values;
     }
 
     private static Codec codecFor(boolean singleValued) {
@@ -819,6 +873,9 @@ public class StringColumnMergeTests extends ESTestCase {
     /** Every document's blob, in doc order. Decoding needs a slot count, which the caller supplies. */
     private static List<BytesRef> readBlobs(LeafReader leaf, String field) throws IOException {
         final BinaryDocValues dv = leaf.getBinaryDocValues(field);
+        if (dv == null) {
+            return List.of();
+        }
         final List<BytesRef> blobs = new ArrayList<>();
         for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
             blobs.add(BytesRef.deepCopyOf(dv.binaryValue()));

@@ -35,6 +35,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.ViewService;
@@ -47,6 +48,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.contains;
@@ -110,6 +112,24 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testTsWithoutStatsIsRejected() {
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("view [ts-view] uses TS, which must be followed by a STATS command"),
+            () -> createView("ts-view", "TS metrics | WHERE cpu > 1 | KEEP cpu")
+        );
+    }
+
+    public void testTsWithStatsIsAccepted() {
+        assertAcked(createView("ts-view", "TS metrics | STATS max(cpu) BY host"));
+        assertAcked(createView("ts-view", "TS metrics | FORK (STATS max(cpu)) (WHERE cpu > 1)"));
+    }
+
+    public void testPromqlIsAccepted() {
+        assertAcked(createView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu))"));
+        assertAcked(createView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | WHERE cpu_avg > 1 | KEEP cpu_avg"));
+    }
+
     public void testCannotCreateAliasToView() {
         assertAcked(createView("my-view", "FROM not-validated"));
 
@@ -120,6 +140,14 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("my-view").alias("some-alias"))
                 .get()
         );
+    }
+
+    public void testViewOverRow() {
+        assertAcked(createView("row-view", "ROW f1=1"));
+
+        try (EsqlQueryResponse response = run("FROM row-view")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
+        }
     }
 
     public void testViewOverAlias() {
@@ -137,6 +165,48 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = run("FROM alias-view")) {
             assertThat(getValuesList(response), equalTo(List.of(List.of(42))));
         }
+    }
+
+    public void testViewOverTimeSeries() {
+        assertAcked(
+            indicesAdmin().prepareCreate("ts-source")
+                .setSettings(Settings.builder().put("index.mode", "time_series").putList("index.routing_path", List.of("host")))
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "cpu",
+                    "type=long,time_series_metric=gauge"
+                )
+        );
+        long now = System.currentTimeMillis();
+        String time1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(now);
+        String time2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(now + 1000);
+        assertNoFailures(
+            client().prepareBulk()
+                .add(prepareIndex("ts-source").setSource("@timestamp", time1, "host", "a", "cpu", 10))
+                .add(prepareIndex("ts-source").setSource("@timestamp", time2, "host", "a", "cpu", 30))
+                .add(prepareIndex("ts-source").setSource("@timestamp", time1, "host", "b", "cpu", 20))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get()
+        );
+
+        // Per-series averages are 20 (host a) and 20 (host b). A plain sum over all docs would give 60.
+        assertAcked(createView("ts-view-1", "TS ts-source | STATS total = sum(avg_over_time(cpu)) | EVAL f1=1"));
+        try (EsqlQueryResponse response = run("FROM ts-view-1 | EVAL f2=2")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(40.0, 1, 2))));
+        }
+        expectThrows(
+            VerificationException.class,
+            containsString("Views are not supported in TS command, found view(s) [ts-view-1]"),
+            () -> run("TS ts-view-1 | EVAL f2=2").close()
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Views are not supported in TS command, found view(s) [ts-view-1]"),
+            () -> run("TS ts-source,ts-view-1 | EVAL f2=2").close()
+        );
     }
 
     public void testViewOverSystemIndex() {

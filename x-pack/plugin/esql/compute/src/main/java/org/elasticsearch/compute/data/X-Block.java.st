@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -425,6 +426,9 @@ $endif$
         Builder append$Type$($type$ value);
 
 $if(BytesRef)$
+        @Override
+        Builder appendBytesReference(BytesReference value);
+
         /**
          * Appends a BytesRef to the current entry using a {@link PagedBytesCursor}.
          */

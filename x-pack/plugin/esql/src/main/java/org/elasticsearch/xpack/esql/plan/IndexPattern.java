@@ -20,10 +20,30 @@ public class IndexPattern implements NodeStringRenderable {
 
     private final Source source;
     private final String indexPattern;
+    private final boolean insideView;
 
     public IndexPattern(Source source, String indexPattern) {
+        this(source, indexPattern, false);
+    }
+
+    private IndexPattern(Source source, String indexPattern, boolean insideView) {
         this.source = source;
         this.indexPattern = indexPattern;
+        this.insideView = insideView;
+    }
+
+    /**
+     * The same pattern, scoped to a view body. A view is a virtual index whose behaviour must not depend on the caller's query
+     * settings, so a view's relation is resolved on its own even when the caller names the very same pattern (see
+     * {@code EsqlSession}): that is why the scope is part of this pattern's identity, which is what resolutions are keyed by.
+     */
+    public IndexPattern insideView() {
+        return insideView ? this : new IndexPattern(source, indexPattern, true);
+    }
+
+    /** Whether this pattern belongs to a relation inside a view body. See {@link #insideView()}. */
+    public boolean isInsideView() {
+        return insideView;
     }
 
     public Source source() {
@@ -36,7 +56,7 @@ public class IndexPattern implements NodeStringRenderable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern);
+        return Objects.hash(indexPattern, insideView);
     }
 
     @Override
@@ -50,7 +70,7 @@ public class IndexPattern implements NodeStringRenderable {
         }
 
         IndexPattern other = (IndexPattern) obj;
-        return Objects.equals(indexPattern, other.indexPattern);
+        return Objects.equals(indexPattern, other.indexPattern) && insideView == other.insideView;
     }
 
     /**

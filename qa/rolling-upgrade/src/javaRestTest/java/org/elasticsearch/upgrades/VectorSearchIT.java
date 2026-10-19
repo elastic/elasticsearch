@@ -20,14 +20,12 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 
 public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     public VectorSearchIT(@Name("upgradedNodes") int upgradedNodes) {
@@ -744,8 +742,9 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
      * Filtered kNN search on an index created before the upgrade. Every tenth document is tagged {@code rare}, so a filter on
      * {@code common} matches 90% of the vectors. In the old and mixed clusters the search only has to keep returning the right
      * documents, whichever node serves it. Once every node is upgraded, the same search is post-filtered under the new default,
-     * with no change to the index. The kNN profile shows the path: only a post-filtered search rewrites to
-     * {@code KnnScoreDocQuery}. Updating the threshold on a live index is covered by {@code PostFilterHnswKnnSearchIT}.
+     * with no change to the index. The kNN profile shows the path: a regular filtered search first materializes the filter into
+     * a bitset ({@code into_bit_set_count > 0}), a post-filtered search never does. Updating the threshold on a live index is
+     * covered by {@code PostFilterHnswKnnSearchIT}.
      */
     public void testFilteredKnnPostFiltering() throws Exception {
         assumeTrue("Float vector search is not supported on this version", oldClusterHasFeature(FLOAT_VECTOR_SEARCH_TEST_FEATURE));
@@ -788,7 +787,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
 
         if (isUpgradedCluster()) {
             // the index was created before the setting existed, and is post-filtered under the new default
-            assertThat(knnProfileTypes(filteredKnnSearch(true)), hasItem("KnnScoreDocQuery"));
+            assertThat(knnIntoBitSetCount(filteredKnnSearch(true)), equalTo(0L));
         }
     }
 
@@ -820,22 +819,23 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         return response;
     }
 
-    /** The query types anywhere in the kNN profile tree; the rewritten kNN query sits below wrappers such as the boost. */
-    private static List<String> knnProfileTypes(Map<String, Object> response) throws IOException {
-        List<String> types = new ArrayList<>();
-        collectProfileTypes(ObjectPath.evaluate(response, "profile.shards.0.dfs.knn.0.query"), types);
-        return types;
+    /** How many times the kNN search materialized a query into a bitset, summed over every node of its profile tree. */
+    private static long knnIntoBitSetCount(Map<String, Object> response) throws IOException {
+        return intoBitSetCount(ObjectPath.evaluate(response, "profile.shards.0.dfs.knn.0.query"));
     }
 
     @SuppressWarnings("unchecked")
-    private static void collectProfileTypes(List<Map<String, Object>> queries, List<String> types) {
+    private static long intoBitSetCount(List<Map<String, Object>> queries) {
+        long count = 0;
         for (Map<String, Object> query : queries) {
-            types.add((String) query.get("type"));
+            Map<String, Object> breakdown = (Map<String, Object>) query.get("breakdown");
+            count += ((Number) breakdown.getOrDefault("into_bit_set_count", 0)).longValue();
             List<Map<String, Object>> children = (List<Map<String, Object>>) query.get("children");
             if (children != null) {
-                collectProfileTypes(children, types);
+                count += intoBitSetCount(children);
             }
         }
+        return count;
     }
 
     private void index64DimVectors(String indexName) throws Exception {

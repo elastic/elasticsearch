@@ -28,12 +28,10 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Integration tests for kNN search with post-filtering across different
@@ -124,8 +122,9 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
 
     /**
      * The threshold is a dynamic setting read on every search, so updating it on an open index changes the path the next
-     * filtered search takes, with no reopen. For HNSW the kNN profile tells the two paths apart: only a post-filtered search
-     * rewrites to {@link KnnScoreDocQuery}, while a regular filtered search rewrites to Lucene's {@code DocAndScoreQuery}.
+     * filtered search takes, with no reopen. The kNN profile tells the two paths apart: a regular filtered search first
+     * materializes the filter into a bitset ({@code into_bit_set_count > 0}), while a post-filtered search never does and only
+     * checks the filter against its candidates.
      */
     public void testDynamicThresholdUpdateTakesEffect() throws IOException {
         String indexName = "dynamic_threshold_test";
@@ -160,31 +159,27 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
         var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, queryVector, k, 20, null, null, null).addFilterQuery(
             QueryBuilders.termQuery(TAG_FIELD, "common")
         );
-        // A post-filtered profile also holds a DocAndScoreQuery, from the unfiltered search it runs first, so only the
-        // KnnScoreDocQuery it rewrites to tells the paths apart.
-        String postFiltered = KnnScoreDocQuery.class.getSimpleName();
         assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k).setProfile(true), response -> {
             assertEquals(k, response.getHits().getHits().length);
             for (SearchHit hit : response.getHits().getHits()) {
                 assertEquals("common", hit.getSourceAsMap().get(TAG_FIELD));
             }
-            List<String> types = knnProfileQueryTypes(response);
-            assertThat(types, expectPostFiltered ? hasItem(postFiltered) : allOf(hasItem("DocAndScoreQuery"), not(hasItem(postFiltered))));
+            long intoBitSetCount = knnIntoBitSetCount(response);
+            assertThat(intoBitSetCount, expectPostFiltered ? equalTo(0L) : greaterThan(0L));
         });
     }
 
-    /** The query types anywhere in the kNN profile tree; the rewritten kNN query sits below wrappers such as the boost. */
-    private static List<String> knnProfileQueryTypes(SearchResponse response) {
-        List<String> types = response.getSearchProfileShardResults()
+    /** How many times the kNN search materialized a query into a bitset, summed over every node of its profile tree. */
+    private static long knnIntoBitSetCount(SearchResponse response) {
+        List<ProfileResult> nodes = response.getSearchProfileShardResults()
             .values()
             .stream()
             .flatMap(pr -> pr.getQueryPhase().getSearchProfileDfsPhaseResult().getQueryProfileShardResult().stream())
             .flatMap(qpr -> qpr.getQueryResults().stream())
             .flatMap(PostFilterHnswKnnSearchIT::profileTree)
-            .map(ProfileResult::getQueryName)
             .toList();
-        assertFalse("Expected the kNN search to be profiled", types.isEmpty());
-        return types;
+        assertFalse("Expected the kNN search to be profiled", nodes.isEmpty());
+        return nodes.stream().mapToLong(node -> node.getTimeBreakdown().getOrDefault("into_bit_set_count", 0L)).sum();
     }
 
     private static Stream<ProfileResult> profileTree(ProfileResult result) {

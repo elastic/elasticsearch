@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
@@ -17,6 +18,7 @@ import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -280,7 +282,19 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         OriginalIndices originalIndices,
         ActionListener<ComputeResponse> listener
     ) {
-        final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
+        final ExchangeSinkHandler exchangeSink;
+        try {
+            exchangeSink = exchangeService.getSinkHandlerIfOpen(globalSessionId);
+        } catch (ResourceNotFoundException e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (exchangeSink == null) {
+            // The querying cluster already finished this exchange. An empty result lets that cluster keep the
+            // error it already has; a not-found failure here would become the query error instead.
+            listener.onResponse(new ComputeResponse(DriverCompletionInfo.EMPTY));
+            return;
+        }
         parentTask.addListener(
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );

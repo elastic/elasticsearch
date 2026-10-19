@@ -4,11 +4,12 @@
 FROM (FROM languages), languages METADATA _score
 | WHERE MATCH(language_name, "English") OR MATCH(language_name, "French")
 | SORT _score DESC NULLS LAST, language_code
+| EVAL _score = ROUND(_score)
 ```
 
 | language_code:integer | language_name:keyword | _score:double |
 | --- | --- | --- |
-| 1 | English | 1.2039728164672852 |
-| 2 | French | 1.2039728164672852 |
+| 1 | English | 1.0 |
+| 2 | French | 1.0 |
 | 1 | English | null |
 | 2 | French | null |

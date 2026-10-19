@@ -34,7 +34,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -301,13 +300,7 @@ public class IndexingPressureRequestContextIT extends ESIntegTestCase {
                 @Override
                 public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
                     if (INDEX_NAME.equals(shardId.getIndexName())) {
-                        try {
-                            if (holdLatch.await(30, TimeUnit.SECONDS) == false) {
-                                throw new AssertionError("timed out waiting for the held indexing operation to be released");
-                            }
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(holdLatch);
                     }
                     return operation;
                 }

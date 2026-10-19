@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -14,10 +15,14 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.junit.After;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -39,6 +44,8 @@ import static org.hamcrest.Matchers.not;
  * {@link FromDatasetViewIT}. See {@code SETTINGS_SCOPED_AT_VIEW_BOUNDARIES} and {@code SET_IN_VIEW_DEFINITIONS}.
  */
 public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
+
+    private final Set<String> createdViews = new LinkedHashSet<>();
 
     /**
      * Two indices with dynamic mapping off, so {@code extra} is present in {@code _source} but unmapped:
@@ -642,12 +649,17 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Response headers live on the thread context of the node that ran the request, so the query and the header read
+     * must use the same node.
+     */
     private List<String> warningHeaders(String query) throws InterruptedException {
+        String node = internalCluster().getRandomNodeName();
         List<String> warnings = new CopyOnWriteArrayList<>();
         CountDownLatch latch = new CountDownLatch(1);
-        client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.running(() -> {
+        client(node).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.running(() -> {
             try {
-                internalCluster().getInstance(TransportService.class)
+                internalCluster().getInstance(TransportService.class, node)
                     .getThreadPool()
                     .getThreadContext()
                     .getResponseHeaders()
@@ -664,9 +676,31 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
     }
 
     private AcknowledgedResponse createView(String viewName, String query) {
+        createdViews.add(viewName);
         return client().execute(
             PutViewAction.INSTANCE,
             new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, query, null, false))
         ).actionGet(30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * The test cluster does not wipe views between tests, and a view left by one test can match another test's wildcard
+     * (for example {@code bad_view} matching {@code b*}).
+     */
+    @After
+    public void deleteCreatedViews() {
+        if (createdViews.isEmpty()) {
+            return;
+        }
+        try {
+            client().execute(
+                DeleteViewAction.INSTANCE,
+                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, createdViews.toArray(String[]::new))
+            ).actionGet(30, TimeUnit.SECONDS);
+        } catch (ResourceNotFoundException ignored) {
+            // already deleted
+        } finally {
+            createdViews.clear();
+        }
     }
 }

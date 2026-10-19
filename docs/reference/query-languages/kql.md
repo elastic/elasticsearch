@@ -11,7 +11,7 @@ products:
 
 # {{kib}} Query Language (KQL) syntax reference [kuery-query]
 
-This page shows the KQL syntax for each kind of condition, with examples you can adapt. The same syntax works in the {{kib}} query bar, in the [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md) in {{es}}, and in the [`KQL` function](/reference/query-languages/esql/functions-operators/search-functions/kql.md) in {{esql}}. To learn what KQL is and where to use it, refer to [{{kib}} Query Language (KQL) overview](docs-content://explore-analyze/query-filter/languages/kql.md).
+This page shows the KQL syntax for each kind of condition, with examples you can adapt. The {{kib}} query bar, the [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md) in {{es}}, and the [`KQL` function](/reference/query-languages/esql/functions-operators/search-functions/kql.md) in {{esql}} accept the same syntax, with the differences noted on this page. To learn what KQL is and where to use it, refer to [{{kib}} Query Language (KQL) overview](docs-content://explore-analyze/query-filter/languages/kql.md).
 
 
 ## Syntax at a glance [kql-syntax-at-a-glance]
@@ -49,7 +49,7 @@ To match a number, text, date, or boolean value, enter the field name, a colon, 
 http.request.method: GET
 ```
 
-On keyword, numeric, date, or boolean fields, the value must match exactly, including punctuation and case. To ignore case, use the `case_insensitive` parameter of the [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md).
+On keyword, numeric, date, or boolean fields, the value must match exactly, including punctuation and case. To ignore case, use the `case_insensitive` option of the [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md) or the `KQL` function.
 
 On `text` fields, {{es}} analyzes the value using the [field's mapping settings](docs-content://solutions/search/full-text/text-analysis-during-search.md). For example, documents where `http.request.body.content` contains "null pointer":
 
@@ -119,7 +119,7 @@ A date that includes a time contains a colon, so surround it with quotation mark
 @timestamp >= "2021-01-01T10:00:00"
 ```
 
-{{kib}} interprets explicit dates in the time zone set by the **Time zone** (`dateFormat:tz`) advanced setting. In the `kql` query, use the `time_zone` parameter instead.
+{{kib}} interprets explicit dates in the time zone set by the **Time zone** (`dateFormat:tz`) advanced setting. In the `kql` query and the `KQL` function, use the `time_zone` option instead.
 
 For more examples of acceptable date formats, refer to [Date Math](/reference/elasticsearch/rest-apis/common-options.md#date-math).
 
@@ -181,11 +181,13 @@ To set precedence, use parentheses. For example, documents where `http.request.m
 (http.request.method: POST AND http.response.status_code: 400)
 ```
 
-Without parentheses, `not` applies first, then `and`, then `or`. For example, this query matches GET requests, and also POST requests with status 400:
+In {{kib}}, without parentheses, `not` applies first, then `and`, then `or`. For example, this query matches GET requests, and also POST requests with status 400:
 
 ```yaml
 http.request.method: GET OR http.request.method: POST AND http.response.status_code: 400
 ```
+
+In the `kql` query and the `KQL` function, `and` and `or` have the same precedence and group from right to left. In those places, `a: 1 AND b: 2 OR c: 3` means `a: 1 AND (b: 2 OR c: 3)`. In {{kib}}, it means `(a: 1 AND b: 2) OR c: 3`. To get the same result everywhere, use parentheses.
 
 You can also use parentheses to match several values on one field. For example, documents where `http.request.method` is GET, POST, **or** DELETE:
 

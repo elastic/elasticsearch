@@ -4136,7 +4136,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( CHANGE_POINT a on b )
                ( LOOKUP JOIN idx2 ON f1 )
                ( ENRICH idx2 on f1 with f2 = f3 )
-               ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a=b WITH { "inference_id": "c" } )
             | KEEP a
             """;
@@ -4173,7 +4172,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( CHANGE_POINT a on b )
                ( LOOKUP JOIN idx2 ON f1 | LOOKUP JOIN idx3 ON f1 > f3)
                ( ENRICH idx2 on f1 with f2 = f3 )
-               ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a=b WITH { "inference_id": "c" } )
                ( SAMPLE 0.99 )
             | KEEP a
@@ -4190,6 +4188,32 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """;
         plan = query(query);
         assertThat(plan, instanceOf(Keep.class));
+    }
+
+    /**
+     * The single-FORK rule is applied as soon as the plan is built, so that a second FORK on one pipeline never reaches view
+     * resolution or analysis, where it would multiply the plan below it by its branch count first. A UNION ALL from several
+     * subqueries starts a new pipeline per branch; a single subquery does not.
+     */
+    public void testSecondForkOnOnePipelineRejectedAfterParsing() {
+        String error = "Only a single FORK command is supported, but found multiple";
+        expectVerificationError("FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)", error);
+        expectVerificationError("FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)", error);
+        expectVerificationError("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)", error);
+        expectVerificationError(
+            "FROM a | WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))",
+            error
+        );
+        expectVerificationError("FROM a | WHERE x IN (FROM b | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0))", error);
+        expectVerificationError("FROM (FROM a | FORK (FORK (WHERE x > 0) (WHERE x < 0)) (WHERE y > 0)) | WHERE x > 0", error);
+
+        query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM b) | FORK (WHERE y > 0) (WHERE y < 0)");
+        query("FROM (FROM a | FORK (WHERE x > 0) (WHERE x < 0)), (FROM b | FORK (WHERE x > 1) (WHERE x < 1))");
+        query("""
+            FROM (FROM (FROM a, (FROM b) | FORK (WHERE x > 0) (WHERE x < 0)), (FROM c) | FORK (WHERE y > 0) (WHERE y < 0)), (FROM d)
+            | FORK (WHERE z > 0) (WHERE z < 0)
+            """);
+        query("FROM a | WHERE x IN (FROM b | FORK (WHERE x > 0) (WHERE x < 0)) | FORK (WHERE y > 0) (WHERE y < 0)");
     }
 
     public void testForkWithBareFillNull() {

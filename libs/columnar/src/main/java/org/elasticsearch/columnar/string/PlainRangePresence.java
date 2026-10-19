@@ -41,6 +41,9 @@ final class PlainRangePresence extends ColumnIterator {
 
     private int keptEntry = -1;
     private int runLimit;
+    private int currentEntry = -1;
+    private long currentFirstSlot;
+    private long currentEndSlot;
 
     PlainRangePresence(ColumnIterator presence, PlainSkipBounds.Reader bounds, PlainSkipBounds.Query query, Slots slots) {
         this.presence = presence;
@@ -110,8 +113,8 @@ final class PlainRangePresence extends ColumnIterator {
                 continue;
             }
             final long first = slots.firstAddress(rank);
-            final int firstEntry = bounds.entryOf(first);
-            final int lastEntry = count == 1 ? firstEntry : bounds.entryOf(first + count - 1);
+            final int firstEntry = entryOf(first);
+            final int lastEntry = count == 1 ? firstEntry : entryOf(first + count - 1);
             if (firstEntry == lastEntry && firstEntry == keptEntry) {
                 runLimit = runLimit(doc, first, lastEntry);
                 return doc;
@@ -137,6 +140,15 @@ final class PlainRangePresence extends ColumnIterator {
             }
         }
         return NO_MORE_DOCS;
+    }
+
+    private int entryOf(long slot) throws IOException {
+        if (currentEntry < 0 || slot < currentFirstSlot || slot >= currentEndSlot) {
+            currentEntry = bounds.entryOf(slot);
+            currentFirstSlot = bounds.firstSlot(currentEntry);
+            currentEndSlot = bounds.endSlot(currentEntry);
+        }
+        return currentEntry;
     }
 
     private boolean ownsEntryStart(int entry) throws IOException {

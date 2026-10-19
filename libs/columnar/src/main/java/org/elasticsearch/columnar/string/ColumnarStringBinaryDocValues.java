@@ -107,6 +107,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     }
 
     @Override
+    public long firstSlotAddress() throws IOException {
+        return reader.firstValueAddress(iterator.rank());
+    }
+
+    @Override
     public BytesRef extreme(boolean max, BytesRef dst) throws IOException {
         return reader.extreme(iterator.rank(), max, dst);
     }

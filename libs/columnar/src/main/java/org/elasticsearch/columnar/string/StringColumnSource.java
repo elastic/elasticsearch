@@ -31,6 +31,13 @@ public interface StringColumnSource {
     boolean singleValued();
 
     /**
+     * The value address of the first slot of the document these values are positioned on. For a column that holds
+     * one slot a document, this is the address of its only slot, so a caller can read the slot's ordinal without
+     * reading the value.
+     */
+    long firstSlotAddress() throws IOException;
+
+    /**
      * The largest or smallest value the document these values are positioned on holds, or null when it holds none.
      *
      * <p>Here rather than on the column because the column addresses documents by rank, and which rank these values

@@ -558,6 +558,11 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         }
 
         @Override
+        public long firstSlotAddress() throws IOException {
+            return column.firstSlotAddress();
+        }
+
+        @Override
         public BytesRef extreme(boolean max, BytesRef dst) throws IOException {
             readsAValue();
             return column.extreme(max, dst);

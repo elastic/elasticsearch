@@ -31,9 +31,8 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * A {@code terms} aggregation over a columnar keyword field has to give what an ordinary keyword field gives for the same
- * documents. Hits are not tracked in most tests, because a search that tracks them wraps the aggregation with a hit counter
- * that passes it documents one at a time until its limit. Profiling cannot show which way documents arrive, since it
- * replaces the bulk scorers.
+ * documents. The aggregation reads the column's dictionary ordinals and hashes each term once for each segment, so the
+ * documents here have few distinct terms, some terms that escape the dictionary, and some documents with no value.
  */
 public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
 
@@ -95,7 +94,7 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
         assertThat(buckets(COLUMNAR, terms, false, false), equalTo(expected));
     }
 
-    /** A sub-aggregation needs each document, so there are no pages, and it still adds up. */
+    /** A sub-aggregation still sees every document, and it adds up. */
     public void testASubAggregationStillAddsUp() {
         final AggregationBuilder terms = AggregationBuilders.terms("t")
             .field("kw")
@@ -104,10 +103,27 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
         assertThat(buckets(COLUMNAR, terms, true, false), equalTo(buckets(PLAIN, terms, true, false)));
     }
 
-    /** With hits tracked the aggregation gets documents one at a time. */
+    /** With hits tracked the aggregation counts the same. */
     public void testWithHitsTrackedCountsTheSame() {
         final AggregationBuilder terms = AggregationBuilders.terms("t").field("kw").size(10_000);
         assertThat(buckets(COLUMNAR, terms, false, true), equalTo(buckets(PLAIN, terms, false, true)));
+    }
+
+    /** Terms that are excluded are left out, whether they are in the dictionary or escaped. */
+    public void testIncludeAndExcludeCountTheSame() {
+        final AggregationBuilder excluded = AggregationBuilders.terms("t")
+            .field("kw")
+            .size(10_000)
+            .includeExclude(new IncludeExclude(null, "alpha|bravo", null, null));
+        final Map<String, Long> expected = buckets(PLAIN, excluded, false, false);
+        assertFalse(expected.containsKey("alpha"));
+        assertThat(buckets(COLUMNAR, excluded, false, false), equalTo(expected));
+
+        final AggregationBuilder included = AggregationBuilders.terms("t")
+            .field("kw")
+            .size(10_000)
+            .includeExclude(new IncludeExclude("echo", null, null, null));
+        assertThat(buckets(COLUMNAR, included, false, false), equalTo(buckets(PLAIN, included, false, false)));
     }
 
     /** Deleted documents are left out. */
@@ -125,7 +141,7 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
         assertThat(buckets(COLUMNAR, terms, false, false), equalTo(buckets(PLAIN, terms, false, false)));
     }
 
-    /** A field with several values a document is not read as pages, and counts the same. */
+    /** A field with several values a document does not use ordinals, and counts the same. */
     public void testAMultiValuedFieldCountsTheSame() {
         final String columnar = "columnar-multi";
         final String plain = "plain-multi";

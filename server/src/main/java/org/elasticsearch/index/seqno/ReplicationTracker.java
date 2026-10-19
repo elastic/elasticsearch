@@ -745,6 +745,25 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
+     * Returns the lowest persisted local checkpoint tracked for the in-sync shard copies other than this primary, or
+     * {@link Long#MAX_VALUE} when this primary is the only in-sync copy. A local checkpoint is contiguous, so every in-sync replica has
+     * persisted all operations at or below the returned sequence number. Unlike the global checkpoint it does not fold in this primary's
+     * own checkpoint, which the primary trivially satisfies and which lags a just-applied operation (see
+     * {@link org.elasticsearch.action.update.UpdateHelper}).
+     */
+    public synchronized long getMinInSyncReplicaLocalCheckpoint() {
+        assert primaryMode;
+        long min = Long.MAX_VALUE;
+        for (final Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
+            final CheckpointState cps = entry.getValue();
+            if (cps.inSync && entry.getKey().equals(shardAllocationId) == false) {
+                min = Math.min(min, cps.localCheckpoint);
+            }
+        }
+        return min;
+    }
+
+    /**
      * @return true iff any tracked global checkpoint for an in-sync copy lags behind our global checkpoint
      */
     public synchronized boolean trackedGlobalCheckpointsNeedSync() {

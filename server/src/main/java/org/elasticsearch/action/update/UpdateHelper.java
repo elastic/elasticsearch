@@ -515,17 +515,16 @@ public class UpdateHelper {
     }
 
     /**
-     * Whether an in-place delta update is safe to replicate: its base document (at {@code getResult}'s sequence number) must be at or
-     * below the shard's global checkpoint, so every in-sync copy already holds the base and any later peer recovery starts from a commit
-     * that contains it. Otherwise the delta could reach a replica that has not yet applied the base, where the existing out-of-order
-     * reconciliation (which assumes every replicated operation is a full document or a delete) cannot patch a missing or older document,
-     * so the update must instead be realized as a self-sufficient reindex.
+     * Whether an in-place delta update is safe to replicate. The base document (at {@code getResult}'s sequence number) was read on this
+     * primary, so it is present here; the delta only has to be present on every in-sync replica, each of which applies it against the base
+     * and cannot patch a base it has not received. That holds once the base is at or below every in-sync replica's persisted local
+     * checkpoint. A still-recovering copy is not in-sync and resolves the delta per operation on the copy itself (see
+     * InternalEngine#planDocValuesUpdateAsNonPrimary); otherwise the update falls back to a self-sufficient reindex.
      */
     private static boolean inPlaceUpdateSafeToReplicate(IndexShard indexShard, GetResult getResult) {
-        // Ship the delta only when its base is at or below the global checkpoint, so every in-sync copy already holds it. A still-
-        // recovering copy is not covered by the global checkpoint and resolves the delta per operation on the copy itself (see
-        // InternalEngine#planDocValuesUpdateAsNonPrimary).
-        return getResult.getSeqNo() <= indexShard.getLastKnownGlobalCheckpoint();
+        // The global checkpoint also folds in this primary's own checkpoint, which trivially holds the base and lags a just-applied
+        // operation, so gate on the in-sync replicas' checkpoints directly to avoid a spurious reindex fallback right after an index.
+        return getResult.getSeqNo() <= indexShard.getMinInSyncReplicaLocalCheckpoint();
     }
 
     /**

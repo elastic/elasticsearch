@@ -33,18 +33,18 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 
 /**
- * The in-place doc-values fast path is only safe to replicate once the base document is on every copy. {@link UpdateHelper} gates it on
- * the base sequence number being at or below the shard's global checkpoint; otherwise it falls back to a self-sufficient reindex that
- * reconciles correctly under out-of-order replication. This drives {@link UpdateHelper#prepare} against a real primary whose global
- * checkpoint is held below the base by a lagging in-sync replica, then released.
+ * The in-place doc-values fast path is only safe to replicate once the base document is on every in-sync replica. {@link UpdateHelper}
+ * gates it on the base sequence number being at or below every in-sync replica's persisted local checkpoint; otherwise it falls back to a
+ * self-sufficient reindex that reconciles correctly under out-of-order replication. This drives {@link UpdateHelper#prepare} against a real
+ * primary whose in-sync replica is held below the base, then released.
  */
-public class DocValuesUpdateGlobalCheckpointGateTests extends IndexShardTestCase {
+public class DocValuesUpdateReplicaCheckpointGateTests extends IndexShardTestCase {
 
     private static final String MAPPING = """
         { "properties": { "count": { "type": "long", "index": false, "doc_values": { "updatable": true } } } }
         """;
 
-    public void testInPlaceUpdateGatedOnGlobalCheckpoint() throws Exception {
+    public void testInPlaceUpdateGatedOnReplicaCheckpoint() throws Exception {
         assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
 
         final ShardId shardId = new ShardId("index", "_na_", 0);
@@ -67,16 +67,16 @@ public class DocValuesUpdateGlobalCheckpointGateTests extends IndexShardTestCase
             recoverReplica(replica, primary, true);
 
             final String replicaAllocationId = replica.routingEntry().allocationId().getId();
-            // Hold the replica's acknowledged checkpoint below the write frontier so the global checkpoint cannot advance past the base.
+            // Hold the replica's acknowledged checkpoint below the write frontier so it is not yet known to hold the base.
             primary.updateLocalCheckpointForShard(replicaAllocationId, SequenceNumbers.NO_OPS_PERFORMED);
 
             final long baseSeqNo = indexDoc(primary, "_doc", "1", "{\"count\":1}").getSeqNo();
-            assertThat(primary.getLastKnownGlobalCheckpoint(), lessThan(baseSeqNo));
+            assertThat(primary.getMinInSyncReplicaLocalCheckpoint(), lessThan(baseSeqNo));
 
             final UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class));
             final UpdateRequest request = new UpdateRequest(shardId.getIndexName(), "1").doc(Map.of("count", 42));
 
-            // Base above the global checkpoint: the delta is not safe to ship, so the update is realized as a full reindex.
+            // Base above the in-sync replica's checkpoint: the delta is not safe to ship, so the update is realized as a full reindex.
             UpdateHelper.Result gated = updateHelper.prepare(
                 request,
                 primary,
@@ -87,9 +87,9 @@ public class DocValuesUpdateGlobalCheckpointGateTests extends IndexShardTestCase
             );
             assertThat(gated.action(), instanceOf(IndexRequest.class));
 
-            // Release the global checkpoint up to the base: every copy now holds it, so the in-place fast path is taken.
+            // Release the replica's checkpoint up to the base: every in-sync replica now holds it, so the in-place fast path is taken.
             primary.updateLocalCheckpointForShard(replicaAllocationId, baseSeqNo);
-            assertThat(primary.getLastKnownGlobalCheckpoint(), greaterThanOrEqualTo(baseSeqNo));
+            assertThat(primary.getMinInSyncReplicaLocalCheckpoint(), greaterThanOrEqualTo(baseSeqNo));
 
             UpdateHelper.Result inPlace = updateHelper.prepare(
                 request,

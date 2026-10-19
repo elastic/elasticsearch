@@ -196,8 +196,8 @@ public class DatasetConfigResolverTests extends ESTestCase {
         ProjectMetadata project = project(dataSource(Map.of("auth", "anonymous")), dataset(Map.of()));
         DatasetConfigResolver resolver = new DatasetConfigResolver(project, false);
 
-        // Under the resource's literal prefix: kept, including through a coalesced group.
-        List<ExternalSplit> inside = splits("s3://bucket/data/a.parquet", "s3://bucket/data/2024/b.parquet");
+        // Under the resource pattern: kept, including through a coalesced group.
+        List<ExternalSplit> inside = splits("s3://bucket/data/a.parquet", "s3://bucket/data/b.parquet");
         ExternalSourceExec kept = resolver.rebind(exec(HOSTILE_CONFIG, DATASET).withSplits(inside));
         assertThat(kept.splits(), equalTo(inside));
         List<ExternalSplit> coalesced = List.of(new CoalescedSplit("parquet", inside));
@@ -227,7 +227,7 @@ public class DatasetConfigResolverTests extends ESTestCase {
      * way the listing cuts it, so the comma of a brace group stays inside its glob, and an HTTP resource is one path.
      */
     public void testCommaSeparatedResourceCoversEachSegment() {
-        String listed = "s3://bucket/a/*.parquet, s3://bucket/b/x.{parquet,orc}";
+        String listed = "s3://bucket/a/**/*.parquet, s3://bucket/b/x.{parquet,orc}";
         Dataset dataset = new Dataset(DATASET, new DataSourceReference(PARENT), listed, null, Map.of());
         ProjectMetadata project = project(dataSource(Map.of("auth", "anonymous")), dataset);
         DatasetConfigResolver resolver = new DatasetConfigResolver(project, false);
@@ -290,9 +290,17 @@ public class DatasetConfigResolverTests extends ESTestCase {
         assertTrue(isWithin("s3://bucket/data/2024/a.parquet", StoragePath.of("s3://bucket/data/")));
         assertFalse(isWithin("s3://bucket/other/a.parquet", StoragePath.of("s3://bucket/data/")));
 
-        // A glob admits its literal prefix; a glob with no literal directory degrades to the bucket (documented).
+        StoragePath http = StoragePath.of("https://host/export.csv?table=public");
+        assertTrue(isWithin("https://host/export.csv?table=public", http));
+        assertFalse(isWithin("https://host/export.csv?table=secrets", http));
+
+        // A glob admits only paths that match its full pattern, including when the first segment contains a wildcard.
         assertTrue(isWithin("s3://bucket/data/2024/a.parquet", StoragePath.of("s3://bucket/data/*/*.parquet")));
-        assertTrue(isWithin("s3://bucket/dataset/a.parquet", StoragePath.of("s3://bucket/data*")));
+        assertFalse(isWithin("s3://bucket/data/2024/a.csv", StoragePath.of("s3://bucket/data/*/*.parquet")));
+        assertTrue(isWithin("s3://bucket/data-a.parquet", StoragePath.of("s3://bucket/data*.parquet")));
+        assertFalse(isWithin("s3://bucket/secret/x.parquet", StoragePath.of("s3://bucket/data*.parquet")));
+        assertFalse(isWithin("s3://bucket/data-a.csv", StoragePath.of("s3://bucket/data*.parquet")));
+        assertFalse(isWithin("s3://bucket/dataset/a.parquet", StoragePath.of("s3://bucket/data*")));
 
         // Scheme and host compare case-insensitively; another port is another store.
         assertTrue(isWithin("S3://BUCKET/data/a.parquet", StoragePath.of("s3://bucket/data/*.parquet")));

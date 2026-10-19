@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /**
  * Rebinds an {@link ExternalSourceExec} that arrived with a plan to the dataset definition registered in this node's own
@@ -55,6 +56,8 @@ import java.util.Objects;
  * so this is a consistency check, not a security one. There is no server-side retry; the query fails and is re-run.
  */
 public final class DatasetConfigResolver {
+
+    private record ResourcePath(StoragePath path, @Nullable Predicate<String> globMatcher) {}
 
     private final ProjectMetadata project;
     private final boolean snapshotBuild;
@@ -106,7 +109,7 @@ public final class DatasetConfigResolver {
                 name
             );
         }
-        final List<StoragePath> resources;
+        final List<ResourcePath> resources;
         try {
             resources = resourcePaths(dataset.resource());
         } catch (IllegalArgumentException e) {
@@ -125,16 +128,21 @@ public final class DatasetConfigResolver {
      * ({@link GlobExpander#commaSegments}) so a comma inside a brace group stays part of its glob. An HTTP resource is
      * always one path: the listing never treats its commas as separators, so neither does this.
      */
-    private static List<StoragePath> resourcePaths(String resource) {
+    private static List<ResourcePath> resourcePaths(String resource) {
         StoragePath whole = StoragePath.of(resource);
         if (whole.scheme().equalsIgnoreCase("http") || whole.scheme().equalsIgnoreCase("https")) {
-            return List.of(whole);
+            return List.of(resourcePath(whole));
         }
-        List<StoragePath> paths = new ArrayList<>();
+        List<ResourcePath> paths = new ArrayList<>();
         for (String segment : GlobExpander.commaSegments(resource)) {
-            paths.add(StoragePath.of(segment));
+            paths.add(resourcePath(StoragePath.of(segment)));
         }
         return paths;
+    }
+
+    private static ResourcePath resourcePath(StoragePath path) {
+        Predicate<String> globMatcher = path.isPattern() ? GlobExpander.compileGlobMatcher(path.globPart()) : null;
+        return new ResourcePath(path, globMatcher);
     }
 
     /**
@@ -154,7 +162,7 @@ public final class DatasetConfigResolver {
      * path, so only the file-backed shapes are accepted: a {@link FileSplit}, or a {@link CoalescedSplit} whose children
      * all pass. See {@link #isWithin} for what "within" admits.
      */
-    private static void checkSplit(String datasetName, ExternalSplit split, List<StoragePath> resources) {
+    private static void checkSplit(String datasetName, ExternalSplit split, List<ResourcePath> resources) {
         if (split instanceof CoalescedSplit coalesced) {
             for (ExternalSplit child : coalesced.children()) {
                 checkSplit(datasetName, child, resources);
@@ -177,13 +185,19 @@ public final class DatasetConfigResolver {
      * scheme, host, port and user-info, the last because Azure's Hadoop form carries the container there
      * ({@code wasbs://container@account.../blob}), so two containers on one account differ only in it. Within the
      * store: a resource naming one object admits exactly that object; a directory admits everything under it; a glob
-     * admits everything under its literal prefix, the resource up to the first metacharacter. That last case is wider
-     * than the glob, a key under the prefix but outside the glob's remaining segments still passes, and a glob whose
-     * first segment is already a pattern ({@code s3://bucket/data*}) degrades to the whole bucket; matching the full
-     * glob is a separate refinement. A {@code ..} segment is refused outright: on a {@code file://} resource it would
-     * step out of the directory while still starting with it.
+     * admits only paths matched by the same glob syntax as listing. A {@code ..} segment is refused outright: on a
+     * {@code file://} resource it would step out of the directory while still starting with it.
      */
     static boolean isWithin(StoragePath path, StoragePath resource) {
+        Predicate<String> globMatcher = resource.isPattern() ? GlobExpander.compileGlobMatcher(resource.globPart()) : null;
+        return isWithin(path, resource, globMatcher);
+    }
+
+    private static boolean isWithin(StoragePath path, ResourcePath resource) {
+        return isWithin(path, resource.path(), resource.globMatcher());
+    }
+
+    private static boolean isWithin(StoragePath path, StoragePath resource, @Nullable Predicate<String> globMatcher) {
         if (path.scheme().equalsIgnoreCase(resource.scheme()) == false
             || Objects.equals(lower(path.host()), lower(resource.host())) == false
             || path.port() != resource.port()
@@ -192,7 +206,14 @@ public final class DatasetConfigResolver {
             return false;
         }
         if (resource.isPattern()) {
-            return path.path().startsWith(resource.patternPrefix().path());
+            StoragePath prefix = resource.patternPrefix();
+            if (path.path().startsWith(prefix.path()) == false) {
+                return false;
+            }
+            return globMatcher != null && globMatcher.test(path.path().substring(prefix.path().length()));
+        }
+        if (resource.scheme().equalsIgnoreCase("http") || resource.scheme().equalsIgnoreCase("https")) {
+            return path.toString().equals(resource.toString());
         }
         String resourcePath = resource.path();
         return resourcePath.endsWith("/") ? path.path().startsWith(resourcePath) : path.path().equals(resourcePath);

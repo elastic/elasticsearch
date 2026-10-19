@@ -144,7 +144,6 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
-import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -2266,16 +2265,12 @@ public class LocalExecutionPlanner {
         if (operatorFactoryRegistry == null) {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
         }
-        // sourceType is plan-carried and selects the operator factory; the rebind above replaces the config but cannot
-        // stop a config meant for a file store from being handed to a connector, which would dial whatever endpoint it
-        // finds in it. A registered dataset reads through a file-type factory only, until connector datasets derive
-        // their endpoint from the registered definition too.
-        if (externalSource.datasetName() != null
-            && operatorFactoryRegistry.sourceFactories().get(externalSource.sourceType()) instanceof ConnectorFactory) {
+        // The plan carries the source type, but registered dataset settings are only valid with the file source factory.
+        if (externalSource.datasetName() != null && operatorFactoryRegistry.isFileSourceFactory(externalSource.sourceType()) == false) {
             throw new IllegalArgumentException(
                 "external dataset ["
                     + externalSource.datasetName()
-                    + "] cannot be read through connector source type ["
+                    + "] cannot be read through non-file source type ["
                     + externalSource.sourceType()
                     + "]"
             );

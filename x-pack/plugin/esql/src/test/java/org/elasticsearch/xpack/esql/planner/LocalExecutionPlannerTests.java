@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -107,6 +108,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
@@ -540,9 +542,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * {@code sourceType} is plan-carried and selects the operator factory. The dataset rebind replaces the config but a
-     * config meant for a file store must not be handed to a connector, which would dial whatever endpoint it finds in
-     * it; a registered dataset reads through a file-type factory only.
+     * A plan-carried source type must not dispatch a registered dataset's file settings through another source factory.
      */
     public void testRegisteredDatasetRefusedThroughConnectorSourceType() throws IOException {
         AtomicReference<Map<String, Object>> opened = new AtomicReference<>();
@@ -563,7 +563,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             }
 
             @Override
-            public void validateConfig(String location, Map<String, Object> config) {}
+            public void validateConfig(String location, Map<String, Object> config) {
+                ConfigKeyValidator.check(config, List.of());
+            }
 
             @Override
             public Connector open(Map<String, Object> config) {
@@ -572,33 +574,60 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             }
         };
         OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of("flight", connector), Map.of(), Runnable::run);
-        List<Attribute> attrs = List.of(
-            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
-        );
-        ExternalSourceExec exec = new ExternalSourceExec(
-            Source.EMPTY,
-            "s3://bucket/data/*.parquet",
-            "flight",
-            attrs,
-            Map.of("endpoint", "https://s3.example"),
-            Map.of(),
-            null,
-            10
-        ).withDatasetName("logs");
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> planner(operatorFactoryRegistry, true, null, randomBoolean()).plan(
-                "test",
-                FoldContext.small(),
-                PlannerSettings.DEFAULTS,
-                exec,
-                EmptyIndexedByShardId.instance(),
-                randomBoolean()
-            )
-        );
-        assertThat(e.getMessage(), equalTo("external dataset [logs] cannot be read through connector source type [flight]"));
+        assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "flight");
         assertNull(opened.get());
+    }
+
+    public void testRegisteredDatasetRefusedThroughTableCatalogSourceType() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        TableCatalog catalog = new TableCatalog() {
+            @Override
+            public String catalogType() {
+                return "catalog";
+            }
+
+            @Override
+            public boolean canHandle(String path) {
+                return true;
+            }
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                ConfigKeyValidator.check(config, List.of());
+            }
+
+            @Override
+            public SourceMetadata metadata(String tablePath, Map<String, Object> config) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<TableCatalog.DataFile> planScan(String tablePath, Map<String, Object> config, List<Object> predicates) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void close() {}
+
+            @Override
+            public SourceOperatorFactoryProvider operatorFactory() {
+                return capturingProvider(captured);
+            }
+        };
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of("catalog", catalog), Map.of(), Runnable::run);
+        assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "catalog");
+        assertNull(captured.get());
+    }
+
+    public void testRegisteredDatasetRefusedThroughLegacyPluginFactory() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("legacy", capturingProvider(captured)),
+            Runnable::run
+        );
+        assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "legacy");
+        assertNull(captured.get());
     }
 
     /**
@@ -1705,6 +1734,36 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             new ClusterSettings(inferenceSettings, new HashSet<>(InferenceSettings.getSettings()))
         );
         return new InferenceService(mock(Client.class), clusterService);
+    }
+
+    private void assertRegisteredDatasetRefusedForNonFileSourceType(OperatorFactoryRegistry operatorFactoryRegistry, String sourceType)
+        throws IOException {
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data/*.parquet",
+            sourceType,
+            attrs,
+            Map.of("endpoint", "https://s3.example"),
+            Map.of(),
+            null,
+            10
+        ).withDatasetName("logs");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> planner(operatorFactoryRegistry, true, null, randomBoolean()).plan(
+                "test",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                exec,
+                EmptyIndexedByShardId.instance(),
+                randomBoolean()
+            )
+        );
+        assertThat(e.getMessage(), equalTo("external dataset [logs] cannot be read through non-file source type [" + sourceType + "]"));
     }
 
     private LocalExecutionPlanner planner() throws IOException {

@@ -93,7 +93,10 @@ record ColumnInfo(
         if (target == esqlType && formatter == dateFormatter) {
             return this;
         }
-        return new ColumnInfo(descriptor, parquetType, target, maxDefLevel, maxRepLevel, logicalType, formatter, esqlType);
+        // fileEsqlType, not esqlType: on a view that has already been retyped the latter is the target, and
+        // recording it would lose the column's own type.
+        DataType fileType = fileEsqlType == null ? esqlType : fileEsqlType;
+        return new ColumnInfo(descriptor, parquetType, target, maxDefLevel, maxRepLevel, logicalType, formatter, fileType);
     }
 
     /** Sentinel marker for the synthetic {@code _rowPosition} column slot. */

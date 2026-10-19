@@ -565,9 +565,11 @@ final class ParquetColumnDecoding {
      * whose millisecond-of-day needs no scaling. A text column is {@code BINARY} or
      * {@code FIXED_LEN_BYTE_ARRAY}, both of which render ESQL {@code keyword}.
      *
-     * <p>Both decode engines classify here, so neither can key the choice on a different thing, and the resulting
-     * value equals what {@link DeclaredTypeCoercions#castBlock} produces over the column's inferred decode — the
-     * invariant the deferred late-materialization route relies on.
+     * <p>Both decode engines classify here, so neither can key the choice on a different thing. The resulting value
+     * equals what {@link DeclaredTypeCoercions#castBlock} produces over the column's inferred decode wherever that
+     * decode has a value at all: for a {@code TIMESTAMP(MICROS)} column read as {@code date} it does not, the
+     * inferred nanosecond decode nulling outside its own domain, and the fused arm answers there instead. The
+     * deferred route reaches these arms by retyping its column view rather than by relying on that equivalence.
      */
     enum DatetimeDecode {
         /** 12-byte {@code INT96}: Julian day plus nanos-of-day. */
@@ -636,8 +638,10 @@ final class ParquetColumnDecoding {
     /**
      * The value the inferred read of an {@code INT64} column produces: a {@code TIMESTAMP} annotation's unit narrowed
      * to millis, and a bare {@code INT64} unchanged. As with {@link #int32AsInferredLong}, reinterpreting the result
-     * as an epoch is the caller's step. No {@code TIME} case: an INT64 {@code TIME} column renders
-     * {@code DATE_NANOS}, so it never reaches a fused {@code long -> datetime} decode.
+     * as an epoch is the caller's step. There is no {@code TIME} case here because
+     * {@link #convertTimestampToMillis} carries one: an INT64 {@code TIME} column renders {@code DATE_NANOS}, and a
+     * declared {@code date} over it reaches this method through the fused {@code date_nanos -> datetime} pair, where
+     * the unit scale is the same arithmetic the {@code TIMESTAMP} units take.
      */
     static long int64AsInferredLong(long raw, @Nullable LogicalTypeAnnotation logical) {
         return convertTimestampToMillis(raw, logical);

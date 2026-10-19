@@ -1,11 +1,13 @@
 // A Parquet TIMESTAMP(MICROS) column -- the unit Arrow and Spark write by default -- renders date_nanos. Declaring
 // `date` over it asks for a narrowing the declared type covers for the whole int64 microsecond range; going through
 // date_nanos on the way did not, because a value outside 1677-09-21 .. 2262-04-11 has no nanosecond representation
-// and the intermediate step overflowed to null. The pair decodes in one step now, and floorDiv(raw * 1_000,
-// 1_000_000) equals floorDiv(raw, 1_000), so nothing already readable moves.
+// and the intermediate step overflowed to null. The pair decodes in one step now, and nothing already readable
+// moves: the two scales agree wherever raw * 1_000 does not overflow, which is the range the two-step route could
+// carry.
 //
-// Without a declaration the column is read as date_nanos and those rows are still null. That contrast is the point:
-// the declared type is what widens the readable range.
+// Without a declaration the column is read as date_nanos and those rows are still null -- the declared type is what
+// widens the readable range. No case here asserts that; ParquetFormatReaderTests pins it, on every route, in
+// testInferredDatetimeOverADateNanosFileNullsOnEveryRoute.
 //
 // {{micros_timestamp}} carries ts over seven rows: 1500-01-01 and the year 3000, outside the nanosecond domain; half
 // a microsecond before 1500-01-01 and one microsecond before the epoch, which separate flooring from truncation; the

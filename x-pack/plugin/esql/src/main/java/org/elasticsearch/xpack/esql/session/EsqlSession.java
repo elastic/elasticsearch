@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
+import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -175,6 +176,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
@@ -428,6 +430,7 @@ public class EsqlSession {
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
+        BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
         executionInfo.queryProfile().planning().start();
@@ -492,6 +495,12 @@ public class EsqlSession {
             verifier.licenseState(),
             plannerSettings.loadAllMaxFields()
         );
+        // Resolve LET bindings before view resolution. This is a synchronous, local rewrite that
+        // requires no cluster state — it simply substitutes named subquery bodies for their names.
+        // Performing it before replaceViews ensures that LET names never reach field-caps and that
+        // view bodies never see the caller's LET scope (parseView is invoked inside replaceViews).
+        parsedPlan = LetResolver.resolve(parsedPlan, statement.letBindings());
+
         LOGGER.debug("ESQL resolved settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);
         request.setResolvedSettings(resolved);
@@ -522,9 +531,10 @@ public class EsqlSession {
             QuerySettings.PROJECT_ROUTING.get(resolved),
             QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved),
-            (query, viewName) -> planningCpu.meteredCpu(
-                () -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName).plan()
-            ),
+            (query, viewName) -> planningCpu.meteredCpu(() -> {
+                var viewStmt = parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName);
+                return LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings());
+            }),
             boundaryPreservation,
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
@@ -574,6 +584,7 @@ public class EsqlSession {
             // stack telemetry
             gatherViewMetrics(viewResolution);
             gatherInSubqueryMetrics(viewResolution);
+            gatherLetMetrics(statement);
             gatherSettingsMetrics(request, statement, resolved);
             // APM
             gatherPlanTelemetry(viewResolution.plan(), statement.settings(), resolved);
@@ -1632,6 +1643,13 @@ public class EsqlSession {
             return;
         }
         metrics.inc(FeatureMetric.IN_SUBQUERY);
+    }
+
+    private void gatherLetMetrics(EsqlStatement statement) {
+        if (metrics == null || statement.letBindings() == null || statement.letBindings().isEmpty()) {
+            return;
+        }
+        metrics.inc(FeatureMetric.LET);
     }
 
     /**

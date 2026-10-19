@@ -2234,7 +2234,9 @@ public abstract class Engine implements Closeable {
         private final long ifSeqNo;
         private final long ifPrimaryTerm;
 
-        /** For operations with no base identity (e.g. sequence-number-disabled indices), where the apply-time safety check does not apply. */
+        /**
+         * For operations with no base identity (e.g. sequence-number-disabled indices), where the apply-time safety check does not apply.
+         */
         public DocValuesUpdate(
             String id,
             BytesRef uid,

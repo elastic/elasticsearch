@@ -400,9 +400,6 @@ tests:
 - class: org.elasticsearch.integration.FieldLevelSecurityTests
   method: testPercolatorConstantKeywordQueryDependsOnIndexingUsersFls
   issue: https://github.com/elastic/elasticsearch/issues/161396
-- class: org.elasticsearch.columnar.substrate.MonotonicTableTests
-  method: testTablesInterleavedInOneFile
-  issue: https://github.com/elastic/elasticsearch/issues/161435
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testPeerRecovery
   issue: https://github.com/elastic/elasticsearch/issues/161463
@@ -508,3 +505,12 @@ tests:
 - class: org.elasticsearch.xpack.security.audit.AuditIT
   method: testAuditPutUserManagedServiceAccount
   issue: https://github.com/elastic/elasticsearch/issues/162455
+- class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
+  method: testShardPrewarming
+  issue: https://github.com/elastic/elasticsearch/issues/162488
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecPrometheusK8sIT
+  method: test {csv-spec:prometheus-k8s.derivative_of_gauge_metric_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/162491
+- class: org.elasticsearch.xpack.enrich.action.EnrichShardMultiSearchActionIT
+  method: testChargeIsHeldUntilResponseIsSent
+  issue: https://github.com/elastic/elasticsearch/issues/162495

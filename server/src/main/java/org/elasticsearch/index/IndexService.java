@@ -575,7 +575,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     warmer.warm(reader, shard, IndexService.this.indexSettings);
                 }
             };
-            final Directory directory = directoryFactory.newDirectory(this.indexSettings, path, routing);
+            final Supplier<MappingLookup> mappingLookup = mapperService == null ? () -> MappingLookup.EMPTY : mapperService::mappingLookup;
+            final Directory directory = directoryFactory.newDirectory(this.indexSettings, path, routing, mappingLookup);
             store = new Store(
                 shardId,
                 this.indexSettings,

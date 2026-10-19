@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -56,6 +55,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -71,6 +71,8 @@ import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
@@ -100,7 +102,9 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAUL
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getFieldType;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getIndexOptions;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorTestSettingsBuilder.EXPERIMENTAL_FEATURES_DISABLED;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorTestSettingsBuilder.EXPERIMENTAL_FEATURES_ENABLED;
@@ -943,16 +947,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
         assertEquals(4f, indexOptions.rescoreVector.oversample(), 0f);
 
-        final Map<String, Object> autocalibrateDisabledIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(
-            oversampleFourIndexOptionsMap,
-            "auto_calibrate",
-            false
-        );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> merge(mapperService, fieldMapping(b -> baseMapping.clone().indexOptions(autocalibrateDisabledIndexOptionsMap).build(b)))
-        );
-
         final Map<String, Object> preconditionTrueIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(
             oversampleFourIndexOptionsMap,
             "precondition",
@@ -996,42 +990,71 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testAutoCalibrateMappingUpdates() throws IOException {
-        IndexVersion current = IndexVersion.current();
-        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_AUTO_CALIBRATE_DEFAULT_ISO_SIZING)
-        );
+        List<Object> values = new ArrayList<>(Arrays.asList(null, true, "true", false, "false"));
+        for (IvfAutoCalibrationProfile profile : IvfAutoCalibrationProfile.values()) {
+            values.add(profile.toString());
+        }
 
-        assertAutoCalibrateUpdate(current, null, false, true);
-        assertAutoCalibrateUpdate(current, false, "disabled", true);
-        assertAutoCalibrateUpdate(current, true, "iso_sizing", true);
-        assertAutoCalibrateUpdate(oldVersion, true, "quality", true);
-        assertAutoCalibrateUpdate(oldVersion, true, "iso_sizing", false);
-        assertAutoCalibrateUpdate(current, "quality", "iso_sizing", false);
-        assertAutoCalibrateUpdate(current, "iso_sizing", "quality", false);
-        assertAutoCalibrateUpdate(current, null, "quality", false);
+        List<IndexVersion> versions = new ArrayList<>();
+        versions.add(IndexVersion.current());
+        for (int i = 0; i < 20; i++) {
+            versions.add(
+                IndexVersionUtils.randomVersionBetween(
+                    IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE,
+                    IndexVersionUtils.getPreviousVersion(IndexVersion.current())
+                )
+            );
+        }
+
+        for (IndexVersion version : versions) {
+            for (int i = 0; i < 20; i++) {
+                assertAutoCalibrateUpdate(version, randomFrom(values), randomFrom(values));
+            }
+        }
     }
 
-    private void assertAutoCalibrateUpdate(IndexVersion version, Object from, Object to, boolean accepted) throws IOException {
+    private void assertAutoCalibrateUpdate(IndexVersion version, Object from, Object to) throws IOException {
         String message = "index version [" + version + "], from [" + from + "] to [" + to + "]";
+        DenseVectorAutoCalibrate expected = DenseVectorAutoCalibrate.parse(to, version, f -> true, "field");
+
         MapperService mapperService = createMapperService(version, EXPERIMENTAL_FEATURES_ENABLED, autoCalibrateMapping(from));
-        if (accepted) {
-            merge(mapperService, autoCalibrateMapping(to));
-            DenseVectorAutoCalibrate expected = DenseVectorAutoCalibrate.parse(to, version, f -> true, "field");
-            assertEquals(
-                message,
-                expected.profile(),
-                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
-            );
-            String expectedSource = to instanceof String ? "\"auto_calibrate\":\"" + to + "\"" : "\"auto_calibrate\":" + to;
-            assertThat(message, mapperService.documentMapper().mappingSource().toString(), containsString(expectedSource));
+        merge(mapperService, autoCalibrateMapping(to));
+        DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = getIndexOptions(
+            mapperService,
+            "field",
+            DenseVectorFieldMapper.BBQIVFIndexOptions.class
+        );
+        assertEquals(message, expected.profile() != IvfAutoCalibrationProfile.DISABLED, indexOptions.autoCalibrate());
+        assertEquals(message, expected.profile(), indexOptions.autoCalibrationProfile());
+
+        String mappingSource = mapperService.documentMapper().mappingSource().toString();
+        if (to == null) {
+            assertThat(message, mappingSource, not(containsString("auto_calibrate")));
         } else {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                message,
-                () -> merge(mapperService, autoCalibrateMapping(to))
-            );
-            assertThat(message, e.getMessage(), containsString("Cannot update parameter [index_options]"));
+            String expectedSource = to instanceof String ? "\"auto_calibrate\":\"" + to + "\"" : "\"auto_calibrate\":" + to;
+            assertThat(message, mappingSource, containsString(expectedSource));
+        }
+
+        // Verify that the kNN query type produced by the field type matches the autocalibration state
+        DenseVectorFieldType fieldType = getFieldType(mapperService, "field");
+        Query knnQuery = fieldType.createKnnQuery(
+            VectorData.fromFloats(randomFloatVector(fieldType.getVectorDimensions())),
+            10,
+            100,
+            null,
+            null,
+            null,
+            null,
+            null,
+            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+            false
+        );
+
+        if (indexOptions.autoCalibrate()) {
+            assertThat(knnQuery, instanceOf(IVFKnnFloatVectorQuery.class));
+        } else {
+            assertThat(knnQuery, instanceOf(RescoreKnnVectorQuery.class));
+            assertThat(((RescoreKnnVectorQuery) knnQuery).innerQuery(), instanceOf(IVFKnnFloatVectorQuery.class));
         }
     }
 
@@ -1061,6 +1084,51 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(
                 Booleans.parseBoolean(enabled.toString()),
                 getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrate()
+            );
+        }
+    }
+
+    public void testAutoCalibrateUpdateRequiresClusterFeature() throws IOException {
+        // Only withhold the updatability feature so that profile names still parse
+        final Supplier<MapperService> createMapperService = () -> new TestMapperServiceBuilder().settings(EXPERIMENTAL_FEATURES_ENABLED)
+            .clusterSupportsFeature(f -> f != MapperFeatures.BBQ_DISK_UPDATABLE_AUTO_CALIBRATE)
+            .build();
+
+        // Values that don't change the profile are not updates
+        {
+            MapperService mapperService = createMapperService.get();
+            merge(mapperService, autoCalibrateMapping(false));
+            for (Object value : List.of(false, "false", "disabled")) {
+                merge(mapperService, autoCalibrateMapping(value));
+                assertEquals(
+                    IvfAutoCalibrationProfile.DISABLED,
+                    getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
+                );
+            }
+        }
+
+        // Updates from disabled, with the profile expected when using MAPPING_RECOVERY
+        List<Tuple<Object, IvfAutoCalibrationProfile>> updates = List.of(
+            Tuple.tuple(true, IvfAutoCalibrationProfile.ISO_SIZING),
+            Tuple.tuple("true", IvfAutoCalibrationProfile.ISO_SIZING),
+            Tuple.tuple("iso_sizing", IvfAutoCalibrationProfile.ISO_SIZING),
+            Tuple.tuple("quality", IvfAutoCalibrationProfile.QUALITY)
+        );
+        for (Tuple<Object, IvfAutoCalibrationProfile> update : updates) {
+            String message = "update to [" + update.v1() + "]";
+            MapperService mapperService = createMapperService.get();
+            merge(mapperService, autoCalibrateMapping(false));
+
+            XContentBuilder mapping = autoCalibrateMapping(update.v1());
+            Exception e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping));
+            assertThat(message, e.getMessage(), containsString("cannot update [auto_calibrate] until all nodes in the cluster support it"));
+
+            // Recovery assumes all features are supported
+            merge(mapperService, MapperService.MergeReason.MAPPING_RECOVERY, mapping);
+            assertEquals(
+                message,
+                update.v2(),
+                getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).autoCalibrationProfile()
             );
         }
     }
@@ -1107,7 +1175,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         return fieldMapping(
             b -> new DenseVectorMappingBuilder().dims(128)
                 .index(true)
-                .similarity(VectorSimilarity.DOT_PRODUCT)
+                .similarity(VectorSimilarity.COSINE)  // Use cosine similarity so unit vectors are not required
                 .indexOptions(indexOptions)
                 .build(b)
         );
@@ -2494,13 +2562,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())), useDirectIO=false, onDiskMerge=false)"
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
                         ),
                         containsString(
                             "flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                 + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
-                                + "Lucene99MemorySegmentFlatVectorsScorer()))), useDirectIO=false, onDiskMerge=false)"
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
                         )
                     )
                 )
@@ -2572,13 +2640,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                                 "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                     + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                     + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer()))"
-                                    + ", useDirectIO=false, onDiskMerge=false)"
+                                    + ")"
                             ),
                             containsString(
                                 "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                     + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                     + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
-                                    + "Lucene99MemorySegmentFlatVectorsScorer()))), useDirectIO=false, onDiskMerge=false)"
+                                    + "Lucene99MemorySegmentFlatVectorsScorer()))))"
                             )
                         )
                     )
@@ -2624,13 +2692,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())), useDirectIO=false, onDiskMerge=false)"
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
                         ),
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                 + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
-                                + "Lucene99MemorySegmentFlatVectorsScorer()))), useDirectIO=false, onDiskMerge=false)"
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
                         )
                     )
                 )
@@ -2724,13 +2792,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())), useDirectIO=false, onDiskMerge=false)"
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
                         ),
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
                                 + "ES93GenericFlatVectorScorer(delegate=ESDefaultFlatVectorScorer(delegate="
-                                + "Lucene99MemorySegmentFlatVectorsScorer()))), useDirectIO=false, onDiskMerge=false)"
+                                + "Lucene99MemorySegmentFlatVectorsScorer()))))"
                         )
                     )
                 )
@@ -2870,12 +2938,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             "bbq_disk" }) {
             MapperService mapperService = createMapperService(fieldMapping(b -> onDiskMergeMapping(b, type, null)));
             assertFalse(type + " defaults to off", onDiskMergeOf(mapperService));
-            assertFormatCarriesOnDiskMerge(type, mapperService, false);
 
             merge(mapperService, fieldMapping(b -> onDiskMergeMapping(b, type, true)));
             assertTrue(type, onDiskMergeOf(mapperService));
             assertThat(type, mapperService.documentMapper().mappingSource().toString(), containsString("\"on_disk_merge\":true"));
-            assertFormatCarriesOnDiskMerge(type, mapperService, true);
 
             merge(mapperService, fieldMapping(b -> onDiskMergeMapping(b, type, false)));
             assertFalse(type, onDiskMergeOf(mapperService));
@@ -2891,19 +2957,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             indexOptions.put("on_disk_merge", onDiskMerge);
         }
         new DenseVectorMappingBuilder().dims(64).index(true).indexOptions(indexOptions).build(b);
-    }
-
-    /**
-     * {@code bbq_disk} is skipped: its format is built by its plugin, the server class throws a license error here,
-     * and the plugin's {@code DirectIOIT} covers that hand-off.
-     */
-    private static void assertFormatCarriesOnDiskMerge(String type, MapperService mapperService, boolean onDiskMerge) {
-        if (type.equals("bbq_disk")) {
-            return;
-        }
-        Codec codec = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null).codec("default");
-        KnnVectorsFormat format = ((PerFieldKnnVectorsFormat) codec.knnVectorsFormat()).getKnnVectorsFormatForField("field");
-        assertThat(type, format, hasToString(containsString("onDiskMerge=" + onDiskMerge)));
     }
 
     private static boolean onDiskMergeOf(MapperService mapperService) {

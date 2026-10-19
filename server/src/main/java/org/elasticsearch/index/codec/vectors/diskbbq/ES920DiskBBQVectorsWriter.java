@@ -60,7 +60,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
     public ES920DiskBBQVectorsWriter(
         SegmentWriteState state,
         String rawVectorFormatName,
-        boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -71,7 +70,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
         this(
             state,
             rawVectorFormatName,
-            useDirectIOReads,
             rawVectorDelegate,
             vectorPerCluster,
             centroidsPerParentCluster,
@@ -85,7 +83,6 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
     ES920DiskBBQVectorsWriter(
         SegmentWriteState state,
         String rawVectorFormatName,
-        Boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
         int centroidsPerParentCluster,
@@ -97,17 +94,15 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
         super(
             state,
             rawVectorFormatName,
-            useDirectIOReads,
             rawVectorDelegate,
             writeVersion,
             ES920DiskBBQVectorsFormat.NAME,
             ES920DiskBBQVectorsFormat.IVF_META_EXTENSION,
             ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
             ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
-            writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO && writeVersion < ES920DiskBBQVectorsFormat.VERSION_NO_DIRECT_IO,
             flatVectorThreshold,
-            // this codec predates on_disk_merge: nothing can ask it for the flag and it never records it
-            false,
+            // this codec predates on_disk_merge: it never records that flag
             false
         );
         this.vectorPerCluster = vectorPerCluster;

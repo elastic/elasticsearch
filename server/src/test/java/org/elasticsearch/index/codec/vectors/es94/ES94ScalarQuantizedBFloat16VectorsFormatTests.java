@@ -44,7 +44,7 @@ public class ES94ScalarQuantizedBFloat16VectorsFormatTests extends BaseQuantized
     protected Codec getCodec() {
         if (format == null) {
             int bits = randomFrom(1, 2, 4, 7);
-            format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, bits, false, false);
+            format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, bits);
         }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }

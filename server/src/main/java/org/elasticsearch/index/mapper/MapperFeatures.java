@@ -191,10 +191,18 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature MULTI_VALUED_BINARY_INDEX_SORT_SPARSE_FIX = new NodeFeature(
         "mapper.multi_valued_binary_index_sort_sparse_fix"
     );
+    public static final NodeFeature BBQ_DISK_UPDATABLE_AUTO_CALIBRATE = new NodeFeature(
+        "mapper.dense_vector.bbq_disk.updatable_auto_calibrate"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(TSDB_METRIC_TEMPORALITY_SUPPORT, DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES, COMBINE_DYNAMIC_MAPPING_UPDATES);
+        return Set.of(
+            TSDB_METRIC_TEMPORALITY_SUPPORT,
+            DenseVectorAutoCalibrate.AUTO_CALIBRATE_PROFILES,
+            COMBINE_DYNAMIC_MAPPING_UPDATES,
+            BBQ_DISK_UPDATABLE_AUTO_CALIBRATE
+        );
     }
 
     @Override

@@ -227,6 +227,7 @@ public class DatasetConfigResolverTests extends ESTestCase {
      * way the listing cuts it, so the comma of a brace group stays inside its glob, and an HTTP resource is one path.
      */
     public void testCommaSeparatedResourceCoversEachSegment() {
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String listed = "s3://bucket/a/**/*.parquet, s3://bucket/b/x.{parquet,orc}";
         Dataset dataset = new Dataset(DATASET, new DataSourceReference(PARENT), listed, null, Map.of());
         ProjectMetadata project = project(dataSource(Map.of("auth", "anonymous")), dataset);

@@ -129,15 +129,18 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testWildcardsMatchViewsIsAppliedToAllNestedViews() {
+    public void testWildcardsMatchViewsDoesNotApplyInsideNestedViews() {
         try (
             var outer = createView("outer", "FROM middle");
             var middle = createView("middle", "FROM inner*");
             var inner = createView("inner", "ROW source=\"inner\"");
         ) {
+            // The caller's wildcards_match_views stops at the view boundary (settings_scoped_at_view_boundaries):
+            // the wildcard inside middle's body only matches indices — none here — and never the inner view, so
+            // the setting makes no difference. Views still compose by exact name (outer's body reaches middle).
             try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=true; FROM outer"))) {
                 assertOk(response);
-                assertResultConcreteIndices(response, "inner");
+                assertEmpty(response);
             }
             try (var response = run(syncEsqlQueryRequest("SET wildcards_match_views=false; FROM outer"))) {
                 assertOk(response);

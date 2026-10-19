@@ -596,9 +596,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     }
 
     /**
-     * Reproduces https://github.com/elastic/elasticsearch/issues/162295: sibling knn queries wrapped in a query type that
-     * auto-prefilter pruning looks through (or, for script_score, does not look into) in a bool must clause make each
-     * knn consume the other as a prefilter, which in turn consumes the first again, recursing until the stack overflows.
+     * Reproduces https://github.com/elastic/elasticsearch/issues/162295: sibling knn queries wrapped in another query type in a bool must clause make each knn consume the other as a prefilter. The wrapped prefilter query prevents the recursion break in {@code applyAutoPrefilteringIfEnabled} from functioning, leading to infinite recursion on the knn query used as a prefilter.
      */
     public void testAutoPrefilteringWithWrappedKnnSiblingsInMustDoesNotRecurse() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();

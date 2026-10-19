@@ -83,18 +83,14 @@ record ColumnInfo(
     }
 
     /**
-     * The mirror of {@link #fileTyped()}: decodes straight to {@code target}, keeping this column's own type as
-     * {@link #fileEsqlType}. Only for a pair {@code DeclaredTypeCoercions.fusedInDecode} accepts, where the decode
-     * arms produce the target natively and no {@code castBlock} follows. {@code formatter} is the column's declared
-     * date {@code format}, which the string-parsing arms read off the view: the deferred route's own
-     * {@code resolveColumnInfo} does not carry one, so a caller that omits it parses with the ISO default.
+     * The mirror of {@link #fileTyped()}: a view that decodes straight to {@code target}, keeping this column's own
+     * type as {@link #fileEsqlType} and carrying {@code formatter}, the declared date format the string-parsing arms
+     * read. Only for a {@code DeclaredTypeCoercions.fusedInDecode} pair.
      */
     ColumnInfo targetTyped(DataType target, @Nullable DateFormatter formatter) {
         if (target == esqlType && formatter == dateFormatter) {
             return this;
         }
-        // fileEsqlType, not esqlType: on a view that has already been retyped the latter is the target, and
-        // recording it would lose the column's own type.
         DataType fileType = fileEsqlType == null ? esqlType : fileEsqlType;
         return new ColumnInfo(descriptor, parquetType, target, maxDefLevel, maxRepLevel, logicalType, formatter, fileType);
     }

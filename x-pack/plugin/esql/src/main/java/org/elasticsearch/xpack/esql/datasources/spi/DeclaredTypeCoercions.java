@@ -284,12 +284,9 @@ public final class DeclaredTypeCoercions {
         if (from == DataType.LONG && to == DataType.DATETIME) {
             return hasDeclaredFormat == false;
         }
-        // A column the file renders date_nanos, read as `date`. Fused because nanoseconds confine the value to
-        // 1677..2262 where milliseconds reach far past it. Nothing already readable moves: floorDiv(raw, 1_000)
-        // equals the two-step floorDiv(raw * 1_000, 1_000_000) exactly on the range where raw * 1_000 does not
-        // overflow, which is the range the two-step route could carry -- it nulled the rest -- and is the exact
-        // floor beyond it. A declared format does not defuse the pair, unlike the LONG arm above: castBlock's arm
-        // for this pair ignores the format, the annotation having stated the unit.
+        // A column the file renders date_nanos, read as `date`. Fused because nanoseconds cap the value at
+        // 1677..2262 and milliseconds do not; the two scales agree wherever raw * 1_000 does not overflow, which is
+        // all the two-step route could carry. A declared format does not defuse it -- castBlock's arm ignores it.
         if (from == DataType.DATE_NANOS && to == DataType.DATETIME) {
             return true;
         }

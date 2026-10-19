@@ -34,8 +34,9 @@ id:integer | ts:date
 7          | null
 ;
 
-// The exact millisecond each row floors to, so one number per row says which arithmetic ran: truncation toward zero
-// would answer -14831769599999 and 0 for rows 2 and 3 where flooring answers -14831769600000 and -1.
+// The exact millisecond each row floors to, so one number per row says which arithmetic ran. We floor; clickhouse
+// local truncates toward zero, so rows 2 and 3 land 1ms off it (-14831769600000 and -1 here, ...599999 and 0 there).
+// We floor because the pushdown relation is derived from decoded == floorDiv(raw, d).
 declaredDateOverMicrosTimestampFloorsTowardsNegativeInfinity
 required_capability: dataset_in_from_command
 required_capability: parquet_declared_date_reads_micros_in_one_step

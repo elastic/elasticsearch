@@ -269,12 +269,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             infos[c] = ParquetFormatReader.resolveColumnInfo(schema, columnNames[c]);
             if (infos[c] != null) {
                 resolved++;
-                // A fused pair decodes straight to the target here, as the eager readers do. Not interchangeable
-                // with decode-then-coerce: date_nanos -> date materialising nanoseconds first nulls the instants the
-                // one-step scale carries. Retyping needs everything the eager readers' own view carries -- the
-                // admissibility gate, so an inferred pair still null-fills rather than decoding, and the declared
-                // formatter, which the string-parsing arms read off the view. It also makes the coercion below skip
-                // itself, being guarded on the target differing from the column's own type.
+                // A fused pair decodes straight to the target here, as the eager readers do: decode-then-coerce
+                // would materialise nanoseconds first and null the instants the one-step scale carries. The view
+                // needs what the eager readers' does -- the gate, so an inferred pair still null-fills, and the
+                // formatter. It also makes the coercion below skip itself, that being guarded on the target.
                 DataType target = targetTypes == null ? null : targetTypes[c];
                 if (target != null && coercionAdmissible(infos[c].esqlType(), target, columnNames[c])) {
                     DateFormatter declaredFormatter = reader.declaredDateFormatterFor(columnNames[c]);
@@ -911,13 +909,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     }
 
     /**
-     * The eager reader's gate ({@code validatePlannerTypesAgainstFile}), in one place because both the native-decode
-     * retype in {@link #extract} and {@link #coerceToTarget} must answer it the same way. {@code castBlock} only
-     * functions on a {@link DeclaredTypeCoercions#supports} pair, so that stays the precondition; the lossy narrowing
-     * it admits is licensed only for a DECLARED column, an inferred target may coerce only when the pair also widens.
-     * So an inferred narrowing (supports true, not widening, not declared) null-fills instead of downcasting,
-     * agreeing with the eager scan of the same file. {@code columnName} is physical here (the extractor projects
-     * physical names), matching the declared-column set.
+     * Whether this pair may coerce at all, asked the same way by the retype in {@link #extract} and by
+     * {@link #coerceToTarget}. Mirrors {@code validatePlannerTypesAgainstFile}: {@code castBlock} needs a
+     * {@link DeclaredTypeCoercions#supports} pair, and the narrowing that admits is licensed only for a DECLARED
+     * column, so an inferred narrowing null-fills rather than downcasting. {@code columnName} is the physical name.
      */
     private boolean coercionAdmissible(DataType fileType, DataType target, String columnName) {
         return DeclaredTypeCoercions.supports(fileType, target)

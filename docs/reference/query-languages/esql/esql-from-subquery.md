@@ -215,6 +215,8 @@ Inside the subquery, the directive generates columns that you can use for filter
 :::{include} _snippets/common/outer_metadata_rules.md
 :::
 
+#### Directive placement examples
+
 If the directive is used only outside the subquery, it will report `null` for the values within the subquery:
 
 :::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_metadata_outer.md

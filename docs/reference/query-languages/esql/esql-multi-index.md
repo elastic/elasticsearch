@@ -231,3 +231,5 @@ FROM events_* METADATA _index
 When a `FROM` source is a [subquery](esql-from-subquery.md#subqueries-with-metadata) or
 [view](esql-views.md#views-with-metadata), an outer `METADATA _index` request returns
 `null` unless that source retains `_index` in its output.
+
+For `_index` behavior on datasets, refer to [Use metadata columns](esql-data-federation-querying.md#use-metadata-columns).

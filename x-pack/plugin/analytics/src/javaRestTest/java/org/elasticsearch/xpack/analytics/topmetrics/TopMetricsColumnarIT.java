@@ -24,6 +24,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -254,6 +255,16 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
     }
 
     private void indexDocuments(String index, List<Document> documents) throws IOException {
+        List<Document> shuffled = new ArrayList<>(documents);
+        Collections.shuffle(shuffled, random());
+        int bulkCount = randomIntBetween(1, Math.min(3, shuffled.size()));
+        int chunkSize = (shuffled.size() + bulkCount - 1) / bulkCount;
+        for (int from = 0; from < shuffled.size(); from += chunkSize) {
+            bulkIndex(index, shuffled.subList(from, Math.min(shuffled.size(), from + chunkSize)));
+        }
+    }
+
+    private void bulkIndex(String index, List<Document> documents) throws IOException {
         StringBuilder bulk = new StringBuilder();
         for (Document document : documents) {
             XContentBuilder source = JsonXContent.contentBuilder().startObject();

@@ -1,0 +1,5 @@
+pr: 162562
+summary: Hash prefixed dimensions into the second tsid byte
+area: TSDB
+type: enhancement
+issues: []

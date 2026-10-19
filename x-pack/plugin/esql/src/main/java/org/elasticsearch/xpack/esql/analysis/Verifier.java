@@ -686,7 +686,6 @@ public class Verifier {
                 failures.add(
                     fail(
                         p,
-                        // FILLNULL is snapshot-only while LOAD_ALL is not, so it is listed only where it can be used
                         "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, "
                             + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
                             + "GROK, DISSECT, MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "

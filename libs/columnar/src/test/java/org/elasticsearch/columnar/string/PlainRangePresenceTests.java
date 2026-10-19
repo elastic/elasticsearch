@@ -280,6 +280,45 @@ public class PlainRangePresenceTests extends ESTestCase {
         }
     }
 
+    public void testAStoredDocumentIdCannotShortenARun() throws IOException {
+        try (Directory dir = newDirectory(); PlainSkipFixture fixture = twoBlocks(dir)) {
+            final PlainSkipBounds.Query keepFirstBlock = PlainSkipBounds.Query.range(new BytesRef("a"), true, new BytesRef("a"), true);
+            for (int stored : new int[] { 0, 1, 4, 100 }) {
+                try (PlainSkipFixture corrupt = fixture.withByte(dir, 12, (byte) stored)) {
+                    final PlainRangePresence presence = corrupt.presence(keepFirstBlock);
+                    assertEquals(0, presence.nextDoc());
+                    assertEquals(4, presence.docIDRunEnd());
+                    final FixedBitSet bits = new FixedBitSet(8);
+                    presence.intoBitSet(8, bits, 0);
+                    assertEquals(4, bits.cardinality());
+                    assertEquals(4, bits.nextClearBit(0));
+                    assertEquals(List.of(0, 1, 2, 3), collect(corrupt.presence(keepFirstBlock)));
+                }
+            }
+        }
+    }
+
+    public void testAJumpToADocumentThatDoesNotOwnTheBlockIsCorrupt() throws IOException {
+        try (Directory dir = newDirectory(); PlainSkipFixture fixture = twoBlocks(dir)) {
+            final PlainSkipBounds.Query skipFirstBlock = PlainSkipBounds.Query.range(new BytesRef("b"), true, new BytesRef("b"), true);
+            assertEquals(List.of(4, 5, 6, 7), collect(fixture.presence(skipFirstBlock)));
+            for (int stored : new int[] { 0, 6, 8, 100 }) {
+                try (PlainSkipFixture corrupt = fixture.withByte(dir, 12, (byte) stored)) {
+                    final PlainRangePresence presence = corrupt.presence(skipFirstBlock);
+                    expectThrows(CorruptIndexException.class, presence::nextDoc);
+                }
+            }
+        }
+    }
+
+    private static PlainSkipFixture twoBlocks(Directory dir) throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[8][];
+        for (int doc = 0; doc < docSlots.length; doc++) {
+            docSlots[doc] = new BytesRef[] { new BytesRef(doc < 4 ? "a" : "b") };
+        }
+        return PlainSkipFixture.build(dir, docSlots, 4);
+    }
+
     public void testTheRankIsThatOfTheWrappedIterator() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[40][];
         for (int doc = 0; doc < docSlots.length; doc += 3) {

@@ -115,10 +115,11 @@ final class PlainRangePresence extends ColumnIterator {
             final int firstBlock = (int) (first >>> blockShift);
             final int lastBlock = (int) ((first + count - 1) >>> blockShift);
             if (firstBlock == lastBlock && firstBlock == keptBlock) {
+                runLimit = runLimit(doc, first, lastBlock);
                 return doc;
             }
             if (keptIn(firstBlock, lastBlock)) {
-                keep(doc, lastBlock);
+                keep(doc, first, lastBlock);
                 return doc;
             }
             int next = lastBlock + 1;
@@ -130,14 +131,25 @@ final class PlainRangePresence extends ColumnIterator {
             }
             final int target = bounds.firstDoc(next);
             if (target <= doc) {
-                throw new CorruptIndexException(
-                    "plain skip block [" + next + "] starts at the document [" + target + "]",
-                    "plain skip bounds"
-                );
+                throw corrupt(next, target);
             }
             doc = presence.advance(target);
+            if (doc == NO_MORE_DOCS || ownsBlockStart(next) == false) {
+                throw corrupt(next, target);
+            }
         }
         return NO_MORE_DOCS;
+    }
+
+    private boolean ownsBlockStart(int block) throws IOException {
+        final int rank = presence.rank();
+        final long first = slots.firstAddress(rank);
+        final long start = (long) block << blockShift;
+        return first <= start && start < first + slots.count(rank);
+    }
+
+    private static CorruptIndexException corrupt(int block, int document) {
+        return new CorruptIndexException("plain skip block [" + block + "] starts at the document [" + document + "]", "plain skip bounds");
     }
 
     private boolean keptIn(int firstBlock, int lastBlock) throws IOException {
@@ -149,13 +161,17 @@ final class PlainRangePresence extends ColumnIterator {
         return false;
     }
 
-    private void keep(int doc, int lastBlock) throws IOException {
+    private void keep(int doc, long first, int lastBlock) throws IOException {
         if (bounds.excludes(lastBlock, query)) {
             keptBlock = -1;
             runLimit = doc + 1;
             return;
         }
         keptBlock = lastBlock;
-        runLimit = lastBlock + 1 < bounds.blockCount() ? bounds.firstDoc(lastBlock + 1) : NO_MORE_DOCS;
+        runLimit = runLimit(doc, first, lastBlock);
+    }
+
+    private int runLimit(int doc, long first, int lastBlock) {
+        return (int) Math.min((long) doc + (((long) lastBlock + 1) << blockShift) - first, NO_MORE_DOCS);
     }
 }

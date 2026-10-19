@@ -570,6 +570,48 @@ text_state_nonexistent  | nonexistent-1  | null
 text_state_unmapped     | unmapped-1     | null
 ;
 
+fillNullOnPartiallyUnmappedTextUnderLoad
+required_capability: fillnull
+required_capability: fix_fillnull_keeps_filled_column_ids
+required_capability: fix_unmapped_fields_in_esrelation
+required_capability: optional_fields_warn_non_loadable_punk_combined
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| FILLNULL "none" ON txt
+| KEEP _index, doc_id, txt
+| SORT _index, doc_id
+;
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
+
+_index:keyword          | doc_id:keyword | txt:text
+text_state_mapped       | mapped-1       | William Faulkner
+text_state_mapped       | mapped-2       | Jane Austen
+text_state_nonexistent  | nonexistent-1  | none
+text_state_unmapped     | unmapped-1     | none
+;
+
+fillNullAllColumnsOnPartiallyUnmappedTextUnderLoad
+required_capability: fillnull
+required_capability: fix_fillnull_keeps_filled_column_ids
+required_capability: fix_unmapped_fields_in_esrelation
+required_capability: optional_fields_warn_non_loadable_punk_combined
+
+SET unmapped_fields="load"\;
+FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+| FILLNULL "none" ON *
+| RENAME txt AS filled
+| SORT _index, doc_id
+;
+warning:Field [txt] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
+
+doc_id:keyword | filled:text      | _index:keyword
+mapped-1       | William Faulkner | text_state_mapped
+mapped-2       | Jane Austen      | text_state_mapped
+nonexistent-1  | none             | text_state_nonexistent
+unmapped-1     | none             | text_state_unmapped
+;
+
 // A fully unmapped field loads as keyword, so match requires the exact value: "Connected" alone matches nothing,
 // although analyzed text would match the "Connected to ..." rows.
 matchOnFullyUnmappedKeywordUnderLoad

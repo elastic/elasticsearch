@@ -158,6 +158,7 @@ public class Verifier {
 
         if (unmappedResolution.loadsAllUnmappedFields()) {
             checkLoadAllModeSupportedCommands(plan, failures);
+            checkLoadAllFillNullAllColumnsInSubqueries(plan, failures);
         }
 
         checkTStepIncompatibleWithTRange(plan, failures);
@@ -684,7 +685,7 @@ public class Verifier {
                 failures.add(
                     fail(
                         p,
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, "
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, FILLNULL, GROK, DISSECT, "
                             + "MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
                             + "subquery commands; [{}] is not supported yet",
                         p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
@@ -705,6 +706,7 @@ public class Verifier {
             || plan instanceof Drop
             || plan instanceof Rename
             || plan instanceof Eval
+            || plan instanceof FillNull
             || plan instanceof Grok
             || plan instanceof Dissect
             || plan instanceof MvExpand
@@ -726,6 +728,28 @@ public class Verifier {
             || (plan instanceof UnionAll && plan instanceof BranchPlan == false)
             || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
             || plan instanceof AbstractSubqueryJoin;
+    }
+
+    // resolveMergePlan casts, by id, a loader it injects below a branch's FILLNULL; ON * would re-alias the loader and orphan the cast.
+    private static void checkLoadAllFillNullAllColumnsInSubqueries(LogicalPlan plan, Failures failures) {
+        plan.forEachDown(UnionAll.class, union -> {
+            if (union instanceof BranchPlan branchPlan && branchPlan.viewBranchKeys().isEmpty() == false) {
+                return;
+            }
+            for (LogicalPlan branch : union.children()) {
+                branch.forEachDown(FillNull.class, fillNull -> {
+                    if (fillNull.allColumns() || fillNull.targetFields().isEmpty()) {
+                        failures.add(
+                            fail(
+                                fillNull,
+                                "unmapped_fields=\"LOAD_ALL\" does not support [{}] in a subquery yet; name the columns to fill",
+                                fillNull.sourceText()
+                            )
+                        );
+                    }
+                });
+            }
+        });
     }
 
     /**

@@ -261,18 +261,15 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
             }
             if (fillNames == null || fillNames.contains(field.name())) {
                 Alias previous = existing.get(field.name());
-                // Reuse the existing alias (keeping its id) only while valid: resolved, same type, and still wrapping the same attribute
-                if (previous != null
-                    && previous.resolved()
-                    && previous.dataType() == field.dataType()
-                    && unwrapCoalesce(previous.child()) instanceof Coalesce c
-                    && c.children().get(0).equals(field)) {
+                // A resolved alias of the same type keeps its id: commands above may already reference the filled column by it
+                boolean keepId = previous != null && previous.resolved() && previous.dataType() == field.dataType();
+                if (keepId && unwrapCoalesce(previous.child()) instanceof Coalesce c && c.children().get(0).equals(field)) {
                     built.add(previous);
                     continue;
                 }
                 Expression defaultValue = resolveDefaultValue(field.dataType(), fillValue, configuration);
                 if (defaultValue != null) {
-                    built.add(new Alias(field.source(), field.name(), fillExpression(field, defaultValue)));
+                    built.add(new Alias(field.source(), field.name(), fillExpression(field, defaultValue), keepId ? previous.id() : null));
                 }
             }
         }
@@ -433,9 +430,11 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, Telemet
         return names;
     }
 
-    /** Columns {@code *} does not sweep up: metadata ({@code _index}, {@code _score}) and synthetic attributes. */
+    /**
+     * Columns {@code *} does not sweep up: metadata ({@code _index}, {@code _score}), synthetic attributes and {@code _unmapped_fields}.
+     */
     private static boolean isInternal(Attribute attr) {
-        return attr instanceof MetadataAttribute || attr.synthetic();
+        return attr instanceof MetadataAttribute || attr.synthetic() || attr instanceof UnmappedFieldsAttribute;
     }
 
     @Nullable

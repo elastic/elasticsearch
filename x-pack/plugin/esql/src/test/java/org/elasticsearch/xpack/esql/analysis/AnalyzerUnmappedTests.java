@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -34,20 +36,25 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -76,6 +83,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResol
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -834,6 +842,248 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(holder.get().expressionsResolved(), is(true));
     }
 
+    public void testLoadAllModeAllowsFillNull() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FILLNULL \"x\" ON first_name"));
+        assertThat(filledNames(plan), equalTo(Set.of("first_name")));
+        assertThat(unmappedFieldsColumns(plan), hasSize(1));
+    }
+
+    public void testLoadAllFillNullAllColumnsLeavesTheUnmappedFieldsColumnAlone() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        for (String value : List.of("DEFAULT", "\"x\"")) {
+            LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FILLNULL " + value + " ON *"));
+            assertThat(value, filledNames(plan), hasItem("first_name"));
+            assertThat(value, unfillableNames(plan), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+            assertThat(value, unmappedFieldsColumns(plan), hasSize(1));
+        }
+    }
+
+    public void testLoadAllFillNullAllColumnsLeavesTheUnmappedFieldsColumnAloneAfterOtherCommands() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        for (String pipeline : List.of(
+            "FROM test | FORK (WHERE emp_no > 0) (STATS c = COUNT(*))",
+            "FROM test, (FROM test | STATS c = COUNT(*))",
+            "FROM test | INLINE STATS c = COUNT(*)",
+            "FROM test | MV_EXPAND first_name",
+            "FROM test | WHERE emp_no IN (FROM test | KEEP emp_no)",
+            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code"
+        )) {
+            String query = pipeline + " | FILLNULL DEFAULT ON *";
+            LogicalPlan plan = test().addLanguagesLookup().statement(setUnmappedLoadAll(query));
+            assertThat(query, unfillableNames(plan), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+            assertThat(query, unmappedFieldsColumns(plan), hasSize(1));
+        }
+    }
+
+    public void testLoadAllFillNullPatternDoesNotMatchTheUnmappedFieldsColumn() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        for (String pattern : List.of("_unmapped_*", "_unmapped_fiel*")) {
+            test().statementError(
+                setUnmappedLoadAll("FROM test | FILLNULL \"x\" ON first_name, " + pattern),
+                containsString("No matches found for pattern [" + pattern + "]")
+            );
+        }
+    }
+
+    public void testLoadAllFillNullNamingUnmappedFieldsFillsAnOrdinaryUnmappedField() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        for (String target : List.of("_unmapped_fields", "`_unmapped_fields`", "*, _unmapped_fields")) {
+            LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FILLNULL \"x\" ON " + target));
+            assertThat(target, filledNames(plan), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+            assertThat(target, unmappedFieldsColumns(plan), empty());
+            assertThat(target, columnType(plan, UnmappedFieldsAttribute.ATTRIBUTE_NAME), equalTo(DataType.KEYWORD));
+            assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+        }
+    }
+
+    public void testLoadAllFillNullCannotNameUnmappedFieldsAfterKeepDroppedIt() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        test().statementError(
+            setUnmappedLoadAll("FROM test | KEEP first_name | FILLNULL \"x\" ON _unmapped_fields"),
+            containsString("Unknown column [_unmapped_fields]")
+        );
+    }
+
+    public void testLoadAllFillNullFillsAQueryColumnNamedUnmappedFields() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        for (String producer : List.of("EVAL _unmapped_fields = TO_STRING(null)", "RENAME first_name AS _unmapped_fields")) {
+            for (String targets : List.of("_unmapped_fields", "`_unmapped_fields`", "_unmapped_*", "*")) {
+                String query = "FROM test | " + producer + " | FILLNULL \"x\" ON " + targets;
+                LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
+                assertThat(query, filledNames(plan), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+                assertThat(query, unmappedFieldsColumns(plan), empty());
+                assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+            }
+        }
+    }
+
+    public void testLoadAllFillNullFillsAMappedFieldNamedUnmappedFields() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        EsIndex colliding = standardIndex(
+            "colliding",
+            Map.of("id", keywordField("id"), UnmappedFieldsAttribute.ATTRIBUTE_NAME, keywordField(UnmappedFieldsAttribute.ATTRIBUTE_NAME))
+        );
+        for (String targets : List.of("_unmapped_fields", "_unmapped_*", "*")) {
+            String query = "FROM colliding | FILLNULL \"x\" ON " + targets;
+            LogicalPlan plan = analyzer().addIndex(colliding).statement(setUnmappedLoadAll(query));
+            assertThat(query, filledNames(plan), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+            assertThat(query, unmappedFieldsColumns(plan), empty());
+            assertWarnings(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
+        }
+    }
+
+    public void testLoadAllFillNullOnAnUnmappedFieldLoadsItAsItsOwnColumn() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | FILLNULL \"x\" ON does_not_exist"));
+        assertThat(filledNames(plan), equalTo(Set.of("does_not_exist")));
+        assertThat(columnType(plan, "does_not_exist"), equalTo(DataType.KEYWORD));
+        List<UnmappedFieldsAttribute> columns = unmappedFieldsColumns(plan);
+        assertThat(columns, hasSize(1));
+        assertThat(columns.getFirst().pattern().matches("does_not_exist"), is(false));
+    }
+
+    public void testLoadAllRejectsFillNullAllColumnsInASubquery() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        datedAndPlain().statementError(
+            setUnmappedLoadAll("FROM (FROM dated), (FROM plain | FILLNULL \"x\" ON *)"),
+            containsString("does not support [FILLNULL \"x\" ON *] in a subquery yet; name the columns to fill")
+        );
+        for (String query : List.of(
+            "FROM (FROM dated | FILLNULL DEFAULT ON *, id), (FROM plain)",
+            "FROM dated, (FROM plain | WHERE id IS NOT NULL | FILLNULL DEFAULT ON *)"
+        )) {
+            datedAndPlain().statementError(setUnmappedLoadAll(query), containsString("in a subquery yet; name the columns to fill"));
+        }
+    }
+
+    public void testLoadAllRejectsFillNullAllColumnsInANestedSubquery() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("Requires nested subqueries in FROM", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        datedAndPlain().statementError(
+            setUnmappedLoadAll("FROM dated, (FROM plain, (FROM plain | FILLNULL \"x\" ON *))"),
+            containsString("in a subquery yet; name the columns to fill")
+        );
+    }
+
+    public void testLoadModeAllowsFillNullAllColumnsInASubquery() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = datedAndPlain().statement(setUnmappedLoad("FROM (FROM dated), (FROM plain | FILLNULL \"x\" ON *)"));
+        assertThat(filledNames(plan), hasItem("id"));
+        assertConsistent(plan);
+    }
+
+    public void testLoadAllAllowsTargetedFillNullInASubquery() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = datedAndPlain().statement(setUnmappedLoadAll("FROM (FROM dated), (FROM plain | FILLNULL \"x\" ON id)"));
+        assertThat(filledNames(plan), equalTo(Set.of("id")));
+        boolean castsLoadedTimestamp = plan.anyMatch(
+            p -> p instanceof Eval eval && eval.fields().stream().anyMatch(a -> a.child() instanceof ToDatetime)
+        );
+        assertThat(castsLoadedTimestamp, is(true));
+        assertConsistent(plan);
+    }
+
+    public void testLoadAllAllowsFillNullAllColumnsAfterASubquery() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = datedAndPlain().statement(setUnmappedLoadAll("FROM (FROM dated), (FROM plain) | FILLNULL \"x\" ON *"));
+        assertThat(filledNames(plan), hasItem("id"));
+        assertThat(unfillableNames(plan), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        assertThat(unmappedFieldsColumns(plan), hasSize(1));
+        assertConsistent(plan);
+    }
+
+    public void testLoadAllAllowsFillNullAllColumnsInAForkBranch() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        String query = "FROM test | FORK (FILLNULL \"x\" ON *) (WHERE does_not_exist IS NOT NULL)";
+        LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
+        assertThat(unmappedFieldsColumns(plan), hasSize(1));
+        assertConsistent(plan);
+    }
+
+    public void testFillNullOnAPartiallyUnmappedFieldLeavesAConsistentPlan() {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        EsIndex esIndex = partialIndex(Map.of("f", textField("f"), "id", keywordField("id")), Set.of("f"));
+        List<String> fills = List.of("FILLNULL DEFAULT ON *", "FILLNULL DEFAULT ON f, id", "FILLNULL DEFAULT ON * | FILLNULL \"x\" ON *");
+        List<String> tails = List.of(
+            "| KEEP f, i*",
+            "| SORT f",
+            "| RENAME f AS g",
+            "| WHERE f IS NOT NULL",
+            "| EVAL g = TO_UPPER(f)",
+            "| MV_EXPAND f"
+        );
+        List<String> loadOnlyTails = List.of("| KEEP f", "| KEEP f, id", "| LIMIT 5 BY f", "| STATS c = COUNT(f)");
+        List<String> queries = new ArrayList<>();
+        for (String fill : fills) {
+            for (String tail : tails) {
+                queries.add(setUnmappedLoad("FROM idx* | " + fill + " " + tail));
+                queries.add(setUnmappedLoadAll("FROM idx* | " + fill + " " + tail));
+            }
+            for (String tail : loadOnlyTails) {
+                queries.add(setUnmappedLoad("FROM idx* | " + fill + " " + tail));
+            }
+        }
+        List<String> inconsistent = new ArrayList<>();
+        for (String query : queries) {
+            Failures failures = consistencyFailures(analyzer().addIndex(esIndex).statement(query));
+            if (failures.hasFailures()) {
+                inconsistent.add(query + " -> " + failures);
+            }
+            assertWarnings(nonLoadablePunksWarning(List.of("f")));
+        }
+        assertThat(inconsistent, empty());
+    }
+
+    private TestAnalyzer datedAndPlain() {
+        EsField timestamp = new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        return analyzer().addIndex(standardIndex("dated", Map.of("id", keywordField("id"), "@timestamp", timestamp)))
+            .addIndex(standardIndex("plain", Map.of("id", keywordField("id"))));
+    }
+
+    private static EsIndex standardIndex(String name, Map<String, EsField> mapping) {
+        return new EsIndex(name, mapping, Map.of(name, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
+    }
+
+    private static FillNull fillNull(LogicalPlan plan) {
+        Holder<FillNull> holder = new Holder<>();
+        plan.forEachDown(FillNull.class, holder::set);
+        assertThat("FILLNULL node should be present in the analyzed plan", holder.get(), notNullValue());
+        return holder.get();
+    }
+
+    private static Set<String> filledNames(LogicalPlan plan) {
+        return new HashSet<>(Expressions.names(fillNull(plan).fields()));
+    }
+
+    private static List<String> unfillableNames(LogicalPlan plan) {
+        return Expressions.names(fillNull(plan).unfillableTargets());
+    }
+
+    private static List<UnmappedFieldsAttribute> unmappedFieldsColumns(LogicalPlan plan) {
+        return CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class);
+    }
+
+    private static DataType columnType(LogicalPlan plan, String name) {
+        return EsqlTestUtils.singleValue(plan.output().stream().filter(a -> a.name().equals(name)).toList()).dataType();
+    }
+
+    private static void assertConsistent(LogicalPlan plan) {
+        Failures failures = consistencyFailures(plan);
+        assertThat(failures.toString(), failures.hasFailures(), is(false));
+    }
+
+    private static Failures consistencyFailures(LogicalPlan plan) {
+        Failures failures = new Failures();
+        plan.forEachDown(p -> PlanConsistencyChecker.checkPlan(p, failures));
+        return failures;
+    }
+
     // unmapped_fields="load" now supports branching views/subqueries (#142033): the branching-view equivalent analyzes successfully.
     public void testLoadModeAllowsBranchingViewEquivalent() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
@@ -1543,8 +1793,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             test().statementError(
                 setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, FILLNULL, GROK, DISSECT, "
+                        + "MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
                         + commandAndLabel.v2()
                         + "] is not supported yet"
                 )
@@ -1828,8 +2078,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, FILLNULL, GROK, DISSECT, "
+                        + "MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
                         + "[TS] is not supported yet"
                 )
             );
@@ -1837,8 +2087,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             .statementError(
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
-                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, FILLNULL, GROK, DISSECT, "
+                        + "MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
                         + "[TS] is not supported yet"
                 )
             );

@@ -27,8 +27,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ThreadCpuTimer;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -513,13 +513,14 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null) {
             @Override
-            public Releasable meteredCpu() {
-                Releasable cpu = super.meteredCpu();
-                if (Thread.currentThread().getName().contains(ESQL_WORKER) && workerMetering.getCount() > 0) {
-                    workerMetering.countDown();
-                    safeAwait(operatorClosed);
-                }
-                return cpu;
+            public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
+                return super.meteredCpu(() -> {
+                    if (Thread.currentThread().getName().contains(ESQL_WORKER) && workerMetering.getCount() > 0) {
+                        workerMetering.countDown();
+                        safeAwait(operatorClosed);
+                    }
+                    return work.get();
+                });
             }
 
             @Override

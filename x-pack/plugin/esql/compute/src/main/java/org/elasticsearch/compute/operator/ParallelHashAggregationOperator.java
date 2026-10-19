@@ -377,21 +377,24 @@ public final class ParallelHashAggregationOperator implements Operator {
                 if (worker.tryLock() == false) {
                     return;
                 }
-                Releasable cpu = driverContext.meteredCpu();
                 try {
                     if (worker.splitLastInput) {
                         return;
                     }
-                    Page p;
-                    while ((p = in.pollPage()) != null) {
-                        worker.processOnePage(p);
-                    }
-                    if (in.isFinished()) {
-                        worker.splitLastInput();
-                    }
-                    worker.updateStatus();
+                    driverContext.meteredCpu(() -> {
+                        Page p;
+                        while ((p = in.pollPage()) != null) {
+                            worker.processOnePage(p);
+                        }
+                        if (in.isFinished()) {
+                            worker.splitLastInput();
+                        }
+                        worker.updateStatus();
+                    });
                 } finally {
-                    unlock(cpu);
+                    // Outside the measurement: once the lock is released the driver thread can close the worker, which
+                    // removes its async action and can let the driver publish its final status.
+                    worker.unlock();
                 }
                 if (in.noMoreInputs() == false) {
                     return;
@@ -409,27 +412,18 @@ public final class ParallelHashAggregationOperator implements Operator {
                 if (worker.tryLock() == false) {
                     return;
                 }
-                Releasable cpu = driverContext.meteredCpu();
                 try {
                     final int p = partitions.claimPartition();
                     if (p == PartitionedHashAggregations.NO_MORE_PARTITION) {
                         return;
                     }
                     // TODO: we should check for every page
-                    worker.emitOnePartition(p);
+                    driverContext.meteredCpu(() -> worker.emitOnePartition(p));
                 } finally {
-                    unlock(cpu);
+                    // Outside the measurement, as in processInputPages.
+                    worker.unlock();
                 }
             }
-        }
-
-        /**
-         * Counts the CPU time measured by {@code cpu}, then releases the worker's lock. The order matters: once the lock
-         * is released the driver thread can close the worker, which removes its async action and can let the driver
-         * publish its final status.
-         */
-        private void unlock(Releasable cpu) {
-            Releasables.close(cpu, worker::unlock);
         }
 
         @Override
@@ -437,9 +431,7 @@ public final class ParallelHashAggregationOperator implements Operator {
             scheduledOrRunningWorkers.decrementAndGet();
             if (operatorClosed) {
                 // Closing a worker removes its async action, which counts this measurement first.
-                try (Releasable cpu = driverContext.meteredCpu()) {
-                    releaseWorkers();
-                }
+                driverContext.meteredCpu(() -> releaseWorkers());
             }
         }
 

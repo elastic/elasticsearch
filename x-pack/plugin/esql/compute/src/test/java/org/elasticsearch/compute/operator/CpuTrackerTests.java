@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.test.FakeCpuClock;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -23,18 +22,6 @@ public class CpuTrackerTests extends ESTestCase {
         tracker.meteredCpu(() -> clock.burn(100));
         clock.burn(7);
         assertEquals(100L, tracker.cpuNanos());
-    }
-
-    public void testReleasableMeasurementClosesOnce() {
-        FakeCpuClock clock = new FakeCpuClock();
-        CpuTracker tracker = new CpuTracker(clock);
-        Releasable measurement = tracker.meteredCpu();
-        clock.burn(100);
-        measurement.close();
-        clock.burn(7);
-        measurement.close();
-        assertEquals(100L, tracker.cpuNanos());
-        assertFalse(tracker.isMeteringCurrentThread());
     }
 
     public void testNestedSameTrackerCountsOnce() {
@@ -52,37 +39,16 @@ public class CpuTrackerTests extends ESTestCase {
         FakeCpuClock clock = new FakeCpuClock();
         CpuTracker a = new CpuTracker(clock);
         CpuTracker b = new CpuTracker(clock);
-        try (Releasable ignored = a.meteredCpu()) {
+        a.meteredCpu(() -> {
             clock.burn(10);
-            try (Releasable ignored2 = b.meteredCpu()) {
+            b.meteredCpu(() -> {
                 clock.burn(20);
-                try (Releasable ignored3 = a.meteredCpu()) {
-                    clock.burn(40);
-                }
-            }
+                a.meteredCpu(() -> clock.burn(40));
+            });
             clock.burn(30);
-        }
+        });
         assertEquals(80L, a.cpuNanos());
         assertEquals(20L, b.cpuNanos());
-    }
-
-    /** Production runs without assertions, so the thread's stack must stay usable after the out-of-order assert trips. */
-    public void testOutOfOrderCloseKeepsStackConsistent() {
-        FakeCpuClock clock = new FakeCpuClock();
-        CpuTracker a = new CpuTracker(clock);
-        CpuTracker b = new CpuTracker(clock);
-        Releasable outer = a.meteredCpu();
-        clock.burn(10);
-        Releasable inner = b.meteredCpu();
-        clock.burn(20);
-        expectThrows(AssertionError.class, outer::close);
-        clock.burn(30);
-        inner.close();
-        assertNull(CpuTracker.currentThreadTracker());
-        clock.burn(40);
-        a.meteredCpu(() -> clock.burn(50));
-        assertEquals(60L, a.cpuNanos());
-        assertEquals(50L, b.cpuNanos());
     }
 
     public void testCheckpointAddsOnlyOwnOpenMeasurement() {

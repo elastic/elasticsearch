@@ -164,21 +164,17 @@ public class DriverContextTests extends ESTestCase {
         assumeTrue("needs thread CPU time", ThreadCpuTimer.currentNanos() >= 0);
         DriverContext driverContext = new AssertingDriverContext();
         long burnNanos = TimeUnit.MILLISECONDS.toNanos(between(1, 5));
-        try (Releasable ignored = driverContext.meteredCpu()) {
-            burnCpu(burnNanos);
-        }
+        driverContext.meteredCpu(() -> burnCpu(burnNanos));
         assertThat(driverContext.cpuNanos(), greaterThanOrEqualTo(burnNanos));
     }
 
     public void testNestedMeteredCpuOfSameDriverCountsOnce() {
         FakeCpuClock clock = new FakeCpuClock();
         DriverContext driverContext = driverContext(clock);
-        try (Releasable ignored = driverContext.meteredCpu()) {
+        driverContext.meteredCpu(() -> {
             clock.burn(10);
-            try (Releasable ignored2 = driverContext.meteredCpu()) {
-                clock.burn(20);
-            }
-        }
+            driverContext.meteredCpu(() -> clock.burn(20));
+        });
         assertThat(driverContext.cpuNanos(), equalTo(30L));
     }
 
@@ -186,13 +182,11 @@ public class DriverContextTests extends ESTestCase {
         FakeCpuClock clock = new FakeCpuClock();
         DriverContext outer = driverContext(clock);
         DriverContext inner = driverContext(clock);
-        try (Releasable ignored = outer.meteredCpu()) {
+        outer.meteredCpu(() -> {
             clock.burn(10);
-            try (Releasable ignored2 = inner.meteredCpu()) {
-                clock.burn(20);
-            }
+            inner.meteredCpu(() -> clock.burn(20));
             clock.burn(30);
-        }
+        });
         assertThat(outer.cpuNanos(), equalTo(40L));
         assertThat(inner.cpuNanos(), equalTo(20L));
     }
@@ -209,11 +203,11 @@ public class DriverContextTests extends ESTestCase {
         driverContext.finish();
         long[] cpuNanosAtCompletion = new long[1];
         driverContext.waitForAsyncActions(ActionListener.running(() -> cpuNanosAtCompletion[0] = driverContext.cpuNanos()));
-        try (Releasable ignored = driverContext.meteredCpu()) {
+        driverContext.meteredCpu(() -> {
             clock.burn(50);
             driverContext.removeAsyncAction();
             clock.burn(5);
-        }
+        });
         assertThat(cpuNanosAtCompletion[0], equalTo(50L));
         assertThat(driverContext.cpuNanos(), equalTo(55L));
         Releasables.closeExpectNoException(driverContext.getSnapshot());

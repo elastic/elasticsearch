@@ -160,9 +160,7 @@ public class ParallelTopNOperator implements Operator, Accountable {
             allWorkersDone.onResponse(null);
             if (closed) {
                 // Can run on the worker that finished last, after its own measurement closed.
-                try (Releasable cpu = driverContext.meteredCpu()) {
-                    releaseWorkers();
-                }
+                driverContext.meteredCpu(() -> releaseWorkers());
             }
             driverContext.removeAsyncAction();
         });
@@ -179,19 +177,20 @@ public class ParallelTopNOperator implements Operator, Accountable {
                 // Incremented here, not before execute(), so queued tasks don't block completion.
                 // Safe because `finish` draining the buffer with `processPagesWithCurrentThread` before calling `pendingTasks#finishTask`
                 pendingTasks.newTask();
-                Releasable cpu = driverContext.meteredCpu();
                 try {
-                    Page page;
-                    while ((page = in.pollPage()) != null) {
-                        worker.addInput(page);
-                    }
-                    // Buffer temporarily empty; reschedule when more pages arrive or buffer finishes.
-                    if (in.isFinished() == false) {
-                        in.waitForReading().listener().addListener(ActionListener.running(() -> scheduleWorker(worker)));
-                    }
+                    driverContext.meteredCpu(() -> {
+                        Page page;
+                        while ((page = in.pollPage()) != null) {
+                            worker.addInput(page);
+                        }
+                        // Buffer temporarily empty; reschedule when more pages arrive or buffer finishes.
+                        if (in.isFinished() == false) {
+                            in.waitForReading().listener().addListener(ActionListener.running(() -> scheduleWorker(worker)));
+                        }
+                    });
                 } finally {
-                    // Count the CPU time first: the last task to finish removes the driver's async action.
-                    Releasables.close(cpu, pendingTasks::finishTask);
+                    // Outside the measurement: the last task to finish removes the driver's async action.
+                    pendingTasks.finishTask();
                 }
             }
 

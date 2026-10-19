@@ -191,7 +191,7 @@ public class Driver implements Releasable, Describable {
      * Runs computations on the chain of operators for a given maximum amount of time or iterations.
      * Returns a blocked future when the chain of operators is blocked, allowing the caller
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
-     * The thread CPU time it uses is measured by {@link DriverContext#meteredCpu()}, so it is counted once even when
+     * The thread CPU time it uses is measured by {@link DriverContext#meteredCpu}, so it is counted once even when
      * this runs inside an operator's measurement of this driver. That happens once the driver was cancelled or finished
      * early: the scheduler then runs it directly on the thread that completes the listener it is blocked on, such as a
      * worker's.
@@ -199,9 +199,7 @@ public class Driver implements Releasable, Describable {
      * time accumulated since the last status update is not included in the reported totals.
      */
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {
-        try (Releasable ignored = driverContext.meteredCpu()) {
-            return runLoop(maxTime, maxIterations, currentTimeNanosSupplier);
-        }
+        return driverContext.meteredCpu(() -> runLoop(maxTime, maxIterations, currentTimeNanosSupplier));
     }
 
     private SubscribableListener<Void> runLoop(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {
@@ -612,7 +610,7 @@ public class Driver implements Releasable, Describable {
             void onComplete(ActionListener<Void> listener) {
                 driver.driverContext.waitForAsyncActions(
                     ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(ignored -> {
-                        driver.publishFinalStatusIfNeeded();
+                        driver.publishFinalStatus();
                         listener.onResponse(null);
                     }, listener::onFailure), threadContext)
                 );
@@ -697,16 +695,12 @@ public class Driver implements Releasable, Describable {
     }
 
     /**
-     * Replaces kept operator statuses after async close and publishes {@code DONE}. Also publishes {@code DONE} again
-     * when CPU time was added after the driver loop's last status update: by the rest of that loop, or by operators on
-     * other threads.
+     * Replaces kept operator statuses after async close and publishes {@code DONE}. Always publishes, even when the
+     * driver loop already published {@code DONE}, because the rest of that loop and operators on other threads add CPU
+     * time after its last status update.
      * May run on a producer thread; the driver loop is already dead.
      */
-    private void publishFinalStatusIfNeeded() {
-        driverContext.cpuTracker().checkpoint();
-        if (pendingFinalStatus.isEmpty() && status().cpuNanos() == driverContext.cpuNanos()) {
-            return;
-        }
+    private void publishFinalStatus() {
         for (PendingFinalStatus pending : pendingFinalStatus) {
             Operator op = pending.operator;
             statusOfCompletedOperators.set(pending.index, new OperatorStatus(op.toString(), op.status()));

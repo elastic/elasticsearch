@@ -27,7 +27,7 @@ import org.elasticsearch.compute.test.FakeCpuClock;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -219,13 +219,14 @@ public class ParallelHashAggregationOperatorTests extends ComputeTestCase {
             new CpuTracker(clock)
         ) {
             @Override
-            public Releasable meteredCpu() {
-                Releasable cpu = super.meteredCpu();
-                if (Thread.currentThread().getName().contains("[generic]") && workerMetering.getCount() > 0) {
-                    workerMetering.countDown();
-                    safeAwait(operatorClosed);
-                }
-                return cpu;
+            public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
+                return super.meteredCpu(() -> {
+                    if (Thread.currentThread().getName().contains("[generic]") && workerMetering.getCount() > 0) {
+                        workerMetering.countDown();
+                        safeAwait(operatorClosed);
+                    }
+                    return work.get();
+                });
             }
 
             @Override

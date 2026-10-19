@@ -16,7 +16,6 @@ import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -201,19 +200,20 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
      */
     private void runProducerLoop(ProducerState state, ActionListener<Void> completionListener) {
         try {
-            DrainResult result;
             // DONE finishes the producer on this thread, and removing the driver's async action there counts the open
             // measurement first. EOF and BLOCKED hand off to another thread that can finish the producer, so the
             // measurement has to end before them. See DriverContext#meteredCpu.
-            try (Releasable ignored = state.driverContext.meteredCpu()) {
-                result = produce(state);
-                if (result == DrainResult.DONE) {
+            DrainResult result = state.driverContext.meteredCpu(() -> {
+                DrainResult produced = produce(state);
+                if (produced == DrainResult.DONE) {
                     completionListener.onResponse(null);
-                    return;
                 }
-            }
+                return produced;
+            });
             switch (result) {
-                case DONE -> throw new AssertionError("DONE completes inside the measurement");
+                case DONE -> {
+                    // Completed inside the measurement.
+                }
                 case EOF -> executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
                 case BLOCKED -> {
                     SubscribableListener<Void> space = state.blockedOn;

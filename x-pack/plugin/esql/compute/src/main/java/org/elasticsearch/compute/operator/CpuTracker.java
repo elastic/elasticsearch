@@ -46,8 +46,7 @@ public class CpuTracker {
         /** The innermost open measurement on its thread. */
         RUNNING,
         /** A measurement of another tracker is open inside it and counts the time instead. */
-        PAUSED,
-        CLOSED
+        PAUSED
     }
 
     private final LongSupplier cpuClock;
@@ -104,39 +103,24 @@ public class CpuTracker {
 
         @Override
         public void close() {
-            if (state == State.CLOSED) {
-                return;
-            }
-            if (CURRENT.get() != this) {
-                // Closed before a measurement opened inside it, so it is paused and has nothing to count. It stays on
-                // the stack until the measurements inside it close and skip it.
-                state = State.CLOSED;
-                assert false : "measurements close on the thread that opened them, innermost first";
-                return;
-            }
+            assert CURRENT.get() == this : "measurements close on the thread that opened them, innermost first";
             long endCpuNanos = cpuClock.getAsLong();
             commit(endCpuNanos);
-            state = State.CLOSED;
-            Measurement restored = outer;
-            while (restored != null && restored.state == State.CLOSED) {
-                restored = restored.outer;
-            }
-            if (restored == null) {
+            if (outer == null) {
                 CURRENT.remove();
             } else {
-                CURRENT.set(restored);
-                restored.resume(endCpuNanos);
+                CURRENT.set(outer);
+                outer.resume(endCpuNanos);
             }
         }
     }
 
     /**
-     * Opens a measurement of the CPU time the current thread uses until the returned {@link Releasable} is closed. It
-     * must be closed on this thread, after any measurement opened inside it. Measures nothing when the innermost open
-     * measurement belongs to this tracker. Otherwise pauses the innermost open measurement, if any, until the returned
-     * one is closed.
+     * Opens a measurement of the CPU time the current thread uses until the returned {@link Releasable} is closed.
+     * Private so every measurement is opened and closed by {@link #meteredCpu(CheckedSupplier)} or
+     * {@link #meteredCpu(CheckedRunnable)}, on one thread and innermost first.
      */
-    public Releasable meteredCpu() {
+    private Releasable meteredCpu() {
         Measurement outer = CURRENT.get();
         if (outer != null && outer.owner() == this) {
             return NOOP;
@@ -153,7 +137,11 @@ public class CpuTracker {
         return measurement;
     }
 
-    /** Runs {@code work} on the current thread inside {@link #meteredCpu()}. */
+    /**
+     * Runs {@code work} on the current thread and counts the CPU time it uses. Measures nothing when the innermost open
+     * measurement belongs to this tracker. Otherwise pauses the innermost open measurement, if any, until {@code work}
+     * returns.
+     */
     public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
         try (Releasable ignored = meteredCpu()) {
             return work.get();
@@ -168,8 +156,8 @@ public class CpuTracker {
     }
 
     /**
-     * Runs the listener's {@code onResponse} and {@code onFailure} inside {@link #meteredCpu()}. Apply it to the
-     * listener handed to an async API, because that listener is the first thing the completing thread calls.
+     * Runs the listener's {@code onResponse} and {@code onFailure} inside {@link #meteredCpu(CheckedRunnable)}. Apply it
+     * to the listener handed to an async API, because that listener is the first thing the completing thread calls.
      * <p>
      * Wrapping also {@link #checkpoint() checkpoints} the calling thread's open measurement. The wrapper is built as the
      * argument of the async dispatch, so the work done so far is added before the completing thread can go on to read

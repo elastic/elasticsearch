@@ -251,9 +251,10 @@ public final class ExternalSourceMetrics {
     public static final String CPU_COMPONENT_ATTRIBUTE = "es_datasource_cpu_component";
 
     /**
-     * Real per-thread CPU time spent by drivers executing the query, plus the CPU time operators meter on other threads
-     * for their driver, such as parallel aggregation workers (via {@code ThreadMXBean}). Format-reader producer threads
-     * are reported under {@link #CPU_COMPONENT_READ}.
+     * Real per-thread CPU time (via {@code ThreadMXBean}) spent by drivers executing the query, plus the CPU time
+     * operators meter on other threads for their driver, such as parallel aggregation workers and the connector producer
+     * threads of {@code AsyncConnectorSourceOperatorFactory}. File-based format-reader producer threads are reported
+     * under {@link #CPU_COMPONENT_READ}.
      */
     public static final String CPU_COMPONENT_EXECUTION = "execution";
 

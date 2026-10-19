@@ -36,7 +36,6 @@ import org.elasticsearch.compute.test.FakeCpuClock;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -795,9 +794,7 @@ public class DriverTests extends ESTestCase {
             long loopCpuNanos = driver.status().cpuNanos();
             assertFalse(future.isDone());
 
-            try (Releasable ignored = driverContext.meteredCpu()) {
-                DriverContextTests.burnCpu(burnNanos);
-            }
+            driverContext.meteredCpu(() -> DriverContextTests.burnCpu(burnNanos));
             driverContext.removeAsyncAction();
             future.actionGet(30, TimeUnit.SECONDS);
 
@@ -829,12 +826,12 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertFalse(future.isDone());
 
-        try (Releasable ignored = driverContext.meteredCpu()) {
+        driverContext.meteredCpu(() -> {
             clock.burn(50);
             driverContext.removeAsyncAction();
             assertTrue(future.isDone());
             clock.burn(5);
-        }
+        });
         assertThat(driver.profile().cpuNanos(), equalTo(50L));
         assertThat(driverContext.cpuNanos(), equalTo(55L));
     }
@@ -846,9 +843,7 @@ public class DriverTests extends ESTestCase {
         Operator meteringOperator = new AbstractPageMappingOperator() {
             @Override
             protected Page process(Page page) {
-                try (Releasable ignored = driverContext.meteredCpu()) {
-                    clock.burn(burnNanos);
-                }
+                driverContext.meteredCpu(() -> clock.burn(burnNanos));
                 return page;
             }
 
@@ -902,11 +897,11 @@ public class DriverTests extends ESTestCase {
         );
         long beforeRun = randomLongBetween(1, 1000);
         long afterRun = randomLongBetween(1, 1000);
-        try (Releasable ignored = driverContext.meteredCpu()) {
+        driverContext.meteredCpu(() -> {
             clock.burn(beforeRun);
             driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime);
             clock.burn(afterRun);
-        }
+        });
 
         long inRun = burnPerPage * inPages.size();
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));

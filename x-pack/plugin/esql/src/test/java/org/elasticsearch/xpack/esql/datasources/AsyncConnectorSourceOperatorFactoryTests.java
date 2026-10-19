@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.ThreadCpuTimer;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
+import org.mockito.ArgumentMatchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -186,6 +188,9 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
         when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+        // The producer loop runs inside meteredCpu, which a plain mock would skip, so run the work as the real method does.
+        doAnswer(inv -> inv.<CheckedSupplier<?, ?>>getArgument(0).get()).when(driverContext)
+            .meteredCpu(ArgumentMatchers.<CheckedSupplier<Object, RuntimeException>>any());
         return driverContext;
     }
 

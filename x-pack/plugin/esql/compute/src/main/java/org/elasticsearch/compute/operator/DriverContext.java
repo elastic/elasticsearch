@@ -13,6 +13,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -99,7 +101,7 @@ public class DriverContext {
      */
     private final List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
 
-    /** Thread CPU time this driver used on any thread: in {@link Driver#run} and in {@link #meteredCpu()}. */
+    /** Thread CPU time this driver used on any thread: in {@link Driver#run} and in {@link #meteredCpu(CheckedSupplier)}. */
     private final CpuTracker cpuTracker;
 
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings) {
@@ -286,7 +288,7 @@ public class DriverContext {
 
     /**
      * Removing the last async action can let the driver publish its final status, so this first adds what the calling
-     * thread's open {@link #meteredCpu()} measurement has used so far.
+     * thread's open {@link #meteredCpu(CheckedSupplier)} measurement has used so far.
      */
     public void removeAsyncAction() {
         cpuTracker.checkpoint();
@@ -301,21 +303,28 @@ public class DriverContext {
     }
 
     /**
-     * Starts measuring the thread CPU time the current thread uses, for work an operator runs on a thread other than
-     * the driver's, such as a background worker. Closing the returned {@link Releasable} adds the CPU time used since
-     * this call to {@link #cpuNanos()}, which the driver reports as {@link DriverStatus#cpuNanos()} at its next status
-     * update. Close it on the same thread.
+     * Runs {@code work} on the current thread and adds the thread CPU time it uses to {@link #cpuNanos()}, which the
+     * driver reports as {@link DriverStatus#cpuNanos()} at its next status update. For work an operator runs on a thread
+     * other than the driver's, such as a background worker.
      * <p>
-     * Close it before handing off to another thread that can let the driver finish. The driver publishes its final
-     * status once the async actions are done, and CPU time added after that is not counted. Removing an async action on
-     * the measuring thread is safe, see {@link #removeAsyncAction()}.
+     * Hand off to another thread that can let the driver finish only after {@code work} returns. The driver publishes
+     * its final status once the async actions are done, and CPU time added after that is not counted. Removing an async
+     * action inside {@code work} is safe, see {@link #removeAsyncAction()}.
      * <p>
      * Measures nothing when the current thread's innermost open measurement already belongs to this driver, such as
-     * inside {@link Driver#run}. Otherwise pauses the innermost open measurement, such as another driver's, until this
-     * one is closed. See {@link CpuTracker}.
+     * inside {@link Driver#run}. Otherwise pauses the innermost open measurement, such as another driver's, until
+     * {@code work} returns. See {@link CpuTracker}.
      */
-    public Releasable meteredCpu() {
-        return cpuTracker.meteredCpu();
+    public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
+        return cpuTracker.meteredCpu(work);
+    }
+
+    /** {@link #meteredCpu(CheckedSupplier)} for work that returns nothing. */
+    public <E extends Exception> void meteredCpu(CheckedRunnable<E> work) throws E {
+        meteredCpu(() -> {
+            work.run();
+            return null;
+        });
     }
 
     /**

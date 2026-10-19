@@ -135,6 +135,35 @@ count:long | country:keyword
 12         | Indonesia
 ;
 
+// The wildcard in the body of view_country_wildcard (FROM country_a*) matches the views country_addresses and country_airports
+// when the setting is on at the caller's own level (see the test below), but never inside the view body: no index matches.
+viewBodyWildcardDoesNotMatchViewsEvenWhenTheCallerAllowsIt
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_match_wildcards
+required_capability: settings_scoped_at_view_boundaries
+
+SET wildcards_match_views=true\;
+FROM view_country_wildcard
+;
+
+c:long
+0
+;
+
+viewBodyWildcardDoesNotMatchViewsByDefault
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_match_wildcards
+required_capability: settings_scoped_at_view_boundaries
+
+FROM view_country_wildcard
+;
+
+c:long
+0
+;
+
 countryAirportsAddressesWildcard
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
@@ -365,17 +394,19 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: metadata_class_and_name
 
-// A view has no relation left to ask by execution, so its rows answer NULL for both columns --
-// the same disposition _index already has above. The index row answers for itself.
+// tag::views_class_and_name[]
 FROM airports_mp_filtered, airports METADATA _class, _name
 | WHERE abbrev == "LUH"
 | KEEP abbrev, _class, _name
 | SORT _name
+// end::views_class_and_name[]
 ;
 
+// tag::views_class_and_name-result[]
 abbrev:keyword | _class:keyword | _name:keyword
 LUH            | index          | airports
-LUH            | null           | null
+LUH            | view           | airports_mp_filtered
+// end::views_class_and_name-result[]
 ;
 
 airportsLookupJoinViewAirportsStats
@@ -3072,6 +3103,7 @@ required_capability: subquery_in_from_command
 required_capability: nested_subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: settings_scoped_at_view_boundaries
 
 SET unmapped_fields="load"\;
 FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message == "Disconnection error" OR unmapped_message == "43"),
@@ -3082,11 +3114,190 @@ FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message == "Disconn
 ;
 
 _fork:keyword | unmapped_message:keyword | emp_no:integer
-fork1         | Disconnection error      | null
-fork1         | Disconnection error      | null
-fork1         | Disconnection error      | null
 fork2         | null                     | 10001
 fork2         | null                     | null
+;
+
+viewInSubqueryForkLoadUnmappedNullFilledAtViewBoundary
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: settings_scoped_at_view_boundaries
+
+// The sibling of the test above: the view does not surface unmapped_message, so the view boundary answers null for it
+// instead of loading it from the view's source, and WHERE ... IS NULL keeps all of the view's rows.
+SET unmapped_fields="load"\;
+FROM (FROM view_partial_mapping_sample_data | WHERE unmapped_message IS NULL),
+     (FROM (FROM view_sample_data | WHERE event_duration == 1232382), (FROM employees_all | WHERE emp_no == 10001))
+| FORK (WHERE unmapped_message == "Disconnection error") (WHERE unmapped_message IS NULL)
+| STATS c = COUNT(*), employees = COUNT(emp_no) BY _fork
+| SORT _fork
+;
+
+c:long | employees:long | _fork:keyword
+9      | 1              | fork2
+;
+
+viewBesideIndexAndSubqueryLoadsUnmappedOnlyOutsideTheView
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: settings_scoped_at_view_boundaries
+
+// The view is a pass-through to the very index that is also queried directly, as a sibling and in a subquery. Only the
+// index branches load unmapped_message from _source; the view must not merge with them and answers null for all its rows.
+SET unmapped_fields="load"\;
+FROM view_partial_mapping_sample_data,
+     partial_mapping_sample_data,
+     (FROM partial_mapping_sample_data | WHERE message == "Connection error?")
+| STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
+;
+
+rows:long | loaded:long
+17        | 10
+;
+
+viewNestedInSubqueryBesideIndexLoadsUnmappedOnlyOutsideTheView
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: settings_scoped_at_view_boundaries
+
+SET unmapped_fields="load"\;
+FROM (FROM (FROM view_partial_mapping_sample_data), partial_mapping_sample_data), (FROM sample_data)
+| STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
+;
+
+rows:long | loaded:long
+21        | 7
+;
+
+viewOverSubqueriesBesideIndexLoadsUnmappedOnlyOutsideTheView
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: settings_scoped_at_view_boundaries
+
+// view_with_unionall is a union of subqueries over employees_all, another view: all of it is the view's own scope.
+SET unmapped_fields="load"\;
+FROM view_with_unionall, partial_mapping_sample_data
+| STATS rows = COUNT(*), loaded = COUNT(unmapped_message)
+;
+
+rows:long | loaded:long
+9         | 7
+;
+
+// A view is resolved as if unmapped_fields were "default": a field that is mapped in only some of the view's indices is null
+// where it is unmapped, rather than loaded from _source. The view here is FROM sample_data, no_mapping_sample_data, whose
+// date, ip, long and keyword fields are mapped in sample_data only; the same fields are all present in the source of
+// no_mapping_sample_data. The first two tests are the same query, with and without SET unmapped_fields="load".
+viewPartiallyUnmappedFieldsAreNotLoadedFromSource
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: settings_scoped_at_view_boundaries
+
+SET unmapped_fields="load"\;
+FROM view_partially_unmapped_sample_data
+| STATS rows = COUNT(*), timestamps = COUNT(@timestamp), ips = COUNT(client_ip), durations = COUNT(event_duration), messages = COUNT(message)
+;
+
+rows:long | timestamps:long | ips:long | durations:long | messages:long
+14        | 7               | 7        | 7              | 7
+;
+
+viewPartiallyUnmappedFieldsInDefaultMode
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: optional_fields_v5
+required_capability: settings_scoped_at_view_boundaries
+
+FROM view_partially_unmapped_sample_data
+| STATS rows = COUNT(*), timestamps = COUNT(@timestamp), ips = COUNT(client_ip), durations = COUNT(event_duration), messages = COUNT(message)
+;
+
+rows:long | timestamps:long | ips:long | durations:long | messages:long
+14        | 7               | 7        | 7              | 7
+;
+
+viewPartiallyUnmappedFieldsAreStillLoadedBesideTheView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: settings_scoped_at_view_boundaries
+
+// The caller names the very same pattern as the view body: its fields are loaded (14 non-null each), the view's are not (7).
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data, view_partially_unmapped_sample_data
+| STATS rows = COUNT(*), timestamps = COUNT(@timestamp), ips = COUNT(client_ip), durations = COUNT(event_duration), messages = COUNT(message)
+;
+
+rows:long | timestamps:long | ips:long | durations:long | messages:long
+28        | 21              | 21       | 21             | 21
+;
+
+// Only sample_data's rows qualify: no_mapping_sample_data's event_duration is not loaded, so those rows filter out as null.
+viewPartiallyUnmappedFieldsKeepTheirTypes
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: settings_scoped_at_view_boundaries
+
+SET unmapped_fields="load"\;
+FROM view_partially_unmapped_sample_data
+| WHERE event_duration > 3000000
+| KEEP @timestamp, client_ip, event_duration, message
+| SORT event_duration
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword
+2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233             | Connected to 10.1.0.3
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error
+;
+
+// Several mapped types plus unmapped: @timestamp is a date in sample_data, a long in sample_data_ts_long, and unmapped in
+// no_mapping_sample_data. As by default, it needs an explicit conversion, and the unmapped rows are null.
+viewPartiallyUnmappedConflictingFieldIsNotLoadedFromSource
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: settings_scoped_at_view_boundaries
+
+SET unmapped_fields="load"\;
+FROM view_partially_unmapped_conflicting_sample_data
+| STATS rows = COUNT(*), timestamps = COUNT(TO_DATETIME(@timestamp))
+;
+
+rows:long | timestamps:long
+21        | 14
+;
+
+viewPartiallyUnmappedConflictingFieldInDefaultMode
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: optional_fields_v5
+required_capability: settings_scoped_at_view_boundaries
+
+FROM view_partially_unmapped_conflicting_sample_data
+| STATS rows = COUNT(*), timestamps = COUNT(TO_DATETIME(@timestamp))
+;
+
+rows:long | timestamps:long
+21        | 14
 ;
 
 forkViewInSubqueryInlineStatsInMainQuery
@@ -3452,4 +3663,37 @@ c:long | client_ip:ip
 2      | 172.21.0.5
 2      | 172.21.2.113
 2      | 172.21.2.162
+;
+
+viewForkNullFillsInsideAndAfterUnionAll
+required_capability: fork_v9
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: nested_subquery_in_from_command_with_view_fork_dataset
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: subquery_in_from_command_fork_null_fill_date_nanos
+required_capability: fork_union_types
+required_capability: to_date_nanos
+
+FROM (FROM (FROM fork_over_union_view | WHERE message == "Disconnected"), (FROM sample_data | WHERE event_duration == 1232382 | KEEP @timestamp, message)
+          | FORK (WHERE message IS NOT NULL) (KEEP message)),
+         (FROM sample_data | WHERE event_duration == 1232382 | KEEP @timestamp, message)
+    | KEEP @timestamp, message, _fork
+    | SORT @timestamp NULLS FIRST, _fork NULLS FIRST
+;
+
+@timestamp:date_nanos          | message:keyword | _fork:keyword
+null                           | Disconnected    | fork1
+null                           | Disconnected    | fork1
+null                           | Disconnected    | fork2
+null                           | Disconnected    | fork2
+null                           | Disconnected    | fork2
+null                           | Disconnected    | fork2
+null                           | Disconnected    | fork2
+2023-10-23T13:33:34.937Z       | Disconnected    | null
+2023-10-23T13:33:34.937Z       | Disconnected    | fork1
+2023-10-23T13:33:34.937Z       | Disconnected    | fork1
+2023-10-23T13:33:34.937123456Z | Disconnected    | fork1
 ;

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -47,26 +50,26 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -108,11 +111,13 @@ public class TestAnalyzer {
 
     private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
+    private boolean wildcardsMatchDatasets = QuerySettings.WILDCARDS_MATCH_DATASETS.defaultValue();
     private TimestampBounds timestampBounds;
     private Supplier<TransportVersion> minimumTransportVersion = TransportVersionUtils::randomCompatibleVersion;
     private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
     private boolean stripErrorPrefix;
     private Map<String, String> views = new LinkedHashMap<>();
+    private EsqlFlags flags = EsqlFlags.DEFAULTS;
 
     TestAnalyzer() {}
 
@@ -126,6 +131,14 @@ public class TestAnalyzer {
 
     protected Configuration configuration() {
         return configuration;
+    }
+
+    /**
+     * Set the cluster-level {@link EsqlFlags}, for example to lower a query-wide limit the analyzer enforces.
+     */
+    public TestAnalyzer flags(EsqlFlags flags) {
+        this.flags = flags;
+        return this;
     }
 
     /**
@@ -611,6 +624,18 @@ public class TestAnalyzer {
     }
 
     /**
+     * Set whether {@code wildcards_match_datasets} is on. It only affects whether view boundaries are preserved here, like
+     * {@code EsqlSession} does; dataset rewriting itself is done by the caller.
+     * <p>
+     *     NOTE: This is overridden by {@link #statement}. If you are using that method you don't need to call this.
+     * </p>
+     */
+    public TestAnalyzer wildcardsMatchDatasets(boolean wildcardsMatchDatasets) {
+        this.wildcardsMatchDatasets = wildcardsMatchDatasets;
+        return this;
+    }
+
+    /**
      * Adds {@code @timestamp} lower and upper bounds extracted from a query DSL filter.
      */
     public TestAnalyzer timestampBounds(TimestampBounds timestampBounds) {
@@ -658,50 +683,60 @@ public class TestAnalyzer {
 
     // This most primitive view resolution only works for the simple cases being tested
     private LogicalPlan resolveViews(LogicalPlan parsed) {
-        return resolveViews(parsed, resolveViews(views));
+        // Mirror ViewBoundaryPreservation.KEEP_VIEW_IDENTITY, which EsqlSession picks whenever the query settings require it.
+        return resolveViews(
+            parsed,
+            resolveViews(views),
+            ViewBoundaryPreservation.settingsRequireViewIdentity(unmappedResolution, wildcardsMatchDatasets)
+        );
     }
 
     /**
      * Single traversal that interleaves view expansion and IN-subquery rewriting, mirroring {@code ViewResolver#replaceViews}.
+     *
+     * @param keepViewIdentity keep every view referenced at this level as a view branch of a {@link BranchPlan}, even a lone one,
+     *                         like {@code ViewResolver} does at the top level of a query under
+     *                         {@code ViewBoundaryPreservation.KEEP_VIEW_IDENTITY}; never inside a view body
      */
-    private LogicalPlan resolveViews(LogicalPlan parsed, Map<String, LogicalPlan> viewDefinitions) {
+    private LogicalPlan resolveViews(LogicalPlan parsed, Map<String, LogicalPlan> viewDefinitions, boolean keepViewIdentity) {
         return parsed.transformDown(p -> {
             if (p instanceof Filter filter) {
                 LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
                 // If an IN subquery was rewritten to a Semi/Anti/MarkJoin, recurse so views nested inside the now-exposed subquery
                 // plans (and any IN subqueries those views in turn contain) get resolved too.
-                return resolved == filter ? filter : resolveViews(resolved, viewDefinitions);
+                return resolved == filter ? filter : resolveViews(resolved, viewDefinitions, keepViewIdentity);
             }
             if (p instanceof Eval eval) {
                 LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval);
                 // EVAL IN subqueries become MarkJoins; recurse so views in their now-exposed subquery plans are resolved too.
-                return resolved == eval ? eval : resolveViews(resolved, viewDefinitions);
+                return resolved == eval ? eval : resolveViews(resolved, viewDefinitions, keepViewIdentity);
             }
             if (p instanceof Aggregate aggregate) {
                 LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
                 // Recurse into rewritten joins so views referenced by the newly exposed subquery plans are expanded too.
-                return resolved == aggregate ? aggregate : resolveViews(resolved, viewDefinitions);
+                return resolved == aggregate ? aggregate : resolveViews(resolved, viewDefinitions, keepViewIdentity);
             }
             if (p instanceof UnresolvedRelation ur) {
-                LogicalPlan resolved = resolveViewReference(ur, viewDefinitions);
+                LogicalPlan resolved = resolveViewReference(ur, viewDefinitions, keepViewIdentity);
                 // Recurse into the expanded view body so IN subqueries / nested views anywhere in it (including its root) are resolved.
-                return resolved.equals(ur) ? ur : resolveViews(resolved, viewDefinitions);
+                return resolved.equals(ur) ? ur : resolveViews(resolved, viewDefinitions, false);
             }
             return p;
         });
     }
 
-    private LogicalPlan resolveViewReference(UnresolvedRelation ur, Map<String, LogicalPlan> viewDefinitions) {
+    private LogicalPlan resolveViewReference(UnresolvedRelation ur, Map<String, LogicalPlan> viewDefinitions, boolean keepViewIdentity) {
         List<LogicalPlan> resolved = Arrays.stream(ur.indexPattern().indexPattern().split("\\s*\\,\\s*")).map(indexPattern -> {
             var view = viewDefinitions.get(indexPattern);
             return view == null
                 ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
                 : new NamedSubquery(view.source(), view, indexPattern);
         }).toList();
-        if (resolved.size() == 1) {
+        boolean keepViewWrapper = MetadataAttribute.requestsRelationColumn(ur.metadataFields());
+        if (resolved.size() == 1 && keepViewIdentity == false) {
             var subplan = resolved.get(0);
             if (subplan instanceof NamedSubquery n) {
-                return n.child();
+                return keepViewWrapper ? n : n.child();
             }
             return subplan;
         }
@@ -723,15 +758,15 @@ public class TestAnalyzer {
             String indexPattern = unresolvedRelations.stream().map(u -> u.indexPattern().indexPattern()).collect(Collectors.joining(","));
             subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
         }
-        Set<String> viewBranchKeys = new HashSet<>();
+        LinkedHashMap<String, BranchIdentity> identities = new LinkedHashMap<>();
         for (NamedSubquery namedSubquery : namedSubqueries) {
-            subplans.put(namedSubquery.name(), namedSubquery.child());
-            viewBranchKeys.add(namedSubquery.name());
+            subplans.put(namedSubquery.name(), keepViewWrapper ? namedSubquery : namedSubquery.child());
+            identities.put(namedSubquery.name(), BranchIdentity.view(namedSubquery.name()));
         }
-        if (subplans.size() == 1) {
+        if (subplans.size() == 1 && (keepViewIdentity == false || identities.isEmpty())) {
             return subplans.values().iterator().next();
         } else {
-            return new ViewUnionAll(ur.source(), subplans, viewBranchKeys, List.of());
+            return new BranchPlan(ur.source(), subplans, identities, List.of());
         }
     }
 
@@ -750,7 +785,12 @@ public class TestAnalyzer {
     private static Map<String, LogicalPlan> resolveViews(Map<String, String> views) {
         var parsedViews = new HashMap<String, LogicalPlan>();
         for (Map.Entry<String, String> entry : views.entrySet()) {
-            parsedViews.put(entry.getKey(), TEST_PARSER.parseQuery(entry.getValue()));
+            // parseView, not parseQuery: production stamps the view name on every Source in a view body, which e.g.
+            // names the view in errors on references inside its body.
+            parsedViews.put(
+                entry.getKey(),
+                TEST_PARSER.parseView(entry.getValue(), new QueryParams(), new InferenceSettings(Settings.EMPTY), entry.getKey()).plan()
+            );
         }
         return parsedViews;
     }
@@ -777,6 +817,7 @@ public class TestAnalyzer {
     public LogicalPlan statement(String query) {
         var statement = TEST_PARSER.createStatement(query);
         unmappedResolution = statement.setting(QuerySettings.UNMAPPED_FIELDS);
+        wildcardsMatchDatasets = statement.setting(QuerySettings.WILDCARDS_MATCH_DATASETS);
         var analyzed = buildAnalyzer().analyze(resolveViewsAndInSubqueries(statement.plan()));
         var failures = new Failures();
         PlanConsistencyChecker.checkPlan(analyzed, failures);
@@ -1001,8 +1042,9 @@ public class TestAnalyzer {
             unmappedResolution,
             timestampBounds,
             TEST_IP_LOCATION_RESOLUTION,
-            false,
-            EsqlFlags.DEFAULTS
+            // preserveViewBoundaries, as EsqlSession derives it: view branches must survive compaction for ResolveUnmapped.
+            ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution),
+            flags
         );
     }
 

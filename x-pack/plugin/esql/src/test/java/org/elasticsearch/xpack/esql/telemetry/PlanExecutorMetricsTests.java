@@ -23,6 +23,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -84,6 +86,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
@@ -101,6 +104,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLogTests.mockLogFieldProvider;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -403,6 +407,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // time_zone should now be 1
             assertEquals(1L, planExecutor.metrics().stats().get("settings.time_zone"));
             assertEquals(0L, planExecutor.metrics().stats().get("settings.unmapped_fields"));
+            // every query reports the value of every setting, including defaults
+            assertEquals(1L, planExecutor.metrics().stats().get("resolved_settings.time_zone.default"));
+            assertEquals(1L, planExecutor.metrics().stats().get("resolved_settings.unmapped_fields.default"));
+            assertEquals(1L, planExecutor.metrics().stats().get("resolved_settings.approximation.false"));
 
             // Run another query with unmapped_fields setting
             request = new EsqlQueryRequest();
@@ -425,6 +433,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // Both should now have values
             assertEquals(1L, planExecutor.metrics().stats().get("settings.time_zone"));
             assertEquals(1L, planExecutor.metrics().stats().get("settings.unmapped_fields"));
+            assertEquals(2L, planExecutor.metrics().stats().get("resolved_settings.time_zone.default"));
+            assertEquals(1L, planExecutor.metrics().stats().get("resolved_settings.unmapped_fields.default"));
+            assertEquals(1L, planExecutor.metrics().stats().get("resolved_settings.unmapped_fields.nullify"));
+            assertEquals(2L, planExecutor.metrics().stats().get("resolved_settings.approximation.false"));
 
             // Run a query with multiple settings
             request = new EsqlQueryRequest();
@@ -447,6 +459,60 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             // Both should be incremented
             assertEquals(2L, planExecutor.metrics().stats().get("settings.time_zone"));
             assertEquals(2L, planExecutor.metrics().stats().get("settings.unmapped_fields"));
+        }
+    }
+
+    public void testSettingsMetricsNotRecordedWhenViewResolutionFails() throws Exception {
+        IndexResolver indexResolver = mockIndexResolver();
+
+        try (
+            DataSourceModule dataSourceModule = makeDataSourceModule();
+            InMemoryViewService viewService = InMemoryViewService.makeViewService()
+        ) {
+            var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
+
+            // A view that references itself fails during view resolution, before analysis.
+            viewService.putView(
+                ProjectId.DEFAULT,
+                new PutViewAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    new View("circular_view", "FROM circular_view", null)
+                ),
+                ActionListener.wrap(r -> {}, e -> fail("failed to create view: " + e.getMessage()))
+            );
+
+            var request = new EsqlQueryRequest();
+            request.query("SET time_zone=\"UTC\"; FROM circular_view");
+            request.allowPartialResults(false);
+            var executionInfo = createEsqlExecutionInfo(randomBoolean());
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            executeEsql(
+                planExecutor,
+                MOCK_TRANSPORT_ACTION_SERVICES,
+                viewService,
+                request,
+                executionInfo,
+                (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Versioned<Result> result) {
+                        fail("this shouldn't happen");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        failure.set(e);
+                    }
+                }
+            );
+
+            assertThat(failure.get(), instanceOf(VerificationException.class));
+            assertThat(failure.get().getMessage(), containsString("circular view reference 'circular_view'"));
+            assertEquals(1, planExecutor.metrics().stats().get("queries._all.failed"));
+            assertEquals(0, planExecutor.metrics().stats().get("settings.time_zone"));
+            assertEquals(0, planExecutor.metrics().stats().get("resolved_settings.time_zone.default"));
+            assertEquals(0, planExecutor.metrics().stats().get("resolved_settings.time_zone.set"));
         }
     }
 
@@ -708,29 +774,41 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         EsqlSession.PlanRunner runPhase,
         ActionListener<Versioned<Result>> listener
     ) {
+        try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
+            executeEsql(planExecutor, services, viewService, request, executionInfo, runPhase, listener);
+        }
+    }
+
+    private void executeEsql(
+        PlanExecutor planExecutor,
+        TransportActionServices services,
+        InMemoryViewService viewService,
+        EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
+        EsqlSession.PlanRunner runPhase,
+        ActionListener<Versioned<Result>> listener
+    ) {
         IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions, returnLocalAll) -> Map.of(
             "",
             new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
         );
-        try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
-            planExecutor.esql(
-                request,
-                randomAlphaOfLength(10),
-                TransportVersion.current(),
-                queryClusterSettings(),
-                mockEnrichResolver(),
-                viewService.getViewResolver(),
-                noDatasetsResolver(),
-                executionInfo,
-                groupIndicesByCluster,
-                runPhase,
-                services,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                1,
-                () -> false,
-                listener
-            );
-        }
+        planExecutor.esql(
+            request,
+            randomAlphaOfLength(10),
+            TransportVersion.current(),
+            queryClusterSettings(),
+            mockEnrichResolver(),
+            viewService.getViewResolver(),
+            noDatasetsResolver(),
+            executionInfo,
+            groupIndicesByCluster,
+            runPhase,
+            services,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            () -> false,
+            listener
+        );
     }
 
     /**

@@ -105,7 +105,8 @@ public class IntoDestinationTests extends ESTestCase {
             )
         );
         List<Attribute> withId = List.of(column("host", DataType.KEYWORD), column(IntoPageWriter.ID_COLUMN, DataType.KEYWORD));
-        var e = expectThrows(VerificationException.class, () -> destination.validate(withId, randomFrom(KEEP, REPLACE)));
+        // The replace refusal above comes first, so the id column is checked with the modes a data stream accepts.
+        var e = expectThrows(VerificationException.class, () -> destination.validate(withId, randomFrom(KEEP, IntoOptions.DEFAULT)));
         assertThat(
             e.getMessage(),
             containsString(

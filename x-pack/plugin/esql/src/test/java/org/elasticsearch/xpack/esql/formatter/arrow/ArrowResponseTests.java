@@ -86,6 +86,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class ArrowResponseTests extends ESTestCase {
 
     private static final RootAllocator ALLOCATOR = new RootAllocator();
@@ -627,6 +629,8 @@ public class ArrowResponseTests extends ESTestCase {
         ) {
             ordinalBlock = constVersion.keepMask(mask);
         }
+        assertThat(ordinalBlock, instanceOf(OrdinalBytesRefBlock.class));
+        assertEquals(0, ((OrdinalBytesRefBlock) ordinalBlock).getOrdinalsBlock().getInt(1));
 
         var bufs = new ArrayList<ArrowBuf>();
         var releasables = new ArrayList<Releasable>();
@@ -639,6 +643,30 @@ public class ArrowResponseTests extends ESTestCase {
 
         TestColumn col = TestColumn.create("col-version", DataType.VERSION, false);
         compareEsqlAndArrow(new TestCase(List.of(col), List.of(new TestPage(List.of(TestBlock.create(col, ordinalBlock))))));
+    }
+
+    public void testMultivaluedTransformedBytesRefBlocksWithNulls() throws IOException {
+        for (DataType type : List.of(DataType.IP, DataType.VERSION, DataType.SOURCE)) {
+            var column = TestColumn.create("col-" + type.outputType(), type, true);
+            Block block;
+            try (Block.Builder builder = column.valueType.createBlockBuilder(blockFactory)) {
+                builder.beginPositionEntry();
+                column.valueType.addValue(builder, Density.Dense);
+                column.valueType.addValue(builder, Density.Dense);
+                builder.endPositionEntry();
+                builder.appendNull();
+                column.valueType.addValue(builder, Density.Dense);
+                block = builder.build();
+            }
+            assertTrue(block.mayHaveMultivaluedFields());
+            assertTrue(block.isNull(1));
+
+            var testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
+                compareEsqlAndArrow(testCase, root);
+                assertListLayout((ListVector) root.getVector(column.name), 0, 2, 2, 3);
+            }
+        }
     }
 
     public void testMultivaluedOrdinalBytesRefBlockLayout() throws IOException {

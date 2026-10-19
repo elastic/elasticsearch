@@ -994,13 +994,13 @@ setup:
   - match: { hits.hits.1._id: "11" }
 
 ---
-"Test script_score wrapped semantic matches in must do not overflow the stack":
+"Test wrapped queries on inference fields used as automatic prefilters do not overflow the stack":
   # Regression test for https://github.com/elastic/elasticsearch/issues/162295
-  # A knn query used as a prefilter, wrapped in script_score, used to recurse infinitely until the stack overflowed.
-
+  # A knn query used as an automatic prefilter, wrapped in script_score, used to recurse infinitely until the stack
+  # overflowed.
   - requires:
       cluster_features: "semantic.auto_prefilter_recursion_fix"
-      reason: auto prefiltering no longer recurses infinitely on script_score wrapped semantic queries
+      reason: auto prefiltering no longer recurses infinitely on wrapped inference field queries
 
   - do:
       search:

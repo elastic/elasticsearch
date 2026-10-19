@@ -279,6 +279,7 @@ public class IndexVersions {
         9_111_0_01,
         Version.LUCENE_10_5_1
     );
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5 = def(9_111_0_02, Version.LUCENE_10_5_2);
     public static final IndexVersion COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG = def(9_112_0_00, Version.LUCENE_10_5_1);
     // Deliberately unreferenced: defining it raises IndexVersion.current(), which is what keeps segments written by the
     // Elasticsearch96 codec off nodes that cannot resolve that name (see IndexVersionAllocationDecider).

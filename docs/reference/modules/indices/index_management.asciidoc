@@ -27,15 +27,6 @@ cannot close open indices. Defaults to `true`.
 +
 NOTE: Closed indices still consume a significant amount of disk space.
 
-[[indices-mapping-max-request-size]]
-`indices.mapping.max_request_size`::
-(<<dynamic-cluster-setting,Dynamic>>)
-deprecated:[8.19.24, "This setting only exists in 8.19 and is not accepted in later versions, which handle large mappings differently. Remove it from your cluster settings before upgrading."]
-The maximum size of the request body accepted by the <<indices-put-mapping,update mapping API>>.
-Larger requests are rejected with an error. This protects the cluster from running out of memory
-when many large mapping updates are sent concurrently. Accepts a <<byte-units,byte size value>>.
-Defaults to `1mb`.
-
 [[stack-templates-enabled]]
 `stack.templates.enabled`::
 +

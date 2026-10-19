@@ -13,11 +13,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
@@ -26,12 +23,15 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -42,26 +42,6 @@ public class RestPutMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in put mapping request is deprecated. "
         + "Use typeless api instead";
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutMappingAction.class);
-
-    /**
-     * Soft limit on the size of the body of a put mapping request, to protect against running out of memory
-     * when handling many large concurrent requests. This only exists in 8.19; later versions handle large mappings
-     * differently and will not accept this setting, so it is marked as deprecated.
-     */
-    public static final Setting<ByteSizeValue> MAX_MAPPING_REQUEST_SIZE_SETTING = Setting.byteSizeSetting(
-        "indices.mapping.max_request_size",
-        ByteSizeValue.ofMb(1),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic,
-        Setting.Property.Deprecated
-    );
-
-    private volatile ByteSizeValue maxRequestSize;
-
-    public RestPutMappingAction(Settings settings, ClusterSettings clusterSettings) {
-        this.maxRequestSize = MAX_MAPPING_REQUEST_SIZE_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(MAX_MAPPING_REQUEST_SIZE_SETTING, v -> this.maxRequestSize = v);
-    }
 
     @Override
     public List<Route> routes() {
@@ -116,40 +96,36 @@ public class RestPutMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.hasContent() && request.content().length() > maxRequestSize.getBytes()) {
-            throw new IllegalArgumentException(
-                "mappings update request is too large: ["
-                    + ByteSizeValue.ofBytes(request.content().length())
-                    + "] exceeds the limit of ["
-                    + maxRequestSize
-                    + "] set by ["
-                    + MAX_MAPPING_REQUEST_SIZE_SETTING.getKey()
-                    + "]"
-            );
-        }
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         PutMappingRequest putMappingRequest = new PutMappingRequest(indices);
 
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
+        // the mappings are only inspected with a streaming parser, never realised as a java map
+        final BytesReference content = request.requiredContent();
+        final XContentType xContentType = request.getXContentType();
+        final String singleTopLevelKey = singleTopLevelKey(content, xContentType);
+        final boolean typed = MapperService.SINGLE_MAPPING_NAME.equals(singleTopLevelKey);
         if (request.getRestApiVersion() == RestApiVersion.V_7) {
             final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
             if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
                 deprecationLogger.compatibleCritical("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
             }
             final String type = request.param("type");
-            if (includeTypeName == false && (type != null || isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap))) {
+            if (includeTypeName == false && (type != null || typed)) {
                 throw new IllegalArgumentException(
                     "Types cannot be provided in put mapping requests, unless the include_type_name parameter is set to true."
                 );
             }
 
-            Map<String, Object> mappingSource = prepareV7Mappings(includeTypeName, sourceAsMap);
-            putMappingRequest.source(mappingSource);
+            if (includeTypeName && singleTopLevelKey != null) {
+                putMappingRequest.source(unwrapType(singleTopLevelKey, content, xContentType), XContentType.JSON);
+            } else {
+                putMappingRequest.source(content, xContentType);
+            }
         } else {
-            if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap)) {
+            if (typed) {
                 throw new IllegalArgumentException("Types cannot be provided in put mapping requests");
             }
-            putMappingRequest.source(sourceAsMap);
+            putMappingRequest.source(content, xContentType);
         }
 
         putMappingRequest.ackTimeout(getAckTimeout(request));
@@ -159,17 +135,44 @@ public class RestPutMappingAction extends BaseRestHandler {
         return channel -> client.admin().indices().putMapping(putMappingRequest, new RestToXContentListener<>(channel));
     }
 
-    private static Map<String, Object> prepareV7Mappings(boolean includeTypeName, Map<String, Object> mappings) {
-        if (includeTypeName && mappings != null && mappings.size() == 1) {
-            String typeName = mappings.keySet().iterator().next();
-            if (Strings.hasText(typeName) == false) {
-                throw new IllegalArgumentException("name cannot be empty string");
+    /**
+     * Returns the name of the only top-level field of the mappings, or {@code null} if the mappings
+     * do not have exactly one top-level field. Nested content is skipped rather than parsed.
+     */
+    private static String singleTopLevelKey(BytesReference content, XContentType xContentType) throws IOException {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, xContentType)) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("mapping source must be an object");
             }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> typelessMappings = (Map<String, Object>) mappings.get(typeName);
-            return typelessMappings;
+            if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
+                return null;
+            }
+            final String key = parser.currentName();
+            parser.nextToken();
+            parser.skipChildren();
+            return parser.nextToken() == XContentParser.Token.END_OBJECT ? key : null;
         }
-        return mappings;
+    }
+
+    /**
+     * Copies the value of the single top-level field, which is the typeless mappings wrapped in a type name.
+     */
+    private static BytesReference unwrapType(String typeName, BytesReference content, XContentType xContentType) throws IOException {
+        if (Strings.hasText(typeName) == false) {
+            throw new IllegalArgumentException("name cannot be empty string");
+        }
+        try (
+            XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, xContentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)
+        ) {
+            parser.nextToken(); // START_OBJECT
+            parser.nextToken(); // FIELD_NAME
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("mappings for type [" + typeName + "] must be an object");
+            }
+            builder.copyCurrentStructure(parser);
+            return BytesReference.bytes(builder);
+        }
     }
 
 }

@@ -163,9 +163,15 @@ final class PreferIlmSettingProvider implements IndexSettingProvider {
         Phase hotPhase = phases.get(TimeseriesLifecycleType.HOT_PHASE);
         if (hotPhase != null && hotPhase.getActions().size() == 1 && hotPhase.getActions().containsKey(RolloverAction.NAME)) {
             RolloverAction rolloverAction = (RolloverAction) hotPhase.getActions().get(RolloverAction.NAME);
-            return DEFAULT_ROLLOVER_CONDITIONS.equals(rolloverAction.getConditions());
+            if (DEFAULT_ROLLOVER_CONDITIONS.equals(rolloverAction.getConditions()) == false) {
+                return false;
+            }
         }
-        return false;
+        Map<String, Object> policyMetadata = lifecyclePolicyMetadata.getPolicy().getMetadata();
+        if (policyMetadata == null) {
+            return false;
+        }
+        return policyMetadata.get("managed") instanceof Boolean isManaged && isManaged;
     }
 
     public void setEnabled(boolean enabled) {

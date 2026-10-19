@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
@@ -976,7 +977,12 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
                 .build()
         );
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
-        LifecyclePolicy metricsPolicy = new LifecyclePolicy("metrics", Map.of("hot", hotPhase));
+        LifecyclePolicy metricsPolicy = new LifecyclePolicy(
+            TimeseriesLifecycleType.INSTANCE,
+            "metrics",
+            Map.of("hot", hotPhase),
+            Map.of("managed", true)
+        );
         assertAcked(
             client().execute(ILMActions.PUT, new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, metricsPolicy)).get()
         );

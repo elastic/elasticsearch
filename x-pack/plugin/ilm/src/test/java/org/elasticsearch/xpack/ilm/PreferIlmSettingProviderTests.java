@@ -151,7 +151,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
 
         // Default policy with different version
         {
-            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 2L, 50, 30, null));
+            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 2L, 50, 30, null, true));
             Settings templateSettings = resolvedSettings(METRICS_POLICY_NAME, null);
             Settings.Builder additionalSettings = Settings.builder();
             provider.provideAdditionalSettings(
@@ -171,7 +171,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
 
         // Default policy with different max primary shard size
         {
-            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L, 30, 30, null));
+            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L, 30, 30, null, true));
             Settings templateSettings = resolvedSettings(METRICS_POLICY_NAME, null);
             Settings.Builder additionalSettings = Settings.builder();
             provider.provideAdditionalSettings(
@@ -191,7 +191,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
 
         // Default policy with different max age
         {
-            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L, 50, 7, null));
+            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L, 50, 7, null, true));
             Settings templateSettings = resolvedSettings(METRICS_POLICY_NAME, null);
             Settings.Builder additionalSettings = Settings.builder();
             provider.provideAdditionalSettings(
@@ -211,7 +211,27 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
 
         // Default policy with another condition
         {
-            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L, 50, 7, 200_000_000L));
+            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L, 50, 30, 200_000_000L, true));
+            Settings templateSettings = resolvedSettings(METRICS_POLICY_NAME, null);
+            Settings.Builder additionalSettings = Settings.builder();
+            provider.provideAdditionalSettings(
+                INDEX_NAME,
+                DATA_STREAM_NAME,
+                IndexMode.TIME_SERIES,
+                randomBoolean(),
+                project,
+                Instant.now(),
+                templateSettings,
+                List.of(),
+                IndexVersion.current(),
+                additionalSettings
+            );
+            assertThat(additionalSettings.build(), equalTo(Settings.EMPTY));
+        }
+
+        // Default policy without managed metadata
+        {
+            ProjectMetadata project = projectWithPolicies(onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1L, 50, 30, null, false));
             Settings templateSettings = resolvedSettings(METRICS_POLICY_NAME, null);
             Settings.Builder additionalSettings = Settings.builder();
             provider.provideAdditionalSettings(
@@ -321,17 +341,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
     }
 
     private static LifecyclePolicyMetadata defaultPolicyMetadata() {
-        LifecyclePolicy policy = new LifecyclePolicy(
-            TimeseriesLifecycleType.INSTANCE,
-            METRICS_POLICY_NAME,
-            Map.of(
-                TimeseriesLifecycleType.HOT_PHASE,
-                new Phase(TimeseriesLifecycleType.HOT_PHASE, TimeValue.ZERO, Map.of(RolloverAction.NAME, rolloverAction(50, 30, null)))
-            ),
-            Map.of(),
-            null
-        );
-        return new LifecyclePolicyMetadata(policy, Map.of(), 1, randomNonNegativeLong());
+        return onlyRolloverPolicyMetadata(METRICS_POLICY_NAME, 1, 50, 30, null, true);
     }
 
     private static LifecyclePolicyMetadata onlyRolloverPolicyMetadata(
@@ -339,8 +349,12 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
         long version,
         int maxPrimaryShardSize,
         int maxAge,
-        Long maxPrimaryShardCount
+        Long maxPrimaryShardCount,
+        boolean withManagedMetadata
     ) {
+        Map<String, Object> metadata = withManagedMetadata
+            ? Map.of("description", "default policy for the metrics index template installed by x-pack", "managed", true)
+            : Map.of();
         LifecyclePolicy policy = new LifecyclePolicy(
             TimeseriesLifecycleType.INSTANCE,
             policyName,
@@ -352,7 +366,7 @@ public class PreferIlmSettingProviderTests extends ESTestCase {
                     Map.of(RolloverAction.NAME, rolloverAction(maxPrimaryShardSize, maxAge, maxPrimaryShardCount))
                 )
             ),
-            Map.of(),
+            metadata,
             null
         );
         return new LifecyclePolicyMetadata(policy, Map.of(), version, randomNonNegativeLong());

@@ -114,6 +114,8 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature INFERENCE_INFERENCE_INDEX_DOC_TYPE = new NodeFeature("inference.inference_index_doc_type");
     public static final NodeFeature INFERENCE_CLEAR_PREFERENCES_CACHE = new NodeFeature("inference.clear_preferences_cache");
     public static final NodeFeature INFERENCE_ANTHROPIC_COMPLETION_URL_ADDED = new NodeFeature("inference.anthropic.completion_url_added");
+    // Test feature only: gates the YAML suite that sends a template instead of messages to a chat completion endpoint.
+    private static final NodeFeature INFERENCE_CHAT_COMPLETION_TEMPLATE = new NodeFeature("inference.chat_completion_template");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -192,7 +194,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SemanticFieldMapper.SEMANTIC_FIELD_MAPPER,
                 TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_EMPTY_RESULT_FIX,
                 ENDPOINT_METADATA_CLUSTER_STATE_SUBSET,
-                SEMANTIC_EXISTS_QUERY_AUTO_PREFILTER_FIX
+                SEMANTIC_EXISTS_QUERY_AUTO_PREFILTER_FIX,
+                INFERENCE_CHAT_COMPLETION_TEMPLATE
             )
         );
         testFeatures.addAll(getFeatures());

@@ -201,3 +201,60 @@
 
   # name
   - gt: { testindex.shards.0.stats.fields.name.inverted_index.offsets: 0 }
+
+---
+"Field usage stats for doc values skippers":
+  # logsdb indices get a doc values skipper on @timestamp by default
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /{index}/_field_usage_stats
+          capabilities: [ doc_values_skipper ]
+      reason: "field usage stats only report doc_values_skipper on nodes that track skipper usage"
+
+  - do:
+      indices.create:
+        index: skipperindex
+        body:
+          settings:
+            routing.rebalance.enable: none
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+            index.mode: logsdb
+
+  - do:
+      index:
+        index: skipperindex
+        body: { "@timestamp": "2003-09-06T00:00:00Z", "message": "foo" }
+
+  - do:
+      index:
+        index: skipperindex
+        body: { "@timestamp": "2003-09-07T00:00:00Z", "message": "bar" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.field_usage_stats: { index: skipperindex }
+
+  - match: { skipperindex.shards.0.stats.all_fields.doc_values_skipper: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2003-09-07T00:00:00Z"
+
+  - match: { hits.total: 1 }
+
+  - do:
+      indices.field_usage_stats: { index: skipperindex }
+
+  - gt: { skipperindex.shards.0.stats.all_fields.doc_values_skipper: 0 }
+  - gt: { skipperindex.shards.0.stats.fields.@timestamp.doc_values_skipper: 0 }
+  - gt: { skipperindex.shards.0.stats.fields.@timestamp.doc_values: 0 }

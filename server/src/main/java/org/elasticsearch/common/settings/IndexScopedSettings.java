@@ -174,6 +174,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES,
                 IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING,
                 FieldMapper.IGNORE_MALFORMED_SETTING,
+                FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING,
                 FieldMapper.COERCE_SETTING,
                 FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING,
                 FieldMapper.DOC_VALUES_NULLABILITY_SETTING,

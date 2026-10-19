@@ -30,7 +30,6 @@ public class SourceFieldMapperColumnarCompatibilityTests extends AbstractColumna
     private static Settings columnarSettings() {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .build();
     }
 

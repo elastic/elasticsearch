@@ -224,9 +224,6 @@ tests:
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT
   method: testGrantTargetCanUpdateApiKey
   issue: https://github.com/elastic/elasticsearch/issues/159567
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/159710
 - class: org.elasticsearch.xpack.prometheus.PrometheusInstantQueryRestIT
   method: testInstantAggregatedOperandsMatchAcrossIngestionPaths
   issue: https://github.com/elastic/elasticsearch/issues/159795
@@ -328,18 +325,11 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
   issue: https://github.com/elastic/elasticsearch/issues/162277
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecPrometheusK8sDeltaIT
-  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162319
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
-  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162369
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
-  method: test {csv-spec:prometheus-k8s-delta.delta_with_filtering_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162371
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
-  method: test {csv-spec:prometheus-k8s-delta.eval_on_delta_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162373
+- class: org.elasticsearch.columnar.StringColumnMergeTests
+  method: testSegmentsOfOneFieldInBothFramingsMergeIntoEitherFraming
+  issue: https://github.com/elastic/elasticsearch/issues/162245
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/162282
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformIT
   method: testCrossClusterTransform
   issue: https://github.com/elastic/elasticsearch/issues/162405

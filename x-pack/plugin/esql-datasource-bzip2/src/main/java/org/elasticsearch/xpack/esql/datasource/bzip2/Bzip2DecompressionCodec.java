@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.esql.datasource.bzip2;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

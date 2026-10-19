@@ -90,6 +90,11 @@ public final class UnifiedCompletionUtils {
 
     public static final String SESSION_ID_FIELD = "session_id";
 
+    public static final String TEMPLATE_FIELD = "template";
+    public static final String TEMPLATE_ID_FIELD = "id";
+    public static final String TEMPLATE_VERSION_FIELD = "version";
+    public static final String TEMPLATE_VARIABLES_FIELD = "variables";
+
     public static final TransportVersion INFERENCE_CACHED_TOKENS = TransportVersion.fromName("inference_cached_tokens");
 
     public static final TransportVersion MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED = TransportVersion.fromName(
@@ -110,6 +115,10 @@ public final class UnifiedCompletionUtils {
 
     public static final TransportVersion CHAT_COMPLETION_CACHE_WRITE_TOKENS_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_chat_completion_cache_write_tokens_added"
+    );
+
+    public static final TransportVersion CHAT_COMPLETION_TEMPLATE_ADDED = TransportVersion.fromName(
+        "inference_api_chat_completion_template_added"
     );
 
     public static <T> T extractRequiredFieldOfType(Map<String, Object> sourceMap, String key, Class<T> type, String containingObject) {

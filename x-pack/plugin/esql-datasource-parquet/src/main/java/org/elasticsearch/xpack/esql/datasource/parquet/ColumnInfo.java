@@ -85,13 +85,15 @@ record ColumnInfo(
     /**
      * The mirror of {@link #fileTyped()}: decodes straight to {@code target}, keeping this column's own type as
      * {@link #fileEsqlType}. Only for a pair {@code DeclaredTypeCoercions.fusedInDecode} accepts, where the decode
-     * arms produce the target natively and no {@code castBlock} follows.
+     * arms produce the target natively and no {@code castBlock} follows. {@code formatter} is the column's declared
+     * date {@code format}, which the string-parsing arms read off the view: the deferred route's own
+     * {@code resolveColumnInfo} does not carry one, so a caller that omits it parses with the ISO default.
      */
-    ColumnInfo targetTyped(DataType target) {
-        if (target == esqlType) {
+    ColumnInfo targetTyped(DataType target, @Nullable DateFormatter formatter) {
+        if (target == esqlType && formatter == dateFormatter) {
             return this;
         }
-        return new ColumnInfo(descriptor, parquetType, target, maxDefLevel, maxRepLevel, logicalType, dateFormatter, esqlType);
+        return new ColumnInfo(descriptor, parquetType, target, maxDefLevel, maxRepLevel, logicalType, formatter, esqlType);
     }
 
     /** Sentinel marker for the synthetic {@code _rowPosition} column slot. */

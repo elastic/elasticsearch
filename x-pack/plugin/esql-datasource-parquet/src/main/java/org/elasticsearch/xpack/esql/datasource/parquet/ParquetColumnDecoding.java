@@ -74,12 +74,10 @@ final class ParquetColumnDecoding {
 
     static long convertTimestampToMillis(long raw, LogicalTypeAnnotation logicalType) {
         if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-            // Only the MILLIS arm is reachable today: a TIMESTAMP(MICROS|NANOS) column renders date_nanos, and a
-            // declared `date` over it is not a fused pair, so it narrows through castBlock rather than arriving
-            // here. The sub-millisecond arms are kept, and floor rather than truncate with `/`, so that they agree
-            // with that narrowing -- which floors -- if a route ever does reach them. Java's `/` rounds toward
-            // zero, so the two would disagree by a millisecond below the epoch, which is the range that route
-            // would exist to open.
+            // All three arms are reachable: `date` over a column rendering date_nanos is a fused pair, so a
+            // TIMESTAMP(MICROS|NANOS) column arrives here instead of narrowing through castBlock. They floor
+            // rather than truncate with `/` to agree with that narrowing, which floors; `/` rounds toward zero and
+            // the two would disagree by a millisecond below the epoch.
             return switch (ts.getUnit()) {
                 case MILLIS -> raw;
                 case MICROS -> Math.floorDiv(raw, 1_000L);

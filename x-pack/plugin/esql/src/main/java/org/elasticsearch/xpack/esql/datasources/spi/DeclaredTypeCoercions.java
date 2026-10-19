@@ -281,9 +281,10 @@ public final class DeclaredTypeCoercions {
         }
         // A column the file renders date_nanos, read as `date`. Fused because nanoseconds confine the value to
         // 1677..2262 where milliseconds reach far past it, and floorDiv(raw * 1_000, 1_000_000) equals
-        // floorDiv(raw, 1_000), so nothing already readable moves.
+        // floorDiv(raw, 1_000), so nothing already readable moves. A declared format does not defuse it, unlike the
+        // LONG arm above: castBlock's arm for this pair ignores the format, the annotation having stated the unit.
         if (from == DataType.DATE_NANOS && to == DataType.DATETIME) {
-            return hasDeclaredFormat == false;
+            return true;
         }
         boolean fromString = from == DataType.KEYWORD || from == DataType.TEXT;
         if (fromString && (to == DataType.KEYWORD || to == DataType.TEXT)) {

@@ -6424,8 +6424,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
      * vectorized {@link PageColumnReader} (production), the row-at-a-time arms of {@code ParquetColumnIterator}, and
      * the deferred late-materialization extractor -- and asserts all three produce {@code expectedMillis}. The routes
      * are separate implementations of the same coercion, so a per-route answer is a wrong answer that depends on the
-     * query's plan shape; the extractor is the one that decodes at the file's own type and coerces through
-     * {@code castBlock}, which is the oracle the fused arms are written against.
+     * query's plan shape.
      *
      * <p>The row-at-a-time decoder is selected with {@link ParquetFormatReader#withBaselinePath()}. The iterator
      * flag does not reach it: {@code ParquetColumnIterator} builds a {@link PageColumnReader} per flat column
@@ -6455,7 +6454,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertDeferredDatetimeReads(parquetData, storageObject, column, expectedMillis);
     }
 
-    /** The deferred late-materialization route of {@link #assertDeclaredDatetimeReads}: decode at the file's type, coerce. */
+    /** The deferred late-materialization route of {@link #assertDeclaredDatetimeReads}. */
     private void assertDeferredDatetimeReads(byte[] parquetData, StorageObject storageObject, String column, long... expectedMillis)
         throws Exception {
         ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withDeclaredTypeColumns(Set.of(column));
@@ -7946,16 +7945,19 @@ public class ParquetFormatReaderTests extends ESTestCase {
     /**
      * Guard: for every {@code fusedInDecode} pair and physical shape, the three routes that can produce a column
      * must produce the same value. There are three -- the vectorized reader, the row-at-a-time reader, and the
-     * deferred extractor a plan uses when it materializes a column only for the rows a TopN kept -- and only the
-     * first two consult {@code fusedInDecode}. {@code ParquetColumnExtractor.coerceToTarget} decodes at the FILE's
-     * type and calls {@code castBlock} unconditionally, so a fused pair whose one-step decode differs from its
-     * two-step equivalent answers differently depending on the plan's shape rather than on the data.
+     * deferred extractor a plan uses when it materializes a column only for the rows a TopN kept. All three honour
+     * {@code fusedInDecode}: the first two consult it directly, the extractor by retyping its column view. A fused
+     * pair that one route decodes in one step and another in two answers differently depending on the plan's shape
+     * rather than on the data.
      * <p>
-     * That is not hypothetical. A {@code date_nanos -> date} pair was added to the table in this change and
-     * withdrawn: the one-step scale carried values outside the nanosecond domain that the two-step route nulled,
-     * so the eager readers returned an instant where the deferred route returned null, for the same file and the
-     * same query. Nothing failed, because the sibling guard below exercises only the two eager decoders. This
-     * test is what fails.
+     * That is not hypothetical. While {@code date_nanos -> date} was fused for the eager readers only, the one-step
+     * scale carried values outside the nanosecond domain that the two-step route nulled, so the eager readers
+     * returned an instant where the deferred route returned null, for the same file and the same query. Nothing
+     * failed, because the sibling guard below exercises only the two eager decoders. This test is what fails.
+     * <p>
+     * What it does NOT cover: it varies the physical shape, with one required row, a declared column, no declared
+     * format and a strict policy. The formatter, the policy and the declared-vs-inferred gate the retype has to
+     * carry are pinned by the four tests above {@code testDeferredNativeDecodeHonorsTheDeclaredDateFormat}.
      * <p>
      * It asserts agreement rather than a particular value, so it stays true of whatever the pairs become; the
      * values themselves are the sibling guard's job.
@@ -11762,6 +11764,175 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 assertTrue(decoder + ": a UUID's hex form is not a timestamp, so the scalar value is refused", l.isNull(0));
             }
         }
+    }
+
+    // The deferred route decodes a fusedInDecode pair natively, so it has to carry everything the eager readers'
+    // own column view carries: the declared formatter, the error policy, and the declared-vs-inferred gate. Each of
+    // the four below fails if one of those is dropped, and none of them is a temporal-unit case --
+    // testEveryFusedInDecodePairAgreesAcrossReadRoutes varies the physical shape and is green over all four.
+
+    /** A declared {@code format} reaches the deferred native decode: with it the token parses, without it it throws. */
+    public void testDeferredNativeDecodeHonorsTheDeclaredDateFormat() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", "1704067200");
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://declared_format_deferred.parquet");
+        ParquetFormatReader reader = (ParquetFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        // eager, for the oracle
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        long eager;
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            LongBlock l = (LongBlock) it.next().getBlock(0);
+            eager = l.isNull(0) ? Long.MIN_VALUE : l.getLong(0);
+        }
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                LongBlock l = (LongBlock) blocks[0];
+                Object deferred = l.isNull(0) ? null : l.getLong(0);
+                assertEquals("eager=" + eager + " deferred=" + deferred, (Object) 1704067200000L, deferred);
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    /** The deferred native decode follows the error policy: an unparseable token nulls the cell under null_field. */
+    public void testDeferredNativeDecodeFollowsTheErrorPolicyOnABadToken() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", "not-a-date");
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://bad_token_deferred.parquet");
+        ParquetFormatReader reader = declaredReader("ts");
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                assertTrue("null_field must null the cell", blocks[0].isNull(0));
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
+    /**
+     * An INFERRED {@code date} over a file rendering {@code date_nanos} is not a widening pair, so both routes read
+     * the column as null rather than narrowing. Reachable under first_file_wins, where a later file's drift is left
+     * to the readers: fusing on the pair alone would decode here and null on the eager scan of the same rows.
+     */
+    public void testInferredDatetimeOverADateNanosFileNullsOnEveryRoute() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", 971211336000L * 1_000L);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://inferred_date_nanos.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory); // NOT declared: inferred planner type
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        Object eager;
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            Block b = it.next().getBlock(0);
+            eager = b.isNull(0) ? null : ((LongBlock) b).getLong(0);
+        }
+        Object deferred;
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                deferred = blocks[0].isNull(0) ? null : ((LongBlock) blocks[0]).getLong(0);
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+        assertEquals("eager vs deferred for an inferred date over a date_nanos file", eager, deferred);
+    }
+
+    /** The same, for {@code long -> date} over a bare INT64 column. */
+    public void testInferredDatetimeOverABareInt64NullsOnEveryRoute() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("ts").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", 971211336000L);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "memory://inferred_bare_int64.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        Object eager;
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+            )
+        ) {
+            Block b = it.next().getBlock(0);
+            eager = b.isNull(0) ? null : ((LongBlock) b).getLong(0);
+        }
+        Object deferred;
+        try (
+            ColumnExtractor extractor = new ParquetColumnExtractor(storageObject, reader, footerOf(storageObject), ErrorPolicy.PERMISSIVE)
+        ) {
+            Block[] blocks = extractor.extract(
+                new String[] { "ts" },
+                new DataType[] { DataType.DATETIME },
+                new long[] { 0L },
+                blockFactory
+            );
+            try {
+                deferred = blocks[0].isNull(0) ? null : ((LongBlock) blocks[0]).getLong(0);
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+        assertEquals("eager vs deferred for an inferred date over a bare INT64 file", eager, deferred);
     }
 
 }

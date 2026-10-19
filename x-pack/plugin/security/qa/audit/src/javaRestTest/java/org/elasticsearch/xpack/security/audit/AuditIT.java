@@ -22,7 +22,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
-import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,7 +31,10 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -41,8 +43,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import java.util.zip.GZIPInputStream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -59,6 +65,12 @@ public class AuditIT extends ESRestTestCase {
     private static final String SECONDARY_USER = "secondary_user";
     private static final String SECONDARY_PASSWORD = "secondary-password";
     private static final DateTimeFormatter TSTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss,SSSZ");
+
+    /**
+     * A file the audit log was rolled into, e.g. {@code test-cluster_audit-2026-10-18-1.json} or the same name with a
+     * {@code .gz} suffix. The date and index come from the {@code audit_rolling} file pattern in {@code log4j2.properties}.
+     */
+    private static final Pattern ROLLED_AUDIT_LOG = Pattern.compile(".*_audit-\\d{4}-\\d{2}-\\d{2}-\\d+\\.json(\\.gz)?");
 
     private static final String ENCRYPTION_PASSWORD_ID = "test";
 
@@ -435,17 +447,15 @@ public class AuditIT extends ESRestTestCase {
 
     private List<Map<String, Object>> findRestEvents(AuditLevel level, String principal, Request request, Instant start)
         throws IOException {
-        try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
-            return findEvents(Streams.readAllLines(auditLog), level, e -> {
-                if (principal.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false
-                    || request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false
-                    || request.getMethod().equals(e.get(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME)) == false) {
-                    return false;
-                }
-                Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
-                return tstamp.isBefore(start) == false;
-            });
-        }
+        return findEvents(readAuditLines(), level, e -> {
+            if (principal.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false
+                || request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false
+                || request.getMethod().equals(e.get(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME)) == false) {
+                return false;
+            }
+            Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
+            return tstamp.isBefore(start) == false;
+        });
     }
 
     public void testFilteringOfCloneApiKeyRequestBody() throws Exception {
@@ -551,28 +561,24 @@ public class AuditIT extends ESRestTestCase {
             // The same request is also recorded as a security config change. Other tests create API keys too, so the
             // event is picked out by the key's unique name rather than by time alone.
             assertBusy(() -> {
-                try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
-                    final List<String> lines = Streams.readAllLines(auditLog);
-                    final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "create_apikey", start).stream()
-                        .filter(
-                            e -> apiKeyName.equals(
-                                asMap(asMap(e.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("apikey")).get("name")
-                            )
-                        )
-                        .toList();
-                    if (events.isEmpty()) {
-                        fail("Could not find a [create_apikey] security_config_change event for [" + apiKeyName + "]");
-                    }
-                    assertThat(events, hasSize(1));
-                    final Map<String, Object> event = events.get(0);
-                    final Map<String, Object> grant = asMap(asMap(event.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("grant"));
-                    assertThat(grant, hasEntry("type", "_user_managed_service_account"));
-                    assertThat(grant, hasEntry("has_service_account_token", true));
-                    assertThat(grant, not(hasKey("has_access_token")));
-                    assertThat(grant, not(hasKey("user")));
-                    assertThat(grant, not(hasKey("run_as")));
-                    assertThat(toJson(event), not(containsString(serviceAccountToken)));
+                final List<String> lines = readAuditLines();
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "create_apikey", start).stream()
+                    .filter(
+                        e -> apiKeyName.equals(asMap(asMap(e.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("apikey")).get("name"))
+                    )
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [create_apikey] security_config_change event for [" + apiKeyName + "]");
                 }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                final Map<String, Object> grant = asMap(asMap(event.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("grant"));
+                assertThat(grant, hasEntry("type", "_user_managed_service_account"));
+                assertThat(grant, hasEntry("has_service_account_token", true));
+                assertThat(grant, not(hasKey("has_access_token")));
+                assertThat(grant, not(hasKey("user")));
+                assertThat(grant, not(hasKey("run_as")));
+                assertThat(toJson(event), not(containsString(serviceAccountToken)));
             }, 5, TimeUnit.SECONDS);
         } finally {
             final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
@@ -635,18 +641,16 @@ public class AuditIT extends ESRestTestCase {
         Instant start = auditTimestampNow();
         executeRequest(request);
         assertBusy(() -> {
-            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
-                final List<String> lines = Streams.readAllLines(auditLog);
-                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, eventAction, start);
-                if (events.isEmpty()) {
-                    fail("Could not find any [" + eventAction + "] security_config_change events in [" + String.join("\n", lines) + "]");
-                }
-                assertThat(events, hasSize(1));
-                final Map<String, Object> event = events.get(0);
-                assertThat(event, hasEntry("type", "audit"));
-                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, eventAction));
-                assertions.accept(event);
+            final List<String> lines = readAuditLines();
+            final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, eventAction, start);
+            if (events.isEmpty()) {
+                fail("Could not find any [" + eventAction + "] security_config_change events in [" + String.join("\n", lines) + "]");
             }
+            assertThat(events, hasSize(1));
+            final Map<String, Object> event = events.get(0);
+            assertThat(event, hasEntry("type", "audit"));
+            assertThat(event, hasEntry(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, eventAction));
+            assertions.accept(event);
         }, 5, TimeUnit.SECONDS);
     }
 
@@ -658,38 +662,35 @@ public class AuditIT extends ESRestTestCase {
         Instant start = auditTimestampNow();
         Response response = executeRequest(request);
         assertBusy(() -> {
-            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
-                final List<String> lines = Streams.readAllLines(auditLog);
-                final List<Map<String, Object>> events = findEvents(lines, eventType, e -> {
-                    if (API_USER.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false) {
-                        return false;
-                    }
-                    // Match the request under test by path so a preceding setup call (same principal) that
-                    // flushes into this time window cannot make hasSize(1) fail spuriously.
-                    if (request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false) {
-                        return false;
-                    }
-                    Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
-                    if (tstamp.isBefore(start)) {
-                        return false;
-                    }
-                    return true;
-                });
-                if (events.isEmpty()) {
-                    fail("Could not find any [" + eventType + "] events for [" + API_USER + "] in [" + String.join("\n", lines) + "]");
+            final List<String> lines = readAuditLines();
+            final List<Map<String, Object>> events = findEvents(lines, eventType, e -> {
+                if (API_USER.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false) {
+                    return false;
                 }
-                assertThat(events, hasSize(1));
-                final Map<String, Object> event = events.get(0);
-                assertThat(event, hasEntry("type", "audit"));
-                assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
-                assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
-                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "rest"));
-                assertThat(event, hasEntry(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, "rest"));
-                assertThat(event, hasEntry(LoggingAuditTrail.URL_PATH_FIELD_NAME, request.getEndpoint()));
-                assertThat(event, hasEntry(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.getMethod()));
-                assertions.accept(event);
-
+                // Match the request under test by path so a preceding setup call (same principal) that
+                // flushes into this time window cannot make hasSize(1) fail spuriously.
+                if (request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false) {
+                    return false;
+                }
+                Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
+                if (tstamp.isBefore(start)) {
+                    return false;
+                }
+                return true;
+            });
+            if (events.isEmpty()) {
+                fail("Could not find any [" + eventType + "] events for [" + API_USER + "] in [" + String.join("\n", lines) + "]");
             }
+            assertThat(events, hasSize(1));
+            final Map<String, Object> event = events.get(0);
+            assertThat(event, hasEntry("type", "audit"));
+            assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
+            assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
+            assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "rest"));
+            assertThat(event, hasEntry(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, "rest"));
+            assertThat(event, hasEntry(LoggingAuditTrail.URL_PATH_FIELD_NAME, request.getEndpoint()));
+            assertThat(event, hasEntry(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.getMethod()));
+            assertions.accept(event);
         }, 5, TimeUnit.SECONDS);
         return response;
     }
@@ -703,6 +704,52 @@ public class AuditIT extends ESRestTestCase {
 
     private static Response executeRequest(Request request) throws IOException {
         return client().performRequest(request);
+    }
+
+    /**
+     * Lines of the live audit log and of every file it was rolled into. The audit log rolls at local midnight, so an event
+     * written just before midnight is only found in the rolled file. Older lines are harmless because callers filter events
+     * by timestamp.
+     * <p>
+     * Log4j rolls by renaming the live file, creating a new one and gzipping the renamed file on another thread. A file that
+     * is missing or not fully written at that moment fails with an {@link AssertionError} so that {@code assertBusy} retries.
+     */
+    private static List<String> readAuditLines() throws IOException {
+        final Path logsDir = cluster.getNodeConfigPath(0).resolveSibling("logs");
+        final Map<String, Path> rolled = new TreeMap<>();
+        Path live = null;
+        try (Stream<Path> files = Files.list(logsDir)) {
+            for (Path file : files.toList()) {
+                final String name = file.getFileName().toString();
+                if (name.endsWith("_audit.json")) {
+                    live = file;
+                } else if (ROLLED_AUDIT_LOG.matcher(name).matches()) {
+                    final boolean compressed = name.endsWith(".gz");
+                    final String stem = compressed ? name.substring(0, name.length() - ".gz".length()) : name;
+                    // While log4j is still compressing, the renamed file is complete and the .gz beside it is not.
+                    if (compressed == false || rolled.containsKey(stem) == false) {
+                        rolled.put(stem, file);
+                    }
+                }
+            }
+        }
+        if (live == null) {
+            throw new AssertionError("no live audit log in [" + logsDir + "]");
+        }
+        final List<String> lines = new ArrayList<>();
+        for (Path file : rolled.values()) {
+            lines.addAll(readLines(file));
+        }
+        lines.addAll(readLines(live));
+        return lines;
+    }
+
+    private static List<String> readLines(Path file) {
+        try (InputStream in = Files.newInputStream(file)) {
+            return Streams.readAllLines(file.getFileName().toString().endsWith(".gz") ? new GZIPInputStream(in) : in);
+        } catch (IOException e) {
+            throw new AssertionError("could not read audit log [" + file + "]", e);
+        }
     }
 
     private List<Map<String, Object>> findSecurityConfigChangeEvents(List<String> lines, String eventAction, Instant start) {

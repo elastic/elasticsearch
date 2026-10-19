@@ -2677,10 +2677,10 @@ public class ExternalSourceResolver {
             return null;
         }
         // A dataset-level fold belongs to one definition entire, so an edit to it moves this address - as far as
-        // renderSettingValue distinguishes the edited field, which is not always. A registered dataset always
-        // carries a definition, so the only queries reaching here without one are built outside the dataset
-        // rewrite; such a query keeps the per-file rail rather than being given an address with nothing behind it
-        // to move when anything changes.
+        // the pre-image DefinitionVersion#canonical distinguishes the edited field, which is not always. A
+        // registered dataset always carries a definition, so the only queries reaching here without one are built
+        // outside the dataset rewrite; such a query keeps the per-file rail rather than being given an address
+        // with nothing behind it to move when anything changes.
         Object datasetVersion = config == null ? null : config.get(DefinitionVersion.DATASET_CONFIG_KEY);
         if (datasetVersion instanceof String version && version.isEmpty() == false) {
             return DatasetAggregateKey.of(listing.originalPattern(), listing.fileSetFingerprint(), version);

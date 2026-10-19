@@ -43,8 +43,8 @@ import java.util.regex.Pattern;
  * to a guard, which is the {@code planConfig(onTheWire)} transform shape. Resolution before name, because
  * {@code splitConfig()} is a leak and {@code planConfig(onTheWire)} is not.
  * <p>
- * <b>What a green census LETS THROUGH, as a lower bound.</b> Four rounds of adversarial probing have each taken
- * this list as closed and each found a shape it had missed, so it is not closed now either, and a probe is the
+ * <b>What a green census LETS THROUGH, as a lower bound.</b> Every round of adversarial probing so far has taken
+ * this list as closed and found a shape it had missed, so it is not closed now either, and a probe is the
  * only thing that has ever found a new one. "Lets through" rather than "reports as guarded" because the two
  * failure modes are indistinguishable to a reader: some of these are judged and called guarded, others are
  * skipped before they are judged at all, and the census is green either way.

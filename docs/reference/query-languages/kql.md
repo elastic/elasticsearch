@@ -4,7 +4,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/kibana/current/kuery-query.html
 ---
 
-# KQL syntax reference [kuery-query]
+# {{kib}} Query Language (KQL) syntax reference [kuery-query]
 
 This page shows the KQL syntax for each kind of condition, with examples you can adapt. To learn what KQL is and where to use it, refer to [{{kib}} Query Language (KQL)](docs-content://explore-analyze/query-filter/languages/kql.md) in **Explore and analyze**.
 

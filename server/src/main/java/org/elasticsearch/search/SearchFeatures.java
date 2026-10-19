@@ -120,6 +120,11 @@ public final class SearchFeatures implements FeatureSpecification {
      * mixed BWC clusters that still contain pre-9.6 nodes.
      */
     public static final NodeFeature OPEN_POINT_IN_TIME_SLICE = new NodeFeature("search.point_in_time_slice");
+    /**
+     * Test-only gate for REST tests asserting that a malformed point-in-time id is rejected with a 400. Older nodes
+     * returned a 500 when the id started with a known transport version but could not be decoded after that.
+     */
+    public static final NodeFeature INVALID_PIT_ID_BAD_REQUEST = new NodeFeature("search.pit.invalid_id_bad_request");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -159,7 +164,8 @@ public final class SearchFeatures implements FeatureSpecification {
                 NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING,
                 NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX,
                 COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
-                COLUMNAR_DEFAULT_FIELD_LENIENCY
+                COLUMNAR_DEFAULT_FIELD_LENIENCY,
+                INVALID_PIT_ID_BAD_REQUEST
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

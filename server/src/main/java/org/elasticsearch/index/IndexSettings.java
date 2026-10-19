@@ -32,6 +32,7 @@ import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
@@ -55,6 +56,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -948,6 +950,30 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Whether a mapping this index has, or had, can keep a field it does not declare: see
+     * {@link RootObjectMapper#canRetainUnmappedFields()}. It is set with the mapping that makes it true and never cleared, as
+     * the documents indexed under that mapping stay. Only set on an index created on or after
+     * {@link IndexVersions#TRACKS_UNMAPPED_FIELD_RETENTION}. It is left out of the settings an API returns, so that they
+     * can be used to create another index.
+     */
+    public static final Setting<Boolean> RETAINS_UNMAPPED_FIELDS_SETTING = Setting.boolSetting(
+        "index.mapping.retains_unmapped_fields",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final,
+        Property.Filtered
+    );
+
+    /**
+     * Whether an index with these settings has, or had, a mapping that can keep a field it does not declare. Always
+     * {@code true} for an index created before {@link IndexVersions#TRACKS_UNMAPPED_FIELD_RETENTION}, which does not record it.
+     */
+    public static boolean retainsUnmappedFields(IndexVersion indexVersionCreated, Settings settings) {
+        return indexVersionCreated.before(IndexVersions.TRACKS_UNMAPPED_FIELD_RETENTION) || RETAINS_UNMAPPED_FIELDS_SETTING.get(settings);
+    }
+
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
         SourceFieldMapper.Mode.class,
         settings -> {
@@ -1459,6 +1485,7 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile boolean ignoreDynamicFieldsBeyondLimit;
     private volatile boolean ignoreDynamicFieldNamesBeyondLimit;
+    private volatile boolean combineDynamicMappingUpdates;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
     private volatile long mappingDimensionFieldsLimit;
@@ -1565,6 +1592,13 @@ public final class IndexSettings {
 
     public boolean isSliceEnabled() {
         return sliceEnabled;
+    }
+
+    /**
+     * @see #retainsUnmappedFields(IndexVersion, Settings)
+     */
+    public boolean retainsUnmappedFields() {
+        return retainsUnmappedFields(version, settings);
     }
 
     public boolean isFlattenedUnmappedFieldsEnabled() {
@@ -1677,6 +1711,7 @@ public final class IndexSettings {
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
         ignoreDynamicFieldNamesBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
+        combineDynamicMappingUpdates = scopedSettings.get(INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
@@ -1832,6 +1867,7 @@ public final class IndexSettings {
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
             this::setIgnoreDynamicFieldsBeyondLimit
         );
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING, this::setCombineDynamicMappingUpdates);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING,
             this::setIgnoreDynamicFieldNamesBeyondLimit
@@ -2442,6 +2478,14 @@ public final class IndexSettings {
 
     public boolean isIgnoreDynamicFieldsBeyondLimit() {
         return ignoreDynamicFieldsBeyondLimit;
+    }
+
+    private void setCombineDynamicMappingUpdates(boolean combineDynamicMappingUpdates) {
+        this.combineDynamicMappingUpdates = combineDynamicMappingUpdates;
+    }
+
+    public boolean isCombineDynamicMappingUpdates() {
+        return combineDynamicMappingUpdates;
     }
 
     public boolean isIgnoreDynamicFieldNamesBeyondLimit() {

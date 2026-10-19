@@ -79,10 +79,11 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperFeatures;
+import org.elasticsearch.index.mapper.MapperMergeContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -538,6 +539,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
+        }
+
+        @Override
+        protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
+            // Must read both values before super, which overwrites indexOptions with the incoming value
+            if (mergeContext.clusterHasFeature(MapperFeatures.BBQ_DISK_UPDATABLE_AUTO_CALIBRATE) == false
+                && indexOptions.getValue() instanceof BBQIVFIndexOptions previous
+                && ((Builder) incoming).indexOptions.getValue() instanceof BBQIVFIndexOptions current
+                && previous.autoCalibrationProfile() != current.autoCalibrationProfile()) {
+                conflicts.addConflict("index_options", "cannot update [auto_calibrate] until all nodes in the cluster support it");
+            }
+            super.mergeFromBuilder(incoming, conflicts, mergeContext);
         }
 
         public Builder similarity(VectorSimilarity vectorSimilarity) {
@@ -3200,9 +3213,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return false;
             }
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
-            return this.doPrecondition == that.doPrecondition
-                && this.autoCalibrationProfile() == that.autoCalibrationProfile()
-                && Objects.equals(this.quantizationType, that.quantizationType);
+            return this.doPrecondition == that.doPrecondition && Objects.equals(this.quantizationType, that.quantizationType);
         }
 
         @Override
@@ -3852,7 +3863,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             parentFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
                             sliceIds
                         )
                         : new IVFKnnByteSlicedVectorQuery(
@@ -3863,7 +3874,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             cachedFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
                             sliceIds
                         );
                 } else {
@@ -3977,7 +3988,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             parentFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
                             sliceIds
                         )
                         : new IVFKnnFloatSlicedVectorQuery(
@@ -3988,7 +3999,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             cachedFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
-                            RoutingFieldMapper.NAME,
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
                             sliceIds
                         );
                 } else {
@@ -4394,7 +4405,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final KnnVectorsFormat format;
         ElementType elementType = fieldType().element.elementType();
         final String sliceField = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings.isSliceEnabled()
-            ? RoutingFieldMapper.NAME
+            ? SliceIndexing.SLICE_KEY_FIELD_NAME
             : null;
         if (indexOptions == null) {
             format = switch (elementType) {

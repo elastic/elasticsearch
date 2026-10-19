@@ -847,10 +847,10 @@ public class IndexEngineTests extends AbstractEngineTestCase {
 
                 @Override
                 protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
-                    firstFlushGettingUserDataLatch.countDown();
                     int flushNumber = flushesInitiated.get();
+                    firstFlushGettingUserDataLatch.countDown();
                     logger.debug("flush {} trying to get user data", flushNumber);
-                    if (flushesInitiated.get() > 1) {
+                    if (flushNumber > 1) {
                         safeAwait(hollowFlushProceedToGetUserDataLatch);
                     } else {
                         safeAwait(firstFlushProceedToGetUserDataLatch);

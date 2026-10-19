@@ -23,19 +23,46 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 /**
- * Predicts a series using ordinary least squares. For each sample, x is the number of seconds since
- * a local timestamp origin and y is the sample value. The accumulators x, y, xx and xy hold the sums
- * of x, y, x*x and x*y, with compensation for floating-point rounding. Using relative timestamps
- * avoids subtracting nearly equal epoch-sized products when computing the slope.
+ * Fits a straight line to the samples in a series' window, then evaluates that line at the query's
+ * evaluation time plus the prediction horizon. Ordinary least squares chooses the line that minimizes
+ * the sum of squared differences between the observed values and the line's values at the sample times.
  * <p>
- * These four sums and the sample count are sufficient to fit the line:
- * {@code slope = (sumXY - sumX * sumY / count) / (sumXX - sumX * sumX / count)}.
- * The line passes through {@code (meanX, meanY)}, so its prediction at a target time is
- * {@code meanY + slope * (targetX - meanX)}. The target is the evaluation time plus the horizon,
- * not the last sample time plus the horizon.
+ * For sample i, let xi be {@code (timestampMillis - originMillis) / 1000.0} and yi be its metric value.
+ * The origin is the first timestamp seen by an accumulator; samples need not arrive in timestamp order.
+ * These five statistics are enough to fit the line without retaining the individual samples:
+ * <pre>
+ * field     mathematical quantity
+ * count     n, the number of samples
+ * x         sumX  = sum(xi)
+ * y         sumY  = sum(yi)
+ * xx        sumXX = sum(xi * xi)
+ * xy        sumXY = sum(xi * yi)
+ * </pre>
+ * Each of the four sums uses {@link CompensatedSum} to carry a small correction for rounding errors.
+ * The intermediate fields cx, cy, cxx and cxy preserve these corrections across reductions. Relative
+ * timestamps keep the time products small compared with Unix-epoch products, reducing cancellation
+ * when we subtract them below. Time differences and the horizon are in seconds, including fractions.
  * <p>
- * Bucket states can be reduced without retaining or sorting observations. Each bucket may choose
- * a different timestamp origin; merging first translates its sums to the receiving state's origin.
+ * The slope compares how time and value vary together with how much time varies. Expanding the
+ * products around the means gives expressions using only the stored sums:
+ * <pre>
+ * meanX = sumX / n
+ * meanY = sumY / n
+ * timeValueVariation = sum((xi - meanX) * (yi - meanY)) = sumXY - sumX * sumY / n
+ * timeVariation      = sum((xi - meanX) * (xi - meanX)) = sumXX - sumX * sumX / n
+ * slope = timeValueVariation / timeVariation
+ * </pre>
+ * The fitted line passes through (meanX, meanY). Its value at any target time is therefore
+ * {@code meanY + slope * (targetX - meanX)}, where targetX is seconds since the same origin.
+ * The slope has units of metric value per second.
+ * <p>
+ * For example, samples (0 seconds, 10) and (2 seconds, 14), with origin 0, give n=2, sumX=2,
+ * sumY=24, sumXX=4 and sumXY=28. Thus meanX=1, meanY=12 and slope=(28-24)/(4-2)=2.
+ * At evaluation time 5 seconds with a 500ms horizon, targetX=5.5 and the prediction is
+ * {@code 12 + 2 * (5.5 - 1) = 21}. The target is measured from the evaluation time, not the last sample.
+ * <p>
+ * Each bucket or worker can accumulate these statistics independently. Their origins may differ;
+ * {@link Regression#merge} translates the incoming sums to the receiving origin before adding them.
  */
 @GroupingAggregator(
     {
@@ -126,6 +153,22 @@ class PredictLinearDoubleAggregator {
             xy.add(relative * value);
         }
 
+        /**
+         * Adds another partition without revisiting its samples. With d = otherOrigin - origin in seconds,
+         * each incoming coordinate becomes {@code newX = oldX + d}. Expanding the products gives:
+         * <pre>
+         * sum(oldX + d)          = Sx  + n*d
+         * sum((oldX + d)^2)      = Sxx + 2*d*Sx + n*d*d
+         * sum((oldX + d) * oldY) = Sxy + d*Sy
+         * </pre>
+         * Here Sx, Sy, Sxx and Sxy are the incoming partition's original sums, including their corrections;
+         * all right-hand sides use those original sums. Values do not shift, so Sy is added unchanged.
+         * We translate the main sums and their corrections separately to retain compensation while merging.
+         * <p>
+         * In the class example, a partition containing only (2 seconds, 14) has origin=2 seconds and local
+         * Sx=Sxx=Sxy=0. Merging it into the partition at origin=0 shifts it by d=2, contributing
+         * Sx=2, Sxx=4 and Sxy=28, exactly as if both samples had been accumulated with origin=0.
+         */
         void merge(
             long n,
             long otherOrigin,
@@ -145,8 +188,6 @@ class PredictLinearDoubleAggregator {
             } else if (constant != otherConstant) {
                 constant = Double.NaN;
             }
-            // Shifting every other x by d changes its sums to sumX + n*d, sumXX + 2*d*sumX + n*d*d, sumXY + d*sumY.
-            // The sample values do not change. Translate the compensated sums without discarding their corrections.
             double shift = secondsBetween(otherOrigin, origin);
             x.add(sx, cx).add(n * shift);
             y.add(sy, cy);
@@ -155,8 +196,20 @@ class PredictLinearDoubleAggregator {
             count += n;
         }
 
+        /**
+         * Evaluates the line once at least two samples have been collected. In the code below, sx, sy,
+         * sxx and sxy are the corrected sums described in the class documentation.
+         * <p>
+         * Let evaluationX be seconds from origin to evaluationTime. The value at evaluationTime is
+         * {@code meanY + slope * (evaluationX - meanX)}. We call this value intercept because it is the
+         * intercept of the line when evaluationTime becomes time zero. Since
+         * {@code secondsBetween(origin, evaluationTime) = -evaluationX}, the expression below is the
+         * same formula. Advancing by horizon seconds then gives {@code intercept + slope * horizon}.
+         * In the class example, intercept=20 and the prediction is {@code 20 + 2 * 0.5 = 21}.
+         */
         double predict(long evaluationTime, double horizon) {
             if (Double.isFinite(constant)) {
+                // A finite constant series has slope zero. Its value remains valid even if summing its values overflowed.
                 // Retain IEEE multiplication: a constant series with an infinite horizon yields NaN.
                 return 0.0 * horizon + constant;
             }
@@ -165,11 +218,11 @@ class PredictLinearDoubleAggregator {
             double sxx = xx.value() + xx.delta();
             double sxy = xy.value() + xy.delta();
             double slope = (sxy - sx * sy / count) / (sxx - sx * sx / count);
-            // Express the fitted line relative to evaluationTime, so horizon is the remaining displacement in seconds.
             double intercept = sy / count - slope * (sx / count + secondsBetween(origin, evaluationTime));
             return slope * horizon + intercept;
         }
 
+        /** Returns a signed difference in seconds; floating-point division preserves millisecond fractions. */
         private static double secondsBetween(long timestamp, long origin) {
             long difference = timestamp - origin;
             if (((timestamp ^ origin) & (timestamp ^ difference)) >= 0) {

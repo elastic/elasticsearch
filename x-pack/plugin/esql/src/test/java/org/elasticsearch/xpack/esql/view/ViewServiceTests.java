@@ -230,6 +230,38 @@ public class ViewServiceTests extends ESTestCase {
         assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view").query(), equalTo("FROM other-index"));
     }
 
+    public void testAcceptsTsWithStats() {
+        validatePutView("ts-view", "TS metrics | STATS max(rate(requests)) BY host");
+        validatePutView("ts-view", "TS metrics | WHERE cpu > 1 | STATS max(cpu) | KEEP `max(cpu)`");
+    }
+
+    public void testAcceptsViewWithoutTs() {
+        validatePutView("from-view", "FROM metrics | KEEP cpu");
+        validatePutView("from-view", "FROM metrics | STATS avg(cpu)");
+    }
+
+    public void testRejectsTsWithoutStats() {
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("view [ts-view] uses TS, which must be followed by a STATS command"),
+            () -> validatePutView("ts-view", "TS metrics | WHERE cpu > 1 | KEEP cpu")
+        );
+    }
+
+    public void testAcceptsPromql() {
+        validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu))");
+        validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | WHERE cpu_avg > 1 | KEEP cpu_avg");
+        validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | STATS max(cpu_avg)");
+    }
+
+    public void testIgnoresTsInSubquery() {
+        validatePutView("subquery-view", "FROM (TS metrics | KEEP cpu), (FROM other)");
+    }
+
+    private void validatePutView(String name, String query) {
+        viewService.validatePutView(clusterService.state().metadata().getProject(ProjectId.DEFAULT), new View(name, query, null, false));
+    }
+
     private PlainActionFuture<AcknowledgedResponse> ensureReservedViewExists(String name, String query, String description) {
         var future = new PlainActionFuture<AcknowledgedResponse>();
         viewService.ensureReservedViewExists(ProjectId.DEFAULT, new View(name, query, description, true), future);

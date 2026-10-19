@@ -593,6 +593,8 @@ public class ReplicationOperationTests extends ESTestCase {
 
         if (fatal && shutdown == false) {
             safeGet(primaryFailedFuture);
+        } else {
+            assertFalse(primaryFailedFuture.isDone());
         }
 
         final ShardInfo shardInfo = listener.actionGet().getShardInfo();

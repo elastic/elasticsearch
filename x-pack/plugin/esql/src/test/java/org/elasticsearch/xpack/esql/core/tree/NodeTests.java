@@ -272,6 +272,52 @@ public class NodeTests extends ESTestCase {
         assertAsyncTransform(node, (n, listener) -> listener.onResponse(n), result -> assertSame(node, result));
     }
 
+    public void testTransformUpSkipBranch() {
+        NoChildren skippedLeaf = new NoChildren(randomSource(), "leaf");
+        ChildrenAreAProperty skipped = new ChildrenAreAProperty(randomSource(), List.of(skippedLeaf), "skipped");
+        NoChildren visitedLeaf = new NoChildren(randomSource(), "leaf");
+        ChildrenAreAProperty root = new ChildrenAreAProperty(randomSource(), List.of(skipped, visitedLeaf), "root");
+
+        List<String> visited = new ArrayList<>();
+        Dummy result = root.transformUpSkipBranch((parent, i) -> parent == root && i == 0, n -> {
+            visited.add(n.thing());
+            return n instanceof NoChildren ? new NoChildren(n.source(), "transformed") : n;
+        });
+
+        // Children before parents, and nothing at or below the skipped child.
+        assertEquals(List.of("leaf", "root"), visited);
+        assertSame(skipped, result.children().get(0));
+        assertEquals("transformed", result.children().get(1).thing());
+    }
+
+    /**
+     * The skip decision is positional: of two equal children, only the one at the skipped index is left alone.
+     */
+    public void testTransformUpSkipBranchByPosition() {
+        Source source = randomSource();
+        NoChildren first = new NoChildren(source, "leaf");
+        NoChildren second = new NoChildren(source, "leaf");
+        assertEquals(first, second);
+        ChildrenAreAProperty root = new ChildrenAreAProperty(source, List.of(first, second), "root");
+
+        Dummy result = root.transformUpSkipBranch(
+            (parent, i) -> parent == root && i == 1,
+            n -> n instanceof NoChildren ? new NoChildren(n.source(), "transformed") : n
+        );
+
+        assertEquals("transformed", result.children().get(0).thing());
+        assertSame(second, result.children().get(1));
+    }
+
+    public void testTransformUpSkipBranchNoChange() {
+        ChildrenAreAProperty root = new ChildrenAreAProperty(
+            randomSource(),
+            List.of(new NoChildren(randomSource(), "leaf"), new NoChildren(randomSource(), "leaf")),
+            "root"
+        );
+        assertSame(root, root.transformUpSkipBranch((parent, i) -> i == 0, n -> n));
+    }
+
     private void assertAsyncTransform(Dummy node, BiConsumer<? super Dummy, ActionListener<Dummy>> rule, Consumer<Dummy> assertions)
         throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);

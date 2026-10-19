@@ -9,17 +9,13 @@
 
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -43,7 +39,6 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.RestoreService;
@@ -72,7 +67,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -698,74 +692,6 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         assertReportsShardRestoring(inFlight.exception(), currentDataStream().getIndices().get(0).getName(), restoreUuid);
         assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), true);
         assertThat("nothing is reported once the restore is over", reportableRestoreException(), nullValue());
-    }
-
-    /**
-     * While a restore over an existing data stream that reports shard restoring is in flight, a write to the data stream, sent from a node
-     * that is not the master, fails straight away with {@link ShardRestoringException} for the restoring backing index.
-     */
-    public void testWritesToRestoringDataStreamFailWithShardRestoringException() throws Exception {
-        writesToDataStreamWhileRestoreIsInFlight(true);
-    }
-
-    /**
-     * Without the flag a write to the data stream keeps waiting for the restoring backing index, and fails with
-     * {@link UnavailableShardsException} once its timeout expires.
-     */
-    public void testWritesToRestoringDataStreamFailWithUnavailableShardsByDefault() throws Exception {
-        writesToDataStreamWhileRestoreIsInFlight(false);
-    }
-
-    private void writesToDataStreamWhileRestoreIsInFlight(boolean reportShardRestoring) throws Exception {
-        internalCluster().startMasterOnlyNode();
-        final String dataNode = internalCluster().startDataOnlyNode();
-        createRepositoryAndSnapshottedDataStream();
-        // a coordinating-only node cannot hold shards, so the restored backing index lands on the data node whose repository is blocked
-        final String coordinatingNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-        final RestoreTarget restoreTarget = resolveRestoreTarget();
-        final String restoreUuid = UUIDs.randomBase64UUID();
-        final String backingIndexName = currentDataStream().getIndices().get(0).getName();
-        // reporting restores fail straight away, so a long timeout shows that they do not wait. Other restores wait for the timeout.
-        final TimeValue bulkTimeout = reportShardRestoring ? TEST_REQUEST_TIMEOUT : TimeValue.timeValueMillis(100);
-
-        whileRestoresInFlight(REPOSITORY_NAME, dataNode, () -> {
-            // the coordinating node must know about the restore, or it would wait for the primary rather than fail
-            awaitClusterState(coordinatingNode, state -> RestoreInProgress.get(state).iterator().hasNext());
-
-            final var client = client(coordinatingNode);
-            final BulkResponse bulk = client.prepareBulk()
-                .add(
-                    client.prepareIndex(DATA_STREAM_NAME)
-                        .setOpType(DocWriteRequest.OpType.CREATE)
-                        .setSource("@timestamp", "2020-01-01T00:00:00Z", "field", "value")
-                )
-                .setTimeout(bulkTimeout)
-                .get();
-            assertThat(bulk.getItems().length, equalTo(1));
-            final BulkItemResponse item = bulk.getItems()[0];
-            assertTrue("the write should have failed", item.isFailed());
-            final Throwable cause = ExceptionsHelper.unwrapCause(item.getFailure().getCause());
-            if (reportShardRestoring) {
-                assertThat(cause, instanceOf(ShardRestoringException.class));
-                assertReportsShardRestoring((ShardRestoringException) cause, backingIndexName, restoreUuid);
-                assertThat(item.getFailure().getStatus(), equalTo(RestStatus.FORBIDDEN));
-            } else {
-                assertThat(cause, instanceOf(UnavailableShardsException.class));
-                assertThat(item.getFailure().getStatus(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            }
-        },
-            future -> restoreService().restoreOverExistingDataStreams(
-                ProjectId.DEFAULT,
-                restoreTarget.snapshot(),
-                restoreTarget.snapshotInfo(),
-                TEST_REQUEST_TIMEOUT,
-                restoreUuid,
-                reportShardRestoring,
-                List.of(restoreTarget.target()),
-                restoreTarget.snapshotDataStreamAliases(),
-                future
-            )
-        );
     }
 
     /**

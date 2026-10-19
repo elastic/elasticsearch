@@ -11,6 +11,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -507,6 +508,74 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertFalse("a primary that is restored without reporting should keep the request waiting", listener.isDone());
         assertPhase(task, "waiting_for_retry");
         assertTrue(request.isRetrySet.get());
+    }
+
+    /**
+     * A coordinating node that has not applied the restore yet still sees an active primary and sends the request. The node holding the
+     * shard answers that it is not in primary mode, and the coordinator retries. Once it applies the restore, the retry fails straight
+     * away with {@link ShardRestoringException}.
+     */
+    public void testCoordinatorThatLearnsOfRestoreAfterPrimaryRejectsRequestFailsWithShardRestoringException() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        final String restoreUuid = randomUUID();
+        setState(clusterService, stateWithActivePrimary(index, true, 0));
+        ReplicationTask task = maybeTask();
+
+        Request request = new Request(shardId).timeout(TimeValue.timeValueMinutes(1));
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        action.new ReroutePhase(task, request, listener).run();
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
+
+        transport.handleRemoteError(capturedRequests[0].requestId(), shardNotInPrimaryMode(shardId));
+        assertFalse("the coordinator should wait for a newer cluster state", listener.isDone());
+        assertPhase(task, "waiting_for_retry");
+
+        setState(clusterService, stateWithPrimaryBeingRestored(index, restoreUuid, true));
+
+        assertListenerThrows("the retry should fail with ShardRestoringException", listener, ShardRestoringException.class);
+        assertPhase(task, "failed");
+        assertThat(transport.getCapturedRequestsAndClear(), arrayWithSize(0));
+    }
+
+    /**
+     * A coordinating node that never applies the restore keeps seeing an active primary, so when its request times out it fails with the
+     * error the node holding the shard returned, not with {@link ShardRestoringException}.
+     */
+    public void testCoordinatorThatNeverLearnsOfRestoreFailsWithPrimaryError() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, stateWithActivePrimary(index, true, 0));
+        ReplicationTask task = maybeTask();
+
+        Request request = new Request(shardId).timeout(TimeValue.ZERO);
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        action.new ReroutePhase(task, request, listener).run();
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+
+        // the request has already timed out, so the retry is the last attempt and runs against the same stale state
+        transport.handleRemoteError(capturedRequests[0].requestId(), shardNotInPrimaryMode(shardId));
+        capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertFalse(listener.isDone());
+
+        transport.handleRemoteError(capturedRequests[0].requestId(), shardNotInPrimaryMode(shardId));
+        final ExecutionException e = expectThrows(ExecutionException.class, listener::get);
+        assertThat(ExceptionsHelper.unwrap(e, ReplicationOperation.RetryOnPrimaryException.class), notNullValue());
+        assertThat(ExceptionsHelper.unwrap(e, ShardRestoringException.class), nullValue());
+        assertPhase(task, "failed");
+    }
+
+    private static ReplicationOperation.RetryOnPrimaryException shardNotInPrimaryMode(ShardId shardId) {
+        return new ReplicationOperation.RetryOnPrimaryException(
+            shardId,
+            "shard is not in primary mode",
+            new ShardNotInPrimaryModeException(shardId, IndexShardState.RECOVERING),
+            false
+        );
     }
 
     /**

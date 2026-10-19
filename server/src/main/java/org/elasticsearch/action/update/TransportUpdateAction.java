@@ -561,12 +561,12 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
 
         public void start() {
             final ProjectState state = getProjectState();
+            this.projectId = state.projectId();
             this.observer = new ProjectStateObserver(state, clusterService, request.timeout(), logger, threadPool.getThreadContext());
             doStart(state);
         }
 
         protected void doStart(ProjectState projectState) {
-            projectId = projectState.projectId();
             try {
                 ClusterBlockException blockException = projectState.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
                 if (blockException != null) {

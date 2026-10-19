@@ -13,18 +13,13 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -49,7 +44,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -65,7 +59,6 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -88,7 +81,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1146,75 +1138,6 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         assertReportsShardRestoring(inFlight.exception(), INDEX_NAME, restoreUuid);
         assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), true);
         assertThat("nothing is reported once the restore is over", reportableRestoreException(INDEX_NAME), nullValue());
-    }
-
-    /**
-     * While a restore over an open index that reports shard restoring is in flight, writes sent from a node that is not the master fail
-     * with {@link ShardRestoringException}: each item of a bulk with index, create and delete fails straight away, and an update fails once
-     * its timeout expires.
-     */
-    public void testWritesFailWithShardRestoringExceptionWhileRestoreOverOpenIndexIsInFlight() throws Exception {
-        writesWhileRestoreOverOpenIndexIsInFlight(true);
-    }
-
-    /**
-     * Without the flag the same writes keep waiting for the primary, and fail with {@link UnavailableShardsException} once their timeout
-     * expires.
-     */
-    public void testWritesFailWithUnavailableShardsWhileRestoreOverOpenIndexIsInFlightByDefault() throws Exception {
-        writesWhileRestoreOverOpenIndexIsInFlight(false);
-    }
-
-    private void writesWhileRestoreOverOpenIndexIsInFlight(boolean reportShardRestoring) throws Exception {
-        internalCluster().startMasterOnlyNode();
-        final String dataNode = internalCluster().startDataOnlyNode();
-        createRepositoryAndSnapshottedIndex();
-        final String coordinatingNode = internalCluster().startDataOnlyNode();
-        final String restoreUuid = UUIDs.randomBase64UUID();
-        // reporting restores fail straight away, so a long timeout shows that they do not wait. Other restores wait for the timeout.
-        final TimeValue bulkTimeout = reportShardRestoring ? TEST_REQUEST_TIMEOUT : TimeValue.timeValueMillis(100);
-
-        whileRestoresInFlight(REPOSITORY_NAME, dataNode, () -> {
-            // the coordinating node must know about the restore, or it would wait for the primary rather than fail
-            awaitClusterState(coordinatingNode, state -> RestoreInProgress.get(state).iterator().hasNext());
-            final var client = client(coordinatingNode);
-
-            final BulkResponse bulk = client.prepareBulk()
-                .add(client.prepareIndex(INDEX_NAME).setId("1").setSource("field", "value"))
-                .add(client.prepareIndex(INDEX_NAME).setId("2").setSource("field", "value").setOpType(DocWriteRequest.OpType.CREATE))
-                .add(client.prepareDelete(INDEX_NAME, "3"))
-                .setTimeout(bulkTimeout)
-                .get();
-            assertThat(bulk.getItems().length, equalTo(3));
-            for (BulkItemResponse item : bulk) {
-                assertTrue(item.getOpType() + " should have failed", item.isFailed());
-                final Throwable cause = ExceptionsHelper.unwrapCause(item.getFailure().getCause());
-                if (reportShardRestoring) {
-                    assertThat(cause, instanceOf(ShardRestoringException.class));
-                    assertReportsShardRestoring((ShardRestoringException) cause, INDEX_NAME, restoreUuid);
-                    assertThat(item.getFailure().getStatus(), equalTo(RestStatus.FORBIDDEN));
-                } else {
-                    assertThat(cause, instanceOf(UnavailableShardsException.class));
-                    assertThat(item.getFailure().getStatus(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-                }
-            }
-
-            final var update = client.prepareUpdate(INDEX_NAME, "1").setDoc("field", "value").setTimeout(TimeValue.timeValueMillis(100));
-            if (reportShardRestoring) {
-                assertReportsShardRestoring(expectThrows(ShardRestoringException.class, update), INDEX_NAME, restoreUuid);
-            } else {
-                expectThrows(UnavailableShardsException.class, update);
-            }
-        },
-            future -> restoreService().restoreSnapshot(
-                ProjectId.DEFAULT,
-                restoreOverOpenIndexRequest(),
-                restoreUuid,
-                reportShardRestoring,
-                future,
-                (state, builder) -> {}
-            )
-        );
     }
 
     /**

@@ -669,8 +669,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     /**
      * As {@link #blockAndStartRestore(String, String, String)}, but the restore asks for its shards to be reported as
-     * {@link ShardRestoringException}. It is started through {@link RestoreService} on the master,
-     * the way the serverless data-recovery caller starts its restores.
+     * {@link ShardRestoringException}.
      *
      * @return the restore UUID, which the exception carries as its recovery ID
      */

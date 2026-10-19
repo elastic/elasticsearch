@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from "child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
-import { join, resolve } from "path";
+import { dirname, join, resolve } from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 const SCRIPT = resolve(`${import.meta.dirname}/validate-prometheus-compliance.sh`);
@@ -240,6 +240,25 @@ esac
         / -- --build-cache --scan -I \S+\/\.ci\/init\.gradle -Dorg\.elasticsearch\.build\.cache\.url=https:\/\/gradle-enterprise\.elastic\.co\/cache\/$/,
       );
     }
+  });
+
+  test("only a checkout that supports run.modules builds the minimal PromQL distribution", () => {
+    // The PR adds run.modules support; its merge base predates it and must keep the default distribution.
+    const runGradle = join(repo, "build-tools-internal/src/main/groovy/elasticsearch.run.gradle");
+    mkdirSync(dirname(runGradle), { recursive: true });
+    writeFileSync(runGradle, "providers.systemProperty('run.modules')\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "run.modules");
+    const r = run(STABLE, STABLE);
+    expect(r.status).toBe(0);
+    const [control, tested] = r.args.trim().split("\n");
+    expect(control).not.toContain("-Drun.distribution");
+    expect(control).not.toContain("-Drun.modules");
+    expect(tested).toContain(" -Drun.distribution=integ-test ");
+    const modules = tested.match(/-Drun\.modules=(\S+)$/)?.[1].split(",");
+    expect(modules).toContain(":x-pack:plugin:prometheus");
+    expect(modules).toContain(":x-pack:plugin:esql");
+    expect(new Set(modules).size).toBe(modules?.length);
   });
 
   test("a regression next to a fix is reported even when the number of passing queries holds", () => {

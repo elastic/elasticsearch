@@ -16,6 +16,9 @@ import org.elasticsearch.gradle.testclusters.RunTask
 
 testClusters.register("runTask") {
     testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
+    // Comma-separated module project paths installed on top of the distribution, for a
+    // smaller build with -Drun.distribution=integ-test.
+    providers.systemProperty('run.modules').getOrElse('').split(',').findAll { it }.each { module it.trim() }
     if (providers.systemProperty('run.distribution').getOrElse('default') == 'default') {
       String licenseType = providers.systemProperty("run.license_type").getOrElse("basic")
       if (licenseType == 'trial') {

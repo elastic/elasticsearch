@@ -56,6 +56,29 @@ configure() {
   # Changed queries listed per section; the full list is the changes artifact.
   declare -gr MAX_ROWS=50
   declare -gr MAX_QUERY_CHARS=200
+  # The Prometheus plugin and the plugins it extends, transitively, plus the modules its data stream templates and
+  # the test cluster settings need. Any missing one fails the node on boot.
+  local -a promql_modules=(
+    :x-pack:plugin:prometheus
+    :x-pack:plugin:core
+    :x-pack:plugin:esql
+    :x-pack:plugin:esql-core
+    :x-pack:plugin:ml
+    :x-pack:plugin:autoscaling
+    :x-pack:plugin:encryption
+    :modules:lang-painless
+    :x-pack:plugin:stack
+    :x-pack:plugin:wildcard
+    :x-pack:plugin:ilm
+    :x-pack:plugin:mapper-constant-keyword
+    :modules:ingest-common
+    :modules:mapper-extras
+    :modules:data-streams
+    :modules:apm
+  )
+  local modules
+  printf -v modules '%s,' "${promql_modules[@]}"
+  declare -gr PROMQL_MODULES="${modules%,}"
 
   # The pipeline uploads OUTPUT_DIR as artifacts. Tests point TMP_ROOT at a scratch directory.
   declare -gr TMP_ROOT="${PROMETHEUS_COMPLIANCE_TMPDIR:-/tmp}"
@@ -142,12 +165,22 @@ download_asset() {
 # Runs promcheck against Elasticsearch built from the given checkout. promcheck exits 1 when queries fail, which
 # is a result; any other exit code means the run itself failed.
 # Arguments after -- go to promcheck's ./gradlew run. They pull task outputs from the remote build cache that main
-# CI pushes to, which is only configured by .ci/init.gradle, and publish a build scan for each run.
+# CI pushes to, which is only configured by .ci/init.gradle, and publish a build scan for each run. Checkouts that
+# support -Drun.modules build only the modules PromQL needs instead of the default distribution.
 run_promcheck() {
   local workspace="$1" log_file="$2"
   local stderr_log="${2%.log}.stderr.log" fifo="$WORK_DIR/promcheck-stderr.fifo"
   local stderr_pid stderr_status=0
-  local -a statuses
+  local -a statuses gradle_args=(
+    --build-cache
+    --scan
+    -I "$workspace/.ci/init.gradle"
+    -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+  )
+  # A merge base older than run.modules support would start the bare integ-test distribution without PromQL.
+  if grep -q "run.modules" -- "$workspace/build-tools-internal/src/main/groovy/elasticsearch.run.gradle" 2>/dev/null; then
+    gradle_args+=(-Drun.distribution=integ-test "-Drun.modules=$PROMQL_MODULES")
+  fi
   mkfifo -- "$fifo" || return
   tee -- "$stderr_log" < "$fifo" >&2 &
   stderr_pid=$!
@@ -155,11 +188,7 @@ run_promcheck() {
     --elasticsearch "$workspace" \
     --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
     --output json \
-    -- \
-    --build-cache \
-    --scan \
-    -I "$workspace/.ci/init.gradle" \
-    -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ \
+    -- "${gradle_args[@]}" \
     < "$BUNDLE" 2> "$fifo" | tee -- "$log_file"
   statuses=("${PIPESTATUS[@]}")
   wait "$stderr_pid" || stderr_status=$?

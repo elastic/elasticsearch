@@ -40,6 +40,7 @@ final class DriverScheduler {
     }
 
     /**
+     * Runs {@code task} on {@code executor}, or on the calling thread once the driver is completing.
      * @param queueTimeListener told how long the submitted runnable waited in the queue, unless {@link #runPendingTasks()} already
      *                          ran or replaced the task in the meantime
      */

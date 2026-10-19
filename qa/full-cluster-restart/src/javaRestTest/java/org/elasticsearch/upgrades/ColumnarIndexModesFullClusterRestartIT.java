@@ -78,9 +78,10 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
 
     private void testDataStream(String dataStream, String indexMode) throws Exception {
         if (isRunningAgainstOldCluster()) {
-            if (clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false) == false) {
-                return;
-            }
+            assumeTrue(
+                "the old cluster does not support columnar index modes",
+                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false)
+            );
             putTemplate(dataStream, indexMode);
             assertOK(client().performRequest(new Request("PUT", "/_data_stream/" + dataStream)));
             for (int bulk = 0; bulk < OLD_CLUSTER_BULKS; bulk++) {
@@ -171,7 +172,7 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
         Response response = client().performRequest(request);
         assertOK(response);
         Map<String, Object> body = entityAsMap(response);
-        assertThat(ObjectPath.evaluate(body, "errors"), is(false));
+        assertThat("bulk response: " + body, ObjectPath.evaluate(body, "errors"), is(false));
         String index = ObjectPath.evaluate(body, "items.0.create._index");
         for (int i = 1; i < count; i++) {
             assertThat(ObjectPath.evaluate(body, "items." + i + ".create._index"), equalTo(index));
@@ -244,7 +245,7 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
         for (int host = 0; host < HOSTS; host++) {
             assertThat(ObjectPath.evaluate(buckets.get(host), "key"), equalTo("host" + host));
             assertThat(ObjectPath.evaluate(buckets.get(host), "doc_count"), equalTo(countWhere(firstDoc, lastDoc, HOSTS, host)));
-            int lastWithHost = lastDocWhere(firstDoc, lastDoc, HOSTS, host);
+            int lastWithHost = lastDocWhere(lastDoc, HOSTS, host);
             assertThat(ObjectPath.evaluate(buckets.get(host), "max_length.value"), equalTo((double) lastWithHost * 1000));
         }
     }
@@ -377,22 +378,14 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
 
     /** Number of documents in {@code [from, to)} whose index modulo {@code modulus} is {@code remainder}. */
     private static int countWhere(int from, int to, int modulus, int remainder) {
-        int count = 0;
-        for (int i = from; i < to; i++) {
-            if (i % modulus == remainder) {
-                count++;
-            }
-        }
-        return count;
+        // the matches up to x number floorDiv(x - remainder, modulus) + 1, so the matches in [from, to) are the difference at to - 1
+        // and from - 1
+        return Math.floorDiv(to - 1 - remainder, modulus) - Math.floorDiv(from - 1 - remainder, modulus);
     }
 
-    private static int lastDocWhere(int from, int to, int modulus, int remainder) {
-        for (int i = to - 1; i >= from; i--) {
-            if (i % modulus == remainder) {
-                return i;
-            }
-        }
-        throw new IllegalArgumentException("no document with remainder [" + remainder + "]");
+    /** The last document in {@code [from, to)} whose index modulo {@code modulus} is {@code remainder}, which the range must hold. */
+    private static int lastDocWhere(int to, int modulus, int remainder) {
+        return to - 1 - Math.floorMod(to - 1 - remainder, modulus);
     }
 
     private static List<String> asStrings(Object values) {

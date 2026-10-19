@@ -41,7 +41,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     public static final String TYPE = "timeseries";
 
-    static final String HOT_PHASE = "hot";
+    public static final String HOT_PHASE = "hot";
     static final String WARM_PHASE = "warm";
     static final String COLD_PHASE = "cold";
     static final String FROZEN_PHASE = "frozen";

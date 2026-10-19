@@ -232,6 +232,41 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * {@code LOAD_ALL} may be used with views, which it does not reach into either: the view yields no unmapped fields, and a null
+     * {@code _unmapped_fields}. The query is the shape of a conversion that resolves on a later analyzer pass, which has looped
+     * in the analyzer before: the reference to an unmapped field resolves one pass after the identical conversion of the WHERE.
+     */
+    public void testLoadAllSameConversionResolvedOnLaterPassOverViewAndIndex() {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        setupUnmappedIndices();
+        assertAcked(createView("filtered_view", "FROM view_source | WHERE id > 0"));
+        try (var resp = run("""
+            SET unmapped_fields="LOAD_ALL";
+            FROM caller_idx, filtered_view
+            | WHERE TO_STRING(id) == "1" OR does_not_exist IS NOT NULL
+            | EVAL u = TO_STRING(id)
+            | STATS total = COUNT(*) BY u
+            """)) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(1L, "1"))));
+        }
+    }
+
+    public void testLoadAllViewOutputsNullUnmappedFieldsAndCallerPatternLoadsThem() {
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        setupUnmappedIndices();
+        assertAcked(createView("filtered_view", "FROM view_source | WHERE id > 0"));
+        try (var resp = run("""
+            SET unmapped_fields="LOAD_ALL";
+            FROM caller_idx, filtered_view
+            | SORT id
+            """)) {
+            assertThat(columnNames(resp), equalTo(List.of("id", "_unmapped_fields")));
+            // The caller's own index returns its unmapped field, the view's rows get none.
+            assertThat(getValuesList(resp).stream().map(row -> row.get(1) == null).toList(), equalTo(List.of(true, true, false)));
+        }
+    }
+
     public void testLoadReferenceInsideViewBodyFailsResolution() {
         setupUnmappedIndices();
         assertAcked(createView("bad_view", "FROM view_source | WHERE extra == \"e1\""));

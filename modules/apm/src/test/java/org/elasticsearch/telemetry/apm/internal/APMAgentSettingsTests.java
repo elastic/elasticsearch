@@ -70,6 +70,13 @@ public class APMAgentSettingsTests extends ESTestCase {
         verify(apmTelemetryProvider.getTracer()).setMaxTraceDepth(depth);
     }
 
+    public void testUpdateMaxSpansPropagatesToTracer() {
+        int maxSpans = randomIntBetween(0, 1000);
+        Settings update = Settings.builder().put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), maxSpans).build();
+        triggerUpdateConsumer(Settings.EMPTY, update);
+        verify(apmTelemetryProvider.getTracer()).setMaxSpans(maxSpans);
+    }
+
     public void testUpdateRecordExceptionStacksPropagatesToTracer() {
         Settings update = Settings.builder().put(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.getKey(), true).build();
         triggerUpdateConsumer(Settings.EMPTY, update);
@@ -100,6 +107,7 @@ public class APMAgentSettingsTests extends ESTestCase {
                 TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
                 TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
                 OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH,
+                OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS,
                 OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
                 OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED,
                 APM_AGENT_SETTINGS

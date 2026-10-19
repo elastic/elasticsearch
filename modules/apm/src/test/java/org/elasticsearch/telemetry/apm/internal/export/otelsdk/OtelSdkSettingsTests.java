@@ -19,6 +19,7 @@ import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSet
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_EXPORT_VERIFY_SERVER_CERT;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_MAX_QUEUE_SIZE;
+import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS;
 import static org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -99,6 +100,15 @@ public class OtelSdkSettingsTests extends ESTestCase {
 
     public void testMaxQueueSizeDefault() {
         assertThat(TELEMETRY_TRACING_MAX_QUEUE_SIZE.get(Settings.EMPTY), equalTo(1024));
+    }
+
+    public void testMaxSpansFallsBackToAgentTransactionMaxSpans() {
+        Settings settings = Settings.builder().put("telemetry.agent.transaction_max_spans", "0").build();
+        assertThat(TELEMETRY_TRACING_MAX_SPANS.get(settings), equalTo(0));
+    }
+
+    public void testMaxSpansDefault() {
+        assertThat(TELEMETRY_TRACING_MAX_SPANS.get(Settings.EMPTY), equalTo(500));
     }
 
     public void testEndpointFallsBackToAgentServerUrl() {

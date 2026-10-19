@@ -19,7 +19,7 @@ import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.util.List;
 
-import static org.elasticsearch.common.settings.Setting.Property.DeprecatedWarning;
+import static org.elasticsearch.common.settings.Setting.Property.Deprecated;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 
@@ -40,6 +40,7 @@ public class APMAgentSettings {
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING, apmTracer::setExcludeNames);
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_SANITIZE_FIELD_NAMES, apmTracer::setLabelFilters);
         clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH, apmTracer::setMaxTraceDepth);
+        clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS, apmTracer::setMaxSpans);
         clusterSettings.addSettingsUpdateConsumer(
             OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
             apmTracer::setRecordExceptionStacks
@@ -60,7 +61,7 @@ public class APMAgentSettings {
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
         TELEMETRY_SETTING_PREFIX + "agent.",
         null, // no fallback
-        (namespace, qualifiedKey) -> Setting.simpleString(qualifiedKey, NodeScope, OperatorDynamic, DeprecatedWarning)
+        (namespace, qualifiedKey) -> Setting.simpleString(qualifiedKey, NodeScope, OperatorDynamic, Deprecated)
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(

@@ -1056,7 +1056,7 @@ public class NodeDeprecationChecks {
         entry("telemetry.agent.metrics_interval", "telemetry.export.interval"),
         entry("telemetry.agent.disable_metrics", "telemetry.metrics.disabled"),
         entry("telemetry.agent.transaction_sample_rate", "telemetry.tracing.sample_rate"),
-        entry("telemetry.agent.transaction_max_spans", "telemetry.tracing.max_depth"),
+        entry("telemetry.agent.transaction_max_spans", "telemetry.tracing.max_spans"),
         entry("telemetry.agent.max_queue_size", "telemetry.tracing.max_queue_size"),
         entry("telemetry.agent.sanitize_field_names", "telemetry.tracing.sanitize_field_names"),
         entry("telemetry.agent.service_name", "telemetry.resource.service.name"),
@@ -1124,7 +1124,7 @@ public class NodeDeprecationChecks {
         }
 
         return new DeprecationIssue(
-            DeprecationIssue.Level.WARNING,
+            DeprecationIssue.Level.CRITICAL,
             String.format(Locale.ROOT, "Settings %s are deprecated", keysInUse),
             "https://ela.st/es-deprecation-9-telemetry-agent-settings",
             String.join(" ", details),

@@ -823,7 +823,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
         final DeprecationIssue expected = new DeprecationIssue(
-            DeprecationIssue.Level.WARNING,
+            DeprecationIssue.Level.CRITICAL,
             "Settings [telemetry.agent.global_labels.project_id, telemetry.agent.server_url, "
                 + "telemetry.agent.span_compression_enabled] are deprecated",
             "https://ela.st/es-deprecation-9-telemetry-agent-settings",

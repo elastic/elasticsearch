@@ -284,7 +284,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testRuntimeTextSearchRejectedAfterUnionAllOnMappedTextField() {
         assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         var err = error(fullTextAnalyzer().query(unionThenTopN("", "") + "| WHERE match(title, \"data\")"));
-        assertThat(err, containsString("[MATCH] function cannot search column [title] after UNION ALL"));
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after subqueries in FROM"));
         assertThat(err, containsString("Search [title] in the subqueries instead"));
     }
 
@@ -298,7 +298,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                 ) + "| WHERE match(t, \"data\")"
             )
         );
-        assertThat(err, containsString("[MATCH] function cannot search column [t] after UNION ALL"));
+        assertThat(err, containsString("[MATCH] function cannot search column [t] after subqueries in FROM"));
         assertThat(err, containsString("its subqueries analyze its values with different analyzers [simple] and [whitespace]"));
         // declaring nothing is declaring the standard analyzer, in whichever order the branches come
         for (var branches : List.of(
@@ -316,7 +316,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         String declared = "| EVAL title = to_text(concat(title, \"\"), {\"analyzer\": \"whitespace\"})";
         for (var branches : List.of(List.of("", declared), List.of(declared, ""))) {
             var err = error(fullTextAnalyzer().query(unionThenTopN(branches.get(0), branches.get(1)) + "| WHERE title : \"data\""));
-            assertThat(err, containsString("[:] operator cannot search column [title] after UNION ALL"));
+            assertThat(err, containsString("[:] operator cannot search column [title] after subqueries in FROM"));
             assertThat(err, containsString("different analyzers [standard] and [whitespace]"));
         }
     }

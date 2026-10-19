@@ -330,7 +330,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
     /**
      * The merged column this runtime search reads, with what its branches fill it from.
      *
-     * @param mergeName the command that merged the column, for a user-facing message
+     * @param mergeName what merged the column, for a user-facing message
      * @param branchesName what that command's branches are called, for a user-facing message
      * @param mappedField a mapped {@code text} field one of the branches fills the column from, or {@code null} when
      *                    none does. It differs from {@code column} when {@code RENAME} or {@code EVAL} sits between them.
@@ -433,7 +433,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             found.set(
                 merge instanceof Fork
                     ? new MergedTextColumn(column, "FORK", "FORK branches", mappedField, branchAnalyzers)
-                    : new MergedTextColumn(column, "UNION ALL", "subqueries", mappedField, branchAnalyzers)
+                    : new MergedTextColumn(column, "subqueries in FROM", "subqueries", mappedField, branchAnalyzers)
             );
         });
         return found.get();

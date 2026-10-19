@@ -299,13 +299,13 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
             } else {
                 settings.put("index.sort.field", "kw").put("index.sort.order", descending ? "desc" : "asc");
             }
-            indicesAdmin().prepareCreate(index)
-                .setSettings(settings)
-                .setMapping(
-                    """
-                        {"properties":{"@timestamp":{"type":"date"},"kw":{"type":"keyword","index":false,"doc_values":{"multi_value":false}}}}"""
-                )
-                .get();
+            indicesAdmin().prepareCreate(index).setSettings(settings).setMapping("""
+                {
+                  "properties": {
+                    "@timestamp": { "type": "date" },
+                    "kw": { "type": "keyword", "index": false, "doc_values": { "multi_value": false } }
+                  }
+                }""").get();
 
             final List<Integer> order = new ArrayList<>();
             for (int i = 0; i < numDocs; i++) {

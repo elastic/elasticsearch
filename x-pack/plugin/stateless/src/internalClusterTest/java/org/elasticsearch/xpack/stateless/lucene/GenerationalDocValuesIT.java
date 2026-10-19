@@ -61,7 +61,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -569,7 +569,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         // The next BCC (with generation 7) will contain the generational file that will be retained by the background merge,
         // hence we'll inject a custom repository strategy that will block any reads by the Lucene Merge Thread #0 on that blob
         // to wait until the BCC containing that file is deleted wrongly.
-        final var bccContainingFirstGenFile = BatchedCompoundCommit.blobNameFromGeneration(7);
+        final var bccContainingFirstGenFile = BccBlobFile.blobNameFromGeneration(7);
         var blockBccContainingFirstGenFileReadByFirstMerge = new CountDownLatch(1);
         var bccContainingFirstGenFileReadFirstMergeBlocked = new CountDownLatch(1);
         var blockBccContainingFirstGenFileReadBySecondMerge = new CountDownLatch(1);
@@ -981,7 +981,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
         );
 
         // batched compound commit for generation 6 exists in the object store (stateless_commit_6)
-        final String bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(6L);
+        final String bccBlobName = BccBlobFile.blobNameFromGeneration(6L);
         var blobContainer = indexDirectory.getBlobStoreCacheDirectory().getBlobContainer(indexingShard.getOperationPrimaryTerm());
         assertBusy(() -> assertThat(blobContainer.listBlobs(OperationPurpose.INDICES).keySet(), hasItem(bccBlobName)));
 

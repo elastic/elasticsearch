@@ -254,9 +254,10 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
                 containsString("Unknown index [missing] referenced by view [unresolvable]"),
                 () -> run(syncEsqlQueryRequest("FROM missing, unresolvable")).close()
             );
+            // Names are registered in pattern-text order. "missing" (the view body) sorts before "other-missing".
             expectThrows(
                 VerificationException.class,
-                containsString("Unknown index [other-missing,missing] ([missing] referenced by view [unresolvable])"),
+                containsString("Unknown index [missing,other-missing] ([missing] referenced by view [unresolvable])"),
                 () -> run(syncEsqlQueryRequest("FROM other-missing, unresolvable")).close()
             );
             expectThrows(

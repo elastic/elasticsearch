@@ -2206,6 +2206,30 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    public void testFullTextFunctionsRuntimeOptionValueThatCannotBuildQuery() throws Exception {
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | where match(t, \"cat\", {\"max_expansions\": 0})",
+            containsString("[MATCH] function failed to build query for non-index-mapped field [t]")
+        );
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | where match_phrase(t, \"cat\", {\"slop\": -1})",
+            containsString("[MATCH_PHRASE] function failed to build query for non-index-mapped field [t]")
+        );
+    }
+
+    public void testMatchRuntimeQueryValueTypeMismatch() throws Exception {
+        // lenient is the default, so a query value that cannot be converted to the field's type passes verification
+        // (but matches nothing)
+        fullText().query("from test | eval k = length(title) | where match(k, \"cat\")");
+        fullText().query("from test | eval k = length(title) | where match(k, \"cat\", {\"lenient\": true})");
+
+        // 'lenient: false' results in an error about the mismatched types
+        fullText().error(
+            "from test | eval k = length(title) | where match(k, \"cat\", {\"lenient\": false})",
+            containsString("does not match the type ([integer]) of non-index-mapped field [k]")
+        );
+    }
+
     private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
         fullText().error(
             "from test | limit 10 | where " + functionInvocation,

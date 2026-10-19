@@ -2648,7 +2648,7 @@ public class EsqlCapabilities {
         /**
          * Support for PromQL group modifiers.
          */
-        PROMQL_VECTOR_MATCHING_V0(Build.current().isSnapshot()),
+        PROMQL_VECTOR_MATCHING_V0,
 
         /**
          * Support for PromQL time() function.

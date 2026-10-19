@@ -18,6 +18,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -103,7 +104,9 @@ public class MockDecisionServiceIT extends InferenceBaseRestTest {
         var anger = (Map<String, Object>) answers.get("anger");
         assertThat(anger.get(DecisionResults.Answer.TYPE), is("score"));
         assertThat(anger.get(DecisionResults.Answer.SCORE), notNullValue());
-        assertThat((Map<String, Object>) anger.get(DecisionResults.Answer.PROBABILITIES), aMapWithSize(3));
+        var angerProbabilities = (List<Map<String, Object>>) anger.get(DecisionResults.Answer.PROBABILITIES);
+        assertThat(angerProbabilities, hasSize(3));
+        assertThat(angerProbabilities.get(2).get(DecisionResults.Answer.VALUE), is(2));
     }
 
     public void testMockService_WithoutQuestions_Fails() throws IOException {

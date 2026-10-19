@@ -135,6 +135,63 @@ public class ElasticInferenceServiceDecisionResponseEntityTests extends ESTestCa
         }
     }
 
+    public void testFromResponse_ScoreProbabilities_AreOrderedByValue() throws IOException {
+        var results = parse("""
+            {"answers": [{
+                "type": "score", "name": "anger", "score": 1.0, "confidence": 0.5,
+                "probabilities": [
+                    {"value": 2, "label": "furious", "probability": 0.2},
+                    {"value": 0, "label": "calm", "probability": 0.1},
+                    {"value": 1, "label": "annoyed", "probability": 0.7}
+                ]
+            }]}
+            """);
+
+        var answer = (DecisionResults.ScoreAnswer) results.answers().get("anger");
+        assertThat(answer.probabilities().keySet(), contains("calm", "annoyed", "furious"));
+    }
+
+    public void testFromResponse_ScoreProbabilityValueIsNotAnInteger_Throws() {
+        for (var value : List.of("\"0\"", "0.5", "-1", "true")) {
+            var exception = expectThrows(IllegalArgumentException.class, () -> parse(Strings.format("""
+                {"answers": [{
+                    "type": "score", "name": "q", "score": 0.5, "confidence": 0.5,
+                    "probabilities": [{"value": %s, "label": "low", "probability": 1.0}]
+                }]}
+                """, value)));
+            assertThat(
+                exception.getMessage(),
+                containsString("Field [probabilities.value] must be a non-negative integer for the [score] answer to question [q]")
+            );
+        }
+    }
+
+    public void testFromResponse_ScoreProbabilityWithDuplicateValue_Throws() {
+        var exception = expectThrows(IllegalArgumentException.class, () -> parse("""
+            {"answers": [{
+                "type": "score", "name": "q", "score": 0.5, "confidence": 0.5,
+                "probabilities": [
+                    {"value": 0, "label": "low", "probability": 0.5},
+                    {"value": 0, "label": "high", "probability": 0.5}
+                ]
+            }]}
+            """));
+        assertThat(exception.getMessage(), containsString("Duplicate probability [value] [0] for the [score] answer to question [q]"));
+    }
+
+    public void testFromResponse_ChoiceProbabilityValueIsNotAString_Throws() {
+        var exception = expectThrows(IllegalArgumentException.class, () -> parse("""
+            {"answers": [{
+                "type": "choice", "name": "q", "choice": "a", "confidence": 0.5,
+                "probabilities": [{"value": 0, "probability": 1.0}]
+            }]}
+            """));
+        assertThat(
+            exception.getMessage(),
+            containsString("Field [probabilities.value] must be a string for the [choice] answer to question [q]")
+        );
+    }
+
     public void testFromResponse_MissingAnswers_Throws() {
         var exception = expectThrows(IllegalArgumentException.class, () -> parse("{}"));
         assertThat(exception.getMessage(), containsString("Required [answers]"));

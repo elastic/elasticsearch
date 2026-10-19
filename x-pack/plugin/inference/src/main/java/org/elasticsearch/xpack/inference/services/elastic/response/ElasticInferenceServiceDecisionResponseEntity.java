@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.TreeMap;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -58,7 +58,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * }</pre>
  * The {@code usage} is used by the Elastic Inference Service for metering and is not part of the {@link DecisionResults}.
  * The answers are keyed by question name in the {@link DecisionResults}. Choice probabilities are keyed by the choice {@code value},
- * score probabilities by the level {@code label}. As {@link DecisionResults} has no way to represent a refusal, a response containing
+ * score probabilities by the level {@code label}, ordered by the zero-based integer level position in {@code value}. As {@link DecisionResults} has no way to represent a refusal, a response containing
  * a refusal fails.
  */
 public class ElasticInferenceServiceDecisionResponseEntity {
@@ -122,12 +122,12 @@ public class ElasticInferenceServiceDecisionResponseEntity {
                 case PREDICATE_TYPE -> new DecisionResults.PredicateAnswer(requireField("probability", probability));
                 case CHOICE_TYPE -> new DecisionResults.ChoiceAnswer(
                     requireField("choice", choice),
-                    toProbabilities("value", ProbabilityEntry::value),
+                    toChoiceProbabilities(),
                     requireField("confidence", confidence)
                 );
                 case SCORE_TYPE -> new DecisionResults.ScoreAnswer(
                     requireField("score", score),
-                    toProbabilities("label", ProbabilityEntry::label),
+                    toLevelProbabilities(),
                     requireField("confidence", confidence)
                 );
                 default -> throw new IllegalArgumentException(
@@ -136,12 +136,51 @@ public class ElasticInferenceServiceDecisionResponseEntity {
             };
         }
 
-        private Map<String, Double> toProbabilities(String keyField, Function<ProbabilityEntry, String> key) {
+        private Map<String, Double> toChoiceProbabilities() {
             var result = new LinkedHashMap<String, Double>();
             for (var entry : requireField("probabilities", probabilities)) {
-                result.put(requireField("probabilities." + keyField, key.apply(entry)), entry.probability());
+                if (entry.value() instanceof String choice) {
+                    result.put(choice, entry.probability());
+                } else {
+                    throw invalidProbabilityValue("a string", entry);
+                }
             }
             return result;
+        }
+
+        /**
+         * Keys the probabilities by level label, ordered by the zero-based level position given by {@code value}.
+         */
+        private Map<String, Double> toLevelProbabilities() {
+            var levels = new TreeMap<Integer, ProbabilityEntry>();
+            for (var entry : requireField("probabilities", probabilities)) {
+                if (entry.value() instanceof Integer position && position >= 0) {
+                    if (levels.put(position, entry) != null) {
+                        throw new IllegalArgumentException(
+                            Strings.format("Duplicate probability [value] [%d] for the [%s] answer to question [%s]", position, type, name)
+                        );
+                    }
+                } else {
+                    throw invalidProbabilityValue("a non-negative integer", entry);
+                }
+            }
+            var result = new LinkedHashMap<String, Double>();
+            for (var entry : levels.values()) {
+                result.put(requireField("probabilities.label", entry.label()), entry.probability());
+            }
+            return result;
+        }
+
+        private IllegalArgumentException invalidProbabilityValue(String expected, ProbabilityEntry entry) {
+            return new IllegalArgumentException(
+                Strings.format(
+                    "Field [probabilities.value] must be %s for the [%s] answer to question [%s], but found [%s]",
+                    expected,
+                    type,
+                    name,
+                    entry.value()
+                )
+            );
         }
 
         private <T> T requireField(String field, @Nullable T value) {
@@ -155,23 +194,33 @@ public class ElasticInferenceServiceDecisionResponseEntity {
     }
 
     /**
-     * The probability of a single option. {@code value} is the choice for choice answers and the zero-based level position for score
-     * answers, which additionally carry the level {@code label}.
+     * The probability of a single option. {@code value} is the choice (a string) for choice answers and the zero-based level position
+     * (an integer) for score answers, which additionally carry the level {@code label}.
      */
-    record ProbabilityEntry(@Nullable String value, @Nullable String label, double probability) {
+    record ProbabilityEntry(@Nullable Object value, @Nullable String label, double probability) {
 
         static final ConstructingObjectParser<ProbabilityEntry, Void> PARSER = new ConstructingObjectParser<>(
             ProbabilityEntry.class.getSimpleName(),
             true,
-            args -> new ProbabilityEntry((String) args[0], (String) args[1], (Double) args[2])
+            args -> new ProbabilityEntry(args[0], (String) args[1], (Double) args[2])
         );
 
         static {
-            // The value is a string for choice answers and a number for score answers
-            PARSER.declareField(optionalConstructorArg(), (p, c) -> p.text(), new ParseField("value"), ObjectParser.ValueType.VALUE);
+            // The value is a string for choice answers and an integer for score answers
+            PARSER.declareField(optionalConstructorArg(), (p, c) -> parseValue(p), new ParseField("value"), ObjectParser.ValueType.VALUE);
             PARSER.declareString(optionalConstructorArg(), new ParseField("label"));
             PARSER.declareDouble(constructorArg(), new ParseField("probability"));
         }
+    }
+
+    /**
+     * Keeps strings as strings and whole numbers as integers, anything else is rejected when the answer is built.
+     */
+    private static Object parseValue(XContentParser parser) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            return parser.numberType() == XContentParser.NumberType.INT ? (Object) parser.intValue() : (Object) parser.doubleValue();
+        }
+        return parser.text();
     }
 
     public static InferenceServiceResults fromResponse(HttpResult response) throws IOException {

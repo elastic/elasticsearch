@@ -63,7 +63,11 @@ public class DecisionResultsTests extends AbstractChunkedBWCSerializationTestCas
                                 "score",
                                 1.4,
                                 "probabilities",
-                                Map.of("calm", 0.1, "annoyed", 0.4, "furious", 0.5),
+                                List.of(
+                                    Map.of("value", 0, "label", "calm", "probability", 0.1),
+                                    Map.of("value", 1, "label", "annoyed", "probability", 0.4),
+                                    Map.of("value", 2, "label", "furious", "probability", 0.5)
+                                ),
                                 "confidence",
                                 0.62
                             )
@@ -95,11 +99,23 @@ public class DecisionResultsTests extends AbstractChunkedBWCSerializationTestCas
                   "anger" : {
                     "type" : "score",
                     "score" : 1.4,
-                    "probabilities" : {
-                      "calm" : 0.1,
-                      "annoyed" : 0.4,
-                      "furious" : 0.5
-                    },
+                    "probabilities" : [
+                      {
+                        "value" : 0,
+                        "label" : "calm",
+                        "probability" : 0.1
+                      },
+                      {
+                        "value" : 1,
+                        "label" : "annoyed",
+                        "probability" : 0.4
+                      },
+                      {
+                        "value" : 2,
+                        "label" : "furious",
+                        "probability" : 0.5
+                      }
+                    ],
                     "confidence" : 0.62
                   }
                 }

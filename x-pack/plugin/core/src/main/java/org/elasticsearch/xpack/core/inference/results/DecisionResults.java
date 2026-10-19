@@ -25,11 +25,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -51,14 +53,19 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *       "anger": {
  *         "type": "score",
  *         "score": 1.4,
- *         "probabilities": {"calm": 0.1, "annoyed": 0.4, "furious": 0.5},
+ *         "probabilities": [
+ *           {"value": 0, "label": "calm", "probability": 0.1},
+ *           {"value": 1, "label": "annoyed", "probability": 0.4},
+ *           {"value": 2, "label": "furious", "probability": 0.5}
+ *         ],
  *         "confidence": 0.62
  *       }
  *     }
  *   }
  * }
  * </pre>
- * The {@code type} of an answer matches the {@link DecisionQuestion.Type} of the question it answers.
+ * The {@code type} of an answer matches the {@link DecisionQuestion.Type} of the question it answers. Like in the OpenAI Decisions API,
+ * the {@code value} of a score probability is the zero-based position of the level, which is also its position in the array.
  *
  * @param answers The answers keyed by question name. The iteration order is preserved.
  */
@@ -67,6 +74,22 @@ public record DecisionResults(Map<String, Answer> answers) implements InferenceS
     public static final String NAME = "decision_service_results";
     public static final String DECISION = "decision";
     public static final String ANSWERS = "answers";
+
+    private record LevelProbability(int value, String label, double probability) {}
+
+    private static final ConstructingObjectParser<LevelProbability, Void> LEVEL_PROBABILITY_PARSER = createLevelProbabilityParser();
+
+    private static ConstructingObjectParser<LevelProbability, Void> createLevelProbabilityParser() {
+        var parser = new ConstructingObjectParser<LevelProbability, Void>(
+            "decision_level_probability",
+            true,
+            a -> new LevelProbability((int) a[0], (String) a[1], (double) a[2])
+        );
+        parser.declareInt(constructorArg(), new ParseField(Answer.VALUE));
+        parser.declareString(constructorArg(), new ParseField(Answer.LABEL));
+        parser.declareDouble(constructorArg(), new ParseField(Answer.PROBABILITY));
+        return parser;
+    }
 
     public static ConstructingObjectParser<DecisionResults, Void> createParser(boolean ignoreUnknownFields) {
         var answersParser = new ConstructingObjectParser<DecisionResults, Void>(
@@ -144,6 +167,8 @@ public record DecisionResults(Map<String, Answer> answers) implements InferenceS
         String SCORE = "score";
         String PROBABILITIES = "probabilities";
         String CONFIDENCE = "confidence";
+        String VALUE = "value";
+        String LABEL = "label";
 
         DecisionQuestion.Type type();
 
@@ -167,11 +192,12 @@ public record DecisionResults(Map<String, Answer> answers) implements InferenceS
             parser.declareDouble(optionalConstructorArg(), new ParseField(PROBABILITY));
             parser.declareString(optionalConstructorArg(), new ParseField(CHOICE));
             parser.declareDouble(optionalConstructorArg(), new ParseField(SCORE));
+            // Choice probabilities are an object keyed by choice, score probabilities an array of levels
             parser.declareField(
                 optionalConstructorArg(),
-                (p, c) -> parseProbabilities(p),
+                (p, c) -> p.currentToken() == XContentParser.Token.START_ARRAY ? parseLevelProbabilities(p) : parseProbabilities(p),
                 new ParseField(PROBABILITIES),
-                ObjectParser.ValueType.OBJECT
+                ObjectParser.ValueType.OBJECT_ARRAY
             );
             parser.declareDouble(optionalConstructorArg(), new ParseField(CONFIDENCE));
             return parser;
@@ -215,6 +241,28 @@ public record DecisionResults(Map<String, Answer> answers) implements InferenceS
                 var option = parser.currentName();
                 parser.nextToken();
                 probabilities.put(option, parser.doubleValue());
+            }
+            return probabilities;
+        }
+
+        /**
+         * Parses the score probabilities, which are ordered by the {@code value} of each level and keyed by its {@code label}.
+         */
+        private static Map<String, Double> parseLevelProbabilities(XContentParser parser) throws IOException {
+            var levels = new TreeMap<Integer, Map.Entry<String, Double>>();
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+                var level = LEVEL_PROBABILITY_PARSER.apply(parser, null);
+                if (levels.put(level.value(), Map.entry(level.label(), level.probability())) != null) {
+                    throw new IllegalArgumentException(
+                        Strings.format("Field [%s] contains the value [%d] twice", PROBABILITIES, level.value())
+                    );
+                }
+            }
+            var probabilities = new LinkedHashMap<String, Double>();
+            for (var level : levels.values()) {
+                probabilities.put(level.getKey(), level.getValue());
             }
             return probabilities;
         }
@@ -354,7 +402,16 @@ public record DecisionResults(Map<String, Answer> answers) implements InferenceS
             builder.startObject();
             builder.field(TYPE, type().toString());
             builder.field(SCORE, score);
-            builder.field(PROBABILITIES, probabilities);
+            builder.startArray(PROBABILITIES);
+            int value = 0;
+            for (var level : probabilities.entrySet()) {
+                builder.startObject();
+                builder.field(VALUE, value++);
+                builder.field(LABEL, level.getKey());
+                builder.field(PROBABILITY, level.getValue());
+                builder.endObject();
+            }
+            builder.endArray();
             builder.field(CONFIDENCE, confidence);
             builder.endObject();
             return builder;
@@ -362,7 +419,11 @@ public record DecisionResults(Map<String, Answer> answers) implements InferenceS
 
         @Override
         public Map<String, Object> asMap() {
-            return Map.of(TYPE, type().toString(), SCORE, score, PROBABILITIES, probabilities, CONFIDENCE, confidence);
+            var levels = new ArrayList<Map<String, Object>>();
+            for (var level : probabilities.entrySet()) {
+                levels.add(Map.of(VALUE, levels.size(), LABEL, level.getKey(), PROBABILITY, level.getValue()));
+            }
+            return Map.of(TYPE, type().toString(), SCORE, score, PROBABILITIES, levels, CONFIDENCE, confidence);
         }
     }
 }

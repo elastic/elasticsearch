@@ -7780,11 +7780,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     Map.of(DataType.LONG, 41L)
                 )
             );
-            // Every physical shape that renders DATE_NANOS, read as `date`. The TIME units are here because TIME is a
-            // temporal type: their value is a time of day, which `date` renders as an instant on 1970-01-01, so the
-            // scale is the unit's and the expected millis are a time of day too. The out-of-range TIMESTAMP(MICROS)
-            // shape is the one this pair exists for -- the two-step route nulls it, so it also pins that the decode
-            // is genuinely one step.
+            // Every physical shape that renders DATE_NANOS, read as `date`. A TIME unit's value is a time of day,
+            // so its expected millis are one too. The out-of-range TIMESTAMP(MICROS) shape is the one this pair
+            // exists for: the two-step route nulls it, so it also pins that the decode is genuinely one step.
             case DATE_NANOS -> List.of(
                 new FusedShape(
                     "INT64 TIMESTAMP(MICROS)",
@@ -7975,11 +7973,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
                         shape.writer().accept(g, "x");
                         return List.of(g);
                     });
-                    // A distinct location per shape: every storage object in this class would otherwise be
-                    // memory://test.parquet at version v1, and footerOf goes through a class-level FooterByteCache,
-                    // so a later shape would be decoded against an earlier shape's footer -- which is invisible
-                    // while every route reads at the file's type and reports as a route disagreement once one of
-                    // them decodes natively.
+                    // A distinct location per shape: these would otherwise all be memory://test.parquet at v1, and
+                    // footerOf goes through a class-level FooterByteCache, so a later shape decodes against an
+                    // earlier shape's footer and the symptom surfaces as a route disagreement.
                     StorageObject storageObject = createStorageObject(
                         parquetData,
                         "memory://" + shape.label().replace(' ', '_') + ".parquet"
@@ -11384,10 +11380,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * A microsecond timestamp outside the nanosecond domain, read as a declared {@code date}. {@code date} is
-     * milliseconds and represents both of these exactly; the decode no longer materialises nanoseconds on the way,
-     * so they read rather than null. Asserted on every route, because the eager readers and the deferred extractor
-     * reach the fused pair by different means -- the readers consult {@code fusedInDecode} themselves, the extractor
-     * retypes its column view -- and fixing one without the other makes the answer depend on the plan's shape.
+     * milliseconds and represents both of these exactly, and the decode no longer materialises nanoseconds on the
+     * way. Asserted on every route: the eager readers consult {@code fusedInDecode} themselves while the extractor
+     * retypes its column view, so fixing one without the other makes the answer depend on the plan's shape.
      */
     public void testOutOfNanosRangeMicrosTimestampDeclaredDatetimeReadsOnEveryRoute() throws Exception {
         MessageType schema = Types.buildMessage()

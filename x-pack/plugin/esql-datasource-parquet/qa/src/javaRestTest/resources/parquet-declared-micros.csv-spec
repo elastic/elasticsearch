@@ -1,20 +1,15 @@
-// A Parquet column annotated TIMESTAMP(MICROS) -- the unit Arrow and Spark write by default -- renders date_nanos,
-// because that is the ESQL type whose resolution matches. Declaring the conventional dashboard type over it asks for
-// a narrowing the declared type covers for the whole int64 microsecond range: microseconds floored to milliseconds.
+// A Parquet TIMESTAMP(MICROS) column -- the unit Arrow and Spark write by default -- renders date_nanos. Declaring
+// `date` over it asks for a narrowing the declared type covers for the whole int64 microsecond range; going through
+// date_nanos on the way did not, because a value outside 1677-09-21 .. 2262-04-11 has no nanosecond representation
+// and the intermediate step overflowed to null. The pair decodes in one step now, and floorDiv(raw * 1_000,
+// 1_000_000) equals floorDiv(raw, 1_000), so nothing already readable moves.
 //
-// Going through date_nanos on the way does not: a microsecond value outside 1677-09-21 .. 2262-04-11 has no
-// nanosecond representation, so the intermediate step overflowed and the cell answered null with a warning. The pair
-// is decoded in one step now, microseconds straight to milliseconds, which is the same arithmetic one layer earlier
-// -- floorDiv(raw * 1_000, 1_000_000) and floorDiv(raw, 1_000) agree for every long, below the epoch included.
+// Without a declaration the column is read as date_nanos and those rows are still null. That contrast is the point:
+// the declared type is what widens the readable range.
 //
-// Without a declaration the column is read at the type the file renders, date_nanos, and the rows outside that
-// domain have no value there. That is unchanged here and is the contrast this fix rests on: the declared type is
-// what widens the readable range, because it is the only thing that says milliseconds are wanted.
-//
-// {{micros_timestamp}} carries ts (INT64 + TIMESTAMP(MICROS)) over seven rows: 1500-01-01 and the year 3000, both
-// outside the nanosecond domain; half a microsecond before 1500-01-01 and one microsecond before the epoch, the two
-// rows that discriminate flooring from truncation; the epoch; a 2024 instant with sub-millisecond digits, inside the
-// domain; and a null. note/qty/ratio exist to shape the deferred-extraction case below.
+// {{micros_timestamp}} carries ts over seven rows: 1500-01-01 and the year 3000, outside the nanosecond domain; half
+// a microsecond before 1500-01-01 and one microsecond before the epoch, which separate flooring from truncation; the
+// epoch; a 2024 instant with sub-millisecond digits; and a null. note/qty/ratio shape the deferred case below.
 
 // The whole microsecond domain, read as the declared type.
 declaredDateOverMicrosTimestampReadsOutsideTheNanosecondDomain
@@ -37,9 +32,8 @@ id:integer | ts:date
 7          | null
 ;
 
-// The same read as the exact millisecond each row floors to, so one number per row says which arithmetic ran.
-// Rows 2 and 3 are the discriminating ones: truncation toward zero would answer -14831769599999 and 0 where
-// flooring answers -14831769600000 and -1.
+// The exact millisecond each row floors to, so one number per row says which arithmetic ran: truncation toward zero
+// would answer -14831769599999 and 0 for rows 2 and 3 where flooring answers -14831769600000 and -1.
 declaredDateOverMicrosTimestampFloorsTowardsNegativeInfinity
 required_capability: dataset_in_from_command
 required_capability: parquet_declared_date_reads_micros_in_one_step
@@ -61,11 +55,9 @@ id:integer | millis:long
 7          | null
 ;
 
-// The deferred read path -- the columns a per-driver TopN did not need, loaded afterwards for the surviving rows --
-// decodes the pair in its own loop rather than through the eager readers, and it is the path that answered a
-// different value from them while only one of the two was fused. Sorting on id and keeping four more columns makes
-// the query eligible for that deferral (the rule needs at least three deferrable columns and a bounded limit); the
-// assertion is that the answer is the one above either way.
+// The deferred path -- columns a per-driver TopN did not need, loaded afterwards for the surviving rows -- decodes
+// the pair in its own loop, and is the one that answered differently while only the eager readers were fused.
+// Sorting on id and keeping four more columns makes this query eligible for that deferral.
 declaredDateOverMicrosTimestampAgreesOnTheDeferredPath
 required_capability: dataset_in_from_command
 required_capability: parquet_declared_date_reads_micros_in_one_step

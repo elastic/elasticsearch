@@ -86,12 +86,8 @@ final class ParquetColumnDecoding {
                 case NANOS -> Math.floorDiv(raw, 1_000_000L);
             };
         }
-        // A TIME column takes the same unit arithmetic, for the reason convertTemporalToNanos gives: the file states
-        // a unit and the caller wants millis. What the value counts from differs -- a TIMESTAMP is an offset from
-        // the epoch, a TIME a time of day, which `date` renders as an instant on 1970-01-01 -- but the scale is the
-        // unit's, not the origin's. Without this arm a declared `date` over TIME(MICROS) would return its
-        // microsecond of day as a millisecond of day, now that the pair decodes natively rather than through
-        // castBlock's narrowing.
+        // TIME takes the same unit arithmetic. What the value counts from differs -- a TIMESTAMP is an offset from
+        // the epoch, a TIME a time of day -- but the scale is the unit's, not the origin's.
         if (logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
             return switch (time.getUnit()) {
                 case MILLIS -> raw;
@@ -178,15 +174,11 @@ final class ParquetColumnDecoding {
             && time2.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS;
         return switch (declaredType) {
             // An identity read never nulls, and neither does a narrowing: floorDiv is total over the whole long
-            // domain. The MICROS units now decline CONSERVATIVELY rather than necessarily: `date` over a column
-            // rendering date_nanos became a fusedInDecode pair, so the decode scales straight to millis with
-            // floorDiv and microsOverflowsNanos is no longer on that path. Relaxing them is a pruning gain this
-            // change makes available and deliberately does not take, because the arm is not total over INT64 and a
-            // wrong `false` here prunes row groups holding matching rows while a wrong `true` only costs a scan.
-            // What a relaxation needs is the arm decided by FILE type rather than by the declared one: a uint64
-            // column reaches `date` through castBlock and Numbers.toLong, which throws at or above 2^63, and a
-            // scale-0 DECIMAL through safeDoubleToLong. Both still null, and both are invisible to a test that
-            // enumerates annotations rather than file types.
+            // domain. The MICROS units decline conservatively, not necessarily: `date` over a column rendering
+            // date_nanos is a fused pair now, so microsOverflowsNanos is off that path. Relaxing them needs the arm
+            // decided by FILE type -- a uint64 column reaches `date` through Numbers.toLong, which throws at or
+            // above 2^63, and a scale-0 DECIMAL through safeDoubleToLong. This gates pruning: a wrong `false` drops
+            // matching rows, a wrong `true` costs a scan.
             case DATETIME -> (logical == null || millisAnnotated || nanosAnnotated || timeAnnotated) == false;
             // A bare INT64 widens millis->nanos via castBlock and nulls pre-epoch/post-2262 values; NANOS is the
             // identity; MICROS/MILLIS scale and can overflow.

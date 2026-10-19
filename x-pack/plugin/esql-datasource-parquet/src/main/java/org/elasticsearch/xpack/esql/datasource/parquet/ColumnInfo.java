@@ -83,11 +83,9 @@ record ColumnInfo(
     }
 
     /**
-     * A view of this column that decodes straight to {@code target}, keeping this column's own type as
-     * {@link #fileEsqlType} -- the mirror of {@link #fileTyped()}, and the shape the eager readers build from the
-     * planner's attribute. Only for a pair {@code DeclaredTypeCoercions.fusedInDecode} accepts: there the decode
-     * arms produce the target natively and no {@code castBlock} follows, so handing them a file-typed view instead
-     * would decode at the wrong type. Returns {@code this} when the target is already this column's type.
+     * The mirror of {@link #fileTyped()}: decodes straight to {@code target}, keeping this column's own type as
+     * {@link #fileEsqlType}. Only for a pair {@code DeclaredTypeCoercions.fusedInDecode} accepts, where the decode
+     * arms produce the target natively and no {@code castBlock} follows.
      */
     ColumnInfo targetTyped(DataType target) {
         if (target == esqlType) {

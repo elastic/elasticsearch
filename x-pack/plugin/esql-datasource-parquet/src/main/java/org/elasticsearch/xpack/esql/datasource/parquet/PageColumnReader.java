@@ -1773,12 +1773,9 @@ final class PageColumnReader implements Releasable {
         switch (decode) {
             case INT64_EPOCH_MILLIS -> {
                 readLongsDispatch(values, offset, count);
-                // A bare INT64 already holds epoch millis, and so does an annotation this arm does not scale. Two do
-                // need scaling: TIMESTAMP, whose unit is an offset from the epoch, and TIME, whose unit is a time of
-                // day -- the latter because `date` over a sub-millisecond column is a fused pair now, so its decode
-                // arrives here natively instead of through castBlock's narrowing. The test is hoisted out of the loop
-                // deliberately: calling through a helper that re-tests it per value turns a skipped loop into a
-                // per-row no-op for, say, an INT64 carrying intType(64, true).
+                // A bare INT64 already holds epoch millis; TIMESTAMP and TIME carry a unit and need scaling. TIME
+                // reaches this arm because `date` over a sub-millisecond column is a fused pair. Hoisted out of the
+                // loop so an INT64 carrying, say, intType(64, true) skips it rather than re-testing per value.
                 if (logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation
                     || logicalType instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation) {
                     for (int i = 0; i < count; i++) {

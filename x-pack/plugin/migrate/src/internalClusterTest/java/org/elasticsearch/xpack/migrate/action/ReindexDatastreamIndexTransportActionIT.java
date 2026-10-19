@@ -606,9 +606,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             not(equalTo(null))
         );
 
-        String destIndex = safeGet(
-            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-        ).getDestIndex();
+        // Unfreezing reopens every source shard before reindexing, which can exceed safeGet's ten-second timeout.
+        String destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet(TEST_REQUEST_TIMEOUT)
+            .getDestIndex();
 
         assertThat(
             safeGet(admin().indices().getSettings(new GetSettingsRequest().indices(sourceIndex))).getIndexToSettings()

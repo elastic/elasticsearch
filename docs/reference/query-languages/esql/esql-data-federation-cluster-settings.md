@@ -158,7 +158,7 @@ $$$esql-external-managed-identity-enabled$$$
 `esql.external.managed_identity.enabled` {applies_to}`stack: experimental 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Enables `auth: "managed_identity"`, which uses the node's own cloud identity through the instance metadata service (IMDS). Intended for single-cloud, single-tenant deployments. Never enable it in multi-tenant clusters. When the {{operator-feature}} is enabled, only operator users can update this setting. Refer to the managed identity row in [authentication models](esql-data-federation-sources.md#authentication) for guidance.
 
-    - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.datasource.managed_identity.enabled`
+    - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.datasource.managed_identity.enabled`, still accepted with a deprecation warning
     - **Default:** `false`
     - **Valid values:** `true`, `false`
 
@@ -210,7 +210,7 @@ $$$esql-external-cache-listing-ttl$$$
       - {applies_to}`stack: experimental 9.6+` `5m`
       - {applies_to}`stack: experimental =9.5` `30s`
 
-    {applies_to}`stack: experimental 9.6+` A file overwritten in place is also noticed then, though a columnar file rewritten at the same byte length can still be read from a cached footer (see `esql.external.cache.footer.ttl`). A cached dataset row count also expires on this interval.
+    {applies_to}`stack: experimental 9.6+` A file overwritten in place is also noticed then. A cached dataset row count also expires on this interval.
 
 $$$esql-external-cache-schema-ttl$$$
 
@@ -244,7 +244,7 @@ $$$esql-external-cache-footer-ttl$$$
     - **Default:** `5m`
     - **Valid values:** A positive time value
 
-    A footer that every dashboard refresh reads stays cached, within the budgets above. One that stops being read is released this long afterwards. Footer entries are keyed by path and file length rather than by the object's version, so a file overwritten in place at the same length shares a cache entry with the previous one. A write cap at six times this TTL bounds how long stale raw footer bytes may be served: at the 5-minute default they're force-expired within 30 minutes and re-read from storage. Parsed footers can be served for longer, up to approximately 60 minutes at the default TTL, because a parsed-cache eviction may reparse from bytes that are still within their own cap, starting a new parsed-entry clock. Lowering this setting shortens both windows proportionally.
+    A footer that every dashboard refresh reads stays cached, within the budgets above. One that stops being read is released this long afterwards, and every entry is released at most six times this long after it was cached. This setting bounds memory, not freshness: footer entries are keyed by the object's version, so a rewritten object is read with its new footer. An object without a version isn't footer-cached.
 
 $$$esql-external-cache-footer-coalesce$$$
 

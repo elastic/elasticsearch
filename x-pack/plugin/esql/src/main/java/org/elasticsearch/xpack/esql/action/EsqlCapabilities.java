@@ -3749,9 +3749,9 @@ public class EsqlCapabilities {
 
         /**
          * {@code unmapped_fields="LOAD_ALL"} may be used with views. A view is a boundary the setting does not reach into, as
-         * for {@code LOAD}: nothing is loaded from {@code _source} inside a view body, so the view's {@code _unmapped_fields}
-         * and the unmapped fields it does not output are null. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is
-         * available.
+         * for {@code LOAD}: nothing is loaded from {@code _source} inside a view body. A view has no {@code _unmapped_fields}
+         * column, which unions null-fill where a sibling branch has one, and the unmapped fields it does not output are null.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
         OPTIONAL_FIELDS_LOAD_ALL_VIEWS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 

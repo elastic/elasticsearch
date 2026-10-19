@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.view.PutViewAction;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -263,7 +264,9 @@ public class ViewSettingsIT extends AbstractEsqlIntegTestCase {
             """)) {
             assertThat(columnNames(resp), equalTo(List.of("id", "_unmapped_fields")));
             // The caller's own index returns its unmapped field, the view's rows get none.
-            assertThat(getValuesList(resp).stream().map(row -> row.get(1) == null).toList(), equalTo(List.of(true, true, false)));
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows.stream().map(row -> row.get(1) == null).toList(), equalTo(List.of(true, true, false)));
+            assertThat(rows.get(2).get(1), equalTo(Map.of("extra", "e3")));
         }
     }
 

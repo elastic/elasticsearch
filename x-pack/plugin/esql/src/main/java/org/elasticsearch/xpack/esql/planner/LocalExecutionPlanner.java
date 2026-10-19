@@ -2943,7 +2943,7 @@ public class LocalExecutionPlanner {
             );
             var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
             // node_reduce shares the shard contexts but does not read them
-            if (description.equals(ComputeService.DATA_DESCRIPTION) && shardContexts.isEmpty() == false) {
+            if (ComputeService.DATA_DESCRIPTION.equals(description) && shardContexts.isEmpty() == false) {
                 driverContext.setQueueTimeListener(shareQueueTimeAcrossShards(shardContexts));
             }
             try {

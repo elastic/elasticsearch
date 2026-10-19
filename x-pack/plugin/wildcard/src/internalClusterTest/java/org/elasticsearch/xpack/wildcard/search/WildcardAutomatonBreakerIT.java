@@ -14,10 +14,12 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
@@ -78,7 +80,13 @@ public class WildcardAutomatonBreakerIT extends ESIntegTestCase {
     }
 
     public void testAutomatonStaysChargedUntilSearchContextReleased() {
-        assertAcked(indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("wildcard", "type=wildcard"));
+        // Async translog durability keeps the last unsynced translog buffer page charged to the request breaker (in tests) until the
+        // next periodic sync, which would leak into the baseline.
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setSettings(indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
+                .setMapping("wildcard", "type=wildcard")
+        );
         for (int i = 0; i < 20; i++) {
             prepareIndex("test").setSource("wildcard", "xxa" + GAP + "bzzc" + i).get();
         }

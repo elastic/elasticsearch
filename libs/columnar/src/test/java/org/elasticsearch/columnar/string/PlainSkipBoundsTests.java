@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class PlainSkipBoundsTests extends ESTestCase {
 
-    public void testBlockBoundsAreTheExactSmallestAndLargestValue() throws IOException {
+    public void testEntryBoundsAreTheExactSmallestAndLargestValue() throws IOException {
         for (int round = 0; round < 20; round++) {
             final BytesRef[] pool = PlainSkipTestValues.randomPool(between(1, 30));
             final BytesRef[][] docSlots = randomDocSlots(between(1, 400), pool);
@@ -57,7 +57,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
         }
     }
 
-    public void testAQueryRulesOutABlockExactlyWhenTheBoundsProveItEmpty() throws IOException {
+    public void testAQueryRulesOutAnEntryExactlyWhenTheBoundsProveItEmpty() throws IOException {
         for (int round = 0; round < 25; round++) {
             final BytesRef[] pool = PlainSkipTestValues.randomPool(between(1, 20));
             final BytesRef[][] docSlots = randomDocSlots(between(1, 300), pool);
@@ -78,7 +78,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
         }
     }
 
-    public void testNoBlockHoldingAMatchingValueIsExcluded() throws IOException {
+    public void testNoEntryHoldingAMatchingValueIsExcluded() throws IOException {
         for (int round = 0; round < 25; round++) {
             final BytesRef[] pool = PlainSkipTestValues.randomPool(between(1, 20));
             final BytesRef[][] docSlots = randomDocSlots(between(1, 300), pool);
@@ -174,7 +174,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
         }
     }
 
-    public void testTheDirectoryNamesTheDocumentHoldingTheFirstSlotOfEachBlock() throws IOException {
+    public void testTheDirectoryNamesTheDocumentHoldingTheFirstSlotOfEachEntry() throws IOException {
         for (int round = 0; round < 25; round++) {
             final BytesRef[] pool = PlainSkipTestValues.randomPool(between(1, 10));
             final BytesRef[][] docSlots = randomDocSlots(between(1, 500), pool);
@@ -190,7 +190,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
         }
     }
 
-    public void testTheRegionHoldsExactlyTheDirectoryAndTheBoundsOfTheBlocks() throws IOException {
+    public void testTheRegionHoldsExactlyTheDirectoryAndTheBoundsOfTheEntries() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[][] {
             { new BytesRef("abc"), new BytesRef("b") },
             { null },
@@ -301,7 +301,7 @@ public class PlainSkipBoundsTests extends ESTestCase {
         }
     }
 
-    public void testOpeningAReaderAndAskingAboutABlockReadsAFewBytesWhateverTheColumnSize() throws IOException {
+    public void testOpeningAReaderAndAskingAboutAnEntryReadsAFewBytesWhateverTheColumnSize() throws IOException {
         final int blocks = 20_000;
         final BytesRef[][] docSlots = new BytesRef[blocks * 4][];
         for (int doc = 0; doc < docSlots.length; doc++) {

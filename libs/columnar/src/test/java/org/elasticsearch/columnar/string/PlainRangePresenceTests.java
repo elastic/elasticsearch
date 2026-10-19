@@ -23,7 +23,7 @@ import java.util.List;
 
 public class PlainRangePresenceTests extends ESTestCase {
 
-    public void testTheDocumentsKeptAreExactlyThoseWithASlotInABlockTheBoundsKeep() throws IOException {
+    public void testTheDocumentsKeptAreExactlyThoseWithASlotInAnEntryTheBoundsKeep() throws IOException {
         for (int round = 0; round < 25; round++) {
             final BytesRef[] pool = PlainSkipTestValues.randomPool(between(1, 25));
             final BytesRef[][] docSlots = PlainSkipBoundsTests.randomDocSlots(between(1, 600), pool);
@@ -99,7 +99,7 @@ public class PlainRangePresenceTests extends ESTestCase {
         }
     }
 
-    public void testADocumentSpanningBlocksIsKeptWhenAnyOfItsBlocksIsKept() throws IOException {
+    public void testADocumentSpanningEntriesIsKeptWhenAnyOfItsEntriesIsKept() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[][] {
             { new BytesRef("a"), new BytesRef("a") },
             { new BytesRef("a"), new BytesRef("z"), new BytesRef("a"), new BytesRef("a") },
@@ -129,7 +129,7 @@ public class PlainRangePresenceTests extends ESTestCase {
         }
     }
 
-    public void testWholeBlocksOutsideTheQueryAreSkippedWithoutVisitingTheirDocuments() throws IOException {
+    public void testWholeEntriesOutsideTheQueryAreSkippedWithoutVisitingTheirDocuments() throws IOException {
         final int blocks = 10;
         final int perBlock = 8;
         final BytesRef[][] docSlots = new BytesRef[blocks * perBlock][];
@@ -149,7 +149,7 @@ public class PlainRangePresenceTests extends ESTestCase {
         }
     }
 
-    public void testTheFinalPartialBlockAndTargetsPastTheEndTerminate() throws IOException {
+    public void testTheFinalPartialEntryAndTargetsPastTheEndTerminate() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[2 * 8 + 3][];
         for (int doc = 0; doc < docSlots.length; doc++) {
             docSlots[doc] = new BytesRef[] { new BytesRef(doc >= 16 ? "z" : "a") };
@@ -266,7 +266,7 @@ public class PlainRangePresenceTests extends ESTestCase {
         }
     }
 
-    public void testABlockStartingAtOrBeforeTheCurrentDocumentIsCorrupt() throws IOException {
+    public void testAnEntryStartingAtOrBeforeTheCurrentDocumentIsCorrupt() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[8][];
         for (int doc = 0; doc < docSlots.length; doc++) {
             docSlots[doc] = new BytesRef[] { new BytesRef(doc < 4 ? "a" : "b") };
@@ -298,7 +298,7 @@ public class PlainRangePresenceTests extends ESTestCase {
         }
     }
 
-    public void testAJumpToADocumentThatDoesNotOwnTheBlockIsCorrupt() throws IOException {
+    public void testAJumpToADocumentThatDoesNotOwnTheEntryIsCorrupt() throws IOException {
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = twoBlocks(dir)) {
             final PlainSkipBounds.Query skipFirstBlock = PlainSkipBounds.Query.range(new BytesRef("b"), true, new BytesRef("b"), true);
             assertEquals(List.of(4, 5, 6, 7), collect(fixture.presence(skipFirstBlock)));
@@ -319,7 +319,7 @@ public class PlainRangePresenceTests extends ESTestCase {
         return PlainSkipFixture.build(dir, docSlots, 4);
     }
 
-    public void testARunAfterAGapInThePresenceEndsWhereItsBlockEnds() throws IOException {
+    public void testARunAfterAGapInThePresenceEndsWhereItsEntryEnds() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[228][];
         for (int doc = 0; doc < docSlots.length; doc++) {
             if (doc < 2 || (doc >= 100 && doc < 226)) {

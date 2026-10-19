@@ -118,7 +118,7 @@ public class PlainStringColumnLayoutTests extends ColumnarStringTestCase {
         }
     }
 
-    public void testChunksOfExcludedBlocksAreNotReadAndAChunkSharedWithAKeptBlockIs() throws IOException {
+    public void testChunksOfExcludedEntriesAreNotReadAndAChunkSharedWithAKeptEntryIs() throws IOException {
         final BytesRef[][] docSlots = descendingDistinct(60 * BLOCK, 24);
         final BytesRef term = docSlots[docSlots.length / 2][0];
         for (int chunkBytes : new int[] { 4096, 32768 }) {

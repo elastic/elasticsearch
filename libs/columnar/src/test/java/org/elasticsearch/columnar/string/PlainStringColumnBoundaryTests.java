@@ -105,7 +105,7 @@ public class PlainStringColumnBoundaryTests extends ColumnarStringTestCase {
         }
     }
 
-    public void testExtremaThatAppearOnlyInTheFinalSlotOfAPartialBlockAreFound() throws IOException {
+    public void testExtremaThatAppearOnlyInTheFinalSlotOfAPartialEntryAreFound() throws IOException {
         for (String extreme : new String[] { "a", "z" }) {
             final BytesRef[][] docSlots = new BytesRef[3 * BLOCK + 5][];
             for (int doc = 0; doc < docSlots.length; doc++) {
@@ -126,7 +126,7 @@ public class PlainStringColumnBoundaryTests extends ColumnarStringTestCase {
         }
     }
 
-    public void testADocumentSpanningBlocksIsFoundWhicheverOfItsBlocksIsTheOnlyKeptOne() throws IOException {
+    public void testADocumentSpanningEntriesIsFoundWhicheverOfItsEntriesIsTheOnlyKeptOne() throws IOException {
         final BytesRef[] spanning = new BytesRef[300];
         for (int slot = 0; slot < spanning.length; slot++) {
             spanning[slot] = slot >= 2 * BLOCK && slot % 5 == 0 ? null : new BytesRef(slot < BLOCK ? "a" : slot < 2 * BLOCK ? "b" : "c");
@@ -151,7 +151,7 @@ public class PlainStringColumnBoundaryTests extends ColumnarStringTestCase {
         });
     }
 
-    public void testABlockTheBoundsKeepIsStillConfirmedAgainstItsValues() throws IOException {
+    public void testAnEntryTheBoundsKeepIsStillConfirmedAgainstItsValues() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[4 * BLOCK][];
         for (int doc = 0; doc < docSlots.length; doc++) {
             docSlots[doc] = new BytesRef[] { new BytesRef(doc % 2 == 0 ? "a" : "e") };

@@ -24,6 +24,7 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.BaseVectorizationTests;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
+import org.elasticsearch.simdvec.Offsets;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
 import java.io.IOException;
@@ -605,8 +606,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                         queryData.additionalCorrection(),
                         similarityFunction,
                         centroidDp,
-                        offsets,
-                        offsetsCount,
+                        toOffsets(defaultScorer, offsets, offsetsCount),
                         scoresDefault,
                         count
                     );
@@ -618,8 +618,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                         queryData.additionalCorrection(),
                         similarityFunction,
                         centroidDp,
-                        offsets,
-                        offsetsCount,
+                        toOffsets(panamaScorer, offsets, offsetsCount),
                         scoresPanama,
                         count
                     );
@@ -633,8 +632,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                         queryData.additionalCorrection(),
                         similarityFunction,
                         centroidDp,
-                        offsets,
-                        offsetsCount,
+                        toOffsets(nativeScorer, offsets, offsetsCount),
                         scoresNative,
                         count
                     );
@@ -661,6 +659,14 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                 }
             }
         }
+    }
+
+    private static Offsets toOffsets(ES940OSQVectorsScorer scorer, int[] positions, int count) {
+        Offsets offsets = scorer.createOffsetStorage();
+        for (int k = 0; k < count; k++) {
+            offsets.add(positions[k]);
+        }
+        return offsets;
     }
 
     private static void assertFilteredNotScored(int count, int[] offsets, float[] scoresDefault) {

@@ -24,6 +24,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.SlicedBlockRange;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.Offsets;
 
 import java.io.IOException;
 
@@ -297,7 +298,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
     // Scratch buffers for bulk I/O
     final DocIdsWriter idsWriter = new DocIdsWriter();
     final int[] docIdsScratch = new int[BULK_SIZE];
-    final int[] offsetsScratch = new int[BULK_SIZE];
+    final Offsets offsetsScratch;
     private final float[] scores = new float[BULK_SIZE];
     // Per-vector corrections in SoA layout: [scales][offsets][docSums][vecCentroidDots][vecCentroidSqDists]
     private final byte[] bulkCorrectionsBuf = new byte[BULK_SIZE * CORRECTION_BYTES];
@@ -341,6 +342,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         this.query = query;
         this.centroidReader = centroidReader;
         this.scorer = scorer;
+        this.offsetsScratch = scorer.createOffsetStorage(BULK_SIZE);
         this.scorerQuery = scorerQuery;
         this.correctionApplier = correctionApplier;
         this.similarityConverter = similarityConverter;
@@ -380,6 +382,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         this.query = query;
         this.centroidReader = centroidReader;
         this.scorer = scorer;
+        this.offsetsScratch = scorer.createOffsetStorage(BULK_SIZE);
         this.scorerQuery = scorerQuery;
 
         // Correction applier: captures quantization params for integer path,
@@ -474,7 +477,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
 
         // Step 1: Read packed codes via the scorer (produces raw dot products).
         if (docsToScore < blockSize) {
-            scorer.scoreBulkOffsets(scorerQuery, offsetsScratch, docsToScore, scores, blockSize);
+            scorer.scoreBulkOffsets(scorerQuery, offsetsScratch, scores, blockSize);
         } else {
             scorer.scoreBulk(scorerQuery, blockSize, scores);
         }
@@ -521,16 +524,15 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         if (acceptDocs == null) {
             return bulkSize;
         }
-        int docToScore = 0;
+        offsetsScratch.reset();
         for (int ii = 0; ii < bulkSize; ii++) {
             if (docIdsScratch[ii] == -1 || acceptDocs.get(docIdsScratch[ii]) == false) {
                 docIdsScratch[ii] = -1;
             } else {
-                offsetsScratch[docToScore] = ii;
-                docToScore++;
+                offsetsScratch.add(ii);
             }
         }
-        return docToScore;
+        return offsetsScratch.count();
     }
 
     private void collectBulk(KnnCollector knnCollector, int bulkSize, int docsToScore, float maxScore) {
@@ -540,7 +542,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
                 return;
             }
             for (int ii = 0; ii < docsToScore; ii++) {
-                int offset = offsetsScratch[ii];
+                int offset = offsetsScratch.get(ii);
                 docIdsScratch[ii] = docIdsScratch[offset];
                 scores[ii] = scores[offset];
             }
@@ -618,16 +620,15 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         int filterAcceptedDocs(int bulkSize) {
             // Combined slice range filtering (already applied in readDocIds via -1 sentinel)
             // plus acceptDocs filtering.
-            int docsToScore = 0;
+            offsetsScratch.reset();
             for (int i = 0; i < bulkSize; i++) {
                 if (docIdsScratch[i] == -1 || (acceptDocs != null && acceptDocs.get(docIdsScratch[i]) == false)) {
                     docIdsScratch[i] = -1;
                 } else {
-                    offsetsScratch[docsToScore] = i;
-                    docsToScore++;
+                    offsetsScratch.add(i);
                 }
             }
-            return docsToScore;
+            return offsetsScratch.count();
         }
     }
 }

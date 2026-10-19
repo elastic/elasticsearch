@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.internal.HeapOffsets;
 import org.elasticsearch.simdvec.internal.vectorization.BBQDotProduct;
 import org.elasticsearch.simdvec.internal.vectorization.JdkFeatures;
 
@@ -152,6 +153,14 @@ public class ES940OSQVectorsScorer {
     }
 
     /**
+     * Creates the {@link Offsets} to pass to {@link #quantizeScoreBulkOffsets} and {@link #scoreBulkOffsets},
+     * holding up to {@link #bulkSize} positions.
+     */
+    public Offsets createOffsetStorage() {
+        return new HeapOffsets(bulkSize);
+    }
+
+    /**
      * compute the quantize distance between the provided quantized query and the quantized vector
      * that is read from the wrapped {@link IndexInput}.
      */
@@ -213,12 +222,13 @@ public class ES940OSQVectorsScorer {
      * Compute the quantize distance between the provided quantized query and the quantized vectors
      * that are read from the wrapped {@link IndexInput}. The number of quantized vectors to read is
      * determined by {@param count} and the results are stored in the provided {@param scores} array.
-     * Only the {@param offsetsCount} vectors that are indexed in the provided {@param offsets} are scored; the others are skipped.
+     * Only the vectors at the positions in the provided {@param offsets} are scored; the others are skipped.
      */
-    public void quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+    public void quantizeScoreBulkOffsets(byte[] q, Offsets offsets, float[] scores, int count) throws IOException {
+        int offsetsCount = offsets.count();
         int offsetIndex = 0;
         for (int i = 0; i < count; i++) {
-            if (offsetIndex < offsetsCount && offsets[offsetIndex] == i) {
+            if (offsetIndex < offsetsCount && offsets.get(offsetIndex) == i) {
                 offsetIndex++;
                 scores[i] = quantizeScore(q);
             } else {
@@ -348,7 +358,7 @@ public class ES940OSQVectorsScorer {
      * Compute the distance between the provided quantized query and the quantized vectors that are
      * read from the wrapped {@link IndexInput}.
      * <p>
-     * Similar to {@link #scoreBulk}, but only the {@param offsetsCount} vectors indexed by the provided {@param offsets} are scored;
+     * Similar to {@link #scoreBulk}, but only the vectors at the positions in the provided {@param offsets} are scored;
      * the others are skipped.
      * <p>
      * The results are stored in the provided {@param scores} array.
@@ -361,14 +371,14 @@ public class ES940OSQVectorsScorer {
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        int[] offsets,
-        int offsetsCount,
+        Offsets offsets,
         float[] scores,
         int count
     ) throws IOException {
+        int offsetsCount = offsets.count();
         assert offsetsCount <= this.bulkSize : "supplied offsets length > this scorer's bulkSize";
         assert count <= this.bulkSize : "supplied count > this scorer's bulkSize";
-        quantizeScoreBulkOffsets(q, offsets, offsetsCount, scores, count);
+        quantizeScoreBulkOffsets(q, offsets, scores, count);
         in.readFloats(lowerIntervals, 0, count);
         in.readFloats(upperIntervals, 0, count);
         in.readInts(targetComponentSums, 0, count);
@@ -376,7 +386,7 @@ public class ES940OSQVectorsScorer {
         float maxScore = Float.NEGATIVE_INFINITY;
         int offsetIndex = 0;
         for (int i = 0; i < count; i++) {
-            if (offsetIndex < offsetsCount && offsets[offsetIndex] == i) {
+            if (offsetIndex < offsetsCount && offsets.get(offsetIndex) == i) {
                 offsetIndex++;
                 scores[i] = applyCorrectionsIndividually(
                     queryLowerInterval,

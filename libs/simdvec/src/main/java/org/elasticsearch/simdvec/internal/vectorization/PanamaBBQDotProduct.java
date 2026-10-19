@@ -18,6 +18,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.simdvec.BBQEncoding;
+import org.elasticsearch.simdvec.Offsets;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -83,7 +84,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
     public abstract void dotProductBulk(byte[] query, int count, float[] scores) throws IOException;
 
     @Override
-    public abstract void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException;
+    public abstract void dotProductBulkOffsets(byte[] query, Offsets offsets, float[] scores, int count) throws IOException;
 
     private static final class D1Q1Impl extends PanamaBBQDotProduct {
 
@@ -138,14 +139,15 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
         }
 
         @Override
-        public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+        public void dotProductBulkOffsets(byte[] query, Offsets offsets, float[] scores, int count) throws IOException {
             assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
+            int offsetsCount = offsets.count();
             // one slice covers the whole block, so skipped vectors are simply not scored
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
                     int next = 0;
                     for (int i = 0; i < count; i++) {
-                        if (next < offsetsCount && offsets[next] == i) {
+                        if (next < offsetsCount && offsets.get(next) == i) {
                             next++;
 
                             long offset = (long) i * docBytes;
@@ -161,7 +163,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
                 IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
                     int next = 0;
                     for (int i = 0; i < count; i++) {
-                        if (next < offsetsCount && offsets[next] == i) {
+                        if (next < offsetsCount && offsets.get(next) == i) {
                             next++;
 
                             long offset = (long) i * docBytes;
@@ -298,14 +300,15 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
         }
 
         @Override
-        public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+        public void dotProductBulkOffsets(byte[] query, Offsets offsets, float[] scores, int count) throws IOException {
             assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
+            int offsetsCount = offsets.count();
             // one slice covers the whole block, so skipped vectors are simply not scored
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
                     int next = 0;
                     for (int i = 0; i < count; i++) {
-                        if (next < offsetsCount && offsets[next] == i) {
+                        if (next < offsetsCount && offsets.get(next) == i) {
                             next++;
 
                             long offset = (long) i * docBytes;
@@ -321,7 +324,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
                 IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
                     int next = 0;
                     for (int i = 0; i < count; i++) {
-                        if (next < offsetsCount && offsets[next] == i) {
+                        if (next < offsetsCount && offsets.get(next) == i) {
                             next++;
 
                             long offset = (long) i * docBytes;

@@ -11,7 +11,9 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.simdvec.BBQEncoding;
+import org.elasticsearch.simdvec.Offsets;
 import org.elasticsearch.simdvec.SimdVecLibrary;
+import org.elasticsearch.simdvec.internal.NativeOffsets;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -117,11 +119,17 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     }
 
     @Override
-    public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+    public Offsets createOffsetStorage(int capacity) {
+        return new NativeOffsets(capacity);
+    }
+
+    @Override
+    public void dotProductBulkOffsets(byte[] query, Offsets offsets, float[] scores, int count) throws IOException {
         assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
         MemorySegment querySegment = querySegment(query);
         MemorySegment scoresSegment = scoresSegment(scores);
-        MemorySegment offsetsSegment = MemorySegment.ofArray(offsets);
+        MemorySegment offsetsSegment = offsets.getSegment();
+        int offsetsCount = offsets.count();
         IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, dataSegment -> {
             switch (encoding.toSwitchValue()) {
                 case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1BulkWithOffsets(
@@ -172,16 +180,16 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
                 default -> throw new AssertionError("Unsupported encoding: " + encoding);
             }
         });
-        repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
+        repositionScoresMatchingOffsets(offsets, scores);
     }
 
     /**
      * The native methods put their scores all at the start of {@code scores}.
      * So we need to move each score to the correct position in {@code scores}.
      */
-    private static void repositionScoresMatchingOffsets(int[] offsets, int offsetsCount, float[] scores) {
-        for (int i = offsetsCount - 1; i >= 0; i--) {
-            int finalScoreIndex = offsets[i];
+    private static void repositionScoresMatchingOffsets(Offsets offsets, float[] scores) {
+        for (int i = offsets.count() - 1; i >= 0; i--) {
+            int finalScoreIndex = offsets.get(i);
             if (i < finalScoreIndex) {
                 scores[finalScoreIndex] = scores[i];
                 scores[i] = 0;

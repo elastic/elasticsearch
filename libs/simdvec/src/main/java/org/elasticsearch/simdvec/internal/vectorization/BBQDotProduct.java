@@ -13,7 +13,9 @@ import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.Offsets;
 import org.elasticsearch.simdvec.internal.HeapBufferScratch;
+import org.elasticsearch.simdvec.internal.HeapOffsets;
 
 import java.io.IOException;
 
@@ -121,18 +123,25 @@ public class BBQDotProduct {
     }
 
     /**
+     * Creates the {@link Offsets} to pass to {@link #dotProductBulkOffsets}, holding up to {@code capacity} positions.
+     */
+    public Offsets createOffsetStorage(int capacity) {
+        return new HeapOffsets(capacity);
+    }
+
+    /**
      * Scores a subset of the next {@code count} data vectors, advancing the input past all of them
      * so a block can be consumed whole even when most of it is filtered out.
      * Positions not listed in {@code offsets} are left untouched.
      *
-     * @param offsets      positions within the block to score, strictly ascending and all less than {@code count}
-     * @param offsetsCount number of valid entries in {@code offsets}
+     * @param offsets      positions within the block to score, all less than {@code count}
      * @param scores       receives the score at each listed position
      */
-    public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+    public void dotProductBulkOffsets(byte[] query, Offsets offsets, float[] scores, int count) throws IOException {
+        int offsetsCount = offsets.count();
         int next = 0;
         for (int i = 0; i < count; i++) {
-            if (next < offsetsCount && offsets[next] == i) {
+            if (next < offsetsCount && offsets.get(next) == i) {
                 next++;
                 scores[i] = dotProduct(query);
             } else {

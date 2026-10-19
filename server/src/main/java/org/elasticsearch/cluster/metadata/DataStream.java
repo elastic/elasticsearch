@@ -856,7 +856,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
         ensureNotReplicated();
-
+        ensureSafeMigrationToTimeSeries(indexModeFromTemplate);
         return unsafeRollover(writeIndex, generation, indexModeFromTemplate, autoShardingEvent);
     }
 
@@ -886,8 +886,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             dsIndexMode = IndexMode.LOGSDB;
             LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
         } else if (dsIndexMode == IndexMode.LOGSDB && indexModeFromTemplate == IndexMode.TIME_SERIES) {
+            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, dsIndexMode, indexModeFromTemplate);
             dsIndexMode = IndexMode.TIME_SERIES;
-            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
         }
 
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
@@ -948,6 +948,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private void ensureNotReplicated() {
         if (replicated) {
             throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, because it is a replicated data stream");
+        }
+    }
+
+    private void ensureSafeMigrationToTimeSeries(IndexMode indexModeFromTemplate) {
+        IndexMode dsIndexMode = this.indexMode == null ? IndexMode.STANDARD : this.indexMode;
+        if (indexModeFromTemplate == IndexMode.TIME_SERIES && dsIndexMode != IndexMode.TIME_SERIES && dsIndexMode != IndexMode.STANDARD) {
+            throw new IllegalArgumentException(
+                "data stream ["
+                    + name
+                    + "] cannot be rolled over, because migrating from ["
+                    + dsIndexMode.getName()
+                    + "] to ["
+                    + indexModeFromTemplate.getName()
+                    + "] is not supported, please first change the [index.mode] in the template to ["
+                    + IndexMode.STANDARD.getName()
+                    + "], roll over, and try again."
+            );
         }
     }
 

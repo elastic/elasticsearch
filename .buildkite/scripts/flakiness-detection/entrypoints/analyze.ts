@@ -426,7 +426,7 @@ export function shouldBlock(
     return { block: false, reason: "no job proved flakiness" };
   }
   if (!isPullRequestBuild(pullRequest)) {
-    return { block: true, reason: "this is not a PR build" };
+    return { block: true, reason: `this is not a PR build (BUILDKITE_PULL_REQUEST="${pullRequest}")` };
   }
   if (blockAllPrs) {
     return { block: true, reason: "blocking is enabled for all PRs" };

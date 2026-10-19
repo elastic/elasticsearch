@@ -239,13 +239,19 @@ describe("shouldBlock", () => {
       for (const pullRequest of [NOT_A_PR, ""]) {
         for (const labels of ["", OPTED_IN, OTHER_LABELS]) {
           for (const blockAllPrs of [false, true]) {
-            expect(shouldBlock(PROVEN, { pullRequest, labels, blockAllPrs })).toEqual({
-              block: true,
-              reason: "this is not a PR build",
-            });
+            expect(shouldBlock(PROVEN, { pullRequest, labels, blockAllPrs }).block).toBe(true);
           }
         }
       }
+    });
+
+    test("the reason shows the raw value, so a PR build missing its PR number is easy to spot", () => {
+      expect(shouldBlock(PROVEN, { pullRequest: NOT_A_PR, labels: "" }).reason).toBe(
+        'this is not a PR build (BUILDKITE_PULL_REQUEST="false")'
+      );
+      expect(shouldBlock(PROVEN, { pullRequest: "", labels: "" }).reason).toBe(
+        'this is not a PR build (BUILDKITE_PULL_REQUEST="")'
+      );
     });
 
     test("nothing proven still passes", () => {

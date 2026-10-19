@@ -683,7 +683,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
         @Override
         protected MappedFieldType fieldType(String name) {
             MappedFieldType fieldType = super.fieldType(name);
-            if (fieldType instanceof ConstantFieldType) {
+            if (fieldType instanceof ConstantFieldType && isMetadataField(fieldType.name()) == false) {
                 containsConstantField = true;
             }
             return fieldType;

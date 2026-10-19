@@ -1,0 +1,5 @@
+pr: 162516
+summary: Read a declared `date` over a Parquet microsecond timestamp in one step
+area: ES|QL
+type: bug
+issues: []

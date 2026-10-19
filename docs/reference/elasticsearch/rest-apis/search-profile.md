@@ -868,7 +868,7 @@ The `rescore` section in the profile response is an array with one element per r
   }
 }
 ```
-% TESTRESPONSE[s/(?>=[" ])\d+(\.\d+)?/$body.$_path/]
+ % TESTRESPONSE[s/"time_in_nanos": 254826/"time_in_nanos": $body.profile.shards.0.rescore.0.time_in_nanos/]
 
 1. The name of the rescorer, such as `query` or `learning_to_rank`.
 2. What the rescorer runs. For a `query` rescorer, this is its `rescore_query`. For a `learning_to_rank` rescorer, this is `model [<model_id>]`.

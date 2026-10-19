@@ -456,7 +456,7 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
                         );
 
                         BatchedCompoundCommit latestBcc = commitService.getLatestUploadedBcc(shardId);
-                        final BlobFile latestBccBlob = latestBcc.toBlobFile();
+                        final BccBlobFile latestBccBlob = latestBcc.toBlobFile();
                         Set<BlobFile> otherBlobs = commitService.getTrackedUploadedBlobFilesUpTo(
                             shardId,
                             latestBcc.primaryTermAndGeneration().generation()

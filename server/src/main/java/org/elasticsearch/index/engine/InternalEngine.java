@@ -1201,7 +1201,7 @@ public class InternalEngine extends Engine {
                         // lastUnsafeSegmentGenerationForGets (inclusive). Therefore, it is ok for it be larger
                         // which means the search shard needs to wait for extra generations and these generations
                         // are guaranteed to happen since they are all committed.
-                        lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration());
+                        lastUnsafeSegmentGenerationForGets.accumulateAndGet(lastCommittedSegmentInfos.getGeneration(), Math::max);
                     }
                 }
                 versionMap.enforceSafeAccess();

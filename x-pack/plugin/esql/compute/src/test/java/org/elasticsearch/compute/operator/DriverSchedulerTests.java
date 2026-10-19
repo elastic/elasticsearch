@@ -38,7 +38,7 @@ public class DriverSchedulerTests extends ESTestCase {
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch ran = new CountDownLatch(1);
         AtomicInteger reports = new AtomicInteger();
-        AtomicLong reportedNanos = new AtomicLong();
+        AtomicLong reportedMicros = new AtomicLong();
         try {
             executor.execute(() -> {
                 blockerStarted.countDown();
@@ -55,9 +55,9 @@ public class DriverSchedulerTests extends ESTestCase {
                 protected void doRun() {
                     ran.countDown();
                 }
-            }, queueTimeNanos -> {
+            }, queueTimeMicros -> {
                 reports.incrementAndGet();
-                reportedNanos.set(queueTimeNanos);
+                reportedMicros.set(queueTimeMicros);
             });
             long queuedAtLeastNanos = TimeUnit.MILLISECONDS.toNanos(20);
             long start = System.nanoTime();
@@ -67,7 +67,7 @@ public class DriverSchedulerTests extends ESTestCase {
             release.countDown();
             safeAwait(ran);
             assertThat(reports.get(), equalTo(1));
-            assertThat(reportedNanos.get(), greaterThanOrEqualTo(queuedAtLeastNanos));
+            assertThat(reportedMicros.get(), greaterThanOrEqualTo(TimeUnit.NANOSECONDS.toMicros(queuedAtLeastNanos)));
         } finally {
             release.countDown();
             terminate(threadPool);
@@ -102,7 +102,7 @@ public class DriverSchedulerTests extends ESTestCase {
                 protected void doRun() {
                     ranDirectly.countDown();
                 }
-            }, queueTimeNanos -> reports.incrementAndGet());
+            }, queueTimeMicros -> reports.incrementAndGet());
             scheduler.runPendingTasks();
             safeAwait(ranDirectly);
 
@@ -145,7 +145,7 @@ public class DriverSchedulerTests extends ESTestCase {
                 protected void doRun() {
                     counter.incrementAndGet();
                 }
-            }, queueTimeNanos -> {});
+            }, queueTimeMicros -> {});
             scheduler.runPendingTasks();
             assertThat(counter.get(), equalTo(1));
         } finally {

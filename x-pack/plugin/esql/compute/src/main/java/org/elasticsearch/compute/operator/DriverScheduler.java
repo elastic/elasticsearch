@@ -50,9 +50,9 @@ final class DriverScheduler {
         final Executor executorToUse = completing.get() ? EsExecutors.DIRECT_EXECUTOR_SERVICE : executor;
         class QueueTimeReportingRunnable extends AbstractRunnable implements QueueTimeAware {
             @Override
-            public void onQueueTime(long queueTimeNanos) {
+            public void onQueueTime(long queueTimeMicros) {
                 if (scheduledTask.get() == task) {
-                    queueTimeListener.accept(queueTimeNanos);
+                    queueTimeListener.accept(queueTimeMicros);
                 }
             }
 

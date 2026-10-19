@@ -416,17 +416,17 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build());
         prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex("index"));
-        assertEquals(0.0, queueTimeTaskCount(indexService), 0.0);
+        assertEquals(0.0, totalQueuedTasks(indexService), 0.0);
 
         assertHitCount(client().prepareSearch("index"), 1);
 
-        assertThat(queueTimeTaskCount(indexService), greaterThanOrEqualTo(3.0));
+        assertThat(totalQueuedTasks(indexService), greaterThanOrEqualTo(3.0));
     }
 
-    private static double queueTimeTaskCount(IndexService indexService) {
+    private static double totalQueuedTasks(IndexService indexService) {
         double count = 0;
         for (IndexShard shard : indexService) {
-            count += shard.shardSearchStats().queueTimeTaskCount();
+            count += shard.shardSearchStats().totalQueuedTasks();
         }
         return count;
     }

@@ -60,14 +60,14 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
     }
 
     public void testQueueTime() {
-        assertEquals(0.0, shardSearchStatsListener.queueTimeTaskCount(), 0.0);
-        assertEquals(0L, shardSearchStatsListener.totalQueueTimeInNanos());
+        assertEquals(0.0, shardSearchStatsListener.totalQueuedTasks(), 0.0);
+        assertEquals(0L, shardSearchStatsListener.totalQueueTimeInMicros());
 
-        shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toNanos(TEN_MILLIS));
-        shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toNanos(2 * TEN_MILLIS));
+        shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toMicros(TEN_MILLIS));
+        shardSearchStatsListener.onQueueTime(TimeUnit.MILLISECONDS.toMicros(2 * TEN_MILLIS));
 
-        assertEquals(2.0, shardSearchStatsListener.queueTimeTaskCount(), 1e-9);
-        assertEquals(TimeUnit.MILLISECONDS.toNanos(3 * TEN_MILLIS), shardSearchStatsListener.totalQueueTimeInNanos());
+        assertEquals(2.0, shardSearchStatsListener.totalQueuedTasks(), 1e-9);
+        assertEquals(TimeUnit.MILLISECONDS.toMicros(3 * TEN_MILLIS), shardSearchStatsListener.totalQueueTimeInMicros());
     }
 
     /** A task shared by several shards adds its wait and one task in total across them. */
@@ -77,21 +77,21 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
         ShardSearchStats shardB = new ShardSearchStats(new SearchStatsSettings(clusterSettings));
 
         // a 40 ms task shared by 2 shards, and a 20 ms task on shard A only
-        long sharedWait = TimeUnit.MILLISECONDS.toNanos(40);
+        long sharedWait = TimeUnit.MILLISECONDS.toMicros(40);
         shardA.onQueueTimeShare(sharedWait, 2);
         shardB.onQueueTimeShare(sharedWait, 2);
-        shardA.onQueueTime(TimeUnit.MILLISECONDS.toNanos(20));
+        shardA.onQueueTime(TimeUnit.MILLISECONDS.toMicros(20));
 
-        assertEquals(1.5, shardA.queueTimeTaskCount(), 1e-9);
-        assertEquals(TimeUnit.MILLISECONDS.toNanos(40), shardA.totalQueueTimeInNanos());
-        assertEquals(0.5, shardB.queueTimeTaskCount(), 1e-9);
-        assertEquals(TimeUnit.MILLISECONDS.toNanos(20), shardB.totalQueueTimeInNanos());
+        assertEquals(1.5, shardA.totalQueuedTasks(), 1e-9);
+        assertEquals(TimeUnit.MILLISECONDS.toMicros(40), shardA.totalQueueTimeInMicros());
+        assertEquals(0.5, shardB.totalQueuedTasks(), 1e-9);
+        assertEquals(TimeUnit.MILLISECONDS.toMicros(20), shardB.totalQueueTimeInMicros());
 
-        assertEquals("tasks add up across shards", 2.0, shardA.queueTimeTaskCount() + shardB.queueTimeTaskCount(), 1e-9);
+        assertEquals("tasks add up across shards", 2.0, shardA.totalQueuedTasks() + shardB.totalQueuedTasks(), 1e-9);
         assertEquals(
             "waits add up across shards",
-            TimeUnit.MILLISECONDS.toNanos(60),
-            shardA.totalQueueTimeInNanos() + shardB.totalQueueTimeInNanos()
+            TimeUnit.MILLISECONDS.toMicros(60),
+            shardA.totalQueueTimeInMicros() + shardB.totalQueueTimeInMicros()
         );
     }
 
@@ -99,18 +99,18 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
     public void testQueueTimeShareTruncation() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
         int shardCount = 3;
-        long wait = 1_000_000;
+        long waitMicros = 1_000;
         double tasks = 0;
-        long nanos = 0;
+        long micros = 0;
         for (int i = 0; i < shardCount; i++) {
             ShardSearchStats shard = new ShardSearchStats(new SearchStatsSettings(clusterSettings));
-            shard.onQueueTimeShare(wait, shardCount);
-            tasks += shard.queueTimeTaskCount();
-            nanos += shard.totalQueueTimeInNanos();
+            shard.onQueueTimeShare(waitMicros, shardCount);
+            tasks += shard.totalQueuedTasks();
+            micros += shard.totalQueueTimeInMicros();
         }
         assertEquals(1.0, tasks, 1e-5);
-        assertThat(nanos, lessThanOrEqualTo(wait));
-        assertThat(nanos, greaterThanOrEqualTo(wait - shardCount));
+        assertThat(micros, lessThanOrEqualTo(waitMicros));
+        assertThat(micros, greaterThanOrEqualTo(waitMicros - shardCount));
     }
 
     public void testDfsPhase() {

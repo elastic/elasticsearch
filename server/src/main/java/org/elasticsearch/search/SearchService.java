@@ -1139,8 +1139,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         @Override
-        public final void onQueueTime(long queueTimeNanos) {
-            shardSearchStats.onQueueTime(queueTimeNanos);
+        public final void onQueueTime(long queueTimeMicros) {
+            shardSearchStats.onQueueTime(queueTimeMicros);
         }
     }
 

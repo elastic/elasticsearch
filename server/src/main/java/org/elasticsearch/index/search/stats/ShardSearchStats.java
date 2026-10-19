@@ -66,20 +66,20 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     /**
      * Records the time one task for this shard spent waiting in a thread pool queue. A task is a search phase request or an ES|QL
-     * driver time slice, so the mean wait per task is {@link #totalQueueTimeInNanos()} over {@link #queueTimeTaskCount()}.
+     * driver time slice, so the mean wait per task is {@link #totalQueueTimeInMicros()} over {@link #totalQueuedTasks()}.
      */
-    public void onQueueTime(long queueTimeNanos) {
-        onQueueTimeShare(queueTimeNanos, 1);
+    public void onQueueTime(long queueTimeMicros) {
+        onQueueTimeShare(queueTimeMicros, 1);
     }
 
     /**
      * Records this shard's share of a task's wait when the task worked for {@code shardCount} shards. Each shard gets
      * {@code 1 / shardCount} of the wait and of a task, so sums over the shards approximately add up to the task's wait and to one task.
-     * Integer division truncates, losing under {@code shardCount} nanoseconds and a negligible fraction of a task per call.
+     * Integer division truncates, losing under {@code shardCount} microseconds and a negligible fraction of a task per call.
      */
-    public void onQueueTimeShare(long queueTimeNanos, int shardCount) {
+    public void onQueueTimeShare(long queueTimeMicros, int shardCount) {
         assert shardCount > 0 : "shardCount must be positive but was " + shardCount;
-        totalStats.queueTimeNanos.inc(queueTimeNanos / shardCount);
+        totalStats.queueTimeMicros.inc(queueTimeMicros / shardCount);
         totalStats.queueTimeTaskWeight.inc(QUEUE_TIME_TASK_WEIGHT / shardCount);
     }
 
@@ -87,15 +87,15 @@ public final class ShardSearchStats implements SearchOperationListener {
      * Number of tasks whose wait was recorded by {@link #onQueueTime} and {@link #onQueueTimeShare}, fractional for tasks that were
      * shared between shards.
      */
-    public double queueTimeTaskCount() {
+    public double totalQueuedTasks() {
         return (double) totalStats.queueTimeTaskWeight.count() / QUEUE_TIME_TASK_WEIGHT;
     }
 
     /**
-     * Total wait in nanoseconds of the tasks counted by {@link #queueTimeTaskCount()}.
+     * Total wait in microseconds of the tasks counted by {@link #totalQueuedTasks()}.
      */
-    public long totalQueueTimeInNanos() {
-        return totalStats.queueTimeNanos.count();
+    public long totalQueueTimeInMicros() {
+        return totalStats.queueTimeMicros.count();
     }
 
     @Override
@@ -227,7 +227,7 @@ public final class ShardSearchStats implements SearchOperationListener {
          */
         final MeanMetric scrollMetric = new MeanMetric();
         final MeanMetric suggestMetric = new MeanMetric();
-        final CounterMetric queueTimeNanos = new CounterMetric();
+        final CounterMetric queueTimeMicros = new CounterMetric();
         final CounterMetric queueTimeTaskWeight = new CounterMetric();
         final CounterMetric queryCurrent = new CounterMetric();
         final CounterMetric fetchCurrent = new CounterMetric();

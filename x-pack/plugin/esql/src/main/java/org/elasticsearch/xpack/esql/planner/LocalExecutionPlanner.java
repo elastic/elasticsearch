@@ -2986,9 +2986,9 @@ public class LocalExecutionPlanner {
                 }
             }
             final ShardSearchStats[] stats = statsList.toArray(ShardSearchStats[]::new);
-            return queueTimeNanos -> {
+            return queueTimeMicros -> {
                 for (ShardSearchStats shardStats : stats) {
-                    shardStats.onQueueTimeShare(queueTimeNanos, stats.length);
+                    shardStats.onQueueTimeShare(queueTimeMicros, stats.length);
                 }
             };
         }

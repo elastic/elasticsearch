@@ -404,9 +404,9 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
             final var recordedQueueTimes = new AtomicLongArray(2);
             final var ran = new CountDownLatch(1);
-            executor.execute(new QueueTimeAwareRunnable(queueTimeNanos -> {
+            executor.execute(new QueueTimeAwareRunnable(queueTimeMicros -> {
                 recordedQueueTimes.incrementAndGet(0);
-                recordedQueueTimes.set(1, queueTimeNanos);
+                recordedQueueTimes.set(1, queueTimeMicros);
             }, ran::countDown));
 
             final long queuedAtLeastNanos = TimeUnit.MILLISECONDS.toNanos(20);
@@ -418,7 +418,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             safeAwait(ran);
 
             assertThat("callback must be invoked exactly once", recordedQueueTimes.get(0), equalTo(1L));
-            assertThat(recordedQueueTimes.get(1), greaterThanOrEqualTo(queuedAtLeastNanos));
+            assertThat(recordedQueueTimes.get(1), greaterThanOrEqualTo(TimeUnit.NANOSECONDS.toMicros(queuedAtLeastNanos)));
         } finally {
             ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }
@@ -438,7 +438,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         try {
             final var ran = new CountDownLatch(1);
             executor.execute(
-                new QueueTimeAwareRunnable(queueTimeNanos -> { throw new IllegalStateException("callback failure"); }, ran::countDown)
+                new QueueTimeAwareRunnable(queueTimeMicros -> { throw new IllegalStateException("callback failure"); }, ran::countDown)
             );
             safeAwait(ran);
             assertBusy(() -> assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0)));
@@ -464,7 +464,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             final var plainRan = new CountDownLatch(1);
             executor.execute(plainRan::countDown);
             final var awareRan = new CountDownLatch(1);
-            executor.execute(new QueueTimeAwareRunnable(queueTimeNanos -> callbacks.incrementAndGet(), awareRan::countDown));
+            executor.execute(new QueueTimeAwareRunnable(queueTimeMicros -> callbacks.incrementAndGet(), awareRan::countDown));
             safeAwait(plainRan);
             safeAwait(awareRan);
             assertThat(callbacks.get(), equalTo(1));
@@ -483,8 +483,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         }
 
         @Override
-        public void onQueueTime(long queueTimeNanos) {
-            onQueueTime.accept(queueTimeNanos);
+        public void onQueueTime(long queueTimeMicros) {
+            onQueueTime.accept(queueTimeMicros);
         }
 
         @Override

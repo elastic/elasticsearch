@@ -17,6 +17,8 @@ public interface QueueTimeAware {
 
     /**
      * Called once on the executing thread just before the task runs, never for a rejected task.
+     *
+     * @param queueTimeMicros how long the task waited in the queue, in microseconds
      */
-    void onQueueTime(long queueTimeNanos);
+    void onQueueTime(long queueTimeMicros);
 }

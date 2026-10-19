@@ -89,7 +89,7 @@ public class DriverContext {
 
     private Runnable earlyTerminationChecker = () -> {};
 
-    private LongConsumer queueTimeListener = queueTimeNanos -> {};
+    private LongConsumer queueTimeListener = queueTimeMicros -> {};
 
     /**
      * Hooks fired when the controlling task asks this driver to wind down cleanly while keeping
@@ -298,14 +298,15 @@ public class DriverContext {
     }
 
     /**
-     * Sets the listener notified with the queue wait in nanoseconds each time this driver is taken off its thread pool queue. Must be called before the driver starts.
+     * Sets the listener notified with the queue wait in microseconds each time this driver is taken off its thread pool queue.
+     * Must be called before the driver starts.
      */
     public void setQueueTimeListener(LongConsumer queueTimeListener) {
         this.queueTimeListener = Objects.requireNonNull(queueTimeListener);
     }
 
-    void onQueueTime(long queueTimeNanos) {
-        queueTimeListener.accept(queueTimeNanos);
+    void onQueueTime(long queueTimeMicros) {
+        queueTimeListener.accept(queueTimeMicros);
     }
 
     /**

@@ -6159,6 +6159,7 @@ FROM partial_mapping_sample_data
 @timestamp:datetime      | w:keyword
 2024-10-23T12:15:03.360Z | null
 2024-10-23T12:27:28.948Z | null
+;
 
 #########
 # VIEWS #

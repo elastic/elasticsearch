@@ -166,6 +166,9 @@ Runs **after** the batches complete. Reads JUnit XML written by Gradle (`*/build
 Failure classification (`classifyFailure`):
 
 - `"suite-timeout"` — message matches `Test abandoned because suite timeout was reached.` or `Suite timeout exceeded (>= ...`. Informational; not counted as a real failure.
+- `"temp-dir-exhausted"` - message matches `Failed to get a temporary name too many times`.
+  Lucene's per-suite temp directory ran out of names (see the per-run iteration cap above), which is a test-harness limit rather than flakiness.
+  Informational and not counted as a real failure; the report names the affected classes, and a job whose only failures are these ends up `infra_fail`.
 - `"assertion"` — `AssertionError` and subclasses.
 - `"error"` — any other Exception / Error.
 - `"other"` — everything else.
@@ -235,7 +238,7 @@ Derived in priority order by `analyzer/outcome.ts` (`deriveOutcome`):
 
 | outcome         | how it is decided                                                              |
 | --------------- | ------------------------------------------------------------------------------ |
-| `flaky_detected`| `realFailures > 0` (failing test cases, excluding suite-timeout markers)        |
+| `flaky_detected`| `realFailures > 0` (failing test cases, excluding suite-timeout and temp-dir-exhausted markers) |
 | `timeout`       | `rc == 124`, or `rc == 137` with duration at/after the inner timeout, and no heap dump (with one it is `infra_fail`/`oom`) |
 | `infra_fail`    | `rc == 137` short run (`oom_killed`), a non-zero `rc` or a timeout with a heap dump (`oom`), or any other non-zero `rc` with no real failures |
 | `hang`          | `rc == 0`, zero recorded test cases, and at least one requested task actually ran |

@@ -13,6 +13,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 
+import java.util.function.Supplier;
+
 /**
  * Default {@link WarmingRatioProviderFactory} when no SPI implementation is registered: uses
  * {@link DefaultWarmingRatioProviderFactory#SEARCH_RECOVERY_WARMING_RATIO_SETTING} (default 0 = no BCC warming by ratio).
@@ -36,9 +38,18 @@ public class DefaultWarmingRatioProviderFactory implements WarmingRatioProviderF
         Setting.Property.Dynamic
     );
 
+    private final Supplier<ClusterSettings> clusterSettings;
+
+    /**
+     * @param clusterSettings resolved on every {@link #create}, as the factory is instantiated before the cluster service is available
+     */
+    public DefaultWarmingRatioProviderFactory(Supplier<ClusterSettings> clusterSettings) {
+        this.clusterSettings = clusterSettings;
+    }
+
     @Override
-    public WarmingRatioProvider create(ClusterSettings clusterSettings, ShardId shardId) {
-        return new DefaultWarmingRatioProvider(clusterSettings);
+    public WarmingRatioProvider create(ShardId shardId) {
+        return new DefaultWarmingRatioProvider(clusterSettings.get());
     }
 
     static final class DefaultWarmingRatioProvider implements WarmingRatioProvider {

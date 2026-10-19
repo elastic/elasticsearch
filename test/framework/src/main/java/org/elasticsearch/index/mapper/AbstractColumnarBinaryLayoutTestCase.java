@@ -331,14 +331,22 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
         return values;
     }
 
-    /** Indexes {@code documents} into {@code mapperService}'s index and hands the reader to {@code body}. */
+    /**
+     * Indexes {@code documents} into {@code mapperService}'s index and hands the reader to {@code body}. They are added
+     * as one block so that they land in a single segment, in order, and a document's number is its position.
+     */
     protected void withIndex(MapperService mapperService, List<List<String>> documents, CheckedConsumer<DirectoryReader, IOException> body)
         throws IOException {
         withLuceneIndex(mapperService, iw -> {
+            final List<LuceneDocument> docs = new ArrayList<>();
             for (List<String> values : documents) {
-                iw.addDocument(mapperService.documentMapper().parse(source(b -> writeValues(b, values))).rootDoc());
+                docs.add(mapperService.documentMapper().parse(source(b -> writeValues(b, values))).rootDoc());
             }
-        }, body::accept);
+            iw.addDocuments(docs);
+        }, reader -> {
+            assertEquals("the documents are in one segment", 1, reader.leaves().size());
+            body.accept(reader);
+        });
     }
 
     /**

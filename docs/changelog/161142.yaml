@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 150536
+pr: 161142
+summary: Executes subqueries in parallel
+type: enhancement

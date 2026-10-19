@@ -120,6 +120,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -1093,6 +1094,7 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
+        EsqlSession.PlanRunContext ctx,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
@@ -1120,6 +1122,7 @@ public class ComputeService {
             return;
         }
 
+        final EsqlSession.SubPlanKind kind = ctx == null ? EsqlSession.SubPlanKind.MAIN : ctx.kind();
         final ActionListener<Result> dispatchListener = ActionListener.notifyOnce(listener);
         try {
             switch (executionPlan) {
@@ -1136,7 +1139,9 @@ public class ComputeService {
                     null,
                     initialClusterStatuses,
                     planTimeProfile,
-                    warnIndexCoordinatorOnce
+                    warnIndexCoordinatorOnce,
+                    kind,
+                    SiblingPlacement.SINGLE
                 );
                 case SubPlan.Merge merge -> new SubPlansExecutor(
                     this,
@@ -1191,7 +1196,48 @@ public class ComputeService {
             initialClusterStatuses,
             planTimeProfile,
             warnIndexCoordinatorOnce,
+            EsqlSession.SubPlanKind.MAIN,
             SiblingPlacement.SINGLE
+        );
+    }
+
+    /**
+     * Runs one producer after split discovery, placing it with {@code placement} so sibling
+     * UNION leaves rotate and hop instead of stacking on the coordinator.
+     * Uses {@link EsqlSession.SubPlanKind#MAIN} — called from {@link SubPlansExecutor} for branch leaves.
+     */
+    public void executePlan(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        String profileQualifier,
+        ActionListener<Result> listener,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
+        PlanTimeProfile planTimeProfile,
+        Runnable warnIndexCoordinatorOnce,
+        SiblingPlacement placement
+    ) {
+        executePlan(
+            sessionId,
+            rootTask,
+            flags,
+            physicalPlan,
+            configuration,
+            foldContext,
+            execInfo,
+            profileQualifier,
+            listener,
+            exchangeSinkSupplier,
+            initialClusterStatuses,
+            planTimeProfile,
+            warnIndexCoordinatorOnce,
+            EsqlSession.SubPlanKind.MAIN,
+            placement
         );
     }
 
@@ -1213,6 +1259,7 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
+        EsqlSession.SubPlanKind kind,
         SiblingPlacement placement
     ) {
         final long splitDiscoveryStart = System.nanoTime();
@@ -1245,6 +1292,7 @@ public class ComputeService {
                         initialClusterStatuses,
                         planTimeProfile,
                         warnIndexCoordinatorOnce,
+                        kind,
                         splitDiscoveryStart,
                         placement
                     ),
@@ -1347,6 +1395,7 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
+        EsqlSession.SubPlanKind kind,
         long splitDiscoveryStart,
         SiblingPlacement placement
     ) {
@@ -1416,7 +1465,7 @@ public class ComputeService {
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
-                updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo, exchangeSinkSupplier == null);
+                updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo, exchangeSinkSupplier == null, kind);
                 return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo, null);
             }))) {
                 runCompute(
@@ -1450,6 +1499,7 @@ public class ComputeService {
                 cancelQueryOnFailure,
                 exchangeSinkSupplier,
                 planTimeProfile,
+                kind,
                 listener
             );
             return;
@@ -1477,7 +1527,10 @@ public class ComputeService {
             // and markEndQuery; the root merge listener runs both after every branch has reported.
             if (exchangeSinkSupplier == null) {
                 failIfAllShardsFailedUnlessStreamed(execInfo, collectedPages, streamPublisher);
-                execInfo.markEndQuery();
+                // Re-planning subplans (IN subquery, INLINE STATS, ...) must not stop the query-wide timers.
+                if (kind == EsqlSession.SubPlanKind.MAIN) {
+                    execInfo.markEndQuery();
+                }
             }
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
         }))) {
@@ -1492,7 +1545,7 @@ public class ComputeService {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var tookTime = execInfo.queryProfile().total().timeSinceStarted();
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
-                                    if (execInfo.isMainPlan()) {
+                                    if (kind == EsqlSession.SubPlanKind.MAIN) {
                                         // Later merge branches can add failures after an earlier leaf set SUCCESSFUL; promote to PARTIAL
                                         // and never demote PARTIAL. receivedResults is false: this is coordinator finalization, not a
                                         // data-node/remote compute report. Passing true would promote a planning-time SKIPPED (no local
@@ -1603,6 +1656,7 @@ public class ComputeService {
                         cluster,
                         cancelQueryOnFailure,
                         execInfo,
+                        kind,
                         exchangeSinkSupplier != null,
                         computeListener.acquireCompute().delegateResponse((l, ex) -> {
                             /*
@@ -1642,6 +1696,7 @@ public class ComputeService {
         Runnable cancelQueryOnFailure,
         Supplier<ExchangeSink> exchangeSinkSupplier,
         PlanTimeProfile planTimeProfile,
+        EsqlSession.SubPlanKind kind,
         ActionListener<Result> listener
     ) {
         List<Attribute> outputAttributes = resolvedPlan.output();
@@ -1649,7 +1704,7 @@ public class ComputeService {
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
-            if (exchangeSinkSupplier == null) {
+            if (exchangeSinkSupplier == null && kind == EsqlSession.SubPlanKind.MAIN) {
                 execInfo.markEndQuery();
             }
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
@@ -1713,11 +1768,15 @@ public class ComputeService {
 
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries).
     // Merge leaves share one EsqlExecutionInfo; only the root (or a standalone plan) should stop query timers.
-    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo, boolean finalizeQuery) {
-        if (finalizeQuery) {
+    private static void updateExecutionInfoAfterCoordinatorOnlyQuery(
+        EsqlExecutionInfo execInfo,
+        boolean finalizeQuery,
+        EsqlSession.SubPlanKind kind
+    ) {
+        if (finalizeQuery && kind == EsqlSession.SubPlanKind.MAIN) {
             execInfo.markEndQuery();
         }
-        if ((execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == ALWAYS) && execInfo.isMainPlan()) {
+        if ((execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == ALWAYS) && kind == EsqlSession.SubPlanKind.MAIN) {
             assert execInfo.queryProfile().planning().timeTook() != null
                 : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {

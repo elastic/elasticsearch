@@ -97,6 +97,39 @@ public class SimdJsonParserPoolTests extends SimdJsonTestCase {
         }
     }
 
+    // Content after the document within the passed length is rejected by parseDocument, whether the
+    // document starts at 0 or at an offset, and the parser is still usable afterwards.
+    public void testContentAfterDocumentRejectedAndParserStillUsable() {
+        JsonDocumentParser docParser = newPool().forCurrentThread();
+        byte[] valid = "{\"a\":1}".getBytes(UTF_8);
+
+        for (String json : new String[] { "{\"a\":1}{\"b\":2}", "{\"a\":1} x", "{}}", "{} []" }) {
+            for (int offset : new int[] { 0, 3 }) {
+                byte[] padded = (" ".repeat(offset) + json + "   ").getBytes(UTF_8);
+                JsonParsingException e = expectThrows(
+                    JsonParsingException.class,
+                    "[" + json + "] at offset " + offset + " must be rejected",
+                    () -> docParser.parseDocument(padded, offset, json.length(), new RecordingHandler(false))
+                );
+                assertThat(e.getMessage(), containsString("Unexpected content after end of document"));
+
+                RecordingHandler handler = new RecordingHandler(false);
+                docParser.parseDocument(valid, valid.length, handler);
+                assertEquals(walkJson("{\"a\":1}"), handler.events);
+            }
+        }
+
+        // Bytes outside [offset, offset + len) belong to neighbouring data and are
+        // not content after the document.
+        byte[] batch = "{\"a\":1}{\"b\":2}".getBytes(UTF_8);
+        RecordingHandler first = new RecordingHandler(false);
+        docParser.parseDocument(batch, 0, 7, first);
+        assertEquals(walkJson("{\"a\":1}"), first.events);
+        RecordingHandler second = new RecordingHandler(false);
+        docParser.parseDocument(batch, 7, 7, second);
+        assertEquals(walkJson("{\"b\":2}"), second.events);
+    }
+
     public void testParseDocumentRejectsOversizedDocument() {
         JsonDocumentParser docParser = newPool().forCurrentThread();
         int tooLarge = docParser.maxDocumentBytes() + 1;

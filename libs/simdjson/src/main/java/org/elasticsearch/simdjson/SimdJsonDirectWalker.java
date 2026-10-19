@@ -90,7 +90,9 @@ public final class SimdJsonDirectWalker {
      * @param buffer the contiguous byte buffer containing the JSON data
      * @param parser the batch parser with a prepared document window
      * @param handler receives parsed JSON events
-     * @throws JsonParsingException if the JSON is malformed or nesting exceeds {@code maxDepth}
+     * @throws JsonParsingException if the JSON is malformed, nesting exceeds {@code maxDepth}, or
+     *         anything other than whitespace follows the top-level object in the document's window.
+     *         The object's events have been emitted by then.
      */
     public void walkDocument(byte[] buffer, SimdJsonParser parser, JsonDocumentHandler handler) {
         walkDocument(buffer, parser.currentDocumentOffset(), parser.bitIndexes(), handler);

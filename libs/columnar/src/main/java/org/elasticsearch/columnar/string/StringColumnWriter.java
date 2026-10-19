@@ -202,12 +202,12 @@ public final class StringColumnWriter {
         );
         long nulls = 0;
         long valueAddress = 0;
+        final StringColumnValues values = cursors.get();
         final PlainSkipBounds.Writer bounds = options.enablePlainSkipIndex() && skipIndex != null
             ? new PlainSkipBounds.Writer(directory, context, outputs.data().getName(), valuesPerBlock, numValues)
             : null;
         final StringColumnMetadata.Plain.Skipper skipper;
         boolean finished = false;
-        final StringColumnValues values = cursors.get();
         try {
             if (values.streamsValues() && values.mayBeSorted() == false && bounds == null) {
                 // No value is held whole: the length marks a null, the cursor marks repeats, and the bytes are copied a

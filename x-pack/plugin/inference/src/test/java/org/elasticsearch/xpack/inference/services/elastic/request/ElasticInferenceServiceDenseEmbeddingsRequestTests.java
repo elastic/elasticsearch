@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -19,7 +18,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
@@ -38,7 +36,6 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.ap
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -92,11 +89,10 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
         var request = createRequest(taskType, input, inputType);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
+        var requestMap = entityAsMap(httpPost.getBodyText());
 
         if (inputType == InputType.UNSPECIFIED) {
             assertThat(requestMap.size(), is(2));
@@ -143,11 +139,10 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
         var request = createRequest(taskType, inputs, InputType.SEARCH);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.size(), is(3));
         if (taskType == TEXT_EMBEDDING) {
             assertThat(request.getURI().getPath(), endsWith(TEST_TEXT_DENSE_PATH_SUFFIX));
@@ -166,8 +161,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
         var request = createRequest(randomFrom(TEXT_EMBEDDING, EMBEDDING), input, InputType.UNSPECIFIED);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         var traceParent = request.getTraceContext().traceParent();
         var traceState = request.getTraceContext().traceState();
@@ -215,8 +209,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
 
             var httpRequest = RequestTests.getHttpRequestSync(request);
 
-            assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-            var httpPost = (HttpPost) httpRequest.httpRequestBase();
+            var httpPost = httpRequest.httpRequest();
 
             var headers = httpPost.getHeaders(PRODUCT_USE_CASE.httpHeader());
             assertThat(headers.length, is(2));
@@ -259,8 +252,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestTests extends ESTestCa
 
             var httpRequest = RequestTests.getHttpRequestSync(request);
 
-            assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-            var httpPost = (HttpPost) httpRequest.httpRequestBase();
+            var httpPost = httpRequest.httpRequest();
 
             var headers = httpPost.getHeaders(HttpHeaders.AUTHORIZATION);
             assertThat(headers.length, is(1));

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
@@ -54,10 +54,10 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
 
     @Override
     public final void createHttpRequest(ActionListener<HttpRequest> listener) {
-        final HttpRequestBase request = createHttpRequestBase();
+        final SimpleHttpRequest request = createSimpleHttpRequest();
         // TODO: consider moving tracing here, too
 
-        // addHeader, not setHeader: createHttpRequestBase may already have set X-elastic-product-use-case.
+        // addHeader, not setHeader: createSimpleHttpRequest may already have set X-elastic-product-use-case.
         // Sparse and dense embeddings write the input-type value first; the caller value is appended after it.
         metadata.attribution().forEachPresent((field, value) -> addHeaderIfPresent(request, field.httpHeader(), value));
         addHeaderIfPresent(request, X_ELASTIC_ES_VERSION, metadata.esVersion());
@@ -67,13 +67,13 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
         listener.onResponse(new HttpRequest(authApplier.apply(request), getInferenceEntityId()));
     }
 
-    private static void addHeaderIfPresent(HttpRequestBase request, String header, @Nullable String value) {
+    private static void addHeaderIfPresent(SimpleHttpRequest request, String header, @Nullable String value) {
         if (Strings.isNullOrEmpty(value) == false) {
             request.addHeader(header, value);
         }
     }
 
-    private static void addRegionPolicyHeaders(HttpRequestBase request, @Nullable InferencePreferences preferences) {
+    private static void addRegionPolicyHeaders(SimpleHttpRequest request, @Nullable InferencePreferences preferences) {
         if (preferences == null || preferences.regionPolicy() == null) {
             return;
         }
@@ -90,7 +90,7 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
         }
     }
 
-    protected abstract HttpRequestBase createHttpRequestBase();
+    protected abstract SimpleHttpRequest createSimpleHttpRequest();
 
     public static ElasticInferenceServiceRequestMetadata extractRequestMetadataFromThreadContext(ThreadContext context) {
         return new ElasticInferenceServiceRequestMetadata(InferenceRequestMetadata.capture(context::getHeader), Version.CURRENT.toString());

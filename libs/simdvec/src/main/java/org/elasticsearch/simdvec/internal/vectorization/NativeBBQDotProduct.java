@@ -10,11 +10,13 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 import static org.elasticsearch.simdvec.BBQEncoding.D1Q1;
 import static org.elasticsearch.simdvec.BBQEncoding.D1Q4;
@@ -64,6 +66,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     private MemorySegment cachedQuerySegment;
     private float[] cachedScoresArray;
     private MemorySegment cachedScoresSegment;
+    private final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
 
     private NativeBBQDotProduct(IndexInput in, BBQEncoding bbqEncoding, int planeBytes) {
         super(in, bbqEncoding, planeBytes);
@@ -120,7 +123,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     public void dotProductBulkMasked(byte[] query, int mask, float[] scores, int count) throws IOException {
         assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
         MemorySegment querySegment = querySegment(query);
-        MemorySegment scoresSegment = scoresSegment(scores);
+        MemorySegment scoresSegment = scoresScratch.apply(count * Float.BYTES);
         IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, dataSegment -> {
             switch (encoding.toSwitchValue()) {
                 case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1BulkMasked(
@@ -171,5 +174,6 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
                 default -> throw new AssertionError("Unsupported encoding: " + encoding);
             }
         });
+        MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0L, scores, 0, count);
     }
 }

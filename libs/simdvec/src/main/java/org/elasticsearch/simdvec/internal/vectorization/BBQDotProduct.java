@@ -124,7 +124,7 @@ public class BBQDotProduct {
     /**
      * Scores a subset of the next {@code count} data vectors, advancing the input past all of them
      * so a block can be consumed whole even when most of it is filtered out.
-     * Positions not selected in {@code mask} are left untouched.
+     * The scores at the positions not selected in {@code mask} are unspecified and must not be read.
      *
      * @param mask   bit {@code i} selects the vector at position {@code i}; no bit at or above {@code count} is set
      * @param scores receives the score at each selected position

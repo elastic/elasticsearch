@@ -28,7 +28,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notANumber;
 
 public class BBQDotProductTests extends BaseVectorizationTests {
 
@@ -173,15 +172,13 @@ public class BBQDotProductTests extends BaseVectorizationTests {
                     BBQDotProduct dotProduct = getImpl(impl, read, nDims);
 
                     float[] scores = new float[BULK_SIZE];
-                    Arrays.fill(scores, Float.NaN);
                     dotProduct.dotProductBulkMasked(query, mask, scores, count);
 
+                    // the scores of the vectors that are not selected are unspecified
                     for (int i = 0; i < count; i++) {
                         if (BulkMask.isSelected(mask, i)) {
                             long expected = basicBitImplementation(query, vectors[i], planeBytes, nDims);
                             assertThat(describe(impl + ", vector " + i), scores[i], equalTo((float) expected));
-                        } else {
-                            assertThat(describe(impl + ", vector " + i), (double) scores[i], notANumber());
                         }
                     }
 

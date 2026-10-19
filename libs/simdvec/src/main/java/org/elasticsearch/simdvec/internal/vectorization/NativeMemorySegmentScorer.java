@@ -11,11 +11,13 @@ package org.elasticsearch.simdvec.internal.vectorization;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 /**
  * Native scorer for quantized vectors, optimized for JDK 22+ with heap segment support.
@@ -34,6 +36,7 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
     private MemorySegment cachedQuerySeg;
     private float[] cachedScoresArray;
     private MemorySegment cachedScoresSeg;
+    private final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
 
     NativeMemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
@@ -89,10 +92,11 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
     @Override
     final boolean quantizeScoreBulkMasked(byte[] q, int mask, float[] scores, int count) throws IOException {
         var qSeg = querySegment(q);
-        var sSeg = scoresSegment(scores);
+        var scoresSegment = scoresScratch.apply(count * Float.BYTES);
         IndexInputUtils.withVoidSlice(in, (long) length * count, scratch, dSeg -> {
-            dotProductBulkMasked(dSeg, qSeg, length, length, mask, count, sSeg);
+            dotProductBulkMasked(dSeg, qSeg, length, length, mask, count, scoresSegment);
         });
+        MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0L, scores, 0, count);
         return true;
     }
 
@@ -145,11 +149,11 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
         int count
     ) throws IOException {
         var qSeg = querySegment(q);
-        var sSeg = scoresSegment(scores);
+        var scoresSegment = scoresScratch.apply(count * Float.BYTES);
         long vectorBytes = (long) length * count;
         long correctionBytes = 16L * count;
         IndexInputUtils.withVoidSlice(in, vectorBytes + correctionBytes, scratch, seg -> {
-            dotProductBulkMasked(seg, qSeg, length, length, mask, count, sSeg);
+            dotProductBulkMasked(seg, qSeg, length, length, mask, count, scoresSegment);
             ScoreCorrections.nativeApplyCorrectionsBulk(
                 similarityFunction,
                 seg.asSlice(vectorBytes, correctionBytes),
@@ -162,12 +166,13 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
                 queryBitScale(),
                 indexBitScale(),
                 centroidDp,
-                sSeg
+                scoresSegment
             );
         });
         float maxScore = Float.NEGATIVE_INFINITY;
         for (int i = 0; i < count; i++) {
             if (BulkMask.isSelected(mask, i)) {
+                scores[i] = scoresSegment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
                 if (scores[i] > maxScore) maxScore = scores[i];
             } else {
                 scores[i] = 0.0f;

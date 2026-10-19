@@ -660,7 +660,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotDbf16Qbf16_bulk_sparse")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductDBF16QBF16BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
@@ -671,6 +670,7 @@ public abstract class SimdVecLibrary {
 
     public void dotProductDBF16QBF16BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         assert validateBulkSparse(addresses, count);
+        assert addresses.isNative() && query.isNative() && scores.isNative();
         dotProductDBF16QBF16BulkSparse_raw(addresses, query, length, count, scores);
     }
 
@@ -693,7 +693,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_sqrDbf16Qbf16_bulk_sparse")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void squareDistanceDBF16QBF16BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
@@ -710,6 +709,7 @@ public abstract class SimdVecLibrary {
         MemorySegment scores
     ) {
         assert validateBulkSparse(addresses, count);
+        assert addresses.isNative() && query.isNative() && scores.isNative();
         squareDistanceDBF16QBF16BulkSparse_raw(addresses, query, length, count, scores);
     }
 

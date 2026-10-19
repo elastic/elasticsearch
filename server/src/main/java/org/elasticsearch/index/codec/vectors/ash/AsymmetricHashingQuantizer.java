@@ -510,19 +510,22 @@ public final class AsymmetricHashingQuantizer {
 
         @Override
         protected float addRow(float[] vector, float[] centroid, int row) {
-            // record the difference from the centroid (quantized), and the
             float max = 0;
+            float dot = 0;
             for (int d = 0; d < originalDim; d++) {
                 float v = vector[d] - centroid[d];
                 diff[d] = v;
+                dot = Math.fma(v, v, dot);
                 max = Math.max(max, Math.abs(v));
             }
             float inverseScale = max == 0 ? 0 : INT8_MAX / max;
+
             int base = row * originalDim;
             for (int d = 0; d < originalDim; d++) {
                 centeredQ[base + d] = toInt8(diff[d], inverseScale);
             }
-            return ESVectorUtil.dotProduct(diff, diff);
+
+            return dot;
         }
 
         @Override

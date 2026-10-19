@@ -20,7 +20,6 @@ import org.junit.ClassRule;
 import java.io.IOException;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -112,16 +111,14 @@ public class RuntimeFieldHighlightHeapPressureIT extends ESRestTestCase {
         createIndex();
         indexDocs();
 
-        int status;
         try {
-            status = client().performRequest(searchRequest(runtimeField, query, size)).getStatusLine().getStatusCode();
+            assertOK(client().performRequest(searchRequest(runtimeField, query, size)));
         } catch (ResponseException e) {
-            status = e.getResponse().getStatusLine().getStatusCode();
-            logger.info("search failed with status [{}]: {}", status, entityAsMap(e.getResponse()));
+            // nothing on this path is charged to a breaker, so a rejection means the heap filled up and the real memory breaker tripped
+            throw new AssertionError("expected the search to succeed", e);
         } catch (IOException e) {
             throw new AssertionError("the node did not answer the search, check the cluster log for an OutOfMemoryError", e);
         }
-        assertThat(status, anyOf(equalTo(200), equalTo(429)));
         assertOK(client().performRequest(new Request("GET", "/_cluster/health")));
     }
 

@@ -30,13 +30,13 @@ import java.util.List;
  * <p>Every project reports one of these per candidate test source set, whether or not it resolved a ref. That
  * is the point: the projects that own the interesting subclasses are usually not the ones the refs pointed at.
  *
- * @param sourceSet      the Gradle source-set name ({@code test}/{@code internalClusterTest}/...)
- * @param outputDir      the compiled-classes directory this disposition applies to (the lookup key)
- * @param kind           the wire kind for classes in this source set (see {@link Kinds})
- * @param runnableTasks  task paths that really run this source set's classes, capped and newest-first; empty
- *                       when {@code skipReason} is set
- * @param candidateTasks how many enabled candidates existed before the cap
- * @param skipReason     {@code null} when runnable, else why not (see {@link TestTaskSelector})
+ * @param sourceSet          the Gradle source-set name ({@code test}/{@code internalClusterTest}/...)
+ * @param outputDir          the compiled-classes directory this disposition applies to (the lookup key)
+ * @param kind               the wire kind for classes in this source set (see {@link Kinds})
+ * @param runnableTasks      task paths that really run this source set's classes, capped and newest-first; empty
+ *                           when {@code skipReason} is set
+ * @param candidateTaskPaths every enabled candidate task path before the cap, in deterministic order
+ * @param skipReason         {@code null} when runnable, else why not (see {@link TestTaskSelector})
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SourceSetDisposition(
@@ -44,12 +44,17 @@ public record SourceSetDisposition(
     Path outputDir,
     String kind,
     List<String> runnableTasks,
-    int candidateTasks,
+    List<String> candidateTaskPaths,
     String skipReason
 ) {
 
     /** Whether this source set has at least one task that can re-run it on this agent. */
     public boolean runnable() {
         return skipReason == null;
+    }
+
+    /** How many enabled candidate tasks existed before the cap. */
+    public int candidateTasks() {
+        return candidateTaskPaths == null ? 0 : candidateTaskPaths.size();
     }
 }

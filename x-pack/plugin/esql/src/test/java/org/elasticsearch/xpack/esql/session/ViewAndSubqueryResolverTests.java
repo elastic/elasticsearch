@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -807,7 +808,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
     }
 
     private EsqlStatement parse(String query, String viewName) {
-        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName);
+        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName, EsqlParser.DEFAULT_MAX_COMMAND_COUNT);
     }
 
     private void addView(String name, String query) {

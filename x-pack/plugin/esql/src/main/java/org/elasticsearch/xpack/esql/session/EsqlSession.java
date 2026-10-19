@@ -456,10 +456,12 @@ public class EsqlSession {
         listener = wrapForAnonymizedFailureLog(listener);
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
+        int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
         EsqlStatement statement = request.parse(
             parser,
             SettingsValidationContext.from(crossProjectModeDecider),
-            inferenceService.inferenceSettings()
+            inferenceService.inferenceSettings(),
+            maxCommandCount
         );
         // Unwrap EXPLAIN right after parsing: Explain is a leaf plan holding the target query as a
         // field rather than a child, so plan traversals do not descend into it. It must be removed
@@ -499,7 +501,7 @@ public class EsqlSession {
         // requires no cluster state — it simply substitutes named subquery bodies for their names.
         // Performing it before replaceViews ensures that LET names never reach field-caps and that
         // view bodies never see the caller's LET scope (parseView is invoked inside replaceViews).
-        parsedPlan = LetResolver.resolve(parsedPlan, statement.letBindings());
+        parsedPlan = LetResolver.resolve(parsedPlan, statement.letBindings(), maxCommandCount);
 
         LOGGER.debug("ESQL resolved settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);
@@ -534,10 +536,15 @@ public class EsqlSession {
             // Resolve the view's own LET bindings before the resolver reads the plan. The statement is what the
             // resolver reads the definition's SET settings from, so the resolved plan has to stay on that statement.
             (query, viewName) -> planningCpu.meteredCpu(() -> {
-                var viewStmt = parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName);
-                return new EsqlStatement(LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings()), viewStmt.settings(), List.of());
+                var viewStmt = parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName, maxCommandCount);
+                return new EsqlStatement(
+                    LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings(), maxCommandCount),
+                    viewStmt.settings(),
+                    List.of()
+                );
             }),
             boundaryPreservation,
+            maxCommandCount,
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());

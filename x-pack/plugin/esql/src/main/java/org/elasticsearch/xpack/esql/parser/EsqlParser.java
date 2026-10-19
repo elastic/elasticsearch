@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.BitSet;
@@ -43,6 +44,9 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 public class EsqlParser {
+
+    /** Maximum number of commands in a statement when the caller does not provide one. */
+    public static final int DEFAULT_MAX_COMMAND_COUNT = QueryPragmas.MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
 
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
@@ -115,7 +119,15 @@ public class EsqlParser {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, inferenceSettings, null, EsqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(
+            query,
+            params,
+            inferenceSettings,
+            null,
+            DEFAULT_MAX_COMMAND_COUNT,
+            EsqlBaseParser::singleStatement,
+            AstBuilder::plan
+        );
     }
 
     // testing utility
@@ -125,7 +137,7 @@ public class EsqlParser {
 
     // testing utility
     public EsqlStatement unvalidatedStatement(String query, QueryParams params) {
-        return createStatement(query, params, new InferenceSettings(Settings.EMPTY), null);
+        return createStatement(query, params, new InferenceSettings(Settings.EMPTY), null, DEFAULT_MAX_COMMAND_COUNT);
     }
 
     // testing utility
@@ -141,7 +153,15 @@ public class EsqlParser {
      * performing any necessary validation before using them.
      */
     public EsqlStatement parse(String query, QueryParams params, InferenceSettings inferenceSettings) {
-        var parsed = createStatement(query, params, inferenceSettings, null);
+        return parse(query, params, inferenceSettings, DEFAULT_MAX_COMMAND_COUNT);
+    }
+
+    /**
+     * Like {@link #parse(String, QueryParams, InferenceSettings)}, but with the maximum number of commands the statement may have,
+     * counting the main query and all its subqueries together.
+     */
+    public EsqlStatement parse(String query, QueryParams params, InferenceSettings inferenceSettings, int maxCommandCount) {
+        var parsed = createStatement(query, params, inferenceSettings, null, maxCommandCount);
         if (log.isDebugEnabled()) {
             log.debug("Parsed logical plan:\n{}", parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
@@ -159,8 +179,14 @@ public class EsqlParser {
      * {@code esql.query.settings.unmapped_fields}, applies to a query run on its own and does not apply once that
      * query is stored as a view: the definition stays self-contained if the cluster default later changes.
      */
-    public EsqlStatement parseView(String query, QueryParams params, InferenceSettings inferenceSettings, String viewName) {
-        var parsed = createStatement(query, params, inferenceSettings, viewName);
+    public EsqlStatement parseView(
+        String query,
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        String viewName,
+        int maxCommandCount
+    ) {
+        var parsed = createStatement(query, params, inferenceSettings, viewName, maxCommandCount);
         if (log.isDebugEnabled()) {
             log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
@@ -169,11 +195,17 @@ public class EsqlParser {
         return parsed;
     }
 
-    private EsqlStatement createStatement(String query, QueryParams params, InferenceSettings inferenceSettings, String viewName) {
+    private EsqlStatement createStatement(
+        String query,
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        String viewName,
+        int maxCommandCount
+    ) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, inferenceSettings, viewName, EsqlBaseParser::statements, AstBuilder::statement);
+        return invokeParser(query, params, inferenceSettings, viewName, maxCommandCount, EsqlBaseParser::statements, AstBuilder::statement);
     }
 
     private record ParserPipeline(CommonTokenStream tokenStream, EsqlBaseParser parser) {}
@@ -200,6 +232,7 @@ public class EsqlParser {
         QueryParams params,
         InferenceSettings inferenceSettings,
         String viewName,
+        int maxCommandCount,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -244,7 +277,10 @@ public class EsqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName)), tree);
+            return result.apply(
+                new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName, maxCommandCount)),
+                tree
+            );
         } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
             // likely thrown by an invalid popMode (such as extra closing parenthesis)

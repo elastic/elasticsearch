@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
@@ -750,7 +751,11 @@ public abstract class GoldenTestCase extends ESTestCase {
             // indices are discovered and verifier checks (e.g. unbounded SORT inside an IN subquery) fire.
             // When the query references views, register them and run the iterative view/IN-subquery resolution; otherwise
             // resolve IN subqueries only.
-            LogicalPlan planAfterLet = LetResolver.resolve(statement.plan(), statement.letBindings());
+            LogicalPlan planAfterLet = LetResolver.resolve(
+                statement.plan(),
+                statement.letBindings(),
+                ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
+            );
             LogicalPlan parsedPlan;
             Map<String, ViewQuerySettings> viewSettings = Map.of();
             if (views.isEmpty()) {

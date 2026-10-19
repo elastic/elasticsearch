@@ -390,41 +390,33 @@ export function provenFlakinessJobs<T extends { outcome: string }>(payloads: T[]
 }
 
 /**
- * Whether this build is a pull-request build, from the raw `BUILDKITE_PULL_REQUEST` value.
- *
- * Buildkite sets it to the PR number on PR builds and to `"false"` on every other build. An unset value is
- * also read as "not a PR", which errs towards blocking: the only non-PR caller is the manual pipeline.
+ * Reads `BUILDKITE_PULL_REQUEST`. Both `"false"` and unset mean not a PR, so a missing value errs towards
+ * blocking.
  */
 export function isPullRequestBuild(pullRequest: string): boolean {
   const value = pullRequest.trim();
   return value !== "" && value !== "false";
 }
 
-/** The inputs to `shouldBlock` besides the payloads, all as raw environment values. */
 export interface BlockingContext {
-  /** Raw `BUILDKITE_PULL_REQUEST`: a PR number, `"false"`, or `""` when unset. */
   pullRequest: string;
-  /** Raw `GITHUB_PR_LABELS`, comma-separated; `""` when unset. */
   labels: string;
-  /** The all-PRs switch. Defaults to BLOCK_ALL_PRS; a parameter only so tests can cover both values. */
+  // Defaults to BLOCK_ALL_PRS; tests set it to cover both values.
   blockAllPrs?: boolean;
 }
 
-/** `shouldBlock`'s answer, with the rule that decided it so the log can name it. */
 export interface BlockingVerdict {
   block: boolean;
   reason: string;
 }
 
 /**
- * Whether this step must fail the build, and why.
- *
- * Nothing blocks unless flakiness was proven. When it was, the build blocks if it is not a PR build (the
- * manual pipeline), if blocking is enabled for all PRs, or if the PR carries a label from BLOCKING_LABELS -
- * checked in that order, so the reason names the broadest rule that applied.
+ * Whether this step must fail the build. Only proven flakiness can fail it, and then only if the build is
+ * not a PR, blocking is enabled for all PRs, or the PR carries a blocking label. The rules are checked in
+ * that order and `reason` names the first one that matched.
  *
  * The single definition of what blocks, kept out of run()'s control flow so the rule is unit-testable and
- * so both the exit code and the message it prints derive from one result.
+ * so both the exit code and the message it prints derive from one expression.
  */
 export function shouldBlock(
   payloads: { outcome: string }[],
@@ -520,8 +512,8 @@ async function run(): Promise<void> {
   }
 
   // The verdict, last, so the outcomes artifact and the annotation that explains a red step have already
-  // landed. Only the exit code depends on the blocking rules: the artifact and the annotation say the same
-  // thing on every build, so the observability data does not depend on who opted in.
+  // landed. Only the exit code depends on `shouldBlock`: the artifact and the annotation say the same thing
+  // on every build, so the observability data does not depend on who opted in.
   //
   // `exitCode` rather than `exit()`: the step's stdout is a pipe, and `exit()` abandons writes still
   // queued on it - which would truncate the report just printed above, the one thing a blocked developer

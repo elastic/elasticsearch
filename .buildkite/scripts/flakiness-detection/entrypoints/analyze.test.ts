@@ -182,7 +182,6 @@ describe("isPullRequestBuild", () => {
   });
 
   test("an unset value is not a PR build, which errs towards blocking", () => {
-    // The caller passes "" when the variable is unset.
     expect(isPullRequestBuild("")).toBe(false);
     expect(isPullRequestBuild("  ")).toBe(false);
   });
@@ -204,7 +203,6 @@ describe("shouldBlock", () => {
     });
 
     test("a proven failure on a PR that did not opt in is reported, not blocked", () => {
-      // The report and the outcomes artifact are identical either way, only the exit code differs.
       expect(shouldBlock(PROVEN, pr(OTHER_LABELS))).toEqual({
         block: false,
         reason: "this PR carries no blocking label",
@@ -257,7 +255,7 @@ describe("shouldBlock", () => {
   });
 
   test("a build that did not compile is never blocked here, under any rule", () => {
-    // A PR's own main build is already red for the same compile error.
+    // Its own main build is already red for the same compile error.
     for (const pullRequest of [PR, NOT_A_PR]) {
       for (const blockAllPrs of [false, true]) {
         expect(shouldBlock([buildFailedPayload()], { pullRequest, labels: OPTED_IN, blockAllPrs }).block).toBe(false);

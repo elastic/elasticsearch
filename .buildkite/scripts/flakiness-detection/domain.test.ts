@@ -36,7 +36,7 @@ describe("FLAKINESS_PROVEN_EXIT_CODE", () => {
   test("cannot collide with a code that means something other than a failing test", () => {
     // never-fail.sh propagates this one code and swallows every other. 124/137 are timeout's own exits, 1
     // is gradle's, and 2 is the wrapper's malformed-invocation exit: if the verdict shared any of them, a
-    // blocking build would go red for an infrastructure failure.
+    // labelled PR would go red for an infrastructure failure.
     expect([0, 1, 2, 124, 137]).not.toContain(FLAKINESS_PROVEN_EXIT_CODE);
     // Must also fit in a process exit status.
     expect(FLAKINESS_PROVEN_EXIT_CODE).toBeLessThan(126);

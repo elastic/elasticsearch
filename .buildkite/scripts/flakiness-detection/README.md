@@ -268,15 +268,13 @@ been removed.
 By default the pipeline reports and never blocks a PR: `never-fail.sh` exits 0 whatever the tests did, because Buildkite's GitHub commit-status integration mirrors step state and ignores `soft_failed`, so annotating is the only way to report a failure without reddening the PR.
 Proven flakiness fails the build in three cases, checked in this order:
 
-1. **A non-PR build**, i.e. the manually-triggered pipeline. Someone asked for exactly these classes to be checked, so a proven failure is the answer and shows as a red build, whatever the labels or the switch below say.
-2. **Any PR build, when `BLOCK_ALL_PRS` in `domain.ts` is `true`.** The labels are then a no-op: every PR already blocks, so a label cannot add anything.
-3. **A PR carrying a label from `BLOCKING_LABELS` in `domain.ts`.** A team that trusts the signal opts its own PRs in by adding its GitHub label there.
+1. A non-PR build, i.e. the manually-triggered pipeline, whatever the labels or the switch below say. Someone asked for these exact classes to be checked, so the build reports proven flakiness as a failure.
+2. Any PR build, when `BLOCK_ALL_PRS` in `domain.ts` is `true`. Labels then have no effect.
+3. A PR carrying a label from `BLOCKING_LABELS` in `domain.ts`. A team that trusts the signal opts its own PRs in by adding its GitHub label there.
 
 A build is a PR build when `BUILDKITE_PULL_REQUEST` holds a PR number; Buildkite sets it to `false` on every other build.
 An unset value counts as a non-PR build, which errs towards blocking.
-
-`BLOCK_ALL_PRS` is a code constant rather than an environment variable, so flipping it is a reviewed change and each branch carries its own value.
-The labels stay in place while it is on, so turning it back off restores the per-team opt-in unchanged.
+The labels stay in place while `BLOCK_ALL_PRS` is on, so turning it back off restores the per-team opt-in.
 
 Nothing else about the run changes: detection, resolution, batching and reporting never look at any of this, so a blocking build and a non-blocking one execute identically and produce the same artifacts.
 
@@ -288,7 +286,6 @@ A batch's `rc` cannot distinguish a proven flaky test from a timeout, a kernel O
 
 **The decision is made in one place.**
 `entrypoints/analyze.ts` owns it: `shouldBlock` applies the rules above to the build's `BUILDKITE_PULL_REQUEST`, its `GITHUB_PR_LABELS` and `BLOCK_ALL_PRS`, and only when it blocks does the step exit `FLAKINESS_PROVEN_EXIT_CODE`.
-It returns the rule that applied alongside the verdict, and the step logs it, so a blocked developer can see whether the manual run, the switch or which label failed the build.
 Nothing upstream carries a "blocking" flag, so no step has to agree with any other about the policy, and adding another entrypoint cannot silently forget to pass it on.
 
 The analyze step is wrapped with `--hard-fail-rc <FLAKINESS_PROVEN_EXIT_CODE>` unconditionally, on every build, which is what allows that exit code to reach Buildkite at all.

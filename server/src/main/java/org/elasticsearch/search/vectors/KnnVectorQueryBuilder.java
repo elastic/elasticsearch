@@ -601,7 +601,11 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             allFilters.add(queryBuilder.toQuery(context));
         }
         if (context.getAliasFilter() != null) {
-            allFilters.add(context.getAliasFilter().toQuery(context));
+            // Alias filters target root documents, so they must not be built in this knn query's nested scope. Otherwise, block join
+            // queries in the alias filter, such as nested queries, get a nested level as their parent filter and match nothing.
+            try (Releasable ignored = context.nestedScope().unwindTo(null)) {
+                allFilters.add(context.getAliasFilter().toQuery(context));
+            }
         }
         return allFilters;
     }

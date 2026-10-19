@@ -115,6 +115,14 @@ public final class SearchFeatures implements FeatureSpecification {
 
     public static final NodeFeature COLUMNAR_DEFAULT_FIELD_LENIENCY = new NodeFeature("search.query.columnar_default_field_leniency");
     /**
+     * Test-only gate for REST tests asserting that a nested kNN query applies an alias filter containing block join
+     * queries (such as a nested query on another nested field). Older nodes built the alias filter in the kNN query's
+     * nested scope, so it matched nothing.
+     */
+    public static final NodeFeature NESTED_KNN_ALIAS_FILTER_ROOT_SCOPE = new NodeFeature(
+        "search.vectors.nested_knn_alias_filter_root_scope"
+    );
+    /**
      * Test-only gate for REST tests using {@code slice} with {@code open_point_in_time} and PIT searches.
      * Requires {@link SliceIndexing#OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION}, which is not supported on
      * mixed BWC clusters that still contain pre-9.6 nodes.
@@ -159,7 +167,8 @@ public final class SearchFeatures implements FeatureSpecification {
                 NESTED_KNN_INNER_HITS_MATCH_QUERY_PHASE_SCORING,
                 NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX,
                 COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
-                COLUMNAR_DEFAULT_FIELD_LENIENCY
+                COLUMNAR_DEFAULT_FIELD_LENIENCY,
+                NESTED_KNN_ALIAS_FILTER_ROOT_SCOPE
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

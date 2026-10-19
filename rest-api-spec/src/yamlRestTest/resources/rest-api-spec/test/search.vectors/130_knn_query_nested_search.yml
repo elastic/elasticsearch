@@ -177,6 +177,53 @@ setup:
   - match: { hits.hits.0.inner_hits.nested.hits.hits.0.fields.nested.0.paragraph_id.0: "0" }
 
 ---
+"nested kNN search pre-filtered on alias with filter on another nested field":
+  - requires:
+      cluster_features: "search.vectors.nested_knn_alias_filter_root_scope"
+      reason: 'alias filters with nested queries were previously built in the nested kNN scope'
+  - do:
+      indices.put_alias:
+        index: test
+        name: advanced_alias
+        body:
+          filter:
+            nested:
+              path: nested2
+              query:
+                bool:
+                  filter:
+                    - term: { nested2.key: "level" }
+                    - term: { nested2.value: "advanced" }
+
+  - do:
+      search:
+        index: advanced_alias
+        body:
+          query:
+            match_all: {}
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._id: "3"}
+
+  - do:
+      search:
+        index: advanced_alias
+        body:
+          fields: [ "name" ]
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                  num_candidates: 1
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+
+---
 "nested kNN search post-filtered on top level fields":
   - do:
       search:

@@ -763,3 +763,75 @@ setup:
         - "text_expansion is deprecated. Use sparse_vector instead."
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "expected a result of type [text_expansion_result] received [text_embedding_result]. Is [dense-inference-id] a compatible model?" }
+
+---
+"knn query on semantic_text field through alias with filter on nested field":
+  - requires:
+      cluster_features: "search.vectors.nested_knn_alias_filter_root_scope"
+      reason: 'alias filters with nested queries were previously built in the nested kNN scope'
+
+  - do:
+      indices.create:
+        index: test-semantic-text-nested-alias-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              nested_field:
+                type: nested
+                properties:
+                  tag:
+                    type: keyword
+          aliases:
+            tag_a_alias:
+              filter:
+                nested:
+                  path: nested_field
+                  query:
+                    term:
+                      nested_field.tag: "a"
+
+  - do:
+      index:
+        index: test-semantic-text-nested-alias-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          nested_field: [ { tag: "a" } ]
+
+  - do:
+      index:
+        index: test-semantic-text-nested-alias-index
+        id: doc_2
+        body:
+          inference_field: "another inference test"
+          nested_field: [ { tag: "b" } ]
+        refresh: true
+
+  - do:
+      search:
+        index: tag_a_alias
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+  - do:
+      search:
+        index: tag_a_alias
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }

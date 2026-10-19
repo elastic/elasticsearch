@@ -31,7 +31,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
@@ -133,7 +133,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
                 handler.messageReceived(request, channel, task);
             });
 
-        final var finalCommitBlobName = BatchedCompoundCommit.blobNameFromGeneration(finalGeneration);
+        final var finalCommitBlobName = BccBlobFile.blobNameFromGeneration(finalGeneration);
 
         // We want more commits to be made by the source shard while the relocation handoff is executing, so we block the handoff here
         var newIndexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());

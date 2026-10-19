@@ -42,6 +42,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -68,6 +69,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests the atomic delete-and-restore of an existing data stream: the destination data stream and its backing/failure-store
@@ -656,6 +658,77 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             "a retry with the same restore UUID must not re-delete-and-restore",
             currentDataStream().getIndices().get(0),
             equalTo(firstRestoredIndex)
+        );
+    }
+
+    /**
+     * While the restore is held in flight, the restored data stream's backing index is reported with the UUID the caller passed, and
+     * nothing is reported once the restore is over.
+     */
+    public void testRestoreOverExistingDataStreamReportsTheRestoreWhileItIsInFlight() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+        final String restoreUuid = UUIDs.randomBase64UUID();
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            this::reportableRestoreException,
+            future -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                restoreUuid,
+                true,
+                List.of(restoreTarget.target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+
+        assertReportsShardRestoring(inFlight.exception(), currentDataStream().getIndices().get(0).getName(), restoreUuid);
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), true);
+        assertThat("nothing is reported once the restore is over", reportableRestoreException(), nullValue());
+    }
+
+    /**
+     * A restore keeps the generic shard-unavailable errors unless its caller explicitly asks for
+     * {@link org.elasticsearch.snapshots.ShardRestoringException}, so the {@code restoreOverExistingDataStreams} overload without the
+     * parameter never sets {@link RestoreInProgress.Entry#reportShardRestoring()} on the restore's entry, and the lookup reports nothing
+     * while the restore is in flight.
+     */
+    public void testRestoreOverExistingDataStreamDoesNotReportTheRestoreWhileItIsInFlightByDefault() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+
+        final InFlightLookup inFlight = lookupWhileInFlight(
+            REPOSITORY_NAME,
+            dataNode,
+            this::reportableRestoreException,
+            future -> restoreService().restoreOverExistingDataStreams(
+                ProjectId.DEFAULT,
+                restoreTarget.snapshot(),
+                restoreTarget.snapshotInfo(),
+                TEST_REQUEST_TIMEOUT,
+                UUIDs.randomBase64UUID(),
+                List.of(restoreTarget.target()),
+                restoreTarget.snapshotDataStreamAliases(),
+                future
+            )
+        );
+
+        assertThat(inFlight.exception(), nullValue());
+        assertEveryRestoreEntryReports(inFlight.reportShardRestoring(), false);
+    }
+
+    private ShardRestoringException reportableRestoreException() {
+        return reportableRestoreExceptionOnMaster(
+            state -> state.metadata().getProject(ProjectId.DEFAULT).dataStreams().get(DATA_STREAM_NAME).getIndices().get(0)
         );
     }
 

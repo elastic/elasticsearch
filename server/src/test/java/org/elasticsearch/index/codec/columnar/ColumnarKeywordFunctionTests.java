@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -26,7 +27,10 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -34,7 +38,6 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.SingleValuedColumnarBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
@@ -331,7 +334,7 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
     ) throws IOException {
         final FieldType type = columnarBinaryFieldType();
         try (Directory dir = newDirectory()) {
-            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(false)))) {
                 for (String[] slots : docs) {
                     final Document doc = new Document();
                     if (slots != null) {
@@ -359,7 +362,7 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
     ) throws IOException {
         final FieldType type = columnarBinaryFieldType();
         try (Directory dir = newDirectory()) {
-            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(false)))) {
                 for (String[] slots : docs) {
                     final Document doc = new Document();
                     // A null entry is a document without the field at all.
@@ -384,8 +387,8 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
     }
 
     /**
-     * As {@link #assertLoaderMatches}, but each document holds its one value's own bytes, written as the mapper writes a
-     * {@code multi_value: false} field so the codec knows the column is single-valued.
+     * As {@link #assertLoaderMatches}, but each document holds its one value's own bytes, written through a codec told
+     * the column is single-valued, as the mapper's options tell it for a {@code multi_value: false} field.
      */
     private void assertSingleValuedLoaderMatches(
         String[][] docs,
@@ -393,11 +396,11 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
         List<Object> expected
     ) throws IOException {
         try (Directory dir = newDirectory()) {
-            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec()))) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(true)))) {
                 for (String[] slots : docs) {
                     final Document doc = new Document();
                     if (slots != null) {
-                        doc.add(new SingleValuedColumnarBinaryDocValuesField(FIELD, new BytesRef(slots[0])));
+                        doc.add(new BinaryDocValuesField(FIELD, new BytesRef(slots[0])));
                     }
                     writer.addDocument(doc);
                 }
@@ -436,9 +439,14 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
     }
 
     /** Every doc-values field through the columnar format, which is what makes the field a column. */
-    private static Codec columnarCodec() {
+    private static Codec columnarCodec(boolean singleValued) {
         final Codec base = TestUtil.getDefaultCodec();
-        final DocValuesFormat columnar = new ColumNARDocValuesFormat(field -> ColumnarFieldType.STRING);
+        final DocValuesFormat columnar = new ColumNARDocValuesFormat(
+            (fieldName, type) -> NumericPipeline::defaultPipeline,
+            field -> ColumnarFieldType.STRING,
+            ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
+            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(singleValued))
+        );
         return new FilterCodec(base.getName(), base) {
             private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
                 @Override

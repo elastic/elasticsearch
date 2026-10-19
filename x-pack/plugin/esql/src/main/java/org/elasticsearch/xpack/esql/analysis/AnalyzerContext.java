@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -49,7 +48,7 @@ public class AnalyzerContext {
     private final ProjectMetadata projectMetadata;
     private final UnmappedResolution unmappedResolution;
     private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
-    private final Map<String, String> subqueryNonLoadableNullFills = new LinkedHashMap<>();
+    private final Set<String> subqueryNonLoadableNullFills = new LinkedHashSet<>();
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
     private final boolean preserveViewBoundaries;
@@ -93,6 +92,7 @@ public class AnalyzerContext {
         this.flags = flags;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
+        assert flags != null : "AnalyzerContext must have flags";
         assert TransportVersion.current().supports(minimumVersion)
             : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
     }
@@ -201,7 +201,7 @@ public class AnalyzerContext {
      * LOAD_ALL subquery fields null-filled because the sibling type has no implicit KEYWORD cast.
      * Warnings are emitted later, and only if the field is observed.
      */
-    public Map<String, String> subqueryNonLoadableNullFills() {
+    public Set<String> subqueryNonLoadableNullFills() {
         return subqueryNonLoadableNullFills;
     }
 
@@ -244,7 +244,7 @@ public class AnalyzerContext {
     /**
      * Whether the current request carries a DSL filter that must be applied at view-output
      * boundaries. When {@code true}, {@link org.elasticsearch.xpack.esql.view.ViewCompaction}
-     * preserves {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll} wrappers around
+     * preserves {@link org.elasticsearch.xpack.esql.plan.logical.BranchPlan} wrappers around
      * view branches so that
      * {@link org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter} can apply the
      * filter to the view's output rather than pushing it to the Lucene scan layer.

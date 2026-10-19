@@ -84,8 +84,12 @@ public class AutomatonQueries {
     /**
      * Convert Lucene wildcard syntax into an automaton, checking a circuit breaker
      * during determinization to prevent OOM from huge automatons.
+     * If {@code circuitBreaker} is {@code null}, falls back to unguarded determinization.
      */
-    public static Automaton toCaseInsensitiveWildcardAutomaton(Term wildcardquery, CircuitBreaker circuitBreaker) {
+    public static Automaton toCaseInsensitiveWildcardAutomaton(Term wildcardquery, @Nullable CircuitBreaker circuitBreaker) {
+        if (circuitBreaker == null) {
+            return toCaseInsensitiveWildcardAutomaton(wildcardquery);
+        }
         Automaton nfa = toCaseInsensitiveWildcardNFA(wildcardquery);
         return CircuitBreakingOperations.determinize(
             nfa,
@@ -98,8 +102,12 @@ public class AutomatonQueries {
     /**
      * Convert Lucene wildcard syntax into a case-sensitive automaton, checking a circuit breaker
      * during determinization to prevent OOM from huge automatons.
+     * If {@code circuitBreaker} is {@code null}, falls back to unguarded determinization.
      */
-    public static Automaton toWildcardAutomaton(Term wildcardquery, CircuitBreaker circuitBreaker) {
+    public static Automaton toWildcardAutomaton(Term wildcardquery, @Nullable CircuitBreaker circuitBreaker) {
+        if (circuitBreaker == null) {
+            return WildcardQuery.toAutomaton(wildcardquery, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        }
         Automaton nfa = toWildcardNFA(wildcardquery);
         return CircuitBreakingOperations.determinize(
             nfa,
@@ -107,6 +115,30 @@ public class AutomatonQueries {
             circuitBreaker,
             ChildMemoryCircuitBreaker.CATEGORY_WILDCARD + ":" + wildcardquery.field()
         );
+    }
+
+    /**
+     * Build a {@link ByteRunAutomaton} from a wildcard pattern. This is the same idea as
+     * {@link #toWildcardAutomaton(Term, CircuitBreaker)} / {@link #toCaseInsensitiveWildcardAutomaton(Term, CircuitBreaker)} but with
+     * one extra step, so when a breaker is supplied two steps are guarded: determinizing the pattern's NFA, and converting the DFA
+     * into a {@code ByteRunAutomaton} (which expands it to UTF-8 and determinizes again).
+     */
+    public static ByteRunAutomaton toWildcardByteRunAutomaton(
+        Term wildcardquery,
+        boolean caseInsensitive,
+        @Nullable CircuitBreaker circuitBreaker
+    ) {
+        if (circuitBreaker == null) {
+            Automaton dfa = caseInsensitive
+                ? toCaseInsensitiveWildcardAutomaton(wildcardquery)
+                : WildcardQuery.toAutomaton(wildcardquery, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            return new ByteRunAutomaton(dfa);
+        }
+        Automaton dfa = caseInsensitive
+            ? toCaseInsensitiveWildcardAutomaton(wildcardquery, circuitBreaker)
+            : toWildcardAutomaton(wildcardquery, circuitBreaker);
+        String label = ChildMemoryCircuitBreaker.CATEGORY_WILDCARD + (caseInsensitive ? "[ci]:" : ":") + wildcardquery.field();
+        return toByteRunAutomaton(dfa, circuitBreaker, label);
     }
 
     /**
@@ -163,12 +195,19 @@ public class AutomatonQueries {
         }
 
         Automaton dfa = determinizeHoldingNfa(nfa, maxDeterminizedStates, circuitBreaker, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
-        long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
-        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+        return toByteRunAutomaton(dfa, circuitBreaker, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+    }
+
+    public static ByteRunAutomaton toByteRunAutomaton(Automaton automaton, @Nullable CircuitBreaker circuitBreaker, String category) {
+        if (circuitBreaker == null) {
+            return new ByteRunAutomaton(automaton);
+        }
+        long reservation = new AutomatonQueryCostEstimator(automaton.ramBytesUsed()).estimate();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, category);
         try {
-            return new ByteRunAutomaton(dfa);
+            return new ByteRunAutomaton(automaton);
         } finally {
-            circuitBreaker.addWithoutBreaking(-reservation, ChildMemoryCircuitBreaker.CATEGORY_REGEXP);
+            circuitBreaker.addWithoutBreaking(-reservation, category);
         }
     }
 

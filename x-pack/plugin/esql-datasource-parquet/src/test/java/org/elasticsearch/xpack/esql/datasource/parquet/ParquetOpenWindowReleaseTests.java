@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
- * Guards the open-time sliding-window floor: parquet-mr's dictionary row-group filter reads a
+ * Guards the open-time 4 MiB sliding window: parquet-mr's dictionary row-group filter reads a
  * few KB through the reader stream, which allocates a 4 MiB window. The optimized iterator then
  * never reads that stream again. {@link ParquetStorageObjectAdapter#releaseIdleWindows()} must
  * drop the charge before the driver parks on tickets.
@@ -211,7 +211,7 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
         while (true) {
             long remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
             if (remainingMs <= 0L) {
-                fail("timed out draining iterator after 30s; window floor is still wedging admission");
+                fail("timed out draining iterator after 30s; idle window is still wedging admission");
             }
             SubscribableListener<Void> ready = iter.waitForReady();
             if (ready.isDone() == false) {
@@ -228,7 +228,7 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
             if (ready.isDone() == false) {
                 remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
                 if (remainingMs <= 0L) {
-                    fail("timed out draining iterator after 30s; window floor is still wedging admission");
+                    fail("timed out draining iterator after 30s; idle window is still wedging admission");
                 }
                 safeAwait(ready, TimeValue.timeValueMillis(remainingMs));
                 continue;

@@ -564,23 +564,24 @@ final class CoalescedRangeReader {
         AtomicReference<NodeByteBudget.Hold> granted = new AtomicReference<>();
         BooleanSupplier cancel = composeCancel(abandoned, lease);
         PlainActionFuture<NodeByteBudget.Hold> future = new PlainActionFuture<>();
-        budget.admitAsync(unitBytes, lease, cancel, Runnable::run).addListener(ActionListener.wrap(grantedHold -> {
-            if (abandoned.get()) {
-                grantedHold.close();
-                return;
-            }
-            granted.set(grantedHold);
-            if (abandoned.get()) {
-                grantedHold.close();
-                return;
-            }
-            future.onResponse(grantedHold);
-        }, e -> {
-            if (abandoned.get()) {
-                return;
-            }
-            future.onFailure(e);
-        }));
+        budget.admitAsync(unitBytes, lease, cancel, Runnable::run, NodeByteBudget.UntrackedWait.PER_GET)
+            .addListener(ActionListener.wrap(grantedHold -> {
+                if (abandoned.get()) {
+                    grantedHold.close();
+                    return;
+                }
+                granted.set(grantedHold);
+                if (abandoned.get()) {
+                    grantedHold.close();
+                    return;
+                }
+                future.onResponse(grantedHold);
+            }, e -> {
+                if (abandoned.get()) {
+                    return;
+                }
+                future.onFailure(e);
+            }));
         try {
             return future.actionGet();
         } catch (RuntimeException e) {
@@ -648,51 +649,54 @@ final class CoalescedRangeReader {
                 );
                 return;
             }
-            ioWatermark.nodeByteBudget().admitAsync(unitBytes, lease, cancel, executor).addListener(ActionListener.wrap(hold -> {
-                if (cancel.getAsBoolean()) {
-                    hold.close();
-                    failUnissuedGets(
-                        gets,
-                        remaining,
-                        firstFailure,
-                        buffers,
-                        results,
-                        listener,
-                        unitHold,
-                        scope,
-                        NodeByteBudget.cancelled()
-                    );
-                    return;
-                }
-                try {
-                    StorageRetryCancellation.runWithCancellation(cancel, () -> {
-                        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, countGets)) {
-                            unitHold.set(ioWatermark.wrap(hold));
-                            issueGets(
-                                storageObject,
-                                gets,
-                                ParquetIoWatermark.bufferFactory(breaker, ioWatermark, unitHold.get()),
-                                executor,
-                                results,
-                                buffers,
-                                inflight,
-                                remaining,
-                                firstFailure,
-                                listener,
-                                unitHold,
-                                scope
-                            );
-                        }
-                    });
-                } catch (Exception e) {
-                    hold.close();
+            // Test-only ByteGate.PER_GET unit ticket. UntrackedWait.PER_GET lets this wait after a forceAdd.
+            ioWatermark.nodeByteBudget()
+                .admitAsync(unitBytes, lease, cancel, executor, NodeByteBudget.UntrackedWait.PER_GET)
+                .addListener(ActionListener.wrap(hold -> {
+                    if (cancel.getAsBoolean()) {
+                        hold.close();
+                        failUnissuedGets(
+                            gets,
+                            remaining,
+                            firstFailure,
+                            buffers,
+                            results,
+                            listener,
+                            unitHold,
+                            scope,
+                            NodeByteBudget.cancelled()
+                        );
+                        return;
+                    }
+                    try {
+                        StorageRetryCancellation.runWithCancellation(cancel, () -> {
+                            try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, countGets)) {
+                                unitHold.set(ioWatermark.wrap(hold));
+                                issueGets(
+                                    storageObject,
+                                    gets,
+                                    ParquetIoWatermark.bufferFactory(breaker, ioWatermark, unitHold.get()),
+                                    executor,
+                                    results,
+                                    buffers,
+                                    inflight,
+                                    remaining,
+                                    firstFailure,
+                                    listener,
+                                    unitHold,
+                                    scope
+                                );
+                            }
+                        });
+                    } catch (Exception e) {
+                        hold.close();
+                        recordFailure(firstFailure, e, inflight);
+                        failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, null);
+                    }
+                }, e -> {
                     recordFailure(firstFailure, e, inflight);
                     failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, null);
-                }
-            }, e -> {
-                recordFailure(firstFailure, e, inflight);
-                failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, null);
-            }));
+                }));
         } catch (Exception e) {
             failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, e);
         }
@@ -893,6 +897,9 @@ final class CoalescedRangeReader {
             fileAbsOffset = storageObject.offsetForFooterCache(mr.offset());
         } catch (Exception e) {
             logger.debug("footer cache lookup skipped", e);
+            return null;
+        }
+        if (key == null) {
             return null;
         }
         byte[] cached = footerBytes.get(key);

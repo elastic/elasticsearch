@@ -11,8 +11,13 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -23,6 +28,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +41,8 @@ import java.util.Map;
 class ExpandSearchPhase extends SearchPhase {
 
     static final String NAME = "expand";
+
+    private static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[collapse]";
 
     private final AbstractSearchAsyncAction<?> context;
     private final SearchResponseSections searchResponseSections;
@@ -112,30 +120,71 @@ class ExpandSearchPhase extends SearchPhase {
             }
         }
         context.getSearchTransport().sendExecuteMultiSearch(multiRequest, context.getTask(), ActionListener.wrap(response -> {
+            // Charged hits must stay fully charged, since multi-search does not count them again.
+            final boolean chargeHits = searchResponseSections.hasCoordinatorFetchCharge();
+            final List<Releasable> innerHitsCharges = new ArrayList<>();
             Iterator<MultiSearchResponse.Item> it = response.iterator();
             SearchHit[] outerHits = searchHits.getHits();
-            for (int i = 0; i < outerHits.length; i++) {
-                SearchHit hit = outerHits[i];
-                Map<String, SearchHits> innerHitsMap = Maps.newMapWithExpectedSize(innerHitBuilders.size());
-                for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
-                    MultiSearchResponse.Item item = it.next();
-                    if (item.isFailure()) {
-                        innerHitsMap.values().forEach(SearchHits::decRef);
-                        phaseFailure(item.getFailure());
-                        return;
+            try {
+                for (int i = 0; i < outerHits.length; i++) {
+                    SearchHit hit = outerHits[i];
+                    Map<String, SearchHits> innerHitsMap = Maps.newMapWithExpectedSize(innerHitBuilders.size());
+                    for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
+                        MultiSearchResponse.Item item = it.next();
+                        if (item.isFailure()) {
+                            innerHitsMap.values().forEach(SearchHits::decRef);
+                            Releasables.close(innerHitsCharges);
+                            phaseFailure(item.getFailure());
+                            return;
+                        }
+                        if (chargeHits) {
+                            innerHitsCharges.add(chargeInnerHits(item.getResponse()));
+                        }
+                        SearchHits innerHits = item.getResponse().getHits();
+                        innerHits.mustIncRef();
+                        innerHitsMap.put(innerHitBuilder.getName(), innerHits);
                     }
-                    SearchHits innerHits = item.getResponse().getHits();
-                    innerHits.mustIncRef();
-                    innerHitsMap.put(innerHitBuilder.getName(), innerHits);
+                    if (hit.isPooled()) {
+                        hit.setInnerHits(innerHitsMap);
+                    } else {
+                        searchHits.replaceHit(i, hit.withInnerHits(innerHitsMap));
+                    }
                 }
-                if (hit.isPooled()) {
-                    hit.setInnerHits(innerHitsMap);
-                } else {
-                    searchHits.replaceHit(i, hit.withInnerHits(innerHitsMap));
-                }
+            } catch (Exception e) {
+                // The charges taken from the inner responses are only held here until the outer response takes them.
+                Releasables.close(innerHitsCharges);
+                throw e;
+            }
+            if (chargeHits) {
+                searchResponseSections.addCoordinatorFetchCharge(Releasables.wrap(innerHitsCharges));
             }
             onPhaseDone();
         }, this::phaseFailure));
+    }
+
+    /**
+     * The inner search releases its charge with its response, but the outer hits keep its hits alive, so the charge
+     * moves to them. Hits that the inner search did not charge, like a single shard searched in one round trip, are
+     * estimated here instead. The inner multi-search has already admitted them and releases them only after this phase,
+     * so they are added without breaking.
+     */
+    @Nullable
+    private Releasable chargeInnerHits(SearchResponse response) {
+        Releasable charge = response.transferCoordinatorFetchCharge();
+        if (charge != null) {
+            return charge;
+        }
+        long estimated = 0L;
+        for (SearchHit hit : response.getHits().getHits()) {
+            estimated += hit.ramBytesUsed();
+        }
+        if (estimated == 0L) {
+            return null;
+        }
+        final long bytes = estimated;
+        final CircuitBreaker breaker = context.circuitBreaker();
+        breaker.addWithoutBreaking(bytes, BREAKER_LABEL);
+        return Releasables.assertOnce(() -> breaker.addWithoutBreaking(-bytes, BREAKER_LABEL));
     }
 
     private void phaseFailure(Exception ex) {

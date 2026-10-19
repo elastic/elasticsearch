@@ -1576,7 +1576,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         boolean useLuceneMaxTermLength = this.fieldType.indexOptions() != IndexOptions.NONE
-            || this.fieldType.docValuesType() == DocValuesType.SORTED_SET;
+            || mappedFieldType.usesBinaryDocValues() == false;
         this.maxValueLength = builder.indexSettings.maxValueLength(useLuceneMaxTermLength);
         this.normalizerName = builder.normalizer.getValue();
         this.normalizerSkipStoreOriginalValue = builder.normalizerSkipStoreOriginalValue.getValue();

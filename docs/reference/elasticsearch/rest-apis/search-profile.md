@@ -878,7 +878,7 @@ The `rescore` section in the profile response is an array with one element per r
 
 If the search times out while a rescorer is running, its `debug` section has `"timed_out": true`, and the top documents of the shard are not rescored.
 
-The queries run by a rescorer, such as the `rescore_query` of a `query` rescorer or the feature queries of a `learning_to_rank` model, are profiled in the [query section](#query-section) of `searches`, after the main query, and their rewrite time is part of its `rewrite_time`. Each of these queries has a `debug` section with the position of its rescorer in the `rescore` array, like `"debug": { "rescorer": 0 }`. Because their time is also part of the rescorer's `time_in_nanos`, don't add the two together. To compare the time of the main query with the time spent rescoring, use the queries without a `rescorer` or the [collector section](#collectors-section), which doesn't include the rescore phase.
+The queries run by a rescorer, such as the `rescore_query` of a `query` rescorer or the feature extraction queries of a `learning_to_rank` model, are profiled in the [query section](#query-section) of `searches`, after the main query, and their rewrite time is part of its `rewrite_time`. Each of these queries has a `debug` section with the position of its rescorer in the `rescore` array, like `"debug": { "rescorer": 0 }`. Because their time is also part of the rescorer's `time_in_nanos`, don't add the two together. To compare the time of the main query with the time spent rescoring, use the queries without a `rescorer` or the [collector section](#collectors-section), which doesn't include the rescore phase.
 
 A `learning_to_rank` rescorer reports the steps of the model in its `breakdown`:
 

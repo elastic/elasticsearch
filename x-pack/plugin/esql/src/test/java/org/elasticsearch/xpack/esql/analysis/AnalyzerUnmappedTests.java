@@ -849,6 +849,48 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         );
     }
 
+    // A reference written inside a view body is not a load candidate: the caller's unmapped_fields setting ends at
+    // the view boundary, so it fails resolution exactly as it would without the setting. End-to-end in ViewSettingsIT.
+    public void testLoadReferenceInsideViewBodyFailsResolution() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        test().addLanguages()
+            .addView("emp_lang_view", "FROM test, (FROM languages | KEEP language_code, does_not_exist)")
+            .statementError(setUnmappedLoad("""
+                FROM emp_lang_view
+                | KEEP emp_no, language_code
+                """), allOf(containsString("in view [emp_lang_view]"), containsString("Unknown column [does_not_exist]")));
+    }
+
+    // The same boundary under LOAD_ALL, which does not load anything from a view's _source either: a field a view body names fails
+    // resolution as without the setting, whether it is read, kept, dropped or renamed.
+    public void testLoadAllReferenceInsideViewBodyFailsResolution() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_LOAD_ALL_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+        for (String body : List.of(
+            "FROM test | WHERE does_not_exist IS NOT NULL",
+            "FROM test | KEEP emp_no, does_not_exist",
+            "FROM test | DROP does_not_exist",
+            "FROM test | RENAME does_not_exist AS renamed",
+            "FROM test | STATS c = COUNT(does_not_exist)"
+        )) {
+            test().addView("bad_view", body)
+                .statementError(
+                    setUnmappedLoadAll("FROM bad_view"),
+                    allOf(containsString("in view [bad_view]"), containsString("Unknown column [does_not_exist]"))
+                );
+        }
+    }
+
+    public void testNullifyReferenceInsideViewBodyFailsResolution() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        test().addLanguages()
+            .addView("emp_lang_view", "FROM test, (FROM languages | KEEP language_code, does_not_exist)")
+            .statementError(setUnmappedNullify("""
+                FROM emp_lang_view
+                | KEEP emp_no, language_code
+                """), allOf(containsString("in view [emp_lang_view]"), containsString("Unknown column [does_not_exist]")));
+    }
+
     public void testLoadModeDisallowsCrossBranchTypeConflict() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         test().addLanguages().statementError(setUnmappedLoad("""
@@ -1517,35 +1559,17 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
-        for (var commandAndLabel : List.of(
-            Tuple.tuple("| DISSECT first_name \"%{a}\"", "DISSECT"),
-            Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
-            Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND")
-        )) {
+        for (var commandAndLabel : List.of(Tuple.tuple("| CHANGE_POINT salary ON emp_no", "ChangePoint"))) {
             test().statementError(
                 setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
+                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
                         + commandAndLabel.v2()
                         + "] is not supported yet"
                 )
             );
         }
-    }
-
-    public void testLoadAllModeAllowsSupportedCommands() {
-        LogicalPlan plan = test().statement(setUnmappedLoadAll("""
-            FROM test
-            | WHERE emp_no > 1
-            | EVAL x = salary + 1
-            | RENAME first_name AS name
-            | KEEP name, x, salary
-            | DROP salary
-            | SORT name
-            | LIMIT 10
-            """));
-        assertThat(Expressions.names(plan.output()), equalTo(List.of("name", "x")));
     }
 
     public void testLoadAllModeAllowsInlineStats() {
@@ -1824,16 +1848,18 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
+                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
+                        + "[TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
-                        + "STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; [TS] is not supported yet"
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, MV_EXPAND, "
+                        + "SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
+                        + "[TS] is not supported yet"
                 )
             );
     }

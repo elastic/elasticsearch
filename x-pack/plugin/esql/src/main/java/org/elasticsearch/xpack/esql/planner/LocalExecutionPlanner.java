@@ -164,6 +164,7 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -2389,51 +2390,74 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(filter.child(), context);
-        // TODO: should this be extracted into a separate eval block?
-        PhysicalOperation filterOperation = source.with(
-            new FilterOperatorFactory(
-                EvalMapper.toEvaluator(
-                    context.foldCtx(),
-                    filter.condition(),
-                    source.layout,
+        // Scoring normally needs a data node, which can run the query against the resulting docs. A runtime search is the
+        // exception: it scores per row from the values in the page, so it also contributes on the coordinator.
+        if (PlannerUtils.usesScoring(filter) == false
+            || (context.shardContexts.isEmpty() && scoresWithoutShards(filter.condition()) == false)) {
+            return planFilterCondition(source, filter.condition(), context);
+        }
+        // The filter adds its searches' scores only once it has filtered, so a predicate on _score runs after that, to see
+        // them, just as it sees the score of a search Lucene runs at the source.
+        boolean holdsSearch = FullTextFunction.containsScoringSearch(filter.condition());
+        List<Expression> scorePredicates = new ArrayList<>();
+        List<Expression> searchConditions = new ArrayList<>();
+        for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
+            if (holdsSearch
+                && conjunct.anyMatch(MetadataAttribute::isScoreAttribute)
+                && FullTextFunction.containsScoringSearch(conjunct) == false) {
+                scorePredicates.add(conjunct);
+            } else {
+                searchConditions.add(conjunct);
+            }
+        }
+        Expression condition = scorePredicates.isEmpty() ? filter.condition() : Predicates.combineAnd(searchConditions);
+        PhysicalOperation filterOperation = planFilterCondition(source, condition, context);
+
+        // Add scorer operator to add the filter expression scores to the overall scores
+        Attribute scoreAttribute = null;
+
+        for (Attribute attribute : filter.output()) {
+            if (MetadataAttribute.isScoreAttribute(attribute)) {
+                scoreAttribute = attribute;
+            }
+        }
+        assert scoreAttribute != null : "Couldn't find _score attribute in a WHERE clause";
+
+        int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
+        filterOperation = filterOperation.with(
+            new ScoreOperator.ScoreOperatorFactory(
+                ScoreMapper.toScorer(
+                    condition,
                     context.shardContexts,
-                    context.analysisRegistry()
-                )
+                    EvalMapper.toEvaluatorContext(
+                        context.foldCtx(),
+                        filterOperation.layout,
+                        context.shardContexts,
+                        context.analysisRegistry()
+                    )
+                ),
+                scoreBlock
+            ),
+            filterOperation.layout
+        );
+        if (scorePredicates.isEmpty() == false) {
+            filterOperation = planFilterCondition(filterOperation, Predicates.combineAnd(scorePredicates), context);
+        }
+        return filterOperation;
+    }
+
+    private static PhysicalOperation planFilterCondition(
+        PhysicalOperation source,
+        Expression condition,
+        LocalExecutionPlannerContext context
+    ) {
+        // TODO: should this be extracted into a separate eval block?
+        return source.with(
+            new FilterOperatorFactory(
+                EvalMapper.toEvaluator(context.foldCtx(), condition, source.layout, context.shardContexts, context.analysisRegistry())
             ),
             source.layout
         );
-        // Scoring normally needs a data node, which can run the query against the resulting docs. A runtime search is the
-        // exception: it scores per row from the values in the page, so it also contributes on the coordinator.
-        if (PlannerUtils.usesScoring(filter) && (context.shardContexts.isEmpty() == false || scoresWithoutShards(filter.condition()))) {
-            // Add scorer operator to add the filter expression scores to the overall scores
-            Attribute scoreAttribute = null;
-
-            for (Attribute attribute : filter.output()) {
-                if (MetadataAttribute.isScoreAttribute(attribute)) {
-                    scoreAttribute = attribute;
-                }
-            }
-            assert scoreAttribute != null : "Couldn't find _score attribute in a WHERE clause";
-
-            int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
-            filterOperation = filterOperation.with(
-                new ScoreOperator.ScoreOperatorFactory(
-                    ScoreMapper.toScorer(
-                        filter.condition(),
-                        context.shardContexts,
-                        EvalMapper.toEvaluatorContext(
-                            context.foldCtx(),
-                            filterOperation.layout,
-                            context.shardContexts,
-                            context.analysisRegistry()
-                        )
-                    ),
-                    scoreBlock
-                ),
-                filterOperation.layout
-            );
-        }
-        return filterOperation;
     }
 
     /**

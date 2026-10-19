@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
@@ -17,11 +18,15 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -39,8 +44,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -403,6 +411,73 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             Exception e = expectThrows(IllegalArgumentException.class, client().index(indexRequest));
             assertThat(e.getMessage(), equalTo("field [users] not present as part of path [users]"));
         }
+    }
+
+    public void testLookupTrippingRequestBreakerFailsDocumentsWithTooManyRequests() throws Exception {
+        int numDocs = 8;
+        // twice as many keys as documents per bulk, so that the bulk under the default limit does not warm the cache for the other
+        for (int i = 0; i < 2 * numDocs; i++) {
+            IndexRequest indexRequest = new IndexRequest(SOURCE_INDEX_NAME);
+            indexRequest.source(Map.of(MATCH_FIELD, "key-" + i, DECORATE_FIELDS[0], randomAlphaOfLength(64 * 1024)));
+            client().index(indexRequest).actionGet();
+        }
+        client().admin().indices().refresh(new RefreshRequest(SOURCE_INDEX_NAME)).actionGet();
+
+        String policyName = "my-policy";
+        EnrichPolicy enrichPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of(SOURCE_INDEX_NAME),
+            MATCH_FIELD,
+            List.of(DECORATE_FIELDS[0])
+        );
+        client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName, enrichPolicy))
+            .actionGet();
+        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName))
+            .actionGet();
+
+        String pipelineName = "my-pipeline";
+        putJsonPipeline(pipelineName, Strings.format("""
+            {
+              "processors": [
+                {
+                  "enrich": {
+                    "policy_name": "%s",
+                    "field": "%s",
+                    "target_field": "users"
+                  }
+                }
+              ]
+            }""", policyName, MATCH_FIELD));
+
+        CircuitBreaker breaker = getInstanceFromNode(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST);
+        long usedBefore = breaker.getUsed();
+        BulkResponse underDefaultLimit = client().bulk(enrichBulk(pipelineName, 0, numDocs)).actionGet();
+        assertThat("Expected no failure, but " + underDefaultLimit.buildFailureMessage(), underDefaultLimit.hasFailures(), is(false));
+
+        // every lookup returns a 64kb document, which is more than the whole breaker allows
+        updateClusterSettings(Settings.builder().put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "32kb").build());
+        try {
+            BulkResponse bulkResponse = client().bulk(enrichBulk(pipelineName, numDocs, numDocs)).actionGet();
+            for (BulkItemResponse itemResponse : bulkResponse) {
+                assertThat(itemResponse.isFailed(), is(true));
+                assertThat(itemResponse.status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+                Throwable cause = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
+                assertThat(cause, instanceOf(CircuitBreakingException.class));
+                assertThat(cause.getMessage(), containsString("msearch[enrich]"));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()).build());
+        }
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(usedBefore)));
+    }
+
+    private static BulkRequest enrichBulk(String pipelineName, int firstKey, int numDocs) {
+        BulkRequest bulkRequest = new BulkRequest("my-index");
+        for (int i = firstKey; i < firstKey + numDocs; i++) {
+            bulkRequest.add(new IndexRequest().setPipeline(pipelineName).source(Map.of(MATCH_FIELD, "key-" + i)));
+        }
+        return bulkRequest;
     }
 
     private List<String> createSourceMatchIndex(int numKeys, int numDocsPerKey) {

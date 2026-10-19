@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
@@ -38,7 +37,7 @@ public class DefaultWarmingRatioProviderFactory implements WarmingRatioProviderF
     );
 
     @Override
-    public WarmingRatioProvider create(ClusterSettings clusterSettings, ClusterState clusterState, ShardId shardId) {
+    public WarmingRatioProvider create(ClusterSettings clusterSettings, ShardId shardId) {
         return new DefaultWarmingRatioProvider(clusterSettings);
     }
 

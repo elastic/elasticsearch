@@ -964,7 +964,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             if (hasMasterRole) {
                 return List.of(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
             }
-            warmingRatioProviderFactory = (clusterSettings, clusterState, shardId) -> mock(WarmingRatioProvider.class);
+            warmingRatioProviderFactory = (clusterSettings, shardId) -> mock(WarmingRatioProvider.class);
             return List.of();
         }
 

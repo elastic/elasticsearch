@@ -191,6 +191,77 @@ public class ViewServiceTests extends ESTestCase {
         assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view"), notNullValue());
     }
 
+    public void testWaitsForCreationConditionBeforeCreatingView() {
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        viewService.ensureReservedViewExists(
+            ProjectId.DEFAULT,
+            new View("reserved-view", "FROM some-index", null, true),
+            project -> project.hasIndex("some-index"),
+            future
+        );
+
+        publish(UnaryOperator.identity());
+        assertThat(future.isDone(), is(false));
+        assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view"), nullValue());
+
+        publish(
+            state -> state.putProjectMetadata(
+                ProjectMetadata.builder(clusterService.state().metadata().getProject(ProjectId.DEFAULT))
+                    .put(IndexMetadata.builder("some-index").settings(indexSettings(IndexVersion.current(), 1, 0)))
+            )
+        );
+        assertThat(future.actionGet(10, TimeUnit.SECONDS).isAcknowledged(), is(true));
+        assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view"), notNullValue());
+    }
+
+    public void testUpdatesExistingViewEvenIfCreationConditionIsFalse() {
+        putView(new View("reserved-view", "FROM some-index", null, true));
+
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        viewService.ensureReservedViewExists(
+            ProjectId.DEFAULT,
+            new View("reserved-view", "FROM other-index", null, true),
+            project -> false,
+            future
+        );
+        publish(UnaryOperator.identity());
+
+        assertThat(future.actionGet(10, TimeUnit.SECONDS).isAcknowledged(), is(true));
+        assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view").query(), equalTo("FROM other-index"));
+    }
+
+    public void testAcceptsTsWithStats() {
+        validatePutView("ts-view", "TS metrics | STATS max(rate(requests)) BY host");
+        validatePutView("ts-view", "TS metrics | WHERE cpu > 1 | STATS max(cpu) | KEEP `max(cpu)`");
+    }
+
+    public void testAcceptsViewWithoutTs() {
+        validatePutView("from-view", "FROM metrics | KEEP cpu");
+        validatePutView("from-view", "FROM metrics | STATS avg(cpu)");
+    }
+
+    public void testRejectsTsWithoutStats() {
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("view [ts-view] uses TS, which must be followed by a STATS command"),
+            () -> validatePutView("ts-view", "TS metrics | WHERE cpu > 1 | KEEP cpu")
+        );
+    }
+
+    public void testAcceptsPromql() {
+        validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu))");
+        validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | WHERE cpu_avg > 1 | KEEP cpu_avg");
+        validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | STATS max(cpu_avg)");
+    }
+
+    public void testIgnoresTsInSubquery() {
+        validatePutView("subquery-view", "FROM (TS metrics | KEEP cpu), (FROM other)");
+    }
+
+    private void validatePutView(String name, String query) {
+        viewService.validatePutView(clusterService.state().metadata().getProject(ProjectId.DEFAULT), new View(name, query, null, false));
+    }
+
     private PlainActionFuture<AcknowledgedResponse> ensureReservedViewExists(String name, String query, String description) {
         var future = new PlainActionFuture<AcknowledgedResponse>();
         viewService.ensureReservedViewExists(ProjectId.DEFAULT, new View(name, query, description, true), future);

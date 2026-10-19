@@ -39,7 +39,7 @@
  *     each function the translated predicate may contain is gated separately against its own pin.</li>
  *     <li>{@link org.elasticsearch.xpack.esql.dsltranslate.ViewRequestFilterRewriter} — the view <em>policy</em> over
  *     that same mechanism: it targets the output boundary of each logical view subplan (the view-branch children of
- *     {@link org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll} nodes), so the filter applies to the view's
+ *     {@link org.elasticsearch.xpack.esql.plan.logical.BranchPlan} nodes), so the filter applies to the view's
  *     <em>output</em> rather than being pushed into the view's source indices. It shares the dataset rewriter's version
  *     gate and its drop-with-warning policy, naming the view each skipped construct was meant for.</li>
  * </ul>

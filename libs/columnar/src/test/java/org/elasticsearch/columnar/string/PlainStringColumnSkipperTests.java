@@ -216,7 +216,7 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         });
     }
 
-    public void testAnExcludedIntervalIsNotDecoded() throws IOException {
+    public void testExcludedBlocksAreNotReadFromTheDataFile() throws IOException {
         final int bands = 12;
         final BytesRef[][] docSlots = new BytesRef[bands * INTERVAL][];
         for (int doc = 0; doc < docSlots.length; doc++) {

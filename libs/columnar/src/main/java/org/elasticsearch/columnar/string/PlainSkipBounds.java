@@ -24,7 +24,8 @@ import java.io.IOException;
 
 /**
  * The exact smallest and largest value of every block of {@code valuesPerBlock} slots of a plain column, in the
- * segment's skip-index file. A block is the unit a read loads as one span, so a block ruled out is never decoded.
+ * segment's skip-index file. A block is the unit a read loads as one span. A block ruled out is not loaded for a
+ * document whose slots all lie in ruled-out blocks; a kept document still compares every slot it holds.
  *
  * <p>The region is a directory of fixed size entries, one per block (the document holding its first slot and the
  * offset of its bounds), followed by the bounds: a flag and, for a block with a value, the two lengths and the bytes.

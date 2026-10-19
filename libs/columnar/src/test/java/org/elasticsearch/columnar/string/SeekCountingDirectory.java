@@ -18,7 +18,7 @@ import org.apache.lucene.store.IndexInput;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
-// NOTE: reading a block of values or ordinals is one seek on the data file, so the seeks a query makes are the blocks it decodes.
+// NOTE: each read of the data file is one seek, so seeks count chunk or block reads, not decoded values.
 final class SeekCountingDirectory extends FilterDirectory {
 
     private final AtomicLong seeks;

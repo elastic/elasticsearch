@@ -245,7 +245,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("data-view-extra");
         addView("data-view-origin", "FROM data-index-origin");
         LogicalPlan plan = query("FROM match-nothing-*,-*-view-*,data-view-*");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM data-index-origin,-*-view-*,data-view-*")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM -*-view-*,data-view-*),(FROM data-index-origin)")));
     }
 
     /**
@@ -273,6 +273,22 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("data-view", "FROM index-b*,-*2");
         LogicalPlan plan = query("FROM index-a*,data-view");
         assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM index-a*),(FROM index-b*,-*2)")));
+    }
+
+    public void testOuterExclusionNotAppliedToViewBody() {
+        addIndex("view-index");
+        addIndex("test-index");
+        addView("test-view", "FROM view-index");
+        LogicalPlan plan = query("FROM test-*,-view-index");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM view-index),(FROM test-*,-view-index)")));
+    }
+
+    public void testOuterConcreteExclusionNotAppliedToViewBody() {
+        addIndex("emp1");
+        addIndex("emp2");
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM emp2,view1,-emp1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1),(FROM emp2,-emp1)")));
     }
 
     /**
@@ -468,7 +484,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("viewX");
         addView("view1", "FROM emp1");
         LogicalPlan plan = query("FROM view*, -donotexist");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,view*,-donotexist")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM emp1),(FROM view*,-donotexist)")));
     }
 
     public void testFailureSelector() {

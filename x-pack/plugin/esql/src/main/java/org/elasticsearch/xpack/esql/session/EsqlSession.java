@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.IpLocationResolution;
+import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -175,6 +176,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
@@ -428,6 +430,7 @@ public class EsqlSession {
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
+        BooleanSupplier cancellation,
         ActionListener<Versioned<Result>> listener
     ) {
         executionInfo.queryProfile().planning().start();
@@ -491,9 +494,14 @@ public class EsqlSession {
             request.requestSettings(),
             statement,
             SettingsValidationContext.from(crossProjectModeDecider),
-            verifier.licenseState(),
-            plannerSettings.loadAllMaxFields()
+            verifier.licenseState()
         );
+        // Resolve LET bindings before view resolution. This is a synchronous, local rewrite that
+        // requires no cluster state — it simply substitutes named subquery bodies for their names.
+        // Performing it before replaceViews ensures that LET names never reach field-caps and that
+        // view bodies never see the caller's LET scope (parseView is invoked inside replaceViews).
+        parsedPlan = LetResolver.resolve(parsedPlan, statement.letBindings());
+
         LOGGER.debug("ESQL resolved settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);
         request.setResolvedSettings(resolved);
@@ -524,36 +532,33 @@ public class EsqlSession {
             QuerySettings.PROJECT_ROUTING.get(resolved),
             QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved),
-            (query, viewName) -> planningCpu.meteredCpu(
-                () -> parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName, maxCommandCount).plan()
-            ),
+            (query, viewName) -> planningCpu.meteredCpu(() -> {
+                var viewStmt = parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName, maxCommandCount);
+                return LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings());
+            }),
             boundaryPreservation,
             maxCommandCount,
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());
-                rejectViewsForExemplars(resolved, viewResolution);
+                if (QuerySettings.EXEMPLARS.get(resolved).enabled()) {
+                    verifyExemplarsQuery(viewResolution);
+                }
                 viewResolutionProfile.stop();
                 analyseAndExecute(request, executionInfo, planRunner, statement, resolved, viewResolution, l);
             }))
         );
     }
 
-    /**
-     * Rejects views in a query run with {@code SET exemplars=true}.
-     * <p>
-     * TODO: support views with the exemplars setting, with explicit tests. View resolution has inlined the view bodies by now, so the
-     * exemplar rewrite (see {@link ExemplarsRewriter}) would derive exemplar data streams from a {@code TS} or {@code PROMQL} query
-     * inside a view body, while dropping the view boundary and every operation applied to the view's output. Whether that is the
-     * intended behavior has not been decided, so views are rejected until it is.
-     */
-    private static void rejectViewsForExemplars(ResolvedSettings resolved, ViewResolver.ViewResolutionResult viewResolution) {
-        if (QuerySettings.EXEMPLARS.get(resolved).enabled() && viewResolution.viewQueries().isEmpty() == false) {
+    private static void verifyExemplarsQuery(ViewResolver.ViewResolutionResult viewResolution) {
+        // TODO support views with exemplars. There's no technical reason to not support them, we just need to check them with tests
+        if (viewResolution.viewQueries().isEmpty() == false) {
             throw new VerificationException(
                 "The exemplars setting does not support views yet, found view(s) [{}]",
                 String.join(", ", new TreeSet<>(viewResolution.viewQueries().keySet()))
             );
         }
+        ExemplarsRewriter.verifyMetricsQuery(viewResolution.plan());
     }
 
     private void analyseAndExecute(
@@ -577,6 +582,7 @@ public class EsqlSession {
             // stack telemetry
             gatherViewMetrics(viewResolution);
             gatherInSubqueryMetrics(viewResolution);
+            gatherLetMetrics(statement);
             gatherSettingsMetrics(request, statement, resolved);
             // APM
             gatherPlanTelemetry(viewResolution.plan(), statement.settings(), resolved);
@@ -1635,6 +1641,13 @@ public class EsqlSession {
             return;
         }
         metrics.inc(FeatureMetric.IN_SUBQUERY);
+    }
+
+    private void gatherLetMetrics(EsqlStatement statement) {
+        if (metrics == null || statement.letBindings() == null || statement.letBindings().isEmpty()) {
+            return;
+        }
+        metrics.inc(FeatureMetric.LET);
     }
 
     /**
@@ -3092,9 +3105,11 @@ public class EsqlSession {
         LogicalPlan plan = analyzer.analyze(parsed);
         ExemplarsSettings exemplarsSettings = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings());
         if (exemplarsSettings.enabled()) {
-            // The analyzed metrics query is not executed. The initial rewrite replaces it with the relation over all resolved exemplar
-            // data streams; that relation is analyzed in turn to resolve its fields.
-            plan = analyzer.analyze(ExemplarsRewriter.exemplarsQuery(plan, r.exemplarsResolution(), exemplarsSettings));
+            // The analyzed metrics query is not executed. It is replaced with a query over the resolved exemplar data streams for the
+            // metrics it aggregates; that query is analyzed in turn to resolve its fields.
+            plan = analyzer.analyze(
+                ExemplarsRewriter.exemplarsQuery(plan, r.indexResolution().values(), r.exemplarsResolution(), exemplarsSettings)
+            );
         }
         plan.setAnalyzed();
         return plan;

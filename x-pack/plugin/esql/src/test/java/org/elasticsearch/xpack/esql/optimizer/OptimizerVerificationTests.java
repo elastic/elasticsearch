@@ -321,6 +321,29 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         }
     }
 
+    public void testRuntimeTextSearchRejectedAfterUnionAllOfForksOnMappedTextField() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // each subquery's column is merged again by its own FORK, so the mapped field sits one merge further down
+        String fork = "| FORK (WHERE id > 0) (WHERE id <= 0)";
+        var err = error(fullTextAnalyzer().query(unionThenTopN(fork, fork) + "| WHERE match(title, \"data\")"));
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after subqueries in FROM"));
+        assertThat(err, containsString("rather than the analyzer mapped for [title]"));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterNestedUnionAllWithConflictingAnalyzers() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // the nested merge disagrees with itself, while its first branch agrees with the outer one's other branch
+        var err = error(fullTextAnalyzer().query("""
+            FROM (FROM (FROM test | WHERE category == 1 | EVAL t = to_text(concat(title, body), {"analyzer": "whitespace"})),
+                       (FROM test | WHERE category == 2 | EVAL t = to_text(concat(title, body), {"analyzer": "simple"}))),
+                 (FROM test | WHERE category == 3 | EVAL t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | SORT id | LIMIT 5
+            | WHERE match(t, "data")
+            """));
+        assertThat(err, containsString("[MATCH] function cannot search column [t] after subqueries in FROM"));
+        assertThat(err, containsString("different analyzers [simple] and [whitespace]"));
+    }
+
     public void testRuntimeTextSearchAllowedAfterUnionAllWithAgreeingAnalyzers() {
         assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         String declared = "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})";

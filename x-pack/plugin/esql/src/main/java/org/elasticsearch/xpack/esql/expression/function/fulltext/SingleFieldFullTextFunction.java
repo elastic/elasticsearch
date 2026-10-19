@@ -401,42 +401,76 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             return null;
         }
         Attribute merged = (Attribute) resolved;
+        MergePlan merge = findDefiningMerge(plan, merged);
+        if (merge == null) {
+            return null;
+        }
 
-        Holder<MergedTextColumn> found = new Holder<>();
+        Holder<FieldAttribute> mappedField = new Holder<>();
+        Set<String> branchAnalyzers = new TreeSet<>();
+        collectBranchSources(merge, merged.name(), mappedField, branchAnalyzers);
+        return merge instanceof Fork
+            ? new MergedTextColumn(column, "FORK", "FORK branches", mappedField.get(), branchAnalyzers)
+            : new MergedTextColumn(column, "subqueries in FROM", "subqueries", mappedField.get(), branchAnalyzers);
+    }
+
+    /**
+     * Finds the {@code FORK} or subquery union in {@code plan} that combined {@code column} from its branches, or
+     * returns {@code null} when {@code column} is not a merged column.
+     * <p>
+     * A merge gives each of its output columns a new id, and the commands above it pass the column on under that id.
+     * So the merge whose output has {@code column}'s id is the one that created it. An {@code EVAL} or {@code RENAME}
+     * between them binds a new id, so resolve {@code column} through {@link AliasBindings} first.
+     */
+    @Nullable
+    private static MergePlan findDefiningMerge(LogicalPlan plan, Attribute column) {
+        Holder<MergePlan> found = new Holder<>();
         plan.forEachDown(MergePlan.class, merge -> {
-            if (found.get() != null || merge.output().stream().noneMatch(out -> out.id().equals(merged.id()))) {
-                return;
+            if (found.get() == null && merge.output().stream().anyMatch(out -> out.id().equals(column.id()))) {
+                found.set(merge);
             }
-            FieldAttribute mappedField = null;
-            Set<String> branchAnalyzers = new TreeSet<>();
-            // Branches are name-aligned by the time the merge resolves, so the name is what identifies the same
-            // column across them. The merge gives its output new ids, so no branch column shares the merged column's id.
-            for (LogicalPlan branch : merge.children()) {
-                Predicate<Attribute> onlyNull = Fork.producesOnlyNull(branch);
-                for (Attribute branchColumn : branch.output()) {
-                    if (branchColumn.name().equals(merged.name()) == false) {
-                        continue;
-                    }
-                    if (mappedField == null
-                        && aliases.resolve(branchColumn, branchColumn) instanceof FieldAttribute mapped
-                        && mapped.dataType() == TEXT) {
-                        mappedField = mapped;
-                    }
-                    // A branch that does not produce the column was filled with nulls, which have nothing to analyze.
-                    if (onlyNull.test(branchColumn) == false) {
-                        String declared = AnalyzedTextExpression.valuesAnalyzerOf(branchColumn);
-                        branchAnalyzers.add(declared == null ? AnalyzedTextExpression.STANDARD_ANALYZER : declared);
-                    }
-                    break;
-                }
-            }
-            found.set(
-                merge instanceof Fork
-                    ? new MergedTextColumn(column, "FORK", "FORK branches", mappedField, branchAnalyzers)
-                    : new MergedTextColumn(column, "subqueries in FROM", "subqueries", mappedField, branchAnalyzers)
-            );
         });
         return found.get();
+    }
+
+    /**
+     * Adds what the branches of {@code merge} fill its column {@code name} from to {@code mappedField} and
+     * {@code branchAnalyzers}. A branch can pass on a column that a merge inside it produced, like a {@code FORK}
+     * inside a subquery. That merged column hides the mapped field behind it and carries only the analyzer of its own
+     * first branch, so the nested merge's branches are collected instead.
+     */
+    private static void collectBranchSources(
+        MergePlan merge,
+        String name,
+        Holder<FieldAttribute> mappedField,
+        Set<String> branchAnalyzers
+    ) {
+        // Branches are name-aligned by the time the merge resolves, so the name is what identifies the same
+        // column across them. The merge gives its output new ids, so no branch column shares the merged column's id.
+        for (LogicalPlan branch : merge.children()) {
+            Predicate<Attribute> onlyNull = Fork.producesOnlyNull(branch);
+            for (Attribute branchColumn : branch.output()) {
+                if (branchColumn.name().equals(name) == false) {
+                    continue;
+                }
+                // bound per branch, since a FORK's branches bind the same ids
+                Expression source = AliasBindings.of(branch).resolve(branchColumn, branchColumn);
+                MergePlan nested = source instanceof Attribute attribute ? findDefiningMerge(branch, attribute) : null;
+                if (nested != null) {
+                    collectBranchSources(nested, ((Attribute) source).name(), mappedField, branchAnalyzers);
+                    break;
+                }
+                if (mappedField.get() == null && source instanceof FieldAttribute mapped && mapped.dataType() == TEXT) {
+                    mappedField.set(mapped);
+                }
+                // A branch that does not produce the column was filled with nulls, which have nothing to analyze.
+                if (onlyNull.test(branchColumn) == false) {
+                    String declared = AnalyzedTextExpression.valuesAnalyzerOf(branchColumn);
+                    branchAnalyzers.add(declared == null ? AnalyzedTextExpression.STANDARD_ANALYZER : declared);
+                }
+                break;
+            }
+        }
     }
 
     @Override

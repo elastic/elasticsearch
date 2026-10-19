@@ -118,6 +118,53 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
+    private static Settings emptyStringAsNullSettings() {
+        return Settings.builder().put(columnarSettings()).put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true).build();
+    }
+
+    public void testEmptyStringAsNull() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            emptyStringAsNullSettings(),
+            batch(
+                "empty string as null",
+                1L,
+                doc("d1", 1L, "{\"f\":\"\"}"),
+                doc("d2", 2L, "{\"f\":\"alpha\"}"),
+                doc("d3", 3L, "{\"f\":null}"),
+                doc("d4", 4L, "{}")
+            )
+        );
+    }
+
+    public void testEmptyStringAsNullWithinAnArray() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
+            emptyStringAsNullSettings(),
+            batch(
+                "empty string as null within an array",
+                1L,
+                doc("d1", 1L, "{\"f\":[\"alpha\",\"\",\"beta\"]}"),
+                doc("d2", 2L, "{\"f\":[\"\"]}"),
+                doc("d3", 3L, "{\"f\":[\"\",\"\"]}")
+            )
+        );
+    }
+
+    public void testEmptyStringAsNullTakesTheNullValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("null_value", "NA").endObject()),
+            emptyStringAsNullSettings(),
+            batch(
+                "empty string as null takes the null value",
+                1L,
+                doc("d1", 1L, "{\"f\":\"\"}"),
+                doc("d2", 2L, "{\"f\":[\"alpha\",\"\"]}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
     public void testMixedBatch() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "keyword").endObject()),
@@ -1072,6 +1119,52 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
                 doc(tsdbId(ST_TS_A + 1000L), ST_ROUTING, ST_TSID, 2L, "{\"f\":\"other\",\"@timestamp\":" + (ST_TS_A + 1000L) + "}")
             )
         );
+    }
+
+    public void testNoIndexValueLongerThanMaxTermLengthOrderedPath() throws IOException {
+        // index:false with multi-value doc values stores values in array order, which takes the ordered batch path.
+        final String longValue = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("index", false).endObject()),
+            columnarSettings(),
+            batch(
+                "no-index value longer than max term length, ordered path",
+                1L,
+                doc("d1", 1L, "{\"f\":\"" + longValue + "\"}"),
+                doc("d2", 2L, "{\"f\":[\"short\",\"" + longValue + "\"]}"),
+                doc("d3", 3L, "{}")
+            )
+        );
+    }
+
+    public void testNoIndexValueLongerThanMaxTermLengthUnorderedPath() throws IOException {
+        // multi_value=false does not record array order, which takes the unordered batch path.
+        final String longValue = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "keyword").field("index", false);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "no-index value longer than max term length, unordered path",
+                1L,
+                doc("d1", 1L, "{\"f\":\"" + longValue + "\"}"),
+                doc("d2", 2L, "{}")
+            )
+        );
+    }
+
+    public void testNoIndexValueLongerThanNonIndexedFieldLimitThrows() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(columnarSettings())
+                .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
+                .build(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("index", false).endObject())
+        );
+        final String longValue = "a".repeat(64 * 1024 + 1);
+        expectThrows(IllegalArgumentException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"" + longValue + "\"}"));
     }
 
     public void testTsdbSortedSetDocValuesWithLargeTermThrows() throws IOException {

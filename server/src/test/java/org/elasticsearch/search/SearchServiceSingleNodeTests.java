@@ -413,7 +413,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     /** A two shard search runs a query task on each shard and a fetch task on at least one, and each records its queue wait. */
     public void testQueueTimeRecordedForQueryAndFetchPhases() {
-        createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());
+        createIndex("index", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build());
         prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex("index"));
         assertEquals(0.0, queueTimeTaskCount(indexService), 0.0);

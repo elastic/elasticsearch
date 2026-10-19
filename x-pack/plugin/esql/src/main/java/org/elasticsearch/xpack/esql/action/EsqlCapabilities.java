@@ -1686,6 +1686,14 @@ public class EsqlCapabilities {
          */
         VIEWS_TELEMETRY,
         /**
+         * The caller's query settings stop at view boundaries: {@code unmapped_fields} no longer
+         * reaches inside view bodies — an outer reference to a column a view does not surface answers null at the
+         * view's output instead of loading from the view's source {@code _source}, and a reference written inside a
+         * view body fails resolution as it would without the setting. Wildcards inside a view body no longer match
+         * views or datasets, whatever the caller's {@code wildcards_match_views}/{@code wildcards_match_datasets} say.
+         */
+        SETTINGS_SCOPED_AT_VIEW_BOUNDARIES,
+        /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
         VIEWS_DEDUPLICATION_BUGFIX,
@@ -3550,6 +3558,11 @@ public class EsqlCapabilities {
         PROMQL_TIMESTAMP,
 
         /**
+         * Support for PromQL {@code changes()} function.
+         */
+        PROMQL_CHANGES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
          * and the {@code TEXT_EMBEDDING} function.
          */
@@ -3663,6 +3676,16 @@ public class EsqlCapabilities {
          * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
         OPTIONAL_FIELDS_LOAD_ALL_FORK(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
+         * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
+         * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
+         * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}
+         * value across the produced rows, while expanding an unmapped field by name promotes it to a real column. {@code SAMPLE} only
+         * drops rows, so {@code _unmapped_fields} is carried through unchanged. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/157189.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_GROK_DISSECT_MV_EXPAND_SAMPLE(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},
@@ -4380,6 +4403,12 @@ public class EsqlCapabilities {
          */
         EXTERNAL_SOURCE_SCORE_FIX,
 
+        /** Support named subqueries (CTEs) declared with the {@code LET} prefix clause.
+         * A {@code LET} clause binds a subquery plan to a name that can be referenced
+         * in the main query as a relation or as an {@code IN} operand.
+         */
+        NAMED_SUBQUERY_LET(Build.current().isSnapshot()),
+
         /**
          * Does the usage information for ESQL contain the datasource failure-reason counters
          * ({@code datasources.queries.failures.by_error_type.*}, {@code datasources.discovery.failures.by_error_type.*},
@@ -4440,6 +4469,40 @@ public class EsqlCapabilities {
         FIX_DERIVED_EXTERNAL_GROUPING_MULTIVALUE,
 
         /**
+         * A Parquet column declared {@code date} is read as epoch milliseconds unless the file column itself carries
+         * the {@code DATE} annotation, whose values are day counts. Older nodes scaled every physical {@code INT32}
+         * by 86,400,000 -- so a {@code uint32} or {@code TIME(MILLIS)} column read as an instant hundreds of years
+         * out -- and sent a fixed-width byte array to a 64-bit accessor the column reader does not implement, which
+         * threw. Gates the csv-spec cases asserting the epoch-millis read, which such nodes still fail.
+         */
+        PARQUET_DECLARED_DATETIME_IS_EPOCH_MILLIS_UNLESS_DATE,
+        /**
+         * A column declared {@code date} over a file column that renders {@code date_nanos} — an annotated
+         * {@code TIMESTAMP(MICROS)} or {@code TIMESTAMP(NANOS)} — narrows to epoch millis for any instant
+         * a signed epoch-nanosecond long can hold (1677-09-21 to 2262-04-11), including before 1970. Older nodes
+         * borrowed {@code date_nanos}' own 1970 floor and failed the read under the default error mode,
+         * while the same column read correctly with no declaration at all. Gates the csv-spec case asserting
+         * the pre-1970 instant, which such nodes still fail.
+         */
+        DATASET_DECLARED_DATE_NARROWS_BELOW_THE_EPOCH,
+        /**
+         * Every element of a Parquet {@code LIST} of {@code uint32} widens unsigned, as a scalar {@code uint32}
+         * column's values do. Older nodes sign-extended list elements, so an element at or above 2^31 read negative
+         * and a filter on the column's sign dropped exactly the largest values. Gates the csv-spec case asserting the
+         * unsigned elements, which such nodes still fail.
+         */
+        PARQUET_LIST_UINT32_WIDENS_UNSIGNED,
+        /**
+         * A Parquet {@code TIME} column is read as a temporal column rather than as a number: {@code TIME(MILLIS)}
+         * as {@code date} holding the millisecond of day, {@code TIME(MICROS)} and {@code TIME(NANOS)} as
+         * {@code date_nanos} holding the nanosecond of day, each rendered as an instant on 1970-01-01. Older nodes
+         * reported every unit as {@code long}, so the number a query saw depended on the unit the writer chose and a
+         * column declared {@code date} over a sub-millisecond unit read a wrong instant -- 1971 for the microsecond
+         * unit, year 3149 for the nanosecond one.
+         * Gates the csv-spec cases asserting the temporal read, which such nodes still fail.
+         */
+        PARQUET_TIME_OF_DAY_IS_A_TEMPORAL_COLUMN,
+        /**
          * A {@code TS} aggregation grouping on a non-dimension {@code text} field keeps the {@code text} type in the
          * output. Older nodes returned {@code keyword} (see {@link #TS_PERMIT_TEXT_BECOMING_KEYWORD_WHEN_GROUPED_ON}).
          */
@@ -4456,6 +4519,26 @@ public class EsqlCapabilities {
          * for these aggregations when another metric was aggregated in the same {@code STATS}.
          */
         FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
+
+        /**
+         * {@code DEDUP} ignores the synthetic {@code $$<field>$converted_to$<type>} attributes that a conversion pushed into
+         * {@code UnionAll} branches leaves in its input. Older nodes rejected such queries when the converted type, e.g.
+         * {@code date_range}, cannot be grouped on, even though the column is never part of the output.
+         */
+        DEDUP_IGNORES_SYNTHETIC_UNION_CONVERSIONS,
+
+        /**
+         * Warning, emitted before optimization, when an explicit NULL literal is misused: either the
+         * expression always evaluates to NULL, or a NULL in an IN list never matches.
+         */
+        WARN_NULL_MISUSE,
+
+        /**
+         * A {@code _score} predicate after a runtime search ({@code MATCH}, {@code MATCH_PHRASE}, runtime {@code KNN}),
+         * in a later {@code WHERE} or combined with it using {@code AND}, sees the score that search contributes, as it
+         * does for a search on an indexed field, rather than the score from before it.
+         */
+        RUNTIME_SCORE_FIX,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

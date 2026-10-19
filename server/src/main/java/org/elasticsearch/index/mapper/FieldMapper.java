@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -83,6 +84,22 @@ public abstract class FieldMapper extends Mapper {
         false,
         Property.IndexScope,
         Property.ServerlessPublic
+    );
+
+    /**
+     * Index-level rule for how a {@code keyword} field reads an empty string. When {@code true}, a field given
+     * {@code ""} is parsed as though the document had given it {@code null}: {@code null_value} applies where the
+     * field configures one, and otherwise the field holds no value there. A search for an empty string then asks
+     * for the documents that hold no value.
+     *
+     * <p>It is final because it governs what is written rather than how what is written is read, so a document
+     * indexed under one setting cannot be reinterpreted under the other.
+     */
+    public static final Setting<Boolean> EMPTY_KEYWORD_STRING_AS_NULL_SETTING = Setting.boolSetting(
+        "index.mapping.empty_keyword_string_as_null",
+        false,
+        Property.IndexScope,
+        Property.Final
     );
 
     /**
@@ -257,6 +274,18 @@ public abstract class FieldMapper extends Mapper {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return false;
             }
+            // Outside strict-columnar modes (which reject the setting), the row path copies every value of a field under
+            // synthetic_source_keep: all, scalars included, into _ignored_source, as it does for a field with no synthetic source of its
+            // own (SYNTHETIC_FALLBACK). The batch path writes neither, so such a field must stay on the row path. No mapper that gets
+            // this far reports FALLBACK today (copy_to, scripts and normalizers are refused above or by the mapper), so that half of the
+            // check guards mappers added later.
+            if (indexSettings.getMode().isStrictColumnar() == false
+                && FallbackPostMapper.capturesScalarValues(
+                    syntheticSourceMode() == SyntheticSourceMode.FALLBACK,
+                    FallbackPostMapper.effectiveKeepMode(sourceKeepMode(), indexSettings)
+                )) {
+                return false;
+            }
         }
         if (doSupportsColumnarParse(indexSettings) == false) {
             return false;
@@ -342,6 +371,20 @@ public abstract class FieldMapper extends Mapper {
                 "mapColumnBatch: nullability=false field [" + fullPath() + "] has a null or absent value"
             );
         }
+        // Outside strict-columnar modes (which reject the setting), a non-default synthetic_source_keep makes the row path keep array
+        // source as-is, either as positional offsets or in _ignored_source, neither of which the batch path writes.
+        // Fields under keep: all are kept off the batch path by supportsColumnarParse, and ShardBatchMapper does the same for
+        // objects with keep: all; arrays under keep: arrays are the case that can only be recognised per batch, here.
+        if (source.kind() == EscfColumnKind.ARRAY
+            && ctx.indexSettings().getMode().isStrictColumnar() == false
+            && FallbackPostMapper.mayKeepArraySource(
+                syntheticSourceMode() == SyntheticSourceMode.FALLBACK,
+                FallbackPostMapper.effectiveKeepMode(sourceKeepMode(), ctx.indexSettings())
+            )) {
+            throw new UnsupportedOperationException(
+                "mapColumnBatch: field [" + fullPath() + "] may keep array source outside a strict-columnar index mode"
+            );
+        }
         doMapColumnBatch(ctx, source);
         for (FieldMapper subMapper : builderParams.multiFields) {
             subMapper.mapColumnBatch(ctx, source);
@@ -401,7 +444,7 @@ public abstract class FieldMapper extends Mapper {
                 redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior());
             }
             if (redirectedToFailureColumn == false) {
-                if (isNullable() == false && context.parser().currentToken().isValue()) {
+                if (isNullable() == false && context.parser().currentToken().isValue() && valueSatisfiesRequired(context)) {
                     // A non-null value satisfies the [nullability=false] requirement for this Lucene doc.
                     context.markRequiredSatisfied(fullPath());
                 }
@@ -496,6 +539,14 @@ public abstract class FieldMapper extends Mapper {
      * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
      * current failing token
      */
+    /**
+     * Whether the value the parser is on satisfies a {@code [doc_values.nullability: false]} requirement. A value the
+     * field reads as a null does not: the document then holds no value for a field that promised one.
+     */
+    protected boolean valueSatisfiesRequired(DocumentParserContext context) throws IOException {
+        return true;
+    }
+
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
     /**

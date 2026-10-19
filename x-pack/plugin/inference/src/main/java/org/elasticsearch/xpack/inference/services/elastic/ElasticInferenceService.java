@@ -267,7 +267,8 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                     inputs.getRequest().topP(),
                     mergedReasoning,
                     inputs.getRequest().cacheControl(),
-                    inputs.getRequest().sessionId()
+                    inputs.getRequest().sessionId(),
+                    inputs.getRequest().template()
                 ),
                 inputs.stream()
             );
@@ -288,6 +289,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     @Override
     protected boolean supportsChatCompletionSessionId() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsChatCompletionTemplates() {
         return true;
     }
 

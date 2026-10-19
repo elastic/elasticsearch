@@ -482,7 +482,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private final RefCounted bytesToClose;
         private final AtomicInteger uploadTryNumber = new AtomicInteger(0);
         private static final long UNSET = -1L;
-        private long firstAttemptStartMillis;
+        private long firstAttemptStartMillis = UNSET;
         private volatile boolean isUploaded = false;
         private volatile boolean hedged = false;
         private final AtomicReference<Boolean> completedByHedge = new AtomicReference<>();
@@ -509,16 +509,19 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             };
         }
 
-        // A translog-upload might be slow or might even hang (e.g., ongoing TCP retransmissions), so on the first try of
-        // a `UploadTranslogTask`, we schedule a hedge upload that be fired after 2 seconds.
-        // If the hedge upload completes first, then through `RetryableAction` `isDone` is set, and we'll stop calling `tryAction`.
-        // If the non-hedge upload completes first (e.g., in less than 2 seconds), then `onFinished` is called, `hedgeTimer` is cancelled
-        // and hence the hedge upload is never fired.
+        // used to keep track of the successful hedges
         private void uploaded(boolean byHedge, ActionListener<UploadTranslogTask> listener) {
             completedByHedge.compareAndSet(null, byHedge);
             listener.onResponse(this);
         }
 
+        // A translog-upload might be slow or might even hang, so on the first try of an `UploadTranslogTask`, we schedule a hedge upload
+        // that will be fired after `UPLOAD_HEDGE_DELAY_SETTING` seconds.
+        // - If the hedge upload completes first, then `isDone` is set, and we'll stop retrying this `UploadTranslogTask`. Note this is
+        // because the `listener` passed in `hedge(listener)` is the same `RetryingListener` passed in `tryAction` and hence
+        // `RetryableAction`'s `isDone` is set to true.
+        // - If the non-hedge upload completes first (e.g., in less than `UPLOAD_HEDGE_DELAY_SETTING` seconds), then `onFinished`
+        // is called, `hedgeTimer` is canceled and hence the hedge upload is never fired.
         private void hedge(ActionListener<UploadTranslogTask> listener) {
             translogUploadHedgesCounter.increment();
             if (completed || bytesToClose.tryIncRef() == false) {
@@ -543,9 +546,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         public void tryAction(ActionListener<UploadTranslogTask> listener) {
             if (uploadTryNumber.incrementAndGet() == 1) {
                 firstAttemptStartMillis = threadPool.relativeTimeInMillis();
-
-                // only the first time, we schedule another upload attempt that will only be attempted if after 2 seconds we have not yet
-                // uplaoded the translog
+                // only in the first try we schedule another parallel upload, only if after `uploadHedgeDelay` seconds
+                // we have not yet uploaded the translog
                 hedgeTimer = threadPool.schedule(() -> hedge(listener), uploadHedgeDelay, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }
             // Retain the bytes to ensure that a cancel call does not corrupt them before upload
@@ -614,9 +616,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         UploadTranslogTask uploadTranslogTask = new UploadTranslogTask(translog, new ActionListener<>() {
             @Override
             public void onResponse(UploadTranslogTask task) {
-                assert task.uploadTryNumber.get() >= 1 && task.firstAttemptStartMillis != UploadTranslogTask.UNSET; // just have an assert
-                                                                                                                    // in case
-                // of a bug
+                // just have an assert in case of a bug
+                assert task.uploadTryNumber.get() >= 1 && task.firstAttemptStartMillis != UploadTranslogTask.UNSET;
                 translogUploadAttemptsHistogram.record(task.uploadTryNumber.get() + (task.hedged ? 1 : 0));
                 translogUploadTotalDurationHistogram.record(threadPool.relativeTimeInMillis() - task.firstAttemptStartMillis);
                 if (task.completedByHedge.get()) {

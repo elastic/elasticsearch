@@ -58,7 +58,8 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
     }
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
-    private static final Settings COLUMNAR = Settings.builder().put("index.mode", "columnar").build();
+    private static final String TIMESTAMP = "2020-01-01T00:00:00Z";
+    private static final List<String> COLUMNAR_MODES = List.of("columnar", "logsdb_columnar");
     private static final Map<String, Object> SAMPLE_VALUES = Map.ofEntries(
         Map.entry("keyword", "abc"),
         Map.entry("ip", "10.0.0.1"),
@@ -83,7 +84,7 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
     }
 
     public void testKeywordOnColumnarIndex() throws IOException {
-        assertOnColumnarIndex(mapping("keyword"), TopMetricsColumnarIT::randomString);
+        assertOnEveryColumnarMode(mapping("keyword"), TopMetricsColumnarIT::randomString);
     }
 
     public void testIpOnStandardIndex() throws IOException {
@@ -91,19 +92,19 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
     }
 
     public void testIpOnColumnarIndex() throws IOException {
-        assertOnColumnarIndex(mapping("ip"), TopMetricsColumnarIT::randomIpAddress);
+        assertOnEveryColumnarMode(mapping("ip"), TopMetricsColumnarIT::randomIpAddress);
     }
 
     public void testTextIsRejectedOnColumnarIndex() throws IOException {
-        assertRejected("columnar", COLUMNAR, mapping("text"), "text");
+        assertRejectedOnColumnarIndex(mapping("text"), "text");
     }
 
     public void testMatchOnlyTextIsRejectedOnColumnarIndex() throws IOException {
-        assertRejected("columnar", COLUMNAR, mapping("match_only_text"), "match_only_text");
+        assertRejectedOnColumnarIndex(mapping("match_only_text"), "match_only_text");
     }
 
     public void testBinaryIsRejectedOnColumnarIndex() throws IOException {
-        assertRejected("columnar", COLUMNAR, mapping("binary"), "binary");
+        assertRejectedOnColumnarIndex(mapping("binary"), "binary");
     }
 
     public void testTextWithDocValuesIsRejectedOnStandardIndex() throws IOException {
@@ -129,15 +130,17 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
     }
 
     public void testTextDocValuesDisabledOnColumnarIndex() throws IOException {
+        String mode = randomFrom(COLUMNAR_MODES);
         for (String type : List.of("text", "match_only_text")) {
-            assertRejectedWithoutDocValues("columnar-" + type, COLUMNAR, type, SAMPLE_VALUES.get(type));
+            assertRejectedWithoutDocValues(mode + "-" + type, columnarSettings(mode), type, SAMPLE_VALUES.get(type));
         }
     }
 
     public void testMissingMetricOnTopDocument() throws IOException {
         List<Document> documents = List.of(new Document(1, null), new Document(2, 5), new Document(3, 7));
         assertTopMetrics("standard", Settings.EMPTY, mapping("long"), documents, true, Function.identity());
-        assertTopMetrics("columnar", COLUMNAR, mapping("long"), documents, true, Function.identity());
+        String mode = randomFrom(COLUMNAR_MODES);
+        assertTopMetrics(mode, columnarSettings(mode), mapping("long"), documents, true, Function.identity());
     }
 
     public void testKeywordMissingMetricOnTopDocumentOnStandardIndex() throws IOException {
@@ -147,7 +150,9 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
 
     public void testKeywordMissingMetricOnTopDocumentOnColumnarIndex() throws IOException {
         List<Document> documents = List.of(new Document(1, null), new Document(2, "a"), new Document(3, "b"));
-        assertTopMetrics("columnar", COLUMNAR, mapping("keyword"), documents, true, Function.identity());
+        for (String mode : COLUMNAR_MODES) {
+            assertTopMetrics(mode, columnarSettings(mode), mapping("keyword"), documents, true, Function.identity());
+        }
     }
 
     public void testLong() throws IOException {
@@ -221,7 +226,31 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
 
     private void assertOnColumnarIndex(String metricMapping, Supplier<Object> randomValue, Function<Object, Object> responseValue)
         throws IOException {
-        assertTopMetrics("columnar", COLUMNAR, metricMapping, randomValue, responseValue);
+        assertOnColumnarMode(randomFrom(COLUMNAR_MODES), metricMapping, randomValue, responseValue);
+    }
+
+    private void assertOnEveryColumnarMode(String metricMapping, Supplier<Object> randomValue) throws IOException {
+        for (String mode : COLUMNAR_MODES) {
+            assertOnColumnarMode(mode, metricMapping, randomValue, Function.identity());
+        }
+    }
+
+    private void assertOnColumnarMode(
+        String mode,
+        String metricMapping,
+        Supplier<Object> randomValue,
+        Function<Object, Object> responseValue
+    ) throws IOException {
+        assertTopMetrics(mode, columnarSettings(mode), metricMapping, randomValue, responseValue);
+    }
+
+    private void assertRejectedOnColumnarIndex(String metricMapping, String type) throws IOException {
+        String mode = randomFrom(COLUMNAR_MODES);
+        assertRejected(mode, columnarSettings(mode), metricMapping, type);
+    }
+
+    private static Settings columnarSettings(String mode) {
+        return Settings.builder().put("index.mode", mode).build();
     }
 
     private void assertTopMetrics(
@@ -293,7 +322,7 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
         StringBuilder bulk = new StringBuilder();
         for (Document document : documents) {
             XContentBuilder source = JsonXContent.contentBuilder().startObject();
-            source.field("sort_key", document.sortKey());
+            source.field("@timestamp", TIMESTAMP).field("sort_key", document.sortKey());
             if (document.metric() != null) {
                 source.field("metric", document.metric());
             }
@@ -323,6 +352,7 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
     private void createMetricIndex(String index, Settings indexSettings, String metricMapping) throws IOException {
         createIndex(index, indexSettings, Strings.format("""
             "properties": {
+              "@timestamp": { "type": "date" },
               "sort_key": { "type": "long" },
               "metric": %s
             }

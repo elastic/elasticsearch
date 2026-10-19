@@ -384,6 +384,32 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         dir.close();
     }
 
+    public void testCaseInsensitiveTermQueryOnEmptyString() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
+        iwc.setMergePolicy(newTieredMergePolicy(random()));
+        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+
+        for (String value : List.of("", "a")) {
+            Document doc = new Document();
+            LuceneDocument parseDoc = new LuceneDocument();
+            addFields(parseDoc, doc, value);
+            indexDoc(parseDoc, doc, iw);
+        }
+
+        iw.forceMerge(1);
+        DirectoryReader reader = iw.getReader();
+        IndexSearcher searcher = newSearcher(reader);
+        iw.close();
+
+        expectTermMatch(searcher, "", 1);
+        Query q = wildcardFieldType.fieldType().termQueryCaseInsensitive("", MOCK_CONTEXT);
+        assertThat(searcher.count(q), equalTo(1));
+
+        reader.close();
+        dir.close();
+    }
+
     private void expectTermMatch(IndexSearcher searcher, String term, long count) throws IOException {
         Query q = wildcardFieldType.fieldType().termQuery(term, MOCK_CONTEXT);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);

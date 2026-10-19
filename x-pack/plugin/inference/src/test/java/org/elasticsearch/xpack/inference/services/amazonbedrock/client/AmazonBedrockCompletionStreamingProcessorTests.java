@@ -13,6 +13,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEve
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.RestStatus;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -38,6 +41,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -170,6 +174,157 @@ public class AmazonBedrockCompletionStreamingProcessorTests extends ESTestCase {
             assertThat(results.results().size(), equalTo(1));
             assertThat(results.results().getFirst().delta(), equalTo(expectedText));
         }));
+    }
+
+    /**
+     * The request can fail (e.g. a Bedrock ValidationException) before the upstream ever subscribes. The error must still reach the
+     * downstream when it requests data, otherwise the stream hangs.
+     */
+    public void testOnErrorBeforeUpstreamSubscribesIsDeliveredOnRequest() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        processor.onError(expectedError);
+
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+
+        sub.getValue().request(1);
+        verify(downstream, times(1)).onError(assertArg(e -> {
+            assertThat(e, isA(ElasticsearchException.class));
+            assertThat(e.getCause(), is(expectedError));
+        }));
+    }
+
+    /**
+     * Once pending demand has been forwarded to the upstream, an error must still be delivered to the downstream.
+     */
+    public void testOnErrorAfterDemandForwardedUpstreamIsDelivered() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        sub.getValue().request(1);
+
+        processor.onSubscribe(mock(Flow.Subscription.class));
+        processor.onError(expectedError);
+
+        verify(downstream, times(1)).onError(assertArg(e -> {
+            assertThat(e, isA(ElasticsearchException.class));
+            assertThat(e.getCause(), is(expectedError));
+        }));
+    }
+
+    /**
+     * A stored error is replayed right after {@link Flow.Subscriber#onSubscribe} returns when the subscriber requested data from within
+     * onSubscribe (as the REST streaming subscriber does), and never before it.
+     */
+    public void testStoredErrorIsReplayedAfterOnSubscribeWhenRequestedInOnSubscribe() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        processor.onError(expectedError);
+
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
+        doAnswer(ans -> {
+            Flow.Subscription subscription = ans.getArgument(0);
+            subscription.request(1);
+            return null;
+        }).when(downstream).onSubscribe(any());
+        processor.subscribe(downstream);
+
+        var inOrder = inOrder(downstream);
+        inOrder.verify(downstream).onSubscribe(any());
+        inOrder.verify(downstream).onError(assertArg(e -> assertThat(e.getCause(), is(expectedError))));
+    }
+
+    /**
+     * Downstream subscribers only expect signals in response to a request, so an error that arrives while nothing has been requested
+     * is parked and delivered by the next request.
+     */
+    public void testStoredErrorIsParkedUntilDownstreamRequests() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        processor.onError(expectedError);
+
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        verify(downstream, never()).onError(any());
+
+        sub.getValue().request(1);
+        verify(downstream, times(1)).onError(assertArg(e -> assertThat(e.getCause(), is(expectedError))));
+    }
+
+    /**
+     * Once the downstream's request has been answered with an item it has no outstanding request, so an error is parked until the next
+     * one instead of being signalled while, for example, the previous item is still being written out.
+     */
+    public void testErrorAfterRequestWasAnsweredIsParkedUntilNextRequest() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        processor.onSubscribe(mock(Flow.Subscription.class));
+
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+
+        sub.getValue().request(1);
+        processor.emitNext(new StreamingCompletionResults.Results(new ArrayDeque<>()));
+        verify(downstream, times(1)).onNext(any());
+
+        processor.onError(expectedError);
+        verify(downstream, never()).onError(any());
+
+        sub.getValue().request(1);
+        verify(downstream, times(1)).onError(assertArg(e -> assertThat(e.getCause(), is(expectedError))));
+    }
+
+    /**
+     * An error whose delivery is already queued on the utility thread must not be turned into a completion by a request that arrives
+     * before the queued delivery runs.
+     */
+    public void testRequestWhileErrorDeliveryIsQueuedDoesNotComplete() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        var queued = new ArrayList<Runnable>();
+        ExecutorService executorService = mock();
+        doAnswer(ans -> {
+            queued.add(ans.getArgument(0));
+            return null;
+        }).when(executorService).execute(any());
+        ThreadPool threadPool = mock();
+        when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
+        processor = new AmazonBedrockCompletionStreamingProcessor(threadPool);
+
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        sub.getValue().request(1);
+        processor.onSubscribe(mock(Flow.Subscription.class));
+
+        processor.onError(expectedError);
+        assertThat(queued.size(), is(1));
+
+        sub.getValue().request(1);
+        verify(downstream, never()).onComplete();
+
+        queued.forEach(Runnable::run);
+        verify(downstream, times(1)).onError(assertArg(e -> assertThat(e.getCause(), is(expectedError))));
+        verify(downstream, never()).onComplete();
+    }
+
+    public void testOnErrorAfterCancelIsNotDelivered() {
+        Flow.Subscriber<StreamingCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        sub.getValue().request(1);
+
+        sub.getValue().cancel();
+        processor.onError(BedrockRuntimeException.builder().message("ahhhhhh").build());
+
+        verify(downstream, never()).onError(any());
     }
 
     public void verifyCompleteBeforeRequest() {

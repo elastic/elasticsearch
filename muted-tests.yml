@@ -460,5 +460,3 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/160613
-- class: org.elasticsearch.xpack.sql.qa.security.CliSecurityIT
-  issue: https://github.com/elastic/elasticsearch/issues/162451

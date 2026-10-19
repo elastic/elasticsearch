@@ -539,7 +539,7 @@ public class GeoUtils {
                 }
 
             };
-            return SortedNumericDoubleValues.singletonWithoutDocIdIterator(doubleValues);
+            return SortedNumericDoubleValues.singleton(doubleValues, geoPointValues.docIdIterator());
         } else {
             return new SortingNumericDoubleValues() {
                 @Override

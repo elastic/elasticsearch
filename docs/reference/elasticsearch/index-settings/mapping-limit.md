@@ -211,5 +211,5 @@ $$$ignore-dynamic-beyond-limit$$$
 
 $$$non-indexed-field-max-value-length$$$
 `index.mapping.non_indexed_field.max_value_length` {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`
-:   (Byte value) Maximum size of a single value in a non-indexed `keyword` or `flattened` field in a [columnar index mode](/reference/elasticsearch/columnar/index.md). For a `flattened` field the size covers the key and the value together. Fields that are indexed or use sorted-set doc values, such as a low-cardinality or time series `keyword` field, and all fields in other index modes, keep Lucene's term limit of `32766` bytes. Defaults to `1mb`. The minimum value is `32766b` and the maximum is `2147483647b`. You can only set this setting in a columnar index mode, when you create the index. You cannot change it later.
+:   (Byte value) Maximum size of a single value in a non-indexed `keyword` or `flattened` field in a [columnar index mode](/reference/elasticsearch/columnar/index.md). For a `flattened` field the size covers the key and the value together. Fields that are indexed and all fields in other index modes, keep Lucene's term limit of `32766` bytes. Defaults to `1mb`. The minimum value is `32766b` and the maximum is `2147483647b`. You can only set this setting in a columnar index mode, when you create the index. You cannot change it later.
 

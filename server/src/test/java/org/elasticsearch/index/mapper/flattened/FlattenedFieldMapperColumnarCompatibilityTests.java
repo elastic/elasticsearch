@@ -445,6 +445,5 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
         );
         assertThat(e.getMessage(), containsString("whose keyed encoding is longer than the allowed max length"));
         assertThat(e.getMessage(), containsString("allowed max length of 65536 bytes"));
-        assertThat(e.getMessage(), containsString(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey()));
     }
 }

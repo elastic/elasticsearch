@@ -81,7 +81,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -901,7 +900,6 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             () -> mapper.parse(source(b -> b.field("field", Map.of("key", value))))
         );
         assertThat(e.getCause().getMessage(), containsString("allowed max length of " + IndexWriter.MAX_TERM_LENGTH + " bytes"));
-        assertThat(e.getCause().getMessage(), not(containsString(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey())));
     }
 
     /**
@@ -936,7 +934,6 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             () -> mapper.parse(source(b -> b.field("field", Map.of("key", valueOverLimit))))
         );
         assertThat(e.getCause().getMessage(), containsString("allowed max length of 65536 bytes"));
-        assertThat(e.getCause().getMessage(), containsString(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey()));
     }
 
     public void testNullValues() throws Exception {

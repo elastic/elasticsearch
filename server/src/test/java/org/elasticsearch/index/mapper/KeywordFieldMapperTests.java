@@ -75,7 +75,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
@@ -997,8 +996,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             () -> mapper.parse(source(b -> b.field("field", longValue)))
         );
         assertThat(e.getCause().getMessage(), containsString("longer than the max length 65536"));
-        assertThat(e.getCause().getMessage(), containsString(IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey()));
-        assertThat(e.getCause().getMessage(), not(containsString("analyzer")));
         mapper.parse(source(b -> b.field("field", "x".repeat(64 * 1024))));
     }
 

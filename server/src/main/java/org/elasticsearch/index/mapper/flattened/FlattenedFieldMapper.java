@@ -1682,7 +1682,6 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     private final boolean passthrough;
     private final PreserveLeafArrays preserveLeafArrays;
     private final boolean writeDimensionRouting;
-    private final boolean enforcesTermLength;
     private final int maxKeyedValueLength;
 
     private FlattenedFieldMapper(
@@ -1701,7 +1700,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         this.writeDimensionRouting = builder.dimensions.getValue().isEmpty() == false
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
-        this.enforcesTermLength = mappedFieldType.indexType().hasTerms() || builder.usesBinaryDocValues == false;
+        boolean enforcesTermLength = mappedFieldType.indexType().hasTerms() || builder.usesBinaryDocValues == false;
         this.maxKeyedValueLength = builder.indexSettings.maxValueLength(enforcesTermLength);
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
@@ -1719,8 +1718,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             builder.indexSettings.getIndexVersionCreated(),
             this.writeDimensionRouting,
             ((RootFlattenedFieldType) mappedFieldType).usesArrayOrderBinaryDocValues(),
-            maxKeyedValueLength,
-            enforcesTermLength
+            maxKeyedValueLength
         );
         this.preserveLeafArrays = builder.preserveLeafArrays.get();
     }
@@ -1989,8 +1987,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                                     fieldType().name(),
                                     relativeKeys[k],
                                     value.length,
-                                    maxKeyedValueLength,
-                                    enforcesTermLength
+                                    maxKeyedValueLength
                                 );
                             }
                         }

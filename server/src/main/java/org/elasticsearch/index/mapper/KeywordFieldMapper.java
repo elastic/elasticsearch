@@ -1536,7 +1536,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final DocValuesFieldFactory dvFactory;
     private final String indexOptions;
     private final FieldType fieldType;
-    private final boolean enforcesTermLength;
     private final int maxValueLength;
     private final String normalizerName;
     private final boolean normalizerSkipStoreOriginalValue;
@@ -1576,7 +1575,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         );
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
-        this.enforcesTermLength = this.fieldType.indexOptions() != IndexOptions.NONE
+        boolean enforcesTermLength = this.fieldType.indexOptions() != IndexOptions.NONE
             || this.fieldType.docValuesType() == DocValuesType.SORTED_SET;
         this.maxValueLength = builder.indexSettings.maxValueLength(enforcesTermLength);
         this.normalizerName = builder.normalizer.getValue();
@@ -2200,19 +2199,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     private IllegalArgumentException largeTermException(BytesRef value) {
         byte[] prefix = new byte[30];
         System.arraycopy(value.bytes, value.offset, prefix, 0, 30);
-        if (enforcesTermLength == false) {
-            return new IllegalArgumentException(
-                "Document contains a value in field=\""
-                    + fieldType().name()
-                    + "\" whose UTF8 encoding is longer than the max length "
-                    + maxValueLength
-                    + " set by ["
-                    + IndexSettings.MAX_BINARY_DOC_VALUE_LENGTH_SETTING.getKey()
-                    + "]. The prefix of the value is: '"
-                    + Arrays.toString(prefix)
-                    + "...'"
-            );
-        }
         return new IllegalArgumentException(
             "Document contains at least one immense term in field=\""
                 + fieldType().name()

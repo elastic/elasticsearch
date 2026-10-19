@@ -166,7 +166,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
      *                          it: values that did not cover enough of the column to earn one do not repeat
      *                          enough for a page to earn one either. A column written under no dictionary
      *                          policy was never surveyed, and leaves the page to decide as it always has
-     * @param skipper      where the bounds on the values of each block of slots are in the skip-index file;
+     * @param skipper      where the bounds on the values each chunk owns are in the skip-index file;
      *                     null for a column that wrote none
      */
     record Plain(

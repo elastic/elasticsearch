@@ -168,7 +168,7 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
     public IntermediateResult translate(TranslationContext context) {
         // The child must expose the labels the derivation reads, on top of whatever the enclosing translation requires.
         TranslationSchema childRequired = union(context.required(), finite(sourceLabels()));
-        IntermediateResult child = context.withRequired(childRequired).translate(child());
+        IntermediateResult child = context.withRequirement(childRequired).translate(child());
         if (child.kind().constant) {
             return child;
         }
@@ -185,12 +185,12 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
             ? labelReplaceValue(context, source, aggregated)
             : labelJoinValue(context, source, aggregated);
 
-        String name = TranslationContext.mapFinite(destination);
+        String name = PromqlLabels.labelName(destination);
         Alias derived = new Alias(source, destination.name(), destinationValue, destination.id());
         LogicalPlan plan = new Eval(context.cmd().source(), aggregated.plan(), List.of(derived));
         var unshadowed = new ArrayList<NamedExpression>();
         for (Attribute attribute : plan.output()) {
-            if (attribute.id().equals(derived.id()) || TranslationContext.mapFinite(attribute).equals(name) == false) {
+            if (attribute.id().equals(derived.id()) || PromqlLabels.labelName(attribute).equals(name) == false) {
                 unshadowed.add(attribute);
             }
         }
@@ -224,7 +224,7 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         Expression replacement = params.get(1);
         Expression src = sourceLabelValue(context, source, table, srcLabel);
         Expression extracted = new RegexExpand(source, src, regex, replacement);
-        Expression existingDst = sourceLabelValue(context, source, table, TranslationContext.mapFinite(destination()));
+        Expression existingDst = sourceLabelValue(context, source, table, PromqlLabels.labelName(destination()));
         return new Coalesce(source, extracted, List.of(existingDst));
     }
 

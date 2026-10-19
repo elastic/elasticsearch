@@ -140,6 +140,9 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
             return new TypeResolution("Unresolved children");
         }
 
+        if (field.dataType() == DataType.TIMESERIES_DATA_TYPE) {
+            return new TypeResolution("[MV_SORT] does not support ordering [_timeseries] values");
+        }
         TypeResolution resolution = isRepresentableExceptCountersSpatialDenseVectorAggregateMetricDoubleAndHistogram(
             field,
             sourceText(),

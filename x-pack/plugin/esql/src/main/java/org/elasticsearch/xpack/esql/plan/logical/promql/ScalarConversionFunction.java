@@ -58,7 +58,7 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
     @Override
     public IntermediateResult translate(TranslationContext context) {
         // The result has no labels, so the child's label set is irrelevant: it exposes none.
-        IntermediateResult child = context.withRequired(TranslationSchema.EMPTY).translate(child());
+        IntermediateResult child = context.withRequirement(TranslationSchema.EMPTY).translate(child());
         if (child.value().foldable()) {
             Expression value = new ToDouble(source(), child.value());
             return new IntermediateResult(child.plan(), TranslationSchema.EMPTY, value, child.step(), child.pendingFilter());

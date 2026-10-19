@@ -37,7 +37,7 @@ public interface PromqlPlan {
 
     /**
      * Translates this node into an ES|QL plan. {@code translation} carries what the enclosing node
-     * {@link TranslationContext#required() requires} of this node's labels and the shared services: recursion into the child
+     * {@link TranslationContext#requiredLabels() requires} of this node's labels and the shared services: recursion into the child
      * under a requirement, and the aggregation and {@link TranslationContext#eval eval} helpers
      * every node composes its result from. Each node owns its translation the way it owns its {@link #output()}.
      */
@@ -52,8 +52,8 @@ public interface PromqlPlan {
      * ({@code by}/{@code without}), across-series reduction ({@code topk}/{@code bottomk}), and vector binary operators.
      * Per-series and value/type-shaping nodes (selectors, {@code rate}-style within-series aggregates, scalar/vector
      * conversions, {@code histogram_quantile}) are transparent for this purpose even when they reshape labels, because a
-     * relabel below them still feeds the same enclosing aggregation. This drives the supported-placement check for the
-     * label functions; see {@code PromqlCommand#verifyMetadataManipulationPlacement}.
+     * relabel below them still feeds the same enclosing aggregation. This is used by the original label-function translation,
+     * which is outside the aggregation prototype.
      */
     default boolean isIdentityTransparent() {
         return true;

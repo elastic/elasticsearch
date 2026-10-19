@@ -140,17 +140,17 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         // by; the partition labels must be exposed to rank within them. limit_ratio is membership-neutral:
         // its sampling key is solely the input vector's identity, so outer partitions are neither required
         // from the child nor materialized below.
-        List<String> partitions = TranslationContext.mapFinite(groupings());
+        List<String> partitions = PromqlLabels.labelNames(groupings());
         boolean isLimitRatio = definition() == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO;
         TranslationSchema childRequired = isLimitRatio
             ? union(context.required(), open())
             : union(union(context.required(), open()), finite(partitions));
-        IntermediateResult childResult = context.withRequired(childRequired).translate(child());
+        IntermediateResult childResult = context.withRequirement(childRequired).translate(child());
         if (childResult.kind().constant) {
             if (isLimitRatio) {
                 // A constant vector's empty label set is a valid identity: sample it directly with an
                 // empty key set, without introducing an aggregation.
-                LogicalPlan sampled = emitLimitRatioFilter(childResult);
+                LogicalPlan sampled = emitLimitRatioFilter(context, childResult);
                 return childResult.with(sampled, childResult.schema(), childResult.value());
             }
             return childResult;
@@ -162,7 +162,9 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         IntermediateResult aggregated = childResult.kind().afterInitialAggregation
             ? context.regroup(childResult, schema, false, childResult.value())
             : context.collapse(childResult, schema, childResult.value());
-        LogicalPlan result = isLimitRatio ? emitLimitRatioFilter(aggregated) : emitTopNBy(context, aggregated, partitions, promqlCtx);
+        LogicalPlan result = isLimitRatio
+            ? emitLimitRatioFilter(context, aggregated)
+            : emitTopNBy(context, aggregated, partitions, promqlCtx);
         return aggregated.with(result, aggregated.schema(), aggregated.value());
     }
 
@@ -190,7 +192,7 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
      * Outer {@code by} partition labels are neither hashed nor materialized as null columns. The filter sits
      * above the aggregation producing its keys, which the optimizer cannot push past.
      */
-    private LogicalPlan emitLimitRatioFilter(IntermediateResult table) {
+    private LogicalPlan emitLimitRatioFilter(TranslationContext context, IntermediateResult table) {
         // The sampling key is the input identity from below. At series grain that is the
         // _timeseries blob; over an aggregated input the rows are groups, so their own grain
         // labels are the key (for example pod and cluster groups for limit_ratio over sum by).
@@ -206,10 +208,10 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
             // sum without), else the grain label columns. Packings hold only dimensions, never
             // the step, so the identity is stable across steps.
             var resolvedSkips = new ArrayList<Set<String>>();
-            for (Set<String> skip : TranslationContext.finestFirst(table.schema().skips())) {
-                Attribute packing = table.packed(skip);
-                if (packing != null) {
-                    addIfMissing(keys, packing);
+            for (Set<String> skip : TranslationContext.coarse(table.schema().skips())) {
+                Attribute metadata = context.metadata(table, skip);
+                if (metadata != null) {
+                    addIfMissing(keys, metadata);
                     resolvedSkips.add(skip);
                 }
             }
@@ -268,7 +270,7 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
                 Attribute carrier = table.label(partition);
                 if (carrier == null) {
                     // a partition label absent from every series ranks as one partition, like Prometheus
-                    nulls.add(TranslationContext.emitNullExpression(TranslationContext.mapToRef(partition)));
+                    nulls.add(TranslationContext.emitNullExpression(TranslationContext.stub(partition)));
                     carrier = nulls.getLast().toAttribute();
                 }
                 groupings.add(carrier);

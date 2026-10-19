@@ -17,6 +17,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.util.HashSet;
@@ -2735,12 +2736,22 @@ public class EsqlCapabilities {
         PROMQL_WITHOUT_GROUPING,
 
         /**
+         * PromQL aggregation and scalar label functions using typed time-series metadata.
+         */
+        PROMQL_FUNCTIONAL_TIMESERIES(PromqlCommand.FUNCTIONAL_TIMESERIES_FEATURE_FLAG),
+
+        /**
          * Corrected output shape for PromQL {@code without}: a {@code without} over a concrete-output child (e.g.
          * {@code sum without(pod) (sum by(cluster,region,pod) (...))}) projects the child's concrete grouping columns
          * minus the excluded labels, rather than the opaque {@code _timeseries} column. Gates the affected csv-spec
          * tests so mixed-version clusters skip them on older nodes that still emit {@code _timeseries}.
          */
         FIX_PROMQL_WITHOUT_OUTPUT,
+
+        /**
+         * PromQL WITHOUT drops the metric name while retaining every other grouping label, including for WITHOUT ().
+         */
+        FIX_PROMQL_WITHOUT_METRIC_NAME,
 
         /**
          * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})

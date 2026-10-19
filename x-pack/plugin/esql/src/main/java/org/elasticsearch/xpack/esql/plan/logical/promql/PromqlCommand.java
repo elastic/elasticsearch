@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
@@ -58,6 +61,9 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Gets eliminated by the analyzer once the query is validated.
  */
 public class PromqlCommand extends UnaryPlan implements TelemetryAware, TimestampAware, TimestampBoundsAware.OfLogicalPlan {
+    /** Controls the translator and scalar functions that operate on typed time-series metadata. */
+    public static final FeatureFlag FUNCTIONAL_TIMESERIES_FEATURE_FLAG = new FeatureFlag("esql_promql_functional_timeseries");
+
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
      */
@@ -400,8 +406,21 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         );
     }
 
-    public void verify(Failures failures, int maxBranches, String limitSource) {
+    /** Verify the constructs supported by the selected metadata representation before translation. */
+    public void verify(Failures failures, AnalyzerContext analyzer) {
         LogicalPlan p = promqlPlan();
+        if (TranslationContext.usesTimeSeriesMetadata(analyzer)
+            && (valueColumnName().equals(stepColumnName())
+                || p.output().stream().anyMatch(attribute -> valueColumnName().equals(attribute.name())))) {
+            failures.add(
+                fail(
+                    this,
+                    "Result column name [{}] is already used by another output column; choose a different result column name",
+                    valueColumnName()
+                )
+            );
+            return;
+        }
         boolean hasStep = step.value() != null;
         boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
         if (isInstantQuery() == false && hasStep == false && hasRangeAndBuckets == false) {
@@ -424,11 +443,66 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 fail(p, "invalid expression type \"range vector\" for range query, must be scalar or instant vector", p.sourceText())
             );
         } else if (p instanceof RangeSelector) {
-            // Prometheus answers an instant query over a range vector with a matrix of the raw samples in the window;
-            // nothing translates a range vector as such yet, so reject it here rather than fail in the optimizer.
+            // Instant range-vector results require returning the raw samples rather than one value per evaluation step.
             failures.add(fail(p, "range vector results are not supported at this time [{}]", p.sourceText()));
         }
+        if (TranslationContext.usesTimeSeriesMetadata(analyzer)) {
+            verifyAggregationTree(p, failures);
+        } else {
+            verifyLegacyTree(p, failures, analyzer.maxBranchCountPerMerge(), analyzer.maxBranchCountPerMergeLimitSource());
+        }
+    }
 
+    /** Stop at selectors: their source relation is outside the PromQL expression being admitted. */
+    private void verifyAggregationTree(LogicalPlan plan, Failures failures) {
+        switch (plan) {
+            case AcrossSeriesAggregate aggregate -> {
+                verifyGroupingLabels(aggregate, aggregate.groupings(), failures);
+                verifyAggregationTree(aggregate.child(), failures);
+            }
+            case WithinSeriesAggregate aggregate -> verifyAggregationTree(aggregate.child(), failures);
+            case InstantSelector selector -> verifySelector(selector, failures);
+            case RangeSelector selector -> verifySelector(selector, failures);
+            default -> failures.add(
+                fail(
+                    plan,
+                    "The experimental PromQL aggregation path supports only metric selectors, per-series range functions, "
+                        + "and aggregations; unsupported expression [{}]",
+                    plan.sourceText()
+                )
+            );
+        }
+    }
+
+    private void verifyGroupingLabels(LogicalPlan plan, List<Attribute> groupings, Failures failures) {
+        for (Attribute grouping : groupings) {
+            if (stepColumnName().equals(grouping.name())) {
+                failures.add(
+                    fail(
+                        plan,
+                        "label [{}] collides with the built-in [{}] output column [{}]",
+                        stepColumnName(),
+                        stepColumnName(),
+                        plan.sourceText()
+                    )
+                );
+            }
+        }
+    }
+
+    private static void verifySelector(Selector selector, Failures failures) {
+        if (selector.labelMatchers().nameLabel() != null && selector.labelMatchers().nameLabel().matcher().isRegex()) {
+            failures.add(fail(selector, "regex label selectors on __name__ are not supported at this time [{}]", selector.sourceText()));
+        }
+        if (selector.series() == null) {
+            failures.add(fail(selector, "__name__ label selector is required at this time [{}]", selector.sourceText()));
+        }
+        if (selector.evaluation() != null && selector.evaluation().at().value() != null) {
+            failures.add(fail(selector, "@ modifiers are not supported at this time [{}]", selector.sourceText()));
+        }
+    }
+
+    private void verifyLegacyTree(LogicalPlan p, Failures failures, int maxBranches, String limitSource) {
         // Validate entire plan
         // UNION set operators that form a contiguous chain from the root (e.g. `(a or b) or c`) are all
         // considered "top-level": they are flattened into a single UnionAll during translation.
@@ -453,61 +527,18 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {
             switch (lp) {
-                case Selector s -> {
-                    if (s.labelMatchers().nameLabel() != null && s.labelMatchers().nameLabel().matcher().isRegex()) {
-                        failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
-                    }
-                    if (s.series() == null) {
-                        failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
-                    }
-                    if (s.evaluation() != null) {
-                        // Only constant per-selector time shift is supported at the moment.
-                        // TODO(sidosera): Support heterogeneous offset on binary operators.
-                        // https://github.com/elastic/elasticsearch/issues/158184
-                        if (s.evaluation().at().value() != null) {
-                            failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
-                        }
-                    }
-                }
+                case Selector selector -> verifySelector(selector, failures);
                 case AcrossSeriesAggregate agg -> {
                     if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
                         failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
                     }
-                    // Reject labels whose name collides with the built-in step column.
-                    // If this proves too restrictive, we could add an option to rename the built-in step column.
-                    for (Attribute grouping : agg.groupings()) {
-                        if (stepColumnName().equals(grouping.name())) {
-                            failures.add(
-                                fail(
-                                    agg,
-                                    "label [{}] collides with the built-in [{}] output column [{}]",
-                                    stepColumnName(),
-                                    stepColumnName(),
-                                    agg.sourceText()
-                                )
-                            );
-                        }
-                    }
+                    verifyGroupingLabels(agg, agg.groupings(), failures);
                 }
-                case AcrossSeriesReduction reduction -> {
-                    for (Attribute grouping : reduction.groupings()) {
-                        if (stepColumnName().equals(grouping.name())) {
-                            failures.add(
-                                fail(
-                                    reduction,
-                                    "label [{}] collides with the built-in [{}] output column [{}]",
-                                    stepColumnName(),
-                                    stepColumnName(),
-                                    reduction.sourceText()
-                                )
-                            );
-                        }
-                    }
-                }
+                case AcrossSeriesReduction reduction -> verifyGroupingLabels(reduction, reduction.groupings(), failures);
                 case HistogramFunctionCall histogram -> {
                     LogicalPlan buckets = histogram.child();
                     // Regrouping by every label but `le` needs the labels as named columns. A reduction or a WITHOUT over
-                    // raw series keeps them packed in one `_timeseries` column instead.
+                    // raw series keeps them in one `_timeseries` column instead.
                     if (hasConcreteLabels(buckets) == false && (usesReduction(buckets) || usesWithoutGrouping(buckets))) {
                         failures.add(
                             fail(
@@ -898,9 +929,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     /**
      * The signed offset shared by the source-backed selectors in {@code branch}, as a constant time shift to add to
-     * {@code @timestamp}. The verifier guarantees a merged branch is offset-uniform (heterogeneous offsets in a binary
-     * expression are rejected), so the first source-backed selector's offset is representative. {@link Duration#ZERO}
-     * when there is none.
+     * {@code @timestamp}. The verifier guarantees that selectors merged into one branch share an offset.
+     * Returns {@link Duration#ZERO} when there is no offset.
      */
     public Duration collectFirstOffsetForBranch(LogicalPlan branch) {
         for (Selector selector : branch.collect(Selector.class)) {

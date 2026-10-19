@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.List;
 import java.util.Set;
@@ -95,6 +99,38 @@ public class TranslationContextTests extends ESTestCase {
         assertThat(TranslationContext.find(List.of(bare, packed), TranslationContext.mapOpen(Set.of("pod"))), sameInstance(packed));
         assertNull(TranslationContext.find(List.of(bare), "pod"));
         assertThat(TranslationContext.mapFinite(List.of(bare, prefixed, attr("pod"))), contains("cluster", "pod"));
+    }
+
+    /** Source requirements must survive before initial aggregation has materialized the requested metadata. */
+    public void testDeferredSchemaDoesNotRequireMaterializedColumns() {
+        Attribute step = new ReferenceAttribute(Source.EMPTY, "step", DataType.DATETIME);
+        Attribute value = new ReferenceAttribute(Source.EMPTY, "value", DataType.DOUBLE);
+        var plan = new LocalRelation(Source.EMPTY, List.of(step, value), EmptyLocalSupplier.EMPTY);
+        TranslationSchema schema = union(finite(List.of("host")), open(Set.of("pod")));
+        var result = new IntermediateResult(plan, schema, value, step, Literal.TRUE, IntermediateResult.Kind.BEFORE_INITIAL_AGGREGATE);
+        assertSame(schema, result.schema());
+        assertTrue(result.labelBindings().isEmpty());
+        assertNull(result.metadata());
+        assertNull(result.labelColumn("host"));
+        assertNull(result.labelColumn(TranslationContext.mapOpen(Set.of("pod"))));
+
+        var updatedValue = new Literal(Source.EMPTY, 42.0, DataType.DOUBLE);
+        var updated = result.with(plan, updatedValue);
+        assertSame(schema, updated.schema());
+        assertSame(updatedValue, updated.value());
+        assertSame(step, updated.step());
+        assertSame(result.pendingFilter(), updated.pendingFilter());
+        assertSame(result.kind(), updated.kind());
+        assertTrue(updated.labelBindings().isEmpty());
+        assertNull(updated.metadata());
+
+        TranslationSchema refined = subtract(schema, List.of("host"));
+        var regrouped = updated.with(plan, refined, updatedValue);
+        assertSame(refined, regrouped.schema());
+        assertThat(regrouped.schema().skips(), contains(Set.of("host", "pod")));
+        assertTrue(regrouped.labelBindings().isEmpty());
+        assertNull(regrouped.metadata());
+        assertSame(schema, result.schema());
     }
 
     private static Attribute attr(String name) {

@@ -5759,8 +5759,9 @@ public class ExternalSourceResolver {
     /**
      * Whether a declared date {@code format} can apply to this physical type as the epoch unit / parse dialect of a
      * numeric column ({@code epoch_second} reads seconds, {@code yyyyMMdd} reads {@code 20260101}). Excludes temporals
-     * ({@code datetime}/{@code date_nanos}): an annotated timestamp is already an instant, so a format on it could never
-     * apply and stays rejected.
+     * ({@code datetime}/{@code date_nanos}): a column the file has typed temporally -- an annotated {@code TIMESTAMP},
+     * or a {@code TIME}, whose unit the annotation states just as plainly -- is already an instant, so a format on it
+     * could never apply and stays rejected.
      */
     private static boolean isNumericType(DataType type) {
         return type == DataType.INTEGER || type == DataType.LONG || type == DataType.UNSIGNED_LONG || type == DataType.DOUBLE;

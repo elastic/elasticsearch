@@ -43,6 +43,8 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -63,6 +65,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -355,6 +358,18 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         DiscoveryNode targetNode,
         TransportRequest transportRequest
     ) {
+        String index = transportRequest.shardId.getIndexName();
+        Map<String, EnrichPolicy> policies = projectResolver.getProjectMetadata(clusterService.state())
+            .custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY)
+            .getPolicies();
+        // The lookup below runs with the enrich origin rather than as the user, so restrict it to the
+        // indices it exists to read: those created for a local enrich policy.
+        if (isEnrichPolicyIndex(policies, index) == false) {
+            delegate.onFailure(
+                Exceptions.authorizationError("enrich lookup on index [{}] is not allowed; it is not the index of an enrich policy", index)
+            );
+            return;
+        }
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         ActionListener<AbstractLookupService.LookupResponse> listener = ContextPreservingActionListener.wrapPreservingContext(
             delegate,
@@ -367,6 +382,29 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
                 super.sendChildRequest(parentTask, l, targetNode, transportRequest);
             }
         }));
+    }
+
+    /**
+     * Whether {@code index} is a concrete index that the enrich policy runner created for one of {@code policies}, i.e.
+     * its name is {@code .enrich-<policy>-<timestamp>} as produced by {@link EnrichPolicy#getIndexName}. The enrich alias
+     * {@code .enrich-<policy>} is not accepted because lookups always target a concrete index.
+     */
+    static boolean isEnrichPolicyIndex(Map<String, EnrichPolicy> policies, String index) {
+        String prefix = EnrichPolicy.ENRICH_INDEX_NAME_BASE;
+        if (index.startsWith(prefix) == false) {
+            return false;
+        }
+        int timestampStart = index.lastIndexOf('-') + 1;
+        if (timestampStart <= prefix.length() || timestampStart == index.length()) {
+            return false;
+        }
+        for (int i = timestampStart; i < index.length(); i++) {
+            char c = index.charAt(i);
+            if (c < '0' || c > '9') {
+                return false;
+            }
+        }
+        return policies.containsKey(index.substring(prefix.length(), timestampStart - 1));
     }
 
     protected void hasEnrichPrivilege(ActionListener<Void> outListener) {

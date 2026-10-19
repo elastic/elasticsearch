@@ -45,6 +45,41 @@ public class PlainSkipChunkAlignmentTests extends ColumnarStringTestCase {
         });
     }
 
+    public void testOnlyTheChunksOfTheKeptEntryAndTheEdgesOfItsBlocksAreDecompressed() throws IOException {
+        final int length = 24;
+        final int chunkBytes = 4096;
+        final int valuesPerBlock = 128;
+        final int numDocs = 60 * valuesPerBlock;
+        final BytesRef[][] docSlots = descending(numDocs, length);
+        final int termSlot = numDocs / 2;
+        final BytesRef term = docSlots[termSlot][0];
+        final int totalChunks = (numDocs * length + chunkBytes - 1) / chunkBytes;
+        final int ownerChunk = termSlot * length / chunkBytes;
+        final int firstOwnedSlot = (ownerChunk * chunkBytes + length - 1) / length;
+        final int lastOwnedSlot = ((ownerChunk + 1) * chunkBytes - 1) / length;
+        final int firstChunkRead = firstOwnedSlot / valuesPerBlock * valuesPerBlock * length / chunkBytes;
+        final int lastChunkRead = ((lastOwnedSlot / valuesPerBlock + 1) * valuesPerBlock * length - 1) / chunkBytes;
+        final StringColumnOptions.Sizes sizes = PlainStringColumnSkipperTests.sizes(valuesPerBlock, chunkBytes, NO_VALUE_CAP);
+        final long[] chunksRead = new long[2];
+        for (int arm = 0; arm < 2; arm++) {
+            final Counter seeks = new Counter();
+            final int index = arm;
+            withColumnAndSkipIndex(
+                docSlots,
+                PlainStringColumnSkipperTests.plain(arm == 0, sizes),
+                directory -> new SeekCountingDirectory(directory, seeks),
+                (metadata, reader, skip) -> {
+                    assertEquals(totalChunks, ((StringColumnMetadata.Plain) metadata).values().chunks().numChunks());
+                    final long before = seeks.get();
+                    assertEquals(StringMatchOracle.expected(docSlots, term::equals), StringMatchOracle.matched(reader.matchTerm(term)));
+                    chunksRead[index] = seeks.get() - before;
+                }
+            );
+        }
+        assertEquals("with the bounds", lastChunkRead - firstChunkRead + 1, chunksRead[0]);
+        assertEquals("without the bounds", totalChunks, chunksRead[1]);
+    }
+
     public void testAValueSpanningSeveralChunksIsBoundedByTheChunkHoldingItsFirstByte() throws IOException {
         final int length = 250;
         final int numDocs = 20;

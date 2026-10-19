@@ -53,9 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -74,7 +72,6 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.intersect;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.project;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch.Joining;
 
 /**
  * Shared state and assembly helpers for one PromQL translation. Nodes own their lowering, while this context
@@ -141,13 +138,6 @@ public record TranslationContext(
 
     /** Finishes the command, including independently translated union branches and the declared output projection. */
     public LogicalPlan translateFinal() {
-        if (cmd.promqlPlan() instanceof VectorBinaryOperator op) {
-            VectorMatch match = op.match();
-            if (match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) {
-                return doTranslateFinal(op.translateJoin(this).plan(), false);
-            }
-        }
-
         // `or` is the only set operator that adds rows (more series), requiring a top-level multi-branch `UnionAll` that
         // cannot compose as a single-value sub-expression.
         // PromQL `or` is left-associative, so flatten the top-level chain into independent branches.
@@ -263,8 +253,7 @@ public record TranslationContext(
                 value = collapsed.value();
             }
             if (branch instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
-                VectorMatch match = comparison.match();
-                if ((match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) == false) {
+                if (comparison.canTranslateAsAggregate()) {
                     // Filter-mode comparison (metric > x): keep the left operand's value, filter rows by the comparison.
                     // A vector-matched comparison already applied its filter inside the join translation.
                     ToDouble right = new ToDouble(comparison.right().source(), ((LiteralSelector) comparison.right()).literal());

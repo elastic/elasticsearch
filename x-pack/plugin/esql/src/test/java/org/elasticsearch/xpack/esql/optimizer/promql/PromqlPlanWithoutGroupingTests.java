@@ -246,6 +246,21 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(functionConfig.skipFieldNames(), hasItem("pod"));
     }
 
+    public void testMultipleMetadataProjectionsRequireNewerNodes() {
+        var version = TransportVersionUtils.getPreviousVersion(TranslationContext.ESQ_ENABLE_TIMESERIES_METADATA_ALIASING);
+        for (String expression : List.of(
+            "network.eth0.tx / sum by (cluster) (network.eth0.rx)",
+            "sum by (cluster) (network.eth0.tx) / network.eth0.rx",
+            "network.eth0.tx / on (cluster) group_left sum by (cluster) (network.eth0.rx)"
+        )) {
+            var error = expectThrows(
+                VerificationException.class,
+                () -> tsAnalyzer().minimumTransportVersion(version).query("PROMQL index=k8s step=1h result=(" + expression + ")")
+            );
+            assertThat(error.getMessage(), containsString("This PromQL query needs different label sets from the same series"));
+        }
+    }
+
     public void testSingleMetadataProjectionStillSupportsOlderNodes() {
         var version = TransportVersionUtils.getPreviousVersion(TranslationContext.ESQ_ENABLE_TIMESERIES_METADATA_ALIASING);
         for (String expression : List.of(

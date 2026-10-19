@@ -27,7 +27,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -364,18 +363,7 @@ public final class StatelessDirectoryFactory {
 
                 @Override
                 public CacheBlobReader getCacheBlobReaderForWarming(BlobFile blobFile) {
-                    return cacheBlobReaderService.getCacheBlobReader(
-                        shardId,
-                        this::getBlobContainer,
-                        blobFile,
-                        MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
-                        totalBytesWarmedFromObjectStore::add,
-                        bytesRead -> {},
-                        BlobCacheMetrics.CachePopulationReason.Warming,
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                        blobFile.blobName(),
-                        true
-                    );
+                    throw new UnsupportedOperationException("search-node benchmark directory does not warm [" + blobFile.blobName() + "]");
                 }
 
                 @Override

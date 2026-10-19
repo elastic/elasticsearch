@@ -6,7 +6,7 @@ mapped_pages:
 
 # {{kib}} Query Language (KQL) syntax reference [kuery-query]
 
-This page shows the KQL syntax for each kind of condition, with examples you can adapt. To learn what KQL is and where to use it, refer to [{{kib}} Query Language (KQL)](docs-content://explore-analyze/query-filter/languages/kql.md) in **Explore and analyze**.
+This page shows the KQL syntax for each kind of condition, with examples you can adapt. To learn what KQL is and where to use it, refer to [{{kib}} Query Language (KQL) overview](docs-content://explore-analyze/query-filter/languages/kql.md).
 
 
 ## Filter for documents where a field exists [_filter_for_documents_where_a_field_exists]

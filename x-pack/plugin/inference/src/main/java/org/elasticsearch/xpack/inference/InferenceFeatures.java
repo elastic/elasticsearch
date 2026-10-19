@@ -67,7 +67,6 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTING_FLAT = new NodeFeature("semantic_text.highlighter.flat_index_options");
     private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
     private static final NodeFeature SEMANTIC_EXISTS_QUERY_AUTO_PREFILTER_FIX = new NodeFeature("semantic.exists_query_auto_prefilter_fix");
-    private static final NodeFeature SEMANTIC_KNN_FILTER_NESTED_SCOPE_FIX = new NodeFeature("semantic.knn_filter_nested_scope_fix");
 
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
     public static final NodeFeature INFERENCE_CCM_CACHE = new NodeFeature("inference.ccm.cache");
@@ -196,8 +195,7 @@ public class InferenceFeatures implements FeatureSpecification {
                 TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_EMPTY_RESULT_FIX,
                 ENDPOINT_METADATA_CLUSTER_STATE_SUBSET,
                 SEMANTIC_EXISTS_QUERY_AUTO_PREFILTER_FIX,
-                INFERENCE_CHAT_COMPLETION_TEMPLATE,
-                SEMANTIC_KNN_FILTER_NESTED_SCOPE_FIX
+                INFERENCE_CHAT_COMPLETION_TEMPLATE
             )
         );
         testFeatures.addAll(getFeatures());

@@ -45,5 +45,11 @@ public enum GenerativeFeature {
      * Generate {@code FROM <dataset>} queries against external parquet datasets registered via
      * {@code PUT /_query/dataset/} using an in-process S3 fixture.
      */
-    PARQUET_DATASET
+    PARQUET_DATASET,
+
+    /**
+     * Also generate lenient casts ({@code field?::type}), including on unions where only some index types convert.
+     * Strict casts are generated without this feature.
+     */
+    LENIENT_CASTS
 }

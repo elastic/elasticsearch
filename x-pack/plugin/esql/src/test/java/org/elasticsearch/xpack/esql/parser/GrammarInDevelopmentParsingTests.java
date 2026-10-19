@@ -34,6 +34,11 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
         expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = invoke(a, x -> x)"));
     }
 
+    public void testDevelopmentLenientCast() throws Exception {
+        // outside of dev mode, `?` after an expression is not a lenient cast
+        expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = a?::long"));
+    }
+
     void parse(String query, String errorMessage) {
         ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery(query));
         assertThat(pe.getMessage(), containsString("mismatched input '" + errorMessage + "'"));

@@ -3963,11 +3963,15 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * TO_TEXT only accepts {@code keyword}/{@code text} inputs (see {@code ToText#EVALUATORS}). On a union, the keyword
-     * leg converts and the ip leg loads as null, with a warning. See union_types.csv-spec#multiIndexIpToTextWithExplicitCast
-     * for the fully-castable workaround of an explicit inner cast.
+     * TO_TEXT only accepts {@code keyword}/{@code text} inputs (see {@code ToText#EVALUATORS}). When
+     * a union-typed field has a leg outside that set (here {@code ip} vs {@code keyword}), the
+     * conversion function can't resolve every leg, so the field falls through to the generic
+     * ambiguous-type-conflict error rather than being implicitly converted. This pins that
+     * "forbid for now" boundary so intentionally widening TO_TEXT's accepted union legs is a
+     * deliberate, test-breaking change. See union_types.csv-spec#multiIndexIpToTextWithExplicitCast
+     * for the supported workaround (an explicit inner cast to a type TO_TEXT does accept).
      */
-    public void testToTextOnNonStringUnionTypeIsLenient() {
+    public void testToTextOnNonStringUnionTypeFails() {
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
                 fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "ip")),
@@ -3976,10 +3980,43 @@ public class AnalyzerTests extends AnalyzerTestCase {
             List.of()
         );
         IndexResolution resolution = mergedResolution("foo,bar", caps);
-        analyzer().minimumTransportVersion(TransportVersion.current())
+        analyzer().addIndex(resolution)
+            .error(
+                "FROM foo, bar | EVAL x = TO_TEXT(value)",
+                equalTo(
+                    "Found 1 problem\n"
+                        + "line 1:34: Cannot use field [value] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[ip] in [foo], [keyword] in [bar]"
+                )
+            );
+    }
+
+    /**
+     * {@code ::boolean} accepts {@code keyword} but not {@code ip}. The strict cast fails on the union, while the lenient
+     * cast converts the keyword leg and loads the ip leg as null, with a warning.
+     */
+    public void testLenientCastOnUnionTypeNullsUnconvertibleLeg() {
+        assumeTrue("Requires LENIENT_CAST_OPERATOR", EsqlCapabilities.Cap.LENIENT_CAST_OPERATOR.isEnabled());
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "ip")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "keyword"))
+            ),
+            List.of()
+        );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
+        analyzer().addIndex(resolution)
+            .error(
+                "FROM foo, bar | EVAL x = value::boolean",
+                containsString(
+                    "Cannot use field [value] due to ambiguities being mapped as [2] incompatible types: [ip] in [foo], [keyword] in [bar]"
+                )
+            );
+        var plan = analyzer().minimumTransportVersion(TransportVersion.current())
             .addIndex(resolution)
-            .query("FROM foo, bar | EVAL x = TO_TEXT(value)");
-        assertWarnings("Field [value] of type [ip] in [foo] cannot be converted to [TEXT] and will be null in those indices.");
+            .query("FROM foo, bar | EVAL x = value?::boolean");
+        assertThat(as(plan, Limit.class).child().output().getLast().dataType(), equalTo(DataType.BOOLEAN));
+        assertWarnings("Field [value] of type [ip] in [foo] cannot be converted to [BOOLEAN] and will be null in those indices.");
     }
 
     public void testValidFuse() {
@@ -6173,22 +6210,43 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * Reproducer for #150375. {@code ::double} accepts {@code datetime} but not {@code date_nanos}, so the nanos leg is
-     * nulled. {@code ::ip} accepts neither date type, so the cast still fails.
+     * Reproducer for #150375.
      */
-    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleType() {
+    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleTypeFails() {
         IndexResolution index = indexWithDateDateNanosUnionType();
-        analyzer().minimumTransportVersion(TransportVersion.current())
-            .addIndex(index)
-            .query("FROM index* | EVAL x = date_and_date_nanos::double");
-        assertWarnings(
-            "Field [date_and_date_nanos] of type [date_nanos] cannot be converted to [DOUBLE] and will be null in those indices."
-        );
+        analyzer().addIndex(index)
+            .error(
+                "FROM index* | EVAL x = date_and_date_nanos::double",
+                containsString("Mapped types [date_nanos] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::double]")
+            );
         analyzer().addIndex(index)
             .error(
                 "FROM index* | EVAL x = date_and_date_nanos::ip",
                 containsString(
                     "Mapped types [date_nanos, datetime] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::ip]"
+                )
+            );
+    }
+
+    /**
+     * {@code ?::double} accepts {@code datetime} but not {@code date_nanos}, so the nanos leg is nulled. {@code ?::ip}
+     * accepts neither date type, so the lenient cast still fails.
+     */
+    public void testLenientCastOfDateAndDateNanosUnionToIncompatibleType() {
+        assumeTrue("Requires LENIENT_CAST_OPERATOR", EsqlCapabilities.Cap.LENIENT_CAST_OPERATOR.isEnabled());
+        IndexResolution index = indexWithDateDateNanosUnionType();
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(index)
+            .query("FROM index* | EVAL x = date_and_date_nanos?::double");
+        assertWarnings(
+            "Field [date_and_date_nanos] of type [date_nanos] cannot be converted to [DOUBLE] and will be null in those indices."
+        );
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(index)
+            .error(
+                "FROM index* | EVAL x = date_and_date_nanos?::ip",
+                containsString(
+                    "Mapped types [date_nanos, datetime] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos?::ip]"
                 )
             );
     }

@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
+import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.function.CastGenerator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,10 +55,18 @@ public class EvalGenerator implements CommandGenerator {
                 }
             }
             // Occasionally generate a null field (EVAL field = null) to test NULL data type handling
-            String expression;
-            if (randomIntBetween(0, 100) < 10) {
+            String expression = null;
+            int kind = randomIntBetween(0, 100);
+            if (kind < 10) {
                 expression = "null";
-            } else {
+            } else if (kind < 25) {
+                CastGenerator.Cast cast = CastGenerator.randomCast(
+                    usablePrevious.values().stream().toList(),
+                    context.isFeatureEnabled(GenerativeFeature.LENIENT_CASTS)
+                );
+                expression = cast == null ? null : cast.expression();
+            }
+            if (expression == null) {
                 expression = EsqlQueryGenerator.expression(usablePrevious.values().stream().toList(), true, previousCommands);
             }
             if (i > 0) {

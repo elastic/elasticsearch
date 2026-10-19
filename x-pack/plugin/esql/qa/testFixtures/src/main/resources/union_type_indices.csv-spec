@@ -67,3 +67,192 @@ text
 unsigned_long
 version
 ;
+
+// Lenient casts (`?::`): index branches whose type cannot convert load as null, with one warning per dropped type.
+
+lenientCastNullsUnconvertibleBranch
+required_capability: lenient_cast_operator
+
+FROM union_long, union_ip
+| EVAL x = field?::long
+| KEEP type, x
+| SORT type
+;
+warning:Field [field] of type [ip] in [union_ip] cannot be converted to [LONG] and will be null in those indices.
+
+type:keyword | x:long
+ip           | null
+long         | 1
+;
+
+lenientCastToIpNullsLongBranch
+required_capability: lenient_cast_operator
+
+FROM union_long, union_ip
+| EVAL x = field?::ip
+| KEEP type, x
+| SORT type
+;
+warning:Field [field] of type [long] in [union_long] cannot be converted to [IP] and will be null in those indices.
+
+type:keyword | x:ip
+ip           | 127.0.0.1
+long         | null
+;
+
+lenientCastInWhere
+required_capability: lenient_cast_operator
+
+FROM union_long, union_ip
+| WHERE field?::ip IS NOT NULL
+| KEEP type
+;
+warning:Field [field] of type [long] in [union_long] cannot be converted to [IP] and will be null in those indices.
+
+type:keyword
+ip
+;
+
+lenientCastInStatsBy
+required_capability: lenient_cast_operator
+
+FROM union_long, union_ip
+| STATS c = COUNT(*) BY x = field?::long
+| SORT x
+;
+warning:Field [field] of type [ip] in [union_ip] cannot be converted to [LONG] and will be null in those indices.
+
+c:long | x:long
+1      | 1
+1      | null
+;
+
+lenientCastInSort
+required_capability: lenient_cast_operator
+
+FROM union_long, union_ip
+| SORT field?::long DESC
+| KEEP type
+;
+warning:Field [field] of type [ip] in [union_ip] cannot be converted to [LONG] and will be null in those indices.
+
+type:keyword
+ip
+long
+;
+
+lenientCastInsideAggregation
+required_capability: lenient_cast_operator
+
+FROM union_long, union_integer, union_ip
+| STATS s = SUM(field?::long), c = COUNT(field?::long)
+;
+warning:Field [field] of type [ip] in [union_ip] cannot be converted to [LONG] and will be null in those indices.
+
+s:long | c:long
+2      | 2
+;
+
+lenientCastNestedInnerCast
+required_capability: lenient_cast_operator
+
+FROM union_long, union_ip
+| EVAL x = field?::long::double
+| KEEP type, x
+| SORT type
+;
+warning:Field [field] of type [ip] in [union_ip] cannot be converted to [LONG] and will be null in those indices.
+
+type:keyword | x:double
+ip           | null
+long         | 1.0
+;
+
+strictCastOnFullyConvertibleUnion
+FROM union_long, union_integer
+| EVAL x = field::long
+| KEEP type, x
+| SORT type
+;
+
+type:keyword | x:long
+integer      | 1
+long         | 1
+;
+
+lenientCastOnFullyConvertibleUnionMatchesStrict
+required_capability: lenient_cast_operator
+
+FROM union_long, union_integer
+| EVAL x = field?::long
+| KEEP type, x
+| SORT type
+;
+
+type:keyword | x:long
+integer      | 1
+long         | 1
+;
+
+lenientCastOnSingleTypedField
+required_capability: lenient_cast_operator
+
+FROM union_long
+| EVAL x = field?::double
+| KEEP type, x
+;
+
+type:keyword | x:double
+long         | 1.0
+;
+
+lenientCastInForkBranches
+required_capability: lenient_cast_operator
+required_capability: fork_v9
+
+FROM union_long, union_ip
+| FORK (EVAL x = field?::long) (EVAL x = field?::long + 1)
+| KEEP _fork, type, x
+| SORT _fork, type
+;
+warning:Field [field] of type [ip] in [union_ip] cannot be converted to [LONG] and will be null in those indices.
+
+_fork:keyword | type:keyword | x:long
+fork1         | ip           | null
+fork1         | long         | 1
+fork2         | ip           | null
+fork2         | long         | 2
+;
+
+lenientCastAcrossSubqueries
+required_capability: lenient_cast_operator
+required_capability: subquery_in_from_command
+
+FROM (FROM union_long), (FROM union_ip)
+| EVAL x = field?::long
+| KEEP type, x
+| SORT type
+;
+warning:Field [field] of type [ip] in [union_ip] cannot be converted to [LONG] and will be null in those indices.
+
+type:keyword | x:long
+ip           | null
+long         | 1
+;
+
+lenientCastOnPartiallyUnmappedField
+required_capability: lenient_cast_operator
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL x = client_ip?::boolean
+| STATS c = COUNT(x), rows = COUNT(*) BY _index
+| SORT _index
+;
+warning:Field [client_ip] of type [ip] cannot be converted to [BOOLEAN] and will be null in those indices.
+
+c:long | rows:long | _index:keyword
+7      | 7         | no_mapping_sample_data
+0      | 7         | sample_data
+;

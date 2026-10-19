@@ -110,14 +110,6 @@ setup:
   - contains: { error.reason: 'line 1:55: argument of [x::aggregate_metric_double] must be [numeric or aggregate_metric_double], found value [x] type [keyword]' }
 ---
 'aggregate_metric_double cast on punk field':
-  - skip:
-      features: capabilities
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: []
-          capabilities: [union_types_lenient_cast]
-      reason: "lenient union casts null the unmapped keyword leg instead of failing"
   - do:
       catch: bad_request
       esql.query:
@@ -132,15 +124,15 @@ setup:
   - contains: { error.reason: 'line 1:52: Cannot use field [foo] due to ambiguities being mapped as [3] incompatible types: [keyword] due to loading from _source, [double] in [index1], [long] in [index2]' }
 
 ---
-'aggregate_metric_double cast on punk field is lenient':
+'lenient aggregate_metric_double cast on punk field':
   - requires:
       test_runner_features: [capabilities, warnings, allowed_warnings_regex]
       capabilities:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_lenient_cast]
-      reason: "lenient union casts null the unmapped keyword leg"
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator nulls the unmapped keyword leg"
   - do:
       warnings:
         - "Field [foo] of type [keyword] due to loading from _source cannot be converted to [AGGREGATE_METRIC_DOUBLE] and will be null in those indices."
@@ -150,7 +142,7 @@ setup:
         body:
           # [foo] is double in index1, long in index2, unmapped (loaded as keyword) in index3.
           # double and long convert; the unmapped keyword leg is nulled.
-          query: 'SET unmapped_fields="load"; FROM index* METADATA _index | EVAL x = foo::aggregate_metric_double | KEEP _index, x | SORT _index'
+          query: 'SET unmapped_fields="load"; FROM index* METADATA _index | EVAL x = foo?::aggregate_metric_double | KEEP _index, x | SORT _index'
   - length: { values: 3 }
   - match: { values.2.0: "index3" }
   - match: { values.2.1: null }

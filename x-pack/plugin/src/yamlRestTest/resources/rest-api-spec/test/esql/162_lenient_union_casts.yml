@@ -1,12 +1,8 @@
 setup:
+  # Tests using the lenient cast operator `?::` require the lenient_cast_operator capability themselves. Their strict `::`
+  # and TO_* twins need no capability, since those casts have always failed on these unions.
   - requires:
       test_runner_features: [capabilities, warnings, warnings_regex, allowed_warnings, allowed_warnings_regex, contains]
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: []
-          capabilities: [union_types_lenient_cast]
-      reason: "Lenient explicit casts of union-typed fields"
 
   - do:
       indices.create:
@@ -161,7 +157,14 @@ setup:
           - { "id": "u", "v": "10.0.0.1" }
 
 ---
-"object and text cast to keyword returns the text and nulls the object":
+"object and text lenient cast to keyword returns the text and nulls the object":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator"
   - do:
       warnings:
         - "Field [message] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
@@ -169,7 +172,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_text,lenient_object | EVAL m = message::keyword | KEEP id, m | SORT id'
+          query: 'FROM lenient_text,lenient_object | EVAL m = message?::keyword | KEEP id, m | SORT id'
   - length: { values: 2 }
   - match: { columns.1.name: "m" }
   - match: { columns.1.type: "keyword" }
@@ -177,20 +180,30 @@ setup:
   - match: { values.1: [2, null] }
 
 ---
-"TO_STRING on object and text matches the cast operator":
+"object and text strict cast to keyword fails":
   - do:
-      warnings:
-        - "Field [message] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
+      catch: '/Cannot use field \[message\] due to ambiguities being mapped as \[2\] incompatible types: \[object\] in \[lenient_object\], \[text\] in \[lenient_text\]/'
+      esql.query:
+        body:
+          query: 'FROM lenient_text,lenient_object | EVAL m = message::keyword | KEEP id, m | SORT id'
+
+---
+"TO_STRING on object and text stays strict":
+  - do:
+      catch: '/Cannot use field \[message\] due to ambiguities being mapped as \[2\] incompatible types: \[object\] in \[lenient_object\], \[text\] in \[lenient_text\]/'
       esql.query:
         body:
           query: 'FROM lenient_text,lenient_object | EVAL m = TO_STRING(message) | KEEP id, m | SORT id'
-  - match: { values.0: [1, "hello"] }
-  - match: { values.1: [2, null] }
 
 ---
-"object and text cast used in WHERE, STATS and SORT":
+"object and text lenient cast used in WHERE, STATS and SORT":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator"
   - do:
       warnings:
         - "Field [message] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
@@ -198,7 +211,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_text,lenient_object | WHERE message::keyword IS NOT NULL | STATS c = COUNT(*)'
+          query: 'FROM lenient_text,lenient_object | WHERE message?::keyword IS NOT NULL | STATS c = COUNT(*)'
   - match: { values.0: [1] }
   - do:
       warnings:
@@ -207,12 +220,29 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_text,lenient_object | EVAL m = message::keyword | SORT m | KEEP m'
+          query: 'FROM lenient_text,lenient_object | EVAL m = message?::keyword | SORT m | KEEP m'
   - match: { values.0: ["hello"] }
   - match: { values.1: [null] }
+  - do:
+      warnings:
+        - "Field [message] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_text,lenient_object | STATS c = COUNT(*) BY m = message?::keyword | SORT m'
+  - match: { values.0: [1, "hello"] }
+  - match: { values.1: [1, null] }
 
 ---
-"three-way union nulls only the uncastable branch":
+"three-way union lenient cast nulls only the uncastable branch":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator"
   - do:
       warnings:
         - "Field [f] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
@@ -220,14 +250,29 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_object,lenient_keyword,lenient_long | EVAL x = f::keyword | KEEP id, x | SORT id'
+          query: 'FROM lenient_object,lenient_keyword,lenient_long | EVAL x = f?::keyword | KEEP id, x | SORT id'
   - length: { values: 3 }
   - match: { values.0: [2, null] }
   - match: { values.1: [3, "hi"] }
   - match: { values.2: [4, "42"] }
 
 ---
-"counter_long and double cast to keyword nulls the counter":
+"three-way union strict cast fails":
+  - do:
+      catch: '/Cannot use field \[f\] due to ambiguities being mapped as \[3\] incompatible types/'
+      esql.query:
+        body:
+          query: 'FROM lenient_object,lenient_keyword,lenient_long | EVAL x = f::keyword | KEEP id, x | SORT id'
+
+---
+"counter_long and double lenient cast to keyword nulls the counter":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator"
   - do:
       warnings:
         - "Field [metric] of type [counter_long] in [lenient_counter] cannot be converted to [KEYWORD] and will be null in those indices."
@@ -235,11 +280,19 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_counter,lenient_double | EVAL m = TO_STRING(metric) | KEEP host, m | SORT m'
+          query: 'FROM lenient_counter,lenient_double | EVAL m = metric?::keyword | KEEP host, m | SORT m'
   - length: { values: 2 }
   - match: { columns.1.type: "keyword" }
   - match: { values.0: ["h", "1.5"] }
   - match: { values.1: ["h", null] }
+
+---
+"counter_long and double TO_STRING stays strict":
+  - do:
+      catch: '/Cannot use field \[metric\] due to ambiguities being mapped as \[2\] incompatible types/'
+      esql.query:
+        body:
+          query: 'FROM lenient_counter,lenient_double | EVAL m = TO_STRING(metric) | KEEP host, m | SORT m'
 
 ---
 "counter_long and double cast to double keeps both values and emits no warning":
@@ -252,7 +305,31 @@ setup:
   - match: { values.0: [2] }
 
 ---
-"aggregate_metric_double and long cast to long nulls the metric":
+"counter_long and double lenient cast to double matches the strict cast":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_counter,lenient_double | EVAL m = metric?::double | STATS c = COUNT(m)'
+  - match: { values.0: [2] }
+
+---
+"aggregate_metric_double and long lenient cast to long nulls the metric":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator"
   - do:
       warnings:
         - "Field [metric] of type [aggregate_metric_double] in [lenient_amd] cannot be converted to [LONG] and will be null in those indices."
@@ -260,30 +337,126 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_amd,lenient_amd_long | EVAL m = metric::long | KEEP id, m | SORT id'
+          query: 'FROM lenient_amd,lenient_amd_long | EVAL m = metric?::long | KEEP id, m | SORT id'
   - match: { values.0: [6, null] }
   - match: { values.1: [7, 9] }
 
 ---
-"no mapped type can convert to the target":
+"aggregate_metric_double and long strict cast to long fails":
+  - do:
+      catch: '/Cannot use field \[metric\] due to ambiguities being mapped as \[2\] incompatible types/'
+      esql.query:
+        body:
+          query: 'FROM lenient_amd,lenient_amd_long | EVAL m = metric::long | KEEP id, m | SORT id'
+
+---
+"no mapped type can convert to the lenient cast target":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator"
   - do:
       catch: '/Cannot convert field \[f\] to \[IP\]: no type can be converted: \[boolean\] in \[lenient_bool\], \[object\] in \[lenient_object\]/'
+      esql.query:
+        body:
+          query: 'FROM lenient_object,lenient_bool | EVAL x = f?::ip | KEEP x'
+
+---
+"no mapped type can convert to the strict cast target":
+  - do:
+      catch: '/Cannot use field \[f\] due to ambiguities being mapped as \[2\] incompatible types/'
       esql.query:
         body:
           query: 'FROM lenient_object,lenient_bool | EVAL x = f::ip | KEEP x'
 
 ---
-"cast not wrapping the field directly stays an error":
+"lenient cast not wrapping the field directly stays an error":
   # Intentional scope: leniency only applies when the cast directly wraps the conflicted field (including chained casts).
-  # TO_STRING(TRIM(f)) still fails with the generic ambiguities error.
+  # TRIM(f)?::keyword still fails with the generic ambiguities error.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator"
   - do:
       catch: '/Cannot use field \[message\] due to ambiguities being mapped as \[2\] incompatible types: \[object\] in \[lenient_object\], \[text\] in \[lenient_text\]/'
       esql.query:
         body:
-          query: 'FROM lenient_text,lenient_object | EVAL m = TO_STRING(TRIM(message)) | KEEP m'
+          query: 'FROM lenient_text,lenient_object | EVAL m = TRIM(message)?::keyword | KEEP m'
 
 ---
-"partially unmapped long cast to ip nulls the long and converts the unmapped keyword":
+"lenient cast through identifier params":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator"
+  - do:
+      warnings:
+        - "Field [message] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_text,lenient_object | EVAL m = ??f?::keyword | KEEP id, m | SORT id'
+          params: [{"f": "message"}]
+  - match: { values.0: [1, "hello"] }
+  - match: { values.1: [2, null] }
+  - do:
+      warnings:
+        - "Field [message] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_text,lenient_object | EVAL m = ??1?::keyword | KEEP id, m | SORT id'
+          params: ["message"]
+  - match: { values.0: [1, "hello"] }
+  - match: { values.1: [2, null] }
+
+---
+"lenient cast of value params":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'ROW a = ?p?::long, c = ?p::long'
+          params: [{"p": "42"}]
+  - match: { columns.0.type: "long" }
+  - match: { values.0: [42, 42] }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'ROW a = ? ?::long, b = ?::long'
+          params: ["42", "7"]
+  - match: { values.0: [42, 7] }
+
+---
+"partially unmapped long lenient cast to ip nulls the long and converts the unmapped keyword":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator"
   - do:
       warnings_regex:
         - "Field \\[v\\] of type \\[long\\].*cannot be converted to \\[IP\\] and will be null in those indices."
@@ -291,11 +464,26 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'SET unmapped_fields="load"; FROM lenient_punk_long,lenient_punk_unmapped METADATA _index | EVAL x = v::ip | KEEP _index, x | SORT _index'
+          query: 'SET unmapped_fields="load"; FROM lenient_punk_long,lenient_punk_unmapped METADATA _index | EVAL x = v?::ip | KEEP _index, x | SORT _index'
   - length: { values: 2 }
   - match: { columns.1.type: "ip" }
   - match: { values.0: ["lenient_punk_long", null] }
   - match: { values.1: ["lenient_punk_unmapped", "10.0.0.1"] }
+
+---
+"partially unmapped long strict cast to ip fails":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [optional_fields_v5]
+      reason: "unmapped_fields load"
+  - do:
+      catch: '/Mapped types \[long\] of partially unmapped field \[v\] cannot be accepted in \[v::ip\]/'
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM lenient_punk_long,lenient_punk_unmapped METADATA _index | EVAL x = v::ip | KEEP _index, x | SORT _index'
 
 ---
 "unsupported type branch still errors":
@@ -308,3 +496,18 @@ setup:
       esql.query:
         body:
           query: 'FROM lenient_rank,lenient_rank_kw | EVAL x = TO_STRING(f) | KEEP x'
+
+---
+"unsupported type branch still errors with a lenient cast":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast_operator]
+      reason: "lenient cast operator"
+  - do:
+      catch: '/Cannot use field \[f\] with unsupported type \[rank_feature\]/'
+      esql.query:
+        body:
+          query: 'FROM lenient_rank,lenient_rank_kw | EVAL x = f?::keyword | KEEP x'

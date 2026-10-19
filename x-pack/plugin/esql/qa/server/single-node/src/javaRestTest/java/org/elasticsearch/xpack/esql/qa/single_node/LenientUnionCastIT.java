@@ -19,6 +19,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,14 +36,19 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Every {@code union_*} catalog index paired with every other, cast to every conversion target.
- * A lenient union cast either returns a value or null, or fails because nothing can convert.
- * It must not fail with the generic "due to ambiguities" error, and it must not 5xx.
+ * <ul>
+ *     <li>A lenient cast ({@code field?::type}) either returns a value or null, or fails because nothing can convert.
+ *     It must not fail with the generic "due to ambiguities" error.</li>
+ *     <li>A strict cast ({@code TO_TYPE(field)}) returns values only when every index's type converts, and fails otherwise.</li>
+ * </ul>
+ * Neither may 5xx.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class LenientUnionCastIT extends ESRestTestCase {
@@ -58,9 +64,32 @@ public class LenientUnionCastIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    private record CastTarget(String function, String resultType) {}
+    /**
+     * @param function the registered conversion function, for the strict cast
+     * @param typeName the inline cast target, for the lenient cast
+     * @param resultType the expected column type
+     * @param supportedTypes the source types the conversion accepts
+     */
+    private record CastTarget(String function, String typeName, String resultType, Set<DataType> supportedTypes) {
+        boolean converts(DataType source) {
+            return supportedTypes.contains(source.widenSmallNumeric());
+        }
+    }
 
-    public void testEveryTypePairAgainstEveryCastTarget() throws IOException {
+    public void testLenientCastOnEveryTypePairAgainstEveryCastTarget() throws IOException {
+        assumeTrue("requires the lenient cast operator", EsqlCapabilities.Cap.LENIENT_CAST_OPERATOR.isEnabled());
+        sweep(this::checkLenientPair);
+    }
+
+    public void testStrictCastOnEveryTypePairAgainstEveryCastTarget() throws IOException {
+        sweep(this::checkStrictPair);
+    }
+
+    private interface PairCheck {
+        void check(String left, String right, CastTarget target, List<String> failures) throws IOException;
+    }
+
+    private void sweep(PairCheck check) throws IOException {
         List<String> indices = unionIndices();
         assertThat(indices.size(), greaterThan(1));
         CsvTestsDataLoader.loadDatasetsIntoEs(client(), indices);
@@ -70,7 +99,7 @@ public class LenientUnionCastIT extends ESRestTestCase {
         for (int i = 0; i < indices.size(); i++) {
             for (int j = i + 1; j < indices.size(); j++) {
                 for (CastTarget target : targets) {
-                    checkPair(indices.get(i), indices.get(j), target, failures);
+                    check.check(indices.get(i), indices.get(j), target, failures);
                 }
             }
         }
@@ -79,7 +108,8 @@ public class LenientUnionCastIT extends ESRestTestCase {
 
     /**
      * One target per {@link EsqlDataTypeConverter#converterFunctionFactory} entry that accepts a field.
-     * The query name is the registered function name, and the expected column type is {@link DataType#outputType()}.
+     * The strict query uses the registered function name, the lenient one the type name, and the expected column type is
+     * {@link DataType#outputType()}.
      */
     private static List<CastTarget> castTargets() {
         EsqlFunctionRegistry registry = new EsqlFunctionRegistry().snapshotRegistry();
@@ -89,7 +119,7 @@ public class LenientUnionCastIT extends ESRestTestCase {
             if (factory == null) {
                 continue;
             }
-            AbstractConvertFunction convert = factory.apply(Source.EMPTY, Literal.NULL, null);
+            AbstractConvertFunction convert = factory.apply(Source.EMPTY, Literal.NULL, ConfigurationAware.CONFIGURATION_MARKER);
             // A converted geotile can be an invalid zoom/x/y. Writing that value to the response kills the node.
             // https://github.com/elastic/elasticsearch/issues/160230
             if (type == DataType.GEOTILE
@@ -102,7 +132,7 @@ public class LenientUnionCastIT extends ESRestTestCase {
             if (definition.capabilities().stream().allMatch(LenientUnionCastIT::capabilityEnabled) == false) {
                 continue;
             }
-            targets.add(new CastTarget(function, convert.dataType().outputType()));
+            targets.add(new CastTarget(function, type.typeName(), convert.dataType().outputType(), convert.supportedTypes()));
         }
         targets.sort(Comparator.comparing(CastTarget::function));
         return targets;
@@ -131,38 +161,69 @@ public class LenientUnionCastIT extends ESRestTestCase {
             .toList();
     }
 
-    private void checkPair(String left, String right, CastTarget target, List<String> failures) throws IOException {
-        String label = left + "|" + right + " " + target.function;
-        String query = String.format(Locale.ROOT, "FROM %s,%s | EVAL x = %s(field) | KEEP x", left, right, target.function);
-        Request request = new Request("POST", "/_query");
-        request.setOptions(ALLOW_WARNINGS);
-        request.setJsonEntity("{\"query\":\"" + query + "\"}");
+    private static DataType indexType(String index) {
+        return DataType.fromTypeName(index.substring("union_".length()));
+    }
+
+    private void checkLenientPair(String left, String right, CastTarget target, List<String> failures) throws IOException {
+        String label = left + "|" + right + " ?::" + target.typeName;
+        String query = String.format(Locale.ROOT, "FROM %s,%s | EVAL x = field?::%s | KEEP x", left, right, target.typeName);
         try {
-            Response response = client().performRequest(request);
-            Map<String, Object> body = entityAsMap(response);
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> columns = (List<Map<String, Object>>) body.get("columns");
-            if (columns == null || columns.size() != 1 || target.resultType.equals(columns.get(0).get("type")) == false) {
-                failures.add(label + " unexpected columns " + columns);
-                return;
-            }
-            @SuppressWarnings("unchecked")
-            List<List<Object>> values = (List<List<Object>>) body.get("values");
-            if (values == null || values.size() != 2) {
-                failures.add(label + " expected 2 rows, got " + values);
-            }
+            expectTwoRows(label, target, query, failures);
         } catch (ResponseException e) {
             int status = e.getResponse().getStatusLine().getStatusCode();
             String reason = String.valueOf(entityAsMap(e.getResponse()).get("error"));
             // Cannot convert field [field] to [IP]: no type can be converted: [aggregate_metric_double] in [union_aggregate_metric_double],
             // [boolean] in [union_boolean]
             boolean allowed = reason.contains("no type can be converted")
-                // Mapped types [date_nanos, datetime] of [field] cannot be accepted in [TO_IP(field)]
+                // Mapped types [date_nanos, datetime] of [field] cannot be accepted in [field?::ip]
                 || reason.contains("cannot be accepted");
             if (status >= 500 || reason.contains("due to ambiguities") || allowed == false) {
                 failures.add(label + " status " + status + " " + abbreviate(reason));
             }
         }
+    }
+
+    private void checkStrictPair(String left, String right, CastTarget target, List<String> failures) throws IOException {
+        String label = left + "|" + right + " " + target.function;
+        String query = String.format(Locale.ROOT, "FROM %s,%s | EVAL x = %s(field) | KEEP x", left, right, target.function);
+        boolean everyTypeConverts = target.converts(indexType(left)) && target.converts(indexType(right));
+        try {
+            boolean succeeded = expectTwoRows(label, target, query, failures);
+            if (succeeded && everyTypeConverts == false) {
+                failures.add(label + " succeeded although an index's type cannot convert");
+            }
+        } catch (ResponseException e) {
+            int status = e.getResponse().getStatusLine().getStatusCode();
+            if (status >= 500 || everyTypeConverts) {
+                failures.add(label + " status " + status + " " + abbreviate(String.valueOf(entityAsMap(e.getResponse()).get("error"))));
+            }
+        }
+    }
+
+    /**
+     * Runs the query and checks it returns the two documents in the expected column type.
+     * @return whether the query returned the expected shape
+     */
+    private boolean expectTwoRows(String label, CastTarget target, String query, List<String> failures) throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.setOptions(ALLOW_WARNINGS);
+        request.setJsonEntity("{\"query\":\"" + query + "\"}");
+        Response response = client().performRequest(request);
+        Map<String, Object> body = entityAsMap(response);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> columns = (List<Map<String, Object>>) body.get("columns");
+        if (columns == null || columns.size() != 1 || target.resultType.equals(columns.get(0).get("type")) == false) {
+            failures.add(label + " unexpected columns " + columns);
+            return false;
+        }
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) body.get("values");
+        if (values == null || values.size() != 2) {
+            failures.add(label + " expected 2 rows, got " + values);
+            return false;
+        }
+        return true;
     }
 
     private static String abbreviate(String reason) {

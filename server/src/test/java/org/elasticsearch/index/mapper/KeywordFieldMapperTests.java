@@ -14,24 +14,29 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -48,6 +53,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -75,8 +81,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
@@ -962,18 +970,75 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * In strictly columnar mode, keyword fields use binary doc values, but the 32766-byte ceiling is
-     * deliberately retained to keep values from becoming so large they degrade storage and scanning.
-     * A value longer than {@link IndexWriter#MAX_TERM_LENGTH} must still be rejected.
+     * In strictly columnar mode, an indexed keyword field still feeds the inverted index, so a value longer than
+     * {@link IndexWriter#MAX_TERM_LENGTH} must be rejected.
      */
     public void testKeywordFieldLongerThan32766InColumnarModeIsRejected() throws Exception {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword")));
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index", true)));
         String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", longValue)))
         );
         assertThat(e.getCause().getMessage(), containsString("UTF8 encoding is longer than the max length"));
+    }
+
+    /**
+     * A non-indexed keyword in strictly columnar mode uses binary doc values, which Lucene does not limit in length,
+     * so a value longer than {@link IndexWriter#MAX_TERM_LENGTH} is accepted and round-trips through synthetic source.
+     */
+    public void testKeywordFieldLongerThan32766NotIndexedInColumnarModeIsAccepted() throws Exception {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index", false)));
+        String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        assertEquals("{\"field\":\"" + longValue + "\"}", syntheticSource(mapper, b -> b.field("field", longValue)));
+    }
+
+    /**
+     * Non-indexed fields have a separate, configurable ceiling that keeps values from degrading storage and scanning.
+     */
+    public void testKeywordFieldLongerThanNonIndexedFieldLimitInColumnarModeIsRejected() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("index", false)))
+            .documentMapper();
+        String longValue = "x".repeat(64 * 1024 + 1);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", longValue)))
+        );
+        assertThat(e.getCause().getMessage(), containsString("longer than the max length 65536"));
+        mapper.parse(source(b -> b.field("field", "x".repeat(64 * 1024))));
+    }
+
+    /**
+     * A stored-only keyword writes neither terms nor sorted-set doc values, but the non-indexed field limit applies only in columnar
+     * index modes, which do not allow {@code store}. So it keeps Lucene's term limit.
+     */
+    public void testStoredOnlyKeywordLongerThan32766IsRejected() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "keyword").field("index", false).field("doc_values", false).field("store", true))
+        );
+        String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", longValue)))
+        );
+        assertThat(e.getCause().getMessage(), containsString("longer than the max length " + IndexWriter.MAX_TERM_LENGTH));
+    }
+
+    /**
+     * A non-indexed keyword in a standard index uses sorted-set doc values by default, so it keeps Lucene's term limit.
+     */
+    public void testNotIndexedSortedSetKeywordLongerThan32766IsRejected() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index", false)));
+        String longValue = "x".repeat(IndexWriter.MAX_TERM_LENGTH + 100);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", longValue)))
+        );
+        assertThat(e.getCause().getMessage(), containsString("longer than the max length " + IndexWriter.MAX_TERM_LENGTH));
     }
 
     /**
@@ -1163,31 +1228,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "keyword"))
         ).fieldType("field");
         assertFalse(standardMultivalue.usesMultivaluedBinaryDocValues());
-    }
-
-    /**
-     * A {@code multi_value=false} columnar keyword field is indexed via
-     * {@link SingleValuedColumnarBinaryDocValuesField}, whose frozen {@link FieldType} carries
-     * {@link ColumNARDocValuesFormat#SINGLE_VALUED_ATTRIBUTE}. The ColumNAR codec reads that
-     * attribute back at flush time to skip payload framing and write raw bytes instead.
-     */
-    public void testMultiValueFalseColumnarKeywordSetsFieldTypeAttribute() throws Exception {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("multi_value", false)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "hello")));
-        IndexableField dvField = doc.rootDoc()
-            .getFields("field")
-            .stream()
-            .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
-            .findFirst()
-            .orElse(null);
-        assertNotNull("expected a BINARY doc-values field for multi_value=false columnar keyword", dvField);
-        var attrs = ((FieldType) dvField.fieldType()).getAttributes();
-        assertEquals(
-            "multi_value=false columnar keyword must carry SINGLE_VALUED_ATTRIBUTE",
-            "true",
-            attrs == null ? null : attrs.get(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE)
-        );
     }
 
     /**
@@ -2039,5 +2079,143 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     private DocumentMapper columnarKeywordMapper(String fieldName) throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         return createMapperService(settings, mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject())).documentMapper();
+    }
+
+    /**
+     * A field that promises a value for every document gets none from an empty string the index reads as a null, so
+     * the document is rejected exactly as one holding an explicit null is.
+     */
+    public void testEmptyStringDoesNotSatisfyNullabilityFalse() throws IOException {
+        final DocumentMapper mapper = emptyStringAsNullColumnar(b -> {
+            b.field("type", "keyword");
+            b.startObject("doc_values").field("nullability", false).endObject();
+        }).documentMapper();
+
+        final DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", "")))
+        );
+        assertThat(e.getMessage(), containsString("configured with [nullability=false] but no value was provided"));
+
+        // A value the index keeps satisfies it, and so does an empty string where the setting is off.
+        assertNotNull(mapper.parse(source(b -> b.field("field", "a"))));
+    }
+
+    /** With {@code on_failure: ignore} the document is kept and the field ignored, as it is for an explicit null. */
+    public void testEmptyStringUnderNullabilityFalseCanBeIgnored() throws IOException {
+        final DocumentMapper mapper = emptyStringAsNullColumnar(b -> {
+            b.field("type", "keyword");
+            b.startObject("doc_values").field("nullability", false).field("on_failure", "ignore").endObject();
+        }).documentMapper();
+
+        final ParsedDocument doc = mapper.parse(source(b -> b.field("field", "")));
+        assertThat(fieldsOf(doc), not(hasItem(containsString("field"))));
+    }
+
+    private MapperService emptyStringAsNullColumnar(CheckedConsumer<XContentBuilder, IOException> field) throws IOException {
+        return createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true)
+                .build(),
+            fieldMapping(field)
+        );
+    }
+
+    private MapperService emptyStringAsNull(CheckedConsumer<XContentBuilder, IOException> field) throws IOException {
+        return createMapperService(
+            Settings.builder().put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true).build(),
+            fieldMapping(field)
+        );
+    }
+
+    /** The fields a document holds for {@code field}, as text, so two documents can be compared by what they index. */
+    private static List<String> fieldsOf(ParsedDocument doc) {
+        return doc.rootDoc()
+            .getFields("field")
+            .stream()
+            .map(f -> f.fieldType().docValuesType() + ":" + (f.binaryValue() != null ? f.binaryValue().utf8ToString() : f.stringValue()))
+            .toList();
+    }
+
+    public void testEmptyStringAsNullReadsAsNull() throws IOException {
+        final DocumentMapper mapper = emptyStringAsNull(b -> b.field("type", "keyword")).documentMapper();
+        final ParsedDocument empty = mapper.parse(source(b -> b.field("field", "")));
+        assertEquals(fieldsOf(mapper.parse(source(b -> b.nullField("field")))), fieldsOf(empty));
+        assertTrue(empty.rootDoc().getFields("field").isEmpty());
+    }
+
+    public void testEmptyStringIsAValueWhenTheSettingIsOff() throws IOException {
+        final DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword")));
+        final ParsedDocument doc = mapper.parse(source(b -> b.field("field", "")));
+        assertFalse(fieldsOf(doc).isEmpty());
+        assertNotEquals(fieldsOf(mapper.parse(source(b -> b.nullField("field")))), fieldsOf(doc));
+    }
+
+    public void testEmptyStringAsNullTakesTheNullValue() throws IOException {
+        final DocumentMapper mapper = emptyStringAsNull(b -> b.field("type", "keyword").field("null_value", "NA")).documentMapper();
+        assertEquals(fieldsOf(mapper.parse(source(b -> b.nullField("field")))), fieldsOf(mapper.parse(source(b -> b.field("field", "")))));
+        assertThat(
+            mapper.parse(source(b -> b.field("field", ""))).rootDoc().getFields("field").get(0).binaryValue().utf8ToString(),
+            equalTo("NA")
+        );
+    }
+
+    public void testEmptyStringAsNullWithinAnArray() throws IOException {
+        final DocumentMapper mapper = emptyStringAsNull(b -> b.field("type", "keyword")).documentMapper();
+        assertEquals(
+            fieldsOf(mapper.parse(source(b -> b.array("field", "a", null, "b")))),
+            fieldsOf(mapper.parse(source(b -> b.array("field", "a", "", "b"))))
+        );
+    }
+
+    public void testEmptyStringAsNullIsNotInSyntheticSource() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), true)
+                .put("index.mapping.source.mode", "synthetic")
+                .build(),
+            fieldMapping(b -> b.field("type", "keyword"))
+        );
+        assertEquals("{}", syntheticSource(mapperService.documentMapper(), b -> b.field("field", "")));
+    }
+
+    public void testSearchingForAnEmptyStringAsksForTheDocumentsWithNoValue() throws IOException {
+        final MapperService mapperService = emptyStringAsNull(b -> b.field("type", "keyword"));
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        final MappedFieldType fieldType = mapperService.fieldType("field");
+        final Query expected = new BooleanQuery.Builder().add(Queries.ALL_DOCS_INSTANCE, BooleanClause.Occur.FILTER)
+            .add(fieldType.existsQuery(context), BooleanClause.Occur.MUST_NOT)
+            .build();
+        assertEquals(expected, fieldType.termQuery("", context));
+        assertEquals(expected, fieldType.termsQuery(List.of(""), context));
+    }
+
+    public void testSearchingForAnEmptyStringIsATermQueryWhenTheSettingIsOff() throws IOException {
+        final MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        assertEquals(new TermQuery(new Term("field", "")), mapperService.fieldType("field").termQuery("", context));
+    }
+
+    public void testSearchingForAnEmptyStringFindsTheNullValueWhenOneIsConfigured() throws IOException {
+        final MapperService mapperService = emptyStringAsNull(b -> b.field("type", "keyword").field("null_value", ""));
+        final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        assertEquals(new TermQuery(new Term("field", "")), mapperService.fieldType("field").termQuery("", context));
+    }
+
+    public void testEmptyStringAsNullCannotBeUpdated() throws IOException {
+        final MapperService mapperService = emptyStringAsNull(b -> b.field("type", "keyword"));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapperService.getIndexSettings()
+                .getScopedSettings()
+                .updateSettings(
+                    Settings.builder().put(FieldMapper.EMPTY_KEYWORD_STRING_AS_NULL_SETTING.getKey(), false).build(),
+                    Settings.builder(),
+                    Settings.builder(),
+                    "index"
+                )
+        );
+        assertThat(e.getMessage(), containsString("final"));
     }
 }

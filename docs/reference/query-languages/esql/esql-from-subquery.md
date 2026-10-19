@@ -224,6 +224,11 @@ If you only have the directive within the subquery, null values will be returned
 :::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_metadata_inner.md
 :::
 
+{applies_to}`stack: ga 9.6` `_class` and `_name` do not follow this rule. The outer `FROM` answers them for each subquery on its own. `_class` is `subquery`. `_name` is `null`, because a subquery has no name. You do not need the directive inside the subquery. If the subquery body also declares `_class` or `_name`, the outer values replace them.
+
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_class_and_name.md
+:::
+
 ## Limitations [esql-from-subquery-limitations]
 
 :::{include} _snippets/common/subquery_limitations.md

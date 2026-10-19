@@ -44,6 +44,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
@@ -398,7 +399,8 @@ public class WildcardFieldMapper extends FieldMapper {
                     name(),
                     wildcardPattern,
                     caseInsensitive,
-                    arrayOrderBinaryDocValues
+                    arrayOrderBinaryDocValues,
+                    breakerOf(context)
                 );
             } else {
                 return BinaryDvConfirmedQuery.fromWildcardQuery(
@@ -406,9 +408,15 @@ public class WildcardFieldMapper extends FieldMapper {
                     name(),
                     wildcardPattern,
                     caseInsensitive,
-                    arrayOrderBinaryDocValues
+                    arrayOrderBinaryDocValues,
+                    breakerOf(context)
                 );
             }
+        }
+
+        /** Callers such as the field type tests build queries without a context, and so without a breaker. */
+        private static CircuitBreaker breakerOf(@Nullable SearchExecutionContext context) {
+            return context == null ? null : context.getCircuitBreaker();
         }
 
         private Integer getApproxWildCardQuery(String wildcardPattern, BooleanQuery.Builder rewritten) {
@@ -495,7 +503,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 name(),
                 automatonSupplier,
                 description,
-                arrayOrderBinaryDocValues
+                arrayOrderBinaryDocValues,
+                breakerOf(context)
             );
         }
 
@@ -518,7 +527,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 syntaxFlags,
                 matchFlags,
                 maxDeterminizedStates,
-                context.getCircuitBreaker()
+                breakerOf(context)
             );
             if (Operations.isTotal(a)) { // Will match all
                 return existsQuery(context);
@@ -537,7 +546,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 syntaxFlags,
                 matchFlags,
                 maxDeterminizedStates,
-                arrayOrderBinaryDocValues
+                arrayOrderBinaryDocValues,
+                breakerOf(context)
             );
         }
 
@@ -876,7 +886,8 @@ public class WildcardFieldMapper extends FieldMapper {
                     upper,
                     includeLower,
                     includeUpper,
-                    arrayOrderBinaryDocValues
+                    arrayOrderBinaryDocValues,
+                    breakerOf(context)
                 );
             }
             return BinaryDvConfirmedQuery.fromRangeQuery(
@@ -886,7 +897,8 @@ public class WildcardFieldMapper extends FieldMapper {
                 upper,
                 includeLower,
                 includeUpper,
-                arrayOrderBinaryDocValues
+                arrayOrderBinaryDocValues,
+                breakerOf(context)
             );
         }
 
@@ -975,10 +987,11 @@ public class WildcardFieldMapper extends FieldMapper {
                         name(),
                         searchTerm,
                         fq,
-                        arrayOrderBinaryDocValues
+                        arrayOrderBinaryDocValues,
+                        breakerOf(context)
                     );
                 }
-                return BinaryDvConfirmedQuery.fromFuzzyQuery(ngramQ, name(), searchTerm, fq, arrayOrderBinaryDocValues);
+                return BinaryDvConfirmedQuery.fromFuzzyQuery(ngramQ, name(), searchTerm, fq, arrayOrderBinaryDocValues, breakerOf(context));
             } catch (IOException ioe) {
                 throw new ElasticsearchParseException("Error parsing wildcard field fuzzy string [" + searchTerm + "]");
             }
@@ -1087,6 +1100,10 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
             String searchTerm = BytesRefs.toString(value);
+            // an empty pattern builds an automaton that matches nothing, but an empty string has no case to fold
+            if (searchTerm.isEmpty()) {
+                return termQuery(value, context);
+            }
             return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
         }
 

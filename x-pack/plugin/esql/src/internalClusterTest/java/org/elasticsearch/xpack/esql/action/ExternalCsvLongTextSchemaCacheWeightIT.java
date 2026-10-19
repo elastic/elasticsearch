@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * End-to-end guard for {@code }: after a MIN/MAX harvest over CSV files whose
+ * End-to-end guard: after a MIN/MAX harvest over CSV files whose
  * text cells are a megabyte wide, the coordinator schema cache's retained weight must stay inside its
  * slice of {@code esql.external.cache.size}, and oversized extrema must not be retained.
  */

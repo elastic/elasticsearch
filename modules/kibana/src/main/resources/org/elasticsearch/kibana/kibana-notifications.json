@@ -41,7 +41,7 @@
         "profile_uid": {
           "type": "keyword"
         },
-        "space_id": {
+        "space_ids": {
           "type": "keyword"
         }
       }

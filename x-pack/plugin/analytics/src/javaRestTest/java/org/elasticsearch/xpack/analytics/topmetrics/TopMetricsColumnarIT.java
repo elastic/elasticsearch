@@ -40,7 +40,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 // NOTE: The keyword and ip tests for a columnar index are muted until https://github.com/elastic/elasticsearch/issues/162510 is
-// fixed. The text, match_only_text and binary tests expect a rejection because the top_metrics reference does not list them.
+// fixed. The text, match_only_text and binary tests capture the current rejection of types the top_metrics reference does not list.
+// When fixing #162510, decide whether to keep the rejection or extend support, and update these tests and the documentation.
 public class TopMetricsColumnarIT extends ESRestTestCase {
 
     @ClassRule

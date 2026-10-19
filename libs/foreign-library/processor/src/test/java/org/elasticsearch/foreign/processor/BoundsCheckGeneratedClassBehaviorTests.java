@@ -369,11 +369,8 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
     }
 
     /**
-     * The emitted checks compute the required size and read {@code byteSize()} as {@code long}s, so a
-     * segment larger than {@code Integer.MAX_VALUE} bytes is accepted, and a required size beyond the
-     * {@code int} range is still enforced (see #143232, where a narrowing cast rejected such segments).
-     * The large segment is a small real allocation reinterpreted to a larger size; {@code memcmp} only
-     * reads its first {@code n} bytes.
+     * Test that the emitted checks compute the required size correctly as longs, so they work on a
+     * segment larger than {@code Integer.MAX_VALUE} bytes is accepted  (see #143232).
      */
     @SuppressWarnings("restricted")
     public void testChecksDoNotOverflowBeyondIntRange() throws Throwable {
@@ -398,6 +395,8 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
         final long n = 50_000L;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment real = arena.allocate(n);
+            // We fake a large segment as a small real allocation reinterpreted to a larger size.
+            // This is safe as the memcmp call below only reads the first n bytes anyway; we just use it to trigger the validation.
             MemorySegment large = real.reinterpret(n * n);
             assertEquals(0, (int) lib.call("memcmp", large, large, n));
 

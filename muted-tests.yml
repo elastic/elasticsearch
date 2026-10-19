@@ -457,3 +457,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchCleanupScrollIT
   method: testRestartDoesNotDrainWhileCleanupScrollIsOpen
   issue: https://github.com/elastic/elasticsearch/issues/162430
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testStress
+  issue: https://github.com/elastic/elasticsearch/issues/160613

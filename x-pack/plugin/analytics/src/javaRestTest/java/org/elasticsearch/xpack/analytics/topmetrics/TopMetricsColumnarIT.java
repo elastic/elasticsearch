@@ -133,6 +133,22 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
         }
     }
 
+    public void testMissingMetricOnTopDocument() throws IOException {
+        List<Document> documents = List.of(new Document(1, null), new Document(2, 5), new Document(3, 7));
+        assertTopMetrics("standard", Settings.EMPTY, mapping("long"), documents, true, Function.identity());
+        assertTopMetrics("columnar", COLUMNAR, mapping("long"), documents, true, Function.identity());
+    }
+
+    public void testKeywordMissingMetricOnTopDocumentOnStandardIndex() throws IOException {
+        List<Document> documents = List.of(new Document(1, null), new Document(2, "a"), new Document(3, "b"));
+        assertTopMetrics("standard", Settings.EMPTY, mapping("keyword"), documents, true, Function.identity());
+    }
+
+    public void testKeywordMissingMetricOnTopDocumentOnColumnarIndex() throws IOException {
+        List<Document> documents = List.of(new Document(1, null), new Document(2, "a"), new Document(3, "b"));
+        assertTopMetrics("columnar", COLUMNAR, mapping("keyword"), documents, true, Function.identity());
+    }
+
     public void testLong() throws IOException {
         assertOnBothIndices(mapping("long"), ESTestCase::randomLong, TopMetricsColumnarIT::parsedLong);
     }
@@ -214,12 +230,20 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
         Supplier<Object> randomValue,
         Function<Object, Object> responseValue
     ) throws IOException {
-        createMetricIndex(index, indexSettings, metricMapping);
+        assertTopMetrics(index, indexSettings, metricMapping, randomDocuments(randomValue), randomBoolean(), responseValue);
+    }
 
-        List<Document> documents = randomDocuments(randomValue);
+    private void assertTopMetrics(
+        String index,
+        Settings indexSettings,
+        String metricMapping,
+        List<Document> documents,
+        boolean ascending,
+        Function<Object, Object> responseValue
+    ) throws IOException {
+        createMetricIndex(index, indexSettings, metricMapping);
         indexDocuments(index, documents);
 
-        boolean ascending = randomBoolean();
         Comparator<Document> bySortKey = Comparator.comparingInt(Document::sortKey);
         Document top = documents.stream().min(ascending ? bySortKey : bySortKey.reversed()).orElseThrow();
 

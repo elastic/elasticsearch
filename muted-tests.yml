@@ -517,3 +517,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
   method: testIpOnColumnarIndex
   issue: https://github.com/elastic/elasticsearch/issues/162510
+- class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
+  method: testKeywordMissingMetricOnTopDocumentOnColumnarIndex
+  issue: https://github.com/elastic/elasticsearch/issues/162510

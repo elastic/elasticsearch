@@ -1557,18 +1557,24 @@ public class TranslogReplicatorTests extends ESTestCase {
             assertThat(uploads.get(), equalTo(2)); // both uploads were attempted
 
             // hedge won
-            assertThat(meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_WON_TOTAL)
-                .stream()
-                .map(Measurement::getLong)
-                .reduce(0L, Long::sum),          equalTo(1L));
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_WON_TOTAL)
+                    .stream()
+                    .map(Measurement::getLong)
+                    .reduce(0L, Long::sum),
+                equalTo(1L)
+            );
 
             // hedge was fired
-            assertThat(meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_TOTAL)
-                .stream()
-                .map(Measurement::getLong)
-                .reduce(0L, Long::sum), equalTo(1L));
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_TOTAL)
+                    .stream()
+                    .map(Measurement::getLong)
+                    .reduce(0L, Long::sum),
+                equalTo(1L)
+            );
         } finally {
             firstUploadHangs.countDown();
         }
@@ -1610,18 +1616,24 @@ public class TranslogReplicatorTests extends ESTestCase {
         hedge.get().run(); // a hedge firing after the upload completed is a no-op
 
         // hedge did not win
-        assertThat(meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_WON_TOTAL)
-            .stream()
-            .map(Measurement::getLong)
-            .reduce(0L, Long::sum), equalTo(0L));
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_WON_TOTAL)
+                .stream()
+                .map(Measurement::getLong)
+                .reduce(0L, Long::sum),
+            equalTo(0L)
+        );
 
         // hedge was still fired
-        assertThat(meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_TOTAL)
-            .stream()
-            .map(Measurement::getLong)
-            .reduce(0L, Long::sum), equalTo(1L));
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, TranslogReplicator.TRANSLOG_UPLOAD_HEDGES_TOTAL)
+                .stream()
+                .map(Measurement::getLong)
+                .reduce(0L, Long::sum),
+            equalTo(1L)
+        );
 
         assertThat(uploads.get(), equalTo(1));
     }

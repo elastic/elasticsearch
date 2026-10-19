@@ -270,7 +270,7 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
     }
 
     private static List<Document> randomDocuments(Supplier<Object> randomValue) {
-        int count = randomIntBetween(1, 20);
+        int count = randomIntBetween(5, 20);
         List<Document> documents = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             documents.add(new Document(i * 10 + randomIntBetween(0, 9), rarely() ? null : randomValue.get()));
@@ -281,7 +281,7 @@ public class TopMetricsColumnarIT extends ESRestTestCase {
     private void indexDocuments(String index, List<Document> documents) throws IOException {
         List<Document> shuffled = new ArrayList<>(documents);
         Collections.shuffle(shuffled, random());
-        int bulkCount = randomIntBetween(1, Math.min(3, shuffled.size()));
+        int bulkCount = randomIntBetween(Math.min(3, shuffled.size()), Math.min(5, shuffled.size()));
         int chunkSize = (shuffled.size() + bulkCount - 1) / bulkCount;
         for (int from = 0; from < shuffled.size(); from += chunkSize) {
             bulkIndex(index, shuffled.subList(from, Math.min(shuffled.size(), from + chunkSize)));

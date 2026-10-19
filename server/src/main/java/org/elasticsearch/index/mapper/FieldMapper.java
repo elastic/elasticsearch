@@ -1901,7 +1901,7 @@ public abstract class FieldMapper extends Mapper {
             IndexSettings indexSettings
         ) {
             super(PARAMETER_NAME, false, defaultValueSupplier, null, initializer, null, Values::toString);
-            this.supportsExtendedDocValues = indexSettings.getMode().isStrictColumnar();
+            this.supportsExtendedDocValues = indexSettings != null && indexSettings.getMode().isStrictColumnar();
             this.supportsTopLevelAttributes = supportsExtendedDocValues
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES);
 

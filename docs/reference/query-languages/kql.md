@@ -4,6 +4,9 @@ navigation_title: KQL
 applies_to:
   stack: ga
   serverless: ga
+products:
+  - id: elasticsearch
+  - id: kibana
 ---
 
 # {{kib}} Query Language (KQL) syntax reference [kuery-query]

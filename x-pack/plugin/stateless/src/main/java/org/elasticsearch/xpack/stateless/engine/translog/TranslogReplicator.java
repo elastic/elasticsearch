@@ -71,6 +71,7 @@ import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TranslogReplicator extends AbstractLifecycleComponent {
 
@@ -101,6 +102,16 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
+    /// Time to wait for the first translog-upload try to complete before firing the exact same translog upload request in parallel
+    /// to the first. For a specific translog upload, we only fire at most one extra request (irrespectively of the total tries needed for
+    /// the translog to be uploaded).
+    public static final Setting<TimeValue> UPLOAD_HEDGE_DELAY_SETTING = Setting.timeSetting(
+        "stateless.translog.upload.hedge_delay",
+        timeValueSeconds(2),
+        timeValueMillis(100),
+        Setting.Property.NodeScope
+    );
+
     private volatile BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
     private final ObjectStoreService objectStoreService;
     private final StatelessClusterConsistencyService consistencyService;
@@ -116,6 +127,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final TimeValue flushRetryInitialDelay;
     private final TimeValue flushInterval;
     private final ByteSizeValue flushSizeThreshold;
+    private final TimeValue uploadHedgeDelay;
     private final LongHistogram translogUploadAttemptsHistogram;
     private final LongHistogram translogUploadTotalDurationHistogram;
 
@@ -181,6 +193,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         this.flushRetryInitialDelay = FLUSH_RETRY_INITIAL_DELAY_SETTING.get(settings);
         this.flushInterval = FLUSH_INTERVAL_SETTING.get(settings);
         this.flushSizeThreshold = FLUSH_SIZE_SETTING.get(settings);
+        this.uploadHedgeDelay = UPLOAD_HEDGE_DELAY_SETTING.get(settings);
         this.consistencyService = consistencyService;
         this.supportsMultipleProjects = supportsMultipleProjects;
         this.currentPrimaryTerm = currentPrimaryTerm;
@@ -510,7 +523,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
                 // only the first time, we schedule another upload attempt that will only be attempted if after 2 seconds we have not yet
                 // uplaoded the translog
-                hedgeTimer = threadPool.schedule(() -> hedge(listener), TimeValue.timeValueSeconds(2), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                hedgeTimer = threadPool.schedule(() -> hedge(listener), uploadHedgeDelay, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }
             // Retain the bytes to ensure that a cancel call does not corrupt them before upload
             if (bytesToClose.tryIncRef()) {

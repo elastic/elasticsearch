@@ -60,9 +60,11 @@ tasks.named('compileJavaRestTestJava').configure {
   options.compilerArgs << '-Xlint:-classfile'
 }
 
+// Captured at configuration time: the configuration cache detaches onlyIf closures from the build script.
+def isSnapshotBuild = buildParams.snapshotBuild
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  it.onlyIf("snapshot build") { isSnapshotBuild }
   // HeapAttackExternalIT materializes payloads (multi-GB Parquet/NDJSON/CSV byte arrays)
   // inside the test JVM before pushing them into the in-memory S3 fixture.
   maxHeapSize = '4G'

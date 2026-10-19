@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -363,7 +364,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
                     @Override
                     public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-                        assert BatchedCompoundCommit.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
+                        assert BccBlobFile.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
                             : blobName + " in " + permittedFiles;
                         return super.readBlob(purpose, blobName);
                     }
@@ -433,7 +434,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .listBlobs(randomFrom(OperationPurpose.values()))
                     .keySet()
                     .stream()
-                    .filter(BatchedCompoundCommit::startsWithBlobPrefix)
+                    .filter(BccBlobFile::startsWithBlobPrefix)
                     .count()
             );
 

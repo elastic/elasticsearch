@@ -56,7 +56,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.junit.After;
@@ -152,7 +152,7 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
                 Map.of(
                     randomIdentifier(),
                     new BlobLocation(
-                        new BlobFile("stateless_commit_" + generation, new PrimaryTermAndGeneration(1L, generation)),
+                        new BccBlobFile(new PrimaryTermAndGeneration(1L, generation)),
                         randomLongBetween(0, 50),
                         randomLongBetween(1, 900)
                     )

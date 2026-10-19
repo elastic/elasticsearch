@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ fillnull, optional_fields_load_all_fillnull, optional_fields_load_all_name_collision_warning, optional_fields_load_all_single_source_column ]
+          capabilities: [ optional_fields_load_all_fillnull ]
       reason: "FILLNULL is only allowed under unmapped_fields=\"LOAD_ALL\" with this capability"
 
   - do:
@@ -130,15 +130,18 @@ teardown:
   - contains: { error.reason: 'No matches found for pattern [_unmapped_*]' }
 
 ---
+'FILLNULL cannot name _unmapped_fields after a KEEP drops it':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_fill_source | KEEP id, oth* | FILLNULL "x" ON _unmapped_fields'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Unknown column [_unmapped_fields]' }
+
+---
 'FILLNULL ON * in a subquery is rejected':
-  - requires:
-      test_runner_features: [ capabilities, contains ]
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [ ]
-          capabilities: [ subquery_in_from_command, optional_fields_load_all_subqueries ]
-      reason: "Subqueries in FROM are only available with this capability"
   - do:
       catch: bad_request
       esql.query:

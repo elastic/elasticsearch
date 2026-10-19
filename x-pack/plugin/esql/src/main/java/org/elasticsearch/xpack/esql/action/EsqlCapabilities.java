@@ -3688,12 +3688,6 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_GROK_DISSECT_MV_EXPAND_SAMPLE(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
-         * Support for {@code FILLNULL} under {@code unmapped_fields="LOAD_ALL"}, where {@code ON *} leaves the {@code _unmapped_fields}
-         * column alone. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_FILLNULL(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
-
-        /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},
          * {@code []}, {@code {}} and any nesting of those, e.g. {@code [null]} or {@code {"baz":[null],"inga":{}}} - is dropped where
          * the data node extracts unmapped fields. So a field written that way by every document no longer expands into a column that
@@ -4242,10 +4236,10 @@ public class EsqlCapabilities {
         FILLNULL(Build.current().isSnapshot()),
 
         /**
-         * {@code FILLNULL} keeps the ids of its filled columns when the analyzer rewrites a field below it in place, e.g. a field mapped
-         * as {@code text} in some indices and unmapped in others.
+         * {@code FILLNULL} under {@code unmapped_fields="LOAD_ALL"}, where {@code ON *} leaves {@code _unmapped_fields} alone, and filled
+         * columns that keep their ids when a field below is rewritten in place (e.g. {@code text} in some indices, unmapped in others).
          */
-        FIX_FILLNULL_KEEPS_FILLED_COLUMN_IDS(FILLNULL.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_FILLNULL(FILLNULL.isEnabled()),
 
         /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the

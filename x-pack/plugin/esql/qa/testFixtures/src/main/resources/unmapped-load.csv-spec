@@ -571,10 +571,7 @@ text_state_unmapped     | unmapped-1     | null
 ;
 
 fillNullOnPartiallyUnmappedTextUnderLoad
-required_capability: fillnull
-required_capability: fix_fillnull_keeps_filled_column_ids
-required_capability: fix_unmapped_fields_in_esrelation
-required_capability: optional_fields_warn_non_loadable_punk_combined
+required_capability: optional_fields_load_all_fillnull
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -592,10 +589,7 @@ text_state_unmapped     | unmapped-1     | none
 ;
 
 fillNullAllColumnsOnPartiallyUnmappedTextUnderLoad
-required_capability: fillnull
-required_capability: fix_fillnull_keeps_filled_column_ids
-required_capability: fix_unmapped_fields_in_esrelation
-required_capability: optional_fields_warn_non_loadable_punk_combined
+required_capability: optional_fields_load_all_fillnull
 
 SET unmapped_fields="load"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index

@@ -6167,7 +6167,6 @@ FROM partial_mapping_sample_data
 
 fillNullOnMappedFieldKeepsUnmappedFieldsColumn
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6187,7 +6186,6 @@ FROM partial_mapping_sample_data
 
 fillNullAllColumnsLeavesUnmappedFieldsColumnAlone
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6208,7 +6206,6 @@ warning:Line 5:3: [FILLNULL] the following fields have no default fill value for
 
 fillNullOnUnmappedFieldExcludesItFromUnmappedFieldsColumn
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6228,7 +6225,6 @@ FROM partial_mapping_sample_data
 
 fillNullOnFieldNoDocumentHas
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6244,11 +6240,60 @@ FROM partial_mapping_sample_data
 2024-10-23T12:27:28.948Z | missing               | "{""language_code"":""3""}"
 ;
 
+fillNullOnUnmappedFieldMissingFromSomeDocuments
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mv_expand_unmapped
+| FILLNULL "none" ON deep.items
+| KEEP id, deep.items, ta*
+| SORT id
+;
+
+id:keyword | deep.items:keyword | _unmapped_fields:_source
+u1         | [x, y]             | "{""tags"":[""d"",""e""]}"
+u2         | none               | null
+u3         | z                  | "{""tags"":""f""}"
+;
+
+fillNullOnSeveralUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mv_expand_unmapped
+| FILLNULL "n/a" ON tags, deep.items
+| KEEP id, ta*, deep*
+| SORT id
+;
+
+id:keyword | tags:keyword | deep.items:keyword | _unmapped_fields:_source
+u1         | [d, e]       | [x, y]             | null
+u2         | n/a          | n/a                | null
+u3         | f            | z                  | null
+;
+
+fillNullAllColumnsFillsANamedUnmappedField
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fillnull
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mv_expand_unmapped
+| KEEP id, tags, deep*
+| FILLNULL "n/a" ON *
+| SORT id
+;
+
+id:keyword | tags:keyword | _unmapped_fields:_source
+u1         | [d, e]       | "{""deep.items"":[""x"",""y""]}"
+u2         | n/a          | null
+u3         | f            | "{""deep.items"":""z""}"
+;
+
 fillNullNamingUnmappedFieldsFillsAnOrdinaryUnmappedField
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
-required_capability: optional_fields_load_all_name_collision_warning
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -6266,9 +6311,7 @@ warning:The query has a column named [_unmapped_fields], so the unmapped fields 
 
 fillNullOnEvalColumnNamedUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
-required_capability: optional_fields_load_all_name_collision_warning
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -6288,9 +6331,7 @@ warning:The query has a column named [_unmapped_fields], so the unmapped fields 
 
 fillNullOnRenamedColumnNamedUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
-required_capability: optional_fields_load_all_name_collision_warning
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -6312,10 +6353,8 @@ warning:The query has a column named [_unmapped_fields], so the unmapped fields 
 
 fillNullInForkBranches
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
 required_capability: fork_v9
-required_capability: optional_fields_load_all_fork
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -6333,10 +6372,8 @@ FROM partial_mapping_sample_data
 
 fillNullAllColumnsInForkBranch
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
 required_capability: fork_v9
-required_capability: optional_fields_load_all_fork
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data, sample_data METADATA _index
@@ -6358,10 +6395,8 @@ partial_mapping_sample_data | 8268152             | Disconnection error      | f
 
 fillNullAllColumnsAfterForkWithStatsBranch
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
 required_capability: fork_v9
-required_capability: optional_fields_load_all_fork
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -6381,9 +6416,7 @@ null                     |           | fork2         | 1      | null
 
 fillNullTargetedInSubqueryBranch
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
-required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6402,9 +6435,7 @@ FROM (FROM partial_mapping_sample_data METADATA _index), (FROM no_mapping_sample
 
 fillNullAllColumnsAfterSubqueries
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
-required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -6424,10 +6455,7 @@ warning:Line 6:3: [FILLNULL] the fill value could not be applied to the followin
 
 fillNullOnPartiallyUnmappedText
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
-required_capability: fix_fillnull_keeps_filled_column_ids
-required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
@@ -6446,10 +6474,7 @@ unmapped-1     | none             | text_state_unmapped    | null
 
 fillNullAllColumnsOnPartiallyUnmappedText
 required_capability: optional_fields_load_all_single_source_column
-required_capability: fillnull
 required_capability: optional_fields_load_all_fillnull
-required_capability: fix_fillnull_keeps_filled_column_ids
-required_capability: optional_fields_warn_non_loadable_punk_combined
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index

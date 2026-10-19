@@ -861,7 +861,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testLoadAllFillNullAllColumnsLeavesTheUnmappedFieldsColumnAloneAfterOtherCommands() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         for (String pipeline : List.of(
             "FROM test | FORK (WHERE emp_no > 0) (STATS c = COUNT(*))",
             "FROM test, (FROM test | STATS c = COUNT(*))",
@@ -898,12 +897,14 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
     }
 
-    public void testLoadAllFillNullCannotNameUnmappedFieldsAfterKeepDroppedIt() {
+    public void testLoadAllFillNullCannotNameUnmappedFieldsAfterKeep() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        test().statementError(
-            setUnmappedLoadAll("FROM test | KEEP first_name | FILLNULL \"x\" ON _unmapped_fields"),
-            containsString("Unknown column [_unmapped_fields]")
-        );
+        for (String keep : List.of("KEEP first_name", "KEEP first_name, last*")) {
+            test().statementError(
+                setUnmappedLoadAll("FROM test | " + keep + " | FILLNULL \"x\" ON _unmapped_fields"),
+                containsString("Unknown column [_unmapped_fields]")
+            );
+        }
     }
 
     public void testLoadAllFillNullFillsAQueryColumnNamedUnmappedFields() {
@@ -946,7 +947,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testLoadAllRejectsFillNullAllColumnsInASubquery() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         datedAndPlain().statementError(
             setUnmappedLoadAll("FROM (FROM dated), (FROM plain | FILLNULL \"x\" ON *)"),
             containsString("does not support [FILLNULL \"x\" ON *] in a subquery yet; name the columns to fill")
@@ -961,7 +961,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testLoadAllRejectsFillNullAllColumnsInANestedSubquery() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        assumeTrue("Requires nested subqueries in FROM", EsqlCapabilities.Cap.NESTED_SUBQUERY_IN_FROM_COMMAND.isEnabled());
         datedAndPlain().statementError(
             setUnmappedLoadAll("FROM dated, (FROM plain, (FROM plain | FILLNULL \"x\" ON *))"),
             containsString("in a subquery yet; name the columns to fill")
@@ -970,7 +969,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testLoadModeAllowsFillNullAllColumnsInASubquery() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         LogicalPlan plan = datedAndPlain().statement(setUnmappedLoad("FROM (FROM dated), (FROM plain | FILLNULL \"x\" ON *)"));
         assertThat(filledNames(plan), hasItem("id"));
         assertConsistent(plan);
@@ -978,7 +976,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testLoadAllAllowsTargetedFillNullInASubquery() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         LogicalPlan plan = datedAndPlain().statement(setUnmappedLoadAll("FROM (FROM dated), (FROM plain | FILLNULL \"x\" ON id)"));
         assertThat(filledNames(plan), equalTo(Set.of("id")));
         boolean castsLoadedTimestamp = plan.anyMatch(
@@ -990,7 +987,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testLoadAllAllowsFillNullAllColumnsAfterASubquery() {
         assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         LogicalPlan plan = datedAndPlain().statement(setUnmappedLoadAll("FROM (FROM dated), (FROM plain) | FILLNULL \"x\" ON *"));
         assertThat(filledNames(plan), hasItem("id"));
         assertThat(unfillableNames(plan), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));

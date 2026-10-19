@@ -508,3 +508,6 @@ tests:
 - class: org.elasticsearch.xpack.enrich.action.EnrichShardMultiSearchActionIT
   method: testChargeIsHeldUntilResponseIsSent
   issue: https://github.com/elastic/elasticsearch/issues/162495
+- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
+  method: testOptimizeMultipleVersions
+  issue: https://github.com/elastic/elasticsearch/issues/162517

@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -133,7 +134,7 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
 
     private static void putTemplate(String dataStream, String indexMode) throws IOException {
         Request request = new Request("PUT", "/_index_template/" + dataStream);
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {
               "index_patterns": [ "%s" ],
               "data_stream": {},
@@ -156,7 +157,7 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
                   }
                 }
               }
-            }""".formatted(dataStream, indexMode));
+            }""", dataStream, indexMode));
         assertOK(client().performRequest(request));
     }
 
@@ -182,9 +183,10 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
 
     /** Document {@code i}, derived from {@code i} alone so that every expected count and value can be computed. */
     private static String doc(int i) {
-        return """
-            {"@timestamp":"%s","host.name":"host%d","method":"m%d","tags":["tag-a%d","tag-b%d"],\
-            "message":"line%d alpha beta","body":"body%d gamma delta","length":%d}""".formatted(
+        return Strings.format(
+            """
+                {"@timestamp":"%s","host.name":"host%d","method":"m%d","tags":["tag-a%d","tag-b%d"],\
+                "message":"line%d alpha beta","body":"body%d gamma delta","length":%d}""",
             BASE_TIMESTAMP.plusSeconds(i),
             i % HOSTS,
             i % METHODS,
@@ -274,13 +276,13 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
     /** Looks up one document by its text and match_only_text values and checks the {@code _source} rebuilt from doc values. */
     private static void assertTextSearch(String target, int firstDoc, int lastDoc) throws IOException {
         int doc = (firstDoc + lastDoc) / 2;
-        Map<String, Object> byMessage = search(target, """
-            { "query": { "match": { "message": "line%d" } } }""".formatted(doc));
+        Map<String, Object> byMessage = search(target, Strings.format("""
+            { "query": { "match": { "message": "line%d" } } }""", doc));
         assertThat(ObjectPath.evaluate(byMessage, "hits.total.value"), equalTo(1));
         assertSource(ObjectPath.evaluate(byMessage, "hits.hits.0._source"), doc);
 
-        Map<String, Object> byBody = search(target, """
-            { "query": { "match_phrase": { "body": "body%d gamma" } } }""".formatted(doc));
+        Map<String, Object> byBody = search(target, Strings.format("""
+            { "query": { "match_phrase": { "body": "body%d gamma" } } }""", doc));
         assertThat(ObjectPath.evaluate(byBody, "hits.total.value"), equalTo(1));
         assertSource(ObjectPath.evaluate(byBody, "hits.hits.0._source"), doc);
     }

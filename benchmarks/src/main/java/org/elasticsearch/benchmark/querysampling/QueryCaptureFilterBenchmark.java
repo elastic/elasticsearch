@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -91,9 +90,7 @@ public class QueryCaptureFilterBenchmark {
                 settings,
                 Set.of(QuerySamplingSettings.ENABLED, QuerySamplingSettings.CAPTURE_RATE, QuerySamplingSettings.MIN_CAPTURES_PER_HOUR)
             ),
-            captured -> {},
-            // what the filter looks up on a node: the random source of the thread, which is not the one of a test
-            ThreadLocalRandom::current
+            captured -> {}
         );
 
         if (scenario.equals("not_a_knn_search")) {

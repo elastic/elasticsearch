@@ -549,7 +549,6 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     }
 
     public void testUnmappedFieldsLoadAllRejected() {
-        assumeTrue("LOAD_ALL requires a snapshot build", Build.current().isSnapshot());
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> EsqlStreamTestUtils.rawStream(

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
-import org.apache.http.HttpResponse;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;

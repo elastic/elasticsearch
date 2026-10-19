@@ -447,9 +447,6 @@ tests:
 - class: org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValuesGenericWriteableTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/162108
-- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
-  method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
-  issue: https://github.com/elastic/elasticsearch/issues/162163
 - class: org.elasticsearch.xpack.wildcard.heappressure.WildcardFieldWildcardHeapPressureIT
   method: testPausedHeavyWildcardsTripBreaker
   issue: https://github.com/elastic/elasticsearch/issues/162207

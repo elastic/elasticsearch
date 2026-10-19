@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.view.InMemoryViewResolver;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.After;
 import org.junit.Before;
@@ -775,11 +776,19 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
 
     private ViewResolver.ViewResolutionResult resolve(String query) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(query(query), null, true, this::parse, false, future.delegateFailureAndWrap((l, viewResult) -> {
-            // Validate: no InSubquery expressions should survive view+subquery resolution.
-            InSubqueryResolver.verify(viewResult.plan());
-            l.onResponse(viewResult);
-        }));
+        viewResolver.replaceViews(
+            query(query),
+            null,
+            true,
+            false,
+            this::parse,
+            ViewBoundaryPreservation.NONE,
+            future.delegateFailureAndWrap((l, viewResult) -> {
+                // Validate: no InSubquery expressions should survive view+subquery resolution.
+                InSubqueryResolver.verify(viewResult.plan());
+                l.onResponse(viewResult);
+            })
+        );
         return future.actionGet();
     }
 

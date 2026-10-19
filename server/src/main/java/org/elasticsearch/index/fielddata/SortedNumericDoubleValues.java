@@ -85,7 +85,7 @@ public abstract class SortedNumericDoubleValues {
     }
 
     /**
-     * @return an iterator over doc ids working togerther with {@link #advanceExact(int)} and {@link #nextValue()}
+     * @return an iterator over doc ids working together with {@link #advanceExact(int)} and {@link #nextValue()}
      *         or null if not supported.
      */
     @Nullable
@@ -105,7 +105,21 @@ public abstract class SortedNumericDoubleValues {
      * Converts a {@link DoubleValues} to a {@link SortedNumericDoubleValues}
      */
     public static SortedNumericDoubleValues singleton(DoubleValues values) {
-        return new SortedNumericDoubleValues(true, null) {
+        return singleton(values, null);
+    }
+
+    /**
+     * Converts a {@link DoubleValues} to a {@link SortedNumericDoubleValues} preserving the
+     * given {@link DocIdSetIterator}.
+     *
+     * <p> Callers that derive a singleton view from another doc-values instance must pass that
+     * instance's {@link #docIdIterator()}, otherwise the returned view reports no iterator.
+     *
+     * <p> The iterator is forward-only and is returned as-is (never copied) by {@link #docIdIterator()}.
+     * It must be the iterator that backs {@code values}.
+     */
+    public static SortedNumericDoubleValues singleton(DoubleValues values, @Nullable DocIdSetIterator docIdSetIterator) {
+        return new SortedNumericDoubleValues(true, docIdSetIterator) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);

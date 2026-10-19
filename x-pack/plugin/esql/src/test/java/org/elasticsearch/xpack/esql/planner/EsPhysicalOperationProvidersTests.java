@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -25,7 +28,9 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -35,6 +40,8 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
@@ -52,6 +59,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -59,11 +67,15 @@ import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -455,6 +467,107 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             blockLoader.rowStrideStoredFieldSpec(),
             equalTo(StoredFieldsSpec.withSourcePaths(IgnoredSourceFormat.NO_IGNORED_SOURCE, Set.of("unmapped_kw")))
         );
+    }
+
+    /**
+     * The fields that may be unmapped and the {@code _unmapped_fields} column of one extraction read a document once
+     * between them, and each gets its own values.
+     */
+    public void testUnmappedFieldsOfOneExtractionShareOneWalk() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(mapping(b -> b.startObject("mapped_kw").field("type", "keyword").endObject())),
+            null
+        );
+        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            searchExecutionContext,
+            AliasFilter.EMPTY
+        );
+        var provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            null,
+            PlannerSettings.DEFAULTS,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        EsQueryExec queryExec = new EsQueryExec(
+            Source.EMPTY,
+            "test",
+            IndexMode.STANDARD,
+            List.of(),
+            null,
+            null,
+            10,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+        FieldExtractExec fieldExtractExec = new FieldExtractExec(
+            Source.EMPTY,
+            queryExec,
+            List.of(
+                maybeUnmapped("first"),
+                new UnmappedFieldsAttribute(Source.EMPTY, UnmappedFieldsPattern.excludes(List.of("first", "second.leaf"))),
+                maybeUnmapped("second.leaf")
+            ),
+            MappedFieldType.FieldExtractPreference.NONE
+        );
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        int[] walks = new int[1];
+        org.elasticsearch.search.lookup.Source source = org.elasticsearch.search.lookup.Source.fromBytes(new BytesArray("""
+            { "mapped_kw": "m", "first": "a", "second": { "leaf": [ "b", "c" ] }, "third": 1 }"""), XContentType.JSON);
+        SourceLoader.Leaf sourceLeaf = new SourceLoader.Leaf() {
+            @Override
+            public org.elasticsearch.search.lookup.Source source(LeafStoredFieldLoader storedFields, int docId) {
+                return new org.elasticsearch.search.lookup.Source() {
+                    @Override
+                    public XContentType sourceContentType() {
+                        return source.sourceContentType();
+                    }
+
+                    @Override
+                    public Map<String, Object> source() {
+                        throw new AssertionError("the walk reads the serialized source");
+                    }
+
+                    @Override
+                    public BytesReference internalSourceRef() {
+                        walks[0]++;
+                        return source.internalSourceRef();
+                    }
+
+                    @Override
+                    public org.elasticsearch.search.lookup.Source filter(SourceFilter sourceFilter) {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+
+            @Override
+            public void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) {
+                throw new UnsupportedOperationException();
+            }
+        };
+        BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(null, sourceLeaf);
+        storedFields.advanceTo(0);
+        List<Object> loaded = new ArrayList<>();
+        for (ValuesSourceReaderOperator.FieldInfo field : provider.extractFields(fieldExtractExec)) {
+            BlockLoader loader = field.buildLoader().build(driverContext, 0).loader();
+            try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(driverContext.breaker(), null)) {
+                BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+                reader.read(0, storedFields, builder);
+                loaded.add(((TestBlock) builder.build()).get(0));
+            }
+        }
+        assertThat(walks[0], equalTo(1));
+        assertThat(
+            loaded,
+            equalTo(List.of(new BytesRef("a"), new BytesRef("{\"third\":1}"), List.of(new BytesRef("b"), new BytesRef("c"))))
+        );
+    }
+
+    private static FieldAttribute maybeUnmapped(String name) {
+        return new FieldAttribute(Source.EMPTY, null, null, name, new PotentiallyUnmappedKeywordEsField(name));
     }
 
     public void testTemporalityForMissingSetting() throws IOException {

@@ -133,7 +133,17 @@ teardown:
 
 ---
 'a query column named _unmapped_fields wins over the discovered fields':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_name_collision_warning ]
+      reason: A query with a column named _unmapped_fields warns that the unmapped fields are not returned in it, on newer nodes only.
+
   - do:
+      warnings:
+        - "The query has a column named [_unmapped_fields], so the unmapped fields are not returned in a column of that name; rename that column to get them"
       esql.query:
         body:
           query: 'SET unmapped_fields="LOAD_ALL"; FROM la_cfg | EVAL _unmapped_fields = "mine" | LIMIT 10'

@@ -236,7 +236,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * Whether the sort column's own parquet annotation makes decode scale relative to the raw statistics
      * (TIMESTAMP/TIME(MICROS), DATE, DECIMAL) even when the ES|QL type is a plain LONG — e.g. a declared {@code long}
-     * over a TIMESTAMP(MICROS) column, or an inferred TIME(MICROS). Without this the raw stat would be compared
+     * over a TIMESTAMP(MICROS) column, or over a TIME(MICROS) one. Without this the raw stat would be compared
      * against a decoded-unit bound and skip the wrong groups. Consulted alongside the declared relation; this is the
      * same authority the pushdown side uses ({@code ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats}).
      */
@@ -461,6 +461,19 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         DECODING,
         PHASE2_IO_PENDING,
         DONE
+    }
+
+    /**
+     * Outcome of re-issuing I/O for the current required row group.
+     * {@link #FAIL} is a real miss — never used to hide a GET that produced nothing.
+     */
+    private enum ReticketOutcome {
+        /** Ticket, grant, or GET is outstanding. */
+        WORK,
+        /** Current group is dominated, or {@code noFurtherCandidates}/{@code budgetExhausted}. */
+        SKIP,
+        /** Real miss: the group is still required and nothing is outstanding. */
+        FAIL
     }
 
     private volatile ReadinessPhase readinessPhase = ReadinessPhase.DECODING;
@@ -1471,11 +1484,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
                 // A plain long sort column has no relation and its raw value is its decoded value. A rescaled temporal
                 // one must be mapped into the decoded domain the threshold bound lives in, or the comparison skips the
-                // wrong groups. A null relation on a temporal column (TIME/DECIMAL/unsigned) declines the skip — safe.
+                // wrong groups. A null relation on a temporal column (DECIMAL/unsigned, or TIME under a declared
+                // type the relation does not cover) declines the skip — safe.
                 if (sortDecodeRelation == null) {
                     // Decline the skip when decode scales relative to the raw stats but no exact relation was
-                    // resolved: a temporal column with no relation (TIME/DECIMAL/unsigned), OR a plain LONG whose
-                    // annotation still scales (declared long over TIMESTAMP(MICROS), inferred TIME(MICROS)) — the
+                    // resolved: a temporal column with no relation (DECIMAL/unsigned, or TIME where the declared
+                    // type is not date_nanos), OR a plain LONG whose annotation still scales (declared long over
+                    // TIMESTAMP(MICROS) or over TIME(MICROS); an INFERRED TIME(MICROS) is date_nanos now, not a
+                    // long, and resolves a ScaleUp relation rather than arriving here) — the
                     // comparison would otherwise skip the wrong groups. Only a genuinely non-scaling long passes its
                     // raw value through.
                     yield (sortColumnIsTemporal || sortColumnAnnotationScales) ? null : raw;
@@ -2037,8 +2053,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     // held for a possible fallback barrier.
                     prefetch.close();
                 } else if (useTwoPhase) {
-                    if (retryOrFailRequiredGroupMiss(prefetch)) {
-                        return false;
+                    switch (retryOrFailRequiredGroupMiss(prefetch)) {
+                        case WORK -> {
+                            return false;
+                        }
+                        case SKIP -> {
+                            continue;
+                        }
+                        case FAIL -> {
+                            // Sync fallback below.
+                        }
                     }
                     // Local / non-async storage still uses breaker-accounted sync I/O.
                     prefetch.drainForFallback(detachPendingPrefetches(), rowGroupOrdinal);
@@ -2131,8 +2155,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     buildRowRanges = null;
                 }
                 if (syncFallback) {
-                    if (retryOrFailRequiredGroupMiss(prefetch)) {
-                        return false;
+                    switch (retryOrFailRequiredGroupMiss(prefetch)) {
+                        case WORK -> {
+                            return false;
+                        }
+                        case SKIP -> {
+                            continue;
+                        }
+                        case FAIL -> {
+                            // Sync fallback below.
+                        }
                     }
                     // Delay the barrier until after the empty-range branch above. An empty
                     // row group needs no fallback and later queued prefetches remain useful.
@@ -2965,41 +2997,44 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * instead of joining look-ahead and {@code fetchSync} on {@code esql_worker}. Local disk
      * still falls through to {@code drainForFallback} + {@code fetchSync}. An empty queue after
      * {@link #revokeOvershootOnPark} is not a GET miss — re-issue without spending the retry.
-     *
-     * @return {@code true} when a retry GET is in flight (caller must {@code return false} from
-     *         {@code tryAdvance}); {@code false} when the caller should use sync I/O
+     * A dominated discard, {@code noFurtherCandidates}, or {@code budgetExhausted} is
+     * {@link ReticketOutcome#SKIP} so the caller continues instead of treating a successful
+     * skip as a GET miss.
      */
-    private boolean retryOrFailRequiredGroupMiss(PendingPrefetchSelection prefetch) {
+    private ReticketOutcome retryOrFailRequiredGroupMiss(PendingPrefetchSelection prefetch) {
         if (storageObject == null || storageObject.supportsNativeAsync() == false) {
-            return false;
+            return ReticketOutcome.FAIL;
         }
-        if (prefetch.isTransientMiss()) {
-            if (reticketCurrentGroup(prefetch, true)) {
-                return true;
-            }
+        boolean consumeRetry = prefetch.isTransientMiss();
+        ReticketOutcome outcome = reticketCurrentGroup(prefetch, consumeRetry);
+        if (outcome != ReticketOutcome.FAIL) {
+            return outcome;
+        }
+        if (consumeRetry) {
             RuntimeException failure = prefetch.takeTransientFailure();
             if (failure != null) {
                 throw failure;
             }
-            throw new ElasticsearchException(
-                "async storage I/O failed for required row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]"
-            );
-        }
-        if (reticketCurrentGroup(prefetch, false)) {
-            return true;
         }
         throw new ElasticsearchException(
             "async storage I/O failed for required row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]"
         );
     }
 
-    private boolean reticketCurrentGroup(PendingPrefetchSelection prefetch, boolean consumeRetry) {
+    /**
+     * Re-issues the current group's ticket/GET. Outstanding work is {@link ReticketOutcome#WORK}.
+     * Empty after fill is {@link ReticketOutcome#SKIP} when the group is no longer required
+     * (dominated, no further candidates, or the row budget is spent) so a real GET miss stays
+     * {@link ReticketOutcome#FAIL}. A second transient miss returns {@code FAIL} without a skip
+     * re-check — that bookkeeping must not hide a failed GET.
+     */
+    private ReticketOutcome reticketCurrentGroup(PendingPrefetchSelection prefetch, boolean consumeRetry) {
         if (storageObject == null || storageObject.supportsNativeAsync() == false) {
-            return false;
+            return ReticketOutcome.FAIL;
         }
         if (consumeRetry) {
             if (groupPrefetchRetried) {
-                return false;
+                return ReticketOutcome.FAIL;
             }
             groupPrefetchRetried = true;
         }
@@ -3009,7 +3044,24 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         prefetch.close();
         fillPrefetchQueue(rowGroupOrdinal, true);
         consumeGrantedIo();
-        return pendingTicket != null || grantedIo != null || queuedPrefetchFor(rowGroupOrdinal);
+        if (pendingTicket != null || grantedIo != null || queuedPrefetchFor(rowGroupOrdinal)) {
+            return ReticketOutcome.WORK;
+        }
+        if (currentGroupNoLongerRequired()) {
+            return ReticketOutcome.SKIP;
+        }
+        return ReticketOutcome.FAIL;
+    }
+
+    private boolean currentGroupNoLongerRequired() {
+        if (budgetExhausted()) {
+            return true;
+        }
+        if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
+            return true;
+        }
+        List<BlockMetaData> rowGroups = reader.getRowGroups();
+        return rowGroupOrdinal >= 0 && rowGroupOrdinal < rowGroups.size() && rowGroupDominatedByThreshold(rowGroups.get(rowGroupOrdinal));
     }
 
     private void closePhase2Pending() {

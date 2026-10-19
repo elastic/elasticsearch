@@ -22,7 +22,7 @@ export function planEntryToSkippedTest(e: PlanEntry): SkippedTest {
 //     MAX_WORKERS, reads the ldd version, etc. (Linux-only, expects $WORKSPACE / $GRADLEW).
 //   - local: `./gradlew` directly, suitable for a developer laptop.
 // The `runners/repeat-gradle-run.sh` wrapper is portable bash and works for both targets; Java bakes the
-// `__GRADLE__` placeholder inside the `repeat-gradle-run.sh <iters> __GRADLE__ <tasks>` form too, so a
+// `__GRADLE__` placeholder inside the `repeat-gradle-run.sh <runs> __GRADLE__ <args>` form too, so a
 // blanket replace-all covers both plain and wrapped invocations.
 const GRADLE_TOKEN = "__GRADLE__";
 const GRADLE_BINARY: Record<"buildkite" | "local", string> = {

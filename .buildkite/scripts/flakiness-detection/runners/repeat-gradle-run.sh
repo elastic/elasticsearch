@@ -16,7 +16,7 @@ SNAPSHOT_ROOT="flakiness-iters"
 MARKER="$(mktemp)"
 PASS=0; FAIL=0
 for i in $(seq 1 "$ITERS"); do
-  echo "--- Iteration $i/$ITERS"
+  echo "--- Gradle run $i/$ITERS"
   if "$@"; then
     PASS=$((PASS + 1))
   else
@@ -34,5 +34,5 @@ for i in $(seq 1 "$ITERS"); do
                   -newer "$MARKER" -path '*/build/test-results/*' -name 'TEST-*.xml' -type f -print0)
 done
 rm -f "$MARKER"
-echo "Results: $PASS/$((PASS + FAIL)) passed, $FAIL failed"
+echo "Results: $PASS/$((PASS + FAIL)) Gradle runs passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

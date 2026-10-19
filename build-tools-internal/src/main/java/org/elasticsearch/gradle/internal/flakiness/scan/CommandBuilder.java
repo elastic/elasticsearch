@@ -57,6 +57,14 @@ public final class CommandBuilder {
         public static final int DEFAULT_REST_ITERS = 10;
         public static final long DEFAULT_SUITE_TIMEOUT_MS = 3_600_000L;
 
+        /**
+         * Upper bound on {@code -Dtests.iters} within a single gradle run; more iterations are split across
+         * several runs (see {@code CommandBuilder#javaTestCommand}). Unit tests need the split at their
+         * default count, internalClusterTest only when an override raises its count above the default.
+         */
+        public static final int MAX_TEST_ITERS_PER_RUN = 25;
+        public static final int MAX_INTERNAL_CLUSTER_TEST_ITERS_PER_RUN = 20;
+
         public static Config defaults() {
             return new Config(DEFAULT_TEST_ITERS, DEFAULT_INTERNAL_CLUSTER_TEST_ITERS, DEFAULT_REST_ITERS, DEFAULT_SUITE_TIMEOUT_MS);
         }
@@ -209,20 +217,13 @@ public final class CommandBuilder {
     private static String batchCommand(List<RunUnit> batch, Config cfg) {
         String kind = batch.get(0).entry().kind();
         return switch (kind) {
-            case Kinds.TEST -> G
-                + " -Dtests.iters="
-                + cfg.testIters()
-                + " -Dtests.timeoutSuite="
-                + cfg.suiteTimeoutMs()
-                + "! "
-                + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), null);
-            case Kinds.INTERNAL_CLUSTER_TEST -> G
-                + " -Dtests.iters="
-                + cfg.internalClusterTestIters()
-                + " -Dtests.timeoutSuite="
-                + cfg.suiteTimeoutMs()
-                + "! "
-                + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), null);
+            case Kinds.TEST -> javaTestCommand(batch, cfg.testIters(), Config.MAX_TEST_ITERS_PER_RUN, cfg.suiteTimeoutMs());
+            case Kinds.INTERNAL_CLUSTER_TEST -> javaTestCommand(
+                batch,
+                cfg.internalClusterTestIters(),
+                Config.MAX_INTERNAL_CLUSTER_TEST_ITERS_PER_RUN,
+                cfg.suiteTimeoutMs()
+            );
             case Kinds.JAVA_REST_TEST -> REPEAT_GRADLE_RUN
                 + " "
                 + cfg.restIters()
@@ -248,6 +249,30 @@ public final class CommandBuilder {
                 + tasksWithFilters(batch, t -> "--tests \"" + t.fqcn() + "." + t.yamlTest() + "\"", "--rerun");
             default -> throw new IllegalStateException("unexpected batch kind: " + kind);
         };
+    }
+
+    /**
+     * A {@code -Dtests.iters} command for the java kinds, split into several gradle runs when {@code iters}
+     * exceeds {@code maxItersPerRun}.
+     *
+     * <p>All iterations of a suite within one gradle run share a single per-class temp directory, which
+     * Lucene's {@code TestRuleTemporaryFilesCleanup} only empties when the suite ends, and in which it gives
+     * up once 9999 temp dirs with the same name prefix exist. A test class that creates many temp dirs per
+     * iteration then fails every remaining iteration once that budget is spent - a harness artifact, not
+     * flakiness. Each extra gradle run starts a fresh suite with a fresh temp directory. {@code --rerun}
+     * keeps gradle from treating the later runs as up-to-date.
+     *
+     * <p>Iterations are spread evenly, rounding up, so the total can exceed {@code iters} by fewer than
+     * {@code runs} iterations.
+     */
+    private static String javaTestCommand(List<RunUnit> batch, int iters, int maxItersPerRun, long suiteTimeoutMs) {
+        int runs = Math.ceilDiv(iters, maxItersPerRun);
+        int itersPerRun = Math.ceilDiv(iters, runs);
+        String gradle = G + " -Dtests.iters=" + itersPerRun + " -Dtests.timeoutSuite=" + suiteTimeoutMs + "! ";
+        if (runs == 1) {
+            return gradle + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), null);
+        }
+        return REPEAT_GRADLE_RUN + " " + runs + " " + gradle + tasksWithFilters(batch, t -> "--tests " + t.fqcn(), "--rerun");
     }
 
     /**

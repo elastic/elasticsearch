@@ -44,6 +44,20 @@ final class AshUtils {
     static final double ENERGY_GAIN_TOLERANCE = 1e-4;
 
     /**
+     * {@link #procrustes} stops iterating once the largest absolute entry of X^T X - I is below this, and returns the
+     * iterate that first crosses it, not the one after. It is well above the rounding noise floor in float, about 6e-7 for
+     * k from 128 to 1536 in the measurements made, so it is reached before the floor. Waiting instead for the error to
+     * stop decreasing costs several further steps, 3 to 4 of the 20 to 28 in the cases measured, spent detecting the floor.
+     * <p>
+     * This bounds the largest entry, not the distance in the spectral norm. A singular value that is still lagging, whose
+     * direction is spread over many coordinates, shows in each entry only as about (1 - sigma^2) / k. So for large k the
+     * returned matrix can have a singular value well away from 1 while every entry is below the tolerance: about 0.97 at
+     * k = 1024 and 0.87 at k = 3072, for a matrix with one singular value of 0.0001 along a flat direction and all the
+     * others 1. The rows of the result are not bounded at all, and can be several times worse than the columns.
+     */
+    static final float ORTHOGONALITY_TOLERANCE = 1e-4f;
+
+    /**
      * A row of {@link #orthonormalizeRows} whose squared norm, after the rows before it are projected off, is at most this
      * fraction of what it was before is taken to lie exactly in their span. Rounding leaves a row that is only
      * numerically dependent with a squared norm around 1e-14 of the original or more, and the projections still give
@@ -88,8 +102,10 @@ final class AshUtils {
      * <p>
      * Uses Newton-Schulz iteration: X_{k+1} = X_k * (3I - X_k^T X_k) / 2
      * <p>
-     * In float precision, X^T X only approaches I down to a rounding noise floor that grows with k,
-     * so the iteration stops when the distance from orthogonality stops decreasing, rather than at a fixed tolerance.
+     * In float precision, X^T X only approaches I down to a rounding noise floor that grows with k. The iteration stops
+     * once the largest entry of X^T X - I is below {@link #ORTHOGONALITY_TOLERANCE}, or after 100 iterations, which bounds
+     * the cost if the floor is ever above the tolerance. It does not stop when that error merely stops decreasing: while
+     * a small singular value is being brought up the largest entry stays almost flat, which looks the same as the floor.
      *
      * @param m the input matrix in row-major order, length k*k
      * @param k the matrix dimension
@@ -113,7 +129,6 @@ final class AshUtils {
         float[] xtx = new float[len];
         float[] xNew = new float[len];
 
-        float prevMaxOff = Float.POSITIVE_INFINITY;
         for (int iter = 0; iter < maxIter; iter++) {
             ESVectorUtil.transposeMatrix(x, k, k, xT);
             ESVectorUtil.matrixMultiply(xT, x, k, k, k, xtx, executor);
@@ -127,13 +142,9 @@ final class AshUtils {
                     maxOff = Math.max(maxOff, Math.abs(xtx[base + j] - expected));
                 }
             }
-            if (maxOff < 1e-2f && maxOff >= prevMaxOff) {
-                // the previous iteration is at least as orthogonal as this one
-                // we've stopped improving
-                x = xNew;
-                break;
+            if (maxOff < ORTHOGONALITY_TOLERANCE) {
+                break; // x is orthogonal enough
             }
-            prevMaxOff = maxOff;
 
             // X_new = X @ (3I - X^T X) / 2 = 1.5 * X - 0.5 * X @ (X^T X)
             ESVectorUtil.matrixMultiply(x, xtx, k, k, k, xNew, executor);
@@ -360,7 +371,8 @@ final class AshUtils {
         }
     }
 
-    /** Subtracts from the vector at {@code vectors[row..row+n)} its projection onto the first {@code basisRows} orthonormal rows of {@code basis}. */
+    /** Subtracts from the vector at {@code vectors[row..row+n)} its projection onto the
+     * first {@code basisRows} orthonormal rows of {@code basis}. */
     private static void projectOff(float[] vectors, int row, int n, float[] basis, int basisRows) {
         for (int b = 0; b < basisRows; b++) {
             float dot = ESVectorUtil.dotProduct(vectors, row, basis, b * n, n);

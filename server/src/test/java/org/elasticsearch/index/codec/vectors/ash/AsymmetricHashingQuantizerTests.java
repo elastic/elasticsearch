@@ -72,6 +72,97 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
     }
 
+    public void testProcrustesIsOrthogonalAndKeepsTheObjective() {
+        // M = U diag(s) V^T with a known spectrum, so the exact polar factor U V^T and its objective sum(s) are known. The
+        // singular values fall from 1 to 1e-3, as they do for the matrices the Procrustes loop works on, and it is the small
+        // ones that take Newton-Schulz the most steps to bring up to 1
+        int k = 128;
+        float[] u = AshUtils.randomOrthogonal(random(), k, executor());
+        float[] v = AshUtils.randomOrthogonal(random(), k, executor());
+        double[] s = new double[k];
+        double sumOfSingularValues = 0;
+        for (int i = 0; i < k; i++) {
+            s[i] = Math.pow(1e-3, i / (double) (k - 1));
+            sumOfSingularValues += s[i];
+        }
+        float[] m = new float[k * k];
+        float[] exact = new float[k * k];
+        for (int a = 0; a < k; a++) {
+            for (int b = 0; b < k; b++) {
+                double polar = 0;
+                double matrix = 0;
+                for (int i = 0; i < k; i++) {
+                    double product = (double) u[a * k + i] * v[b * k + i];
+                    polar += product;
+                    matrix += product * s[i];
+                }
+                exact[a * k + b] = (float) polar;
+                m[a * k + b] = (float) matrix;
+            }
+        }
+
+        float[] r = new float[k * k];
+        AshUtils.procrustes(m, k, r, executor());
+
+        // R^T R = I, to the tolerance the iteration stops at
+        double worstOffOrthogonal = 0;
+        for (int i = 0; i < k; i++) {
+            for (int j = 0; j < k; j++) {
+                double dot = 0;
+                for (int l = 0; l < k; l++) {
+                    dot += (double) r[l * k + i] * r[l * k + j];
+                }
+                worstOffOrthogonal = Math.max(worstOffOrthogonal, Math.abs(dot - (i == j ? 1 : 0)));
+            }
+        }
+        assertThat("distance of R^T R from I", worstOffOrthogonal, lessThan(2.0 * AshUtils.ORTHOGONALITY_TOLERANCE));
+        // the objective tr(R^T M) is that of the exact polar factor, which maximizes it over all orthogonal matrices
+        double objective = 0;
+        double worstDifference = 0;
+        for (int i = 0; i < k * k; i++) {
+            objective += (double) r[i] * m[i];
+            worstDifference = Math.max(worstDifference, Math.abs(r[i] - exact[i]));
+        }
+        assertEquals("objective relative to the exact polar factor's", 1.0, objective / sumOfSingularValues, 1e-5);
+        assertThat("largest entry of R minus the exact polar factor", worstDifference, lessThan(2e-3));
+    }
+
+    public void testProcrustesOfAWellConditionedMatrixIsOrthogonal() {
+        int k = 96;
+        float[] m = AshUtils.randomGaussians(random(), k * k);
+        float[] r = new float[k * k];
+
+        AshUtils.procrustes(m, k, r, executor());
+
+        // The columns of R, since the iteration bounds the largest entry of R^T R - I. Nothing bounds R R^T, which for a
+        // random matrix can be about three times worse and made this test fail for about one seed in a thousand
+        assertOrthonormalRows(ESVectorUtil.transposeMatrix(r, k, k), k, k, 2.0f * AshUtils.ORTHOGONALITY_TOLERANCE);
+    }
+
+    public void testProcrustesDoesNotStopWhileASmallSingularValueIsBeingBroughtUp() {
+        // M = I - 0.99 s s^T with s spread evenly over the coordinates has one singular value of 0.01, along s, and all the
+        // others 1, so its exact polar factor is I. The largest entry of X^T X - I stays at about 1 / k while that singular
+        // value is brought up, which at k = 1024 is below a stopping gate of 1e-3: stopping on "the error stopped
+        // decreasing" there returned the matrix with the singular value still at 0.01
+        int k = 1024;
+        float[] s = new float[k];
+        Arrays.fill(s, (float) (1.0 / Math.sqrt(k)));
+        float[] m = new float[k * k];
+        for (int i = 0; i < k; i++) {
+            for (int j = 0; j < k; j++) {
+                m[i * k + j] = (i == j ? 1f : 0f) - 0.99f * s[i] * s[j];
+            }
+        }
+        float[] r = new float[k * k];
+
+        AshUtils.procrustes(m, k, r, executor());
+
+        // R is symmetric here, so R s is the singular value of R along s times s
+        float[] rs = ESVectorUtil.matrixVectorMultiply(r, k, k, s);
+        double singularValue = Math.sqrt(ESVectorUtil.dotProduct(rs, rs));
+        assertThat("singular value of R along the direction that was small", singularValue, greaterThan(0.9));
+    }
+
     public void testRandomOrthogonal() {
         int n = 5;
         float[] r = AshUtils.randomOrthogonal(random(), n, executor());

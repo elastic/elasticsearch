@@ -34,6 +34,12 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -221,7 +227,28 @@ public class ViewService {
                 );
             });
         // Parse the query to ensure it's syntactically valid; parseView rejects any SET statements
-        parser.parseView(view.query(), new QueryParams(), new InferenceSettings(Settings.EMPTY), view.name());
+        var statement = parser.parseView(view.query(), new QueryParams(), new InferenceSettings(Settings.EMPTY), view.name());
+        validateTsView(view.name(), statement.plan());
+    }
+
+    /**
+     * Rejects views that use TS without a following STATS.
+     * The parser turns the first STATS after TS into a TimeSeriesAggregate, so its absence means TS is not aggregated.
+     * PROMQL is also a time series source, but it is always aggregated: it is transpiled to TS followed by STATS.
+     * Subqueries are not checked yet.
+     */
+    private static void validateTsView(String viewName, LogicalPlan plan) {
+        if (hasOuterMatch(plan, p -> p instanceof UnresolvedRelation ur && ur.indexMode().isTsdb())
+            && hasOuterMatch(plan, p -> p instanceof TimeSeriesAggregate || p instanceof PromqlCommand) == false) {
+            throw new IllegalArgumentException("view [" + viewName + "] uses TS, which must be followed by a STATS command");
+        }
+    }
+
+    private static boolean hasOuterMatch(LogicalPlan plan, Predicate<LogicalPlan> predicate) {
+        if (plan instanceof Subquery || plan instanceof UnionAll) {
+            return false;
+        }
+        return predicate.test(plan) || plan.children().stream().anyMatch(child -> hasOuterMatch(child, predicate));
     }
 
     /**

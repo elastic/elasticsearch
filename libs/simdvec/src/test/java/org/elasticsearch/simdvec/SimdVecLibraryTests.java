@@ -112,6 +112,34 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
         return fa;
     }
 
+    /** The masked kernels leave the slots of unselected vectors untouched; no similarity under test produces this value. */
+    protected static final float UNSELECTED_SCORE = Float.NaN;
+
+    /** A random mask over a block of {@code count} vectors: none, all, a single one, or a random selection. */
+    protected static int randomBulkMask(int count) {
+        return switch (randomInt(3)) {
+            case 0 -> 0;
+            case 1 -> BulkMask.all(count);
+            case 2 -> BulkMask.select(0, randomInt(count - 1));
+            case 3 -> randomInt() & BulkMask.all(count);
+            default -> throw new AssertionError();
+        };
+    }
+
+    /** A float array of {@code count} scores, all {@link #UNSELECTED_SCORE}. */
+    protected static float[] unselectedScores(int count) {
+        float[] scores = new float[count];
+        Arrays.fill(scores, UNSELECTED_SCORE);
+        return scores;
+    }
+
+    /** A native segment of {@code count} scores, all {@link #UNSELECTED_SCORE}. */
+    protected static MemorySegment unselectedScoresSegment(int count) {
+        MemorySegment scores = arena.allocate((long) count * Float.BYTES);
+        MemorySegment.copy(unselectedScores(count), 0, scores, JAVA_FLOAT_UNALIGNED, 0L, count);
+        return scores;
+    }
+
     protected static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg) {
         assertScoresEquals(expectedScores, expectedScoresSeg, 0f);
     }

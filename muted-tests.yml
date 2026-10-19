@@ -526,3 +526,6 @@ tests:
 - class: org.elasticsearch.index.mapper.TextFieldPhraseWithoutPositionsTests
   method: testTheScoreBoundLeavesRoomForTheFrequency
   issue: https://github.com/elastic/elasticsearch/issues/162422
+- class: org.elasticsearch.xpack.security.audit.AuditIT
+  method: testAuditPutUserManagedServiceAccount
+  issue: https://github.com/elastic/elasticsearch/issues/162455

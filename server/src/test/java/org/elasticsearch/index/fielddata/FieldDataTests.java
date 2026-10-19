@@ -296,6 +296,17 @@ public class FieldDataTests extends ESTestCase {
         assertSame(iterator, asLongs.docIdIterator());
     }
 
+    /**
+     * The empty doubles have no documents, so the iterator they expose must be empty too, rather than missing.
+     */
+    public void testEmptySortedNumericDoublesHasEmptyDocIdIterator() throws IOException {
+        SortedNumericDoubleValues empty = FieldData.emptySortedNumericDoubles();
+        DocIdSetIterator iterator = empty.docIdIterator();
+        assertNotNull(iterator);
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
+        assertFalse(empty.advanceExact(0));
+    }
+
     public void testDoublesToSortableLongBits() throws IOException {
         final double value = randomDouble();
         final long valueBits = NumericUtils.doubleToSortableLong(value);

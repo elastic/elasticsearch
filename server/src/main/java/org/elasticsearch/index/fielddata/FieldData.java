@@ -15,6 +15,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.BytesRef;
@@ -42,7 +43,7 @@ public enum FieldData {
      * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
      */
     public static SortedNumericDoubleValues emptySortedNumericDoubles() {
-        return SortedNumericDoubleValues.singletonWithoutDocIdIterator(DoubleValues.EMPTY);
+        return SortedNumericDoubleValues.singleton(DoubleValues.EMPTY, DocIdSetIterator.empty());
     }
 
     /**

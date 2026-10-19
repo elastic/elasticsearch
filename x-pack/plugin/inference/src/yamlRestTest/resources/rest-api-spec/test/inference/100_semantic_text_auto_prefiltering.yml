@@ -994,9 +994,13 @@ setup:
   - match: { hits.hits.1._id: "11" }
 
 ---
-"Test script_score wrapped semantic matches in should do not overflow the stack":
+"Test script_score wrapped semantic matches in must do not overflow the stack":
   # Regression test for https://github.com/elastic/elasticsearch/issues/162295
-  # should clauses are never collected as prefilters, so this always worked.
+  # A knn query used as a prefilter, wrapped in script_score, used to recurse infinitely until the stack overflowed.
+
+  - requires:
+      cluster_features: "semantic.auto_prefilter_recursion_fix"
+      reason: auto prefiltering no longer recurses infinitely on script_score wrapped semantic queries
 
   - do:
       search:
@@ -1005,7 +1009,7 @@ setup:
           {
             "query": {
               "bool": {
-                "should": [
+                "must": [
                   {
                     "script_score": {
                       "query": { "match": { "dense_field_1": { "query": "violins" } } },
@@ -1029,83 +1033,6 @@ setup:
             }
           }
 
-  - gte: { hits.total.value: 1 }
-
----
-"Test script_score wrapped semantic matches in must and should do not overflow the stack":
-  # Regression test for https://github.com/elastic/elasticsearch/issues/162295
-  # Sibling semantic queries wrapped in script_score used each other as prefilters recursively.
-
-  - do:
-      search:
-        index: test-index
-        body: >
-          {
-            "query": {
-              "bool": {
-                "should": [
-                  {
-                    "script_score": {
-                      "query": { "match": { "dense_field_1": { "query": "violins" } } },
-                      "script": {
-                        "source": "_score >= params.min_score ? 5 * _score : 0",
-                        "params": { "min_score": 0.0 }
-                      }
-                    }
-                  }
-                ],
-                "must": [
-                  {
-                    "script_score": {
-                      "query": { "match": { "dense_field_2": { "query": "cats" } } },
-                      "script": {
-                        "source": "_score >= params.min_score ? 5 * _score : 0",
-                        "params": { "min_score": 0.0 }
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          }
-
-  - match: { hits.total.value: 2 }
-
----
-"Test script_score wrapped semantic matches in must and must_not do not overflow the stack":
-  # Regression test for https://github.com/elastic/elasticsearch/issues/162295
-
-  - do:
-      search:
-        index: test-index
-        body: >
-          {
-            "query": {
-              "bool": {
-                "must": [
-                  {
-                    "script_score": {
-                      "query": { "match": { "dense_field_1": { "query": "violins" } } },
-                      "script": {
-                        "source": "_score >= params.min_score ? 5 * _score : 0",
-                        "params": { "min_score": 0.0 }
-                      }
-                    }
-                  }
-                ],
-                "must_not": [
-                  {
-                    "script_score": {
-                      "query": { "match": { "dense_field_2": { "query": "cats" } } },
-                      "script": {
-                        "source": "_score >= params.min_score ? 5 * _score : 0",
-                        "params": { "min_score": 0.0 }
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          }
-
-  - match: { hits.total.value: 9 }
+  # violins matches documents 1-10 and cats matches documents 1 and 11, so only document 1 matches both
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }

@@ -1788,12 +1788,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         for (var commandAndLabel : List.of(Tuple.tuple("| CHANGE_POINT salary ON emp_no", "ChangePoint"))) {
             test().statementError(
                 setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, FILLNULL, GROK, DISSECT, "
-                        + "MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
-                        + commandAndLabel.v2()
-                        + "] is not supported yet"
-                )
+                containsString(loadAllUnsupportedCommandMessage(commandAndLabel.v2()))
             );
         }
     }
@@ -2073,21 +2068,22 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, FILLNULL, GROK, DISSECT, "
-                        + "MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
-                        + "[TS] is not supported yet"
-                )
+                containsString(loadAllUnsupportedCommandMessage("TS"))
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
-                containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, FILLNULL, GROK, DISSECT, "
-                        + "MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; "
-                        + "[TS] is not supported yet"
-                )
+                containsString(loadAllUnsupportedCommandMessage("TS"))
             );
+    }
+
+    private static String loadAllUnsupportedCommandMessage(String command) {
+        return "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, "
+            + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
+            + "GROK, DISSECT, MV_EXPAND, SAMPLE, WHERE, SORT, LIMIT, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and "
+            + "subquery commands; ["
+            + command
+            + "] is not supported yet";
     }
 
     /**

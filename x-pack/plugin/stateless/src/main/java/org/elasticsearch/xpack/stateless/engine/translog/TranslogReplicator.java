@@ -45,6 +45,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.OperationListener;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
@@ -79,6 +80,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     public static final String TRANSLOG_UPLOAD_ATTEMPTS_HISTOGRAM = "es.stateless.translog.upload.attempts.histogram";
     public static final String TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM = "es.stateless.translog.upload.total_duration.histogram";
+    public static final String TRANSLOG_UPLOAD_HEDGE_WON_TOTAL = "es.stateless.translog.upload.hedge_won.total";
 
     public static final Setting<TimeValue> FLUSH_RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
         "stateless.translog.flush.retry.initial_delay",
@@ -130,6 +132,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final TimeValue uploadHedgeDelay;
     private final LongHistogram translogUploadAttemptsHistogram;
     private final LongHistogram translogUploadTotalDurationHistogram;
+    private final LongCounter translogUploadHedgeWonCounter;
 
     public TranslogReplicator(
         final ThreadPool threadPool,
@@ -207,6 +210,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             "total time (includes time spent on failed attempts) until the translog is uploaded to the object store",
             "milliseconds",
             ObjectStoreService.TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
+        );
+        this.translogUploadHedgeWonCounter = meterRegistry.registerLongCounter(
+            TRANSLOG_UPLOAD_HEDGE_WON_TOTAL,
+            "translog uploads completed by the hedge upload rather than the original upload",
+            "count"
         );
     }
 
@@ -465,11 +473,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private final CompoundTranslog translog;
         private final BlobTranslogFileImpl translogFile;
         private final RefCounted bytesToClose;
-        private AtomicInteger uploadTryNumber = new AtomicInteger(0);
+        private final AtomicInteger uploadTryNumber = new AtomicInteger(0);
         private static final long UNSET = -1L;
         private long firstAttemptStartMillis;
         private volatile boolean isUploaded = false;
         private volatile boolean hedged = false;
+        private final AtomicReference<Boolean> completedByHedge = new AtomicReference<>();
         private volatile boolean completed = false;
         private volatile Scheduler.ScheduledCancellable hedgeTimer;
 
@@ -498,6 +507,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         // If the hedge upload completes first, then through `RetryableAction` `isDone` is set, and we'll stop calling `tryAction`.
         // If the non-hedge upload completes first (e.g., in less than 2 seconds), then `onFinished` is called, `hedgeTimer` is cancelled
         // and hence the hedge upload is never fired.
+        private void uploaded(boolean byHedge, ActionListener<UploadTranslogTask> listener) {
+            completedByHedge.compareAndSet(null, byHedge);
+            listener.onResponse(this);
+        }
+
         private void hedge(ActionListener<UploadTranslogTask> listener) {
             if (completed || bytesToClose.tryIncRef() == false) {
                 return;
@@ -508,7 +522,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 translog.bytes().data(),
                 ActionListener.releaseAfter(
                     ActionListener.wrap(
-                        unused -> listener.onResponse(this),
+                        unused -> uploaded(true, listener),
                         e -> logger.info(() -> format("failed hedged upload of translog file [%s]", translog.metadata().name()), e)
                     ),
                     bytesToClose::decRef
@@ -533,7 +547,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     translog.bytes().data(),
                     ActionListener.releaseAfter(ActionListener.wrap(unused -> {
                         logger.debug(() -> format("uploaded translog file [%s]", translog.metadata().name()));
-                        listener.onResponse(this);
+                        uploaded(false, listener);
 
                     }, e -> {
                         org.apache.logging.log4j.util.Supplier<Object> messageSupplier = () -> format(
@@ -591,10 +605,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         UploadTranslogTask uploadTranslogTask = new UploadTranslogTask(translog, new ActionListener<>() {
             @Override
             public void onResponse(UploadTranslogTask task) {
-                assert task.uploadTryNumber.get() >= 1 && task.firstAttemptStartMillis != UploadTranslogTask.UNSET; // just have an assert in case
-                                                                                                              // of a bug
+                assert task.uploadTryNumber.get() >= 1 && task.firstAttemptStartMillis != UploadTranslogTask.UNSET; // just have an assert
+                                                                                                                    // in case
+                // of a bug
                 translogUploadAttemptsHistogram.record(task.uploadTryNumber.get() + (task.hedged ? 1 : 0));
                 translogUploadTotalDurationHistogram.record(threadPool.relativeTimeInMillis() - task.firstAttemptStartMillis);
+                if (task.completedByHedge.get()) {
+                    translogUploadHedgeWonCounter.increment();
+                }
                 nodeState.markUploadFinished(task);
             }
 

@@ -32,6 +32,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -82,6 +84,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -103,7 +106,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvide
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -150,9 +155,11 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -1341,6 +1348,45 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             assertThat(rows.get(1).get(columns + i), equalTo(-1L));
             assertThat(rows.get(2).get(columns + i), equalTo(2L * i));
         }
+    }
+
+    public void testScorePredicateInFilterSeesItsSearchScore() throws IOException {
+        ReferenceAttribute content = new ReferenceAttribute(Source.EMPTY, "content", DataType.TEXT);
+        MetadataAttribute score = new MetadataAttribute(Source.EMPTY, MetadataAttribute.SCORE, DataType.DOUBLE, false);
+        Match match = new Match(Source.EMPTY, content, Literal.keyword(Source.EMPTY, "fox"), null);
+        assertTrue(match.isRuntimeSearch());
+        Expression condition = new And(Source.EMPTY, match, greaterThanOf(score, new Literal(Source.EMPTY, 0.5, DataType.DOUBLE)));
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        Block contents;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(2)) {
+            contents = builder.appendBytesRef(new BytesRef("quick fox")).appendBytesRef(new BytesRef("lazy dog")).build();
+        }
+        Page input = new Page(contents, blockFactory.newDoubleArrayVector(new double[] { 0.0, 0.0 }, 2).asBlock());
+        PhysicalPlan plan = new FilterExec(
+            Source.EMPTY,
+            new LocalSourceExec(Source.EMPTY, List.of(content, score), LocalSupplier.of(input)),
+            condition
+        );
+
+        var operation = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            plan,
+            EmptyIndexedByShardId.instance(),
+            false
+        ).driverFactories.get(0).driverSupplier().physicalOperation();
+        List<Page> results = runPlanned(operation);
+        List<Double> scores = new ArrayList<>();
+        for (Page page : results) {
+            DoubleBlock scoreBlock = page.getBlock(1);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                scores.add(scoreBlock.getDouble(scoreBlock.getFirstValueIndex(p)));
+            }
+        }
+        // Only the row matching "fox" passes, with the search's score rather than the 0.0 from before it.
+        assertThat(scores, hasSize(1));
+        assertThat(scores.get(0), greaterThan(0.5));
     }
 
     private Add add(Expression left, Expression right) {

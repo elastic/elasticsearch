@@ -2092,9 +2092,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> mergeColumns = outputUnion.stream().map(Attribute::name).toList();
             // FORK always copies a mention to siblings. LOAD_ALL subqueries do too. LOAD does not: a mention in one
             // independent-source branch loads that branch and Eval-nulls siblings.
-            // TODO: VIEW-kind branches (BranchPlan.branchIdentity) should be excluded from
-            // unmapped-field materialization here — _source loading must not reach through the view boundary; the view
-            // branch should null-fill like a dataset would, pending the design discussion.
+            // View branches need no exclusion here: ResolveUnmapped already answers outer
+            // references at a view branch's output with null and collects no view-internal mentions, so a view branch
+            // reaches this loop only via the generic missing-column null-fill below; and the LOAD_ALL sibling
+            // materialization cannot apply to one, because the Verifier rejects LOAD_ALL over view branches.
             boolean alignMentionedUnmapped = alignUnmappedAcrossBranches
                 || (mergePlan instanceof UnionAll && unmappedResolution.loadsAllUnmappedFields());
             Set<String> materializedUnmappedFieldNames = alignMentionedUnmapped ? materializedUnmappedFieldNames(mergePlan) : Set.of();

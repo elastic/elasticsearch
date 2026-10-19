@@ -11,21 +11,36 @@ package org.elasticsearch.gradle.internal.flakiness.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.util.List;
+
 /**
  * One input reference from {@code flakiness-refs.json} (contract 1), as produced by the
  * TypeScript bootstrap step. Refs are deliberately untyped-per-source: a {@code changed-file} ref carries
  * a repo-relative {@code path}; an {@code unmute} ref carries a {@code className} (and optional
- * {@code method}); an {@code explicit} ref carries a {@code spec} string. Exactly the fields relevant to
- * the {@code source} discriminator are populated; the rest are {@code null}.
+ * {@code method}, plus optional task filters when the mute was only removed for some tasks); an
+ * {@code explicit} ref carries a {@code spec} string. Exactly the fields relevant to the {@code source}
+ * discriminator are populated; the rest are {@code null}.
  *
- * @param source    the ref origin: {@code "changed-file"}, {@code "unmute"}, or {@code "explicit"}
- * @param path      repo-relative file path (changed-file refs)
- * @param className fully-qualified class name (unmute refs)
- * @param method    optional JUnit method descriptor, e.g. {@code test {yaml=...}} (unmute refs)
- * @param spec      developer-supplied spec string, e.g. {@code org.foo.BarTests.testX} (explicit refs)
+ * @param source       the ref origin: {@code "changed-file"}, {@code "unmute"}, or {@code "explicit"}
+ * @param path         repo-relative file path (changed-file refs)
+ * @param className    fully-qualified class name (unmute refs)
+ * @param method       optional JUnit method descriptor, e.g. {@code test {yaml=...}} (unmute refs)
+ * @param spec         developer-supplied spec string, e.g. {@code org.foo.BarTests.testX} (explicit refs)
+ * @param includeTasks optional task-path allow-list for a task-scoped unmute; when set, only these resolved
+ *                     runnable tasks are kept
+ * @param excludeTasks optional task-path deny-list for a task-scoped unmute; when set, these resolved
+ *                     runnable tasks are removed
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record FlakinessRef(String source, String path, String className, String method, String spec) {
+public record FlakinessRef(
+    String source,
+    String path,
+    String className,
+    String method,
+    String spec,
+    List<String> includeTasks,
+    List<String> excludeTasks
+) {
 
     public static final String SOURCE_CHANGED_FILE = "changed-file";
     public static final String SOURCE_UNMUTE = "unmute";

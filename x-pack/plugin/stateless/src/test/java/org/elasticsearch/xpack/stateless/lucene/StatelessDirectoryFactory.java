@@ -44,8 +44,7 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -354,9 +353,10 @@ public final class StatelessDirectoryFactory {
         private BlobFileRanges newBlobFileRanges(String name) throws IOException {
             long fileLength = fakeBlobStoreDirectory.fileLength(name);
             int generation = blobFileGenerationGenerator.incrementAndGet();
-            var blobName = BatchedCompoundCommit.PREFIX + generation;
             blobNameToFileName.put(blobName, name);
-            return new BlobFileRanges(new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, generation)), 0, fileLength));
+            return new BlobFileRanges(
+                new BlobLocation(new BccBlobFile(new PrimaryTermAndGeneration(1, generation)), 0, fileLength)
+            );
         }
 
         private void refreshMetadata() {

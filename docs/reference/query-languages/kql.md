@@ -1,12 +1,30 @@
 ---
 description: Syntax reference for KQL (Kibana Query Language), with examples for field values, ranges, wildcards, combined conditions, and nested fields.
-mapped_pages:
-  - https://www.elastic.co/guide/en/kibana/current/kuery-query.html
+navigation_title: KQL
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # {{kib}} Query Language (KQL) syntax reference [kuery-query]
 
 This page shows the KQL syntax for each kind of condition, with examples you can adapt. To learn what KQL is and where to use it, refer to [{{kib}} Query Language (KQL) overview](docs-content://explore-analyze/query-filter/languages/kql.md).
+
+
+## Syntax at a glance [kql-syntax-at-a-glance]
+
+| To find documents | Syntax | Example |
+| --- | --- | --- |
+| [Where a field exists](#_filter_for_documents_where_a_field_exists) | `field: *` | `http.request.method: *` |
+| [That match a value](#_filter_for_documents_that_match_a_value) | `field: value` | `http.request.method: GET` |
+| [That match an exact phrase in a `text` field](#_filter_for_documents_that_match_a_value) | `field: "value"` | `http.request.body.content: "null pointer"` |
+| [With a value in any field](#search-all-fields-without-a-field-name) | `value` | `Hello` |
+| [Within a range](#_filter_for_documents_within_a_range) | `<`, `<=`, `>`, `>=` | `http.response.bytes < 10000` |
+| [That match a pattern](#_filter_for_documents_using_wildcards) | `*` | `machine.os: win*` |
+| [That don't match a condition](#_negating_a_query) | `NOT` | `NOT http.request.method: GET` |
+| [That match several conditions](#_combining_multiple_queries) | `AND`, `OR`, `( )` | `http.request.method: (GET OR POST OR DELETE)` |
+| [With a value in one of several fields](#_matching_multiple_fields) | `field.*: value` | `datastream.*: logs` |
+| [With a matching nested field](#_querying_nested_fields) | `field:{ condition }` | `user:{ first: "Alice" and last: "White" }` |
 
 
 ## Filter for documents where a field exists [_filter_for_documents_where_a_field_exists]
@@ -109,7 +127,7 @@ url: *elastic*
 
 Queries that start with `*` can slow searches.
 
-{applies_to}`stack: ga` {applies_to}`serverless: unavailable` In {{kib}}, to avoid slow searches, turn leading wildcards off with the [`query:allowLeadingWildcards`](kibana://reference/advanced-settings.md#query-allowleadingwildcards) advanced setting.
+{applies_to}`serverless: unavailable` In {{kib}}, to avoid slow searches, turn leading wildcards off with the [`query:allowLeadingWildcards`](kibana://reference/advanced-settings.md#query-allowleadingwildcards) advanced setting.
 
 
 ## Exclude documents with a negated query [_negating_a_query]

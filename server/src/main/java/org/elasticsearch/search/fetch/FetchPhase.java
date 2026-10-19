@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.codec.DocValuesBatchPrefetcher;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -92,10 +93,16 @@ public final class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
 
     private final FetchSubPhase[] fetchSubPhases;
+    /** See {@link DocValuesBatchPrefetcher#BUDGET_SETTING}. */
+    private volatile int docValuesPrefetchBudget;
 
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
+    }
+
+    public void setDocValuesPrefetchBudget(int docValuesPrefetchBudget) {
+        this.docValuesPrefetchBudget = docValuesPrefetchBudget;
     }
 
     /**
@@ -380,6 +387,7 @@ public final class FetchPhase {
         // Buffered here and only charged once the buffer crosses memAccountingBufferSize(), like _source.
         final long[] locallyAccumulatedFieldBytes = new long[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
+        int prefetchBudget = requiresSource ? docValuesPrefetchBudget : 0;
 
         StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadDirectoryMetricsCapture()) {
 
@@ -447,6 +455,13 @@ public final class FetchPhase {
                     context.circuitBreaker().addEstimateBytesAndMaybeBreak(locallyAccumulatedSourceBytes[0], SOURCE_BREAKER_LABEL);
                     addRequestBreakerBytes(locallyAccumulatedSourceBytes[0]);
                     locallyAccumulatedSourceBytes[0] = 0;
+                }
+            }
+
+            @Override
+            protected void announce(List<LeafReaderContext> leaves, List<int[]> docsInLeaves) throws IOException {
+                if (prefetchBudget > 0) {
+                    sourceLoader.announce(new DocValuesBatchPrefetcher(prefetchBudget), leaves, docsInLeaves);
                 }
             }
 

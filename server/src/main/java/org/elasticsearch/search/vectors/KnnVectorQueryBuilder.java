@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope.ScopedPrefilter;
 import org.elasticsearch.index.query.support.AutoPrefilteringUtils;
 import org.elasticsearch.index.search.NestedHelper;
@@ -624,7 +625,12 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
                 // sit above this knn query's nested level. Building it here without unwinding would give block join
                 // queries - such as an exists query on a semantic_text field - a child level as their parent filter,
                 // leaving the prefilter matching nothing. The filters are joined down to child documents in doToQuery.
-                try (Releasable ignored = context.nestedScope().unwindTo(scopedPrefilter.nestedLevel())) {
+                // Auto-prefiltering is suspended while building the prefilter query so that knn queries contained in it do not cause
+                // infinite recursion (see https://github.com/elastic/elasticsearch/issues/162295)
+                try (
+                    Releasable ignored = context.nestedScope().unwindTo(scopedPrefilter.nestedLevel());
+                    AutoPrefilteringScope suspended = context.autoPrefilteringScope().suspend()
+                ) {
                     autoPrefilters.add(pruned.get().toQuery(context));
                 }
             }

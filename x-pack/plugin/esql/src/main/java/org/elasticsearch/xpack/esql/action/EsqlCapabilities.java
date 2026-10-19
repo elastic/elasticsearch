@@ -1412,7 +1412,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code exemplars} query setting.
          */
-        EXEMPLARS_SETTING_DEVELOPMENT_V3(Build.current().isSnapshot()),
+        EXEMPLARS_SETTING_DEVELOPMENT_V4(Build.current().isSnapshot()),
 
         /**
          * Are the {@code documents_found} and {@code values_loaded} fields available
@@ -1685,6 +1685,14 @@ public class EsqlCapabilities {
          * Added telemetry for views
          */
         VIEWS_TELEMETRY,
+        /**
+         * The caller's query settings stop at view boundaries: {@code unmapped_fields} no longer
+         * reaches inside view bodies — an outer reference to a column a view does not surface answers null at the
+         * view's output instead of loading from the view's source {@code _source}, and a reference written inside a
+         * view body fails resolution as it would without the setting. Wildcards inside a view body no longer match
+         * views or datasets, whatever the caller's {@code wildcards_match_views}/{@code wildcards_match_datasets} say.
+         */
+        SETTINGS_SCOPED_AT_VIEW_BOUNDARIES,
         /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
@@ -2640,7 +2648,7 @@ public class EsqlCapabilities {
         /**
          * Support for PromQL group modifiers.
          */
-        PROMQL_VECTOR_MATCHING_V0(Build.current().isSnapshot()),
+        PROMQL_VECTOR_MATCHING_V0,
 
         /**
          * Support for PromQL time() function.
@@ -3550,6 +3558,11 @@ public class EsqlCapabilities {
         PROMQL_TIMESTAMP,
 
         /**
+         * Support for PromQL {@code changes()} function.
+         */
+        PROMQL_CHANGES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
          * and the {@code TEXT_EMBEDDING} function.
          */
@@ -3630,7 +3643,7 @@ public class EsqlCapabilities {
          * Also, proper column ordering after loading all unmapped fields. This covers KEEP, DROP and EVAL generated columns.
          * See https://github.com/elastic/elasticsearch/issues/156381 and https://github.com/elastic/elasticsearch/issues/156433
          */
-        OPTIONAL_FIELDS_LOAD_ALL_V2(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_LOAD_ALL_V2,
 
         /**
          * Read an unmapped field straight from {@code _source}, so an object value reads as {@code null} rather than as Java's
@@ -3639,30 +3652,40 @@ public class EsqlCapabilities {
          */
         OPTIONAL_FIELDS_FIX_UNMAPPED_OBJECT_VALUE(),
 
-        OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION,
 
         /**
          * Support for {@code INLINE STATS} under {@code unmapped_fields="LOAD_ALL"}. Only meaningful when
          * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, queries using LOOKUP JOIN and ENRICH are now supported.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH,
 
         /**
          * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
          * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_STATS,
 
         /**
          * Support for {@code FORK} under {@code unmapped_fields="LOAD_ALL"}. Only meaningful when
          * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_FORK(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_FORK,
+
+        /**
+         * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
+         * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
+         * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}
+         * value across the produced rows, while expanding an unmapped field by name promotes it to a real column. {@code SAMPLE} only
+         * drops rows, so {@code _unmapped_fields} is carried through unchanged. Only meaningful when
+         * {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See https://github.com/elastic/elasticsearch/issues/157189.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_GROK_DISSECT_MV_EXPAND_SAMPLE(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code _source} value that says nothing about its field - {@code null},
@@ -3671,48 +3694,32 @@ public class EsqlCapabilities {
          * is null in every row, and where such a value sits in a column another document did fill it reads as {@code null} instead of
          * a stringified {@code "[]"}.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_VALUELESS_FIELDS,
 
         /**
          * Support for {@code FROM} subqueries under {@code unmapped_fields="LOAD_ALL"}.
          * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES,
 
         /**
          * {@code WHERE IN} / {@code NOT IN} under {@code unmapped_fields="LOAD_ALL"}.
          * Separate from {@link #OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES} so nodes that only support FROM subqueries skip these tests.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_WHERE_IN_SUBQUERY(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_WHERE_IN_SUBQUERY,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code KEEP} or {@code DROP} wildcard with a backquoted text (e.g. {@code `tags`*})
          * matches unmapped fields like its unquoted spelling, keeping the backquoted characters literal.
          * See https://github.com/elastic/elasticsearch/issues/158466.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
-
-        /**
-         * Under {@code unmapped_fields="LOAD_ALL"}, at most 1000 fields discovered in {@code _source} become columns: the
-         * alphabetically first ones, with a warning if there were more. Superseded by
-         * {@link #OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN}, under which no per-field columns are produced and nothing is capped.
-         * See https://github.com/elastic/elasticsearch/issues/159972.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
-
-        /**
-         * The cluster setting {@code esql.query.unmapped_fields.load_all_max_fields} exists. Under the single-column layout its only
-         * effect is that {@code 0} downgrades {@code unmapped_fields="LOAD_ALL"} to {@code LOAD}. Needed by tests that set it, which
-         * older nodes would reject as an unknown setting.
-         * See https://github.com/elastic/elasticsearch/issues/161340.
-         */
-        OPTIONAL_FIELDS_LOAD_ALL_MAX_FIELDS_SETTING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, the keys of a mapped field whose type takes an object as its value are
          * not discovered on the shard that maps it: they are part of its value.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_BELOW_MAPPED_FIELDS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_SKIPS_BELOW_MAPPED_FIELDS,
 
         /**
          * Under {@code unmapped_fields="LOAD"} and {@code "LOAD_ALL"}, a shard returns null for a key of a mapped field whose
@@ -3726,19 +3733,19 @@ public class EsqlCapabilities {
          * per field. Supersedes the per-field column layout and the cap on the number of expanded fields.
          * See https://github.com/elastic/elasticsearch/issues/161717.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, the shard writes the {@code _unmapped_fields} column: one key per unmapped field
          * that would reach the output of the query if it were mapped, in the order the fields are first found in {@code _source}.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_COLUMN_FROM_SHARD(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_COLUMN_FROM_SHARD,
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a query that has a column named {@code _unmapped_fields} of its own is not given
          * the column of unmapped fields, and a warning says so.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_NAME_COLLISION_WARNING(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_NAME_COLLISION_WARNING,
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
@@ -4380,6 +4387,12 @@ public class EsqlCapabilities {
          */
         EXTERNAL_SOURCE_SCORE_FIX,
 
+        /** Support named subqueries (CTEs) declared with the {@code LET} prefix clause.
+         * A {@code LET} clause binds a subquery plan to a name that can be referenced
+         * in the main query as a relation or as an {@code IN} operand.
+         */
+        NAMED_SUBQUERY_LET(Build.current().isSnapshot()),
+
         /**
          * Does the usage information for ESQL contain the datasource failure-reason counters
          * ({@code datasources.queries.failures.by_error_type.*}, {@code datasources.discovery.failures.by_error_type.*},
@@ -4497,6 +4510,19 @@ public class EsqlCapabilities {
          * {@code date_range}, cannot be grouped on, even though the column is never part of the output.
          */
         DEDUP_IGNORES_SYNTHETIC_UNION_CONVERSIONS,
+
+        /**
+         * Warning, emitted before optimization, when an explicit NULL literal is misused: either the
+         * expression always evaluates to NULL, or a NULL in an IN list never matches.
+         */
+        WARN_NULL_MISUSE,
+
+        /**
+         * A {@code _score} predicate after a runtime search ({@code MATCH}, {@code MATCH_PHRASE}, runtime {@code KNN}),
+         * in a later {@code WHERE} or combined with it using {@code AND}, sees the score that search contributes, as it
+         * does for a search on an indexed field, rather than the score from before it.
+         */
+        RUNTIME_SCORE_FIX,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

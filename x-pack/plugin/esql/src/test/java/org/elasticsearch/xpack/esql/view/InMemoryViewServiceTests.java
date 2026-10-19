@@ -80,6 +80,7 @@ import java.util.function.BiPredicate;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1207,10 +1208,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     public void testViewBodyUsingTsToReferenceAnotherViewIsRejected() {
         assumeTrue("Requires fix for mixing TS with non-TS sources", EsqlCapabilities.Cap.FIX_TS_MIXED_WITH_NON_TS_SOURCES.isEnabled());
         addView("inner_view", "FROM emp");
-        addView("outer_view", "TS inner_view");
-        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM outer_view")));
-        assertThat(e.getMessage(), containsString("Views are not supported in TS command"));
-        assertThat(e.getMessage(), containsString("inner_view"));
+        addView("outer_view", "TS inner_view | STATS max(emp_no)");
+        expectThrows(
+            VerificationException.class,
+            allOf(containsString("Views are not supported in TS command"), containsString("inner_view")),
+            () -> replaceViews(query("FROM outer_view"))
+        );
     }
 
     /**

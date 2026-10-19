@@ -25,6 +25,25 @@ public class PlainSkipBoundsFormatTests extends ESTestCase {
 
     private static final int DOCS = 20_000;
 
+    public void testTheBytesOfSegmentsAndOfTheirMergeIncludeTheSkipIndex() throws IOException {
+        final BytesRef[] values = StringData.DESCENDING_POD_NAME.generate(DOCS, new Random(randomLong()));
+        final long oneEntry = Long.BYTES + Integer.BYTES + Long.BYTES + Byte.BYTES;
+        for (boolean merge : new boolean[] { false, true }) {
+            try (Directory plainDirectory = newDirectory(); Directory boundedDirectory = newDirectory()) {
+                final long plain = StringFormat.COLUMNAR_PLAIN.writeSegments(plainDirectory, values, DOCS / 4, merge);
+                final long bounded = StringFormat.COLUMNAR_PLAIN_BOUNDED.writeSegments(boundedDirectory, values, DOCS / 4, merge);
+                assertThat("merge " + merge, bounded, greaterThan(plain + oneEntry));
+            }
+        }
+        try (Directory plainDirectory = newDirectory(); Directory boundedDirectory = newDirectory()) {
+            StringFormat.COLUMNAR_PLAIN.writeSegments(plainDirectory, values, DOCS / 4, false);
+            StringFormat.COLUMNAR_PLAIN_BOUNDED.writeSegments(boundedDirectory, values, DOCS / 4, false);
+            final long plain = StringFormat.COLUMNAR_PLAIN.mergeSegments(plainDirectory);
+            final long bounded = StringFormat.COLUMNAR_PLAIN_BOUNDED.mergeSegments(boundedDirectory);
+            assertThat("merge of written segments", bounded, greaterThan(plain + oneEntry));
+        }
+    }
+
     public void testBothFormatsAnswerAlikeAndOnlyTheBoundedOneWritesTheIndex() throws IOException {
         for (StringData data : new StringData[] {
             StringData.SORTED_POD_NAME,

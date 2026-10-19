@@ -166,14 +166,21 @@ public enum StringFormat {
                 writer.forceMerge(1);
             }
         }
+        return docValuesBytes(directory);
+    }
+
+    /** The bytes of every file a stock or a columnar doc values format keeps, the skip index and the value lengths included. */
+    private static long docValuesBytes(Directory directory) throws IOException {
         long bytes = 0;
         for (String file : directory.listAll()) {
             if (file.endsWith(".dvd")
                 || file.endsWith(".dvm")
                 || file.endsWith(".cnd")
                 || file.endsWith(".cna")
+                || file.endsWith(".cnl")
                 || file.endsWith(".cnn")
-                || file.endsWith(".cnm")) {
+                || file.endsWith(".cnm")
+                || file.endsWith(".cns")) {
                 bytes += directory.fileLength(file);
             }
         }
@@ -193,18 +200,7 @@ public enum StringFormat {
         try (IndexWriter writer = new IndexWriter(directory, iwc)) {
             writer.forceMerge(1);
         }
-        long bytes = 0;
-        for (String file : directory.listAll()) {
-            if (file.endsWith(".dvd")
-                || file.endsWith(".dvm")
-                || file.endsWith(".cnd")
-                || file.endsWith(".cna")
-                || file.endsWith(".cnn")
-                || file.endsWith(".cnm")) {
-                bytes += directory.fileLength(file);
-            }
-        }
-        return bytes;
+        return docValuesBytes(directory);
     }
 
     /** Segments in the directory, so a merge benchmark can refuse to measure a merge that has nothing to do. */

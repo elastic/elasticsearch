@@ -20,6 +20,9 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
@@ -49,6 +52,7 @@ public final class EsqlQueryLog {
     public static final String ELASTICSEARCH_QUERYLOG_SUCCESS = ELASTICSEARCH_QUERYLOG_PREFIX + ".success";
     public static final String ELASTICSEARCH_QUERYLOG_SEARCH_TYPE = ELASTICSEARCH_QUERYLOG_PREFIX + ".search_type";
     public static final String ELASTICSEARCH_QUERYLOG_QUERY = ELASTICSEARCH_QUERYLOG_PREFIX + ".query";
+    public static final String ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX = ELASTICSEARCH_QUERYLOG_PREFIX + ".settings";
 
     public static final String LOGGER_NAME = "esql.querylog";
     private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
@@ -81,11 +85,12 @@ public final class EsqlQueryLog {
             return; // TODO review, it happens in some tests, not sure if it's a thing also in prod
         }
         long tookInNanos = esqlResult.inner().executionInfo().overallTook().nanos();
-        log(() -> Message.of(esqlResult.inner(), query, additionalFields.logFields()), tookInNanos);
+        ResolvedSettings settings = esqlResult.inner().configuration().resolvedSettings();
+        log(() -> Message.of(esqlResult.inner(), query, settings, additionalFields.logFields()), tookInNanos);
     }
 
-    public void onQueryFailure(String query, Exception ex, long tookInNanos) {
-        log(() -> Message.of(query, tookInNanos, ex, additionalFields.logFields()), tookInNanos);
+    public void onQueryFailure(String query, ResolvedSettings settings, Exception ex, long tookInNanos) {
+        log(() -> Message.of(query, settings, tookInNanos, ex, additionalFields.logFields()), tookInNanos);
     }
 
     private void log(Supplier<ESLogMessage> logProducer, long tookInNanos) {
@@ -133,18 +138,26 @@ public final class EsqlQueryLog {
             return new String(sourceEscaped, StandardCharsets.UTF_8);
         }
 
-        public static ESLogMessage of(Result esqlResult, String query, Map<String, String> additionalFields) {
+        public static ESLogMessage of(Result esqlResult, String query, ResolvedSettings settings, Map<String, String> additionalFields) {
             Map<String, Object> jsonFields = new HashMap<>();
             jsonFields.putAll(additionalFields);
             addGenericFields(jsonFields, query, true);
+            addSettingsFields(jsonFields, settings);
             addResultFields(jsonFields, esqlResult);
             return new ESLogMessage().withFields(jsonFields);
         }
 
-        public static ESLogMessage of(String query, long took, Exception exception, Map<String, String> additionalFields) {
+        public static ESLogMessage of(
+            String query,
+            ResolvedSettings settings,
+            long took,
+            Exception exception,
+            Map<String, String> additionalFields
+        ) {
             Map<String, Object> jsonFields = new HashMap<>();
             jsonFields.putAll(additionalFields);
             addGenericFields(jsonFields, query, false);
+            addSettingsFields(jsonFields, settings);
             addErrorFields(jsonFields, took, exception);
             return new ESLogMessage().withFields(jsonFields);
         }
@@ -154,6 +167,18 @@ public final class EsqlQueryLog {
             fieldMap.put(ELASTICSEARCH_QUERYLOG_SUCCESS, success);
             fieldMap.put(ELASTICSEARCH_QUERYLOG_SEARCH_TYPE, "ESQL");
             fieldMap.put(ELASTICSEARCH_QUERYLOG_QUERY, source);
+        }
+
+        private static void addSettingsFields(Map<String, Object> fieldMap, ResolvedSettings settings) {
+            if (settings == null) {
+                return;
+            }
+            for (QuerySettingDef<?> def : QuerySettings.all()) {
+                Object value = def.get(settings);
+                if (value != null) {
+                    fieldMap.put(ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX + "." + def.name(), value.toString());
+                }
+            }
         }
 
         private static void addResultFields(Map<String, Object> fieldMap, Result esqlResult) {

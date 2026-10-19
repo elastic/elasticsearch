@@ -10,11 +10,11 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +39,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Parse-time tests for the batch-mapping fast path: drives {@link ShardBatchMapper} directly and
@@ -792,14 +793,7 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         }
     }
 
-    /**
-     * A {@code multi_value: false} keyword field in strict-columnar mode uses
-     * {@code BINARY_COLUMNAR_SINGLE_VALUE}, which the ColumNAR consumer reads as raw bytes — no
-     * payload prefix. The batch path must emit the field with
-     * {@link ColumNARDocValuesFormat#SINGLE_VALUED_ATTRIBUTE} on its {@code FieldType} so the
-     * consumer sets {@code singleValued=true} at flush time.
-     */
-    public void testSingleValuedColumnarKeywordBatchSetsFieldTypeAttribute() throws IOException {
+    public void testSingleValuedColumnarKeywordBatchWritesTheBareValue() throws IOException {
         assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
 
         final String mapping = """
@@ -826,14 +820,14 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 cursor.advance();
                 final List<IndexableField> fields = cursor.fields();
 
-                final IndexableField kwField = fields.stream().filter(fld -> "f".equals(fld.name())).findFirst().orElse(null);
-                assertNotNull("keyword field f should be present in batch output", kwField);
-                final var attrs = ((FieldType) kwField.fieldType()).getAttributes();
-                assertEquals(
-                    "batch path must set SINGLE_VALUED_ATTRIBUTE on a multi_value=false columnar keyword field",
-                    "true",
-                    attrs == null ? null : attrs.get(ColumNARDocValuesFormat.SINGLE_VALUED_ATTRIBUTE)
-                );
+                final IndexableField dvField = fields.stream()
+                    .filter(fld -> "f".equals(fld.name()) && fld.fieldType().docValuesType() == DocValuesType.BINARY)
+                    .findFirst()
+                    .orElse(null);
+                assertNotNull("keyword doc values for f should be present in batch output", dvField);
+                assertEquals(new BytesRef("hello"), dvField.binaryValue());
+                final Map<String, String> attributes = ((FieldType) dvField.fieldType()).getAttributes();
+                assertTrue("the framing is not a field attribute", attributes == null || attributes.isEmpty());
             }
         } finally {
             closeShards(shard);

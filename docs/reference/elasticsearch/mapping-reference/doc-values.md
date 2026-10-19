@@ -87,7 +87,9 @@ serverless: preview
 This setting requires a [`columnar`](/reference/elasticsearch/columnar/index.md) mode index.
 ::::
 
-By default, all fields allow multiple values per document. In columnar indices, you can restrict a field to at most one value per document by setting `multi_value: false` directly on the field. If a document is indexed with more than one value for that field, the indexing request is rejected by default. You can change this behavior with the [`on_failure`](#doc-values-on-failure) parameter.
+By default, all fields allow multiple values per document. In columnar indices, you can restrict a field to at most one value per document by setting `multi_value: false` on the field. If a document is indexed with more than one value for that field, the indexing request is rejected by default. You can change this behavior with the [`on_failure`](#doc-values-on-failure) parameter.
+
+{applies_to}`stack: preview 9.6` Set `multi_value` directly on the field:
 
 ```console
 PUT my-index-000001
@@ -97,6 +99,24 @@ PUT my-index-000001
       "status_code": {
         "type": "long",
         "multi_value": false
+      }
+    }
+  }
+}
+```
+
+{applies_to}`stack: preview 9.5` In 9.5, set `multi_value` inside the `doc_values` object. This nested form is still accepted in 9.6 and later, but is deprecated:
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "status_code": {
+        "type": "long",
+        "doc_values": {
+          "multi_value": false
+        }
       }
     }
   }
@@ -117,7 +137,9 @@ This setting requires a [`columnar`](/reference/elasticsearch/columnar/index.md)
 ::::
 
 
-By default, all fields allow missing or null values. In columnar indices, you can require a field to always carry a value by setting `nullability: false` directly on the field. If a document is indexed without a value for the field, or with an explicit `null`, the indexing request is rejected by default. You can change this behavior with the [`on_failure`](#doc-values-on-failure) parameter.
+By default, all fields allow missing or null values. In columnar indices, you can require a field to always carry a value by setting `nullability: false` on the field. If a document is indexed without a value for the field, or with an explicit `null`, the indexing request is rejected by default. You can change this behavior with the [`on_failure`](#doc-values-on-failure) parameter.
+
+{applies_to}`stack: preview 9.6` Set `nullability` directly on the field:
 
 ```console
 PUT my-index-000001
@@ -127,6 +149,24 @@ PUT my-index-000001
       "status_code": {
         "type": "long",
         "nullability": false
+      }
+    }
+  }
+}
+```
+
+{applies_to}`stack: preview 9.5` In 9.5, set `nullability` inside the `doc_values` object. This nested form is still accepted in 9.6 and later, but is deprecated:
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "status_code": {
+        "type": "long",
+        "doc_values": {
+          "nullability": false
+        }
       }
     }
   }
@@ -231,7 +271,7 @@ GET my-on-failure-index/_doc/1?stored_fields=_ignored <3>
 
 As a consequence, parent and multi-field can legitimately hold **different** value sets. A query on `field.raw` may match a value that a query on `field` does not, because the parent redirected that value to its failure column while the multi-field indexed it normally.
 
-To give a sub-field the same single-value semantics, configure `multi_value: false` on the sub-field itself. It then enforces the constraint independently and redirects its own duplicate to a separate `<field>.<sub>._on_failure` column.
+To give a sub-field the same single-value semantics, configure `multi_value: false` on the sub-field itself, using the syntax described in [Restricting fields to a single value](#doc-values-multi-value). It then enforces the constraint independently and redirects its own duplicate to a separate `<field>.<sub>._on_failure` column.
 
 The index-level defaults ([`index.mapping.doc_values.multi_value`](#doc-values-multi-value), [`index.mapping.doc_values.nullability`](#doc-values-nullability), and [`index.mapping.doc_values.on_failure`](#doc-values-on-failure)) apply to every field in the index, multi-fields included. This is the only way a sub-field inherits a constraint not named in its own mapping.
 

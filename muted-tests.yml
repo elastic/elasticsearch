@@ -456,9 +456,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/161788
-- class: org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldColumnarQueryTests
-  method: testTheFetcherReadsTheFieldsValues
-  issue: https://github.com/elastic/elasticsearch/issues/161798
 - class: org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycleTests
   method: testLifecycleEnabledByDefaultSerialization
   issue: https://github.com/elastic/elasticsearch/issues/161848

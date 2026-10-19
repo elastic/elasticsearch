@@ -6733,3 +6733,40 @@ id:keyword | _unmapped_fields:_source | v:long | k:long | type:keyword | pvalue:
 u12        | "{""note"":""n12""}"     | 10     | 12     | null         | null
 u13        | "{""note"":""n13""}"     | 51     | 13     | step_change  | 0..1E-20
 ;
+
+// Grouping by an unmapped field is allowed, and CHANGE_POINT then runs over the STATS output, which has no _unmapped_fields column.
+changePointAfterStatsOnUnmappedGroup
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped
+| STATS s = SUM(v) BY ukey
+| CHANGE_POINT s ON ukey
+| WHERE ukey >= "12" AND ukey <= "13"
+| SORT ukey
+;
+
+s:long | ukey:keyword | type:keyword | pvalue:double
+10     | 12           | null         | null
+51     | 13           | step_change  | 0..1E-20
+;
+
+// v is a mapped long in change_point_mapped and an unmapped field in change_point_unmapped, so it resolves to long across the FROM and
+// CHANGE_POINT accepts it. Both indices hold the same series, so a row at each key ties; which of the two tied rows carries the label is not
+// fixed, so the test counts the rows and the detected changes instead.
+changePointOnValueMappedInOneIndexAndUnmappedInAnother
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_change_point
+required_capability: change_point
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM change_point_mapped, change_point_unmapped
+| CHANGE_POINT v ON k
+| STATS rows = COUNT(*), changes = COUNT(type)
+;
+
+rows:long | changes:long
+48        | 1
+;

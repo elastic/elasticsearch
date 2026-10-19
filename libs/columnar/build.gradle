@@ -19,7 +19,8 @@ dependencies {
   // Native Zstd for chunk compression, and the IndexInput -> MemorySegment adapter that lets a chunk be
   // decompressed straight out of the mapped file. Neither has a server dependency, so this stays acyclic.
   implementation project(":libs:zstd")
-  implementation project(":libs:lucene-store")
+  // On the api surface: the column doc values implement its PrefetchableDocValues.
+  api project(":libs:lucene-store")
   // CheckedFunction, on the IndexInputUtils slice API.
   implementation project(":libs:core")
 

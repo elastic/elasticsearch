@@ -383,6 +383,20 @@ public final class ValueStream {
             return numValues;
         }
 
+        /** Prefetches the blocks holding the values at {@code valueAddresses[0, count)}, which it sorts. */
+        public void prefetch(long[] valueAddresses, int count) throws IOException {
+            Arrays.sort(valueAddresses, 0, count);
+            long lastBlock = -1;
+            for (int i = 0; i < count; i++) {
+                final long block = valueAddresses[i] >>> blockShift;
+                if (block != lastBlock) {
+                    lastBlock = block;
+                    final long start = offsets.get(block);
+                    chunks.prefetch(start, offsets.get(block + 1) - start);
+                }
+            }
+        }
+
         /** Points {@code dst} at the value at {@code valueAddress}; the bytes are valid until the next call. */
         public void get(long valueAddress, BytesRef dst) throws IOException {
             read(valueAddress, dst);

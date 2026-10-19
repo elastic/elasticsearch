@@ -17,7 +17,7 @@ module org.elasticsearch.columnar {
     requires transitive org.apache.lucene.core;
     requires org.elasticsearch.simdvec;
     requires org.elasticsearch.zstd;
-    requires org.elasticsearch.lucene.store;
+    requires transitive org.elasticsearch.lucene.store;
     requires org.elasticsearch.base;
 
     exports org.elasticsearch.columnar;

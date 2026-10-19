@@ -80,7 +80,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     public static final String TRANSLOG_UPLOAD_ATTEMPTS_HISTOGRAM = "es.stateless.translog.upload.attempts.histogram";
     public static final String TRANSLOG_UPLOAD_TOTAL_DURATION_HISTOGRAM = "es.stateless.translog.upload.total_duration.histogram";
-    public static final String TRANSLOG_UPLOAD_HEDGE_WON_TOTAL = "es.stateless.translog.upload.hedge_won.total";
+    public static final String TRANSLOG_UPLOAD_HEDGES_TOTAL = "es.stateless.translog.upload.hedges.total";
+    public static final String TRANSLOG_UPLOAD_HEDGES_WON_TOTAL = "es.stateless.translog.upload.hedges_won.total";
 
     public static final Setting<TimeValue> FLUSH_RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
         "stateless.translog.flush.retry.initial_delay",
@@ -132,7 +133,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final TimeValue uploadHedgeDelay;
     private final LongHistogram translogUploadAttemptsHistogram;
     private final LongHistogram translogUploadTotalDurationHistogram;
-    private final LongCounter translogUploadHedgeWonCounter;
+    private final LongCounter translogUploadHedgesCounter;
+    private final LongCounter translogUploadHedgesWonCounter;
 
     public TranslogReplicator(
         final ThreadPool threadPool,
@@ -202,7 +204,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         this.currentPrimaryTerm = currentPrimaryTerm;
         this.translogUploadAttemptsHistogram = meterRegistry.registerLongHistogram(
             TRANSLOG_UPLOAD_ATTEMPTS_HISTOGRAM,
-            "number of attempts it took to upload the translog to the object store",
+            "number of attempts (including a potential hedge) it took to upload the translog to the object store",
             "count"
         );
         this.translogUploadTotalDurationHistogram = meterRegistry.registerLongHistogram(
@@ -211,8 +213,13 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             "milliseconds",
             ObjectStoreService.TRANSLOG_UPLOAD_DURATION_BUCKET_BOUNDARIES
         );
-        this.translogUploadHedgeWonCounter = meterRegistry.registerLongCounter(
-            TRANSLOG_UPLOAD_HEDGE_WON_TOTAL,
+        this.translogUploadHedgesCounter = meterRegistry.registerLongCounter(
+            TRANSLOG_UPLOAD_HEDGES_TOTAL,
+            "number of translog-upload hedges that were started",
+            "count"
+        );
+        this.translogUploadHedgesWonCounter = meterRegistry.registerLongCounter(
+            TRANSLOG_UPLOAD_HEDGES_WON_TOTAL,
             "translog uploads completed by the hedge upload rather than the original upload",
             "count"
         );
@@ -517,6 +524,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 return;
             }
             hedged = true;
+            translogUploadHedgesCounter.increment();
             objectStoreService.uploadTranslogFile(
                 translog.metadata().name(),
                 translog.bytes().data(),
@@ -611,7 +619,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 translogUploadAttemptsHistogram.record(task.uploadTryNumber.get() + (task.hedged ? 1 : 0));
                 translogUploadTotalDurationHistogram.record(threadPool.relativeTimeInMillis() - task.firstAttemptStartMillis);
                 if (task.completedByHedge.get()) {
-                    translogUploadHedgeWonCounter.increment();
+                    translogUploadHedgesWonCounter.increment();
                 }
                 nodeState.markUploadFinished(task);
             }

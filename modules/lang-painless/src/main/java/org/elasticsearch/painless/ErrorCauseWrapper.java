@@ -37,7 +37,9 @@ class ErrorCauseWrapper extends ElasticsearchException {
         this.realCause = realCause;
     }
 
-    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
+    @Override
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel, Throwable[] additionalSuppressed)
+        throws IOException {
         builder.field("type", getExceptionName(realCause));
         builder.field("reason", realCause.getMessage());
         return builder;

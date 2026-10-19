@@ -20,7 +20,9 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 /**
  * Captures the role of the failure store in this document response. For example,
@@ -116,9 +118,14 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
 
         private final IndexDocFailureStoreStatus failureStoreStatus;
 
+        @SuppressWarnings("this-escape")
         public ExceptionWithFailureStoreStatus(BulkItemResponse.Failure failure) {
             super(failure.getCause());
             this.failureStoreStatus = failure.getFailureStoreStatus();
+            // safe to attach here because this wrapper is never shared, unlike the cause
+            if (failure.getFailureStoreCause() != null) {
+                addSuppressed(failure.getFailureStoreCause());
+            }
         }
 
         public ExceptionWithFailureStoreStatus(StreamInput in) throws IOException {
@@ -139,8 +146,12 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
         }
 
         @Override
-        protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
-            generateThrowableXContent(builder, params, this.getCause(), nestedLevel);
+        protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel, Throwable[] additionalSuppressed)
+            throws IOException {
+            Throwable[] allAdditionalSuppressed = additionalSuppressed.length == 0
+                ? getSuppressed()
+                : Stream.concat(Arrays.stream(getSuppressed()), Arrays.stream(additionalSuppressed)).toArray(Throwable[]::new);
+            generateThrowableXContent(builder, params, this.getCause(), nestedLevel, allAdditionalSuppressed);
             failureStoreStatus.toXContent(builder, params);
             return builder;
         }

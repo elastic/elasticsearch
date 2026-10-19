@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.stateless.engine.translog;
 
-public final class TranslogReplicators {
+public final class TranslogReplicatorTestUtils {
 
-    private TranslogReplicators() {}
+    private TranslogReplicatorTestUtils() {}
 
     public static void requestSyncFlush(TranslogReplicator translogReplicator) {
         translogReplicator.requestSyncFlush();

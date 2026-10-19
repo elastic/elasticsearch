@@ -97,7 +97,7 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader;
-import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicators;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
@@ -181,7 +181,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         waitForMergesToFinish();
         // Release translog buffer pages left by shards that closed before their post-write sync, else the breaker check fails
         for (StatelessComponents components : internalCluster().getInstances(StatelessComponents.class)) {
-            TranslogReplicators.requestSyncFlush(components.getTranslogReplicator());
+            TranslogReplicatorTestUtils.requestSyncFlush(components.getTranslogReplicator());
         }
     }
 

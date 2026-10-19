@@ -194,11 +194,23 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
                 out.writeVLong(payloadLength);
             }
 
+            static Skipper readOptionally(DataInput in, long numValues, int valuesPerBlock) throws IOException {
+                final byte present = in.readByte();
+                if (present != 0 && present != 1) {
+                    throw new CorruptIndexException("invalid plain skipper presence [" + present + "]", in);
+                }
+                return present == 0 ? null : readFrom(in, numValues, valuesPerBlock);
+            }
+
             static Skipper readFrom(DataInput in, long numValues, int valuesPerBlock) throws IOException {
                 final Skipper skipper = new Skipper(in.readVLong(), in.readVInt(), in.readVLong());
-                if (skipper.dataOffset < 0
-                    || skipper.payloadLength < 0
-                    || skipper.blockCount != PlainSkipBounds.blockCount(numValues, valuesPerBlock)) {
+                final int expectedBlocks;
+                try {
+                    expectedBlocks = PlainSkipBounds.blockCount(numValues, valuesPerBlock);
+                } catch (ArithmeticException e) {
+                    throw new CorruptIndexException("plain skipper for [" + numValues + "] values has too many blocks", in, e);
+                }
+                if (skipper.dataOffset < 0 || skipper.payloadLength < 0 || skipper.blockCount != expectedBlocks) {
                     throw new CorruptIndexException(
                         "invalid plain skipper " + skipper + " for [" + numValues + "] values in blocks of [" + valuesPerBlock + "]",
                         in
@@ -495,9 +507,7 @@ public sealed interface StringColumnMetadata extends ColumnMetadata permits Stri
             case PLAIN -> {
                 final PlainValues.Metadata values = PlainValues.Metadata.readFrom(in);
                 final boolean valuesWorthNaming = in.readByte() != 0;
-                final Plain.Skipper skipper = in.readByte() != 0
-                    ? Plain.Skipper.readFrom(in, values.numValues(), values.valuesPerBlock())
-                    : null;
+                final Plain.Skipper skipper = Plain.Skipper.readOptionally(in, values.numValues(), values.valuesPerBlock());
                 yield plain(
                     iterator,
                     numDocsWithField,

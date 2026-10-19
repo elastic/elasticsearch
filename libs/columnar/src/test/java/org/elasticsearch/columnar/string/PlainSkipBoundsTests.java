@@ -336,6 +336,74 @@ public class PlainSkipBoundsTests extends ESTestCase {
         }
     }
 
+    public void testEntriesThatOverlapOrDoNotStartAtTheBeginningAreCorrupt() throws IOException {
+        final PlainSkipBounds.Query everything = PlainSkipBounds.Query.range(null, true, null, true);
+        try (Directory dir = newDirectory(); PlainSkipFixture fixture = threeBlocks(dir)) {
+            expectCorrupt(dir, fixture, 12 + 4, (byte) 0, reader -> reader.excludes(1, everything));
+            expectCorrupt(dir, fixture, 12 + 4, (byte) 0, reader -> reader.excludes(0, everything));
+            expectCorrupt(dir, fixture, 24 + 4, (byte) 12, reader -> reader.excludes(1, everything));
+            expectCorrupt(dir, fixture, 24 + 4, (byte) 12, reader -> reader.excludes(2, everything));
+            expectCorrupt(dir, fixture, 4, (byte) 1, reader -> reader.excludes(0, everything));
+            final PlainSkipBounds.Reader intact = fixture.reader();
+            for (int block = 0; block < 3; block++) {
+                assertFalse(intact.excludes(block, everything));
+            }
+        }
+    }
+
+    public void testAPayloadShorterThanItsEntriesIsCorrupt() throws IOException {
+        try (Directory dir = newDirectory(); PlainSkipFixture fixture = threeBlocks(dir)) {
+            final StringColumnMetadata.Plain.Skipper skipper = fixture.skipper;
+            final PlainSkipBounds.Reader shorter = new PlainSkipBounds.Reader(
+                new StringColumnMetadata.Plain.Skipper(skipper.dataOffset(), skipper.blockCount(), skipper.payloadLength() - 1),
+                fixture.input
+            );
+            expectThrows(CorruptIndexException.class, () -> shorter.excludes(2, PlainSkipBounds.Query.range(null, true, null, true)));
+        }
+    }
+
+    public void testRegionArithmeticThatOverflowsIsCorrupt() throws IOException {
+        try (Directory dir = newDirectory(); PlainSkipFixture fixture = threeBlocks(dir)) {
+            for (StringColumnMetadata.Plain.Skipper bad : new StringColumnMetadata.Plain.Skipper[] {
+                new StringColumnMetadata.Plain.Skipper(Long.MAX_VALUE, 3, 5),
+                new StringColumnMetadata.Plain.Skipper(Long.MAX_VALUE - 5, 3, 10),
+                new StringColumnMetadata.Plain.Skipper(0, 3, Long.MAX_VALUE),
+                new StringColumnMetadata.Plain.Skipper(1, Integer.MAX_VALUE, 0) }) {
+                expectThrows(CorruptIndexException.class, () -> new PlainSkipBounds.Reader(bad, fixture.input));
+            }
+        }
+    }
+
+    public void testASkipperPresenceByteMustBeZeroOrOne() throws IOException {
+        final ByteBuffersDataOutput none = new ByteBuffersDataOutput();
+        none.writeByte((byte) 0);
+        assertNull(StringColumnMetadata.Plain.Skipper.readOptionally(none.toDataInput(), 9, 4));
+
+        final StringColumnMetadata.Plain.Skipper skipper = new StringColumnMetadata.Plain.Skipper(5, 3, 40);
+        final ByteBuffersDataOutput present = new ByteBuffersDataOutput();
+        present.writeByte((byte) 1);
+        skipper.writeTo(present);
+        assertEquals(skipper, StringColumnMetadata.Plain.Skipper.readOptionally(present.toDataInput(), 9, 4));
+
+        for (byte invalid : new byte[] { 2, -1, 127 }) {
+            final ByteBuffersDataOutput bad = new ByteBuffersDataOutput();
+            bad.writeByte(invalid);
+            skipper.writeTo(bad);
+            expectThrows(CorruptIndexException.class, () -> StringColumnMetadata.Plain.Skipper.readOptionally(bad.toDataInput(), 9, 4));
+        }
+    }
+
+    public void testASkipperForMoreBlocksThanAColumnCanHoldIsCorrupt() throws IOException {
+        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        new StringColumnMetadata.Plain.Skipper(0, 1, 1).writeTo(out);
+        expectThrows(CorruptIndexException.class, () -> StringColumnMetadata.Plain.Skipper.readFrom(out.toDataInput(), Long.MAX_VALUE, 1));
+    }
+
+    private static PlainSkipFixture threeBlocks(Directory dir) throws IOException {
+        final BytesRef[][] docSlots = new BytesRef[][] { { new BytesRef("a") }, { new BytesRef("bb") }, { new BytesRef("ccc") } };
+        return PlainSkipFixture.build(dir, docSlots, 1);
+    }
+
     public void testARegionPastTheEndOfTheSkipIndexIsCorrupt() throws IOException {
         final BytesRef[][] docSlots = new BytesRef[][] { { new BytesRef("a") }, { new BytesRef("b") } };
         try (Directory dir = newDirectory(); PlainSkipFixture fixture = PlainSkipFixture.build(dir, docSlots, 1)) {

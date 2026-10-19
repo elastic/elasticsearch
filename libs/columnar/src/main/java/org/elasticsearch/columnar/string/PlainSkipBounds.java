@@ -43,7 +43,7 @@ final class PlainSkipBounds {
     private PlainSkipBounds() {}
 
     static int blockCount(long numValues, int valuesPerBlock) {
-        return Math.toIntExact((numValues + valuesPerBlock - 1) / valuesPerBlock);
+        return Math.toIntExact(numValues / valuesPerBlock + (numValues % valuesPerBlock == 0 ? 0 : 1));
     }
 
     record Query(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper, BytesRef prefix) {
@@ -196,19 +196,22 @@ final class PlainSkipBounds {
             this.blockCount = skipper.blockCount();
             this.payloadLength = skipper.payloadLength();
             this.directoryBytes = (long) blockCount * ENTRY_BYTES;
-            final long length = directoryBytes + payloadLength;
-            if (skipper.dataOffset() < 0 || skipper.dataOffset() + length > skipIndex.length()) {
+            final long room = skipIndex.length() - directoryBytes;
+            if (skipper.dataOffset() < 0 || payloadLength < 0 || payloadLength > room || skipper.dataOffset() > room - payloadLength) {
                 throw new CorruptIndexException(
-                    "plain skip bounds ["
+                    "plain skip bounds at ["
                         + skipper.dataOffset()
-                        + ", +"
-                        + length
-                        + ") are outside the skip index of ["
+                        + "] with ["
+                        + blockCount
+                        + "] blocks and ["
+                        + payloadLength
+                        + "] payload bytes are outside the skip index of ["
                         + skipIndex.length()
                         + "] bytes",
                     skipIndex
                 );
             }
+            final long length = directoryBytes + payloadLength;
             this.region = skipIndex.randomAccessSlice(skipper.dataOffset(), length);
         }
 
@@ -267,9 +270,16 @@ final class PlainSkipBounds {
             if (offset < 0 || offset >= payloadLength) {
                 throw corrupt(block, "payload offset [" + offset + "] is outside [0, " + payloadLength + ")");
             }
+            if (block == 0 && offset != 0) {
+                throw corrupt(block, "the first payload offset is [" + offset + "]");
+            }
+            final long end = block + 1 < blockCount ? region.readLong((long) (block + 1) * ENTRY_BYTES + Integer.BYTES) : payloadLength;
             final long at = directoryBytes + offset;
             final byte flag = region.readByte(at);
             if (flag == EMPTY) {
+                if (offset + Byte.BYTES != end) {
+                    throw corrupt(block, "an empty entry at payload offset [" + offset + "] ends at [" + end + "]");
+                }
                 bounded = false;
                 return;
             }
@@ -280,7 +290,7 @@ final class PlainSkipBounds {
             maxLength = region.readInt(at + Byte.BYTES + Integer.BYTES);
             minPosition = at + BOUNDED_HEADER_BYTES;
             maxPosition = minPosition + minLength;
-            if (minLength < 0 || maxLength < 0 || offset + BOUNDED_HEADER_BYTES + (long) minLength + maxLength > payloadLength) {
+            if (minLength < 0 || maxLength < 0 || offset + BOUNDED_HEADER_BYTES + (long) minLength + maxLength != end) {
                 throw corrupt(block, "bounds of [" + minLength + ", " + maxLength + "] bytes at payload offset [" + offset + "]");
             }
             bounded = true;

@@ -22,6 +22,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -29,9 +30,13 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
@@ -40,6 +45,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /** Shared test helpers for ColumNAR unit tests. */
 public final class ColumnarTestUtils {
@@ -210,6 +217,17 @@ public final class ColumnarTestUtils {
         return type;
     }
 
+    public static Codec singleValuedStringCodec() {
+        return columnarCodec(
+            new ColumNARDocValuesFormat(
+                (fieldName, type) -> NumericPipeline::defaultPipeline,
+                field -> ColumnarFieldType.STRING,
+                ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
+                StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(true))
+            )
+        );
+    }
+
     /**
      * One value as the {@link StringBinaryPayload} a string field is written as. The surface carries slots
      * rather than bare bytes — the count travels with them, so a document holding several is not a document
@@ -304,5 +322,50 @@ public final class ColumnarTestUtils {
                 return in.getReaderCacheHelper();
             }
         };
+    }
+
+    /** Supplies a fresh iterator over the same matches, one per pass. */
+    public interface Matches {
+        DocIdSetIterator get() throws IOException;
+    }
+
+    /**
+     * The {@code docIDRunEnd} contract bulk scorers rely on, checked the way Lucene's doc-values format tests
+     * check it. For a two-phase iterator, asked on every document of the approximation, first before
+     * {@code matches()} has confirmed anything and then after: the run end lies in {@code [doc, maxDoc]}, asking
+     * does not move the approximation, every document in {@code [doc, runEnd)} truly matches, and where no run
+     * is claimed {@code matches()} agrees with {@code expected}. For a plain iterator every document it lands on
+     * matches, so it must report a run past it.
+     */
+    public static void assertDocIDRunEndContract(String label, Matches matches, FixedBitSet expected, int maxDoc) throws IOException {
+        for (boolean confirmFirst : new boolean[] { false, true }) {
+            final DocIdSetIterator iterator = matches.get();
+            final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(iterator);
+            final DocIdSetIterator approximation = twoPhase == null ? iterator : twoPhase.approximation();
+            final String pass = label + (confirmFirst ? " (confirmed first)" : " (unconfirmed)");
+            for (int doc = approximation.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS;) {
+                if (twoPhase != null && confirmFirst) {
+                    assertEquals(pass + " matches() at doc " + doc, expected.get(doc), twoPhase.matches());
+                }
+                final int runEnd = twoPhase == null ? iterator.docIDRunEnd() : twoPhase.docIDRunEnd();
+                assertEquals(pass + " docIDRunEnd() moved the iterator at doc " + doc, doc, approximation.docID());
+                assertTrue(pass + " docIDRunEnd() " + runEnd + " is below doc " + doc, runEnd >= doc);
+                assertTrue(pass + " docIDRunEnd() " + runEnd + " is beyond maxDoc " + maxDoc, runEnd <= maxDoc);
+                if (twoPhase == null) {
+                    assertTrue(pass + " a plain iterator's run from " + doc + " ends at " + runEnd, runEnd > doc);
+                }
+                for (int d = doc; d < runEnd; d++) {
+                    assertTrue(pass + " doc " + d + " in the run [" + doc + ", " + runEnd + ") does not match", expected.get(d));
+                }
+                if (runEnd > doc) {
+                    doc = runEnd < maxDoc ? approximation.advance(runEnd) : DocIdSetIterator.NO_MORE_DOCS;
+                } else {
+                    if (confirmFirst == false) {
+                        assertEquals(pass + " matches() at doc " + doc, expected.get(doc), twoPhase.matches());
+                    }
+                    doc = approximation.nextDoc();
+                }
+            }
+        }
     }
 }

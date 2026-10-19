@@ -2017,6 +2017,72 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(manager.currentCallerCredential(threadPool, securityContext), nullValue());
     }
 
+    public void testCarryCallerCredentialWithCredentialShouldHandCredentialToCarrier() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", true).build();
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        CloudCredential callerCredential = new CloudCredential(new SecureString("caller-uiam-token".toCharArray()));
+        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(callerCredential);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        DatafeedManager manager = newDatafeedManager(
+            mock(DatafeedConfigProvider.class),
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class)),
+            mockAuditor()
+        );
+        AtomicReference<CloudCredential> carried = new AtomicReference<>();
+
+        manager.carryCallerCredential(threadPool, null, carried::set);
+
+        assertThat(carried.get(), equalTo(callerCredential));
+    }
+
+    public void testCarryCallerCredentialWithoutCredentialShouldNotTouchCarrier() {
+        // doExecute runs again on the master, where transient headers are gone and extraction yields null: the credential carried
+        // from the coordinator must not be overwritten.
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", true).build();
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(null);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        DatafeedManager manager = newDatafeedManager(
+            mock(DatafeedConfigProvider.class),
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class)),
+            mockAuditor()
+        );
+        AtomicBoolean carrierCalled = new AtomicBoolean();
+
+        manager.carryCallerCredential(threadPool, null, credential -> carrierCalled.set(true));
+
+        assertFalse(carrierCalled.get());
+    }
+
+    public void testCarryCallerCredentialWithCrossProjectDisabledShouldNotTouchCarrier() {
+        Settings settings = Settings.builder().put("xpack.security.enabled", true).build();
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        DatafeedManager manager = newDatafeedManager(
+            mock(DatafeedConfigProvider.class),
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class)),
+            mockAuditor()
+        );
+        AtomicBoolean carrierCalled = new AtomicBoolean();
+
+        manager.carryCallerCredential(threadPool, null, credential -> carrierCalled.set(true));
+
+        assertFalse(carrierCalled.get());
+        verify(credentialManager, never()).extractCloudManagedCredential(any());
+    }
+
     @SuppressWarnings("unchecked")
     public void testUpdateDatafeedFirstTimeMigrationShouldDefaultProjectRoutingToOrigin() {
         assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());

@@ -84,7 +84,8 @@ public class StringConstantLengthTests extends ColumnarStringTestCase {
             counted.numValues(),
             counted.numNullSlots(),
             8,
-            8
+            8,
+            counted.oneSlotADocument()
         );
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
@@ -99,7 +100,8 @@ public class StringConstantLengthTests extends ColumnarStringTestCase {
                     null,
                     dir,
                     IOContext.DEFAULT,
-                    out.outputs()
+                    out.outputs(),
+                    out.skipIndex()
                 )
             );
             assertTrue(e.getMessage(), e.getMessage().contains("counted at 8"));

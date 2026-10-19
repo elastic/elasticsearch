@@ -19,7 +19,9 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.SERVICE_ACCOUNT_DOC_TYPE;
 import static org.hamcrest.Matchers.contains;
@@ -35,7 +37,40 @@ import static org.mockito.Mockito.verify;
 
 public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
 
-    private static final List<String> ALLOWED_FIELDS = List.of("username", "roles", "enabled", "description");
+    /**
+     * Query-level names that are also the index-level names: the account's own fields and those of its updater, apart
+     * from its username.
+     */
+    private static final List<String> IDEM_FIELDS = List.of(
+        "username",
+        "roles",
+        "enabled",
+        "description",
+        "updated_by.realm",
+        "updated_by.realm_type",
+        "updated_by.api_key.id",
+        "updated_by.api_key.name"
+    );
+
+    /**
+     * Query-level names whose index-level names differ, by their index-level names. The creator and the creation time
+     * are stored in the fields that API keys established, and either author's username is stored as {@code principal}
+     * as an API key creator's is.
+     */
+    private static final Map<String, String> TRANSLATED_FIELDS = Map.ofEntries(
+        Map.entry("created_by.username", "creator.principal"),
+        Map.entry("created_by.realm", "creator.realm"),
+        Map.entry("created_by.realm_type", "creator.realm_type"),
+        Map.entry("created_by.api_key.id", "creator.api_key.id"),
+        Map.entry("created_by.api_key.name", "creator.api_key.name"),
+        Map.entry("created_at", "creation_time"),
+        Map.entry("updated_by.username", "updated_by.principal"),
+        Map.entry("updated_at", "update_time")
+    );
+
+    private static final List<String> QUERY_FIELDS = Stream.concat(IDEM_FIELDS.stream(), TRANSLATED_FIELDS.keySet().stream()).toList();
+
+    private static final List<String> INDEX_FIELDS = Stream.concat(IDEM_FIELDS.stream(), TRANSLATED_FIELDS.values().stream()).toList();
 
     public void testANullQuerySelectsEveryServiceAccountDocument() {
         final ServiceAccountBoolQueryBuilder query = ServiceAccountBoolQueryBuilder.build(null);
@@ -46,12 +81,30 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
     }
 
     public void testASimpleQueryIsKeptAndRestrictedToServiceAccountDocuments() {
-        final QueryBuilder simpleQuery = randomSimpleQuery(randomFrom(ALLOWED_FIELDS));
+        final QueryBuilder simpleQuery = randomSimpleQuery(randomFrom(IDEM_FIELDS));
         final ServiceAccountBoolQueryBuilder query = ServiceAccountBoolQueryBuilder.build(simpleQuery);
         assertThat(query.must(), contains(simpleQuery));
         assertThat(query.should(), empty());
         assertThat(query.mustNot(), empty());
         assertThat(query.filter(), contains(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE)));
+    }
+
+    /**
+     * The creator and the creation time are queried by the names a response reports and stored in the fields that API
+     * keys established, so a query on them is rewritten to the stored name. The updater's timestamp follows the index's
+     * naming of timestamps for the same reason. The stored names are not accepted as query fields.
+     */
+    public void testFieldsStoredUnderAnotherNameAreTranslated() {
+        for (Map.Entry<String, String> field : TRANSLATED_FIELDS.entrySet()) {
+            final ServiceAccountBoolQueryBuilder query = ServiceAccountBoolQueryBuilder.build(QueryBuilders.termQuery(field.getKey(), "x"));
+            assertThat(field.getKey(), query.must(), contains(QueryBuilders.termQuery(field.getValue(), "x")));
+        }
+        final String indexField = randomFrom("creator.principal", "creator.realm", "creation_time", "update_time");
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ServiceAccountBoolQueryBuilder.build(QueryBuilders.termQuery(indexField, "x"))
+        );
+        assertThat(e.getMessage(), containsString("Field [" + indexField + "] is not allowed for querying or aggregation"));
     }
 
     public void testABoolQueryIsTranslatedClauseByClause() {
@@ -88,7 +141,33 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
     public void testFieldsOutsideTheAllowlistAreRejected() {
         // Fields of other document types in the security index, and fields of the account document itself that the
         // API does not expose, are refused alike.
-        final String fieldName = randomFrom("doc_type", "version", "password", "full_name", "metadata_flattened", "creator.principal");
+        // The metadata of an API key's creator, the realm domain, and the user's full name and email are stored under
+        // the same "creator" object but are not part of an account's attribution as the API reports it, under either
+        // of the object's names. The domain, name and email are stored as API keys store them, but are neither
+        // reported nor queryable.
+        final String fieldName = randomFrom(
+            "doc_type",
+            "version",
+            "password",
+            "full_name",
+            "metadata_flattened",
+            "creator.metadata",
+            "created_by.metadata",
+            "created_by.metadata.foo",
+            "creator.full_name",
+            "creator.email",
+            "created_by.full_name",
+            "created_by.email",
+            "creator.realm_domain.name",
+            "created_by.realm_domain",
+            "created_by.realm_domain.name",
+            "created_by.realm_domain.realms.name",
+            "updated_by.full_name",
+            "updated_by.email",
+            "updated_by.realm_domain",
+            "updated_by.realm_domain.name",
+            "updated_by.realm_domain.realms.type"
+        );
         final QueryBuilder query = randomValueOtherThanMany(q -> q instanceof MatchAllQueryBuilder, () -> randomSimpleQuery(fieldName));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ServiceAccountBoolQueryBuilder.build(query));
         assertThat(e.getMessage(), containsString("Field [" + fieldName + "] is not allowed for querying or aggregation"));
@@ -123,18 +202,40 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
     }
 
     public void testTheSearchContextIsRestrictedToTheAllowedIndexFields() {
-        final ServiceAccountBoolQueryBuilder query = ServiceAccountBoolQueryBuilder.build(randomSimpleQuery(randomFrom(ALLOWED_FIELDS)));
+        final ServiceAccountBoolQueryBuilder query = ServiceAccountBoolQueryBuilder.build(randomSimpleQuery(randomFrom(QUERY_FIELDS)));
         final SearchExecutionContext context = mock(SearchExecutionContext.class);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             final Predicate<String> allowed = (Predicate<String>) invocation.getArguments()[0];
-            for (String field : ALLOWED_FIELDS) {
+            for (String field : INDEX_FIELDS) {
                 assertTrue(field, allowed.test(field));
             }
             // The filter's own field and the document id have to pass so the query built here can run at all.
             assertTrue(allowed.test("doc_type"));
             assertTrue(allowed.test("_id"));
-            for (String field : List.of("version", "password", "type", "full_name", "metadata_flattened", "creator.principal")) {
+            // Neither query-level names that differ from the index-level ones, nor stored fields outside the
+            // allowlist, are index fields.
+            for (String field : List.of(
+                "version",
+                "password",
+                "type",
+                "full_name",
+                "metadata_flattened",
+                "creator.metadata",
+                "creator.full_name",
+                "creator.email",
+                "creator.realm_domain",
+                "creator.realm_domain.name",
+                "creator.realm_domain.realms.name",
+                "created_by.username",
+                "created_at",
+                "updated_by.username",
+                "updated_by.full_name",
+                "updated_by.email",
+                "updated_by.realm_domain",
+                "updated_by.realm_domain.name",
+                "updated_at"
+            )) {
                 assertFalse(field, allowed.test(field));
             }
             return null;

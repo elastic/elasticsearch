@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests;
 
 import static org.hamcrest.Matchers.is;
@@ -18,12 +17,11 @@ import static org.hamcrest.Matchers.is;
 public class VoyageAIRequestTests extends ESTestCase {
 
     public void testDecorateWithHeaders() {
-        var request = new HttpPost("http://www.abc.com");
+        var request = SimpleRequestBuilder.post("http://www.abc.com").build();
         var model = VoyageAIEmbeddingsModelTests.createModel("abc", "key", null, "model_id");
 
         VoyageAIRequestUtils.decorateWithHeaders(request, model);
 
-        assertThat(request.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer key"));
         assertThat(request.getFirstHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER).getValue(), is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE));
     }

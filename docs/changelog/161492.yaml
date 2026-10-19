@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 161492
+summary: Verify API key before decoding cross-cluster info
+type: bug

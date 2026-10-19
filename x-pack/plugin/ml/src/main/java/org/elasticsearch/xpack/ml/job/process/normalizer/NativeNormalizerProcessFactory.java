@@ -72,6 +72,7 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
             true,
             true,
             false,
+            false,
             false
         );
         createNativeProcess(jobId, quantilesState, processPipes, bucketSpan);

@@ -10,14 +10,13 @@
 package org.elasticsearch.indices.breaker;
 
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.Collection;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 /**
  * A class collecting circuit breaker metrics (parent, field data, request, in flight requests and custom child circuit
@@ -40,7 +39,7 @@ import java.util.function.Supplier;
  *     <li>{@link #ES_BREAKER_MEMORY_ESTIMATED} - asynchronous gauge of the current charged bytes per breaker, equivalent to
  *     the {@code estimated_size_in_bytes} field returned by {@code GET /_nodes/stats/breaker}.</li>
  * </ul>
- * The two async gauges are registered via {@link #registerMemoryGauges(Supplier, Supplier)} by the owning breaker service because that is
+ * The two async gauges are registered via {@link #registerMemoryGauges(Consumer, Consumer)} by the owning breaker service because that is
  * what has access to the breaker map.
  */
 public class CircuitBreakerMetrics {
@@ -93,20 +92,20 @@ public class CircuitBreakerMetrics {
     }
 
     public void registerMemoryGauges(
-        final Supplier<Collection<LongWithAttributes>> limitSupplier,
-        final Supplier<Collection<LongWithAttributes>> estimatedSupplier
+        final Consumer<LongAsyncMeasurement> limitCallback,
+        final Consumer<LongAsyncMeasurement> estimatedCallback
     ) {
-        meterRegistry.registerLongsAsyncGauge(
+        meterRegistry.registerLongAsyncGauge(
             ES_BREAKER_MEMORY_LIMIT,
             "Configured memory limit per circuit breaker, in bytes",
             "By",
-            limitSupplier
+            limitCallback
         );
-        meterRegistry.registerLongsAsyncGauge(
+        meterRegistry.registerLongAsyncGauge(
             ES_BREAKER_MEMORY_ESTIMATED,
             "Current estimated charged memory per circuit breaker, in bytes",
             "By",
-            estimatedSupplier
+            estimatedCallback
         );
     }
 

@@ -1,0 +1,6 @@
+area: Data streams
+issues:
+ - 157859
+pr: 162017
+summary: "Avoid quadratic failed response size when failure store redirects fail"
+type: bug

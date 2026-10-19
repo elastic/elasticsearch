@@ -15,9 +15,13 @@ import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
+import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter.DatasetResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -49,16 +53,26 @@ public class DatasetResolver {
     private final Executor executor;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final boolean federationAvailable;
+    private final FederationLicense federationLicense;
 
     /**
      * Federation availability is resolved once by the caller (see {@link Federation#isAvailable}) rather than per query:
      * it is fixed for the lifetime of the node, since both of its levers are read at startup.
+     * The {@code federationLicense} is queried per query, once the resolver determines the query actually targets a
+     * dataset, so that the check always reflects the current license rather than the one at construction time.
      */
-    public DatasetResolver(Client client, Executor executor, CrossProjectModeDecider crossProjectModeDecider, boolean federationAvailable) {
+    public DatasetResolver(
+        Client client,
+        Executor executor,
+        CrossProjectModeDecider crossProjectModeDecider,
+        boolean federationAvailable,
+        FederationLicense federationLicense
+    ) {
         this.client = client;
         this.executor = executor;
         this.crossProjectModeDecider = crossProjectModeDecider;
         this.federationAvailable = federationAvailable;
+        this.federationLicense = federationLicense;
     }
 
     /**
@@ -70,15 +84,25 @@ public class DatasetResolver {
      * untouched, so a {@code FROM <dataset>} name flows into normal index resolution and errors as {@code Unknown index},
      * exactly as a nonexistent index would. No dataset lookup and no {@link EsqlResolveDatasetAction} dispatch happen.
      *
+     * <p><b>License check ordering:</b> The license check runs before the per-relation {@link EsqlResolveDatasetAction}
+     * read-authorization, so on a non-Enterprise cluster a user lacking read privilege on a matching dataset name receives
+     * the license error rather than {@code Unknown index}. This leaks the existence of the dataset, which the resolver
+     * otherwise hides (see {@link DatasetRewriter#rewrite}). The impact is low, as datasets only persist in cluster state
+     * after a downgrade from Enterprise or an expired trial.
+     *
      * @param wildcardsMatchDatasets the resolved {@code wildcards_match_datasets} query setting, carried from the coordinator's
      *                         {@code Configuration} and applied to this coordinator's own dataset expansion. Only this
      *                         coordinator's registry is expanded here; what a remote cluster does with its own datasets
      *                         is decided by {@code EsqlResolveFieldsAction.clearDatasetResolution}, not by this setting.
+     * @param pragmas the request query pragmas. A set {@code max_branch_count_per_merge} pragma overrides {@code flags}.
+     * @param flags the coordinator's live {@link EsqlFlags}, including {@code esql.query.max_branch_count_per_merge}.
      */
     public void replaceDatasets(
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         boolean wildcardsMatchDatasets,
+        QueryPragmas pragmas,
+        EsqlFlags flags,
         ActionListener<LogicalPlan> listener
     ) {
         // Federation not available: do not attempt any dataset resolution, so the feature is indistinguishable from one
@@ -98,26 +122,37 @@ public class DatasetResolver {
 
         // Collect the relations worth a round-trip: skip remote-prefixed (datasets are local-only, CCS sees the original
         // FROM) and skip any relation whose patterns could not match a registered dataset name (ordinary FROM <index>).
-        List<UnresolvedRelation> relations = new ArrayList<>();
-        parsed.forEachUp(UnresolvedRelation.class, r -> {
+        // Per relation: a wildcard inside a view body never matches datasets (DatasetRewriter.forEachRelation).
+        List<ScopedRelation> relations = new ArrayList<>();
+        DatasetRewriter.forEachRelation(parsed, wildcardsMatchDatasets, (r, relationWildcards) -> {
             List<String> patterns = DatasetRewriter.patternsOf(r);
             if (DatasetRewriter.hasRemotePattern(patterns)
-                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, wildcardsMatchDatasets) == false) {
+                || DatasetRewriter.anyPatternCouldMatchDataset(patterns, datasetNames, relationWildcards) == false) {
                 return;
             }
-            relations.add(r);
+            relations.add(new ScopedRelation(r, relationWildcards));
         });
         if (relations.isEmpty()) {
             listener.onResponse(parsed);
             return;
         }
 
+        // Check license before the per-relation round-trips so non-Enterprise clusters receive a license error
+        // rather than Unknown index, which would otherwise leak that a matching dataset exists in cluster state.
+        // Usage is NOT recorded here; recording is deferred until resolution confirms at least one dataset matched,
+        // so the esql-federation telemetry timestamp reflects genuine federation queries rather than heuristic matches.
+        if (federationLicense.isAllowedWithoutTracking() == false) {
+            listener.onFailure(EsqlLicenseChecker.invalidLicenseForFederationException(federationLicense.get()));
+            return;
+        }
+
         // One request per relation, chained sequentially via andThen so each result lands in the identity-keyed map
-        // before the next dispatches. (forEachUp may visit the same relation instance more than once in a degenerate
+        // before the next dispatches. (The walk may visit the same relation instance more than once in a degenerate
         // tree; the map dedups by identity.)
         Map<UnresolvedRelation, DatasetResolution> resolutions = new IdentityHashMap<>();
         SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
-        for (UnresolvedRelation relation : relations) {
+        for (ScopedRelation scoped : relations) {
+            UnresolvedRelation relation = scoped.relation();
             chain = chain.andThen((l, ignored) -> {
                 if (resolutions.containsKey(relation)) {
                     l.onResponse(null);
@@ -126,18 +161,22 @@ public class DatasetResolver {
                 var request = new EsqlResolveDatasetAction.Request(
                     REST_MASTER_TIMEOUT_DEFAULT,
                     DatasetRewriter.patternsOf(relation).toArray(String[]::new),
-                    wildcardsMatchDatasets
+                    scoped.wildcardsMatchDatasets()
                 );
                 client.execute(
                     EsqlResolveDatasetAction.TYPE,
                     request,
-                    new ThreadedActionListener<>(executor, l.delegateFailureAndWrap((delegate, response) -> {
-                        resolutions.put(
-                            relation,
-                            new DatasetResolution(response.datasets(), response.nonDatasetNames(), response.explicitUnauthorized())
-                        );
-                        delegate.onResponse(null);
-                    }))
+                    // Metered inside the fork, so planning CPU is measured on the SEARCH thread, not the transport thread.
+                    new ThreadedActionListener<>(
+                        executor,
+                        PlanningCpuTracker.inheritMeteredCpu(l.delegateFailureAndWrap((delegate, response) -> {
+                            resolutions.put(
+                                relation,
+                                new DatasetResolution(response.datasets(), response.nonDatasetNames(), response.explicitUnauthorized())
+                            );
+                            delegate.onResponse(null);
+                        }))
+                    )
                 );
             });
         }
@@ -146,7 +185,16 @@ public class DatasetResolver {
         // dataset (see DatasetRewriter.rewrite, crossProjectEnabled=true), which is how a remote INDEX of the same name
         // still federates in.
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        chain.andThenApply(ignored -> DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled))
-            .addListener(listener);
+        chain.andThenApply(ignored -> {
+            // Record federation usage only now that resolution has confirmed at least one dataset was matched.
+            boolean anyDatasetResolved = resolutions.values().stream().anyMatch(r -> r.resolvedExternalDatasets().isEmpty() == false);
+            if (anyDatasetResolved) {
+                federationLicense.isAllowed(); // records feature-usage telemetry; license already checked above
+            }
+            return DatasetRewriter.rewrite(parsed, projectMetadata, resolutions, crossProjectEnabled, pragmas, flags);
+        }).addListener(listener);
     }
+
+    /** A relation worth a dataset round-trip, with its effective {@code wildcards_match_datasets}. */
+    private record ScopedRelation(UnresolvedRelation relation, boolean wildcardsMatchDatasets) {}
 }

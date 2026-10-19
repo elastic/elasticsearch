@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
@@ -44,6 +45,8 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -261,6 +264,40 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
             snapshotStartTime,
             randomNonNegativeLong(),
             Map.of(shardId, initStatus),
+            null,
+            Map.of("dlm-managed", true),
+            IndexVersion.current()
+        );
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.EMPTY.withAddedEntry(entry);
+        return createProjectState(snapshotsInProgress);
+    }
+
+    /**
+     * Creates a ProjectState with the target index, a configured repository, and a snapshot entry
+     * whose shards have all completed successfully (entry state {@code SUCCESS}), but which has not
+     * yet been finalized and removed from {@link SnapshotsInProgress}. This reproduces the window in
+     * which {@code TransportGetSnapshotsAction} still reports the snapshot as {@code IN_PROGRESS}
+     * even though every shard is done, see #160210.
+     */
+    private ProjectState createProjectStateWithCompletedButNotFinalizedSnapshot(long snapshotStartTime) {
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+        IndexId indexId = new IndexId(indexName, randomAlphaOfLength(10));
+        ShardId shardId = new ShardId(new Index(indexName, indexId.getId()), 0);
+        SnapshotsInProgress.ShardSnapshotStatus successStatus = SnapshotsInProgress.ShardSnapshotStatus.success(
+            randomAlphaOfLength(10),
+            new ShardSnapshotResult(new ShardGeneration(randomAlphaOfLength(10)), ByteSizeValue.ofBytes(1), 1)
+        );
+        SnapshotsInProgress.Entry entry = SnapshotsInProgress.Entry.snapshot(
+            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
+            false,
+            false,
+            SnapshotsInProgress.State.SUCCESS,
+            Map.of(indexName, indexId),
+            List.of(),
+            List.of(),
+            snapshotStartTime,
+            randomNonNegativeLong(),
+            Map.of(shardId, successStatus),
             null,
             Map.of("dlm-managed", true),
             IndexVersion.current()
@@ -732,6 +769,56 @@ public class DLMConvertToFrozenSnapshotTests extends ESTestCase {
             () -> converter.waitForSnapshotCompletion(indexName, REPO_NAME, snapshotName, snapshotStartTime)
         );
         assertThat(e.getMessage(), containsString("failed shards"));
+        assertGetSnapshotsRequest(REPO_NAME, snapshotName);
+    }
+
+    /**
+     * Reproduces #160210: an entry can reach a completed shard-level state ({@code SUCCESS}) in
+     * {@link SnapshotsInProgress} before it is finalized in the repository and removed from cluster
+     * state. {@code waitForSnapshotCompletion} must keep waiting until the entry is removed, not
+     * return as soon as the entry's state is completed, otherwise {@code getSnapshot} can observe
+     * an internally-inconsistent, not-yet-finalized {@code SnapshotInfo} (reported as
+     * {@code IN_PROGRESS} by {@code TransportGetSnapshotsAction}) and fail the transition.
+     */
+    public void testWaitForSnapshotCompletion_entryCompletedButNotFinalized_waitsForRemoval() throws Exception {
+        long snapshotStartTime = clock.millis() - TimeValue.timeValueMinutes(5).millis();
+        ProjectState projectStateWithCompletedEntry = createProjectStateWithCompletedButNotFinalizedSnapshot(snapshotStartTime);
+        setClusterState(projectStateWithCompletedEntry);
+
+        SnapshotInfo successSnapshot = createSnapshotInfo(SnapshotState.SUCCESS, 0);
+        mockGetSnapshotsResponse.set(getSnapshotsResponseWith(successSnapshot));
+
+        DLMConvertToFrozen converter = createConverter();
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+
+        AtomicReference<Exception> threadException = new AtomicReference<>();
+        Thread waitingThread = new Thread(() -> {
+            try {
+                converter.waitForSnapshotCompletion(indexName, REPO_NAME, snapshotName, snapshotStartTime);
+            } catch (Exception e) {
+                threadException.set(e);
+            }
+        });
+        waitingThread.start();
+        try {
+            // The entry is still present (just not yet removed), so the wait must not have resolved
+            // yet and getSnapshot must not have been called.
+            waitingThread.join(200);
+            assertTrue("waitForSnapshotCompletion must still be waiting while the entry is present", waitingThread.isAlive());
+            assertThat(capturedGetSnapshotsRequest.get(), nullValue());
+
+            // Simulate finalization completing: the entry is removed from cluster state.
+            setClusterState(createProjectState());
+
+            waitingThread.join(TimeValue.timeValueSeconds(30).millis());
+            assertFalse("waitForSnapshotCompletion did not complete after the entry was removed", waitingThread.isAlive());
+        } finally {
+            if (waitingThread.isAlive()) {
+                waitingThread.interrupt();
+            }
+        }
+
+        assertThat(threadException.get(), nullValue());
         assertGetSnapshotsRequest(REPO_NAME, snapshotName);
     }
 

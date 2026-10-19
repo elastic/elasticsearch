@@ -140,7 +140,7 @@ public class NettyAllocator {
         RECYCLER = new Recycler<>() {
             @Override
             public Recycler.V<BytesRef> obtain() {
-                ByteBuf byteBuf = ALLOCATOR.heapBuffer(PageCacheRecycler.BYTE_PAGE_SIZE, PageCacheRecycler.BYTE_PAGE_SIZE);
+                ByteBuf byteBuf = allocator.heapBuffer(PageCacheRecycler.BYTE_PAGE_SIZE, PageCacheRecycler.BYTE_PAGE_SIZE);
                 assert byteBuf.hasArray();
                 BytesRef bytesRef = new BytesRef(byteBuf.array(), byteBuf.arrayOffset(), byteBuf.capacity());
                 return new Recycler.V<>() {

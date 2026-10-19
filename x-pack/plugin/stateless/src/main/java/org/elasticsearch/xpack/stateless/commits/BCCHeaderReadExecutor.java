@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.stateless.commits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.common.util.concurrent.InstrumentedThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Executor;
@@ -39,13 +40,15 @@ public class BCCHeaderReadExecutor implements Executor {
         Setting.Property.NodeScope
     );
 
-    private final ThrottledTaskRunner throttledFetchExecutor;
+    private final InstrumentedThrottledTaskRunner<ActionListener<Releasable>> throttledFetchExecutor;
 
-    public BCCHeaderReadExecutor(Settings settings, ThreadPool threadPool) {
-        this.throttledFetchExecutor = new ThrottledTaskRunner(
-            BCCHeaderReadExecutor.class.getCanonicalName(),
+    public BCCHeaderReadExecutor(Settings settings, ThreadPool threadPool, MeterRegistry meterRegistry) {
+        this.throttledFetchExecutor = new InstrumentedThrottledTaskRunner<>(
+            "bcc_header_read",
             maxConcurrency(settings, threadPool),
-            threadPool.generic()
+            threadPool.generic(),
+            meterRegistry,
+            threadPool::relativeTimeInNanos
         );
     }
 

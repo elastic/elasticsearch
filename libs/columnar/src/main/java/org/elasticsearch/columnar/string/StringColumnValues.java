@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.substrate.BytesSink;
 
 import java.io.IOException;
 
@@ -54,10 +55,14 @@ public abstract class StringColumnValues extends DocIdSetIterator {
 
     /**
      * What a column is counted for: the documents holding at least one slot, the slots they hold between
-     * them, how many of those are null, and the shortest and longest value in bytes, both {@code -1} when no
-     * slot holds one.
+     * them, how many of those are null, the shortest and longest value in bytes, both {@code -1} when no
+     * slot holds one, and whether every document holds exactly one slot.
+     *
+     * <p>{@code oneSlotADocument} is what says a rank is its own value address, so it decides whether the
+     * column keeps an addressing table. It cannot be read off the other counts: a document holding none and
+     * another holding two leave as many slots as documents while putting the two out of step.
      */
-    public record Totals(int numDocsWithField, long numValues, long numNullSlots, int minLength, int maxLength) {
+    public record Totals(int numDocsWithField, long numValues, long numNullSlots, int minLength, int maxLength, boolean oneSlotADocument) {
 
         /**
          * The length every slot's value has, or {@code -1} unless there is one: a column holding a null, or
@@ -90,6 +95,33 @@ public abstract class StringColumnValues extends DocIdSetIterator {
      * than merely describing it differently.
      */
     public abstract BytesRef value() throws IOException;
+
+    /** Hands the value the cursor is on, which must not be null, to {@code sink}, a piece at a time where the cursor can. */
+    public void transferValue(BytesSink sink) throws IOException {
+        final BytesRef value = value();
+        sink.append(value.bytes, value.offset, value.length);
+    }
+
+    /**
+     * Whether a plain column can be written from this cursor without holding a value, through {@link #transferValue} and
+     * {@link #repeatsPrevious}.
+     */
+    public boolean streamsValues() {
+        return false;
+    }
+
+    /**
+     * Whether the value the cursor is on is known to equal the value it was on before. False when unknown, which stores
+     * the repeat again.
+     */
+    public boolean repeatsPrevious() throws IOException {
+        return false;
+    }
+
+    /** Whether the values may arrive in term order. False spares the writer comparing them. */
+    public boolean mayBeSorted() {
+        return true;
+    }
 
     /**
      * The ordinal the value the cursor is on takes in the column being written, when the cursor already

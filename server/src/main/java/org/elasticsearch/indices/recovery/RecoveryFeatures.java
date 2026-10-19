@@ -37,9 +37,14 @@ public class RecoveryFeatures implements FeatureSpecification {
         "indices.recovery.restore_over_open_index_recreates_index_service"
     );
 
+    /** Nodes can clean up shard IDs removed by restoring a snapshot with fewer shards. */
+    public static final NodeFeature RESTORE_WITH_DIFFERENT_SHARD_COUNTS = new NodeFeature(
+        "indices.recovery.restore_with_different_shard_counts"
+    );
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE);
+        return Set.of(RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE, RESTORE_WITH_DIFFERENT_SHARD_COUNTS);
     }
 
     @Override

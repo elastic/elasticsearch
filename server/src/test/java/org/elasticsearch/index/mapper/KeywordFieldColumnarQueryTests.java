@@ -28,6 +28,11 @@ public class KeywordFieldColumnarQueryTests extends AbstractColumnarBinaryLayout
         return ((KeywordFieldMapper.KeywordFieldType) fieldType).binaryFormat();
     }
 
+    @Override
+    protected boolean writesPlain() {
+        return true;
+    }
+
     /** The queries a keyword field answers from its doc values on top of the ones every field type here does. */
     public void testTheRestOfTheKeywordQueriesAreAnsweredFromTheColumn() throws IOException {
         forEachLayout((field, context, hits) -> {

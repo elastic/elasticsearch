@@ -248,6 +248,58 @@ public class BigArraysTests extends ESTestCase {
         array2.close();
     }
 
+    /**
+     * An empty range must not write anything, including when it starts on a page boundary,
+     * where {@code toIndex - 1} falls on the previous page.
+     */
+    public void testEmptyFill() {
+        try (ByteArray array = bigArrays.newByteArray(3 * PageCacheRecycler.BYTE_PAGE_SIZE)) {
+            array.fill(0, array.size(), (byte) 1);
+            for (long from : new long[] { 0, PageCacheRecycler.BYTE_PAGE_SIZE, 2 * PageCacheRecycler.BYTE_PAGE_SIZE }) {
+                array.fill(from, from, (byte) 2);
+            }
+            for (long i = 0; i < array.size(); i++) {
+                assertEquals(1, array.get(i));
+            }
+        }
+        try (IntArray array = bigArrays.newIntArray(3 * PageCacheRecycler.INT_PAGE_SIZE)) {
+            array.fill(0, array.size(), 1);
+            for (long from : new long[] { 0, PageCacheRecycler.INT_PAGE_SIZE, 2 * PageCacheRecycler.INT_PAGE_SIZE }) {
+                array.fill(from, from, 2);
+            }
+            for (long i = 0; i < array.size(); i++) {
+                assertEquals(1, array.get(i));
+            }
+        }
+        try (LongArray array = bigArrays.newLongArray(3 * PageCacheRecycler.LONG_PAGE_SIZE)) {
+            array.fill(0, array.size(), 1);
+            for (long from : new long[] { 0, PageCacheRecycler.LONG_PAGE_SIZE, 2 * PageCacheRecycler.LONG_PAGE_SIZE }) {
+                array.fill(from, from, 2);
+            }
+            for (long i = 0; i < array.size(); i++) {
+                assertEquals(1, array.get(i));
+            }
+        }
+        try (FloatArray array = bigArrays.newFloatArray(3 * PageCacheRecycler.FLOAT_PAGE_SIZE)) {
+            array.fill(0, array.size(), 1);
+            for (long from : new long[] { 0, PageCacheRecycler.FLOAT_PAGE_SIZE, 2 * PageCacheRecycler.FLOAT_PAGE_SIZE }) {
+                array.fill(from, from, 2);
+            }
+            for (long i = 0; i < array.size(); i++) {
+                assertEquals(1, array.get(i), 0);
+            }
+        }
+        try (DoubleArray array = bigArrays.newDoubleArray(3 * PageCacheRecycler.DOUBLE_PAGE_SIZE)) {
+            array.fill(0, array.size(), 1);
+            for (long from : new long[] { 0, PageCacheRecycler.DOUBLE_PAGE_SIZE, 2 * PageCacheRecycler.DOUBLE_PAGE_SIZE }) {
+                array.fill(from, from, 2);
+            }
+            for (long i = 0; i < array.size(); i++) {
+                assertEquals(1, array.get(i), 0);
+            }
+        }
+    }
+
     public void testSerializeDoubleArray() throws Exception {
         int len = randomIntBetween(1, 100_000);
         DoubleArray array1 = bigArrays.newDoubleArray(len, randomBoolean());

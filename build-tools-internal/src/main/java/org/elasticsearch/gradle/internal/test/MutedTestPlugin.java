@@ -9,7 +9,6 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
@@ -20,6 +19,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class MutedTestPlugin implements Plugin<Project> {
@@ -28,7 +28,7 @@ public class MutedTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         var buildParams = loadBuildParams(project).get();
 
         File settingsRoot = project.getLayout().getSettingsDirectory().getAsFile();
@@ -55,7 +55,7 @@ public class MutedTestPlugin implements Plugin<Project> {
         if (mutedTestsEnabled) {
             project.getTasks().withType(Test.class).configureEach(test -> {
                 test.filter(filter -> {
-                    for (String exclude : mutedTestsProvider.get().getExcludePatterns()) {
+                    for (String exclude : mutedTestsProvider.get().getExcludePatternsForTask(test.getPath())) {
                         filter.excludeTestsMatching(exclude);
                     }
                 });

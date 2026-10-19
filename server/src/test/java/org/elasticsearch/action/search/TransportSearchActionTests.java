@@ -35,17 +35,23 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -147,6 +153,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -2076,7 +2083,13 @@ public class TransportSearchActionTests extends ESTestCase {
                 threadPool,
                 null
             );
-            clusterService.getClusterApplierService().setInitialState(ClusterState.EMPTY_STATE);
+            DiscoveryNode localNode = DiscoveryNodeUtils.create("local_node");
+            clusterService.getClusterApplierService()
+                .setInitialState(
+                    ClusterState.builder(ClusterState.EMPTY_STATE)
+                        .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
+                        .build()
+                );
 
             TransportSearchAction action = new TransportSearchAction(
                 threadPool,
@@ -2101,7 +2114,8 @@ public class TransportSearchActionTests extends ESTestCase {
             );
 
             CountDownLatch latch = new CountDownLatch(1);
-            action.doExecute(null, searchRequest, new ActionListener<>() {
+            SearchTask task = new SearchTask(1, "search", "search", () -> "desc", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+            action.doExecute(task, searchRequest, new ActionListener<>() {
 
                 @Override
                 public void onResponse(SearchResponse response) {
@@ -2137,12 +2151,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     .put("index.slice.enabled", true)
             )
             .build();
-        TransportSearchAction.validateAndResolveSearchSliceRouting(
-            request,
-            Map.of(metadata.getIndex(), metadata),
-            request.indices(),
-            false
-        );
+        TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(metadata.getIndex(), metadata), request.indices());
         assertNull("omitting _slice on a slice-enabled index should default to _all (null routing)", request.routing());
     }
 
@@ -2163,18 +2172,16 @@ public class TransportSearchActionTests extends ESTestCase {
             () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
                 request,
                 Map.of(metadata.getIndex(), metadata),
-                request.indices(),
-                false
+                request.indices()
             )
         );
         assertThat(e.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(e.getMessage(), containsString("use [slice] instead"));
+        assertThat(e.getMessage(), containsString("use [_slice] instead"));
     }
 
-    public void testValidateAndResolveSearchSliceRoutingRejectsSliceWhenDisabled() {
+    public void testValidateAndResolveSearchSliceRoutingAcceptsSliceWhenDisabled() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest("slice-disabled-index");
-        request.routing("s1");
         request.searchSlice("s1");
         IndexMetadata metadata = IndexMetadata.builder("slice-disabled-index")
             .settings(
@@ -2183,16 +2190,14 @@ public class TransportSearchActionTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
             .build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
-                request,
-                Map.of(metadata.getIndex(), metadata),
-                request.indices(),
-                false
-            )
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(metadata.getIndex(), metadata),
+            request.indices()
         );
-        assertThat(e.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertEquals("s1", requestedSlice);
+        assertEquals("s1", request.routing());
+        assertTrue(request.isRoutingFromSlice());
     }
 
     public void testValidateAndResolveSearchSliceRoutingAcceptsMixedTargets() {
@@ -2218,8 +2223,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled, disabled.getIndex(), disabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertEquals("s1,s2", requestedSlice);
         assertEquals("s1,s2", request.routing());
@@ -2240,8 +2244,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertEquals(SliceIndexing.SLICE_ALL, requestedSlice);
         assertNull(request.routing());
@@ -2252,7 +2255,7 @@ public class TransportSearchActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest("remote:idx");
         request.routing("s1");
         request.searchSlice("s1");
-        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(), request.indices(), true);
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(), request.indices());
         assertEquals("s1", requestedSlice);
         assertEquals("s1", request.routing());
     }
@@ -2273,8 +2276,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertNull(requestedSlice);
         assertNull(request.routing());
@@ -2297,8 +2299,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
             request,
             Map.of(enabled.getIndex(), enabled),
-            request.indices(),
-            false
+            request.indices()
         );
         assertEquals("tenant-a", requestedSlice);
         assertEquals("tenant-a", request.searchSlice());
@@ -2459,6 +2460,76 @@ public class TransportSearchActionTests extends ESTestCase {
             .toArray(String[]::new);
 
         assertThat(Arrays.asList(actual), containsInAnyOrder(expected));
+    }
+
+    /**
+     * The master lifts the refresh block once all search shards are active, but applies that state after the other nodes. Until then
+     * a node may still see the block on an index that is ready for search, and must not skip it.
+     */
+    public void testDoNotIgnoreReadyForSearchIndicesWithIndexRefreshBlock() {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final ClusterState ready = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+            projectId,
+            new String[] { "ready" },
+            randomIntBetween(1, 3),
+            randomIntBetween(0, 2)
+        );
+        final int notReadyShards = randomIntBetween(2, 3);
+        final ClusterState notReady = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+            projectId,
+            new String[] { "not-ready" },
+            notReadyShards,
+            randomIntBetween(0, 2)
+        );
+        // Leave one shard with no active searchable copy. readyForSearch() requires every shard to have one.
+        final int unreadyShardId = randomIntBetween(0, notReadyShards - 1);
+        final IndexRoutingTable assigned = notReady.routingTable(projectId).index("not-ready");
+        final IndexRoutingTable.Builder notReadyRouting = IndexRoutingTable.builder(assigned.getIndex());
+        for (int shardId = 0; shardId < assigned.size(); shardId++) {
+            IndexShardRoutingTable shardRoutingTable = assigned.shard(shardId);
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
+                if (shardId == unreadyShardId) {
+                    notReadyRouting.addShard(
+                        shardRouting.moveToUnassigned(
+                            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                        )
+                    );
+                } else {
+                    notReadyRouting.addShard(shardRouting);
+                }
+            }
+        }
+        final ClusterState clusterState = ClusterState.builder(ready)
+            .metadata(
+                Metadata.builder(ready.metadata())
+                    .put(
+                        ProjectMetadata.builder(ready.metadata().getProject(projectId))
+                            .put(notReady.metadata().getProject(projectId).index("not-ready"), false)
+                    )
+            )
+            .routingTable(
+                GlobalRoutingTable.builder(ready.globalRoutingTable())
+                    .put(projectId, RoutingTable.builder(ready.routingTable(projectId)).add(notReadyRouting.build()))
+                    .build()
+            )
+            .blocks(
+                ClusterBlocks.builder()
+                    .addIndexBlock(projectId, "ready", IndexMetadata.INDEX_REFRESH_BLOCK)
+                    .addIndexBlock(projectId, "not-ready", IndexMetadata.INDEX_REFRESH_BLOCK)
+            )
+            .build();
+
+        assertThat(clusterState.routingTable(projectId).index("ready").readyForSearch(), equalTo(true));
+        assertThat(clusterState.routingTable(projectId).index("not-ready").readyForSearch(), equalTo(false));
+
+        String[] actual = TransportSearchAction.ignoreBlockedIndices(
+            clusterState.projectState(projectId),
+            new String[] { "ready", "not-ready" }
+        );
+
+        assertThat(actual, arrayContaining("ready"));
     }
 
     public void testCcsClusterInfoUpdateInternalCancel_UpdatesStatus() {

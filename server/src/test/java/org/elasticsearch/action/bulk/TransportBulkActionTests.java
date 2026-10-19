@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -52,6 +52,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
@@ -163,7 +164,8 @@ public class TransportBulkActionTests extends ESTestCase {
                     }
                 },
                 new TimeSeriesEligibleWriteWindowLocator(),
-                DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                BigArrays.NON_RECYCLING_INSTANCE
             );
         }
 
@@ -345,7 +347,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
-        assertThat(exception.getMessage(), containsString("[slice] is required when [index.slice.enabled] is true"));
+        assertThat(exception.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
     }
 
     public void testRequireSliceRoutingWhenSliceEnabledAndRoutingProvided() {
@@ -364,7 +366,7 @@ public class TransportBulkActionTests extends ESTestCase {
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
         assertThat(exception.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
-        assertThat(exception.getMessage(), containsString("use [slice] instead"));
+        assertThat(exception.getMessage(), containsString("use [_slice] instead"));
     }
 
     public void testRequireSliceRoutingWhenSliceEnabledAndSliceProvided() {
@@ -396,7 +398,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
-        assertThat(exception.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(exception.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {
@@ -428,7 +430,7 @@ public class TransportBulkActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
         );
-        assertThat(exception.getMessage(), containsString("[slice] is not allowed when [index.slice.enabled] is false"));
+        assertThat(exception.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
     public void testDeleteRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {

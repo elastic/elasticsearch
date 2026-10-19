@@ -1,0 +1,4 @@
+FROM (FROM (FROM employees | SORT last_name),
+           (FROM employees | SORT first_name)
+      | SORT emp_no),
+     (FROM languages | SORT language_name)

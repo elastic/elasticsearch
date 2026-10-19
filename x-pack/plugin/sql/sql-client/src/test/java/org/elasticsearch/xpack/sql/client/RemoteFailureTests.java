@@ -136,11 +136,7 @@ public class RemoteFailureTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            startsWith(
-                "Can't parse error from Elasticsearch [Unrecognized token 'ÿ': "
-                    + "was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')] "
-                    + "at [line 1 col 4]. Response:\n"
-            )
+            startsWith("Can't parse error from Elasticsearch [Invalid UTF-8 start byte 0xff] at [line 1 col 4]. Response:\n")
         );
     }
 

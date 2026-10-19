@@ -713,9 +713,12 @@ public class CsvTests extends ESTestCase {
             }
         };
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
-        runner.runToCompletion(
-            drivers,
-            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, DriverCompletionInfo.EMPTY, null))
-        );
+        runner.runToCompletion(drivers, listener.map(ignore -> {
+            DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(drivers);
+            for (String w : info.warnings()) {
+                HeaderWarning.addWarning(w);
+            }
+            return new Result(physicalPlan.output(), collectedPages, info, null);
+        }));
     }
 }

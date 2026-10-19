@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161455
+summary: "Fix IN pushdown on ip, version, unsigned_long, date fields"
+type: bug

@@ -20,6 +20,7 @@ steps:
               - sles-15
               - ubuntu-2204
               - ubuntu-2404
+              - ubuntu-2604
               - rocky-8
               - rocky-9
               - rocky-10
@@ -630,8 +631,8 @@ steps:
         env:
           BWC_VERSION: 8.18.8
 
-      - label: "{{matrix.image}} / 8.19.22 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.22
+      - label: "{{matrix.image}} / 8.19.24 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.24
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -644,7 +645,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.19.22
+          BWC_VERSION: 8.19.24
 
   - group: packaging-tests-windows
     steps:

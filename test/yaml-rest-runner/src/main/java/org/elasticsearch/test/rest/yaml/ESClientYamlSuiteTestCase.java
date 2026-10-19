@@ -10,6 +10,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpHost;
@@ -40,6 +41,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Parameter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -112,7 +115,35 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private static ClientYamlSuiteRestSpec restSpecification;
 
     protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
+        assertCandidateParameterNamedYaml(getClass());
         this.testCandidate = testCandidate;
+    }
+
+    /**
+     * randomizedtesting names each parameterized test case from the {@code @Name} annotations on the suite constructor's parameters, and
+     * falls back to {@code p<N>} when one is missing, reporting {@code test {p0=...}} instead of {@code test {yaml=...}}. Build tooling
+     * and {@code muted-tests.yml} match on {@code yaml}, and {@code @Name} is not inherited, so every concrete suite must declare it. This
+     * fails fast, naming the offending suite, rather than letting tests quietly run under a different name.
+     * <p>
+     * The annotation is required on the {@link ClientYamlTestCandidate} parameter wherever it sits; other parameters are not checked.
+     */
+    static void assertCandidateParameterNamedYaml(Class<?> suiteClass) {
+        for (Constructor<?> constructor : suiteClass.getConstructors()) {
+            for (Parameter parameter : constructor.getParameters()) {
+                if (ClientYamlTestCandidate.class.isAssignableFrom(parameter.getType()) == false) {
+                    continue;
+                }
+                Name name = parameter.getAnnotation(Name.class);
+                if (name == null || "yaml".equals(name.value()) == false) {
+                    throw new IllegalStateException(
+                        "Suite ["
+                            + suiteClass.getName()
+                            + "] must declare `@Name(\"yaml\")` on its ClientYamlTestCandidate constructor parameter so test cases are "
+                            + "reported as `test {yaml=...}`. See https://github.com/elastic/elasticsearch/pull/160897."
+                    );
+                }
+            }
+        }
     }
 
     @Before
@@ -347,12 +378,29 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /** Find all yaml suites that match the given list of paths from the root test path. */
     // pkg private for tests
     static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
-        Map<String, Set<Path>> files = new HashMap<>();
         Path[] roots = ClasspathUtils.findFilePaths(ESClientYamlSuiteTestCase.class.getClassLoader(), TESTS_PATH);
-        for (Path root : roots) {
-            for (String strPath : paths) {
+        return loadSuites(roots, paths);
+    }
+
+    /**
+     * Find all yaml suites that match the given list of paths under the supplied {@code roots}.
+     *
+     * A yamlRestTest task can have more than one root on its classpath: the project's own
+     * {@code src/yamlRestTest/resources/rest-api-spec/test} resources, plus the output of
+     * {@code copyYamlTestsTask} (in {@code build/restResources/yamlTests}) that may pull in
+     * tests from sibling projects. A given user-specified suite path normally only lives in
+     * one of those roots, so requiring it to exist in every root produces spurious failures.
+     * Instead, require each path to be resolvable as a directory or {@code .yml} file in at
+     * least one root, and just skip roots where it isn't present.
+     */
+    static Map<String, Set<Path>> loadSuites(Path[] roots, String... paths) throws Exception {
+        Map<String, Set<Path>> files = new HashMap<>();
+        for (String strPath : paths) {
+            boolean found = false;
+            for (Path root : roots) {
                 Path path = root.resolve(strPath);
                 if (Files.isDirectory(path)) {
+                    found = true;
                     try (var filesStream = Files.walk(path)) {
                         filesStream.forEach(file -> {
                             if (file.toString().endsWith(".yml")) {
@@ -363,11 +411,22 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                         });
                     }
                 } else {
-                    path = root.resolve(strPath + ".yml");
-                    assert Files.exists(path) : "Path " + path + " does not exist in YAML test root";
-                    addSuite(root, path, files);
+                    Path ymlPath = root.resolve(strPath + ".yml");
+                    if (Files.exists(ymlPath)) {
+                        found = true;
+                        addSuite(root, ymlPath, files);
+                    }
                 }
             }
+            // The empty string is the "include everything" sentinel used by the default
+            // createParameters() entry point. It is legitimately allowed to resolve to
+            // nothing - e.g. a yamlRestCompatTest task whose project has no compat tests
+            // at all, so the classpath exposes no rest-api-spec/test root. Only enforce
+            // the typo guard for explicit, non-empty user-supplied suite paths, and only
+            // when there is at least one root to search (empty roots means no compat tests
+            // exist for this module at all, which is also legitimate).
+            assert strPath.isEmpty() || roots.length == 0 || found
+                : "Path " + strPath + " does not exist in any YAML test root: " + Arrays.toString(roots);
         }
         return files;
     }

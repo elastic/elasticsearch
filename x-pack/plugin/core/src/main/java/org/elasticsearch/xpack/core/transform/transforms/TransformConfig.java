@@ -628,7 +628,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                     builder.getSettings().getUsePit(),
                     builder.getSettings().getDeduceMappings(),
                     builder.getSettings().getNumFailureRetries(),
-                    builder.getSettings().getUnattended()
+                    builder.getSettings().getUnattended(),
+                    builder.getSettings().getIndexerRequestTimeout()
                 )
             );
         }
@@ -644,7 +645,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                     builder.getSettings().getUsePit(),
                     builder.getSettings().getDeduceMappings(),
                     builder.getSettings().getNumFailureRetries(),
-                    builder.getSettings().getUnattended()
+                    builder.getSettings().getUnattended(),
+                    builder.getSettings().getIndexerRequestTimeout()
                 )
             );
         }
@@ -679,7 +681,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                     builder.getSettings().getUsePit(),
                     builder.getSettings().getDeduceMappings(),
                     builder.getSettings().getNumFailureRetries(),
-                    builder.getSettings().getUnattended()
+                    builder.getSettings().getUnattended(),
+                    builder.getSettings().getIndexerRequestTimeout()
                 )
             );
         }

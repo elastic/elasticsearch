@@ -15,24 +15,25 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 
-import java.util.function.Supplier;
-
 public class ColumnExtractOperator extends AbstractPageMappingOperator {
 
-    public record Factory(
-        ElementType[] types,
-        ExpressionEvaluator.Factory inputEvalSupplier,
-        Supplier<ColumnExtractOperator.Evaluator> evaluatorSupplier
-    ) implements OperatorFactory {
+    public record Factory(ElementType[] types, ExpressionEvaluator.Factory inputEvalSupplier, Evaluator.Factory evaluatorProvider)
+        implements
+            OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ColumnExtractOperator(types, inputEvalSupplier.get(driverContext), evaluatorSupplier.get(), driverContext);
+            return new ColumnExtractOperator(
+                types,
+                inputEvalSupplier.get(driverContext),
+                evaluatorProvider.create(driverContext),
+                driverContext
+            );
         }
 
         @Override
         public String describe() {
-            return "ColumnExtractOperator[evaluator=" + evaluatorSupplier.get() + "]";
+            return "ColumnExtractOperator[evaluator=" + evaluatorProvider.describe() + "]";
         }
     }
 
@@ -98,6 +99,12 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
     }
 
     public interface Evaluator {
+        interface Factory {
+            Evaluator create(DriverContext driverContext);
+
+            String describe();
+        }
+
         void computeRow(BytesRefBlock input, int row, Block.Builder[] target, BytesRef spare);
     }
 

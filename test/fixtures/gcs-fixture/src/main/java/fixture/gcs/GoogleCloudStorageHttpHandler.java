@@ -24,6 +24,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.BufferedReader;
@@ -59,8 +60,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageHttpHandler.class);
 
+    private static final String CRLF = "\r\n";
+
+    // maximum number of injected batch delete failures for an individual blob, to avoid unbounded retries
+    private static final int MAX_DELETE_FAILURES = 3;
+
     private final ConcurrentMap<String, BytesReference> blobs;
     private final String bucket;
+    private final Map<String, Integer> batchDeleteFailureCounters = new HashMap<>();
 
     public GoogleCloudStorageHttpHandler(final String bucket) {
         this.bucket = Objects.requireNonNull(bucket);
@@ -172,15 +179,17 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 // Batch https://cloud.google.com/storage/docs/json_api/v1/how-tos/batch
                 final String uri = "/storage/v1/b/" + bucket + "/o/";
                 final StringBuilder batch = new StringBuilder();
+                // allow some batches to proceed without partial failures
+                final boolean allowPartialFailures = ESTestCase.randomBoolean();
                 for (String line : Streams.readAllLines(requestBody.streamInput())) {
                     if (line.length() == 0 || line.startsWith("--") || line.toLowerCase(Locale.ROOT).startsWith("content")) {
                         batch.append(line).append("\r\n");
                     } else if (line.startsWith("DELETE")) {
                         final String name = line.substring(line.indexOf(uri) + uri.length(), line.lastIndexOf(" HTTP"));
                         if (Strings.hasText(name)) {
-                            blobs.remove(URLDecoder.decode(name, UTF_8));
-                            batch.append("HTTP/1.1 204 NO_CONTENT").append("\r\n");
-                            batch.append("\r\n");
+                            final String blobName = URLDecoder.decode(name, UTF_8);
+                            final RestStatus status = allowPartialFailures ? deleteBlobOrRandomlyFail(blobName) : deleteBlob(blobName);
+                            batch.append(deleteItemStatusToHttpContent(status));
                         }
                     }
                 }
@@ -267,6 +276,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
+            } else if (Regex.simpleMatch("DELETE /storage/v1/b/" + bucket + "/o/*", request)) {
+                final String key = exchange.getRequestURI().getPath().replace("/storage/v1/b/" + bucket + "/o/", "");
+                // don't fail single deletes here, the failures are injected in batch requests or by the test's erroneous handler
+                exchange.sendResponseHeaders(deleteBlob(key).getStatus(), -1);
             } else {
                 exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
             }
@@ -274,6 +287,62 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             logger.debug("finished handling GCS request [{}] on thread [{}]", request, threadName);
             exchange.close();
         }
+    }
+
+    private RestStatus deleteBlobOrRandomlyFail(String blobName) {
+        synchronized (batchDeleteFailureCounters) {
+            final int failures = batchDeleteFailureCounters.getOrDefault(blobName, 0);
+            // 10% failure is an arbitrary number, not too small, not too big
+            if (ESTestCase.between(1, 10) == 1 && failures < MAX_DELETE_FAILURES) {
+                batchDeleteFailureCounters.put(blobName, failures + 1);
+                return ESTestCase.randomFrom(
+                    RestStatus.REQUEST_TIMEOUT,
+                    RestStatus.TOO_MANY_REQUESTS,
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    RestStatus.BAD_GATEWAY,
+                    RestStatus.SERVICE_UNAVAILABLE,
+                    RestStatus.GATEWAY_TIMEOUT
+                );
+            }
+            return deleteBlob(blobName);
+        }
+    }
+
+    private RestStatus deleteBlob(String blobName) {
+        synchronized (batchDeleteFailureCounters) {
+            batchDeleteFailureCounters.remove(blobName);
+            return blobs.remove(blobName) != null ? RestStatus.NO_CONTENT : RestStatus.NOT_FOUND;
+        }
+    }
+
+    // returns the HTTP content of a part in a multipart batch delete response
+    private static String deleteItemStatusToHttpContent(RestStatus itemStatus) {
+        final String statusLine = switch (itemStatus) {
+            case NO_CONTENT -> "204 No Content";
+            case NOT_FOUND -> "404 Not Found";
+            case REQUEST_TIMEOUT -> "408 Request Timeout";
+            case TOO_MANY_REQUESTS -> "429 Too Many Requests";
+            case INTERNAL_SERVER_ERROR -> "500 Internal Server Error";
+            case BAD_GATEWAY -> "502 Bad Gateway";
+            case SERVICE_UNAVAILABLE -> "503 Service Unavailable";
+            case GATEWAY_TIMEOUT -> "504 Gateway Timeout";
+            default -> throw new AssertionError("HTTP status line is not implemented for " + itemStatus);
+        };
+        final StringBuilder responseText = new StringBuilder("HTTP/1.1 ").append(statusLine).append(CRLF);
+        if (itemStatus == RestStatus.NO_CONTENT) {
+            return responseText.append(CRLF).toString();
+        }
+        // an error must contain a JSON object describing the error, a minimal description needs at least an error code
+        final String errorObj = "{\"error\":{\"code\":" + itemStatus.getStatus() + "}}";
+        return responseText.append("content-type: application/json")
+            .append(CRLF)
+            .append("content-length: ")
+            .append(errorObj.length())
+            .append(CRLF)
+            .append(CRLF)
+            .append(errorObj)
+            .append(CRLF)
+            .toString();
     }
 
     private String buildBlobInfoJson(String blobName, int size) {

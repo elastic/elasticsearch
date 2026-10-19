@@ -15,8 +15,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -346,17 +348,54 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return fieldType.termsQuery(values, context);
     }
 
-    private static void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
+    private static void fetch(TermsLookup termsLookup, Client client, int maxTermsCount, ActionListener<List<Object>> actionListener) {
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
         client.get(getRequest, actionListener.map(getResponse -> {
             List<Object> terms = new ArrayList<>();
             if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
                 List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
+                // Enforce the limit on the coordinating node, while the lookup is resolved, so that an oversized value list is
+                // rejected before it is copied and serialized to the data nodes. Each shard still enforces its own limit in doToQuery.
+                if (extractedValues.size() > maxTermsCount) {
+                    throw new IllegalArgumentException(
+                        "The number of terms ["
+                            + extractedValues.size()
+                            + "] used in the Terms Query request has exceeded "
+                            + "the allowed maximum of ["
+                            + maxTermsCount
+                            + "]. "
+                            + "This maximum can be set by changing the ["
+                            + IndexSettings.MAX_TERMS_COUNT_SETTING.getKey()
+                            + "] index level setting."
+                    );
+                }
                 terms.addAll(extractedValues);
             }
             return terms;
         }));
+    }
+
+    /**
+     * Resolves the maximum number of terms a lookup is allowed to return, using the {@code index.max_terms_count} setting of the
+     * local target indices. The largest limit across the resolved local indices is used, so the lookup is only rejected when it
+     * exceeds the value list that every target shard would accept; each shard still enforces its own limit when the query is built.
+     * When no local index metadata is available, {@link Integer#MAX_VALUE} is returned, leaving enforcement to the shard-level check.
+     */
+    private static int resolveMaxTermsCount(QueryRewriteContext context) {
+        ResolvedIndices resolvedIndices = context.getResolvedIndices();
+        if (resolvedIndices == null) {
+            return Integer.MAX_VALUE;
+        }
+        Collection<IndexMetadata> localIndices = resolvedIndices.getConcreteLocalIndicesMetadata().values();
+        if (localIndices.isEmpty()) {
+            return Integer.MAX_VALUE;
+        }
+        int maxTermsCount = 0;
+        for (IndexMetadata indexMetadata : localIndices) {
+            maxTermsCount = Math.max(maxTermsCount, IndexSettings.MAX_TERMS_COUNT_SETTING.get(indexMetadata.getSettings()));
+        }
+        return maxTermsCount;
     }
 
     @Override
@@ -377,8 +416,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (supplier != null) {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get());
         } else if (this.termsLookup != null) {
+            int maxTermsCount = resolveMaxTermsCount(queryRewriteContext);
             SetOnce<List<?>> supplier = new SetOnce<>();
-            queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, listener.map(list -> {
+            queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, maxTermsCount, listener.map(list -> {
                 supplier.set(list);
                 return null;
             })));

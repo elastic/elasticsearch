@@ -611,7 +611,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             configManager,
             mockAuditor
         );
-        return new TransformServices(configManager, transformCheckpointService, mockAuditor, scheduler, mock(TransformNode.class));
+        return new TransformServices(
+            configManager,
+            transformCheckpointService,
+            mockAuditor,
+            scheduler,
+            mock(TransformNode.class),
+            Clock.systemUTC()
+        );
     }
 
     private TransformPersistentTasksExecutor buildTaskExecutor(TransformServices transformServices) {

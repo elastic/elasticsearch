@@ -26,6 +26,7 @@ import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -116,20 +117,30 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * indices.
          */
         boolean isMappedField(String name);
+
+        /**
+         * A field ES|QL can extract: mapped, and not under a nested parent.
+         * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
+         * field-caps request, so nested subfields must not be loaded.
+         */
+        boolean isExtractableMappedField(String name);
     }
 
     private final List<ShardContext> shardContexts;
     private final PhysicalSettings physicalSettings;
+    private final QueryWarnings singleValueQueryWarnings;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         List<ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
-        PhysicalSettings physicalSettings
+        PhysicalSettings physicalSettings,
+        QueryWarnings singleValueQueryWarnings
     ) {
         super(foldContext, analysisRegistry);
         this.shardContexts = shardContexts;
         this.physicalSettings = physicalSettings;
+        this.singleValueQueryWarnings = singleValueQueryWarnings;
     }
 
     @Override
@@ -201,10 +212,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     /**
      * Like {@link #querySupplier(QueryBuilder)} but skips shards where {@code fieldName} is not
-     * a concrete mapped field. Flattened fields store terms for their sub-keys in Lucene even though
-     * those sub-keys are absent from the real mapping; a plain EXISTS query would therefore find
-     * documents in flattened shards and inflate field-level COUNT results. Wildcard ({@code "*"})
-     * means COUNT(*) — count every document — so no per-field guard is applied in that case.
+     * extractable. Flattened fields store terms for their sub-keys in Lucene even though those
+     * sub-keys are absent from the real mapping; nested subfields are in the mapping but
+     * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
+     * field-caps request, and {@code include_in_root} copies their values onto the parent
+     * document. A plain EXISTS query would therefore inflate field-level COUNT results. Wildcard
+     * ({@code "*"}) means COUNT(*) — count every document — so no per-field guard is applied in
+     * that case.
      */
     public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplierForField(
         QueryBuilder builder,
@@ -215,7 +229,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return innerFn;
         }
         return ctx -> {
-            if (shardContexts.get(ctx.index()).isMappedField(fieldName) == false) {
+            if (shardContexts.get(ctx.index()).isExtractableMappedField(fieldName) == false) {
                 return List.of();
             }
             return innerFn.apply(ctx);
@@ -254,7 +268,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 limit,
                 sortBuilders,
                 estimatedPerRowSortSize,
-                scoring
+                scoring,
+                singleValueQueryWarnings
             );
         } else {
             if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
@@ -267,7 +282,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     context.queryPragmas().taskConcurrency(),
                     context.pageSize(rowEstimatedSize),
                     limit,
-                    scoring
+                    scoring,
+                    singleValueQueryWarnings
                 );
             }
         }
@@ -293,7 +309,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             context.queryPragmas().dataPartitioning(physicalSettings.defaultDataPartitioning()),
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             context.queryPragmas().taskConcurrency(),
-            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx())
+            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
+            singleValueQueryWarnings
         );
     }
 
@@ -415,6 +432,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 // the field does not exist in this context
                 return BlockLoader.CONSTANT_NULLS;
             }
+            // Nested subfields are mapped, but IndexResolver applies -nested on the field-caps request (#154011).
+            if (name.indexOf('.') > 0 && isExtractableMappedField(name) == false) {
+                return BlockLoader.CONSTANT_NULLS;
+            }
             BlockLoader loader = fieldType.blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override
                 public String indexName() {
@@ -467,6 +488,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public boolean isMappedField(String name) {
             return ctx.isMappedField(name);
+        }
+
+        @Override
+        public boolean isExtractableMappedField(String name) {
+            return isMappedField(name) && ctx.nestedLookup().hasNestedParent(name) == false;
         }
     }
 

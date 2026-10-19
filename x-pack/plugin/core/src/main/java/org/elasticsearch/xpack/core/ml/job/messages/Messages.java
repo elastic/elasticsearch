@@ -156,6 +156,10 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED = "Datafeed lookback completed";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA = "Datafeed lookback retrieved no data";
     public static final String JOB_AUDIT_DATAFEED_NO_DATA = "Datafeed has been retrieving no data for a while";
+    public static final String JOB_AUDIT_DATAFEED_STOPPED_CONSECUTIVE_EXTRACTION_FAILURES =
+        "Datafeed auto-stopped after {0} consecutive real-time extraction failures. Last error: {1}. "
+            + "Job remains open. Fix the source problem, then start the datafeed. "
+            + "To change the threshold, set max_consecutive_extraction_failures on the datafeed (-1 disables).";
     public static final String JOB_AUDIT_DATAFEED_MISSING_DATA =
         "Datafeed has missed {0} documents due to ingest latency, latest bucket with missing data is [{1}]."
             + " Consider increasing query_delay and investigate the cause of high latency in your ingestion process.";

@@ -14,8 +14,18 @@ import spock.lang.TempDir
 
 import org.apache.commons.io.FileUtils
 import org.gradle.testkit.runner.GradleRunner
+import org.gradle.util.GradleVersion
+
+import java.io.FileFilter
+import java.nio.channels.FileChannel
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.nio.file.StandardOpenOption
+import java.util.UUID
 
 abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    private static final String WRAPPER_DISTS_RELATIVE_PATH = "wrapper/dists"
 
     /**
      * Shared temporary directory for the prepared git remote. Using {@code @Shared @TempDir}
@@ -32,6 +42,7 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPlug
     File remoteGitRepo
 
     def setup() {
+        seedTestKitWrapperCache()
         if (preparedRemoteGitDir == null) {
             preparedRemoteGitDir = setupGitRemote()
         }
@@ -65,6 +76,75 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPlug
         execute("git add .", workingRemoteGit)
         execute('git commit -m"Initial"', workingRemoteGit)
         return workingRemoteGit;
+    }
+
+    private static void seedTestKitWrapperCache() {
+        String testKitDirPath = System.getProperty("org.gradle.testkit.dir")
+        if (testKitDirPath == null) {
+            return
+        }
+        String currentWrapperDistributionDirName = "gradle-${GradleVersion.current().version}-bin"
+        File testKitWrapperDistsDir = new File(testKitDirPath, WRAPPER_DISTS_RELATIVE_PATH)
+        File testKitWrapperDistributionDir = new File(testKitWrapperDistsDir, currentWrapperDistributionDirName)
+        if (isReadyWrapperDistribution(testKitWrapperDistributionDir)) {
+            return
+        }
+        File gradleUserHome = resolveGradleUserHome()
+        File localWrapperDistributionDir = new File(new File(gradleUserHome, WRAPPER_DISTS_RELATIVE_PATH), currentWrapperDistributionDirName)
+        if (isReadyWrapperDistribution(localWrapperDistributionDir) == false) {
+            return
+        }
+        File wrapperSeedLock = new File(testKitWrapperDistributionDir.parentFile, currentWrapperDistributionDirName + ".seed.lock")
+        withExclusiveFileLock(wrapperSeedLock) {
+            if (isReadyWrapperDistribution(testKitWrapperDistributionDir)) {
+                return
+            }
+            if (testKitWrapperDistributionDir.exists()) {
+                FileUtils.deleteDirectory(testKitWrapperDistributionDir)
+            }
+            File stagingDir = new File(testKitWrapperDistributionDir.parentFile, testKitWrapperDistributionDir.name + ".tmp-" + UUID.randomUUID())
+            FileUtils.deleteQuietly(stagingDir)
+            FileUtils.copyDirectory(localWrapperDistributionDir, stagingDir)
+            Files.move(stagingDir.toPath(), testKitWrapperDistributionDir.toPath(), StandardCopyOption.ATOMIC_MOVE)
+        }
+    }
+
+    private static boolean isReadyWrapperDistribution(File wrapperDistributionDir) {
+        if (wrapperDistributionDir.isDirectory() == false) {
+            return false
+        }
+        String extractedGradleDirName = wrapperDistributionDir.name.endsWith("-bin")
+            ? wrapperDistributionDir.name.substring(0, wrapperDistributionDir.name.length() - "-bin".length())
+            : wrapperDistributionDir.name
+        File[] hashDirs = wrapperDistributionDir.listFiles({ File file -> file.isDirectory() } as FileFilter)
+        if (hashDirs == null || hashDirs.length == 0) {
+            return false
+        }
+        return hashDirs.any { hashDir ->
+            new File(hashDir, wrapperDistributionDir.name + ".zip.ok").isFile()
+                && new File(hashDir, extractedGradleDirName + "/bin/gradle").isFile()
+        }
+    }
+
+    private static void withExclusiveFileLock(File lockFile, Closure<?> action) {
+        lockFile.parentFile.mkdirs()
+        try (FileChannel channel = FileChannel.open(lockFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+            channel.lock().withCloseable {
+                action.call()
+            }
+        }
+    }
+
+    private static File resolveGradleUserHome() {
+        String explicitGradleUserHome = System.getProperty("gradle.user.home")
+        if (explicitGradleUserHome != null) {
+            return new File(explicitGradleUserHome)
+        }
+        String envGradleUserHome = System.getenv("GRADLE_USER_HOME")
+        if (envGradleUserHome != null) {
+            return new File(envGradleUserHome)
+        }
+        return new File(System.getProperty("user.home"), ".gradle")
     }
 
     GradleRunner gradleRunner(String... arguments) {

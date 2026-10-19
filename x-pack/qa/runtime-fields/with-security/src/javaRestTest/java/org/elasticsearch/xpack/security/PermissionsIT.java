@@ -273,6 +273,112 @@ public class PermissionsIT extends ESRestTestCase {
         }
     }
 
+    public void testFLSProtectsConstantKeywordData() throws IOException {
+        Request createIndex = new Request("PUT", "/fls");
+        createIndex.setJsonEntity("""
+            {
+                "mappings": {
+                    "runtime": {
+                        "hidden_values_count": {
+                            "type": "long",
+                            "script": "emit(doc['hidden'].size())"
+                        }
+                    },
+                    "properties": {
+                        "hidden": {
+                            "type": "constant_keyword",
+                            "value": "hidden-value"
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(adminClient().performRequest(createIndex));
+
+        Request indexDoc = new Request("PUT", "/fls/_doc/1");
+        indexDoc.addParameter("refresh", "true");
+        indexDoc.setJsonEntity("{}");
+        assertOK(adminClient().performRequest(indexDoc));
+
+        Request searchRequest = new Request("POST", "/fls/_search");
+        searchRequest.setJsonEntity("""
+            {
+                "docvalue_fields": ["hidden_values_count"]
+            }
+            """);
+
+        {
+            // Positive control: without FLS, the runtime script can see the constant.
+            Response response = adminClient().performRequest(searchRequest);
+            ObjectPath path = ObjectPath.createFromResponse(response);
+            assertThat(path.evaluate("hits.total.value"), equalTo(1));
+
+            List<Map<String, ?>> hits = path.evaluate("hits.hits");
+            assertThat(ObjectPath.evaluate(hits.get(0), "fields.hidden_values_count"), equalTo(List.of(1)));
+        }
+
+        {
+            // The runtime output remains accessible, but its hidden input does not.
+            Response response = client().performRequest(searchRequest);
+            ObjectPath path = ObjectPath.createFromResponse(response);
+            assertThat(path.evaluate("hits.total.value"), equalTo(1));
+
+            List<Map<String, ?>> hits = path.evaluate("hits.hits");
+            assertThat(ObjectPath.evaluate(hits.get(0), "fields.hidden_values_count"), equalTo(List.of(0)));
+        }
+    }
+
+    public void testFLSProtectsConstantKeywordDataWithRequestRuntimeMapping() throws IOException {
+        Request createIndex = new Request("PUT", "/fls");
+        createIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "hidden": {
+                    "type": "constant_keyword",
+                    "value": "hidden-value"
+                  }
+                }
+              }
+            }
+            """);
+        assertOK(adminClient().performRequest(createIndex));
+
+        Request indexDoc = new Request("PUT", "/fls/_doc/1");
+        indexDoc.addParameter("refresh", "true");
+        indexDoc.setJsonEntity("{}");
+        assertOK(adminClient().performRequest(indexDoc));
+
+        Request searchRequest = new Request("POST", "/fls/_search");
+        searchRequest.setJsonEntity("""
+            {
+              "runtime_mappings": {
+                "hidden_values_count": {
+                  "type": "long",
+                  "script": "emit(doc['hidden'].size())"
+                }
+              },
+              "docvalue_fields": ["hidden_values_count"]
+            }
+            """);
+
+        {
+            Response response = adminClient().performRequest(searchRequest);
+            ObjectPath path = ObjectPath.createFromResponse(response);
+            List<Map<String, ?>> hits = path.evaluate("hits.hits");
+
+            assertThat(ObjectPath.evaluate(hits.get(0), "fields.hidden_values_count"), equalTo(List.of(1)));
+        }
+
+        {
+            Response response = client().performRequest(searchRequest);
+            ObjectPath path = ObjectPath.createFromResponse(response);
+            List<Map<String, ?>> hits = path.evaluate("hits.hits");
+
+            assertThat(ObjectPath.evaluate(hits.get(0), "fields.hidden_values_count"), equalTo(List.of(0)));
+        }
+    }
+
     public void testPainlessExecuteWithIndexRequiresReadPrivileges() throws IOException {
         Request createIndex = new Request("PUT", "/fls");
         createIndex.setJsonEntity("""

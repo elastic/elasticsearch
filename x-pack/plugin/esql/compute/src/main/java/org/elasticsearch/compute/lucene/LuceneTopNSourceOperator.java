@@ -22,7 +22,6 @@ import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -32,6 +31,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -67,7 +67,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             int limit,
             List<SortBuilder<?>> sorts,
             long estimatedPerRowSortSize,
-            boolean needsScore
+            boolean needsScore,
+            QueryWarnings singleValueQueryWarnings
         ) {
             super(
                 contexts,
@@ -78,7 +79,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                scoreModeFunction(sorts, needsScore)
+                scoreModeFunction(sorts, needsScore),
+                singleValueQueryWarnings
             );
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
@@ -88,14 +90,14 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         @Override
         public SourceOperator get(DriverContext driverContext) {
             return new LuceneTopNSourceOperator(
-                driverContext.breaker(),
-                driverContext.blockFactory(),
+                driverContext,
                 maxPageSize,
                 sorts,
                 estimatedPerRowSortSize,
                 limit,
                 sliceQueue,
-                needsScore
+                needsScore,
+                singleValueQueryWarnings
             );
         }
 
@@ -142,17 +144,17 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     private PerShardCollector perShardCollector;
 
     public LuceneTopNSourceOperator(
-        CircuitBreaker breaker,
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         int maxPageSize,
         List<SortBuilder<?>> sorts,
         long estimatedPerRowSortSize,
         int limit,
         LuceneSliceQueue sliceQueue,
-        boolean needsScore
+        boolean needsScore,
+        QueryWarnings singleValueQueryWarnings
     ) {
-        super(blockFactory, maxPageSize, sliceQueue);
-        this.breaker = breaker;
+        super(driverContext, maxPageSize, sliceQueue, singleValueQueryWarnings);
+        this.breaker = driverContext.breaker();
         this.sorts = sorts;
         this.estimatedPerRowSortSize = estimatedPerRowSortSize;
         this.limit = limit;

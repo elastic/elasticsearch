@@ -25,6 +25,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -83,14 +85,17 @@ import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.s
 public class ConnectorIndexService {
 
     private final Client client;
+    private final ClusterSettings clusterSettings;
 
     public static final String CONNECTOR_INDEX_NAME = ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
 
     /**
      * @param client A client for executing actions on the connector index
+     * @param clusterSettings The cluster settings, used to resolve the connector limits
      */
-    public ConnectorIndexService(Client client) {
+    public ConnectorIndexService(Client client, ClusterSettings clusterSettings) {
         this.client = client;
+        this.clusterSettings = clusterSettings;
     }
 
     /**
@@ -115,8 +120,9 @@ public class ConnectorIndexService {
         String serviceType,
         ActionListener<ConnectorCreateActionResponse> listener
     ) {
-        Connector connector = createConnectorWithDefaultValues(description, indexName, isNative, language, name, serviceType);
         try {
+            validateDescription(description);
+            Connector connector = createConnectorWithDefaultValues(description, indexName, isNative, language, name, serviceType);
             isDataIndexNameAlreadyInUse(indexName, connectorId, listener.delegateFailure((l, isIndexNameInUse) -> {
                 if (isIndexNameInUse) {
                     l.onFailure(
@@ -510,6 +516,7 @@ public class ConnectorIndexService {
      */
     public void updateConnectorNameOrDescription(UpdateConnectorNameAction.Request request, ActionListener<UpdateResponse> listener) {
         try {
+            validateDescription(request.getDescription());
             String connectorId = request.getConnectorId();
 
             final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_INDEX_NAME, connectorId).doc(
@@ -1062,6 +1069,25 @@ public class ConnectorIndexService {
 
     private ConnectorStatus getConnectorStatusFromSearchResult(ConnectorSearchResult searchResult) {
         return ConnectorStatus.connectorStatus((String) searchResult.getResultMap().get(Connector.STATUS_FIELD.getPreferredName()));
+    }
+
+    private void validateDescription(String description) {
+        if (description == null) {
+            return;
+        }
+        @SuppressWarnings("unchecked")
+        Setting<Integer> setting = (Setting<Integer>) clusterSettings.get(ConnectorsConfig.MAX_DESCRIPTION_LENGTH_SETTING.getKey());
+        int maxDescriptionLength = clusterSettings.get(Objects.requireNonNull(setting));
+        if (description.length() > maxDescriptionLength) {
+            throw new IllegalArgumentException(
+                "The description cannot exceed ["
+                    + maxDescriptionLength
+                    + "] characters. "
+                    + "This maximum can be set by changing the ["
+                    + ConnectorsConfig.MAX_DESCRIPTION_LENGTH_SETTING.getKey()
+                    + "] setting."
+            );
+        }
     }
 
     @SuppressWarnings("unchecked")

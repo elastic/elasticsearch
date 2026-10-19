@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 149814
-pr: 157983
-summary: Fix ST_DISTANCE with both args from doc-values
-type: bug

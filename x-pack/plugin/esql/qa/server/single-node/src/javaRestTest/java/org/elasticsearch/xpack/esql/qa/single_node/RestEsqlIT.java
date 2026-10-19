@@ -71,7 +71,7 @@ import static org.hamcrest.core.Is.is;
 public class RestEsqlIT extends RestEsqlTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(
-        specBuilder -> specBuilder.plugin("mapper-size").plugin("mapper-murmur3")
+        specBuilder -> specBuilder.name("esql-cluster").plugin("mapper-size").plugin("mapper-murmur3")
     );
 
     @Override
@@ -375,7 +375,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         // At least 1 metadata event to declare the node, and 2 events each for the data, node_reduce and final drivers, resp.
         assertThat(events.size(), greaterThanOrEqualTo(7));
 
-        String clusterName = "test-cluster";
+        String clusterName = "esql-cluster";
         Set<String> expectedProcessNames = new HashSet<>();
         for (int i = 0; i < cluster.getNumNodes(); i++) {
             expectedProcessNames.add(clusterName + ":" + cluster.getName(i));

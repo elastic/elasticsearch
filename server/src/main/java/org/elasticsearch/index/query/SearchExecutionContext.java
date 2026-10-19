@@ -257,6 +257,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.mapperMetrics,
             circuitBreaker
         );
+        this.fieldVisibilityPredicate = source.fieldVisibilityPredicate;
     }
 
     private SearchExecutionContext(

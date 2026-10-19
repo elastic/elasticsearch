@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
@@ -263,7 +264,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         assertOK(response);
     }
 
-    public RcsCcsCommonYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) throws IOException {
+    public RcsCcsCommonYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) throws IOException {
         super(rewrite(testCandidate));
     }
 

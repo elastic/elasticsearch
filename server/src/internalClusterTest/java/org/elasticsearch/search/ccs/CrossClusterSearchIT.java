@@ -10,6 +10,7 @@
 package org.elasticsearch.search.ccs;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Cluster;
@@ -19,6 +20,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -385,7 +387,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertNotNull(ee.getCause());
             assertThat(ee.getCause(), instanceOf(RemoteTransportException.class));
             Throwable rootCause = ExceptionsHelper.unwrap(ee.getCause(), IllegalStateException.class);
-            assertThat(rootCause.getMessage(), containsString("index corrupted"));
+            assertNotNull(ExceptionsHelper.stackTrace(ee), rootCause);
+            assertThat(ExceptionsHelper.stackTrace(ee), rootCause.getMessage(), containsString("index corrupted"));
         } else {
             assertResponse(queryFuture, response -> {
                 assertNotNull(response);
@@ -437,7 +440,10 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 assertNull(remoteClusterSearchInfo.getTook());
                 assertFalse(remoteClusterSearchInfo.isTimedOut());
                 ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-                assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+                assertTrue(
+                    failureReasonMessage(remoteClusterSearchInfo, remoteShardSearchFailure),
+                    remoteShardSearchFailure.reason().contains("index corrupted")
+                );
             });
         }
     }
@@ -624,7 +630,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
             assertNotNull(ee.getCause());
             Throwable rootCause = ExceptionsHelper.unwrap(ee, IllegalStateException.class);
-            assertThat(rootCause.getMessage(), containsString("index corrupted"));
+            assertNotNull(ExceptionsHelper.stackTrace(ee), rootCause);
+            assertThat(ExceptionsHelper.stackTrace(ee), rootCause.getMessage(), containsString("index corrupted"));
         } else {
             assertResponse(queryFuture, response -> {
                 assertNotNull(response);
@@ -655,7 +662,10 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 assertNull(remoteClusterSearchInfo.getTook());
                 assertFalse(remoteClusterSearchInfo.isTimedOut());
                 ShardSearchFailure remoteShardSearchFailure = remoteClusterSearchInfo.getFailures().get(0);
-                assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+                assertTrue(
+                    failureReasonMessage(remoteClusterSearchInfo, remoteShardSearchFailure),
+                    remoteShardSearchFailure.reason().contains("index corrupted")
+                );
             });
         }
     }
@@ -825,7 +835,21 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertThat(cluster.getFailures().size(), equalTo(1));
         assertThat(cluster.getTook().millis(), greaterThan(0L));
         ShardSearchFailure remoteShardSearchFailure = cluster.getFailures().get(0);
-        assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
+        assertTrue(failureReasonMessage(cluster, remoteShardSearchFailure), remoteShardSearchFailure.reason().contains("index corrupted"));
+    }
+
+    /**
+     * Describes the failure being asserted and its siblings. {@link Cluster#getFailures()} is ordered by arrival, not
+     * by shard id, so the asserted entry is not necessarily shard 0.
+     */
+    private static String failureReasonMessage(Cluster cluster, ShardSearchFailure failure) {
+        return Strings.format(
+            "unexpected reason for failure on shard [%s] of cluster [%s]; all %d failure(s): %s",
+            failure.shard(),
+            cluster.getClusterAlias(),
+            cluster.getFailures().size(),
+            cluster.getFailures()
+        );
     }
 
     private Map<String, Object> setupTwoClusters(String[] localIndices, String[] remoteIndices) {
@@ -839,6 +863,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                     .setSettings(localSettings)
                     .setMapping("@timestamp", "type=date", "f", "type=text")
             );
+            ensureYellowAndNoInitializingShards(LOCAL_CLUSTER, localIndex);
             indexDocs(client(LOCAL_CLUSTER), localIndex);
         }
 
@@ -853,15 +878,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                     .setSettings(indexSettings(numShardsRemote, randomIntBetween(0, 1)))
                     .setMapping("@timestamp", "type=date", "f", "type=text")
             );
-            assertFalse(
-                client(REMOTE_CLUSTER).admin()
-                    .cluster()
-                    .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex)
-                    .setWaitForYellowStatus()
-                    .setTimeout(TimeValue.timeValueSeconds(10))
-                    .get()
-                    .isTimedOut()
-            );
+            ensureYellowAndNoInitializingShards(REMOTE_CLUSTER, remoteIndex);
             indexDocs(client(REMOTE_CLUSTER), remoteIndex);
         }
 
@@ -871,11 +888,33 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             .getClusterSettings()
             .get(skipUnavailableSetting);
 
+        // Both indexDocs() loops above are slow and sequential; re-check right before returning so a shard that
+        // started relocating or re-initializing meanwhile isn't mistaken by callers for a STARTED, queryable shard.
+        ensureYellowAndNoInitializingShards(LOCAL_CLUSTER, localIndices);
+        ensureYellowAndNoInitializingShards(REMOTE_CLUSTER, remoteIndices);
+
         Map<String, Object> clusterInfo = new HashMap<>();
         clusterInfo.put("local.num_shards", numShardsLocal);
         clusterInfo.put("remote.num_shards", numShardsRemote);
         clusterInfo.put("remote.skip_unavailable", skipUnavailable);
         return clusterInfo;
+    }
+
+    // A relocating shard's target copy is tried by search but isn't counted by setWaitForNoInitializingShards,
+    // so a relocation in flight can still hand a query an unqueryable copy; wait for no relocations too.
+    private void ensureYellowAndNoInitializingShards(String clusterAlias, String... indices) {
+        ClusterHealthResponse healthResponse = client(clusterAlias).admin()
+            .cluster()
+            .prepareHealth(TEST_REQUEST_TIMEOUT, indices)
+            .setWaitForYellowStatus()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .setTimeout(TimeValue.timeValueSeconds(30))
+            .get();
+        assertFalse(Strings.toString(healthResponse, true, true), healthResponse.isTimedOut());
+        assertEquals(Strings.toString(healthResponse, true, true), 0, healthResponse.getInitializingShards());
+        assertEquals(Strings.toString(healthResponse, true, true), 0, healthResponse.getRelocatingShards());
     }
 
     private Map<String, Object> setupTwoClusters() {

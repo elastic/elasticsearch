@@ -1,0 +1,5 @@
+pr: 140788
+summary: Flip cloud-ess-fips default from FIPS 140-2 to FIPS 140-3
+area: Packaging
+type: enhancement
+issues: []

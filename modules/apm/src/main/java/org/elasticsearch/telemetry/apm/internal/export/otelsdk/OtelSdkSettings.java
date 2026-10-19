@@ -191,7 +191,7 @@ public final class OtelSdkSettings {
      * otherwise 500. */
     public static final Setting<Integer> TELEMETRY_TRACING_MAX_SPANS = Setting.intSetting(
         "telemetry.tracing.max_spans",
-        settings -> settings.get("telemetry.agent.transaction_max_spans", "500"),
+        settings -> String.valueOf(Math.max(0, settings.getAsInt("telemetry.agent.transaction_max_spans", 500))),
         0,
         Integer.MAX_VALUE,
         OperatorDynamic,

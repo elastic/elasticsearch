@@ -103,7 +103,7 @@ public class OtelSdkSettingsTests extends ESTestCase {
     }
 
     public void testMaxSpansFallsBackToAgentTransactionMaxSpans() {
-        Settings settings = Settings.builder().put("telemetry.agent.transaction_max_spans", "0").build();
+        Settings settings = Settings.builder().put("telemetry.agent.transaction_max_spans", "-1").build();
         assertThat(TELEMETRY_TRACING_MAX_SPANS.get(settings), equalTo(0));
     }
 

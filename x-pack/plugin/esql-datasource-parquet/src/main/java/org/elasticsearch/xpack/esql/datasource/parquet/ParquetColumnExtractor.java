@@ -274,7 +274,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 // needs what the eager readers' does -- the gate, so an inferred pair still null-fills, and the
                 // formatter. It also makes the coercion below skip itself, that being guarded on the target.
                 DataType target = targetTypes == null ? null : targetTypes[c];
-                if (target != null && coercionAdmissible(infos[c].esqlType(), target, columnNames[c])) {
+                // A column already at the target needs no retype, and skipping it here keeps the formatter lookup
+                // off the identity path.
+                if (target != null && target != infos[c].esqlType() && coercionAdmissible(infos[c].esqlType(), target, columnNames[c])) {
                     DateFormatter declaredFormatter = reader.declaredDateFormatterFor(columnNames[c]);
                     if (DeclaredTypeCoercions.fusedInDecode(infos[c].esqlType(), target, declaredFormatter != null)) {
                         infos[c] = infos[c].targetTyped(target, declaredFormatter);
@@ -1219,7 +1221,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 }
                 int runLength = runEnd - runStart;
                 // A retyped view decodes a coercion in this loop, so the sink follows the policy. No failed-position
-                // sink: skip_row never defers extraction. The dropped-null-element notice is unconditional.
+                // sink: skip_row never defers a declared read, and without a declaration only widening pairs retype,
+                // which are total. The dropped-null-element notice is unconditional.
                 chunks.add(
                     ParquetColumnDecoding.readListColumn(
                         listReader,

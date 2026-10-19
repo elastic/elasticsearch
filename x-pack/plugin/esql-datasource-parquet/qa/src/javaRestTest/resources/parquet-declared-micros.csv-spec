@@ -6,8 +6,8 @@
 // carry.
 //
 // Without a declaration the column is read as date_nanos and those rows are still null -- the declared type is what
-// widens the readable range. No case here asserts that; ParquetFormatReaderTests pins it, on every route, in
-// testInferredDatetimeOverADateNanosFileNullsOnEveryRoute.
+// widens the readable range. No case here asserts that; ParquetFormatReaderTests pins it in
+// testReadTimestampMicrosOutOfRangeReturnsNull.
 //
 // {{micros_timestamp}} carries ts over seven rows: 1500-01-01 and the year 3000, outside the nanosecond domain; half
 // a microsecond before 1500-01-01 and one microsecond before the epoch, which separate flooring from truncation; the

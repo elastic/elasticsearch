@@ -163,11 +163,11 @@ final class ParquetColumnDecoding {
             && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS;
         boolean nanosAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts2
             && ts2.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS;
-        // A TIME value is a time of day, so a well-formed one is at most 86_400_000_000 microseconds -- which is
-        // MAX_MICROS_AS_NANOS divided by about 107_000 -- and neither its scale nor its narrowing can null. But
-        // nothing enforces that a file obeys its own annotation, and a MICROS value past that bound is nulled by
-        // microsOverflowsNanos like any other, so only the units with no guard on their path relax here. Trusting
-        // the annotation instead would push IS NULL over a column whose decode can null, which drops rows.
+        // A TIME value is a time of day, so a well-formed one is at most 86_400_000_000 microseconds and neither its
+        // scale nor its narrowing can null. But nothing enforces that a file obeys its own annotation, and on the
+        // inferred date_nanos read a MICROS value past MAX_MICROS_AS_NANOS is still nulled by microsOverflowsNanos,
+        // so only the units with no guard on their path relax here. Trusting the annotation instead would push
+        // IS NULL over a column whose decode can null, which drops rows.
         boolean timeAnnotated = logical instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time2
             && time2.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS;
         return switch (declaredType) {

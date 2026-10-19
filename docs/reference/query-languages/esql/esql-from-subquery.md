@@ -226,13 +226,14 @@ If you only have the directive within the subquery, null values will be returned
 :::
 
 :::{warning}
-In 9.4, `METADATA` on the outer `FROM` is not handled consistently.
+:applies_to: stack: preview =9.4
+`METADATA` on the outer `FROM` is not handled consistently.
 
 If the `FROM` contains only a subquery, the directive is ignored. For example, `FROM (FROM employees) METADATA _index` behaves like `FROM employees` and returns no `_index` column.
 
-If the `FROM` combines a subquery with other sources, you might get `null` values, as in the examples above. This is a side effect of aligning the columns of the sources, not intended behavior.
+If the `FROM` combines a subquery with other sources, the requested metadata columns might appear with `null` values for the subquery rows, but this behavior is not consistent.
 
-Do not rely on either result. To get metadata values, declare the field inside the subquery.
+To retrieve metadata values reliably, request the fields inside the subquery and retain them in its output.
 :::
 
 {applies_to}`stack: ga 9.6+` `_class` and `_name` are the only metadata fields that work on a subquery without the subquery body declaring them. The outer `FROM` answers them for each subquery on its own. `_class` is `subquery`. `_name` is `null`, because a subquery has no name. You do not need the directive inside the subquery. If the subquery body also declares `_class` or `_name`, the outer values replace them.

@@ -36,7 +36,8 @@ The following metadata fields are available in {{esql}}:
 
 ## Usage and limitations
 
-- Most metadata fields are only available when the data source is an index. When a field is not available for a given source, `null` is returned. {applies_to}`stack: ga 9.6` `_class` and `_name` are available on every source: indices, [views](esql-views.md#views-with-metadata), [subqueries](esql-from-subquery.md#subqueries-with-metadata), and [datasets](esql-data-federation-querying.md#use-metadata-columns).
+- Most metadata fields are only available when the data source is an index. When a field is not available for a given source, `null` is returned, subject to the version-specific exceptions described for [views](esql-views.md#views-with-metadata) and [subqueries](esql-from-subquery.md#subqueries-with-metadata).
+- {applies_to}`stack: ga 9.6+` `_class` and `_name` are available on every source: indices, [views](esql-views.md#views-with-metadata), [subqueries](esql-from-subquery.md#subqueries-with-metadata), and [datasets](esql-data-federation-querying.md#use-metadata-columns).
 - The `_source` type is not supported by functions
 - Only the `FROM` command supports the `METADATA` directive
 - Once enabled, metadata fields work like regular index fields
@@ -88,9 +89,9 @@ FROM products METADATA _score
 Refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md#esql-for-search-scoring) for more information on relevance scoring and how to use `_score` in your queries.
 :::
 
-### Metadata over mixed sources
+### Scores across mixed sources
 
-A [subquery](esql-from-subquery.md#subqueries-with-metadata) or [view](esql-views.md#views-with-metadata) returns `null` for a metadata field that its body does not produce. An index returns a real value. This query reads a subquery over `languages` and the `languages` index together:
+A [subquery](esql-from-subquery.md#subqueries-with-metadata) or [view](esql-views.md#views-with-metadata) returns `null` for `_score` when its output does not contain that field. This example combines rows from a subquery over `languages` with rows read directly from the same index:
 
 ```esql
 FROM (FROM languages), languages METADATA _score

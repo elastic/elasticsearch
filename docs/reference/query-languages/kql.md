@@ -49,9 +49,9 @@ To match a number, text, date, or boolean value, enter the field name, a colon, 
 http.request.method: GET
 ```
 
-On `keyword`, numeric, `date`, or `boolean` fields, the value must match exactly, including punctuation and case. To ignore case, use the `case_insensitive` option of the [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md).
+On `keyword`, numeric, `date`, or `boolean` fields, the value must match exactly, including punctuation and case. In the [`kql` query](/reference/query-languages/query-dsl/query-dsl-kql-query.md), use the `case_insensitive` option to ignore case in `keyword` values.
 
-{applies_to}`stack: ga 9.3+` The {{esql}} `KQL` function accepts the `case_insensitive`, `time_zone`, and `default_field` options in its `options` parameter.
+{applies_to}`stack: ga 9.3+` The {{esql}} `KQL` function accepts options such as `case_insensitive`, `time_zone`, and `default_field` in its `options` parameter.
 
 On `text` fields, {{es}} analyzes the value using the [field's mapping settings](docs-content://solutions/search/full-text/text-analysis-during-search.md). For example, documents where `http.request.body.content` contains `null pointer`:
 
@@ -59,7 +59,7 @@ On `text` fields, {{es}} analyzes the value using the [field's mapping settings]
 http.request.body.content: null pointer
 ```
 
-Because this is a `text` field, the order of the search terms doesn't matter. Documents that contain `pointer null` also match. To match the terms in that order, surround the value in quotation marks:
+Because this is a `text` field, the order of the search terms doesn't matter. Documents that contain `pointer null` also match. To match the terms in that order, surround the value with quotation marks:
 
 ```yaml
 http.request.body.content: "null pointer"
@@ -217,7 +217,7 @@ The query can fail if the matching fields have different types. For example, if 
 
 ## Query nested fields [_querying_nested_fields]
 
-[Nested fields](/reference/elasticsearch/mapping-reference/nested.md) use a special syntax. In this document, `user` is a nested field:
+[Nested fields](/reference/elasticsearch/mapping-reference/nested.md) use a special syntax. In this JSON document, `user` is a nested field:
 
 ```json
 {
@@ -240,7 +240,7 @@ To find documents where a single value in the `user` array has the first name `A
 user:{ first: "Alice" and last: "White" }
 ```
 
-If nested fields contain other nested fields, use the full path of the field you want to query. In this document, `user` and `names` are both nested fields:
+If nested fields contain other nested fields, use the full path of the field you want to query. In this JSON document, `user` and `names` are both nested fields:
 
 ```json
 {
